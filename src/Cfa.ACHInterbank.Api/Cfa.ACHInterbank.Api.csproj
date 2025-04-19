@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <DocumentationFile>C:\ACHInterbank\ACHInterbank\src\Cfa.ACHInterbank.Api.xml</DocumentationFile>
+    <UserSecretsId>fdac4e92-4a82-41e2-80cd-245f18336eff</UserSecretsId>
+    <DockerDefaultTargetOS>Windows</DockerDefaultTargetOS>
+    <DockerfileContext>..\..</DockerfileContext>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Remove="NLog.config" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="NLog.config">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Cfa.ACHInterbank.Application\Cfa.ACHInterbank.Application.csproj" />
+    <ProjectReference Include="..\Cfa.ACHInterbank.Domain\Cfa.ACHInterbank.Domain.csproj" />
+    <ProjectReference Include="..\Cfa.ACHInterbank.External\Cfa.ACHInterbank.External.csproj" />
+    <ProjectReference Include="..\Cfa.ACHInterbank.Persistence\Cfa.ACHInterbank.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.0" />
+    <PackageReference Include="NLog" Version="5.3.4" />
+    <PackageReference Include="NLog.Database" Version="5.3.4" />
+    <PackageReference Include="NLog.Extensions.Logging" Version="5.3.15" />
+    <PackageReference Include="NLog.Web.AspNetCore" Version="5.3.15" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
+  </ItemGroup>
+
+</Project>

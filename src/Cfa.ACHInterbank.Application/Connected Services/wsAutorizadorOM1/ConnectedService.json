@@ -1,0 +1,17 @@
+{
+  "ExtendedData": {
+    "inputs": [
+      "http://tarjconti3:8047/Inicio.svc?wsdl"
+    ],
+    "collectionTypes": [
+      "System.Array",
+      "System.Collections.Generic.Dictionary`2"
+    ],
+    "namespaceMappings": [
+      "*, wsAutorizadorOM"
+    ],
+    "sync": true,
+    "targetFramework": "net8.0",
+    "typeReuseMode": "All"
+  }
+}
