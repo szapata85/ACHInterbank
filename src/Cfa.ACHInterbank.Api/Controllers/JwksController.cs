@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
+
 [ApiController]
 [Route("/oauth2")]
 [TypeFilter(typeof(ExceptionManager))]

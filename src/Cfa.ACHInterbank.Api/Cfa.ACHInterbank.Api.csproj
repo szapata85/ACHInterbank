@@ -12,6 +12,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Controllers\JwksController.cs" />
+    <Compile Remove="Controllers\ServersController.cs" />
+    <Compile Remove="Controllers\TestsController.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Remove="NLog.config" />
   </ItemGroup>
 

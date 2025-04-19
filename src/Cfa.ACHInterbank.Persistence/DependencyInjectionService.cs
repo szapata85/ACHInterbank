@@ -20,6 +20,9 @@ public static class DependencyInjectionService
         //}
 
         //services.AddDbContext<DataBaseService>(options => options.UseSqlServer(configuration.GetConnectionString("SqlConnection")));
+
+        services.AddDbContext<NachaDbContext>(options => options.UseSqlServer(configuration.GetConnectionString("SqlConnection")));
+
         //Injection
         var lst = Assembly.GetExecutingAssembly().GetTypes()
                   .Where(t => t.IsClass && !t.IsAbstract) // Filtra solo las clases concretas
