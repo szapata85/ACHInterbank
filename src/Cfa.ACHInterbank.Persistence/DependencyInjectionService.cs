@@ -21,6 +21,8 @@ public static class DependencyInjectionService
 
         //services.AddDbContext<DataBaseService>(options => options.UseSqlServer(configuration.GetConnectionString("SqlConnection")));
 
+        var sqlconnection = configuration.GetConnectionString("SqlConnection");
+
         services.AddDbContext<NachaDbContext>(options => options.UseSqlServer(configuration.GetConnectionString("SqlConnection")));
 
         //Injection

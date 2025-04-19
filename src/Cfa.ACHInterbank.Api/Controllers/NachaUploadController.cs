@@ -1,0 +1,29 @@
+﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Cfa.ACHInterbank.Api.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class NachaUploadController : Controller
+    {
+        private readonly INachaParserServiceScoped _parserService;
+
+        public NachaUploadController(INachaParserServiceScoped parserService)
+        {
+            _parserService = parserService;
+        }
+
+        [HttpPost("upload")]
+        public async Task<IActionResult> UploadNachaFile(IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+                return BadRequest("Archivo inválido.");
+
+            using var stream = file.OpenReadStream();
+            await _parserService.ParseAndSaveAsync(stream);
+
+            return Ok("Archivo procesado y guardado.");
+        }
+    }
+}
