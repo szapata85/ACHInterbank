@@ -14,6 +14,7 @@ public class NachaDbContext : DbContext
     public DbSet<BatchControl> BatchControls { get; set; }
     public DbSet<FileControl> FileControls { get; set; }
 
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(NachaDbContext).Assembly);

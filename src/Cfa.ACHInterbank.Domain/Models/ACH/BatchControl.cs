@@ -10,4 +10,7 @@ public class BatchControl
     public decimal TotalCreditAmount { get; set; }
     public string CompanyId { get; set; }
     public string OdfiIdentification { get; set; }
+
+    public int BatchHeaderId { get; set; }
+    public BatchHeader BatchHeader { get; set; }
 }

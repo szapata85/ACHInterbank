@@ -10,4 +10,10 @@ public class BatchHeader
     public string CompanyEntryDescription { get; set; }
     public string EffectiveEntryDate { get; set; }
     public string OdfiIdentification { get; set; }
+
+    public int NachaHeaderId { get; set; }
+    public NachaHeader NachaHeader { get; set; }
+
+    public ICollection<EntryDetail> Entries { get; set; } = new List<EntryDetail>();
+    public BatchControl BatchControl { get; set; }
 }

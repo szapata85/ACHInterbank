@@ -15,4 +15,6 @@ public class NachaHeader
     public string ImmediateDestinationName { get; set; }
     public string ImmediateOriginName { get; set; }
     public string ReferenceCode { get; set; }
+
+    public ICollection<BatchHeader> Batches { get; set; } = new List<BatchHeader>();
 }

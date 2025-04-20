@@ -9,4 +9,7 @@ public class FileControl
     public decimal EntryHash { get; set; }
     public decimal TotalDebitAmount { get; set; }
     public decimal TotalCreditAmount { get; set; }
+
+    public int NachaHeaderId { get; set; }
+    public NachaHeader NachaHeader { get; set; }
 }

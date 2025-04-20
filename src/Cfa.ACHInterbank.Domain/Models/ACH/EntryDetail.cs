@@ -10,4 +10,9 @@ public class EntryDetail
     public string IndividualIdNumber { get; set; }
     public string IndividualName { get; set; }
     public string TraceNumber { get; set; }
+
+    public int BatchHeaderId { get; set; }
+    public BatchHeader BatchHeader { get; set; }
+
+    public ICollection<AddendaRecord> AddendaRecords { get; set; } = new List<AddendaRecord>();
 }
