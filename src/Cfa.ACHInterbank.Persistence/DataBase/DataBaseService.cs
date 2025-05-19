@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Persistence.Configuration;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Persistence.DataBase;
@@ -16,7 +17,12 @@ public class DataBaseService : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        base.OnModelCreating(modelBuilder);
+        modelBuilder.ApplyConfiguration(new NachaHeaderConfiguration());
+        modelBuilder.ApplyConfiguration(new BatchHeaderConfiguration());
+        modelBuilder.ApplyConfiguration(new EntryDetailConfiguration());
+        modelBuilder.ApplyConfiguration(new AddendaRecordConfiguration());
+        modelBuilder.ApplyConfiguration(new BatchControlConfiguration());
+        modelBuilder.ApplyConfiguration(new FileControlConfiguration());
     }
 
     private void EntityConfiguation(ModelBuilder modelBuilder)
