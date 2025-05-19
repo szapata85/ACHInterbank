@@ -1,4 +1,6 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.Validators.NachaValidator;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cfa.ACHInterbank.Api.Controllers
@@ -22,6 +24,16 @@ namespace Cfa.ACHInterbank.Api.Controllers
 
             using var stream = file.OpenReadStream();
             await _parserService.ParseAndSaveAsync(stream);
+
+            //var validator = new NachaHeaderValidator();
+            //var validationResult = validator.Validate(nachaHeader);
+
+            //if (!validationResult.IsValid)
+            //{
+            //    var errors = string.Join(", ", validationResult.Errors.Select(e => e.ErrorMessage));
+            //    throw new ValidationException("Errores de validación: " + errors);
+            //}
+
 
             return Ok("Archivo procesado y guardado.");
         }
