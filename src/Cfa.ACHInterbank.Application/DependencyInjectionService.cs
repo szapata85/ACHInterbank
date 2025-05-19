@@ -1,7 +1,9 @@
 using System.Reflection;
 using Cfa.ACHInterbank.Application.Configuration;
 using Cfa.ACHInterbank.Application.Services.TokenClient.Model;
+using Cfa.ACHInterbank.Application.Validators.NachaValidator;
 using Cfa.ACHInterbank.Application.Validators.TokenClientValidator;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -48,6 +50,13 @@ public static class DependencyInjectionService
 
         #region Validators
         services.AddSingleton<IValidator<TokenModelClient>, TokenClientValidator>();
+
+        services.AddSingleton<IValidator<AddendaRecord>, AddendaRecordValidator>();
+        services.AddSingleton<IValidator<BatchControl>, BatchControlValidator>();
+        services.AddSingleton<IValidator<BatchHeader>, BatchHeaderValidator>();
+        services.AddSingleton<IValidator<EntryDetail>, EntryDetailValidator>();
+        services.AddSingleton<IValidator<FileControl>, FileControlValidator>();
+        services.AddSingleton<IValidator<NachaHeader>, NachaHeaderValidator>();
 
         #endregion Validators
 
