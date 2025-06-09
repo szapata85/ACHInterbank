@@ -8,8 +8,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<ClearingHouse> ClearingHouses { get; set; }
     public DbSet<AchCycle> AchCycles { get; set; }
     public DbSet<AchTransaction> AchTransactions { get; set; }
+    public DbSet<FinancialInstitution> FinancialInstitutions { get; set; }
     public DbSet<BankHoliday> BankHolidays { get; set; }
     public DbSet<ClearingHouseConfig> ClearingHouseConfigs { get; set; }
+
 
 
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
@@ -20,6 +22,27 @@ public class ApplicationDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<FinancialInstitution>()
+            .HasMany(i => i.SourceTransactions)
+            .WithOne(t => t.SourceInstitution)
+            .HasForeignKey(t => t.SourceInstitutionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<FinancialInstitution>()
+            .HasMany(i => i.DestinationTransactions)
+            .WithOne(t => t.DestinationInstitution)
+            .HasForeignKey(t => t.DestinationInstitutionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+
+        modelBuilder.Entity<AchTransaction>()
+            .HasOne(t => t.AchCycle)
+            .WithMany(c => c.Transactions)
+            .HasForeignKey(t => t.AchCycleId)
+            .OnDelete(DeleteBehavior.Restrict); // o Cascade si aplica
+
+
 
         modelBuilder.Entity<BankHoliday>().HasData(
             new BankHoliday { Id = 1, Date = new DateTime(2025, 1, 1), Description = "Año Nuevo" },
@@ -40,6 +63,9 @@ public class ApplicationDbContext : DbContext
             new BankHoliday { Id = 16, Date = new DateTime(2025, 12, 8), Description = "Inmaculada Concepción" },
             new BankHoliday { Id = 17, Date = new DateTime(2025, 12, 25), Description = "Navidad" }
         );
+
+        modelBuilder.Entity<ClearingHouseConfig>().HasData(new ClearingHouseConfig { Id = 1, ClearingHouseId = 1, HolidayStrategy = "Colombian" });
+
     }
 
 }

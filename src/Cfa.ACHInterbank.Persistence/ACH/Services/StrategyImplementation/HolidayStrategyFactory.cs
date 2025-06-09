@@ -1,12 +1,33 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Persistence.DataBase;
+using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.StrategyImplementation;
 
 public class HolidayStrategyFactory : IHolidayStrategyFactory
 {
+    private readonly ApplicationDbContext _context;
+
+    public HolidayStrategyFactory(ApplicationDbContext context)
+    {
+        _context = context;
+    }
+
     public IHolidayStrategy GetStrategyForClearingHouse(int clearingHouseId)
     {
-        // Future logic: select strategy based on clearingHouseId, region, or other config
-        return new ColombianHolidayStrategy();
+        var config = _context.ClearingHouseConfigs
+            .AsNoTracking()
+            .FirstOrDefault(c => c.ClearingHouseId == clearingHouseId);
+
+        var strategyName = config?.HolidayStrategy ?? "Colombian";
+
+        return strategyName switch
+        {
+            "Colombian" => new ColombianHolidayStrategy(),
+            // "US" => new USHolidayStrategy(),
+            // Add more as needed
+            _ => throw new NotSupportedException($"Strategy '{strategyName}' is not supported.")
+        };
     }
 }
+

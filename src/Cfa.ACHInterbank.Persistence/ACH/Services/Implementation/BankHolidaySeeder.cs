@@ -21,11 +21,28 @@ public class BankHolidaySeeder : IBankHolidaySeeder
         if (await _context.BankHolidays.AnyAsync(h => h.Date.Year == year))
             return;
 
-        var strategy = _strategyFactory.GetStrategyForClearingHouse(0); // Default or general
-        var holidays = strategy.GenerateHolidays(year);
-        await _context.BankHolidays.AddRangeAsync(holidays);
+        var clearingHouseIds = await _context.ClearingHouses.Select(ch => ch.Id).ToListAsync();
+
+        foreach (var chId in clearingHouseIds)
+        {
+            var strategy = _strategyFactory.GetStrategyForClearingHouse(chId);
+            var holidays = strategy.GenerateHolidays(year);
+
+            var existingDates = await _context.BankHolidays
+                .Where(h => h.Date.Year == year)
+                .Select(h => h.Date)
+                .ToListAsync();
+
+            var newHolidays = holidays
+                .Where(h => !existingDates.Contains(h.Date))
+                .ToList();
+
+            await _context.BankHolidays.AddRangeAsync(newHolidays);
+        }
+
         await _context.SaveChangesAsync();
     }
+
 
     public async Task<List<BankHoliday>> GetHolidaysForClearingHouseAsync(int clearingHouseId, int year)
     {
