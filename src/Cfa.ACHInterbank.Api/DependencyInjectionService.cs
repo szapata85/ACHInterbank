@@ -150,11 +150,11 @@ public static class DependencyInjectionService
         //    await next.Invoke();
         //});
 
-        //using (var scope = app.Services.CreateScope())
-        //{
-        //    AchDbContext Context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
-        //    Context.Database.Migrate();
-        //}
+        using (var scope = app.Services.CreateScope())
+        {
+            AchDbContext Context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
+            Context.Database.Migrate();
+        }
 
 
         // Configure the HTTP request pipeline

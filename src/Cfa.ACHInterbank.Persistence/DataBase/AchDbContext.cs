@@ -69,6 +69,12 @@ public class AchDbContext : DbContext
             new BankHoliday { Id = 17, Date = new DateTime(2025, 12, 25), Description = "Navidad" }
         );
 
+
+        modelBuilder.Entity<ClearingHouse>().HasData(
+            new ClearingHouse { Id = 1, Name = "ACH Colombia", Code = "ACHCOL" },
+            new ClearingHouse { Id = 2, Name = "CENIT", Code = "CENIT" }
+            );
+
         modelBuilder.Entity<ClearingHouseConfig>().HasData(new ClearingHouseConfig { Id = 1, ClearingHouseId = 1, HolidayStrategy = "Colombian" });
     }
 }
