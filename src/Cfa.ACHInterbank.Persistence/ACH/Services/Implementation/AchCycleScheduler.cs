@@ -7,9 +7,9 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 public class AchCycleScheduler : IAchCycleScheduler
 {
-    private readonly ApplicationDbContext _context;
+    private readonly AchDbContext _context;
 
-    public AchCycleScheduler(ApplicationDbContext context)
+    public AchCycleScheduler(AchDbContext context)
     {
         _context = context;
     }

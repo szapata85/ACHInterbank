@@ -7,10 +7,10 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 public class BankHolidaySeeder : IBankHolidaySeeder
 {
-    private readonly ApplicationDbContext _context;
+    private readonly AchDbContext _context;
     private readonly IHolidayStrategyFactory _strategyFactory;
 
-    public BankHolidaySeeder(ApplicationDbContext context, IHolidayStrategyFactory strategyFactory)
+    public BankHolidaySeeder(AchDbContext context, IHolidayStrategyFactory strategyFactory)
     {
         _context = context;
         _strategyFactory = strategyFactory;

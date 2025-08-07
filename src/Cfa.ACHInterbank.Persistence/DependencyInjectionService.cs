@@ -23,7 +23,14 @@ public static class DependencyInjectionService
 
         var sqlconnection = configuration.GetConnectionString("SqlConnection");
 
-        services.AddDbContext<NachaDbContext>(options => options.UseSqlServer(configuration.GetConnectionString("SqlConnection")));
+        services.AddDbContext<AchDbContext>(options => options.UseSqlServer(configuration.GetConnectionString("SqlConnection")));
+
+        //using (var scope = app.Services.CreateScope())
+        //{
+        //    BarContext Context = scope.ServiceProvider.GetRequiredService<BarContext>();
+        //    Context.Database.Migrate();
+        //}
+
 
         //Injection
         var lst = Assembly.GetExecutingAssembly().GetTypes()

@@ -6,9 +6,9 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.StrategyImplementation;
 
 public class HolidayStrategyFactory : IHolidayStrategyFactory
 {
-    private readonly ApplicationDbContext _context;
+    private readonly AchDbContext _context;
 
-    public HolidayStrategyFactory(ApplicationDbContext context)
+    public HolidayStrategyFactory(AchDbContext context)
     {
         _context = context;
     }

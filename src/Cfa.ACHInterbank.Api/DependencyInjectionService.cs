@@ -1,11 +1,14 @@
+using Cfa.ACHInterbank.Application.Helpers.AddressIp;
+using Cfa.ACHInterbank.Application.Helpers.Middleware;
+using Cfa.ACHInterbank.Persistence.DataBase;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
+using NLog.Extensions.Logging;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
-using Cfa.ACHInterbank.Application.Helpers.AddressIp;
-using Cfa.ACHInterbank.Application.Helpers.Middleware;
-using Microsoft.OpenApi.Models;
-using NLog.Extensions.Logging;
 
 namespace Cfa.ACHInterbank.Api;
 
@@ -146,6 +149,12 @@ public static class DependencyInjectionService
 
         //    await next.Invoke();
         //});
+
+        //using (var scope = app.Services.CreateScope())
+        //{
+        //    AchDbContext Context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
+        //    Context.Database.Migrate();
+        //}
 
 
         // Configure the HTTP request pipeline

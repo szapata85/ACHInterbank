@@ -6,9 +6,9 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services;
 
 public class NachaServiceScoped : INachaServiceScoped
 {
-    private readonly NachaDbContext _context;
+    private readonly AchDbContext _context;
 
-    public NachaServiceScoped(NachaDbContext context)
+    public NachaServiceScoped(AchDbContext context)
     {
         _context = context;
     }
