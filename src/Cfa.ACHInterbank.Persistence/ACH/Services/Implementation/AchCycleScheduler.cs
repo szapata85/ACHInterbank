@@ -8,10 +8,12 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class AchCycleScheduler : IAchCycleScheduler
 {
     private readonly AchDbContext _context;
+    private readonly IBankHolidaySeeder _holidayService;
 
-    public AchCycleScheduler(AchDbContext context)
+    public AchCycleScheduler(AchDbContext context, IBankHolidaySeeder holidayService)
     {
         _context = context;
+        _holidayService = holidayService;
     }
 
     public async Task ScheduleCyclesForClearingHouseAsync(int clearingHouseId)
@@ -72,6 +74,26 @@ public class AchCycleScheduler : IAchCycleScheduler
         return await _context.AchCycles
             .Where(c => c.ClearingHouseId == clearingHouseId && c.ProcessingDate.Date == date.Date)
             .ToListAsync();
+    }
+
+    public DateTime GetNextValidProcessingDate(DateTime baseDate)
+    {
+        var date = baseDate;
+
+        while (IsNonWorkingDay(date))
+        {
+            date = date.AddDays(1);
+        }
+
+        return date;
+    }
+
+    private bool IsNonWorkingDay(DateTime date)
+    {
+        var holidays = _holidayService.GetHolidays(date.Year);
+        return date.DayOfWeek == DayOfWeek.Saturday ||
+               date.DayOfWeek == DayOfWeek.Sunday ||
+               holidays.Contains(date.Date);
     }
 
     private DateTime GetNextBusinessDay(DateTime date, List<DateTime> holidays)

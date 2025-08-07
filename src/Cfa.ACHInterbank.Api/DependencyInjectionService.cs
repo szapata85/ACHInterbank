@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.Helpers.AddressIp;
 using Cfa.ACHInterbank.Application.Helpers.Middleware;
+using Cfa.ACHInterbank.Persistence.ACH.Services;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
@@ -118,6 +119,8 @@ public static class DependencyInjectionService
 
         services.AddHttpClient();
 
+        services.AddScoped<AchInitializationService>();
+
         return services;
     }
 
@@ -150,11 +153,17 @@ public static class DependencyInjectionService
         //    await next.Invoke();
         //});
 
+
+
         using (var scope = app.Services.CreateScope())
         {
             AchDbContext Context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
+            var initializer = scope.ServiceProvider.GetRequiredService<AchInitializationService>();
             Context.Database.Migrate();
+
+            _ = initializer.InitializeAsync(); // Aquí se ejecuta tu lógica en runtime
         }
+
 
 
         // Configure the HTTP request pipeline

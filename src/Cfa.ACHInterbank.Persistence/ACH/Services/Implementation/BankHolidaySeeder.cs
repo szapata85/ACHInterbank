@@ -50,4 +50,12 @@ public class BankHolidaySeeder : IBankHolidaySeeder
             .Where(h => h.Date.Year == year)
             .ToListAsync();
     }
+
+    public List<DateTime> GetHolidays(int year)
+    {
+        return _context.BankHolidays
+            .Where(h => h.Date.Year == year)
+            .Select(h => h.Date.Date)
+            .ToList();
+    }
 }

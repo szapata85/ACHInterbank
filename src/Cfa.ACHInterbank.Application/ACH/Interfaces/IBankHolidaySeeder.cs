@@ -6,4 +6,5 @@ public interface IBankHolidaySeeder
 {
     Task SeedHolidaysIfNotExistsAsync(int year);
     Task<List<BankHoliday>> GetHolidaysForClearingHouseAsync(int clearingHouseId, int year);
+    List<DateTime> GetHolidays(int year);
 }
