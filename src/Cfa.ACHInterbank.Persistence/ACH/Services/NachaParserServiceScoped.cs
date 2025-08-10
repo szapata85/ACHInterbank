@@ -59,7 +59,7 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
 
     private NachaHeader ParseFileHeader(string line)
     {
-        var Nachaheader =  new NachaHeader
+        return new NachaHeader
         {
             PriorityCode = line.Substring(1, 2),
             ImmediateDestination = line.Substring(3, 10).Trim(),
@@ -74,8 +74,6 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
             ImmediateOriginName = line.Substring(65, 23).Trim(),
             ReferenceCode = line.Substring(88, 8).Trim()
         };
-
-        return Nachaheader;
     }
 
     private BatchHeader ParseBatchHeader(string line)
