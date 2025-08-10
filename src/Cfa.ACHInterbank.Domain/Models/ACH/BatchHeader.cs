@@ -1,4 +1,6 @@
-﻿namespace Cfa.ACHInterbank.Domain.Models.ACH;
+﻿using Cfa.ACHInterbank.Domain.Entities.User;
+
+namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
 public class BatchHeader
 {
@@ -11,7 +13,10 @@ public class BatchHeader
     public string CompanyEntryDescription { get; set; }
     public string DescriptiveDate { get; set; }
     public string EffectiveEntryDate { get; set; }
-    public string OdfiIdentification { get; set; }
+    public string CompensationDate { get; set; }
+    public string OriginUserStatusCode { get; set; }
+    public string OriginParticipantEntityCode { get; set; }
+    public int BatchNumber { get; set; }
 
     public int NachaHeaderId { get; set; }
     public NachaHeader NachaHeader { get; set; }

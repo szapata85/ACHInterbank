@@ -24,32 +24,32 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
                       .Select(i => linefull.Substring(i * LenghtLine, Math.Min(LenghtLine, linefull.Length - i * LenghtLine)))
                       .ToList();
 
+        IEnumerable<char> recordsTypes = lines.Select(a => a[0]).Distinct();
 
-        foreach (string line in lines)
+        foreach (char recordType in recordsTypes)
         {
-            if (string.IsNullOrWhiteSpace(line)) continue;
+            List<string> resultLine = lines.Where(a => a[0] == recordType).ToList();
 
-            char recordType = line[0];
 
             switch (recordType)
             {
                 case '1':
-                    _context.NachaHeaders.Add(ParseFileHeader(line));
+                    _context.NachaHeaders.AddRange(ParseFileHeaderLinq(resultLine));
                     break;
                 case '5':
-                    _context.BatchHeaders.Add(ParseBatchHeader(line));
+                    _context.BatchHeaders.AddRange(ParseBatchHeaderLinq(resultLine));
                     break;
                 case '6':
-                    _context.EntryDetails.Add(ParseEntryDetail(line));
+                    //_context.EntryDetails.Add(ParseEntryDetail(line));
                     break;
                 case '7':
-                    _context.AddendaRecords.Add(ParseAddenda(line));
+                    //_context.AddendaRecords.Add(ParseAddenda(line));
                     break;
                 case '8':
-                    _context.BatchControls.Add(ParseBatchControl(line));
+                    //_context.BatchControls.Add(ParseBatchControl(line));
                     break;
                 case '9':
-                    _context.FileControls.Add(ParseFileControl(line));
+                    //_context.FileControls.Add(ParseFileControl(line));
                     break;
             }
         }
@@ -57,41 +57,42 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
         await _context.SaveChangesAsync();
     }
 
-    private NachaHeader ParseFileHeader(string line)
+    private List<NachaHeader> ParseFileHeaderLinq(List<string> line)
     {
-        return new NachaHeader
+        return line.Select(a => new NachaHeader
         {
-            PriorityCode = line.Substring(1, 2),
-            ImmediateDestination = line.Substring(3, 10).Trim(),
-            ImmediateOrigin = line.Substring(13, 10).Trim(),
-            FileCreationDate = line.Substring(23, 8),
-            FileCreationTime = line.Substring(31, 4),
-            FileIdModifier = line.Substring(35, 1),
-            RecordSize = line.Substring(36, 3),
-            BlockingFactor = line.Substring(39, 2),
-            FormatCode = line.Substring(41, 1),
-            ImmediateDestinationName = line.Substring(42, 23).Trim(),
-            ImmediateOriginName = line.Substring(65, 23).Trim(),
-            ReferenceCode = line.Substring(88, 8).Trim()
-        };
+            PriorityCode = a.Substring(1, 2),
+            ImmediateDestination = a.Substring(3, 10).Trim(),
+            ImmediateOrigin = a.Substring(13, 10).Trim(),
+            FileCreationDate = a.Substring(23, 8),
+            FileCreationTime = a.Substring(31, 4),
+            FileIdModifier = a.Substring(35, 1),
+            RecordSize = a.Substring(36, 3),
+            BlockingFactor = a.Substring(39, 2),
+            FormatCode = a.Substring(41, 1),
+            ImmediateDestinationName = a.Substring(42, 23).Trim(),
+            ImmediateOriginName = a.Substring(65, 23).Trim(),
+            ReferenceCode = a.Substring(88, 8).Trim()
+        }).ToList();
     }
 
-    private BatchHeader ParseBatchHeader(string line)
+    private List<BatchHeader> ParseBatchHeaderLinq(List<string> line)
     {
-        var varreturn = new BatchHeader
+        return line.Select(a => new BatchHeader
         {
-            ServiceClassCode = line.Substring(1, 3),
-            CompanyName = line.Substring(4, 16).Trim(),
-            DiscretionaryData = line.Substring(20, 20).Trim(),
-            CompanyId = line.Substring(40, 10).Trim(),
-            StandardEntryClassCode = line.Substring(50, 3),
-            CompanyEntryDescription = line.Substring(53, 10).Trim(),
-            DescriptiveDate = line.Substring(63, 8).Trim(),
-            EffectiveEntryDate = line.Substring(69, 6),
-            OdfiIdentification = line.Substring(79, 8)
-        };
-
-        return varreturn;
+            ServiceClassCode = a.Substring(1, 3),
+            CompanyName = a.Substring(4, 16).Trim(),
+            DiscretionaryData = a.Substring(20, 20).Trim(),
+            CompanyId = a.Substring(40, 10).Trim(),
+            StandardEntryClassCode = a.Substring(50, 3),
+            CompanyEntryDescription = a.Substring(53, 10).Trim(),
+            DescriptiveDate = a.Substring(63, 8).Trim(),
+            EffectiveEntryDate = a.Substring(71, 8),
+            CompensationDate = a.Substring(79, 3),
+            OriginUserStatusCode = a.Substring(82, 1),
+            OriginParticipantEntityCode = a.Substring(83, 8),
+            BatchNumber = int.Parse(a.Substring(91, 7))
+        }).ToList();
     }
 
     private EntryDetail ParseEntryDetail(string line)
