@@ -78,16 +78,19 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
 
     private BatchHeader ParseBatchHeader(string line)
     {
-        return new BatchHeader
+        var varreturn = new BatchHeader
         {
             ServiceClassCode = line.Substring(1, 3),
             CompanyName = line.Substring(4, 16).Trim(),
+            DiscretionaryData = line.Substring(20, 20).Trim(),
             CompanyId = line.Substring(40, 10).Trim(),
             StandardEntryClassCode = line.Substring(50, 3),
             CompanyEntryDescription = line.Substring(53, 10).Trim(),
             EffectiveEntryDate = line.Substring(69, 6),
             OdfiIdentification = line.Substring(79, 8)
         };
+
+        return varreturn;
     }
 
     private EntryDetail ParseEntryDetail(string line)
