@@ -64,15 +64,15 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
             PriorityCode = line.Substring(1, 2),
             ImmediateDestination = line.Substring(3, 10).Trim(),
             ImmediateOrigin = line.Substring(13, 10).Trim(),
-            FileCreationDate = line.Substring(23, 6),
-            FileCreationTime = line.Substring(29, 4),
-            FileIdModifier = line.Substring(33, 1),
-            RecordSize = line.Substring(34, 3),
-            BlockingFactor = line.Substring(37, 2),
-            FormatCode = line.Substring(39, 1),
-            ImmediateDestinationName = line.Substring(40, 23).Trim(),
-            ImmediateOriginName = line.Substring(63, 23).Trim(),
-            ReferenceCode = line.Substring(86, 14).Trim()
+            FileCreationDate = line.Substring(23, 8),
+            FileCreationTime = line.Substring(31, 4),
+            FileIdModifier = line.Substring(35, 1),
+            RecordSize = line.Substring(36, 3),
+            BlockingFactor = line.Substring(39, 2),
+            FormatCode = line.Substring(41, 1),
+            ImmediateDestinationName = line.Substring(42, 23).Trim(),
+            ImmediateOriginName = line.Substring(65, 23).Trim(),
+            ReferenceCode = line.Substring(88, 8).Trim()
         };
 
         return Nachaheader;
