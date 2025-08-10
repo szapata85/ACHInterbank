@@ -17,6 +17,8 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
     {
         try
         {
+            _context.ChangeTracker.AutoDetectChangesEnabled = false;
+
             using var reader = new StreamReader(nachaStream);
             string? linefull = await reader.ReadLineAsync();
             int LenghtLine = int.Parse(linefull!.Substring(36, 3));
@@ -28,8 +30,9 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
 
             IEnumerable<char> recordsTypes = lines.Select(a => a[0]).Distinct();
 
-            List<NachaHeader> NachaHeader = new List<NachaHeader>();
-            List<BatchHeader> BatchHeader = new List<BatchHeader>();
+            List<NachaHeader> NachaHeader = new();
+            List<BatchHeader> BatchHeader = new();
+            List<EntryDetail> EntryDetail = new();
 
             foreach (char recordType in recordsTypes)
             {
@@ -49,6 +52,8 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
                         //_context.SaveChanges();
                         break;
                     case '6':
+                        EntryDetail = ParseEntryDetailLinq(resultLine);
+
                         //_context.EntryDetails.AddRange(ParseEntryDetailLinq(resultLine));
                         break;
                     case '7':
@@ -64,10 +69,13 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
             }
 
             NachaHeader[0].Batches = BatchHeader;
+            NachaHeader[0].EntryDetails = EntryDetail;
             _context.NachaHeaders.AddRange(NachaHeader);
 
             await _context.SaveChangesAsync();
-        }catch(Exception ex)
+            _context.ChangeTracker.AutoDetectChangesEnabled = true;
+        }
+        catch(Exception ex)
         {
             var mensaje = ex.GetBaseException().ToString();
         }
@@ -121,7 +129,7 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
             ReceivingParticipantEntityCode = a.Substring(3, 8),
             CheckDigit = a.Substring(11, 1),
             AccountNumber = a.Substring(12, 17),
-            Amount = a.Substring(29, 18),
+            Amount = Convert.ToDecimal(a.Substring(29, 18)) / 100,
             RecipIdNumber = a.Substring(47, 15),
             RecipUserName = a.Substring(62, 22),
             DiscreData = a.Substring(84, 2),

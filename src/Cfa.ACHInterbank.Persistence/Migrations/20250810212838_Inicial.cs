@@ -118,14 +118,43 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     OriginUserStatusCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     OriginParticipantEntityCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     BatchNumber = table.Column<int>(type: "int", nullable: false),
-                    NachaHeaderNachaID = table.Column<int>(type: "int", nullable: false)
+                    NachaID = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_BatchHeaders", x => x.BatchID);
                     table.ForeignKey(
-                        name: "FK_BatchHeaders_NachaHeaders_NachaHeaderNachaID",
-                        column: x => x.NachaHeaderNachaID,
+                        name: "FK_BatchHeaders_NachaHeaders_NachaID",
+                        column: x => x.NachaID,
+                        principalTable: "NachaHeaders",
+                        principalColumn: "NachaID",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "EntryDetails",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TransactionCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ReceivingParticipantEntityCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CheckDigit = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    AccountNumber = table.Column<string>(type: "nvarchar(17)", maxLength: 17, nullable: true),
+                    Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
+                    RecipIdNumber = table.Column<string>(type: "nvarchar(15)", maxLength: 15, nullable: true),
+                    RecipUserName = table.Column<string>(type: "nvarchar(22)", maxLength: 22, nullable: true),
+                    DiscreData = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    AddendumIndicator = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    SequenceNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    NachaID = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_EntryDetails", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_EntryDetails_NachaHeaders_NachaID",
+                        column: x => x.NachaID,
                         principalTable: "NachaHeaders",
                         principalColumn: "NachaID",
                         onDelete: ReferentialAction.Cascade);
@@ -206,31 +235,24 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "EntryDetails",
+                name: "AddendaRecords",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    TransactionCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ReceivingParticipantEntityCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    CheckDigit = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    AccountNumber = table.Column<string>(type: "nvarchar(17)", maxLength: 17, nullable: true),
-                    Amount = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    RecipIdNumber = table.Column<string>(type: "nvarchar(15)", maxLength: 15, nullable: true),
-                    RecipUserName = table.Column<string>(type: "nvarchar(22)", maxLength: 22, nullable: true),
-                    DiscreData = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    AddendumIndicator = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    SequenceNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    BatchHeaderId = table.Column<int>(type: "int", nullable: false)
+                    PaymentRelatedInformation = table.Column<string>(type: "nvarchar(80)", maxLength: 80, nullable: false),
+                    AddendaSequenceNumber = table.Column<string>(type: "nvarchar(4)", maxLength: 4, nullable: false),
+                    EntryDetailSequenceNumber = table.Column<string>(type: "nvarchar(7)", maxLength: 7, nullable: false),
+                    EntryDetailId = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_EntryDetails", x => x.Id);
+                    table.PrimaryKey("PK_AddendaRecords", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_EntryDetails_BatchHeaders_BatchHeaderId",
-                        column: x => x.BatchHeaderId,
-                        principalTable: "BatchHeaders",
-                        principalColumn: "BatchID",
+                        name: "FK_AddendaRecords_EntryDetails_EntryDetailId",
+                        column: x => x.EntryDetailId,
+                        principalTable: "EntryDetails",
+                        principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
 
@@ -269,28 +291,6 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         principalTable: "FinancialInstitutions",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "AddendaRecords",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    PaymentRelatedInformation = table.Column<string>(type: "nvarchar(80)", maxLength: 80, nullable: false),
-                    AddendaSequenceNumber = table.Column<string>(type: "nvarchar(4)", maxLength: 4, nullable: false),
-                    EntryDetailSequenceNumber = table.Column<string>(type: "nvarchar(7)", maxLength: 7, nullable: false),
-                    EntryDetailId = table.Column<int>(type: "int", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AddendaRecords", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_AddendaRecords_EntryDetails_EntryDetailId",
-                        column: x => x.EntryDetailId,
-                        principalTable: "EntryDetails",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.InsertData(
@@ -362,9 +362,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 column: "BatchHeaderId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_BatchHeaders_NachaHeaderNachaID",
+                name: "IX_BatchHeaders_NachaID",
                 table: "BatchHeaders",
-                column: "NachaHeaderNachaID");
+                column: "NachaID");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ClearingHouses_ClearingHouseId",
@@ -372,9 +372,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 column: "ClearingHouseId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_EntryDetails_BatchHeaderId",
+                name: "IX_EntryDetails_NachaID",
                 table: "EntryDetails",
-                column: "BatchHeaderId");
+                column: "NachaID");
 
             migrationBuilder.CreateIndex(
                 name: "IX_FileControls_NachaHeaderId",
@@ -410,16 +410,16 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 name: "EntryDetails");
 
             migrationBuilder.DropTable(
-                name: "ClearingHouses");
-
-            migrationBuilder.DropTable(
                 name: "BatchHeaders");
 
             migrationBuilder.DropTable(
-                name: "ClearingHouseConfigs");
+                name: "ClearingHouses");
 
             migrationBuilder.DropTable(
                 name: "NachaHeaders");
+
+            migrationBuilder.DropTable(
+                name: "ClearingHouseConfigs");
         }
     }
 }

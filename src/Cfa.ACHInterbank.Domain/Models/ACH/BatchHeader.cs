@@ -18,11 +18,8 @@ public class BatchHeader
     public string OriginUserStatusCode { get; set; }
     public string OriginParticipantEntityCode { get; set; }
     public int BatchNumber { get; set; }
+    public int NachaID { get; set; }
 
     [ForeignKey("NachaID")]
-    public int NachaHeaderNachaID { get; set; }
-    public virtual NachaHeader NachaHeader { get; set; }
-
-    //public ICollection<EntryDetail> Entries { get; set; } = new List<EntryDetail>();
-    //public BatchControl BatchControl { get; set; }
+    public virtual NachaHeader? NachaHeader { get; set; }
 }

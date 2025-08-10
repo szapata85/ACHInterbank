@@ -11,6 +11,6 @@ public class EntryDetailValidator : AbstractValidator<EntryDetail>
         RuleFor(x => x.AccountNumber).NotEmpty().MaximumLength(17);
         RuleFor(x => x.RecipUserName).MaximumLength(22);
 
-        RuleForEach(x => x.AddendaRecords).SetValidator(new AddendaRecordValidator());
+        //RuleForEach(x => x.AddendaRecords).SetValidator(new AddendaRecordValidator());
     }
 }

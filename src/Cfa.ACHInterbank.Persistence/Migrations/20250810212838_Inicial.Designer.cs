@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Cfa.ACHInterbank.Persistence.Migrations
 {
     [DbContext(typeof(AchDbContext))]
-    [Migration("20250810190711_Inicial")]
+    [Migration("20250810212838_Inicial")]
     partial class Inicial
     {
         /// <inheritdoc />
@@ -340,7 +340,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("NachaHeaderNachaID")
+                    b.Property<int>("NachaID")
                         .HasColumnType("int");
 
                     b.Property<string>("OriginParticipantEntityCode")
@@ -362,7 +362,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     b.HasKey("BatchID");
 
-                    b.HasIndex("NachaHeaderNachaID");
+                    b.HasIndex("NachaID");
 
                     b.ToTable("BatchHeaders", (string)null);
                 });
@@ -452,17 +452,17 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Property<string>("AddendumIndicator")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("Amount")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("BatchHeaderId")
-                        .HasColumnType("int");
+                    b.Property<decimal?>("Amount")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("CheckDigit")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("DiscreData")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("NachaID")
+                        .HasColumnType("int");
 
                     b.Property<string>("ReceivingParticipantEntityCode")
                         .HasColumnType("nvarchar(max)");
@@ -483,7 +483,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BatchHeaderId");
+                    b.HasIndex("NachaID");
 
                     b.ToTable("EntryDetails", (string)null);
                 });
@@ -649,7 +649,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AddendaRecord", b =>
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.EntryDetail", "EntryDetail")
-                        .WithMany("AddendaRecords")
+                        .WithMany()
                         .HasForeignKey("EntryDetailId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -672,7 +672,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.NachaHeader", "NachaHeader")
                         .WithMany("Batches")
-                        .HasForeignKey("NachaHeaderNachaID")
+                        .HasForeignKey("NachaID")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -692,13 +692,13 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.EntryDetail", b =>
                 {
-                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.BatchHeader", "BatchHeader")
-                        .WithMany()
-                        .HasForeignKey("BatchHeaderId")
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.NachaHeader", "NachaHeader")
+                        .WithMany("EntryDetails")
+                        .HasForeignKey("NachaID")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("BatchHeader");
+                    b.Navigation("NachaHeader");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.FileControl", b =>
@@ -727,11 +727,6 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Navigation("ClearingHouses");
                 });
 
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.EntryDetail", b =>
-                {
-                    b.Navigation("AddendaRecords");
-                });
-
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.FinancialInstitution", b =>
                 {
                     b.Navigation("DestinationTransactions");
@@ -742,6 +737,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaHeader", b =>
                 {
                     b.Navigation("Batches");
+
+                    b.Navigation("EntryDetails");
                 });
 #pragma warning restore 612, 618
         }

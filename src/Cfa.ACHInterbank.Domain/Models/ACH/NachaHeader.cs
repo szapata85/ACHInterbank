@@ -22,4 +22,5 @@ public class NachaHeader
     public string ReferenceCode { get; set; }
 
     public virtual ICollection<BatchHeader> Batches { get; set; }
+    public virtual ICollection<EntryDetail> EntryDetails { get; set; }
 }

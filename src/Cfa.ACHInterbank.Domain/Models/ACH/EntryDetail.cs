@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Domain.Entities.User;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
@@ -9,15 +10,16 @@ public class EntryDetail
     public string? ReceivingParticipantEntityCode { get; set; }
     public string? CheckDigit { get; set; }
     public string? AccountNumber { get; set; }
-    public string? Amount { get; set; }
+    public decimal? Amount { get; set; }
     public string? RecipIdNumber { get; set; }
     public string? RecipUserName { get; set; }
     public string? DiscreData { get; set; }
     public string? AddendumIndicator { get; set; }
     public string? SequenceNumber { get; set; }
+    public int NachaID { get; set; }
 
-    public int BatchHeaderId { get; set; }
-    public BatchHeader BatchHeader { get; set; }
+    [ForeignKey("NachaID")]
+    public virtual NachaHeader? NachaHeader { get; set; }
 
-    public ICollection<AddendaRecord> AddendaRecords { get; set; } = new List<AddendaRecord>();
+    //public ICollection<AddendaRecord> AddendaRecords { get; set; } = new List<AddendaRecord>();
 }
