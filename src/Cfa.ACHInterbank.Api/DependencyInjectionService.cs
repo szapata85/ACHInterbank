@@ -108,14 +108,14 @@ public static class DependencyInjectionService
             });
         });
 
-        services.AddCors(options => options.AddPolicy("CorsPolicy", builder =>
-        {
-            builder
-                .AllowAnyMethod()
-                .AllowAnyHeader()
-                .SetIsOriginAllowed(origin => true)
-                .AllowCredentials();
-        }));
+        //services.AddCors(options => options.AddPolicy("CorsPolicy", builder =>
+        //{
+        //    builder
+        //        .AllowAnyMethod()
+        //        .AllowAnyHeader()
+        //        .SetIsOriginAllowed(origin => true)
+        //        .AllowCredentials();
+        //}));
 
         services.AddHttpClient();
 
@@ -157,9 +157,9 @@ public static class DependencyInjectionService
 
         using (var scope = app.Services.CreateScope())
         {
-            AchDbContext Context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
+            //AchDbContext Context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
             var initializer = scope.ServiceProvider.GetRequiredService<AchInitializationService>();
-            Context.Database.Migrate();
+            //Context.Database.Migrate();
 
             _ = initializer.InitializeAsync(); // Aquí se ejecuta tu lógica en runtime
         }
@@ -179,7 +179,7 @@ public static class DependencyInjectionService
         app.UseRateLimiter();
         app.UseRouting();
         //app.UseCsrfTokenMiddleware();
-        app.UseCors("CorsPolicy");
+        //app.UseCors("CorsPolicy");
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapControllers();

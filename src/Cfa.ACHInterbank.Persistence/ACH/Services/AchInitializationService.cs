@@ -17,7 +17,8 @@ public class AchInitializationService
 
     public async Task InitializeAsync()
     {
-        var currentYear = DateTime.Now.Year;
+        //var currentYear = DateTime.Now.Year;
+        var currentYear = 2016;//DateTime.Now.Year;
 
         // Seed bank holidays if not already present
         await _bankHolidaySeeder.SeedHolidaysIfNotExistsAsync(currentYear);

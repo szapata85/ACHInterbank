@@ -16,9 +16,16 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
     public async Task ParseAndSaveAsync(Stream nachaStream)
     {
         using var reader = new StreamReader(nachaStream);
-        string? line;
+        string? linefull = await reader.ReadLineAsync();
+        int LenghtLine = int.Parse(linefull!.Substring(36, 3));
 
-        while ((line = await reader.ReadLineAsync()) != null)
+
+        List<string> lines = Enumerable.Range(0, (int)Math.Ceiling((double)linefull.Length / LenghtLine))
+                      .Select(i => linefull.Substring(i * LenghtLine, Math.Min(LenghtLine, linefull.Length - i * LenghtLine)))
+                      .ToList();
+
+
+        foreach (string line in lines)
         {
             if (string.IsNullOrWhiteSpace(line)) continue;
 
@@ -52,7 +59,7 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
 
     private NachaHeader ParseFileHeader(string line)
     {
-        return new NachaHeader
+        var Nachaheader =  new NachaHeader
         {
             PriorityCode = line.Substring(1, 2),
             ImmediateDestination = line.Substring(3, 10).Trim(),
@@ -67,6 +74,8 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
             ImmediateOriginName = line.Substring(63, 23).Trim(),
             ReferenceCode = line.Substring(86, 14).Trim()
         };
+
+        return Nachaheader;
     }
 
     private BatchHeader ParseBatchHeader(string line)
