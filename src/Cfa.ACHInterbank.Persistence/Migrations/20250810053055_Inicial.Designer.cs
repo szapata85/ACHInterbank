@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Cfa.ACHInterbank.Persistence.Migrations
 {
     [DbContext(typeof(AchDbContext))]
-    [Migration("20250807205211_Inicial")]
+    [Migration("20250810053055_Inicial")]
     partial class Inicial
     {
         /// <inheritdoc />
@@ -308,6 +308,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("BatchNumber")
+                        .HasColumnType("int");
+
                     b.Property<string>("CompanyEntryDescription")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -322,6 +325,18 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
 
+                    b.Property<string>("CompensationDate")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DescriptiveDate")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DiscretionaryData")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("EffectiveEntryDate")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -329,7 +344,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Property<int>("NachaHeaderId")
                         .HasColumnType("int");
 
-                    b.Property<string>("OdfiIdentification")
+                    b.Property<string>("OriginParticipantEntityCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OriginUserStatusCode")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
@@ -422,37 +441,40 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18,2)");
+                    b.Property<string>("AccountNumber")
+                        .HasMaxLength(17)
+                        .HasColumnType("nvarchar(17)");
+
+                    b.Property<string>("AddendumIndicator")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Amount")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("BatchHeaderId")
                         .HasColumnType("int");
 
-                    b.Property<string>("DfiAccountNumber")
-                        .IsRequired()
-                        .HasMaxLength(17)
-                        .HasColumnType("nvarchar(17)");
+                    b.Property<string>("CheckDigit")
+                        .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("IndividualIdNumber")
-                        .IsRequired()
+                    b.Property<string>("DiscreData")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReceivingParticipantEntityCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RecipIdNumber")
                         .HasMaxLength(15)
                         .HasColumnType("nvarchar(15)");
 
-                    b.Property<string>("IndividualName")
-                        .IsRequired()
+                    b.Property<string>("RecipUserName")
                         .HasMaxLength(22)
                         .HasColumnType("nvarchar(22)");
 
-                    b.Property<string>("ReceivingDfiIdentification")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("TraceNumber")
-                        .IsRequired()
+                    b.Property<string>("SequenceNumber")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("TransactionCode")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");

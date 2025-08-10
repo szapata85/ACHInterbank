@@ -130,11 +130,16 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     ServiceClassCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     CompanyName = table.Column<string>(type: "nvarchar(16)", maxLength: 16, nullable: false),
+                    DiscretionaryData = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     CompanyId = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
                     StandardEntryClassCode = table.Column<string>(type: "nvarchar(3)", maxLength: 3, nullable: false),
                     CompanyEntryDescription = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    DescriptiveDate = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     EffectiveEntryDate = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    OdfiIdentification = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CompensationDate = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    OriginUserStatusCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    OriginParticipantEntityCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    BatchNumber = table.Column<int>(type: "int", nullable: false),
                     NachaHeaderId = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
@@ -242,13 +247,16 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    TransactionCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    ReceivingDfiIdentification = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    DfiAccountNumber = table.Column<string>(type: "nvarchar(17)", maxLength: 17, nullable: false),
-                    Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    IndividualIdNumber = table.Column<string>(type: "nvarchar(15)", maxLength: 15, nullable: false),
-                    IndividualName = table.Column<string>(type: "nvarchar(22)", maxLength: 22, nullable: false),
-                    TraceNumber = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    TransactionCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ReceivingParticipantEntityCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CheckDigit = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    AccountNumber = table.Column<string>(type: "nvarchar(17)", maxLength: 17, nullable: true),
+                    Amount = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    RecipIdNumber = table.Column<string>(type: "nvarchar(15)", maxLength: 15, nullable: true),
+                    RecipUserName = table.Column<string>(type: "nvarchar(22)", maxLength: 22, nullable: true),
+                    DiscreData = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    AddendumIndicator = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    SequenceNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     BatchHeaderId = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>

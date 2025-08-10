@@ -157,11 +157,11 @@ public static class DependencyInjectionService
 
         using (var scope = app.Services.CreateScope())
         {
-            //AchDbContext Context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
-            var initializer = scope.ServiceProvider.GetRequiredService<AchInitializationService>();
-            //Context.Database.Migrate();
+            AchDbContext Context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
+            //var initializer = scope.ServiceProvider.GetRequiredService<AchInitializationService>();
+            Context.Database.Migrate();
 
-            _ = initializer.InitializeAsync(); // Aquí se ejecuta tu lógica en runtime
+            //_ = initializer.InitializeAsync(); // Aquí se ejecuta tu lógica en runtime
         }
 
 
