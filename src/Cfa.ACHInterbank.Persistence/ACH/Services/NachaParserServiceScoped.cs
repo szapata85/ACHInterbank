@@ -40,7 +40,7 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
                     _context.BatchHeaders.AddRange(ParseBatchHeaderLinq(resultLine));
                     break;
                 case '6':
-                    //_context.EntryDetails.Add(ParseEntryDetail(line));
+                    _context.EntryDetails.AddRange(ParseEntryDetailLinq(resultLine));
                     break;
                 case '7':
                     //_context.AddendaRecords.Add(ParseAddenda(line));
@@ -95,19 +95,40 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
         }).ToList();
     }
 
-    private EntryDetail ParseEntryDetail(string line)
+    private List<EntryDetail> ParseEntryDetailLinq(List<string> line)
     {
-        return new EntryDetail
+        List<EntryDetail> resultEntryDetail = new();
+
+        resultEntryDetail = line.Select(a => new EntryDetail
         {
-            TransactionCode = line.Substring(1, 2),
-            ReceivingDfiIdentification = line.Substring(3, 8),
-            DfiAccountNumber = line.Substring(12, 17).Trim(),
-            Amount = Convert.ToDecimal(line.Substring(29, 10)) / 100,
-            IndividualIdNumber = line.Substring(39, 15).Trim(),
-            IndividualName = line.Substring(54, 22).Trim(),
-            TraceNumber = line.Substring(79, 15)
-        };
+            TransactionCode = a.Substring(1, 2),
+            ReceivingParticipantEntityCode = a.Substring(3, 8),
+            CheckDigit = a.Substring(11, 1),
+            AccountNumber = a.Substring(12, 17),
+            Amount = a.Substring(29, 18),
+            RecipIdNumber = a.Substring(47, 15),
+            RecipUserName = a.Substring(62, 22),
+            DiscreData = a.Substring(84, 2),
+            AddendumIndicator = a.Substring(86, 1),
+            SequenceNumber = a.Substring(87, 15)
+        }).ToList();
+        
+        return resultEntryDetail;
     }
+
+    //private EntryDetail ParseEntryDetail(string line)
+    //{
+    //    return new EntryDetail
+    //    {
+    //        TransactionCode = line.Substring(1, 2),
+    //        ReceivingDfiIdentification = line.Substring(3, 8),
+    //        DfiAccountNumber = line.Substring(12, 17).Trim(),
+    //        Amount = Convert.ToDecimal(line.Substring(29, 10)) / 100,
+    //        IndividualIdNumber = line.Substring(39, 15).Trim(),
+    //        IndividualName = line.Substring(54, 22).Trim(),
+    //        TraceNumber = line.Substring(79, 15)
+    //    };
+    //}
 
     private AddendaRecord ParseAddenda(string line)
     {

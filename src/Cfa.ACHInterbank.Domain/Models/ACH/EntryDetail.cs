@@ -1,15 +1,20 @@
-﻿namespace Cfa.ACHInterbank.Domain.Models.ACH;
+﻿using Cfa.ACHInterbank.Domain.Entities.User;
+
+namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
 public class EntryDetail
 {
     public int Id { get; set; }
-    public string TransactionCode { get; set; }
-    public string ReceivingDfiIdentification { get; set; }
-    public string DfiAccountNumber { get; set; }
-    public decimal Amount { get; set; }
-    public string IndividualIdNumber { get; set; }
-    public string IndividualName { get; set; }
-    public string TraceNumber { get; set; }
+    public string? TransactionCode { get; set; }
+    public string? ReceivingParticipantEntityCode { get; set; }
+    public string? CheckDigit { get; set; }
+    public string? AccountNumber { get; set; }
+    public string? Amount { get; set; }
+    public string? RecipIdNumber { get; set; }
+    public string? RecipUserName { get; set; }
+    public string? DiscreData { get; set; }
+    public string? AddendumIndicator { get; set; }
+    public string? SequenceNumber { get; set; }
 
     public int BatchHeaderId { get; set; }
     public BatchHeader BatchHeader { get; set; }

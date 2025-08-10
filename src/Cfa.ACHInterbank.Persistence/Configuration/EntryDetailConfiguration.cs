@@ -12,9 +12,9 @@ public class EntryDetailConfiguration : IEntityTypeConfiguration<EntryDetail>
 
         builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.DfiAccountNumber).HasMaxLength(17);
-        builder.Property(x => x.IndividualIdNumber).HasMaxLength(15);
-        builder.Property(x => x.IndividualName).HasMaxLength(22);
+        builder.Property(x => x.AccountNumber).HasMaxLength(17);
+        builder.Property(x => x.RecipIdNumber).HasMaxLength(15);
+        builder.Property(x => x.RecipUserName).HasMaxLength(22);
 
         builder.HasOne(x => x.BatchHeader)
                .WithMany(x => x.Entries)
