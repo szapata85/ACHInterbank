@@ -86,6 +86,7 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
             CompanyId = line.Substring(40, 10).Trim(),
             StandardEntryClassCode = line.Substring(50, 3),
             CompanyEntryDescription = line.Substring(53, 10).Trim(),
+            DescriptiveDate = line.Substring(63, 8).Trim(),
             EffectiveEntryDate = line.Substring(69, 6),
             OdfiIdentification = line.Substring(79, 8)
         };

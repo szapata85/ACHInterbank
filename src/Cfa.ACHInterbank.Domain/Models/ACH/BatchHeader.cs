@@ -9,6 +9,7 @@ public class BatchHeader
     public string CompanyId { get; set; }
     public string StandardEntryClassCode { get; set; }
     public string CompanyEntryDescription { get; set; }
+    public string DescriptiveDate { get; set; }
     public string EffectiveEntryDate { get; set; }
     public string OdfiIdentification { get; set; }
 
