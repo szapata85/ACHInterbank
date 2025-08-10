@@ -10,14 +10,12 @@ public class NachaHeaderConfiguration : IEntityTypeConfiguration<NachaHeader>
     {
         builder.ToTable("NachaHeaders");
 
-        builder.HasKey(x => x.Id);
-
         builder.Property(x => x.ImmediateDestination).HasMaxLength(10);
         builder.Property(x => x.ImmediateOrigin).HasMaxLength(10);
 
-        builder.HasMany(x => x.Batches)
-               .WithOne(x => x.NachaHeader)
-               .HasForeignKey(x => x.NachaHeaderId)
-               .OnDelete(DeleteBehavior.Cascade);
+        //builder.HasMany(x => x.Batches)
+        //       .WithOne(x => x.NachaHeader)
+        //       .HasForeignKey(x => x.NachaHeaderId)
+        //       .OnDelete(DeleteBehavior.Cascade);
     }
 }

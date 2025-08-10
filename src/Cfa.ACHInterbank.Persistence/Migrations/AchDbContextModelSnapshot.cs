@@ -291,19 +291,18 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BatchHeaderId")
-                        .IsUnique();
+                    b.HasIndex("BatchHeaderId");
 
                     b.ToTable("BatchControls", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.BatchHeader", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<int>("BatchID")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BatchID"));
 
                     b.Property<int>("BatchNumber")
                         .HasColumnType("int");
@@ -338,7 +337,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("NachaHeaderId")
+                    b.Property<int>("NachaHeaderNachaID")
                         .HasColumnType("int");
 
                     b.Property<string>("OriginParticipantEntityCode")
@@ -358,9 +357,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)");
 
-                    b.HasKey("Id");
+                    b.HasKey("BatchID");
 
-                    b.HasIndex("NachaHeaderId");
+                    b.HasIndex("NachaHeaderNachaID");
 
                     b.ToTable("BatchHeaders", (string)null);
                 });
@@ -373,6 +372,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("ClearingHouseId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -383,18 +385,22 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ClearingHouseId");
+
                     b.ToTable("ClearingHouses");
 
                     b.HasData(
                         new
                         {
                             Id = 1,
+                            ClearingHouseId = 1,
                             Code = "ACHCOL",
                             Name = "ACH Colombia"
                         },
                         new
                         {
                             Id = 2,
+                            ClearingHouseId = 1,
                             Code = "CENIT",
                             Name = "CENIT"
                         });
@@ -416,8 +422,6 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ClearingHouseId");
 
                     b.ToTable("ClearingHouseConfigs");
 
@@ -540,11 +544,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaHeader", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<int>("NachaID")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("NachaID"));
 
                     b.Property<string>("BlockingFactor")
                         .IsRequired()
@@ -596,7 +600,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.HasKey("Id");
+                    b.HasKey("NachaID");
 
                     b.ToTable("NachaHeaders", (string)null);
                 });
@@ -653,8 +657,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.BatchControl", b =>
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.BatchHeader", "BatchHeader")
-                        .WithOne("BatchControl")
-                        .HasForeignKey("Cfa.ACHInterbank.Domain.Models.ACH.BatchControl", "BatchHeaderId")
+                        .WithMany()
+                        .HasForeignKey("BatchHeaderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -665,28 +669,28 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.NachaHeader", "NachaHeader")
                         .WithMany("Batches")
-                        .HasForeignKey("NachaHeaderId")
+                        .HasForeignKey("NachaHeaderNachaID")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("NachaHeader");
                 });
 
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouseConfig", b =>
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", b =>
                 {
-                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
-                        .WithMany()
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouseConfig", "ClearingHouseConfig")
+                        .WithMany("ClearingHouses")
                         .HasForeignKey("ClearingHouseId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("ClearingHouse");
+                    b.Navigation("ClearingHouseConfig");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.EntryDetail", b =>
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.BatchHeader", "BatchHeader")
-                        .WithMany("Entries")
+                        .WithMany()
                         .HasForeignKey("BatchHeaderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -710,17 +714,14 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Navigation("Transactions");
                 });
 
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.BatchHeader", b =>
-                {
-                    b.Navigation("BatchControl")
-                        .IsRequired();
-
-                    b.Navigation("Entries");
-                });
-
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", b =>
                 {
                     b.Navigation("AchCycles");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouseConfig", b =>
+                {
+                    b.Navigation("ClearingHouses");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.EntryDetail", b =>

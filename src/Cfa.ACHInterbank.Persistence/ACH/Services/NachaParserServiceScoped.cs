@@ -15,46 +15,62 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
 
     public async Task ParseAndSaveAsync(Stream nachaStream)
     {
-        using var reader = new StreamReader(nachaStream);
-        string? linefull = await reader.ReadLineAsync();
-        int LenghtLine = int.Parse(linefull!.Substring(36, 3));
-
-
-        List<string> lines = Enumerable.Range(0, (int)Math.Ceiling((double)linefull.Length / LenghtLine))
-                      .Select(i => linefull.Substring(i * LenghtLine, Math.Min(LenghtLine, linefull.Length - i * LenghtLine)))
-                      .ToList();
-
-        IEnumerable<char> recordsTypes = lines.Select(a => a[0]).Distinct();
-
-        foreach (char recordType in recordsTypes)
+        try
         {
-            List<string> resultLine = lines.Where(a => a[0] == recordType).ToList();
+            using var reader = new StreamReader(nachaStream);
+            string? linefull = await reader.ReadLineAsync();
+            int LenghtLine = int.Parse(linefull!.Substring(36, 3));
 
 
-            switch (recordType)
+            List<string> lines = Enumerable.Range(0, (int)Math.Ceiling((double)linefull.Length / LenghtLine))
+                          .Select(i => linefull.Substring(i * LenghtLine, Math.Min(LenghtLine, linefull.Length - i * LenghtLine)))
+                          .ToList();
+
+            IEnumerable<char> recordsTypes = lines.Select(a => a[0]).Distinct();
+
+            List<NachaHeader> NachaHeader = new List<NachaHeader>();
+            List<BatchHeader> BatchHeader = new List<BatchHeader>();
+
+            foreach (char recordType in recordsTypes)
             {
-                case '1':
-                    _context.NachaHeaders.AddRange(ParseFileHeaderLinq(resultLine));
-                    break;
-                case '5':
-                    _context.BatchHeaders.AddRange(ParseBatchHeaderLinq(resultLine));
-                    break;
-                case '6':
-                    _context.EntryDetails.AddRange(ParseEntryDetailLinq(resultLine));
-                    break;
-                case '7':
-                    //_context.AddendaRecords.Add(ParseAddenda(line));
-                    break;
-                case '8':
-                    //_context.BatchControls.Add(ParseBatchControl(line));
-                    break;
-                case '9':
-                    //_context.FileControls.Add(ParseFileControl(line));
-                    break;
-            }
-        }
+                List<string> resultLine = lines.Where(a => a[0] == recordType).ToList();
 
-        await _context.SaveChangesAsync();
+
+                switch (recordType)
+                {
+                    case '1':
+                        NachaHeader = ParseFileHeaderLinq(resultLine);
+                        //_context.NachaHeaders.AddRange(ParseFileHeaderLinq(resultLine));
+
+                        break;
+                    case '5':
+                        BatchHeader = ParseBatchHeaderLinq(resultLine);
+                        //_context.BatchHeaders.AddRange(ParseBatchHeaderLinq(resultLine));
+                        //_context.SaveChanges();
+                        break;
+                    case '6':
+                        //_context.EntryDetails.AddRange(ParseEntryDetailLinq(resultLine));
+                        break;
+                    case '7':
+                        //_context.AddendaRecords.Add(ParseAddenda(line));
+                        break;
+                    case '8':
+                        //_context.BatchControls.Add(ParseBatchControl(line));
+                        break;
+                    case '9':
+                        //_context.FileControls.Add(ParseFileControl(line));
+                        break;
+                }
+            }
+
+            NachaHeader[0].Batches = BatchHeader;
+            _context.NachaHeaders.AddRange(NachaHeader);
+
+            await _context.SaveChangesAsync();
+        }catch(Exception ex)
+        {
+            var mensaje = ex.GetBaseException().ToString();
+        }
     }
 
     private List<NachaHeader> ParseFileHeaderLinq(List<string> line)

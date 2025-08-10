@@ -28,17 +28,17 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "ClearingHouses",
+                name: "ClearingHouseConfigs",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Code = table.Column<string>(type: "nvarchar(max)", nullable: false)
+                    ClearingHouseId = table.Column<int>(type: "int", nullable: false),
+                    HolidayStrategy = table.Column<string>(type: "nvarchar(max)", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_ClearingHouses", x => x.Id);
+                    table.PrimaryKey("PK_ClearingHouseConfigs", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -59,7 +59,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 name: "NachaHeaders",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
+                    NachaID = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     PriorityCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     ImmediateDestination = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
@@ -76,7 +76,84 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_NachaHeaders", x => x.Id);
+                    table.PrimaryKey("PK_NachaHeaders", x => x.NachaID);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ClearingHouses",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ClearingHouseId = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ClearingHouses", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ClearingHouses_ClearingHouseConfigs_ClearingHouseId",
+                        column: x => x.ClearingHouseId,
+                        principalTable: "ClearingHouseConfigs",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "BatchHeaders",
+                columns: table => new
+                {
+                    BatchID = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ServiceClassCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CompanyName = table.Column<string>(type: "nvarchar(16)", maxLength: 16, nullable: false),
+                    DiscretionaryData = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CompanyId = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    StandardEntryClassCode = table.Column<string>(type: "nvarchar(3)", maxLength: 3, nullable: false),
+                    CompanyEntryDescription = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    DescriptiveDate = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    EffectiveEntryDate = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CompensationDate = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    OriginUserStatusCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    OriginParticipantEntityCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    BatchNumber = table.Column<int>(type: "int", nullable: false),
+                    NachaHeaderNachaID = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_BatchHeaders", x => x.BatchID);
+                    table.ForeignKey(
+                        name: "FK_BatchHeaders_NachaHeaders_NachaHeaderNachaID",
+                        column: x => x.NachaHeaderNachaID,
+                        principalTable: "NachaHeaders",
+                        principalColumn: "NachaID",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "FileControls",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    BatchCount = table.Column<int>(type: "int", nullable: false),
+                    BlockCount = table.Column<int>(type: "int", nullable: false),
+                    EntryAddendaCount = table.Column<int>(type: "int", nullable: false),
+                    EntryHash = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    TotalDebitAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    TotalCreditAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    NachaHeaderId = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_FileControls", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_FileControls_NachaHeaders_NachaHeaderId",
+                        column: x => x.NachaHeaderId,
+                        principalTable: "NachaHeaders",
+                        principalColumn: "NachaID",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -103,78 +180,57 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "ClearingHouseConfigs",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    ClearingHouseId = table.Column<int>(type: "int", nullable: false),
-                    HolidayStrategy = table.Column<string>(type: "nvarchar(max)", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_ClearingHouseConfigs", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_ClearingHouseConfigs_ClearingHouses_ClearingHouseId",
-                        column: x => x.ClearingHouseId,
-                        principalTable: "ClearingHouses",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "BatchHeaders",
+                name: "BatchControls",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     ServiceClassCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    CompanyName = table.Column<string>(type: "nvarchar(16)", maxLength: 16, nullable: false),
-                    DiscretionaryData = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    CompanyId = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
-                    StandardEntryClassCode = table.Column<string>(type: "nvarchar(3)", maxLength: 3, nullable: false),
-                    CompanyEntryDescription = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    DescriptiveDate = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    EffectiveEntryDate = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    CompensationDate = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    OriginUserStatusCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    OriginParticipantEntityCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    BatchNumber = table.Column<int>(type: "int", nullable: false),
-                    NachaHeaderId = table.Column<int>(type: "int", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_BatchHeaders", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_BatchHeaders_NachaHeaders_NachaHeaderId",
-                        column: x => x.NachaHeaderId,
-                        principalTable: "NachaHeaders",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "FileControls",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    BatchCount = table.Column<int>(type: "int", nullable: false),
-                    BlockCount = table.Column<int>(type: "int", nullable: false),
                     EntryAddendaCount = table.Column<int>(type: "int", nullable: false),
                     EntryHash = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     TotalDebitAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     TotalCreditAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    NachaHeaderId = table.Column<int>(type: "int", nullable: false)
+                    CompanyId = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    OdfiIdentification = table.Column<string>(type: "nvarchar(8)", maxLength: 8, nullable: false),
+                    BatchHeaderId = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_FileControls", x => x.Id);
+                    table.PrimaryKey("PK_BatchControls", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_FileControls_NachaHeaders_NachaHeaderId",
-                        column: x => x.NachaHeaderId,
-                        principalTable: "NachaHeaders",
-                        principalColumn: "Id",
+                        name: "FK_BatchControls_BatchHeaders_BatchHeaderId",
+                        column: x => x.BatchHeaderId,
+                        principalTable: "BatchHeaders",
+                        principalColumn: "BatchID",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "EntryDetails",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TransactionCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ReceivingParticipantEntityCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CheckDigit = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    AccountNumber = table.Column<string>(type: "nvarchar(17)", maxLength: 17, nullable: true),
+                    Amount = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    RecipIdNumber = table.Column<string>(type: "nvarchar(15)", maxLength: 15, nullable: true),
+                    RecipUserName = table.Column<string>(type: "nvarchar(22)", maxLength: 22, nullable: true),
+                    DiscreData = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    AddendumIndicator = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    SequenceNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    BatchHeaderId = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_EntryDetails", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_EntryDetails_BatchHeaders_BatchHeaderId",
+                        column: x => x.BatchHeaderId,
+                        principalTable: "BatchHeaders",
+                        principalColumn: "BatchID",
                         onDelete: ReferentialAction.Cascade);
                 });
 
@@ -213,61 +269,6 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         principalTable: "FinancialInstitutions",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "BatchControls",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    ServiceClassCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    EntryAddendaCount = table.Column<int>(type: "int", nullable: false),
-                    EntryHash = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    TotalDebitAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    TotalCreditAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    CompanyId = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
-                    OdfiIdentification = table.Column<string>(type: "nvarchar(8)", maxLength: 8, nullable: false),
-                    BatchHeaderId = table.Column<int>(type: "int", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_BatchControls", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_BatchControls_BatchHeaders_BatchHeaderId",
-                        column: x => x.BatchHeaderId,
-                        principalTable: "BatchHeaders",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "EntryDetails",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    TransactionCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ReceivingParticipantEntityCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    CheckDigit = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    AccountNumber = table.Column<string>(type: "nvarchar(17)", maxLength: 17, nullable: true),
-                    Amount = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    RecipIdNumber = table.Column<string>(type: "nvarchar(15)", maxLength: 15, nullable: true),
-                    RecipUserName = table.Column<string>(type: "nvarchar(22)", maxLength: 22, nullable: true),
-                    DiscreData = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    AddendumIndicator = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    SequenceNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    BatchHeaderId = table.Column<int>(type: "int", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_EntryDetails", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_EntryDetails_BatchHeaders_BatchHeaderId",
-                        column: x => x.BatchHeaderId,
-                        principalTable: "BatchHeaders",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -317,18 +318,18 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 });
 
             migrationBuilder.InsertData(
-                table: "ClearingHouses",
-                columns: new[] { "Id", "Code", "Name" },
-                values: new object[,]
-                {
-                    { 1, "ACHCOL", "ACH Colombia" },
-                    { 2, "CENIT", "CENIT" }
-                });
-
-            migrationBuilder.InsertData(
                 table: "ClearingHouseConfigs",
                 columns: new[] { "Id", "ClearingHouseId", "HolidayStrategy" },
                 values: new object[] { 1, 1, "Colombian" });
+
+            migrationBuilder.InsertData(
+                table: "ClearingHouses",
+                columns: new[] { "Id", "ClearingHouseId", "Code", "Name" },
+                values: new object[,]
+                {
+                    { 1, 1, "ACHCOL", "ACH Colombia" },
+                    { 2, 1, "CENIT", "CENIT" }
+                });
 
             migrationBuilder.CreateIndex(
                 name: "IX_AchCycles_ClearingHouseId",
@@ -358,17 +359,16 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_BatchControls_BatchHeaderId",
                 table: "BatchControls",
-                column: "BatchHeaderId",
-                unique: true);
+                column: "BatchHeaderId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_BatchHeaders_NachaHeaderId",
+                name: "IX_BatchHeaders_NachaHeaderNachaID",
                 table: "BatchHeaders",
-                column: "NachaHeaderId");
+                column: "NachaHeaderNachaID");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ClearingHouseConfigs_ClearingHouseId",
-                table: "ClearingHouseConfigs",
+                name: "IX_ClearingHouses_ClearingHouseId",
+                table: "ClearingHouses",
                 column: "ClearingHouseId");
 
             migrationBuilder.CreateIndex(
@@ -398,9 +398,6 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 name: "BatchControls");
 
             migrationBuilder.DropTable(
-                name: "ClearingHouseConfigs");
-
-            migrationBuilder.DropTable(
                 name: "FileControls");
 
             migrationBuilder.DropTable(
@@ -417,6 +414,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "BatchHeaders");
+
+            migrationBuilder.DropTable(
+                name: "ClearingHouseConfigs");
 
             migrationBuilder.DropTable(
                 name: "NachaHeaders");

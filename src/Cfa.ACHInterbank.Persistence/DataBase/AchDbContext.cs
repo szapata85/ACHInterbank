@@ -71,8 +71,8 @@ public class AchDbContext : DbContext
 
 
         modelBuilder.Entity<ClearingHouse>().HasData(
-            new ClearingHouse { Id = 1, Name = "ACH Colombia", Code = "ACHCOL" },
-            new ClearingHouse { Id = 2, Name = "CENIT", Code = "CENIT" }
+            new ClearingHouse { Id = 1, Name = "ACH Colombia", Code = "ACHCOL", ClearingHouseId = 1 },
+            new ClearingHouse { Id = 2, Name = "CENIT", Code = "CENIT", ClearingHouseId = 1 }
             );
 
         modelBuilder.Entity<ClearingHouseConfig>().HasData(new ClearingHouseConfig { Id = 1, ClearingHouseId = 1, HolidayStrategy = "Colombian" });

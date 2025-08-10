@@ -16,7 +16,7 @@ public class BatchHeaderValidator : AbstractValidator<BatchHeader>
         RuleFor(x => x.StandardEntryClassCode)
             .NotEmpty().Length(3);
 
-        RuleForEach(x => x.Entries).SetValidator(new EntryDetailValidator());
-        RuleFor(x => x.BatchControl).SetValidator(new BatchControlValidator());
+        //RuleForEach(x => x.Entries).SetValidator(new EntryDetailValidator());
+        //RuleFor(x => x.BatchControl).SetValidator(new BatchControlValidator());
     }
 }

@@ -1,8 +1,13 @@
-﻿namespace Cfa.ACHInterbank.Domain.Models.ACH;
+﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
 public class NachaHeader
 {
-    public int Id { get; set; }
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public int NachaID { get; set; }
     public string PriorityCode { get; set; }
     public string ImmediateDestination { get; set; }
     public string ImmediateOrigin { get; set; }
@@ -16,5 +21,5 @@ public class NachaHeader
     public string ImmediateOriginName { get; set; }
     public string ReferenceCode { get; set; }
 
-    public ICollection<BatchHeader> Batches { get; set; } = new List<BatchHeader>();
+    public virtual ICollection<BatchHeader> Batches { get; set; }
 }

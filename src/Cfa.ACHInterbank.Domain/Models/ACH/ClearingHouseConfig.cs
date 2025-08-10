@@ -10,6 +10,7 @@ public class ClearingHouseConfig
     public int ClearingHouseId { get; set; }
     public string HolidayStrategy { get; set; } // e.g., "Colombian", "US", etc.
 
-    public ClearingHouse? ClearingHouse { get; set; }
+    
+    public virtual ICollection<ClearingHouse> ClearingHouses { get; set; }
 }
 

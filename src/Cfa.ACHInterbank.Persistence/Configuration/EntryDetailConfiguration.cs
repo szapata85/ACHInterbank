@@ -16,13 +16,13 @@ public class EntryDetailConfiguration : IEntityTypeConfiguration<EntryDetail>
         builder.Property(x => x.RecipIdNumber).HasMaxLength(15);
         builder.Property(x => x.RecipUserName).HasMaxLength(22);
 
-        builder.HasOne(x => x.BatchHeader)
-               .WithMany(x => x.Entries)
-               .HasForeignKey(x => x.BatchHeaderId);
+        //builder.HasOne(x => x.BatchHeader)
+        //       .WithMany(x => x.Entries)
+        //       .HasForeignKey(x => x.BatchHeaderId);
 
-        builder.HasMany(x => x.AddendaRecords)
-               .WithOne(x => x.EntryDetail)
-               .HasForeignKey(x => x.EntryDetailId)
-               .OnDelete(DeleteBehavior.Cascade);
+        //builder.HasMany(x => x.AddendaRecords)
+        //       .WithOne(x => x.EntryDetail)
+        //       .HasForeignKey(x => x.EntryDetailId)
+        //       .OnDelete(DeleteBehavior.Cascade);
     }
 }
