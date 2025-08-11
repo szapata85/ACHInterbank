@@ -1,16 +1,21 @@
-﻿namespace Cfa.ACHInterbank.Domain.Models.ACH;
+﻿using System.ComponentModel.DataAnnotations.Schema;
+
+namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
 public class BatchControl
 {
-    public int Id { get; set; }
-    public string ServiceClassCode { get; set; }
-    public int EntryAddendaCount { get; set; }
-    public decimal EntryHash { get; set; }
+    public int BatchControlID { get; set; }
+    public string? BatchTranClassCode { get; set; }
+    public int? EntryAddendaCount { get; set; }
+    public int? TotalEntry { get; set; }
     public decimal TotalDebitAmount { get; set; }
     public decimal TotalCreditAmount { get; set; }
-    public string CompanyId { get; set; }
-    public string OdfiIdentification { get; set; }
+    public string? IdUserOrig { get; set; }
+    public string? CodAutMessage { get; set; }
+    public string? IdOrigEntity { get; set; }
+    public string? BatchNumber { get; set; }
+    public int NachaID { get; set; }
 
-    public int BatchHeaderId { get; set; }
-    public BatchHeader BatchHeader { get; set; }
+    [ForeignKey("NachaID")]
+    public virtual NachaHeader? NachaHeader { get; set; }
 }

@@ -21,7 +21,9 @@ public class NachaHeader
     public string ImmediateOriginName { get; set; }
     public string ReferenceCode { get; set; }
 
-    public virtual ICollection<BatchHeader> Batches { get; set; }
-    public virtual ICollection<EntryDetail> EntryDetails { get; set; }
-    public virtual ICollection<AddendaRecord> AddendaRecords { get; set; }
+    public virtual ICollection<BatchHeader>? Batches { get; set; }
+    public virtual ICollection<EntryDetail>? EntryDetails { get; set; }
+    public virtual ICollection<AddendaRecord>? AddendaRecords { get; set; }
+    public virtual ICollection<BatchControl>? BatchControls { get; set; }
+    public virtual ICollection<FileControl>? FileControls { get; set; }
 }

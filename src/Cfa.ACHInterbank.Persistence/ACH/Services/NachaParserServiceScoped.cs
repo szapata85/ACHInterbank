@@ -31,9 +31,9 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
             IEnumerable<char> recordsTypes = lines.Select(a => a[0]).Distinct();
 
             List<NachaHeader> LstNachaHeader = new();
-            List<BatchHeader> LstBatchHeader = new();
-            List<EntryDetail> LstEntryDetail = new();
-            List<AddendaRecord> LstAddendaRecord = new();
+            //List<BatchHeader> LstBatchHeader = new();
+            //List<EntryDetail> LstEntryDetail = new();
+            //List<AddendaRecord> LstAddendaRecord = new();
 
             foreach (char recordType in recordsTypes)
             {
@@ -46,26 +46,28 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
                         LstNachaHeader = ParseFileHeaderLinq(resultLine);
                         break;
                     case '5':
-                        LstBatchHeader = ParseBatchHeaderLinq(resultLine);
+                        LstNachaHeader[0].Batches = ParseBatchHeaderLinq(resultLine);
                         break;
                     case '6':
-                        LstEntryDetail = ParseEntryDetailLinq(resultLine);
+                        LstNachaHeader[0].EntryDetails = ParseEntryDetailLinq(resultLine);
                         break;
                     case '7':
-                        LstAddendaRecord = ParseAddendaLinq(resultLine);
+                        LstNachaHeader[0].AddendaRecords = ParseAddendaLinq(resultLine);
                         break;
                     case '8':
-                        //_context.BatchControls.Add(ParseBatchControl(line));
+                        LstNachaHeader[0].BatchControls = ParseBatchControlLinq(resultLine);
                         break;
                     case '9':
+                        LstNachaHeader[0].FileControls = ParseBatchControlLinq(resultLine);
                         //_context.FileControls.Add(ParseFileControl(line));
+
                         break;
                 }
             }
 
-            LstNachaHeader[0].Batches = LstBatchHeader;
-            LstNachaHeader[0].EntryDetails = LstEntryDetail;
-            LstNachaHeader[0].AddendaRecords = LstAddendaRecord;
+            //LstNachaHeader[0].Batches = LstBatchHeader;
+            //LstNachaHeader[0].EntryDetails = LstEntryDetail;
+            //LstNachaHeader[0].AddendaRecords = LstAddendaRecord;
             _context.NachaHeaders.AddRange(LstNachaHeader);
 
             await _context.SaveChangesAsync();
@@ -134,9 +136,7 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
 
     private List<AddendaRecord> ParseAddendaLinq(List<string> line)
     {
-        List<AddendaRecord> resultAddendaRecord = new();
-
-        resultAddendaRecord = line.Select(a => new AddendaRecord
+        return line.Select(a => new AddendaRecord
         {
             CodeTypeAddendumRecord = a.Substring(1, 2).Trim(),
             IdUserOrig = a.Substring(3,15).Trim(),
@@ -146,22 +146,39 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
             AddendumSequence = a.Substring(83, 4).Trim(),
             EntryDetailSequenceNumber = a.Substring(87, 7).Trim()
         }).ToList();
-
-        return resultAddendaRecord;
     }
 
-    private BatchControl ParseBatchControl(string line)
+
+    private List<BatchControl> ParseBatchControlLinq(List<string> line)
     {
-        return new BatchControl
+        return line.Select(a => new BatchControl
         {
-            ServiceClassCode = line.Substring(1, 3),
-            EntryAddendaCount = int.Parse(line.Substring(4, 6)),
-            EntryHash = Convert.ToDecimal(line.Substring(10, 10)),
-            TotalDebitAmount = Convert.ToDecimal(line.Substring(20, 12)) / 100,
-            TotalCreditAmount = Convert.ToDecimal(line.Substring(32, 12)) / 100,
-            CompanyId = line.Substring(44, 10).Trim(),
-            OdfiIdentification = line.Substring(79, 8)
-        };
+            BatchTranClassCode = a.Substring(1, 3),
+            EntryAddendaCount = int.Parse(a.Substring(4, 6)),
+            TotalEntry = int.Parse(a.Substring(10, 10)),
+            TotalDebitAmount = Convert.ToDecimal(a.Substring(20, 18).Trim()) / 100,
+            TotalCreditAmount = Convert.ToDecimal(a.Substring(38, 18).Trim()) / 100,
+            IdUserOrig = a.Substring(56, 10).Trim(),
+            CodAutMessage = a.Substring(66, 19),
+            IdOrigEntity = a.Substring(91, 8),
+            BatchNumber = a.Substring(99, 7),
+        }).ToList();
+    }
+
+    private List<BatchControl> ParseFileControlLinq(List<string> line)
+    {
+        return line.Select(a => new BatchControl
+        {
+            BatchTranClassCode = a.Substring(1, 3),
+            EntryAddendaCount = int.Parse(a.Substring(4, 6)),
+            TotalEntry = int.Parse(a.Substring(10, 10)),
+            TotalDebitAmount = Convert.ToDecimal(a.Substring(20, 18).Trim()) / 100,
+            TotalCreditAmount = Convert.ToDecimal(a.Substring(38, 18).Trim()) / 100,
+            IdUserOrig = a.Substring(56, 10).Trim(),
+            CodAutMessage = a.Substring(66, 19),
+            IdOrigEntity = a.Substring(91, 8),
+            BatchNumber = a.Substring(99, 7),
+        }).ToList();
     }
 
     private FileControl ParseFileControl(string line)

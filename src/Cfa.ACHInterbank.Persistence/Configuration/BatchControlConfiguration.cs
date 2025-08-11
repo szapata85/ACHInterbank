@@ -10,9 +10,9 @@ public class BatchControlConfiguration : IEntityTypeConfiguration<BatchControl>
     {
         builder.ToTable("BatchControls");
 
-        builder.HasKey(x => x.Id);
+        builder.HasKey(x => x.BatchControlID);
 
-        builder.Property(x => x.CompanyId).HasMaxLength(10);
-        builder.Property(x => x.OdfiIdentification).HasMaxLength(8);
+        builder.Property(x => x.IdUserOrig).HasMaxLength(10);
+        builder.Property(x => x.CodAutMessage).HasMaxLength(8);
     }
 }
