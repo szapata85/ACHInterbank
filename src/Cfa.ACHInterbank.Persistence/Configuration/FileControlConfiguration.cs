@@ -10,7 +10,7 @@ public class FileControlConfiguration : IEntityTypeConfiguration<FileControl>
     {
         builder.ToTable("FileControls");
 
-        builder.HasKey(x => x.FileControlID);
+        builder.HasKey(x => x.Id);
 
         builder.HasOne(x => x.NachaHeader)
                .WithMany()

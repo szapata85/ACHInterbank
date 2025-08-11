@@ -58,7 +58,7 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
                         LstNachaHeader[0].BatchControls = ParseBatchControlLinq(resultLine);
                         break;
                     case '9':
-                        LstNachaHeader[0].FileControls = ParseBatchControlLinq(resultLine);
+                        LstNachaHeader[0].FileControls = ParseFileControlLinq(resultLine);
                         //_context.FileControls.Add(ParseFileControl(line));
 
                         break;
@@ -165,19 +165,16 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
         }).ToList();
     }
 
-    private List<BatchControl> ParseFileControlLinq(List<string> line)
+    private List<FileControl> ParseFileControlLinq(List<string> line)
     {
-        return line.Select(a => new BatchControl
+        return line.Select(a => new FileControl
         {
-            BatchTranClassCode = a.Substring(1, 3),
-            EntryAddendaCount = int.Parse(a.Substring(4, 6)),
-            TotalEntry = int.Parse(a.Substring(10, 10)),
-            TotalDebitAmount = Convert.ToDecimal(a.Substring(20, 18).Trim()) / 100,
-            TotalCreditAmount = Convert.ToDecimal(a.Substring(38, 18).Trim()) / 100,
-            IdUserOrig = a.Substring(56, 10).Trim(),
-            CodAutMessage = a.Substring(66, 19),
-            IdOrigEntity = a.Substring(91, 8),
-            BatchNumber = a.Substring(99, 7),
+            BatchCount = int.Parse(a.Substring(1, 6)),
+            BlockCount = int.Parse(a.Substring(7, 6)),
+            EntryAddendaCount = int.Parse(a.Substring(13, 8)),
+            TotalControl = int.Parse(a.Substring(21, 10)),
+            TotalDebitAmount = Convert.ToDecimal(a.Substring(31, 18)) / 100,
+            TotalCreditAmount = Convert.ToDecimal(a.Substring(49, 18)) / 100
         }).ToList();
     }
 
@@ -188,7 +185,7 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
             BatchCount = int.Parse(line.Substring(1, 6)),
             BlockCount = int.Parse(line.Substring(7, 6)),
             EntryAddendaCount = int.Parse(line.Substring(13, 8)),
-            EntryHash = Convert.ToDecimal(line.Substring(21, 10)),
+            TotalControl = Convert.ToDecimal(line.Substring(21, 10)),
             TotalDebitAmount = Convert.ToDecimal(line.Substring(31, 12)) / 100,
             TotalCreditAmount = Convert.ToDecimal(line.Substring(43, 12)) / 100
         };
