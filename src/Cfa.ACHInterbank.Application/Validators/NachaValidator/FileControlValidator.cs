@@ -7,6 +7,6 @@ public class FileControlValidator : AbstractValidator<FileControl>
 {
     public FileControlValidator()
     {
-        RuleFor(x => x.NachaHeaderId).GreaterThan(0);
+        RuleFor(x => x.FileControlID).GreaterThan(0);
     }
 }
