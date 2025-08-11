@@ -177,17 +177,4 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
             TotalCreditAmount = Convert.ToDecimal(a.Substring(49, 18)) / 100
         }).ToList();
     }
-
-    private FileControl ParseFileControl(string line)
-    {
-        return new FileControl
-        {
-            BatchCount = int.Parse(line.Substring(1, 6)),
-            BlockCount = int.Parse(line.Substring(7, 6)),
-            EntryAddendaCount = int.Parse(line.Substring(13, 8)),
-            TotalControl = Convert.ToDecimal(line.Substring(21, 10)),
-            TotalDebitAmount = Convert.ToDecimal(line.Substring(31, 12)) / 100,
-            TotalCreditAmount = Convert.ToDecimal(line.Substring(43, 12)) / 100
-        };
-    }
 }
