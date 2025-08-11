@@ -33,6 +33,7 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
             List<NachaHeader> NachaHeader = new();
             List<BatchHeader> BatchHeader = new();
             List<EntryDetail> EntryDetail = new();
+            List<AddendaRecord> AddendaRecord = new();
 
             foreach (char recordType in recordsTypes)
             {
@@ -43,21 +44,15 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
                 {
                     case '1':
                         NachaHeader = ParseFileHeaderLinq(resultLine);
-                        //_context.NachaHeaders.AddRange(ParseFileHeaderLinq(resultLine));
-
                         break;
                     case '5':
                         BatchHeader = ParseBatchHeaderLinq(resultLine);
-                        //_context.BatchHeaders.AddRange(ParseBatchHeaderLinq(resultLine));
-                        //_context.SaveChanges();
                         break;
                     case '6':
                         EntryDetail = ParseEntryDetailLinq(resultLine);
-
-                        //_context.EntryDetails.AddRange(ParseEntryDetailLinq(resultLine));
                         break;
                     case '7':
-                        //_context.AddendaRecords.Add(ParseAddenda(line));
+                        AddendaRecord = ParseAddendaLinq(resultLine);
                         break;
                     case '8':
                         //_context.BatchControls.Add(ParseBatchControl(line));
@@ -121,9 +116,7 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
 
     private List<EntryDetail> ParseEntryDetailLinq(List<string> line)
     {
-        List<EntryDetail> resultEntryDetail = new();
-
-        resultEntryDetail = line.Select(a => new EntryDetail
+        return line.Select(a => new EntryDetail
         {
             TransactionCode = a.Substring(1, 2),
             ReceivingParticipantEntityCode = a.Substring(3, 8),
@@ -136,33 +129,35 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
             AddendumIndicator = a.Substring(86, 1),
             SequenceNumber = a.Substring(87, 15)
         }).ToList();
-        
-        return resultEntryDetail;
     }
 
-    //private EntryDetail ParseEntryDetail(string line)
+    private List<AddendaRecord> ParseAddendaLinq(List<string> line)
+    {
+        List<AddendaRecord> resultAddendaRecord = new();
+
+        resultAddendaRecord = line.Select(a => new AddendaRecord
+        {
+            CodeTypeAddendumRecord = a.Substring(1, 2),
+            IdUserOrig = a.Substring(3,15).Trim(),
+            PurposeOfTransaction = a.Substring(20, 10),
+            InvoiceOrAccountNumber = (a.Substring(20, 10).ToUpper() == "TRANSFER")?a.Substring(30,24):a.Substring(30, 53),
+            InfofromOriginator = (a.Substring(20, 10).ToUpper() == "TRANSFER") ? a.Substring(56, 24) : null,
+            AddendumSequence = a.Substring(83, 4),
+            EntryDetailSequenceNumber = a.Substring(87,7)
+        }).ToList();
+
+        return resultAddendaRecord;
+    }
+
+    //private AddendaRecord ParseAddenda(string line)
     //{
-    //    return new EntryDetail
+    //    return new AddendaRecord
     //    {
-    //        TransactionCode = line.Substring(1, 2),
-    //        ReceivingDfiIdentification = line.Substring(3, 8),
-    //        DfiAccountNumber = line.Substring(12, 17).Trim(),
-    //        Amount = Convert.ToDecimal(line.Substring(29, 10)) / 100,
-    //        IndividualIdNumber = line.Substring(39, 15).Trim(),
-    //        IndividualName = line.Substring(54, 22).Trim(),
-    //        TraceNumber = line.Substring(79, 15)
+    //        PaymentRelatedInformation = line.Substring(3, 80).Trim(),
+    //        AddendaSequenceNumber = line.Substring(83, 4),
+    //        EntryDetailSequenceNumber = line.Substring(87, 7)
     //    };
     //}
-
-    private AddendaRecord ParseAddenda(string line)
-    {
-        return new AddendaRecord
-        {
-            PaymentRelatedInformation = line.Substring(3, 80).Trim(),
-            AddendaSequenceNumber = line.Substring(83, 4),
-            EntryDetailSequenceNumber = line.Substring(87, 7)
-        };
-    }
 
     private BatchControl ParseBatchControl(string line)
     {

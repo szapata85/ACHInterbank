@@ -7,10 +7,7 @@ public class AddendaRecordValidator : AbstractValidator<AddendaRecord>
 {
     public AddendaRecordValidator()
     {
-        RuleFor(x => x.PaymentRelatedInformation)
-            .NotEmpty().MaximumLength(80);
-
-        RuleFor(x => x.AddendaSequenceNumber)
+        RuleFor(x => x.AddendumSequence)
             .NotEmpty().Length(4);
     }
 }

@@ -5,7 +5,7 @@ namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
 public class EntryDetail
 {
-    public int Id { get; set; }
+    public int EntryDetailID { get; set; }
     public string? TransactionCode { get; set; }
     public string? ReceivingParticipantEntityCode { get; set; }
     public string? CheckDigit { get; set; }
@@ -20,6 +20,4 @@ public class EntryDetail
 
     [ForeignKey("NachaID")]
     public virtual NachaHeader? NachaHeader { get; set; }
-
-    //public ICollection<AddendaRecord> AddendaRecords { get; set; } = new List<AddendaRecord>();
 }

@@ -10,10 +10,9 @@ public class AddendaRecordConfiguration : IEntityTypeConfiguration<AddendaRecord
     {
         builder.ToTable("AddendaRecords");
 
-        builder.HasKey(x => x.Id);
+        builder.HasKey(x => x.AddendaID);
 
-        builder.Property(x => x.PaymentRelatedInformation).HasMaxLength(80);
-        builder.Property(x => x.AddendaSequenceNumber).HasMaxLength(4);
+        builder.Property(x => x.AddendumSequence).HasMaxLength(4);
         builder.Property(x => x.EntryDetailSequenceNumber).HasMaxLength(7);
     }
 }

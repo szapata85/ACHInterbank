@@ -10,7 +10,7 @@ public class EntryDetailConfiguration : IEntityTypeConfiguration<EntryDetail>
     {
         builder.ToTable("EntryDetails");
 
-        builder.HasKey(x => x.Id);
+        builder.HasKey(x => x.EntryDetailID);
 
         builder.Property(x => x.AccountNumber).HasMaxLength(17);
         builder.Property(x => x.RecipIdNumber).HasMaxLength(15);
