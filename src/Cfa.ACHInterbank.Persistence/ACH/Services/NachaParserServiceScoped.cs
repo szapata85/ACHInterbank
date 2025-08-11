@@ -30,10 +30,10 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
 
             IEnumerable<char> recordsTypes = lines.Select(a => a[0]).Distinct();
 
-            List<NachaHeader> NachaHeader = new();
-            List<BatchHeader> BatchHeader = new();
-            List<EntryDetail> EntryDetail = new();
-            List<AddendaRecord> AddendaRecord = new();
+            List<NachaHeader> LstNachaHeader = new();
+            List<BatchHeader> LstBatchHeader = new();
+            List<EntryDetail> LstEntryDetail = new();
+            List<AddendaRecord> LstAddendaRecord = new();
 
             foreach (char recordType in recordsTypes)
             {
@@ -43,16 +43,16 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
                 switch (recordType)
                 {
                     case '1':
-                        NachaHeader = ParseFileHeaderLinq(resultLine);
+                        LstNachaHeader = ParseFileHeaderLinq(resultLine);
                         break;
                     case '5':
-                        BatchHeader = ParseBatchHeaderLinq(resultLine);
+                        LstBatchHeader = ParseBatchHeaderLinq(resultLine);
                         break;
                     case '6':
-                        EntryDetail = ParseEntryDetailLinq(resultLine);
+                        LstEntryDetail = ParseEntryDetailLinq(resultLine);
                         break;
                     case '7':
-                        AddendaRecord = ParseAddendaLinq(resultLine);
+                        LstAddendaRecord = ParseAddendaLinq(resultLine);
                         break;
                     case '8':
                         //_context.BatchControls.Add(ParseBatchControl(line));
@@ -63,9 +63,10 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
                 }
             }
 
-            NachaHeader[0].Batches = BatchHeader;
-            NachaHeader[0].EntryDetails = EntryDetail;
-            _context.NachaHeaders.AddRange(NachaHeader);
+            LstNachaHeader[0].Batches = LstBatchHeader;
+            LstNachaHeader[0].EntryDetails = LstEntryDetail;
+            LstNachaHeader[0].AddendaRecords = LstAddendaRecord;
+            _context.NachaHeaders.AddRange(LstNachaHeader);
 
             await _context.SaveChangesAsync();
             _context.ChangeTracker.AutoDetectChangesEnabled = true;
@@ -103,14 +104,14 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
             CompanyName = a.Substring(4, 16).Trim(),
             DiscretionaryData = a.Substring(20, 20).Trim(),
             CompanyId = a.Substring(40, 10).Trim(),
-            StandardEntryClassCode = a.Substring(50, 3),
+            StandardEntryClassCode = a.Substring(50, 3).Trim(),
             CompanyEntryDescription = a.Substring(53, 10).Trim(),
             DescriptiveDate = a.Substring(63, 8).Trim(),
-            EffectiveEntryDate = a.Substring(71, 8),
-            CompensationDate = a.Substring(79, 3),
-            OriginUserStatusCode = a.Substring(82, 1),
-            OriginParticipantEntityCode = a.Substring(83, 8),
-            BatchNumber = int.Parse(a.Substring(91, 7))
+            EffectiveEntryDate = a.Substring(71, 8).Trim(),
+            CompensationDate = a.Substring(79, 3).Trim(),
+            OriginUserStatusCode = a.Substring(82, 1).Trim(),
+            OriginParticipantEntityCode = a.Substring(83, 8).Trim(),
+            BatchNumber = int.Parse(a.Substring(91, 7).Trim())
         }).ToList();
     }
 
@@ -118,16 +119,16 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
     {
         return line.Select(a => new EntryDetail
         {
-            TransactionCode = a.Substring(1, 2),
-            ReceivingParticipantEntityCode = a.Substring(3, 8),
-            CheckDigit = a.Substring(11, 1),
-            AccountNumber = a.Substring(12, 17),
+            TransactionCode = a.Substring(1, 2).Trim(),
+            ReceivingParticipantEntityCode = a.Substring(3, 8).Trim(),
+            CheckDigit = a.Substring(11, 1).Trim(),
+            AccountNumber = a.Substring(12, 17).Trim(),
             Amount = Convert.ToDecimal(a.Substring(29, 18)) / 100,
-            RecipIdNumber = a.Substring(47, 15),
-            RecipUserName = a.Substring(62, 22),
-            DiscreData = a.Substring(84, 2),
-            AddendumIndicator = a.Substring(86, 1),
-            SequenceNumber = a.Substring(87, 15)
+            RecipIdNumber = a.Substring(47, 15).Trim(),
+            RecipUserName = a.Substring(62, 22).Trim(),
+            DiscreData = a.Substring(84, 2).Trim(),
+            AddendumIndicator = a.Substring(86, 1).Trim(),
+            SequenceNumber = a.Substring(87, 15).Trim()
         }).ToList();
     }
 
@@ -137,27 +138,17 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
 
         resultAddendaRecord = line.Select(a => new AddendaRecord
         {
-            CodeTypeAddendumRecord = a.Substring(1, 2),
+            CodeTypeAddendumRecord = a.Substring(1, 2).Trim(),
             IdUserOrig = a.Substring(3,15).Trim(),
-            PurposeOfTransaction = a.Substring(20, 10),
-            InvoiceOrAccountNumber = (a.Substring(20, 10).ToUpper() == "TRANSFER")?a.Substring(30,24):a.Substring(30, 53),
-            InfofromOriginator = (a.Substring(20, 10).ToUpper() == "TRANSFER") ? a.Substring(56, 24) : null,
-            AddendumSequence = a.Substring(83, 4),
-            EntryDetailSequenceNumber = a.Substring(87,7)
+            PurposeOfTransaction = a.Substring(20, 10).Trim(),
+            InvoiceOrAccountNumber = (a.Substring(20, 10).ToUpper().Trim() == "TRANSFER")?a.Substring(30,24).Trim() : a.Substring(30, 53).Trim(),
+            InfofromOriginator = (a.Substring(20, 10).ToUpper().Trim() == "TRANSFER") ? a.Substring(56, 24).Trim() : null,
+            AddendumSequence = a.Substring(83, 4).Trim(),
+            EntryDetailSequenceNumber = a.Substring(87, 7).Trim()
         }).ToList();
 
         return resultAddendaRecord;
     }
-
-    //private AddendaRecord ParseAddenda(string line)
-    //{
-    //    return new AddendaRecord
-    //    {
-    //        PaymentRelatedInformation = line.Substring(3, 80).Trim(),
-    //        AddendaSequenceNumber = line.Substring(83, 4),
-    //        EntryDetailSequenceNumber = line.Substring(87, 7)
-    //    };
-    //}
 
     private BatchControl ParseBatchControl(string line)
     {
