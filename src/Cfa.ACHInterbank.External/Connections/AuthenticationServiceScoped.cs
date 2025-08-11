@@ -13,7 +13,7 @@ public class AuthenticationServiceScoped : IAuthenticationServiceScoped
         _httpClientService = httpClientService;
     }
 
-    public async Task<string> GetTokenAsync()
+    public Task<string> GetTokenAsync()
     {
         throw new NotImplementedException();
     }

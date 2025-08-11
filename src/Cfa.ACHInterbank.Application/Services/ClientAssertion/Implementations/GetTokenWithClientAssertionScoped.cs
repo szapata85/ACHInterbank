@@ -42,7 +42,7 @@ public class GetTokenWithClientAssertionScoped : IGetTokenWithClientAssertionSco
             response.Result = await _httpClient.SendPostRequestAsync<TokenClientAssertion>(url, TokenClient, HttpMethod.Post, TypeBody.Query, string.Empty);
             response.Success = true;
         }
-        catch (Exception ex)
+        catch
         {
             response.Success = false;
             //response.Errors = ex.Message.ToString();
