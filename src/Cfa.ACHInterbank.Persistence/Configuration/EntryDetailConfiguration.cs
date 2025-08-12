@@ -16,6 +16,8 @@ public class EntryDetailConfiguration : IEntityTypeConfiguration<EntryDetail>
         builder.Property(x => x.RecipIdNumber).HasMaxLength(15);
         builder.Property(x => x.RecipUserName).HasMaxLength(22);
 
+        builder.Property(p => p.Amount).HasColumnType("money");
+
         //builder.HasOne(x => x.BatchHeader)
         //       .WithMany(x => x.Entries)
         //       .HasForeignKey(x => x.BatchHeaderId);

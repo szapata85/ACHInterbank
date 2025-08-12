@@ -12,6 +12,16 @@ public class FileControlConfiguration : IEntityTypeConfiguration<FileControl>
 
         builder.HasKey(x => x.FileControlID);
 
+        builder.Property(p => p.TotalControl)
+            .HasColumnType("money");
+
+        builder.Property(p => p.TotalDebitAmount)
+            .HasColumnType("money");
+
+        builder.Property(p => p.TotalCreditAmount)
+            .HasColumnType("money");
+
+
         //builder.HasOne(x => x.NachaHeader)
         //       .WithMany()
         //       .HasForeignKey(x => x.NachaHeaderId)

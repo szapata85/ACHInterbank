@@ -14,5 +14,9 @@ public class BatchControlConfiguration : IEntityTypeConfiguration<BatchControl>
 
         builder.Property(x => x.IdUserOrig).HasMaxLength(10);
         builder.Property(x => x.CodAutMessage).HasMaxLength(8);
+
+        builder.Property(p => p.TotalCreditAmount).HasColumnType("money");
+
+        builder.Property(p => p.TotalDebitAmount).HasColumnType("money");
     }
 }
