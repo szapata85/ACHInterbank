@@ -14,7 +14,7 @@ public class BatchControl
     public string? CodAutMessage { get; set; }
     public string? IdOrigEntity { get; set; }
     public string? BatchNumber { get; set; }
-    public int NachaID { get; set; }
+    public string? NachaID { get; set; }
 
     [ForeignKey("NachaID")]
     public virtual NachaHeader? NachaHeader { get; set; }

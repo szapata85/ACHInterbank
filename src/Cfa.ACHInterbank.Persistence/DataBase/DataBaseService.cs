@@ -1,4 +1,3 @@
-using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Persistence.Configuration;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,11 +7,11 @@ public class DataBaseService : DbContext
 {
     public DataBaseService(DbContextOptions<DataBaseService> options) : base(options)
     {
-            
+
     }
     public async Task<bool> SaveAsync()
     {
-        return await SaveChangesAsync() > 0;    
+        return await SaveChangesAsync() > 0;
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -27,7 +26,7 @@ public class DataBaseService : DbContext
 
     private void EntityConfiguation(ModelBuilder modelBuilder)
     {
-        
+
     }
 
 }

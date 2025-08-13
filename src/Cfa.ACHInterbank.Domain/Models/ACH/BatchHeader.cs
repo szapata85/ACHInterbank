@@ -18,7 +18,7 @@ public class BatchHeader
     public string? OriginUserStatusCode { get; set; }
     public string? OriginParticipantEntityCode { get; set; }
     public int BatchNumber { get; set; }
-    public int NachaID { get; set; }
+    public string? NachaID { get; set; }
 
     [ForeignKey("NachaID")]
     public virtual NachaHeader? NachaHeader { get; set; }

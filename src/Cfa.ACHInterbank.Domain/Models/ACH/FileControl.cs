@@ -11,7 +11,7 @@ public class FileControl
     public decimal TotalControl { get; set; }
     public decimal TotalDebitAmount { get; set; }
     public decimal TotalCreditAmount { get; set; }
-    public int NachaID { get; set; }
+    public string? NachaID { get; set; }
 
     [ForeignKey("NachaID")]
     public virtual NachaHeader? NachaHeader { get; set; }

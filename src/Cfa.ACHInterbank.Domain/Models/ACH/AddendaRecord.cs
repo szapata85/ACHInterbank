@@ -11,7 +11,7 @@ public class AddendaRecord
     public string? InfofromOriginator { get; set; }
     public string? AddendumSequence { get; set; }
     public string? EntryDetailSequenceNumber { get; set; }
-    public int NachaID { get; set; }
+    public string? NachaID { get; set; }
 
     [ForeignKey("NachaID")]
     public virtual NachaHeader? NachaHeader { get; set; }

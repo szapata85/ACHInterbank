@@ -1,6 +1,10 @@
-﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+﻿using AdoNetCore.AseClient;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.Helpers.Hash;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Microsoft.EntityFrameworkCore;
+using System.Reflection.PortableExecutable;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services;
 
@@ -31,9 +35,6 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
             IEnumerable<char> recordsTypes = lines.Select(a => a[0]).Distinct();
 
             List<NachaHeader> LstNachaHeader = new();
-            //List<BatchHeader> LstBatchHeader = new();
-            //List<EntryDetail> LstEntryDetail = new();
-            //List<AddendaRecord> LstAddendaRecord = new();
 
             foreach (char recordType in recordsTypes)
             {
@@ -44,6 +45,17 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
                 {
                     case '1':
                         LstNachaHeader = ParseFileHeaderLinq(resultLine);
+
+                        //Validación de existencia
+                        bool NachaHeadersExists = await _context.NachaHeaders
+                            .AnyAsync(p => p.FileCreationDate == LstNachaHeader[0].FileCreationDate
+                                        && p.FileCreationTime == LstNachaHeader[0].FileCreationTime
+                                        && p.FileIdModifier == LstNachaHeader[0].FileIdModifier
+                                        && p.ImmediateOrigin == LstNachaHeader[0].ImmediateOrigin);
+
+                        if (NachaHeadersExists)
+                            throw new ArgumentException("El Archivo NACHA ya existe!");
+
                         break;
                     case '5':
                         LstNachaHeader[0].Batches = ParseBatchHeaderLinq(resultLine);
@@ -59,15 +71,10 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
                         break;
                     case '9':
                         LstNachaHeader[0].FileControls = ParseFileControlLinq(resultLine);
-                        //_context.FileControls.Add(ParseFileControl(line));
-
                         break;
                 }
             }
 
-            //LstNachaHeader[0].Batches = LstBatchHeader;
-            //LstNachaHeader[0].EntryDetails = LstEntryDetail;
-            //LstNachaHeader[0].AddendaRecords = LstAddendaRecord;
             _context.NachaHeaders.AddRange(LstNachaHeader);
 
             await _context.SaveChangesAsync();
@@ -83,6 +90,8 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
     {
         return line.Select(a => new NachaHeader
         {
+            NachaID = HashHelper.GenerateHashSha1(
+                                $"{a.Substring(3, 10).Trim()}{a.Substring(13, 10).Trim()}{a.Substring(23, 8).Trim()}{a.Substring(31, 4).Trim()}"),
             PriorityCode = a.Substring(1, 2),
             ImmediateDestination = a.Substring(3, 10).Trim(),
             ImmediateOrigin = a.Substring(13, 10).Trim(),
@@ -167,12 +176,12 @@ public class NachaParserServiceScoped : INachaParserServiceScoped
 
     private List<FileControl> ParseFileControlLinq(List<string> line)
     {
-        return line.Select(a => new FileControl
+        return line.Take(1).Select(a => new FileControl
         {
             BatchCount = int.Parse(a.Substring(1, 6)),
             BlockCount = int.Parse(a.Substring(7, 6)),
             EntryAddendaCount = int.Parse(a.Substring(13, 8)),
-            TotalControl = int.Parse(a.Substring(21, 10)),
+            TotalControl = Convert.ToDecimal(a.Substring(21, 10)) / 100,
             TotalDebitAmount = Convert.ToDecimal(a.Substring(31, 18)) / 100,
             TotalCreditAmount = Convert.ToDecimal(a.Substring(49, 18)) / 100
         }).ToList();
