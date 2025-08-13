@@ -8,9 +8,9 @@ public class ClearingHouseConfig
  
     public int Id { get; set; }
     public int ClearingHouseId { get; set; }
-    public string HolidayStrategy { get; set; } // e.g., "Colombian", "US", etc.
+    public string? HolidayStrategy { get; set; } // e.g., "Colombian", "US", etc.
 
     
-    public virtual ICollection<ClearingHouse> ClearingHouses { get; set; }
+    public virtual ICollection<ClearingHouse>? ClearingHouses { get; set; }
 }
 
