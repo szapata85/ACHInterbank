@@ -1,5 +1,7 @@
 ﻿using Cfa.ACHInterbank.Application.Services.EncryptionService.Interfaces;
-using Microsoft.Extensions.Configuration;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
@@ -7,47 +9,93 @@ namespace Cfa.ACHInterbank.Application.Services.EncryptionService.Implementation
 
 public class RsaKeyProviderSingleton : IRsaKeyProviderSingleton
 {
-    private readonly RSA _publicRsa;
-    private readonly RSA _privateRsa;
-    private readonly string _keyId;
+    //private readonly RSA _publicRsa;
+    //private readonly RSA _privateRsa;
+    //private readonly string _keyId;
+    private readonly AppSettings _appSettings = AppSettings.Settings;
 
-    public RsaKeyProviderSingleton(IConfiguration config)
+
+    public X509Certificate2 ObtenerCertificate(string Key_cert)
     {
-        // Ejemplos de configuración:
-        // "Crypto:CertPath": "certs/mycert.pfx"
-        // "Crypto:CertPassword": "****"
-        // o "Crypto:PublicPem", "Crypto:PrivatePem"
+        var jsonresult = JsonConvert.SerializeObject(_appSettings.Certificates);
 
-        var certPath = config["Crypto:CertPath"];
-        var certPassword = config["Crypto:CertPassword"];
+        JObject? _servicesCertificates = JObject.Parse(jsonresult);
+        List<Certificates>? model = JsonConvert.DeserializeObject<List<Certificates>>(_servicesCertificates[Key_cert]!.ToString());
 
-        if (!string.IsNullOrWhiteSpace(certPath))
+        // Se define el tipo de almacén y su ubicación
+        var storeName = Enum.Parse<StoreName>(model![0].Almacen!);
+        var storeLocation = Enum.Parse<StoreLocation>(model![0].Ubicacion!);
+
+        using (var store = new X509Store(storeName, storeLocation))
         {
-            var cert = new X509Certificate2(certPath, certPassword, X509KeyStorageFlags.Exportable);
-            _publicRsa = cert.GetRSAPublicKey() ?? throw new InvalidOperationException("Cert sin clave pública");
-            _privateRsa = cert.GetRSAPrivateKey() ?? throw new InvalidOperationException("Cert sin clave privada");
-            _keyId = cert.Thumbprint ?? throw new InvalidOperationException("Cert sin Thumbprint");
-        }
-        else
-        {
-            // Fallback PEM
-            var pubPem = config["Crypto:PublicPem"] ?? throw new InvalidOperationException("Falta PublicPem");
-            var prvPem = config["Crypto:PrivatePem"] ?? throw new InvalidOperationException("Falta PrivatePem");
+            store.Open(OpenFlags.ReadOnly);
 
-            _publicRsa = RSA.Create();
-            _publicRsa.ImportFromPem(pubPem);
+            // Se busca el certificado según el criterio
+            var findType = X509FindType.FindBySerialNumber;
+            if (model![0].BuscarPor == BuscarPorEnum.Subject)
+            {
+                findType = X509FindType.FindBySubjectName;
+            }else if (model![0].BuscarPor == BuscarPorEnum.Issuer)
+            {
+                findType = X509FindType.FindByIssuerName;
+            }
+            else if (model![0].BuscarPor == BuscarPorEnum.SerialNumber)
+            {
+                findType = X509FindType.FindBySerialNumber;
+            }
 
-            _privateRsa = RSA.Create();
-            _privateRsa.ImportFromPem(prvPem);
 
-            // KeyId: hash del módulo público
-            var parameters = _publicRsa.ExportParameters(false);
-            using var sha = SHA256.Create();
-            _keyId = Convert.ToHexString(sha.ComputeHash(parameters.Modulus!)).ToLowerInvariant();
+            // Agrega más casos si necesitas buscar por otras propiedades
+
+            var certCollection = store.Certificates.Find(findType, model![0].ValorDeBusqueda!, false);
+
+            if (certCollection.Count == 0)
+            {
+                throw new InvalidOperationException($"No se encontró el certificado con {model![0].BuscarPor}={model![0].ValorDeBusqueda}.");
+            }
+
+            // Retorna el primer certificado encontrado
+            return certCollection[0];
         }
     }
 
-    public RSA GetPublicRsa() => _publicRsa;
-    public RSA GetPrivateRsa() => _privateRsa;
-    public string GetKeyId() => _keyId;
+    //public X509Certificate2 ObtenerCertificado(string Key_cert)
+    //{
+
+
+    //// Se define el tipo de almacén y su ubicación
+    //var storeName = Enum.Parse<StoreName>(_appSettings.Certificados!.Almacen);
+    //var storeLocation = Enum.Parse<StoreLocation>(_appSettings.Certificados!.Ubicacion);
+
+    //using (var store = new X509Store(storeName, storeLocation))
+    //{
+    //    store.Open(OpenFlags.ReadOnly);
+
+    //    // Se busca el certificado según el criterio
+    //    var findType = X509FindType.FindByThumbprint;
+    //    if (config.BuscarPor == BuscarPorEnum.Subject)
+    //    {
+    //        findType = X509FindType.FindBySubjectName;
+    //    }
+    //    // Agrega más casos si necesitas buscar por otras propiedades
+
+    //    var certCollection = store.Certificates.Find(findType, config.ValorDeBusqueda, false);
+
+    //    if (certCollection.Count == 0)
+    //    {
+    //        throw new InvalidOperationException($"No se encontró el certificado con {config.BuscarPor}={config.ValorDeBusqueda}.");
+    //    }
+
+    //    // Retorna el primer certificado encontrado
+    //    return certCollection[0];
+    //}
+    //}
+
+
+
+    //public RSA GetPublicRsa() => _publicRsa;
+    //public RSA GetPrivateRsa() => _privateRsa;
+    //public string GetKeyId() => _keyId;
+
+
 }

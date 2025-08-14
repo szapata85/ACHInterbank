@@ -7,10 +7,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="ACHSobreDigital\Implementation\CryptoServiceScoped.cs" />
+    <Compile Remove="ACHSobreDigital\Interfaces\ICryptoServiceScoped.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Cfa.ACHInterbank.Domain\Cfa.ACHInterbank.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="ACHSobreDigital\Implementation\" />
+    <Folder Include="ACHSobreDigital\Interfaces\" />
     <Folder Include="DataBase\Command\" />
     <Folder Include="DataBase\Queries\" />
   </ItemGroup>

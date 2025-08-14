@@ -13,43 +13,19 @@ public class CryptoServiceScoped : ICryptoServiceScoped
 
     public CryptoServiceScoped(IRsaKeyProviderSingleton keys) => _keys = keys;
 
-    public async Task<DigitalEnvelopeModel> CreateEnvelopeAsync(byte[] plaintext, IDictionary<string, string>? aad = null, CancellationToken ct = default)
+    //public async Task<DigitalEnvelopeModel> CreateEnvelopeAsync(byte[] plaintext, IDictionary<string, string>? aad = null, CancellationToken ct = default)
+    public async Task<byte[]> CreateEnvelopeAsync(byte[] contenidoBytes)
     {
-        // 1) Generar AES256 y nonce
-        var aesKey = RandomNumberGenerator.GetBytes(32);
-        var nonce = RandomNumberGenerator.GetBytes(12);
-
-        // 2) Cifrar con AES-GCM
-        var ciphertext = new byte[plaintext.Length];
-        var tag = new byte[16];
-
-        using (var aesGcm = new AesGcm(aesKey))
+        // Generar hash del contenido
+        byte[] hashContenido;
+        using (var sha256 = SHA256.Create())
         {
-            byte[]? aadBytes = null;
-            if (aad is not null && aad.Count > 0)
-                aadBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(aad));
-
-            aesGcm.Encrypt(nonce, plaintext, ciphertext, tag, aadBytes);
+            hashContenido = sha256.ComputeHash(contenidoBytes);
         }
-
-        // 3) Envolver clave (aesKey||nonce) con RSA-OAEP-SHA256
-        var publicRsa = _keys.GetPublicRsa();
-        var wrapped = publicRsa.Encrypt(aesKey.Concat(nonce).ToArray(), RSAEncryptionPadding.OaepSHA256);
-
-        // 4) Construir sobre
-        var envelope = new DigitalEnvelopeModel
-        {
-            KeyId = _keys.GetKeyId(),
-            EncryptedKey = Convert.ToBase64String(wrapped),
-            Ciphertext = Convert.ToBase64String(ciphertext),
-            Tag = Convert.ToBase64String(tag),
-            Nonce = Convert.ToBase64String(nonce),
-            Aad = aad,
-        };
-
-        // 5) Firma opcional
-        envelope.SigAlg = "RSA-PSS-SHA256";
-        envelope.Signature = await SignEnvelopeAsync(envelope, ct);
+        
+        // Firmar el hash con la clave privada
+        RSA rsa = certificadoFirmante.GetRSAPrivateKey();
+        byte[] firma = rsa.SignHash(hashContenido, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
 
         return envelope;
     }

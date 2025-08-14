@@ -1,5 +1,3 @@
-using Cfa.ACHInterbank.Domain.Entities.Token;
-
 namespace Cfa.ACHInterbank.Domain.Models.Configurations;
 
 public class AppSettings
@@ -14,6 +12,7 @@ public class AppSettings
     public ServesSettings? Servers { set; get; }
     public TokenGeneric? TokenGeneric { set; get; }
     public Integrations? Integrations { set; get; }
+    public CertificatesSettings? Certificates { get; set; }
 }
 
 public class Token
@@ -80,3 +79,27 @@ public class Methods
 
 public enum TypeBody
 { Body, Query }
+
+
+public enum BuscarPorEnum
+{
+    Thumbprint,
+    Subject,
+    Issuer,
+    SerialNumber
+}
+
+
+public class CertificatesSettings
+{
+    public List<Certificates>? CertSign { get; set; }
+    public List<Certificates>? CertCrypt { get; set; }
+}
+
+public class Certificates
+{
+    public string? Almacen { get; set; }
+    public string? Ubicacion { get; set; }
+    public BuscarPorEnum? BuscarPor { get; set; }
+    public string? ValorDeBusqueda { get; set; }
+}
