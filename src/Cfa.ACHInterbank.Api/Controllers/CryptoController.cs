@@ -1,4 +1,5 @@
 ﻿//using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
+using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
 using Cfa.ACHInterbank.Application.Services.EncryptionService.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Microsoft.AspNetCore.Mvc;
@@ -6,19 +7,19 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cfa.ACHInterbank.Api.Controllers
 {
     [ApiController] // Es una buena práctica agregar este atributo para los controladores de API.
-    [Route("api/[controller]")] // Define la ruta base para el controlador.
+    [Route("[controller]")] // Define la ruta base para el controlador.
     public class CryptoController : ControllerBase // Se recomienda heredar de ControllerBase para APIs.
     {
-        //private readonly ICryptoServiceScoped _crypto;
+        private readonly ICryptoServiceScoped _crypto;
 
-        //public CryptoController(ICryptoServiceScoped crypto) => _crypto = crypto;
+        public CryptoController(ICryptoServiceScoped crypto) => _crypto = crypto;
 
         public record EncryptResponse(DigitalEnvelopeModel Envelope);
         public record DecryptRequest(DigitalEnvelopeModel Envelope);
         public record DecryptResponse(string Base64Plaintext);
 
         [HttpPost("encrypt")]
-        public async Task<ActionResult<EncryptResponse>> Encrypt(IFormFile file, [FromForm] Dictionary<string, string>? aad, CancellationToken ct)
+        public async Task<IActionResult> Encrypt(IFormFile file)
         {
             // Valida que el archivo exista.
             if (file == null || file.Length == 0)
@@ -30,13 +31,17 @@ namespace Cfa.ACHInterbank.Api.Controllers
             byte[] data;
             using (var memoryStream = new MemoryStream())
             {
-                await file.CopyToAsync(memoryStream, ct);
+                await file.CopyToAsync(memoryStream);
                 data = memoryStream.ToArray();
             }
 
-            //var envelope = await _crypto.CreateEnvelopeAsync(data, aad, ct);
-            //return Ok(new EncryptResponse(envelope));
-            return Ok();
+            byte[] fileBytes = await _crypto.CreateEnvelopeAsync(data, file.FileName);
+
+            string fileName = $"{file.FileName}.ENV";
+            string contentType = "text/plain"; // cambia según el tipo de archivo
+
+            // Devuelve el archivo como respuesta
+            return File(fileBytes, contentType, fileName);
         }
 
         [HttpPost("decrypt")]
