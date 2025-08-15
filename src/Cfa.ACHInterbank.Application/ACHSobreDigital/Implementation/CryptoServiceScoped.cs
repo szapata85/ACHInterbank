@@ -25,15 +25,15 @@ public class CryptoServiceScoped : ICryptoServiceScoped
 
         string? SobreDigitalFirmado = CrearSobreDigital(mensajeFirmado, certificadoReceptor, certificadoFirmante);
 
-        byte[] contenidobytes = Encoding.UTF8.GetBytes(SobreDigitalFirmado);
+        byte[] contenidobytesResp = Encoding.UTF8.GetBytes(SobreDigitalFirmado);
 
-        string tempath = Path.GetTempPath();
+        //string tempath = Path.GetTempPath();
 
         //string filePath = @$"{tempath}\{FileName}.ENV";
 
         //File.WriteAllBytes(filePath, contenidobytes);
 
-        return contenidoBytes;
+        return contenidobytesResp;
     }
 
     public string CrearMensajeFirmado(byte[] contenidoBytes, X509Certificate2 certificadoFirmante, string FileName)
