@@ -8,11 +8,11 @@ namespace Cfa.ACHInterbank.Api.Controllers
 {
     [ApiController] // Es una buena práctica agregar este atributo para los controladores de API.
     [Route("[controller]")] // Define la ruta base para el controlador.
-    public class CryptoController : ControllerBase // Se recomienda heredar de ControllerBase para APIs.
+    public class SobreDigitalController : ControllerBase // Se recomienda heredar de ControllerBase para APIs.
     {
         private readonly ICryptoServiceScoped _crypto;
 
-        public CryptoController(ICryptoServiceScoped crypto) => _crypto = crypto;
+        public SobreDigitalController(ICryptoServiceScoped crypto) => _crypto = crypto;
 
         public record EncryptResponse(DigitalEnvelopeModel Envelope);
         public record DecryptRequest(DigitalEnvelopeModel Envelope);
@@ -45,11 +45,32 @@ namespace Cfa.ACHInterbank.Api.Controllers
         }
 
         [HttpPost("decrypt")]
-        public async Task<ActionResult<DecryptResponse>> Decrypt([FromBody] DecryptRequest req, CancellationToken ct)
+        public async Task<ActionResult<DecryptResponse>> Decrypt(IFormFile file)
         {
             //var plain = await _crypto.OpenEnvelopeAsync(req.Envelope, ct);
             //return Ok(new DecryptResponse(Convert.ToBase64String(plain)));
-            return Ok();
+            // Valida que el archivo exista.
+            if (file == null || file.Length == 0)
+            {
+                return BadRequest("No se ha proporcionado ningún archivo.");
+            }
+
+            // Convierte el IFormFile a un array de bytes.
+            byte[] data;
+            using (var memoryStream = new MemoryStream())
+            {
+                await file.CopyToAsync(memoryStream);
+                data = memoryStream.ToArray();
+            }
+
+            //byte[] fileBytes = await _crypto.CreateEnvelopeAsync(data, file.FileName);
+            byte[] fileBytes = await _crypto.OpenEnvelopeAsync(data, file.FileName);
+
+            string fileName = file.FileName.Replace(".ENV", null);
+            string contentType = "text/plain"; // cambia según el tipo de archivo
+
+            // Devuelve el archivo como respuesta
+            return File(fileBytes, contentType, fileName);
         }
 
         [HttpPost("testRSA")]

@@ -27,11 +27,6 @@ public class CryptoServiceScoped : ICryptoServiceScoped
 
         byte[] contenidobytesResp = Encoding.UTF8.GetBytes(SobreDigitalFirmado);
 
-        //string tempath = Path.GetTempPath();
-
-        //string filePath = @$"{tempath}\{FileName}.ENV";
-
-        //File.WriteAllBytes(filePath, contenidobytes);
 
         return contenidobytesResp;
     }
@@ -59,7 +54,7 @@ public class CryptoServiceScoped : ICryptoServiceScoped
                 SignatureAlgorithm = "SHA256withRSA",
                 Certificate = Convert.ToBase64String(certificadoFirmante.RawData)
             },
-            ContentInfo = Convert.ToBase64String(Helpers.ZIP.ZipHelper.CoprimeContend(contenidoBytes, FileName)),
+            ContentInfo = Convert.ToBase64String(Helpers.ZIP.ZipHelper.ZipContend(contenidoBytes, FileName)),
             EncryptedDigest = Convert.ToBase64String(firma)
         };
 
@@ -127,8 +122,16 @@ public class CryptoServiceScoped : ICryptoServiceScoped
         return sw.ToString();
     }
 
+    private T DeserializeXml<T>(string xmlContent)
+    {
+        XmlSerializer serializer = new XmlSerializer(typeof(T));
+        using (StringReader reader = new StringReader(xmlContent))
+        {
+            return (T)serializer.Deserialize(reader);
+        }
+    }
 
-    private static byte[] CifrarAES(byte[] data, byte[] key, byte[] iv)
+    private byte[] CifrarAES(byte[] data, byte[] key, byte[] iv)
     {
         using (var aes = Aes.Create())
         {
@@ -141,7 +144,7 @@ public class CryptoServiceScoped : ICryptoServiceScoped
         }
     }
 
-    private static byte[] DescifrarAES(byte[] data, byte[] key, byte[] iv)
+    private byte[] DescifrarAES(byte[] data, byte[] key, byte[] iv)
     {//AES/CBC/PKCS5padding
         using (var aes = Aes.Create())
         {
@@ -154,96 +157,76 @@ public class CryptoServiceScoped : ICryptoServiceScoped
         }
     }
 
-    //public Task<string> SignEnvelopeAsync(DigitalEnvelopeModel envelope, CancellationToken ct = default)
-    //{
-    //    var privateRsa = _keys.GetPrivateRsa();
-
-    //    // Canonical JSON sin Signature (evita ambigüedades)
-    //    var clone = new DigitalEnvelopeModel
-    //    {
-    //        Version = envelope.Version,
-    //        EncAlg = envelope.EncAlg,
-    //        KeyAlg = envelope.KeyAlg,
-    //        KeyId = envelope.KeyId,
-    //        EncryptedKey = envelope.EncryptedKey,
-    //        Ciphertext = envelope.Ciphertext,
-    //        Tag = envelope.Tag,
-    //        Nonce = envelope.Nonce,
-    //        SigAlg = envelope.SigAlg,
-    //        Aad = envelope.Aad
-    //    };
-
-    //    var json = JsonSerializer.Serialize(clone, new JsonSerializerOptions { WriteIndented = false, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
-    //    var data = Encoding.UTF8.GetBytes(json);
-
-    //    var sig = privateRsa.SignData(data, HashAlgorithmName.SHA256, RSASignaturePadding.Pss);
-    //    return Task.FromResult(Convert.ToBase64String(sig));
-    //}
-
-    //public Task<bool> VerifyEnvelopeAsync(DigitalEnvelopeModel envelope, CancellationToken ct = default)
-    //{
-    //    if (string.IsNullOrWhiteSpace(envelope.Signature)) return Task.FromResult(false);
-
-    //    var publicRsa = _keys.GetPublicRsa();
-    //    var clone = new DigitalEnvelopeModel
-    //    {
-    //        Version = envelope.Version,
-    //        EncAlg = envelope.EncAlg,
-    //        KeyAlg = envelope.KeyAlg,
-    //        KeyId = envelope.KeyId,
-    //        EncryptedKey = envelope.EncryptedKey,
-    //        Ciphertext = envelope.Ciphertext,
-    //        Tag = envelope.Tag,
-    //        Nonce = envelope.Nonce,
-    //        SigAlg = envelope.SigAlg,
-    //        Aad = envelope.Aad
-    //    };
-
-    //    var json = JsonSerializer.Serialize(clone, new JsonSerializerOptions { WriteIndented = false, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
-    //    var data = Encoding.UTF8.GetBytes(json);
-    //    var sigBytes = Convert.FromBase64String(envelope.Signature);
-
-    //    var ok = publicRsa.VerifyData(data, sigBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pss);
-    //    return Task.FromResult(ok);
-    //}
-
-    //public Task<byte[]> OpenEnvelopeAsync(DigitalEnvelopeModel envelope, CancellationToken ct = default)
-    //{
-    //    // (Opcional) verificar firma antes de abrir
-    //    //if (!string.IsNullOrEmpty(envelope.Signature))
-    //    //{
-    //    //    var verify = VerifyEnvelopeAsync(envelope, ct).GetAwaiter().GetResult();
-    //    //    if (!verify) throw new CryptographicException("Firma inválida del sobre.");
-    //    //}
-
-    //    var privateRsa = _keys.GetPrivateRsa();
-
-    //    var wrapped = Convert.FromBase64String(envelope.EncryptedKey);
-    //    var combined = privateRsa.Decrypt(wrapped, RSAEncryptionPadding.OaepSHA256);
-
-    //    var aesKey = combined[..32];
-    //    var nonce = combined[32..];
-
-    //    var ciphertext = Convert.FromBase64String(envelope.Ciphertext);
-    //    var tag = Convert.FromBase64String(envelope.Tag);
-
-    //    var plaintext = new byte[ciphertext.Length];
-
-    //    using (var aesGcm = new AesGcm(aesKey))
-    //    {
-    //        byte[]? aadBytes = null;
-    //        if (envelope.Aad is not null && envelope.Aad.Count > 0)
-    //            aadBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(envelope.Aad));
-
-    //        aesGcm.Decrypt(nonce, ciphertext, tag, plaintext, aadBytes);
-    //    }
-
-    //    return Task.FromResult(plaintext);
-    //}
-
-    public Task<byte[]> OpenEnvelopeAsync(byte[] contenidoBytes, string FileName)
+    private byte[] GenerarIVDesdeIdentifier(string identifier)
     {
-        throw new NotImplementedException();
+        // Aquí puedes derivar el IV desde el identifier como hash o truncamiento
+        using var sha256 = SHA256.Create();
+        byte[] hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(identifier));
+        return hash.Take(16).ToArray(); // AES IV = 16 bytes
+    }
+
+    public async Task<byte[]> OpenEnvelopeAsync(byte[] contenidoBytes, string FileName)
+    {
+        //X509Certificate2 certificadoFirmante = _keys.ObtenerCertificate("CertSign");
+        X509Certificate2 certificadoReceptor = _keys.ObtenerCertificate("CertSign");
+        string sobre = Encoding.UTF8.GetString(contenidoBytes);
+
+
+        DigitalEnvelopeModel objsobre = DeserializeXml<DigitalEnvelopeModel>(sobre);
+
+        byte[] encryptedKey = Convert.FromBase64String(objsobre.RecipientInfo.EncryptedKey);
+        byte[] encryptedContent = Convert.FromBase64String(objsobre.EncryptedContentInfo.EncryptedContent);
+
+
+        // Desencriptar llave simétrica con clave privada del receptor
+        RSA rsaReceptor = certificadoReceptor.GetRSAPrivateKey()!;
+        byte[] aesKey = rsaReceptor.Decrypt(encryptedKey, RSAEncryptionPadding.Pkcs1);
+
+        byte[] iv = GenerarIVDesdeIdentifier(objsobre.Identifier); // Método adicional
+
+        byte[] contenidoFirmadoBytes = DescifrarAES(encryptedContent, aesKey, iv);
+
+        string xmlFirmadoStr = Encoding.UTF8.GetString(contenidoFirmadoBytes);
+        xmlFirmadoStr = xmlFirmadoStr.Substring(xmlFirmadoStr.IndexOf("\n") + 1);
+
+        SignedData objSignedMessageFirmado = DeserializeXml<SignedData>(xmlFirmadoStr);
+
+        string contentinfo = objSignedMessageFirmado.ContentInfo.Replace("\n", "");
+
+        byte[] zipBytes = Convert.FromBase64String(contentinfo);
+
+        (byte[], string) contenidoOriginal = Helpers.ZIP.ZipHelper.UnZipContend(zipBytes);
+
+        string firmaB64 = objSignedMessageFirmado.EncryptedDigest.Replace("\n", "");
+
+        byte[] hash = SHA256.Create().ComputeHash(contenidoOriginal.Item1);
+
+        byte[] firma = Convert.FromBase64String(firmaB64);
+
+        X509Certificate2 certificadoFirmante = new X509Certificate2(Convert.FromBase64String(objSignedMessageFirmado.SignerInfo.Certificate));
+        RSA rsaFirmante = certificadoFirmante.GetRSAPublicKey()!;
+
+
+
+        //Process.Start("explorer.exe", pathENVRelative);
+        //bool VERIFICADO = false;
+        //if (rsaFirmante.VerifyHash(hash, firma, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1))
+        //{
+        //    VERIFICADO = true;
+        //    string filePath = @$"{pathENVRelative}\{contenidoOriginal.Item2}";
+        //    File.WriteAllBytes(filePath, contenidoOriginal.Item1);
+
+
+        //    Process.Start("explorer.exe", pathENVRelative);
+        //};
+
+        //rsaFirmante.VerifyHash(hash, firma, HashAlgorithmName.SHA256 , RSASignaturePadding.Pkcs1);
+
+
+        byte[] contenidobytesResp = contenidoOriginal.Item1;
+
+
+        return contenidobytesResp;
     }
 }
 

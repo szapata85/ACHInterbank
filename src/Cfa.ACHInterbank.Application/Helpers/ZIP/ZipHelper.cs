@@ -4,7 +4,7 @@ namespace Cfa.ACHInterbank.Application.Helpers.ZIP;
 
 public static class ZipHelper
 {
-    public static byte[] CoprimeContend(byte[] data, string EntryFileName = "data")
+    public static byte[] ZipContend(byte[] data, string EntryFileName = "data")
     {
         using (MemoryStream output = new MemoryStream())
         {
@@ -17,6 +17,21 @@ public static class ZipHelper
                 }
             }
             return output.ToArray();
+        }
+    }
+
+    public static (byte[], string) UnZipContend(byte[] compressedData)
+    {
+        using (MemoryStream input = new MemoryStream(compressedData))
+        using (ZipArchive zip = new ZipArchive(input, ZipArchiveMode.Read))
+        {
+            ZipArchiveEntry entry = zip.Entries[0];
+            using (Stream entryStream = entry.Open())
+            using (MemoryStream output = new MemoryStream())
+            {
+                entryStream.CopyTo(output);
+                return (output.ToArray(), entry.FullName);
+            }
         }
     }
 }
