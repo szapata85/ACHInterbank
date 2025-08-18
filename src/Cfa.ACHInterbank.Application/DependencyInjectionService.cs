@@ -1,4 +1,3 @@
-using System.Reflection;
 using Cfa.ACHInterbank.Application.Configuration;
 using Cfa.ACHInterbank.Application.Services.TokenClient.Model;
 using Cfa.ACHInterbank.Application.Validators.NachaValidator;
@@ -6,6 +5,8 @@ using Cfa.ACHInterbank.Application.Validators.TokenClientValidator;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using System.Reflection;
 
 namespace Cfa.ACHInterbank.Application;
 
@@ -14,7 +15,14 @@ public static class DependencyInjectionService
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         #region Configuration
-        MapperBootstrapper.Configure();
+        var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.AddConsole();
+        });
+
+        // usarlo con AutoMapper 15
+        MapperBootstrapper.Configure(loggerFactory);
+
         services.AddSingleton(MapperBootstrapper.Instance);
         #endregion
 

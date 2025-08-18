@@ -127,7 +127,7 @@ public class CryptoServiceScoped : ICryptoServiceScoped
         XmlSerializer serializer = new XmlSerializer(typeof(T));
         using (StringReader reader = new StringReader(xmlContent))
         {
-            return (T)serializer.Deserialize(reader);
+            return (T)serializer.Deserialize(reader)!;
         }
     }
 
@@ -203,7 +203,9 @@ public class CryptoServiceScoped : ICryptoServiceScoped
 
         byte[] firma = Convert.FromBase64String(firmaB64);
 
-        X509Certificate2 certificadoFirmante = new X509Certificate2(Convert.FromBase64String(objSignedMessageFirmado.SignerInfo.Certificate));
+        //X509Certificate2 certificadoFirmante = new X509Certificate2(Convert.FromBase64String(objSignedMessageFirmado.SignerInfo.Certificate));
+
+        X509Certificate2 certificadoFirmante = X509CertificateLoader.LoadPkcs12(Convert.FromBase64String(objSignedMessageFirmado.SignerInfo.Certificate), password: null);
         RSA rsaFirmante = certificadoFirmante.GetRSAPublicKey()!;
 
 
