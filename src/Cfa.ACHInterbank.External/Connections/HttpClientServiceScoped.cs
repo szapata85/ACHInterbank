@@ -19,7 +19,7 @@ public class HttpClientServiceScoped : IHttpClientServiceScoped
         _logger = logger;
     }
 
-    public async Task<T> SendPostRequestAsync<T>(string url, object content, HttpMethod method, TypeBody typeBody, string token = null)
+    public async Task<T> SendPostRequestAsync<T>(string url, object content, HttpMethod method, TypeBody typeBody, string token = "")
     {
         try
         {
@@ -30,7 +30,7 @@ public class HttpClientServiceScoped : IHttpClientServiceScoped
 
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
 
-            HttpContent httpContent = null;
+            HttpContent? httpContent = null;
 
             // Diferenciamos el tipo de contenido
             if (content != null)
