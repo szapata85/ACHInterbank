@@ -7,16 +7,16 @@ public sealed class TaskDefinition
     public int Id { get; set; }
     public string Code { get; set; } = default!;
     public string Name { get; set; } = default!;
-    public TaskStatus Status { get; set; } = TaskStatus.Enabled;
-    public CalendarPolicy CalendarPolicy { get; set; } = CalendarPolicy.OnlyBusinessDays;
+    public TaskStatusEnum Status { get; set; } = TaskStatusEnum.Enabled;
+    public CalendarPolicyEnum CalendarPolicy { get; set; } = CalendarPolicyEnum.OnlyBusinessDays;
     public string? TimeZoneId { get; set; } = "America/Bogota";
 
-    public ConcurrencyPolicy ConcurrencyPolicy { get; set; } = ConcurrencyPolicy.SkipIfRunning;
+    public ConcurrencyPolicyEnum ConcurrencyPolicy { get; set; } = ConcurrencyPolicyEnum.SkipIfRunning;
     public bool RetryOnFailure { get; set; } = true;
     public int? MaxRetries { get; set; }
     public int RetryBackoffSeconds { get; set; } = 60;
 
-    public PeriodicityType PeriodicityType { get; set; }
+    public PeriodicityTypeEnum PeriodicityType { get; set; }
     public int? N { get; set; }
     public int? Minute { get; set; }
     public TimeOnly? TimeOfDay { get; set; }
