@@ -1,5 +1,3 @@
 ﻿namespace Cfa.ACHInterbank.Domain.Entities.SchedulerTask.enums;
 
-internal class TaskStatus
-{
-}
+public enum TaskStatus { Disabled, Enabled }

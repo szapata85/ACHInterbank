@@ -1,4 +1,6 @@
-﻿using Cfa.ACHInterbank.Domain.Models.ACH;
+﻿using AdoNetCore.AseClient;
+using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Persistence.DataBase;
@@ -21,6 +23,10 @@ public class AchDbContext : DbContext
     public DbSet<AddendaRecord> AddendaRecords { get; set; }
     public DbSet<BatchControl> BatchControls { get; set; }
     public DbSet<FileControl> FileControls { get; set; }
+
+    public DbSet<TaskDefinition> Tasks => Set<TaskDefinition>();
+    public DbSet<TaskParameter> TaskParameters => Set<TaskParameter>();
+    public DbSet<TaskExecutionLog> ExecutionLogs => Set<TaskExecutionLog>();
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -1,5 +1,3 @@
 ﻿namespace Cfa.ACHInterbank.Domain.Entities.SchedulerTask.enums;
 
-internal class ConcurrencyPolicy
-{
-}
+public enum ConcurrencyPolicy { AllowParallel, SkipIfRunning, Queue }

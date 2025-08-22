@@ -1,5 +1,3 @@
 ﻿namespace Cfa.ACHInterbank.Domain.Entities.SchedulerTask.enums;
 
-internal class PeriodicityType
-{
-}
+public enum PeriodicityType { Once, EveryNMinutes, HourlyAtMinute, DailyAtTime, Weekly, Monthly, Cron }

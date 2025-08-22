@@ -1,5 +1,3 @@
 ﻿namespace Cfa.ACHInterbank.Domain.Entities.SchedulerTask.enums;
 
-internal class CalendarPolicy
-{
-}
+public enum CalendarPolicy { IgnoreCalendar, OnlyBusinessDays, OnlyWeekends, SkipHolidays, ShiftToNextBusinessDay }
