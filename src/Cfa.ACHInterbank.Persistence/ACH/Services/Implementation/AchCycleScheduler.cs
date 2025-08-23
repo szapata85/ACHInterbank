@@ -8,9 +8,9 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class AchCycleScheduler : IAchCycleScheduler
 {
     private readonly AchDbContext _context;
-    private readonly IBankHolidaySeeder _holidayService;
+    private readonly IBankHoliday _holidayService;
 
-    public AchCycleScheduler(AchDbContext context, IBankHolidaySeeder holidayService)
+    public AchCycleScheduler(AchDbContext context, IBankHoliday holidayService)
     {
         _context = context;
         _holidayService = holidayService;
