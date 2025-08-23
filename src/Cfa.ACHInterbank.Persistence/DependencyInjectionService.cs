@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Quartz;
+using Quartz.Simpl;
 using System.Reflection;
 
 namespace Cfa.ACHInterbank.Persistence;
@@ -23,9 +25,20 @@ public static class DependencyInjectionService
 
         //services.AddDbContext<DataBaseService>(options => options.UseSqlServer(configuration.GetConnectionString("SqlConnection")));
 
-        var sqlconnection = configuration.GetConnectionString("SqlConnection");
-
         services.AddDbContext<AchDbContext>(options => options.UseSqlServer(configuration.GetConnectionString("SqlConnection")));
+
+        services.AddQuartz(q =>
+        {
+            q.UseJobFactory<MicrosoftDependencyInjectionJobFactory>();
+
+            q.UsePersistentStore(s =>
+            {
+                s.UseProperties = true;
+                s.UseSqlServer(configuration.GetConnectionString("SqlConnection")!);
+                s.UseClustering(); // multi-nodo
+            });
+        });
+
 
         //using (var scope = app.Services.CreateScope())
         //{

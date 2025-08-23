@@ -82,5 +82,31 @@ public class AchDbContext : DbContext
             );
 
         modelBuilder.Entity<ClearingHouseConfig>().HasData(new ClearingHouseConfig { Id = 1, ClearingHouseId = 1, HolidayStrategy = "Colombian" });
+
+
+        modelBuilder.Entity<TaskDefinition>(e =>
+        {
+            e.ToTable("Tasks");
+            e.HasIndex(x => x.Code).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.TimeZoneId).HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<TaskParameter>(e =>
+        {
+            e.ToTable("TaskParameters");
+            e.HasIndex(x => new { x.TaskDefinitionId, x.Key }).IsUnique();
+            e.Property(x => x.Key).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Value).HasMaxLength(2000).IsRequired();
+        });
+
+        modelBuilder.Entity<TaskExecutionLog>(e =>
+        {
+            e.ToTable("TaskExecutionLog");
+            e.HasIndex(x => x.TaskDefinitionId);
+            e.Property(x => x.ExecutionKey).HasMaxLength(64).IsRequired();
+        });
+
     }
 }
