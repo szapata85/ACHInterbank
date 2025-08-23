@@ -34,7 +34,7 @@ public class AchCycleScheduler : IAchCycleScheduler
         {
             var processingDate = cycle.ProcessingDate;
 
-            if (holidays.Contains(processingDate.Date) ||
+            if (holidays.Contains(DateOnly.FromDateTime(processingDate.Date)) ||
                 processingDate.DayOfWeek == DayOfWeek.Saturday ||
                 processingDate.DayOfWeek == DayOfWeek.Sunday)
             {
@@ -93,15 +93,15 @@ public class AchCycleScheduler : IAchCycleScheduler
         var holidays = _holidayService.GetHolidays(date.Year);
         return date.DayOfWeek == DayOfWeek.Saturday ||
                date.DayOfWeek == DayOfWeek.Sunday ||
-               holidays.Contains(date.Date);
+               holidays.Contains(DateOnly.FromDateTime(date.Date));
     }
 
-    private DateTime GetNextBusinessDay(DateTime date, List<DateTime> holidays)
+    private DateTime GetNextBusinessDay(DateTime date, List<DateOnly> holidays)
     {
         do
         {
             date = date.AddDays(1);
-        } while (holidays.Contains(date.Date) || date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday);
+        } while (holidays.Contains(DateOnly.FromDateTime(date.Date)) || date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday);
 
         return date;
     }

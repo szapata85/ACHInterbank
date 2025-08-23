@@ -51,11 +51,11 @@ public class BankHolidaySeeder : IBankHolidaySeeder
             .ToListAsync();
     }
 
-    public List<DateTime> GetHolidays(int year)
+    public List<DateOnly> GetHolidays(int year)
     {
         return _context.BankHolidays
             .Where(h => h.Date.Year == year)
-            .Select(h => h.Date.Date)
+            .Select(h => h.Date)
             .ToList();
     }
 }

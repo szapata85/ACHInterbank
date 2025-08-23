@@ -9,11 +9,11 @@ public class ColombianHolidayStrategy : IHolidayStrategy
     {
         var holidays = new List<BankHoliday>
         {
-            new BankHoliday { Date = new DateTime(year, 1, 1), Description  = "New Year's Day" },
-            new BankHoliday { Date = new DateTime(year, 5, 1), Description  = "Labor Day" },
-            new BankHoliday { Date = new DateTime(year, 7, 20), Description  = "Independence Day" },
-            new BankHoliday { Date = new DateTime(year, 8, 7), Description  = "Battle of Boyacá" },
-            new BankHoliday { Date = new DateTime(year, 12, 25), Description  = "Christmas" },
+            new BankHoliday { Date = new DateOnly(year, 1, 1), Description  = "New Year's Day" },
+            new BankHoliday { Date = new DateOnly(year, 5, 1), Description  = "Labor Day" },
+            new BankHoliday { Date = new DateOnly(year, 7, 20), Description  = "Independence Day" },
+            new BankHoliday { Date = new DateOnly(year, 8, 7), Description  = "Battle of Boyacá" },
+            new BankHoliday { Date = new DateOnly(year, 12, 25), Description  = "Christmas" },
         };
 
         return holidays;

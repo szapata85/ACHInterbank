@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Cfa.ACHInterbank.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class Init : Migration
+    public partial class init : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -19,8 +19,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    Date = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    Description = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                    Date = table.Column<DateOnly>(type: "date", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CountryCode = table.Column<string>(type: "nvarchar(max)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -76,6 +77,36 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_NachaHeaders", x => x.NachaID);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Tasks",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Code = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    CalendarPolicy = table.Column<int>(type: "int", nullable: false),
+                    TimeZoneId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    ConcurrencyPolicy = table.Column<int>(type: "int", nullable: false),
+                    RetryOnFailure = table.Column<bool>(type: "bit", nullable: false),
+                    MaxRetries = table.Column<int>(type: "int", nullable: true),
+                    RetryBackoffSeconds = table.Column<int>(type: "int", nullable: false),
+                    PeriodicityType = table.Column<int>(type: "int", nullable: false),
+                    N = table.Column<int>(type: "int", nullable: true),
+                    Minute = table.Column<int>(type: "int", nullable: true),
+                    TimeOfDay = table.Column<TimeOnly>(type: "time", nullable: true),
+                    WeeklyDay = table.Column<int>(type: "int", nullable: true),
+                    MonthDay = table.Column<int>(type: "int", nullable: true),
+                    CronExpression = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    StartAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    EndAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Tasks", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -234,6 +265,53 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "TaskExecutionLog",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TaskDefinitionId = table.Column<int>(type: "int", nullable: false),
+                    ScheduledAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    StartedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    FinishedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    Success = table.Column<bool>(type: "bit", nullable: false),
+                    Error = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Output = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ExecutionKey = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TaskExecutionLog", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TaskExecutionLog_Tasks_TaskDefinitionId",
+                        column: x => x.TaskDefinitionId,
+                        principalTable: "Tasks",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TaskParameters",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TaskDefinitionId = table.Column<int>(type: "int", nullable: false),
+                    Key = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Value = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TaskParameters", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TaskParameters_Tasks_TaskDefinitionId",
+                        column: x => x.TaskDefinitionId,
+                        principalTable: "Tasks",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "AchCycles",
                 columns: table => new
                 {
@@ -295,26 +373,26 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
             migrationBuilder.InsertData(
                 table: "BankHolidays",
-                columns: new[] { "Id", "Date", "Description" },
+                columns: new[] { "Id", "CountryCode", "Date", "Description" },
                 values: new object[,]
                 {
-                    { 1, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "Año Nuevo" },
-                    { 2, new DateTime(2025, 1, 6, 0, 0, 0, 0, DateTimeKind.Unspecified), "Día de los Reyes Magos" },
-                    { 3, new DateTime(2025, 3, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), "San José" },
-                    { 4, new DateTime(2025, 4, 17, 0, 0, 0, 0, DateTimeKind.Unspecified), "Jueves Santo" },
-                    { 5, new DateTime(2025, 4, 18, 0, 0, 0, 0, DateTimeKind.Unspecified), "Viernes Santo" },
-                    { 6, new DateTime(2025, 5, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "Día del Trabajo" },
-                    { 7, new DateTime(2025, 5, 26, 0, 0, 0, 0, DateTimeKind.Unspecified), "Ascensión del Señor" },
-                    { 8, new DateTime(2025, 6, 16, 0, 0, 0, 0, DateTimeKind.Unspecified), "Corpus Christi" },
-                    { 9, new DateTime(2025, 6, 23, 0, 0, 0, 0, DateTimeKind.Unspecified), "Sagrado Corazón" },
-                    { 10, new DateTime(2025, 7, 20, 0, 0, 0, 0, DateTimeKind.Unspecified), "Día de la Independencia" },
-                    { 11, new DateTime(2025, 8, 7, 0, 0, 0, 0, DateTimeKind.Unspecified), "Batalla de Boyacá" },
-                    { 12, new DateTime(2025, 8, 18, 0, 0, 0, 0, DateTimeKind.Unspecified), "La Asunción" },
-                    { 13, new DateTime(2025, 10, 13, 0, 0, 0, 0, DateTimeKind.Unspecified), "Día de la Raza" },
-                    { 14, new DateTime(2025, 11, 3, 0, 0, 0, 0, DateTimeKind.Unspecified), "Todos los Santos" },
-                    { 15, new DateTime(2025, 11, 17, 0, 0, 0, 0, DateTimeKind.Unspecified), "Independencia de Cartagena" },
-                    { 16, new DateTime(2025, 12, 8, 0, 0, 0, 0, DateTimeKind.Unspecified), "Inmaculada Concepción" },
-                    { 17, new DateTime(2025, 12, 25, 0, 0, 0, 0, DateTimeKind.Unspecified), "Navidad" }
+                    { 1, "CO", new DateOnly(2025, 1, 1), "Año Nuevo" },
+                    { 2, "CO", new DateOnly(2025, 1, 6), "Día de los Reyes Magos" },
+                    { 3, "CO", new DateOnly(2025, 3, 24), "San José" },
+                    { 4, "CO", new DateOnly(2025, 4, 17), "Jueves Santo" },
+                    { 5, "CO", new DateOnly(2025, 4, 18), "Viernes Santo" },
+                    { 6, "CO", new DateOnly(2025, 5, 1), "Día del Trabajo" },
+                    { 7, "CO", new DateOnly(2025, 5, 26), "Ascensión del Señor" },
+                    { 8, "CO", new DateOnly(2025, 6, 16), "Corpus Christi" },
+                    { 9, "CO", new DateOnly(2025, 6, 23), "Sagrado Corazón" },
+                    { 10, "CO", new DateOnly(2025, 7, 20), "Día de la Independencia" },
+                    { 11, "CO", new DateOnly(2025, 8, 7), "Batalla de Boyacá" },
+                    { 12, "CO", new DateOnly(2025, 8, 18), "La Asunción" },
+                    { 13, "CO", new DateOnly(2025, 10, 13), "Día de la Raza" },
+                    { 14, "CO", new DateOnly(2025, 11, 3), "Todos los Santos" },
+                    { 15, "CO", new DateOnly(2025, 11, 17), "Independencia de Cartagena" },
+                    { 16, "CO", new DateOnly(2025, 12, 8), "Inmaculada Concepción" },
+                    { 17, "CO", new DateOnly(2025, 12, 25), "Navidad" }
                 });
 
             migrationBuilder.InsertData(
@@ -380,6 +458,23 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 name: "IX_FileControls_NachaID",
                 table: "FileControls",
                 column: "NachaID");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TaskExecutionLog_TaskDefinitionId",
+                table: "TaskExecutionLog",
+                column: "TaskDefinitionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TaskParameters_TaskDefinitionId_Key",
+                table: "TaskParameters",
+                columns: new[] { "TaskDefinitionId", "Key" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Tasks_Code",
+                table: "Tasks",
+                column: "Code",
+                unique: true);
         }
 
         /// <inheritdoc />
@@ -407,6 +502,12 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 name: "FileControls");
 
             migrationBuilder.DropTable(
+                name: "TaskExecutionLog");
+
+            migrationBuilder.DropTable(
+                name: "TaskParameters");
+
+            migrationBuilder.DropTable(
                 name: "AchCycles");
 
             migrationBuilder.DropTable(
@@ -414,6 +515,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "NachaHeaders");
+
+            migrationBuilder.DropTable(
+                name: "Tasks");
 
             migrationBuilder.DropTable(
                 name: "ClearingHouses");

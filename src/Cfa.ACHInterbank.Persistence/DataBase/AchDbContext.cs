@@ -2,6 +2,7 @@
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.EntityFrameworkCore;
+using NLog.LayoutRenderers.Wrappers;
 
 namespace Cfa.ACHInterbank.Persistence.DataBase;
 
@@ -53,26 +54,26 @@ public class AchDbContext : DbContext
             .HasForeignKey(t => t.AchCycleId)
             .OnDelete(DeleteBehavior.Restrict); // o Cascade si aplica
 
-
+        int year = DateTime.Now.Year;
 
         modelBuilder.Entity<BankHoliday>().HasData(
-            new BankHoliday { Id = 1, Date = new DateTime(2025, 1, 1), Description = "Año Nuevo" },
-            new BankHoliday { Id = 2, Date = new DateTime(2025, 1, 6), Description = "Día de los Reyes Magos" },
-            new BankHoliday { Id = 3, Date = new DateTime(2025, 3, 24), Description = "San José" },
-            new BankHoliday { Id = 4, Date = new DateTime(2025, 4, 17), Description = "Jueves Santo" },
-            new BankHoliday { Id = 5, Date = new DateTime(2025, 4, 18), Description = "Viernes Santo" },
-            new BankHoliday { Id = 6, Date = new DateTime(2025, 5, 1), Description = "Día del Trabajo" },
-            new BankHoliday { Id = 7, Date = new DateTime(2025, 5, 26), Description = "Ascensión del Señor" },
-            new BankHoliday { Id = 8, Date = new DateTime(2025, 6, 16), Description = "Corpus Christi" },
-            new BankHoliday { Id = 9, Date = new DateTime(2025, 6, 23), Description = "Sagrado Corazón" },
-            new BankHoliday { Id = 10, Date = new DateTime(2025, 7, 20), Description = "Día de la Independencia" },
-            new BankHoliday { Id = 11, Date = new DateTime(2025, 8, 7), Description = "Batalla de Boyacá" },
-            new BankHoliday { Id = 12, Date = new DateTime(2025, 8, 18), Description = "La Asunción" },
-            new BankHoliday { Id = 13, Date = new DateTime(2025, 10, 13), Description = "Día de la Raza" },
-            new BankHoliday { Id = 14, Date = new DateTime(2025, 11, 3), Description = "Todos los Santos" },
-            new BankHoliday { Id = 15, Date = new DateTime(2025, 11, 17), Description = "Independencia de Cartagena" },
-            new BankHoliday { Id = 16, Date = new DateTime(2025, 12, 8), Description = "Inmaculada Concepción" },
-            new BankHoliday { Id = 17, Date = new DateTime(2025, 12, 25), Description = "Navidad" }
+            new BankHoliday { Id = 1, Date = new DateOnly(year, 1, 1), Description = "Año Nuevo" },
+            new BankHoliday { Id = 2, Date = new DateOnly(year, 1, 6), Description = "Día de los Reyes Magos" },
+            new BankHoliday { Id = 3, Date = new DateOnly(year, 3, 24), Description = "San José" },
+            new BankHoliday { Id = 4, Date = new DateOnly(year, 4, 17), Description = "Jueves Santo" },
+            new BankHoliday { Id = 5, Date = new DateOnly(year, 4, 18), Description = "Viernes Santo" },
+            new BankHoliday { Id = 6, Date = new DateOnly(year, 5, 1), Description = "Día del Trabajo" },
+            new BankHoliday { Id = 7, Date = new DateOnly(year, 5, 26), Description = "Ascensión del Señor" },
+            new BankHoliday { Id = 8, Date = new DateOnly(year, 6, 16), Description = "Corpus Christi" },
+            new BankHoliday { Id = 9, Date = new DateOnly(year, 6, 23), Description = "Sagrado Corazón" },
+            new BankHoliday { Id = 10, Date = new DateOnly(year, 7, 20), Description = "Día de la Independencia" },
+            new BankHoliday { Id = 11, Date = new DateOnly(year, 8, 7), Description = "Batalla de Boyacá" },
+            new BankHoliday { Id = 12, Date = new DateOnly(year, 8, 18), Description = "La Asunción" },
+            new BankHoliday { Id = 13, Date = new DateOnly(year, 10, 13), Description = "Día de la Raza" },
+            new BankHoliday { Id = 14, Date = new DateOnly(year, 11, 3), Description = "Todos los Santos" },
+            new BankHoliday { Id = 15, Date = new DateOnly(year, 11, 17), Description = "Independencia de Cartagena" },
+            new BankHoliday { Id = 16, Date = new DateOnly(year, 12, 8), Description = "Inmaculada Concepción" },
+            new BankHoliday { Id = 17, Date = new DateOnly(year, 12, 25), Description = "Navidad" }
         );
 
 

@@ -1,9 +1,7 @@
-using Cfa.ACHInterbank.Persistence.ACH.Services;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Quartz;
 using Quartz.Simpl;
 using System.Reflection;
@@ -36,8 +34,12 @@ public static class DependencyInjectionService
                 s.UseProperties = true;
                 s.UseSqlServer(configuration.GetConnectionString("SqlConnection")!);
                 s.UseClustering(); // multi-nodo
+                s.UseNewtonsoftJsonSerializer();
             });
         });
+
+        services.AddQuartzHostedService(opt => { opt.WaitForJobsToComplete = true; });
+
 
 
         //using (var scope = app.Services.CreateScope())
@@ -53,21 +55,21 @@ public static class DependencyInjectionService
                   .SelectMany(implementationType => implementationType.GetInterfaces().Where(o => o.Name.Contains(implementationType.Name))
                       .Select(interfacetype => new { Interface = interfacetype, Implementation = implementationType }))
                   .ToList();
-                lst.ForEach(pair =>
-                {
-                    switch (true)
-                    {
-                        case var _ when pair.Implementation.Name.Contains("Singleton"):
-                            services.AddSingleton(pair.Interface, pair.Implementation);
-                            break;
-                        case var _ when pair.Implementation.Name.Contains("Scoped"):
-                            services.AddScoped(pair.Interface, pair.Implementation);
-                            break;
-                        default:
-                            services.AddTransient(pair.Interface, pair.Implementation);
-                            break;
-                    }
-                });
+        lst.ForEach(pair =>
+        {
+            switch (true)
+            {
+                case var _ when pair.Implementation.Name.Contains("Singleton"):
+                    services.AddSingleton(pair.Interface, pair.Implementation);
+                    break;
+                case var _ when pair.Implementation.Name.Contains("Scoped"):
+                    services.AddScoped(pair.Interface, pair.Implementation);
+                    break;
+                default:
+                    services.AddTransient(pair.Interface, pair.Implementation);
+                    break;
+            }
+        });
 
         return services;
     }

@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Cfa.ACHInterbank.Persistence.Migrations
 {
     [DbContext(typeof(AchDbContext))]
-    [Migration("20250813051531_Init")]
-    partial class Init
+    [Migration("20250823033736_init")]
+    partial class init
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,6 +24,151 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.SchedulerTask.TaskDefinition", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CalendarPolicy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("ConcurrencyPolicy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CronExpression")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("EndAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int?>("MaxRetries")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("Minute")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("MonthDay")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("N")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("PeriodicityType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RetryBackoffSeconds")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("RetryOnFailure")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("StartAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<TimeOnly?>("TimeOfDay")
+                        .HasColumnType("time");
+
+                    b.Property<string>("TimeZoneId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("WeeklyDay")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Tasks", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.SchedulerTask.TaskExecutionLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Error")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ExecutionKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTimeOffset?>("FinishedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Output")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("ScheduledAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("Success")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("TaskDefinitionId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TaskDefinitionId");
+
+                    b.ToTable("TaskExecutionLog", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.SchedulerTask.TaskParameter", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("TaskDefinitionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TaskDefinitionId", "Key")
+                        .IsUnique();
+
+                    b.ToTable("TaskParameters", (string)null);
+                });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchCycle", b =>
                 {
@@ -147,10 +292,15 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("CountryCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
 
                     b.Property<string>("Description")
+                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
@@ -161,103 +311,120 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         new
                         {
                             Id = 1,
-                            Date = new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CountryCode = "CO",
+                            Date = new DateOnly(2025, 1, 1),
                             Description = "Año Nuevo"
                         },
                         new
                         {
                             Id = 2,
-                            Date = new DateTime(2025, 1, 6, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CountryCode = "CO",
+                            Date = new DateOnly(2025, 1, 6),
                             Description = "Día de los Reyes Magos"
                         },
                         new
                         {
                             Id = 3,
-                            Date = new DateTime(2025, 3, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CountryCode = "CO",
+                            Date = new DateOnly(2025, 3, 24),
                             Description = "San José"
                         },
                         new
                         {
                             Id = 4,
-                            Date = new DateTime(2025, 4, 17, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CountryCode = "CO",
+                            Date = new DateOnly(2025, 4, 17),
                             Description = "Jueves Santo"
                         },
                         new
                         {
                             Id = 5,
-                            Date = new DateTime(2025, 4, 18, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CountryCode = "CO",
+                            Date = new DateOnly(2025, 4, 18),
                             Description = "Viernes Santo"
                         },
                         new
                         {
                             Id = 6,
-                            Date = new DateTime(2025, 5, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CountryCode = "CO",
+                            Date = new DateOnly(2025, 5, 1),
                             Description = "Día del Trabajo"
                         },
                         new
                         {
                             Id = 7,
-                            Date = new DateTime(2025, 5, 26, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CountryCode = "CO",
+                            Date = new DateOnly(2025, 5, 26),
                             Description = "Ascensión del Señor"
                         },
                         new
                         {
                             Id = 8,
-                            Date = new DateTime(2025, 6, 16, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CountryCode = "CO",
+                            Date = new DateOnly(2025, 6, 16),
                             Description = "Corpus Christi"
                         },
                         new
                         {
                             Id = 9,
-                            Date = new DateTime(2025, 6, 23, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CountryCode = "CO",
+                            Date = new DateOnly(2025, 6, 23),
                             Description = "Sagrado Corazón"
                         },
                         new
                         {
                             Id = 10,
-                            Date = new DateTime(2025, 7, 20, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CountryCode = "CO",
+                            Date = new DateOnly(2025, 7, 20),
                             Description = "Día de la Independencia"
                         },
                         new
                         {
                             Id = 11,
-                            Date = new DateTime(2025, 8, 7, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CountryCode = "CO",
+                            Date = new DateOnly(2025, 8, 7),
                             Description = "Batalla de Boyacá"
                         },
                         new
                         {
                             Id = 12,
-                            Date = new DateTime(2025, 8, 18, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CountryCode = "CO",
+                            Date = new DateOnly(2025, 8, 18),
                             Description = "La Asunción"
                         },
                         new
                         {
                             Id = 13,
-                            Date = new DateTime(2025, 10, 13, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CountryCode = "CO",
+                            Date = new DateOnly(2025, 10, 13),
                             Description = "Día de la Raza"
                         },
                         new
                         {
                             Id = 14,
-                            Date = new DateTime(2025, 11, 3, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CountryCode = "CO",
+                            Date = new DateOnly(2025, 11, 3),
                             Description = "Todos los Santos"
                         },
                         new
                         {
                             Id = 15,
-                            Date = new DateTime(2025, 11, 17, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CountryCode = "CO",
+                            Date = new DateOnly(2025, 11, 17),
                             Description = "Independencia de Cartagena"
                         },
                         new
                         {
                             Id = 16,
-                            Date = new DateTime(2025, 12, 8, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CountryCode = "CO",
+                            Date = new DateOnly(2025, 12, 8),
                             Description = "Inmaculada Concepción"
                         },
                         new
                         {
                             Id = 17,
-                            Date = new DateTime(2025, 12, 25, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CountryCode = "CO",
+                            Date = new DateOnly(2025, 12, 25),
                             Description = "Navidad"
                         });
                 });
@@ -592,6 +759,28 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.ToTable("NachaHeaders", (string)null);
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.SchedulerTask.TaskExecutionLog", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Entities.SchedulerTask.TaskDefinition", "TaskDefinition")
+                        .WithMany("ExecutionLogs")
+                        .HasForeignKey("TaskDefinitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TaskDefinition");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.SchedulerTask.TaskParameter", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Entities.SchedulerTask.TaskDefinition", "TaskDefinition")
+                        .WithMany("Parameters")
+                        .HasForeignKey("TaskDefinitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TaskDefinition");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchCycle", b =>
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
@@ -684,6 +873,13 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .HasForeignKey("NachaID");
 
                     b.Navigation("NachaHeader");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.SchedulerTask.TaskDefinition", b =>
+                {
+                    b.Navigation("ExecutionLogs");
+
+                    b.Navigation("Parameters");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchCycle", b =>
