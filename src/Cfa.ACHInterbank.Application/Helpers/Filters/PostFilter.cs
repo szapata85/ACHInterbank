@@ -9,7 +9,7 @@ namespace Cfa.ACHInterbank.Application.Helpers.Filters;
 
 public class PostFilter : ActionFilterAttribute
 {
-    private readonly ILoggerManagerTransient _loggerManager = new LoggerManagerTransient();
+    private readonly ILoggerManager _loggerManager = new LoggerManager();
 
     public override void OnActionExecuting(ActionExecutingContext context)
     {

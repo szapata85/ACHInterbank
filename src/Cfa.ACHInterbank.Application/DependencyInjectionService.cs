@@ -1,8 +1,10 @@
 using Cfa.ACHInterbank.Application.Configuration;
+using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Application.Services.TokenClient.Model;
 using Cfa.ACHInterbank.Application.Validators.NachaValidator;
 using Cfa.ACHInterbank.Application.Validators.TokenClientValidator;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -29,30 +31,31 @@ public static class DependencyInjectionService
         #region Services
         // Injection Dependency Traditional
         //services.AddSingleton<ITest, Test>();
-        //services.AddTransient<ILoggerManager, LoggerManager>();
-        //services.AddSingleton<IGenerateToken, GenerateToken>();
 
         // Injection Dependency Dynamic
-        Assembly.GetExecutingAssembly().GetTypes()
-                .Where(t => t.IsClass && !t.IsAbstract) // Filtra solo las clases concretas
-                .SelectMany(implementationType => implementationType.GetInterfaces().Where(o => o.Name.Contains(implementationType.Name))
-                    .Select(interfacetype => new { Interface = interfacetype, Implementation = implementationType }))
-                .ToList()
-                .ForEach(pair =>
-                {
-                    switch (true)
-                    {
-                        case var _ when pair.Implementation.Name.Contains("Singleton"):
-                            services.AddSingleton(pair.Interface, pair.Implementation);
-                            break;
-                        case var _ when pair.Implementation.Name.Contains("Scoped"):
-                            services.AddScoped(pair.Interface, pair.Implementation);
-                            break;
-                        default:
-                            services.AddTransient(pair.Interface, pair.Implementation);
-                            break;
-                    }
-                });
+        List<Type> types = Assembly.GetExecutingAssembly().GetTypes()
+            .Where(t => t.IsClass && !t.IsAbstract).ToList();
+
+        foreach (var implementationType in types)
+        {
+            Type? interfaceType = implementationType.GetInterfaces()
+                .FirstOrDefault(i => i.Name.Contains(implementationType.Name) || i == typeof(ITaskHandler));
+
+            if (interfaceType == null) continue;
+
+            if (implementationType.GetCustomAttribute<SingletonAttribute>() != null)
+            {
+                services.AddSingleton(interfaceType, implementationType);
+            }
+            else if (implementationType.GetCustomAttribute<ScopedAttribute>() != null)
+            {
+                services.AddScoped(interfaceType, implementationType);
+            }
+            else
+            {
+                services.AddTransient(interfaceType, implementationType);
+            }
+        }
 
         #endregion Services
 

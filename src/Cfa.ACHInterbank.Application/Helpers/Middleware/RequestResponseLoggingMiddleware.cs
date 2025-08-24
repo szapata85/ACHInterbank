@@ -10,9 +10,9 @@ namespace Cfa.ACHInterbank.Application.Helpers.Middleware;
 public class RequestResponseLoggingMiddleware
 {
     private readonly RequestDelegate _requestDelegate;
-    private readonly ILoggerManagerTransient _loggerManager;
+    private readonly ILoggerManager _loggerManager;
 
-    public RequestResponseLoggingMiddleware(RequestDelegate requestDelegate, ILoggerManagerTransient loggerManager)
+    public RequestResponseLoggingMiddleware(RequestDelegate requestDelegate, ILoggerManager loggerManager)
     {
         _requestDelegate = requestDelegate;
         _loggerManager = loggerManager;

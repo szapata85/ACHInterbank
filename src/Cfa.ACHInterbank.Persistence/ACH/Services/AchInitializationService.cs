@@ -4,11 +4,11 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services;
 
 public class AchInitializationService
 {
-    private readonly IBankHolidaySingleton _bankHolidaySeeder;
+    private readonly IBankHoliday _bankHolidaySeeder;
     private readonly IAchCycleSeeder _achCycleSeeder;
 
     public AchInitializationService(
-        IBankHolidaySingleton bankHolidaySeeder,
+        IBankHoliday bankHolidaySeeder,
         IAchCycleSeeder achCycleSeeder)
     {
         _bankHolidaySeeder = bankHolidaySeeder;

@@ -1,10 +1,11 @@
-using System.Reflection;
-using System.Text;
+using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using System.Reflection;
+using System.Text;
 
 namespace Cfa.ACHInterbank.External;
 
@@ -32,32 +33,32 @@ public static class DependencyInjectionService
 
         #region Services
         // Injection Dependency Traditional
-        //services.AddSingleton<IConnectionAuth, ConnectionAuth>();
-        //services.AddSingleton<IAuthenticationService, AuthenticationService>();
-        //services.AddSingleton<IHttpClientService, HttpClientService>();
-        //services.AddSingleton<IGenerateTokenExternal, GenerateTokenExternal>();
+
 
         // Injection Dependency Dynamic
-        Assembly.GetExecutingAssembly().GetTypes()
-          .Where(t => t.IsClass && !t.IsAbstract) // Filtra solo las clases concretas
-          .SelectMany(implementationType => implementationType.GetInterfaces().Where(o => o.Name.Contains(implementationType.Name))
-              .Select(interfacetype => new { Interface = interfacetype, Implementation = implementationType }))
-          .ToList()
-          .ForEach(pair =>
-          {
-              switch (true)
-              {
-                  case var _ when pair.Implementation.Name.Contains("Singleton"):
-                      services.AddSingleton(pair.Interface, pair.Implementation);
-                      break;
-                  case var _ when pair.Implementation.Name.Contains("Scoped"):
-                      services.AddScoped(pair.Interface, pair.Implementation);
-                      break;
-                  default:
-                      services.AddTransient(pair.Interface, pair.Implementation);
-                      break;
-              }
-          });
+        List<Type> types = Assembly.GetExecutingAssembly().GetTypes()
+            .Where(t => t.IsClass && !t.IsAbstract).ToList();
+
+        foreach (var implementationType in types)
+        {
+            Type? interfaceType = implementationType.GetInterfaces()
+                .FirstOrDefault(i => i.Name.Contains(implementationType.Name) || i == typeof(ITaskHandler));
+
+            if (interfaceType == null) continue;
+
+            if (implementationType.GetCustomAttribute<SingletonAttribute>() != null)
+            {
+                services.AddSingleton(interfaceType, implementationType);
+            }
+            else if (implementationType.GetCustomAttribute<ScopedAttribute>() != null)
+            {
+                services.AddScoped(interfaceType, implementationType);
+            }
+            else
+            {
+                services.AddTransient(interfaceType, implementationType);
+            }
+        }
 
         #endregion Services
 

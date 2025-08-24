@@ -8,9 +8,9 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class AchCycleScheduler : IAchCycleScheduler
 {
     private readonly AchDbContext _context;
-    private readonly IBankHolidaySingleton _holidayService;
+    private readonly IBankHoliday _holidayService;
 
-    public AchCycleScheduler(AchDbContext context, IBankHolidaySingleton holidayService)
+    public AchCycleScheduler(AchDbContext context, IBankHoliday holidayService)
     {
         _context = context;
         _holidayService = holidayService;
@@ -90,7 +90,7 @@ public class AchCycleScheduler : IAchCycleScheduler
 
     private bool IsNonWorkingDay(DateTime date)
     {
-        List<BankHoliday> holidays = _holidayService.GetHolidays(date.Year);
+        List<Domain.Models.ACH.BankHoliday> holidays = _holidayService.GetHolidays(date.Year);
 
         // 1. Convierte el DateTime de entrada a DateOnly para la comparación.
         DateOnly dateOnly = DateOnly.FromDateTime(date);

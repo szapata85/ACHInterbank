@@ -16,7 +16,7 @@ public class OauthsController : ControllerBase
 {
 
     [HttpPost("GenerateToken")]
-    public async Task<IActionResult> GenerateToken([FromBody] TokenModelClient model, [FromServices] IGenerateTokenTransient generateToken, [FromServices] IValidator<TokenModelClient> validator)
+    public async Task<IActionResult> GenerateToken([FromBody] TokenModelClient model, [FromServices] IGenerateToken generateToken, [FromServices] IValidator<TokenModelClient> validator)
     {
         var validate = await validator.ValidateAsync(model);
 
@@ -29,7 +29,7 @@ public class OauthsController : ControllerBase
     }
 
     [HttpPost("GenerateTokenAsync")]
-    public async Task<IActionResult> GenerateTokenAsync([FromBody] string Assertion, [FromServices] IGenerateTokenTransient generateToken, [FromServices] IValidator<TokenModelClient> validator)
+    public async Task<IActionResult> GenerateTokenAsync([FromBody] string Assertion, [FromServices] IGenerateToken generateToken, [FromServices] IValidator<TokenModelClient> validator)
     {
         //var validate = await validator.ValidateAsync(model);
 

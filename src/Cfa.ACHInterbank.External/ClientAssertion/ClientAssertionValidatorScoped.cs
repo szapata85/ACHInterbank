@@ -10,14 +10,15 @@ using static Cfa.ACHInterbank.Domain.Entities.JwksService.JwksService;
 
 namespace Cfa.ACHInterbank.External.ClientAssertion;
 
-public class ClientAssertionValidatorScoped : IClientAssertionValidatorScoped
+[Scoped]
+public class ClientAssertionValidatorScoped : IClientAssertionValidator
 {
-    private readonly IJwksServiceScoped _jwksService;
+    private readonly IJwksService _jwksService;
     private readonly IMapper _mapper = MapperBootstrapper.Instance;
     private readonly AppSettings _appSettings = AppSettings.Settings;
 
 
-    public ClientAssertionValidatorScoped(IJwksServiceScoped jwksService)
+    public ClientAssertionValidatorScoped(IJwksService jwksService)
     {
         _jwksService = jwksService;
     }

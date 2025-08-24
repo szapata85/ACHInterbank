@@ -74,7 +74,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
         }
 
         [HttpPost("testRSA")]
-        public void testRSA([FromServices] IRsaKeyProviderSingleton _rsaKeyService)
+        public void testRSA([FromServices] IRsaKeyProvider _rsaKeyService)
         {
             var resultcert = _rsaKeyService.ObtenerCertificate("CertCrypt");
         }

@@ -13,7 +13,6 @@
   <ItemGroup>
     <Folder Include="DataBase\Command\" />
     <Folder Include="DataBase\Queries\" />
-    <Folder Include="JobsQuartz\" />
   </ItemGroup>
 
   <ItemGroup>

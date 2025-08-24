@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -13,22 +14,23 @@ public class DynamicJob : IJob
 {
     private readonly IServiceProvider _sp;
     private readonly ILogger<DynamicJob> _logger;
+    private readonly IEnumerable<ITaskHandler> _handlers;
 
-    public DynamicJob(IServiceProvider sp, ILogger<DynamicJob> logger)
+    public DynamicJob(IServiceProvider sp, ILogger<DynamicJob> logger, IEnumerable<ITaskHandler> handlers)
     {
         _sp = sp;
         _logger = logger;
+        _handlers = handlers;
     }
 
     public async Task Execute(IJobExecutionContext context)
     {
         var taskId = context.MergedJobDataMap.GetInt("TaskId");
-        var scheduledAt = context.ScheduledFireTimeUtc ?? DateTimeOffset.Now;
 
         using var scope = _sp.CreateScope();
         AchDbContext db = scope.ServiceProvider.GetRequiredService<AchDbContext>();
 
-        var task = await db.Set<TaskDefinition>()
+        var task = await db.TaskDefinitions
             .Include(t => t.Parameters)
             .FirstOrDefaultAsync(t => t.Id == taskId, context.CancellationToken);
 
@@ -41,7 +43,7 @@ public class DynamicJob : IJob
         var log = new TaskExecutionLog
         {
             TaskDefinitionId = task.Id,
-            ScheduledAt = scheduledAt.UtcDateTime,
+            ScheduledAt = context.ScheduledFireTimeUtc ?? DateTimeOffset.Now,
             StartedAt = DateTimeOffset.UtcNow
         };
 
@@ -50,22 +52,18 @@ public class DynamicJob : IJob
 
         try
         {
-            _logger.LogInformation("Ejecutando tarea {Code} ({Name})", task.Code, task.Name);
+            var handler = _handlers.FirstOrDefault(h => h.Code == task.Code);
 
-            switch (task.Code)
+            if (handler is null)
             {
-                case "CheckBankHolidays":
-                    IBankHolidaySingleton repo = scope.ServiceProvider.GetRequiredService<IBankHolidaySingleton>();
-                    int year = DateTime.Now.Year;
-                    List<BankHoliday> holidays = repo.GetHolidays(year);
-                    log.Success = true;
-                    log.Output = $"{holidays.Count} festivos encontrados en {year}";
-                    break;
-
-                default:
-                    log.Success = false;
-                    log.Error = $"No hay handler implementado para {task.Code}";
-                    break;
+                log.Success = false;
+                log.Error = $"No hay handler implementado para {task.Code}";
+            }
+            else
+            {
+                var output = await handler.ExecuteAsync(task, context.CancellationToken);
+                log.Success = true;
+                log.Output = output;
             }
         }
         catch (Exception ex)

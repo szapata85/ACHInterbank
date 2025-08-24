@@ -25,7 +25,7 @@ public class AchDbContext : DbContext
     public DbSet<BatchControl> BatchControls { get; set; }
     public DbSet<FileControl> FileControls { get; set; }
 
-    public DbSet<TaskDefinition> TaskDefinition => Set<TaskDefinition>();
+    public DbSet<TaskDefinition> TaskDefinitions => Set<TaskDefinition>();
     public DbSet<TaskParameter> TaskParameters => Set<TaskParameter>();
     public DbSet<TaskExecutionLog> TaskExecutionLogs => Set<TaskExecutionLog>();
 

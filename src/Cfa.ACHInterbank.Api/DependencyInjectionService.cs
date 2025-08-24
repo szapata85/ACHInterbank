@@ -55,13 +55,13 @@ public static class DependencyInjectionService
             string AssemblyName = Assembly.GetExecutingAssembly().GetName().Name!.Replace(".Api", ".Domain");
 
             Assembly.Load(AssemblyName)
-                                   .GetTypes()
-                                   .Where(c => c.Namespace!.Contains(AssemblyName) && c.Name.EndsWith("Model", StringComparison.OrdinalIgnoreCase))
-                                   .ToList()
-                                   .ForEach(c =>
-                                    {
-                                        option.MapType(c, () => new OpenApiSchema { Type = "object", Title = c.Name });
-                                    });
+            .GetTypes()
+            .Where(c => c.Namespace!.Contains(AssemblyName) && c.Name.EndsWith("Model", StringComparison.OrdinalIgnoreCase))
+            .ToList()
+            .ForEach(c =>
+            {
+                option.MapType(c, () => new OpenApiSchema { Type = "object", Title = c.Name });
+            });
 
 
             var fileName = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
@@ -75,6 +75,8 @@ public static class DependencyInjectionService
             options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             options.JsonSerializerOptions.MaxDepth = 128; // Profundidad máxima de serialización
             options.JsonSerializerOptions.WriteIndented = true;
+
+            options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
 
         });
 

@@ -44,14 +44,14 @@ public class SchedulerSyncService : BackgroundService
                     var jobKey = new JobKey($"job:{task.Id}", "db-tasks");
                     var triggerKey = new TriggerKey($"trg:{task.Id}", "db-tasks");
 
-                    var job = JobBuilder.Create<DynamicJob>()
+                    IJobDetail job = JobBuilder.Create<DynamicJob>()
                         .WithIdentity(jobKey)
                         .UsingJobData("TaskId", task.Id)
                         .Build();
 
-                    var trigger = BuildTrigger(task, triggerKey);
+                    ITrigger[] trigger = { BuildTrigger(task, triggerKey) };
 
-                    await scheduler.ScheduleJob(job, new[] { trigger }, true, stoppingToken);
+                    await scheduler.ScheduleJob(job, trigger, true, stoppingToken);
                 }
                 catch (Exception ex)
                 {

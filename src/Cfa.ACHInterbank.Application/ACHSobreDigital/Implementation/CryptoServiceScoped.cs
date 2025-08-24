@@ -11,9 +11,9 @@ namespace Cfa.ACHInterbank.Application.ACHSobreDigital.Implementation;
 
 public class CryptoServiceScoped : ICryptoServiceScoped
 {
-    private readonly IRsaKeyProviderSingleton _keys;
+    private readonly IRsaKeyProvider _keys;
 
-    public CryptoServiceScoped(IRsaKeyProviderSingleton keys) => _keys = keys;
+    public CryptoServiceScoped(IRsaKeyProvider keys) => _keys = keys;
 
     //public async Task<DigitalEnvelopeModel> CreateEnvelopeAsync(byte[] plaintext, IDictionary<string, string>? aad = null, CancellationToken ct = default)
     public Task<byte[]> CreateEnvelopeAsync(byte[] contenidoBytes, string FileName)

@@ -7,7 +7,7 @@ namespace Cfa.ACHInterbank.Application.Features;
 
 public static class ExtensionMethods
 {
-    static LoggerManagerTransient loggerManager = new();
+    static LoggerManager loggerManager = new();
     public static AppSettings GetMethodExtensions(this AppSettings appSettings)
     {
         appSettings.Servers!.services = appSettings.Servers.services!.Where(c => c.State == true).ToList();
@@ -17,7 +17,7 @@ public static class ExtensionMethods
 
     public static Response<T> SuccessResponse<T>(T data)
     {
-        LoggerManagerTransient loggerManager = new();
+        LoggerManager loggerManager = new();
         loggerManager.LogInfo($"Respuesta en el consumo del servicio \n Detalle -> {JsonSerializer.Serialize(data)}");
         return new Response<T> { Success = true, Result = data };
     }
