@@ -1,3 +1,4 @@
+using Cfa.ACHInterbank.Persistence.ACH.Quartz;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -27,18 +28,17 @@ public static class DependencyInjectionService
 
         services.AddQuartz(q =>
         {
+            // Quartz usará el contenedor de DI para crear los Jobs
             q.UseJobFactory<MicrosoftDependencyInjectionJobFactory>();
-
-            q.UsePersistentStore(s =>
-            {
-                s.UseProperties = true;
-                s.UseSqlServer(configuration.GetConnectionString("SqlConnection")!);
-                s.UseClustering(); // multi-nodo
-                s.UseNewtonsoftJsonSerializer();
-            });
         });
 
-        services.AddQuartzHostedService(opt => { opt.WaitForJobsToComplete = true; });
+        services.AddQuartzHostedService(opt =>
+        {
+            opt.WaitForJobsToComplete = true;
+        });
+
+        // Servicio que sincroniza DB ? Quartz
+        services.AddHostedService<SchedulerSyncService>();
 
 
 

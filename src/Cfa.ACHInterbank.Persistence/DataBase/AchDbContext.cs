@@ -25,9 +25,9 @@ public class AchDbContext : DbContext
     public DbSet<BatchControl> BatchControls { get; set; }
     public DbSet<FileControl> FileControls { get; set; }
 
-    public DbSet<TaskDefinition> Tasks => Set<TaskDefinition>();
+    public DbSet<TaskDefinition> TaskDefinition => Set<TaskDefinition>();
     public DbSet<TaskParameter> TaskParameters => Set<TaskParameter>();
-    public DbSet<TaskExecutionLog> ExecutionLogs => Set<TaskExecutionLog>();
+    public DbSet<TaskExecutionLog> TaskExecutionLogs => Set<TaskExecutionLog>();
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -87,7 +87,7 @@ public class AchDbContext : DbContext
 
         modelBuilder.Entity<TaskDefinition>(e =>
         {
-            e.ToTable("Tasks");
+            e.ToTable("TaskDefinition");
             e.HasIndex(x => x.Code).IsUnique();
             e.Property(x => x.Code).HasMaxLength(100).IsRequired();
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();

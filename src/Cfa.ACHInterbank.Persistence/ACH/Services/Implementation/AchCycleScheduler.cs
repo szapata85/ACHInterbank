@@ -90,10 +90,20 @@ public class AchCycleScheduler : IAchCycleScheduler
 
     private bool IsNonWorkingDay(DateTime date)
     {
-        var holidays = _holidayService.GetHolidays(date.Year);
-        return date.DayOfWeek == DayOfWeek.Saturday ||
-               date.DayOfWeek == DayOfWeek.Sunday ||
-               holidays.Contains(DateOnly.FromDateTime(date.Date));
+        List<BankHoliday> holidays = _holidayService.GetHolidays(date.Year);
+
+        // 1. Convierte el DateTime de entrada a DateOnly para la comparación.
+        DateOnly dateOnly = DateOnly.FromDateTime(date);
+
+        // 2. Verifica si es fin de semana.
+        bool isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
+
+        // 3. Usa Any() para buscar un BankHoliday cuya fecha coincida con la fecha que se está evaluando.
+        //    Esto compara dos objetos DateOnly.
+        bool isBankHoliday = holidays.Any(h => h.Date == dateOnly);
+
+        // Retorna true si es fin de semana o si es un día festivo.
+        return isWeekend || isBankHoliday;
     }
 
     private DateTime GetNextBusinessDay(DateTime date, List<DateOnly> holidays)

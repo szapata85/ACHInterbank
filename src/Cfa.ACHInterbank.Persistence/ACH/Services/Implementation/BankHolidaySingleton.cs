@@ -62,7 +62,7 @@ public class BankHolidaySingleton : IBankHolidaySingleton
         }
     }
 
-    public List<DateOnly> GetHolidays(int year)
+    public List<BankHoliday> GetHolidays(int year)
     {
         using (IServiceScope scope = _scopeFactory.CreateScope())
         {
@@ -70,7 +70,6 @@ public class BankHolidaySingleton : IBankHolidaySingleton
 
             return _context.BankHolidays
             .Where(h => h.Date.Year == year)
-            .Select(h => h.Date)
             .ToList();
         }
     }
