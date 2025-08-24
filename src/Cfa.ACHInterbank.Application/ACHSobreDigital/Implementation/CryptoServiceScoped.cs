@@ -16,7 +16,7 @@ public class CryptoServiceScoped : ICryptoServiceScoped
     public CryptoServiceScoped(IRsaKeyProviderSingleton keys) => _keys = keys;
 
     //public async Task<DigitalEnvelopeModel> CreateEnvelopeAsync(byte[] plaintext, IDictionary<string, string>? aad = null, CancellationToken ct = default)
-    public async Task<byte[]> CreateEnvelopeAsync(byte[] contenidoBytes, string FileName)
+    public Task<byte[]> CreateEnvelopeAsync(byte[] contenidoBytes, string FileName)
     {
         X509Certificate2 certificadoFirmante = _keys.ObtenerCertificate("CertSign");
         X509Certificate2 certificadoReceptor = _keys.ObtenerCertificate("CertCrypt");
@@ -27,8 +27,7 @@ public class CryptoServiceScoped : ICryptoServiceScoped
 
         byte[] contenidobytesResp = Encoding.UTF8.GetBytes(SobreDigitalFirmado);
 
-
-        return contenidobytesResp;
+        return Task.FromResult(contenidobytesResp);
     }
 
     public string CrearMensajeFirmado(byte[] contenidoBytes, X509Certificate2 certificadoFirmante, string FileName)
@@ -165,7 +164,7 @@ public class CryptoServiceScoped : ICryptoServiceScoped
         return hash.Take(16).ToArray(); // AES IV = 16 bytes
     }
 
-    public async Task<byte[]> OpenEnvelopeAsync(byte[] contenidoBytes, string FileName)
+    public Task<byte[]> OpenEnvelopeAsync(byte[] contenidoBytes, string FileName)
     {
         //X509Certificate2 certificadoFirmante = _keys.ObtenerCertificate("CertSign");
         X509Certificate2 certificadoReceptor = _keys.ObtenerCertificate("CertSign");
@@ -228,7 +227,7 @@ public class CryptoServiceScoped : ICryptoServiceScoped
         byte[] contenidobytesResp = contenidoOriginal.Item1;
 
 
-        return contenidobytesResp;
+        return Task.FromResult(contenidobytesResp);
     }
 }
 

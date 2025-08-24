@@ -2,7 +2,7 @@
 
 namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
 
-public interface IBankHoliday
+public interface IBankHolidaySingleton
 {
     Task SeedHolidaysIfNotExistsAsync(int year);
     Task<List<BankHoliday>> GetHolidaysForClearingHouseAsync(int clearingHouseId, int year);
