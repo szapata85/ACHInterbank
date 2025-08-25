@@ -7,7 +7,7 @@
 //    public string? Description { get; set; }
 //}
 
-public class BankHoliday
+public class BankHolidayModel
 {
     public int Id { get; set; }
     public DateOnly Date { get; set; }   // mejor que DateTime para festivos

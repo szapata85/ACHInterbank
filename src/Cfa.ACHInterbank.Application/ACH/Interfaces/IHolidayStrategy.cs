@@ -4,5 +4,5 @@ namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
 
 public interface IHolidayStrategy
 {
-    List<BankHoliday> GenerateHolidays(int year);
+    List<BankHolidayModel> GenerateHolidays(int year);
 }

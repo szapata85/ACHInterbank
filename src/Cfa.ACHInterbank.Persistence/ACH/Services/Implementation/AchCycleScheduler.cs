@@ -90,7 +90,7 @@ public class AchCycleScheduler : IAchCycleScheduler
 
     private bool IsNonWorkingDay(DateTime date)
     {
-        List<Domain.Models.ACH.BankHoliday> holidays = _holidayService.GetHolidays(date.Year);
+        List<Domain.Models.ACH.BankHolidayModel> holidays = _holidayService.GetHolidays(date.Year);
 
         // 1. Convierte el DateTime de entrada a DateOnly para la comparación.
         DateOnly dateOnly = DateOnly.FromDateTime(date);

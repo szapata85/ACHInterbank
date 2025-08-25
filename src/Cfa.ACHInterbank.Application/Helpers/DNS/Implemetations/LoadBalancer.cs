@@ -26,7 +26,7 @@ public class LoadBalancer : ILoadBalancer
 
     public async Task<ServerCache> GetNextServer(string type)
     {
-        await _checkHealth.CheckHealthAsync(type);
+        await _checkHealth.CheckHealthAsy(type);
         //var servers = JsonConvert.DeserializeObject<List<ServicesIntegration>>(_servicesIntegration[type].ToString());
         var localServers = _serverRepository.ListServer();
         localServers = localServers.Where(x => x.IsHealthy).ToList();

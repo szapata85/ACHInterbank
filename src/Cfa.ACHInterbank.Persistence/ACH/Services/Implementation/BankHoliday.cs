@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -51,7 +52,7 @@ public class BankHoliday : IBankHoliday
     }
 
 
-    public async Task<List<Domain.Models.ACH.BankHoliday>> GetHolidaysForClearingHouseAsync(int clearingHouseId, int year)
+    public async Task<List<Domain.Models.ACH.BankHolidayModel>> GetHolidaysForClearingHouseAsync(int clearingHouseId, int year)
     {
         using (IServiceScope scope = _scopeFactory.CreateScope())
         {
@@ -63,7 +64,7 @@ public class BankHoliday : IBankHoliday
         }
     }
 
-    public List<Domain.Models.ACH.BankHoliday> GetHolidays(int year)
+    public List<BankHolidayModel> GetHolidays(int year)
     {
         using (IServiceScope scope = _scopeFactory.CreateScope())
         {

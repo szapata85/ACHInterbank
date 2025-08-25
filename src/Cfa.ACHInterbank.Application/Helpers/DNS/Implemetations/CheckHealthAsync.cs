@@ -26,7 +26,9 @@ public class CheckHealthAsync : ICheckHealthAsync
         _serverRepository = serverRepository;
         _loggerManager = loggerManager;
     }
-    public async Task CheckHealthAsync(string Type)
+
+
+    public async Task CheckHealthAsy(string Type)
     {
         var jsonresult = JsonConvert.SerializeObject(_appSettings.Servers);
 
