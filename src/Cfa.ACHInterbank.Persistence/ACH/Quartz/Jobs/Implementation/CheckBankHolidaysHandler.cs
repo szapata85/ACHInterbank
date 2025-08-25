@@ -8,11 +8,11 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
 [Scoped]
 internal class CheckBankHolidaysHandler : ITaskHandler
 {
-    private readonly IBankHoliday _repo;
+    private readonly IBankHoliday _bankholiday;
 
-    public CheckBankHolidaysHandler(IBankHoliday repo)
+    public CheckBankHolidaysHandler(IBankHoliday bankholiday)
     {
-        _repo = repo;
+        _bankholiday = bankholiday;
     }
 
     public string Code => "CheckBankHolidays";
@@ -20,7 +20,7 @@ internal class CheckBankHolidaysHandler : ITaskHandler
     public Task<string> ExecuteAsync(TaskDefinition task, CancellationToken cancellationToken)
     {
         var year = DateTime.Now.Year;
-        var holidays = _repo.GetHolidays(year);
+        var holidays = _bankholiday.GetHolidays(year);
         return Task.FromResult($"{holidays.Count} festivos encontrados en {year}");
     }
 }
