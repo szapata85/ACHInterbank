@@ -1,8 +1,9 @@
-﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.enums;
+﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
+using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.enums;
 
 namespace Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 
-public sealed class TaskDefinition
+public sealed class TaskDefinition : AuditableEntity
 {
     public int Id { get; set; }
     public string Code { get; set; } = default!;
@@ -25,8 +26,6 @@ public sealed class TaskDefinition
 
     public DateTimeOffset? StartAt { get; set; }
     public DateTimeOffset? EndAt { get; set; }
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
-    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public ICollection<TaskParameter> Parameters { get; set; } = new List<TaskParameter>();
     public ICollection<TaskExecutionLog> ExecutionLogs { get; set; } = new List<TaskExecutionLog>();

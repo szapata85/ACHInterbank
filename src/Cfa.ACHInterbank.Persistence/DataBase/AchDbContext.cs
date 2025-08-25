@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
+using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Services;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.EntityFrameworkCore;
 
@@ -115,7 +116,11 @@ public class AchDbContext : DbContext
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        foreach (var entry in ChangeTracker.Entries<TaskDefinition>())
+        var entries = ChangeTracker
+            .Entries<IAuditableEntity>()
+            .ToList();
+
+        foreach (var entry in entries)
         {
             if (entry.State == EntityState.Added)
             {
@@ -130,6 +135,7 @@ public class AchDbContext : DbContext
 
         return await base.SaveChangesAsync(cancellationToken);
     }
+
 
 
 }

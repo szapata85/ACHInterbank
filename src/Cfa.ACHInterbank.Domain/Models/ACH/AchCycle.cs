@@ -1,6 +1,8 @@
-﻿namespace Cfa.ACHInterbank.Domain.Models.ACH;
+﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
 
-public class AchCycle
+namespace Cfa.ACHInterbank.Domain.Models.ACH;
+
+public class AchCycle : AuditableEntity
 {
     public int Id { get; set; }
     public string CycleName { get; set; } = null!;

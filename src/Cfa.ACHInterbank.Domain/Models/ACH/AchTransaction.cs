@@ -1,6 +1,8 @@
-﻿namespace Cfa.ACHInterbank.Domain.Models.ACH;
+﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
 
-public class AchTransaction
+namespace Cfa.ACHInterbank.Domain.Models.ACH;
+
+public class AchTransaction : AuditableEntity
 {
     public int Id { get; set; }
 
@@ -18,6 +20,4 @@ public class AchTransaction
 
     public int AchCycleId { get; set; }
     public AchCycle? AchCycle { get; set; }
-
-    public DateTime CreatedAt { get; set; }
 }
