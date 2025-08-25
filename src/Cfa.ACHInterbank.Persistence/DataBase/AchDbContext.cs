@@ -1,8 +1,6 @@
-﻿using AdoNetCore.AseClient;
-using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
+﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.EntityFrameworkCore;
-using NLog.LayoutRenderers.Wrappers;
 
 namespace Cfa.ACHInterbank.Persistence.DataBase;
 
@@ -84,7 +82,6 @@ public class AchDbContext : DbContext
 
         modelBuilder.Entity<ClearingHouseConfig>().HasData(new ClearingHouseConfig { Id = 1, ClearingHouseId = 1, HolidayStrategy = "Colombian" });
 
-
         modelBuilder.Entity<TaskDefinition>(e =>
         {
             e.ToTable("TaskDefinition");
@@ -92,7 +89,12 @@ public class AchDbContext : DbContext
             e.Property(x => x.Code).HasMaxLength(100).IsRequired();
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
             e.Property(x => x.TimeZoneId).HasMaxLength(100);
+
+            // Auditoría
+            e.Property(x => x.CreatedAt).IsRequired();
+            e.Property(x => x.UpdatedAt).IsRequired();
         });
+
 
         modelBuilder.Entity<TaskParameter>(e =>
         {
@@ -110,4 +112,24 @@ public class AchDbContext : DbContext
         });
 
     }
+
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        foreach (var entry in ChangeTracker.Entries<TaskDefinition>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                entry.Entity.CreatedAt = DateTimeOffset.UtcNow;
+                entry.Entity.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+            else if (entry.State == EntityState.Modified)
+            {
+                entry.Entity.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+        }
+
+        return await base.SaveChangesAsync(cancellationToken);
+    }
+
+
 }

@@ -10,7 +10,6 @@ public sealed class TaskDefinition
     public TaskStatusEnum Status { get; set; } = TaskStatusEnum.Enabled;
     public CalendarPolicyEnum CalendarPolicy { get; set; } = CalendarPolicyEnum.OnlyBusinessDays;
     public string? TimeZoneId { get; set; } = "America/Bogota";
-
     public ConcurrencyPolicyEnum ConcurrencyPolicy { get; set; } = ConcurrencyPolicyEnum.SkipIfRunning;
     public bool RetryOnFailure { get; set; } = true;
     public int? MaxRetries { get; set; }
@@ -26,6 +25,8 @@ public sealed class TaskDefinition
 
     public DateTimeOffset? StartAt { get; set; }
     public DateTimeOffset? EndAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public ICollection<TaskParameter> Parameters { get; set; } = new List<TaskParameter>();
     public ICollection<TaskExecutionLog> ExecutionLogs { get; set; } = new List<TaskExecutionLog>();

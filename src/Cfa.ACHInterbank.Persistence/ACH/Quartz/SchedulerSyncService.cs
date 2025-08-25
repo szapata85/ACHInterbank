@@ -13,107 +13,108 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Quartz;
 public class SchedulerSyncService : BackgroundService
 {
     private readonly IServiceProvider _sp;
-    private readonly ISchedulerFactory _factory;
+    private readonly ISchedulerFactory _schedulerFactory;
     private readonly ILogger<SchedulerSyncService> _logger;
 
-    public SchedulerSyncService(IServiceProvider sp, ISchedulerFactory factory, ILogger<SchedulerSyncService> logger)
+    private DateTimeOffset _lastSync = DateTimeOffset.MinValue;
+
+    public SchedulerSyncService(IServiceProvider sp, ISchedulerFactory schedulerFactory, ILogger<SchedulerSyncService> logger)
     {
         _sp = sp;
-        _factory = factory;
+        _schedulerFactory = schedulerFactory;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var scheduler = await _factory.GetScheduler(stoppingToken);
+        var scheduler = await _schedulerFactory.GetScheduler(stoppingToken);
+        await scheduler.Start(stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            using var scope = _sp.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<AchDbContext>();
-
-            var tasks = await db.Set<TaskDefinition>()
-                .Include(t => t.Parameters)
-                .Where(t => t.Status == TaskStatusEnum.Enabled)
-                .ToListAsync(stoppingToken);
-
-            foreach (var task in tasks)
+            try
             {
-                try
+                using var scope = _sp.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AchDbContext>();
+
+                // 👇 Solo traer las tareas modificadas desde la última resincronización
+                var changedTasks = await db.TaskDefinitions
+                    .Include(t => t.Parameters)
+                    .Where(t => t.UpdatedAt > _lastSync)
+                    .ToListAsync(stoppingToken);
+
+                foreach (var task in changedTasks)
                 {
                     var jobKey = new JobKey($"job:{task.Id}", "db-tasks");
                     var triggerKey = new TriggerKey($"trg:{task.Id}", "db-tasks");
 
-                    IJobDetail job = JobBuilder.Create<DynamicJob>()
+                    var job = JobBuilder.Create<DynamicJob>()
                         .WithIdentity(jobKey)
                         .UsingJobData("TaskId", task.Id)
                         .Build();
 
-                    ITrigger[] trigger = { BuildTrigger(task, triggerKey) };
+                    var trigger = BuildTrigger(task, triggerKey);
 
-                    await scheduler.ScheduleJob(job, trigger, true, stoppingToken);
+                    // 👇 si ya existe, Quartz reemplaza el trigger
+                    await scheduler.ScheduleJob(job, new[] { trigger }, true, stoppingToken);
+
+                    _logger.LogInformation("Resincronizada tarea {Code} ({Id}) modificada en {UpdatedAt}",
+                        task.Code, task.Id, task.UpdatedAt);
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error sincronizando tarea {Id} - {Code}", task.Id, task.Code);
-                }
+
+                _lastSync = DateTimeOffset.UtcNow;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error resincronizando tareas");
             }
 
-            _logger.LogInformation("Sincronizadas {Count} tareas desde BD.", tasks.Count);
-
-            // Re-sincroniza cada 60 segundos
-            await Task.Delay(TimeSpan.FromSeconds(60), stoppingToken);
+            // ⏱ cada minuto (puedes ajustar a segundos o más tiempo)
+            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
         }
     }
 
-    private static ITrigger BuildTrigger(TaskDefinition def, TriggerKey key)
+    private ITrigger BuildTrigger(TaskDefinition task, TriggerKey triggerKey)
     {
-        var tz = TimeZoneInfo.FindSystemTimeZoneById(def.TimeZoneId ?? "America/Bogota");
-        var tb = TriggerBuilder.Create().WithIdentity(key).StartNow();
+        var builder = TriggerBuilder.Create()
+            .WithIdentity(triggerKey);
 
-        return def.PeriodicityType switch
+        if (task.StartAt.HasValue)
+            builder.StartAt(task.StartAt.Value);
+        else
+            builder.StartNow();
+
+        if (task.EndAt.HasValue)
+            builder.EndAt(task.EndAt.Value);
+
+        switch (task.PeriodicityType)
         {
-            PeriodicityTypeEnum.Once =>
-                tb.StartAt(def.StartAt ?? DateTimeOffset.Now)
-                  .WithSimpleSchedule(x => x.WithRepeatCount(0))
-                  .Build(),
+            case PeriodicityTypeEnum.DailyAtTime:
+                if (task.TimeOfDay.HasValue)
+                {
+                    builder.WithSchedule(CronScheduleBuilder
+                        .DailyAtHourAndMinute(task.TimeOfDay.Value.Hour, task.TimeOfDay.Value.Minute)
+                        .InTimeZone(TimeZoneInfo.FindSystemTimeZoneById(task.TimeZoneId ?? "America/Bogota")));
+                }
+                break;
 
-            PeriodicityTypeEnum.EveryNMinutes =>
-                tb.WithSimpleSchedule(x => x.WithIntervalInMinutes(def.N ?? 5).RepeatForever())
-                  .Build(),
+            case PeriodicityTypeEnum.EveryNMinutes:
+                if (task.N.HasValue)
+                {
+                    builder.WithSimpleSchedule(s =>
+                        s.WithIntervalInMinutes(task.N.Value)
+                         .RepeatForever());
+                }
+                break;
 
-            PeriodicityTypeEnum.HourlyAtMinute =>
-                tb.WithSchedule(CronScheduleBuilder.DailyAtHourAndMinute(0, def.Minute ?? 0)
-                    .InTimeZone(tz))
-                  .Build(),
+            case PeriodicityTypeEnum.Cron:
+                if (!string.IsNullOrEmpty(task.CronExpression))
+                {
+                    builder.WithCronSchedule(task.CronExpression);
+                }
+                break;
+        }
 
-            PeriodicityTypeEnum.DailyAtTime =>
-                tb.WithSchedule(CronScheduleBuilder.DailyAtHourAndMinute(
-                        def.TimeOfDay?.Hour ?? 0, def.TimeOfDay?.Minute ?? 0)
-                    .InTimeZone(tz))
-                  .Build(),
-
-            PeriodicityTypeEnum.Weekly =>
-                tb.WithSchedule(CronScheduleBuilder
-                        .WeeklyOnDayAndHourAndMinute(def.WeeklyDay ?? DayOfWeek.Monday,
-                            def.TimeOfDay?.Hour ?? 8, def.TimeOfDay?.Minute ?? 0)
-                    .InTimeZone(tz))
-                  .Build(),
-
-            PeriodicityTypeEnum.Monthly =>
-                tb.WithSchedule(CronScheduleBuilder
-                        .MonthlyOnDayAndHourAndMinute(def.MonthDay ?? 1,
-                            def.TimeOfDay?.Hour ?? 8, def.TimeOfDay?.Minute ?? 0)
-                    .InTimeZone(tz))
-                  .Build(),
-
-            PeriodicityTypeEnum.Cron when !string.IsNullOrWhiteSpace(def.CronExpression) =>
-                tb.WithSchedule(CronScheduleBuilder.CronSchedule(def.CronExpression)
-                    .InTimeZone(tz))
-                  .Build(),
-
-            _ => tb.WithSimpleSchedule(x => x.WithIntervalInMinutes(15).RepeatForever()).Build()
-        };
+        return builder.Build();
     }
 }
-
