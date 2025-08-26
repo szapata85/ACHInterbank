@@ -19,49 +19,58 @@ public class AchCycleScheduler : IAchCycleScheduler
     public async Task ScheduleCyclesForClearingHouseAsync(int clearingHouseId)
     {
         var clearingHouse = await _context.ClearingHouses
-            .Include(ch => ch.AchCycles)
             .FirstOrDefaultAsync(ch => ch.Id == clearingHouseId);
 
         if (clearingHouse == null) throw new Exception("Clearing house not found");
 
-        var currentYear = DateTime.Now.Year;
+        var today = DateTime.Today;
+        var currentYear = today.Year;
+
         var holidays = await _context.BankHolidays
             .Where(h => h.Date.Year == currentYear)
             .Select(h => h.Date)
             .ToListAsync();
 
-        foreach (var cycle in clearingHouse.AchCycles)
-        {
-            var processingDate = cycle.ProcessingDate;
+        // 🔹 Trae las configuraciones activas vigentes
+        var cycleConfigs = await _context.ClearingHouseCycleConfigs
+            .Where(c => c.ClearingHouseId == clearingHouseId
+                     && c.IsActive
+                     && c.EffectiveFrom <= today
+                     && (c.EffectiveTo == null || c.EffectiveTo >= today))
+            .ToListAsync();
 
-            if (holidays.Contains(DateOnly.FromDateTime(processingDate.Date)) ||
+        foreach (var config in cycleConfigs)
+        {
+            var processingDate = today;
+
+            if (holidays.Contains(DateOnly.FromDateTime(processingDate)) ||
                 processingDate.DayOfWeek == DayOfWeek.Saturday ||
                 processingDate.DayOfWeek == DayOfWeek.Sunday)
             {
-                if (cycle.RescheduleOnHoliday)
+                if (true) // puedes leer config.RescheduleOnHoliday si la agregas
                 {
                     processingDate = GetNextBusinessDay(processingDate, holidays);
                 }
                 else
                 {
-                    continue; // Skip if cannot reschedule
+                    continue;
                 }
             }
 
             var exists = await _context.AchCycles.AnyAsync(c =>
                 c.ClearingHouseId == clearingHouseId &&
                 c.ProcessingDate == processingDate &&
-                c.CycleName == cycle.CycleName);
+                c.CycleName == config.CycleName);
 
             if (!exists)
             {
                 _context.AchCycles.Add(new AchCycle
                 {
                     ClearingHouseId = clearingHouseId,
-                    CycleName = cycle.CycleName,
-                    CutoffTime = cycle.CutoffTime,
+                    CycleName = config.CycleName,
+                    CutoffTime = config.CutoffTime,
                     ProcessingDate = processingDate,
-                    RescheduleOnHoliday = cycle.RescheduleOnHoliday
+                    RescheduleOnHoliday = true // o parametrizable si lo agregas en config
                 });
             }
         }

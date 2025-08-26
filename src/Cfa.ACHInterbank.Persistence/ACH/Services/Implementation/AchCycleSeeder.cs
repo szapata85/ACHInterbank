@@ -8,70 +8,50 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class AchCycleSeeder : IAchCycleSeeder
 {
     private readonly AchDbContext _context;
-    private readonly IAchCycleScheduler _cycleScheduler;
 
-    public AchCycleSeeder(AchDbContext context, IAchCycleScheduler cycleScheduler)
+    public AchCycleSeeder(AchDbContext context)
     {
         _context = context;
-        _cycleScheduler = cycleScheduler;
     }
 
     public async Task SeedCyclesIfNotExistsAsync(int clearingHouseId, int year)
     {
-        var exists = await _context.AchCycles.AnyAsync(c => c.ClearingHouseId == clearingHouseId && c.ProcessingDate.Year == year);
+        bool exists = await _context.ClearingHouseCycleConfigs
+            .AnyAsync(c => c.ClearingHouseId == clearingHouseId
+                        && c.EffectiveFrom.Year <= year
+                        && (c.EffectiveTo == null || c.EffectiveTo.Value.Year >= year));
+
         if (exists) return;
 
-        var clearingHouse = await _context.ClearingHouses.FindAsync(clearingHouseId);
-        if (clearingHouse == null) throw new Exception("Clearing house not found");
+        var configs = new List<ClearingHouseCycleConfig>();
 
-        var templates = GetCycleTemplatesForClearingHouse(clearingHouse.Code);
-        var startDate = new DateTime(year, 1, 2); // Ajustable
-
-        var cycles = new List<AchCycle>();
-
-        foreach (var template in templates)
+        if (clearingHouseId == 1) // ACH Colombia
         {
-            var processingDate = _cycleScheduler.GetNextValidProcessingDate(startDate);
-
-            cycles.Add(new AchCycle
+            configs.AddRange(new[]
             {
-                CycleName = template.CycleName,
-                CutoffTime = template.CutoffTime,
-                RescheduleOnHoliday = template.RescheduleOnHoliday,
-                ProcessingDate = processingDate,
-                ClearingHouseId = clearingHouseId
+                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 1", CutoffTime = new TimeSpan(10,30,0), EffectiveFrom = new DateTime(year,1,1) },
+                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 2", CutoffTime = new TimeSpan(13,00,0), EffectiveFrom = new DateTime(year,1,1) },
+                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 3", CutoffTime = new TimeSpan(15,30,0), EffectiveFrom = new DateTime(year,1,1) },
+                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 4", CutoffTime = new TimeSpan(17,30,0), EffectiveFrom = new DateTime(year,1,1) },
+                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 5", CutoffTime = new TimeSpan(19,00,0), EffectiveFrom = new DateTime(year,1,1) }
             });
-
-            // Avanzar la fecha base solo si quieres repartir los ciclos en días distintos
-            startDate = processingDate.AddDays(1);
+        }
+        else if (clearingHouseId == 2) // CENIT
+        {
+            configs.AddRange(new[]
+            {
+                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 1", CutoffTime = new TimeSpan(9,30,0), EffectiveFrom = new DateTime(year,1,1) },
+                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 2", CutoffTime = new TimeSpan(12,00,0), EffectiveFrom = new DateTime(year,1,1) },
+                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 3", CutoffTime = new TimeSpan(15,00,0), EffectiveFrom = new DateTime(year,1,1) },
+                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 4", CutoffTime = new TimeSpan(17,15,0), EffectiveFrom = new DateTime(year,1,1) },
+                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 5", CutoffTime = new TimeSpan(19,15,0), EffectiveFrom = new DateTime(year,1,1) }
+            });
         }
 
-        _context.AchCycles.AddRange(cycles);
-        await _context.SaveChangesAsync();
-    }
-
-    private List<AchCycleTemplate> GetCycleTemplatesForClearingHouse(string code)
-    {
-        return code switch
+        if (configs.Any())
         {
-            "ACHCOL" => new List<AchCycleTemplate>
-            {
-                new() { CycleName = "ACH-AM-1", CutoffTime = new TimeSpan(8, 0, 0), RescheduleOnHoliday = true },
-                new() { CycleName = "ACH-AM-2", CutoffTime = new TimeSpan(10, 0, 0), RescheduleOnHoliday = false },
-                new() { CycleName = "ACH-PM-1", CutoffTime = new TimeSpan(13, 0, 0), RescheduleOnHoliday = true },
-                new() { CycleName = "ACH-PM-2", CutoffTime = new TimeSpan(15, 30, 0), RescheduleOnHoliday = false },
-                new() { CycleName = "ACH-END", CutoffTime = new TimeSpan(17, 45, 0), RescheduleOnHoliday = true }
-            },
-            "CENITCO" => new List<AchCycleTemplate>
-            {
-                new() { CycleName = "CENIT-AM-1", CutoffTime = new TimeSpan(7, 30, 0), RescheduleOnHoliday = true },
-                new() { CycleName = "CENIT-AM-2", CutoffTime = new TimeSpan(10, 30, 0), RescheduleOnHoliday = false },
-                new() { CycleName = "CENIT-PM-1", CutoffTime = new TimeSpan(14, 0, 0), RescheduleOnHoliday = true },
-                new() { CycleName = "CENIT-PM-2", CutoffTime = new TimeSpan(16, 30, 0), RescheduleOnHoliday = false },
-                new() { CycleName = "CENIT-END", CutoffTime = new TimeSpan(18, 0, 0), RescheduleOnHoliday = true }
-            },
-            _ => throw new NotSupportedException($"No templates for clearing house code: {code}")
-        };
+            await _context.ClearingHouseCycleConfigs.AddRangeAsync(configs);
+            await _context.SaveChangesAsync();
+        }
     }
 }
-

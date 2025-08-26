@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
+using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.enums;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Services;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,7 @@ public class AchDbContext : DbContext
     public DbSet<FinancialInstitution> FinancialInstitutions { get; set; }
     public DbSet<BankHolidayModel> BankHolidays { get; set; }
     public DbSet<ClearingHouseConfig> ClearingHouseConfigs { get; set; }
+    public DbSet<ClearingHouseCycleConfig> ClearingHouseCycleConfigs { get; set; }
 
     public DbSet<NachaHeader> NachaHeaders { get; set; }
     public DbSet<BatchHeader> BatchHeaders { get; set; }
@@ -82,6 +84,64 @@ public class AchDbContext : DbContext
             );
 
         modelBuilder.Entity<ClearingHouseConfig>().HasData(new ClearingHouseConfig { Id = 1, ClearingHouseId = 1, HolidayStrategy = "Colombian" });
+
+
+        modelBuilder.Entity<ClearingHouseCycleConfig>().HasData(
+            // ACH Colombia
+            new ClearingHouseCycleConfig { Id = 1, ClearingHouseId = 1, CycleName = "Ciclo 1", CutoffTime = new TimeSpan(10, 30, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) },
+            new ClearingHouseCycleConfig { Id = 2, ClearingHouseId = 1, CycleName = "Ciclo 2", CutoffTime = new TimeSpan(13, 00, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) },
+            new ClearingHouseCycleConfig { Id = 3, ClearingHouseId = 1, CycleName = "Ciclo 3", CutoffTime = new TimeSpan(15, 30, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) },
+            new ClearingHouseCycleConfig { Id = 4, ClearingHouseId = 1, CycleName = "Ciclo 4", CutoffTime = new TimeSpan(17, 30, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) },
+            new ClearingHouseCycleConfig { Id = 5, ClearingHouseId = 1, CycleName = "Ciclo 5", CutoffTime = new TimeSpan(19, 00, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) },
+
+            // CENIT
+            new ClearingHouseCycleConfig { Id = 6, ClearingHouseId = 2, CycleName = "Ciclo 1", CutoffTime = new TimeSpan(9, 30, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) },
+            new ClearingHouseCycleConfig { Id = 7, ClearingHouseId = 2, CycleName = "Ciclo 2", CutoffTime = new TimeSpan(12, 00, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) },
+            new ClearingHouseCycleConfig { Id = 8, ClearingHouseId = 2, CycleName = "Ciclo 3", CutoffTime = new TimeSpan(15, 00, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) },
+            new ClearingHouseCycleConfig { Id = 9, ClearingHouseId = 2, CycleName = "Ciclo 4", CutoffTime = new TimeSpan(17, 15, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) },
+            new ClearingHouseCycleConfig { Id = 10, ClearingHouseId = 2, CycleName = "Ciclo 5", CutoffTime = new TimeSpan(19, 15, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) }
+        );
+
+
+        modelBuilder.Entity<TaskDefinition>().HasData(new TaskDefinition
+    {
+        Id = 1,
+        Code = "AchCycleSeeder",
+        Name = "Seed ciclos ACH y CENIT",
+        Status = TaskStatusEnum.Enabled,
+        CalendarPolicy = CalendarPolicyEnum.OnlyBusinessDays,
+        ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning,
+        RetryOnFailure = true,
+        MaxRetries = 3,
+        RetryBackoffSeconds = 60,
+
+        // Usar Cron: 1 de enero a las 00:30
+        PeriodicityType = PeriodicityTypeEnum.Cron,
+        CronExpression = "0 30 0 1 1 ? *",
+        TimeZoneId = "America/Bogota",
+        StartAt = new DateTimeOffset(new DateTime(year, 1, 1, 0, 30, 0), TimeSpan.FromHours(-5))
+    },
+    new TaskDefinition
+    {
+        Id = 2,
+        Code = "AchCycleScheduler",
+        Name = "Generar ciclos diarios",
+        Status = TaskStatusEnum.Enabled,
+        CalendarPolicy = CalendarPolicyEnum.OnlyBusinessDays,
+        ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning,
+        RetryOnFailure = true,
+        MaxRetries = 3,
+        RetryBackoffSeconds = 60,
+
+        // Diario a las 2:00 AM
+        PeriodicityType = PeriodicityTypeEnum.DailyAtTime,
+        TimeOfDay = new TimeOnly(2, 0),
+        TimeZoneId = "America/Bogota",
+        StartAt = new DateTimeOffset(new DateTime(year, 1, 1, 2, 0, 0), TimeSpan.FromHours(-5))
+    }
+);
+
+
 
         modelBuilder.Entity<TaskDefinition>(e =>
         {

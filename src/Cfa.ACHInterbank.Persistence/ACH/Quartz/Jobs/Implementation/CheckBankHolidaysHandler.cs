@@ -6,7 +6,7 @@ using Cfa.ACHInterbank.Domain.Models.Configurations;
 namespace Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
 
 [Scoped]
-internal class CheckBankHolidaysHandler : ITaskHandler
+public class CheckBankHolidaysHandler : ITaskHandler
 {
     private readonly IBankHoliday _bankholiday;
 
