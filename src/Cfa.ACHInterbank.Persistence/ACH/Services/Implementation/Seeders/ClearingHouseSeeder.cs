@@ -19,12 +19,14 @@ public class ClearingHouseSeeder : IDbSeeder
     {
         if (!_context.ClearingHouses.Any())
         {
+            _context.ChangeTracker.AutoDetectChangesEnabled = false;
             _context.ClearingHouses.AddRange(
-                 new ClearingHouse { Id = 1, Name = "ACH Colombia", Code = "ACHCOL", ClearingHouseId = 1 },
-                 new ClearingHouse { Id = 2, Name = "CENIT", Code = "CENIT", ClearingHouseId = 1 }
+                 new ClearingHouse {Name = "ACH Colombia", Code = "ACHCOL", ClearingHouseId = 1 },
+                 new ClearingHouse {Name = "CENIT", Code = "CENIT", ClearingHouseId = 1 }
             );
 
             await _context.SaveChangesAsync();
+            _context.ChangeTracker.AutoDetectChangesEnabled = true;
         }
     }
 }

@@ -17,11 +17,16 @@ public class ClearingHouseConfigSeeder : IDbSeeder
 
     public async Task SeedAsync()
     {
+        
         if (!_context.ClearingHouseConfigs.Any())
         {
+            _context.ChangeTracker.AutoDetectChangesEnabled = false;
             _context.ClearingHouseConfigs.Add(new ClearingHouseConfig() {ClearingHouseId = 1, HolidayStrategy = "Colombian" });
+
+            await _context.SaveChangesAsync();
+            _context.ChangeTracker.AutoDetectChangesEnabled = true;
         }
 
-        await _context.SaveChangesAsync();
+        
     }
 }

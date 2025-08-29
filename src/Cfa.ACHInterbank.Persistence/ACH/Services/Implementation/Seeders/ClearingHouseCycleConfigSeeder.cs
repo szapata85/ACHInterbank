@@ -19,6 +19,8 @@ public class ClearingHouseCycleConfigSeeder : IDbSeeder
     {
         if (!_context.ClearingHouseCycleConfigs.Any())
         {
+            _context.ChangeTracker.AutoDetectChangesEnabled = false;
+
             _context.ClearingHouseCycleConfigs.AddRange(
                 //ACH Colombia
                 new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 1", CutoffTime = new TimeSpan(10, 30, 0), IsActive = true, EffectiveFrom = new DateTime(2025, 1, 1) },
@@ -36,6 +38,7 @@ public class ClearingHouseCycleConfigSeeder : IDbSeeder
             );
 
             await _context.SaveChangesAsync();
+            _context.ChangeTracker.AutoDetectChangesEnabled = true;
         }
     }
 }

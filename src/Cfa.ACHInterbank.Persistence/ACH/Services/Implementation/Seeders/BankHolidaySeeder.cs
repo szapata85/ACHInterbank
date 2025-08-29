@@ -19,6 +19,7 @@ public class BankHolidaySeeder : IDbSeeder
     {
         if (!_context.BankHolidays.Any())
         {
+            _context.ChangeTracker.AutoDetectChangesEnabled = false;
             _context.BankHolidays.AddRange(
                 new BankHolidayModel {Date = new DateOnly(2025, 1, 1), Description = "Año Nuevo" },
                 new BankHolidayModel {Date = new DateOnly(2025, 1, 6), Description = "Día de los Reyes Magos" },
@@ -40,6 +41,8 @@ public class BankHolidaySeeder : IDbSeeder
             );
 
             await _context.SaveChangesAsync();
+
+            _context.ChangeTracker.AutoDetectChangesEnabled = true;
         }
     }
 }

@@ -18,6 +18,7 @@ public class TaskDefinitionSeeder : IDbSeeder
 
     public async Task SeedAsync()
     {
+        _context.ChangeTracker.AutoDetectChangesEnabled = false;
         if (!_context.TaskDefinitions.Any(t => t.Code == "AchCycleSeeder"))
         {
             _context.TaskDefinitions.Add(new TaskDefinition
@@ -45,6 +46,7 @@ public class TaskDefinitionSeeder : IDbSeeder
         }
 
         await _context.SaveChangesAsync();
+        _context.ChangeTracker.AutoDetectChangesEnabled = true;
     }
 }
 
