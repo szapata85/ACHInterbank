@@ -4,6 +4,7 @@ using Cfa.ACHInterbank.Application.Features;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.External;
 using Cfa.ACHInterbank.Persistence;
+using Cfa.ACHInterbank.Persistence.DataBase;
 using NLog.Web;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,5 +24,6 @@ builder.Services.AddWebApi()
 // Add services to the container.
 builder.WebHost.UseIISIntegration();
 var app = builder.Build();
+
 app.ConfigureHandler();
 app.Run();

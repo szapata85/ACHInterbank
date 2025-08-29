@@ -55,91 +55,56 @@ public class AchDbContext : DbContext
             .HasForeignKey(t => t.AchCycleId)
             .OnDelete(DeleteBehavior.Restrict); // o Cascade si aplica
 
-        int year = DateTime.Now.Year;
+        //int year = DateTime.Now.Year;
 
-        modelBuilder.Entity<BankHolidayModel>().HasData(
-            new BankHolidayModel { Id = 1, Date = new DateOnly(year, 1, 1), Description = "Año Nuevo" },
-            new BankHolidayModel { Id = 2, Date = new DateOnly(year, 1, 6), Description = "Día de los Reyes Magos" },
-            new BankHolidayModel { Id = 3, Date = new DateOnly(year, 3, 24), Description = "San José" },
-            new BankHolidayModel { Id = 4, Date = new DateOnly(year, 4, 17), Description = "Jueves Santo" },
-            new BankHolidayModel { Id = 5, Date = new DateOnly(year, 4, 18), Description = "Viernes Santo" },
-            new BankHolidayModel { Id = 6, Date = new DateOnly(year, 5, 1), Description = "Día del Trabajo" },
-            new BankHolidayModel { Id = 7, Date = new DateOnly(year, 5, 26), Description = "Ascensión del Señor" },
-            new BankHolidayModel { Id = 8, Date = new DateOnly(year, 6, 16), Description = "Corpus Christi" },
-            new BankHolidayModel { Id = 9, Date = new DateOnly(year, 6, 23), Description = "Sagrado Corazón" },
-            new BankHolidayModel { Id = 10, Date = new DateOnly(year, 7, 20), Description = "Día de la Independencia" },
-            new BankHolidayModel { Id = 11, Date = new DateOnly(year, 8, 7), Description = "Batalla de Boyacá" },
-            new BankHolidayModel { Id = 12, Date = new DateOnly(year, 8, 18), Description = "La Asunción" },
-            new BankHolidayModel { Id = 13, Date = new DateOnly(year, 10, 13), Description = "Día de la Raza" },
-            new BankHolidayModel { Id = 14, Date = new DateOnly(year, 11, 3), Description = "Todos los Santos" },
-            new BankHolidayModel { Id = 15, Date = new DateOnly(year, 11, 17), Description = "Independencia de Cartagena" },
-            new BankHolidayModel { Id = 16, Date = new DateOnly(year, 12, 8), Description = "Inmaculada Concepción" },
-            new BankHolidayModel { Id = 17, Date = new DateOnly(year, 12, 25), Description = "Navidad" }
-        );
+        
 
 
-        modelBuilder.Entity<ClearingHouse>().HasData(
-            new ClearingHouse { Id = 1, Name = "ACH Colombia", Code = "ACHCOL", ClearingHouseId = 1 },
-            new ClearingHouse { Id = 2, Name = "CENIT", Code = "CENIT", ClearingHouseId = 1 }
-            );
+        //modelBuilder.Entity<ClearingHouse>().HasData(
+        //    new ClearingHouse { Id = 1, Name = "ACH Colombia", Code = "ACHCOL", ClearingHouseId = 1 },
+        //    new ClearingHouse { Id = 2, Name = "CENIT", Code = "CENIT", ClearingHouseId = 1 }
+        //    );
 
-        modelBuilder.Entity<ClearingHouseConfig>().HasData(new ClearingHouseConfig { Id = 1, ClearingHouseId = 1, HolidayStrategy = "Colombian" });
-
-
-        modelBuilder.Entity<ClearingHouseCycleConfig>().HasData(
-            // ACH Colombia
-            new ClearingHouseCycleConfig { Id = 1, ClearingHouseId = 1, CycleName = "Ciclo 1", CutoffTime = new TimeSpan(10, 30, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) },
-            new ClearingHouseCycleConfig { Id = 2, ClearingHouseId = 1, CycleName = "Ciclo 2", CutoffTime = new TimeSpan(13, 00, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) },
-            new ClearingHouseCycleConfig { Id = 3, ClearingHouseId = 1, CycleName = "Ciclo 3", CutoffTime = new TimeSpan(15, 30, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) },
-            new ClearingHouseCycleConfig { Id = 4, ClearingHouseId = 1, CycleName = "Ciclo 4", CutoffTime = new TimeSpan(17, 30, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) },
-            new ClearingHouseCycleConfig { Id = 5, ClearingHouseId = 1, CycleName = "Ciclo 5", CutoffTime = new TimeSpan(19, 00, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) },
-
-            // CENIT
-            new ClearingHouseCycleConfig { Id = 6, ClearingHouseId = 2, CycleName = "Ciclo 1", CutoffTime = new TimeSpan(9, 30, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) },
-            new ClearingHouseCycleConfig { Id = 7, ClearingHouseId = 2, CycleName = "Ciclo 2", CutoffTime = new TimeSpan(12, 00, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) },
-            new ClearingHouseCycleConfig { Id = 8, ClearingHouseId = 2, CycleName = "Ciclo 3", CutoffTime = new TimeSpan(15, 00, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) },
-            new ClearingHouseCycleConfig { Id = 9, ClearingHouseId = 2, CycleName = "Ciclo 4", CutoffTime = new TimeSpan(17, 15, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) },
-            new ClearingHouseCycleConfig { Id = 10, ClearingHouseId = 2, CycleName = "Ciclo 5", CutoffTime = new TimeSpan(19, 15, 0), IsActive = true, EffectiveFrom = new DateTime(year, 1, 1) }
-        );
+        //modelBuilder.Entity<ClearingHouseConfig>().HasData(new ClearingHouseConfig { Id = 1, ClearingHouseId = 1, HolidayStrategy = "Colombian" });
 
 
-        modelBuilder.Entity<TaskDefinition>().HasData(new TaskDefinition
-    {
-        Id = 1,
-        Code = "AchCycleSeeder",
-        Name = "Seed ciclos ACH y CENIT",
-        Status = TaskStatusEnum.Enabled,
-        CalendarPolicy = CalendarPolicyEnum.OnlyBusinessDays,
-        ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning,
-        RetryOnFailure = true,
-        MaxRetries = 3,
-        RetryBackoffSeconds = 60,
+    //    modelBuilder.Entity<TaskDefinition>().HasData(
+    //new TaskDefinition
+    //{
+    //    Id = 1,
+    //    Code = "AchCycleSeeder",
+    //    Name = "Seed ciclos ACH y CENIT",
+    //    Status = TaskStatusEnum.Enabled,
+    //    CalendarPolicy = CalendarPolicyEnum.OnlyBusinessDays,
+    //    ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning,
+    //    RetryOnFailure = true,
+    //    MaxRetries = 3,
+    //    RetryBackoffSeconds = 60,
 
-        // Usar Cron: 1 de enero a las 00:30
-        PeriodicityType = PeriodicityTypeEnum.Cron,
-        CronExpression = "0 30 0 1 1 ? *",
-        TimeZoneId = "America/Bogota",
-        StartAt = new DateTimeOffset(new DateTime(year, 1, 1, 0, 30, 0), TimeSpan.FromHours(-5))
-    },
-    new TaskDefinition
-    {
-        Id = 2,
-        Code = "AchCycleScheduler",
-        Name = "Generar ciclos diarios",
-        Status = TaskStatusEnum.Enabled,
-        CalendarPolicy = CalendarPolicyEnum.OnlyBusinessDays,
-        ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning,
-        RetryOnFailure = true,
-        MaxRetries = 3,
-        RetryBackoffSeconds = 60,
+    //    PeriodicityType = PeriodicityTypeEnum.Cron,
+    //    CronExpression = "0 30 0 1 1 ? *",
+    //    TimeZoneId = "America/Bogota",
+    //    StartAt = new DateTimeOffset(2025, 1, 1, 0, 30, 0, new TimeSpan(-5, 0, 0))
+    //},
+    //new TaskDefinition
+    //{
+    //    Id = 2,
+    //    Code = "AchCycleScheduler",
+    //    Name = "Generar ciclos diarios",
+    //    Status = TaskStatusEnum.Enabled,
+    //    CalendarPolicy = CalendarPolicyEnum.OnlyBusinessDays,
+    //    ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning,
+    //    RetryOnFailure = true,
+    //    MaxRetries = 3,
+    //    RetryBackoffSeconds = 60,
 
-        // Diario a las 2:00 AM
-        PeriodicityType = PeriodicityTypeEnum.DailyAtTime,
-        TimeOfDay = new TimeOnly(2, 0),
-        TimeZoneId = "America/Bogota",
-        StartAt = new DateTimeOffset(new DateTime(year, 1, 1, 2, 0, 0), TimeSpan.FromHours(-5))
-    }
-);
+    //    PeriodicityType = PeriodicityTypeEnum.DailyAtTime,
+    //    TimeOfDayTicks = new TimeOnly(2, 0).Ticks,
+    //    TimeZoneId = "America/Bogota",
+    //    StartAt = new DateTimeOffset(2025, 1, 1, 2, 0, 0, new TimeSpan(-5, 0, 0))
+    //}
+    //);
+
 
 
 

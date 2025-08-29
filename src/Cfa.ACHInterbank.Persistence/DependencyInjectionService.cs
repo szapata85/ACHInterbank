@@ -1,4 +1,5 @@
-﻿using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
+﻿using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
@@ -45,11 +46,7 @@ public static class DependencyInjectionService
 
 
 
-        //using (var scope = app.Services.CreateScope())
-        //{
-        //    BarContext Context = scope.ServiceProvider.GetRequiredService<BarContext>();
-        //    Context.Database.Migrate();
-        //}
+        
 
 
         //Injection
@@ -59,7 +56,7 @@ public static class DependencyInjectionService
         foreach (var implementationType in types)
         {
             Type? interfaceType = implementationType.GetInterfaces()
-                .FirstOrDefault(i => i.Name.Contains(implementationType.Name) || i == typeof(ITaskHandler));
+                .FirstOrDefault(i => i.Name.Contains(implementationType.Name) || i == typeof(ITaskHandler) || i == typeof(IDbSeeder));
 
             if (interfaceType == null) continue;
 
@@ -76,6 +73,10 @@ public static class DependencyInjectionService
                 services.AddTransient(interfaceType, implementationType);
             }
         }
+
+
+        // Ejecuta seeders al inicio    
+        _ = DbInitializer.SeedAllAsync(services.BuildServiceProvider());
 
         return services;
     }

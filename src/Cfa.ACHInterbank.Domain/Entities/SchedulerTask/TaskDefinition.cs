@@ -1,10 +1,13 @@
 ﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.enums;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 
 public sealed class TaskDefinition : AuditableEntity
 {
+    
+
     public int Id { get; set; }
     public string Code { get; set; } = default!;
     public string Name { get; set; } = default!;
@@ -19,7 +22,14 @@ public sealed class TaskDefinition : AuditableEntity
     public PeriodicityTypeEnum PeriodicityType { get; set; }
     public int? N { get; set; }
     public int? Minute { get; set; }
-    public TimeOnly? TimeOfDay { get; set; }
+    public long? TimeOfDayTicks { get; set; }
+
+    [NotMapped]
+    public TimeOnly? TimeOfDay
+    {
+        get => TimeOfDayTicks.HasValue ? new TimeOnly(TimeOfDayTicks.Value) : null;
+        set => TimeOfDayTicks = value?.Ticks;
+    }
     public DayOfWeek? WeeklyDay { get; set; }
     public int? MonthDay { get; set; }
     public string? CronExpression { get; set; }
