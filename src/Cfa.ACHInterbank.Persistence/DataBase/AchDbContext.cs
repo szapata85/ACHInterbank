@@ -1,5 +1,4 @@
 ﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
-using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.enums;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Services;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.EntityFrameworkCore;
@@ -57,7 +56,7 @@ public class AchDbContext : DbContext
 
         //int year = DateTime.Now.Year;
 
-        
+
 
 
         //modelBuilder.Entity<ClearingHouse>().HasData(
@@ -68,42 +67,42 @@ public class AchDbContext : DbContext
         //modelBuilder.Entity<ClearingHouseConfig>().HasData(new ClearingHouseConfig { Id = 1, ClearingHouseId = 1, HolidayStrategy = "Colombian" });
 
 
-    //    modelBuilder.Entity<TaskDefinition>().HasData(
-    //new TaskDefinition
-    //{
-    //    Id = 1,
-    //    Code = "AchCycleSeeder",
-    //    Name = "Seed ciclos ACH y CENIT",
-    //    Status = TaskStatusEnum.Enabled,
-    //    CalendarPolicy = CalendarPolicyEnum.OnlyBusinessDays,
-    //    ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning,
-    //    RetryOnFailure = true,
-    //    MaxRetries = 3,
-    //    RetryBackoffSeconds = 60,
+        //    modelBuilder.Entity<TaskDefinition>().HasData(
+        //new TaskDefinition
+        //{
+        //    Id = 1,
+        //    Code = "AchCycleSeeder",
+        //    Name = "Seed ciclos ACH y CENIT",
+        //    Status = TaskStatusEnum.Enabled,
+        //    CalendarPolicy = CalendarPolicyEnum.OnlyBusinessDays,
+        //    ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning,
+        //    RetryOnFailure = true,
+        //    MaxRetries = 3,
+        //    RetryBackoffSeconds = 60,
 
-    //    PeriodicityType = PeriodicityTypeEnum.Cron,
-    //    CronExpression = "0 30 0 1 1 ? *",
-    //    TimeZoneId = "America/Bogota",
-    //    StartAt = new DateTimeOffset(2025, 1, 1, 0, 30, 0, new TimeSpan(-5, 0, 0))
-    //},
-    //new TaskDefinition
-    //{
-    //    Id = 2,
-    //    Code = "AchCycleScheduler",
-    //    Name = "Generar ciclos diarios",
-    //    Status = TaskStatusEnum.Enabled,
-    //    CalendarPolicy = CalendarPolicyEnum.OnlyBusinessDays,
-    //    ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning,
-    //    RetryOnFailure = true,
-    //    MaxRetries = 3,
-    //    RetryBackoffSeconds = 60,
+        //    PeriodicityType = PeriodicityTypeEnum.Cron,
+        //    CronExpression = "0 30 0 1 1 ? *",
+        //    TimeZoneId = "America/Bogota",
+        //    StartAt = new DateTimeOffset(2025, 1, 1, 0, 30, 0, new TimeSpan(-5, 0, 0))
+        //},
+        //new TaskDefinition
+        //{
+        //    Id = 2,
+        //    Code = "AchCycleScheduler",
+        //    Name = "Generar ciclos diarios",
+        //    Status = TaskStatusEnum.Enabled,
+        //    CalendarPolicy = CalendarPolicyEnum.OnlyBusinessDays,
+        //    ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning,
+        //    RetryOnFailure = true,
+        //    MaxRetries = 3,
+        //    RetryBackoffSeconds = 60,
 
-    //    PeriodicityType = PeriodicityTypeEnum.DailyAtTime,
-    //    TimeOfDayTicks = new TimeOnly(2, 0).Ticks,
-    //    TimeZoneId = "America/Bogota",
-    //    StartAt = new DateTimeOffset(2025, 1, 1, 2, 0, 0, new TimeSpan(-5, 0, 0))
-    //}
-    //);
+        //    PeriodicityType = PeriodicityTypeEnum.DailyAtTime,
+        //    TimeOfDayTicks = new TimeOnly(2, 0).Ticks,
+        //    TimeZoneId = "America/Bogota",
+        //    StartAt = new DateTimeOffset(2025, 1, 1, 2, 0, 0, new TimeSpan(-5, 0, 0))
+        //}
+        //);
 
 
 
