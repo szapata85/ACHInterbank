@@ -6,7 +6,7 @@ using Cfa.ACHInterbank.Persistence.DataBase;
 namespace Cfa.ACHInterbank.Persistence.ACH.Services;
 
 [Scoped]
-public class NachaService : INachaServiceScoped
+public class NachaService : INachaService
 {
     private readonly AchDbContext _context;
 

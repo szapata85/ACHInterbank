@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Cfa.ACHInterbank.Persistence.ACH.Services;
 
 [Scoped]
-public class NachaParserService : INachaParserServiceScoped
+public class NachaParserService : INachaParserService
 {
     private readonly AchDbContext _context;
 

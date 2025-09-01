@@ -10,9 +10,9 @@ namespace Cfa.ACHInterbank.Api.Controllers
     [AllowAnonymous]
     public class NachaController : Controller
     {
-        private readonly INachaServiceScoped _nachaService;
+        private readonly INachaService _nachaService;
 
-        public NachaController(INachaServiceScoped nachaService)
+        public NachaController(INachaService nachaService)
         {
             _nachaService = nachaService;
         }

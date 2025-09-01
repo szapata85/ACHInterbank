@@ -9,9 +9,9 @@ namespace Cfa.ACHInterbank.Api.Controllers
     [Route("api/[controller]")]
     public class NachaUploadController : Controller
     {
-        private readonly INachaParserServiceScoped _parserService;
+        private readonly INachaParserService _parserService;
 
-        public NachaUploadController(INachaParserServiceScoped parserService)
+        public NachaUploadController(INachaParserService parserService)
         {
             _parserService = parserService;
         }

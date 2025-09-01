@@ -1,6 +1,6 @@
 ﻿namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
 
-public interface INachaParserServiceScoped
+public interface INachaParserService
 {
     Task ParseAndSaveAsync(Stream nachaStream);
 }

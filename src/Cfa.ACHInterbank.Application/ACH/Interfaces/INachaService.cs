@@ -2,7 +2,7 @@
 
 namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
 
-public interface INachaServiceScoped
+public interface INachaService
 {
     Task SaveHeaderAsync(NachaHeader header);
 }
