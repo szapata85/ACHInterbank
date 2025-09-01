@@ -16,6 +16,8 @@ public class TaskDefinitionSeeder : IDbSeeder
         _context = context;
     }
 
+    int IDbSeeder.Order => 4;
+
     public async Task SeedAsync()
     {
         _context.ChangeTracker.AutoDetectChangesEnabled = false;

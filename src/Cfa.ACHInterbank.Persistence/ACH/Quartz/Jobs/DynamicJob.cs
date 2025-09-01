@@ -53,9 +53,9 @@ public class DynamicJob : IJob
         try
         {
             // 🔎 Evaluar política de calendario antes de ejecutar
-            var today = DateOnly.FromDateTime(DateTime.Now);
-            var isWeekend = today.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
-            var isHoliday = db.BankHolidays.Any(h => h.Date == today);
+            DateOnly today = DateOnly.FromDateTime(DateTime.Now);
+            bool isWeekend = today.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+            bool isHoliday = db.BankHolidays.Any(h => h.Date == today);
 
             switch (task.CalendarPolicy)
             {

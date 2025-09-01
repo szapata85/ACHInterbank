@@ -15,6 +15,8 @@ public class ClearingHouseConfigSeeder : IDbSeeder
         _context = context;
     }
 
+    int IDbSeeder.Order => 5;
+
     public async Task SeedAsync()
     {
         

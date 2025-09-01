@@ -8,12 +8,19 @@ public static class DbInitializer
     public static async Task SeedAllAsync(IServiceProvider services)
     {
         using var scope = services.CreateScope();
-        var seeders = scope.ServiceProvider.GetServices<IDbSeeder>();
+        var serviceProvider = scope.ServiceProvider;
 
-        foreach (var seeder in seeders)
-        {
-            await seeder.SeedAsync();
-        }
+        
+        var seeders = scope.ServiceProvider
+                           .GetServices<IDbSeeder>()
+                           .OrderBy(s => s.Order);
+
+        //foreach (var seeder in seeders)
+        //{
+        //    await seeder.SeedAsync();
+        //}
+
+        await Task.WhenAll(seeders.Select(s => s.SeedAsync()));
     }
 }
 

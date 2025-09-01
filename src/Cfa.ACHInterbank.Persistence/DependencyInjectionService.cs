@@ -76,7 +76,7 @@ public static class DependencyInjectionService
 
 
         // Ejecuta seeders al inicio    
-        _ = DbInitializer.SeedAllAsync(services.BuildServiceProvider());
+        //_ = DbInitializer.SeedAllAsync(services.BuildServiceProvider());
 
         return services;
     }

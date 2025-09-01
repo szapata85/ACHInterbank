@@ -15,6 +15,8 @@ public class ClearingHouseCycleConfigSeeder : IDbSeeder
         _context = context;
     }
 
+    int IDbSeeder.Order => 2;
+
     public async Task SeedAsync()
     {
         if (!_context.ClearingHouseCycleConfigs.Any())

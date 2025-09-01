@@ -15,6 +15,8 @@ public class ClearingHouseSeeder : IDbSeeder
         _context = context;
     }
 
+    int IDbSeeder.Order => 1;
+
     public async Task SeedAsync()
     {
         if (!_context.ClearingHouses.Any())

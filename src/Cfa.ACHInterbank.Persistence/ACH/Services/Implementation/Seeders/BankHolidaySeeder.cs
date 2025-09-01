@@ -15,6 +15,8 @@ public class BankHolidaySeeder : IDbSeeder
         _context = context;
     }
 
+    int IDbSeeder.Order => 3;
+
     public async Task SeedAsync()
     {
         if (!_context.BankHolidays.Any())
