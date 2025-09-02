@@ -621,10 +621,16 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
+                    b.Property<int?>("AchCycleId")
+                        .HasColumnType("int");
+
                     b.Property<string>("BlockingFactor")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("ClearingHouseId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CycleNumber")
                         .HasColumnType("int");
 
                     b.Property<string>("FileCreationDate")
@@ -663,6 +669,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("NachaID");
+
+                    b.HasIndex("AchCycleId");
 
                     b.HasIndex("ClearingHouseId");
 
@@ -798,9 +806,16 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaHeader", b =>
                 {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchCycle", "AchCycle")
+                        .WithMany("NachaHeaders")
+                        .HasForeignKey("AchCycleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
                         .WithMany()
                         .HasForeignKey("ClearingHouseId");
+
+                    b.Navigation("AchCycle");
 
                     b.Navigation("ClearingHouse");
                 });
@@ -814,6 +829,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchCycle", b =>
                 {
+                    b.Navigation("NachaHeaders");
+
                     b.Navigation("Transactions");
                 });
 

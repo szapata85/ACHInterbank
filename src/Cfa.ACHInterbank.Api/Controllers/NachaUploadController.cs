@@ -23,7 +23,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
                 return BadRequest("Archivo inválido.");
 
             using var stream = file.OpenReadStream();
-            await _parserService.ParseAndSaveAsync(stream);
+            await _parserService.ParseAndSaveAsync(stream, file.FileName);
 
             return Ok("Archivo procesado y guardado.");
         }

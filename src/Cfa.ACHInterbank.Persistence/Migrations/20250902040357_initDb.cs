@@ -205,35 +205,6 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "NachaHeaders",
-                columns: table => new
-                {
-                    NachaID = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
-                    PriorityCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ImmediateDestination = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    ImmediateOrigin = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    FileCreationDate = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    FileCreationTime = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    FileIdModifier = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    RecordSize = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    BlockingFactor = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    FormatCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ImmediateDestinationName = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ImmediateOriginName = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ReferenceCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ClearingHouseId = table.Column<int>(type: "int", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_NachaHeaders", x => x.NachaID);
-                    table.ForeignKey(
-                        name: "FK_NachaHeaders_ClearingHouses_ClearingHouseId",
-                        column: x => x.ClearingHouseId,
-                        principalTable: "ClearingHouses",
-                        principalColumn: "Id");
-                });
-
-            migrationBuilder.CreateTable(
                 name: "AchTransactions",
                 columns: table => new
                 {
@@ -269,6 +240,43 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         principalTable: "FinancialInstitutions",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "NachaHeaders",
+                columns: table => new
+                {
+                    NachaID = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    PriorityCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ImmediateDestination = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    ImmediateOrigin = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    FileCreationDate = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    FileCreationTime = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    FileIdModifier = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    RecordSize = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    BlockingFactor = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    FormatCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ImmediateDestinationName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ImmediateOriginName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ReferenceCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ClearingHouseId = table.Column<int>(type: "int", nullable: true),
+                    CycleNumber = table.Column<int>(type: "int", nullable: false),
+                    AchCycleId = table.Column<int>(type: "int", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_NachaHeaders", x => x.NachaID);
+                    table.ForeignKey(
+                        name: "FK_NachaHeaders_AchCycles_AchCycleId",
+                        column: x => x.AchCycleId,
+                        principalTable: "AchCycles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_NachaHeaders_ClearingHouses_ClearingHouseId",
+                        column: x => x.ClearingHouseId,
+                        principalTable: "ClearingHouses",
+                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateTable(
@@ -461,6 +469,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 column: "NachaID");
 
             migrationBuilder.CreateIndex(
+                name: "IX_NachaHeaders_AchCycleId",
+                table: "NachaHeaders",
+                column: "AchCycleId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_NachaHeaders_ClearingHouseId",
                 table: "NachaHeaders",
                 column: "ClearingHouseId");
@@ -517,9 +530,6 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 name: "TaskParameters");
 
             migrationBuilder.DropTable(
-                name: "AchCycles");
-
-            migrationBuilder.DropTable(
                 name: "FinancialInstitutions");
 
             migrationBuilder.DropTable(
@@ -527,6 +537,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "TaskDefinition");
+
+            migrationBuilder.DropTable(
+                name: "AchCycles");
 
             migrationBuilder.DropTable(
                 name: "ClearingHouses");

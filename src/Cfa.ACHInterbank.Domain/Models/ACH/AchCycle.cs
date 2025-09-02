@@ -22,6 +22,10 @@ public class AchCycle : AuditableEntity
     public int ClearingHouseId { get; set; }
     public ClearingHouse? ClearingHouse { get; set; }
 
+    //Relación inversa
+    public ICollection<NachaHeader> NachaHeaders { get; set; } = new List<NachaHeader>();
+
     // Transacciones que entraron en este ciclo
     public ICollection<AchTransaction> Transactions { get; set; } = new List<AchTransaction>();
+
 }

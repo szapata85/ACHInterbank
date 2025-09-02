@@ -2,6 +2,6 @@
 
 public interface INachaParserService
 {
-    Task ParseAndSaveAsync(Stream nachaStream);
+    Task ParseAndSaveAsync(Stream nachaStream, string FileName);
 }
 

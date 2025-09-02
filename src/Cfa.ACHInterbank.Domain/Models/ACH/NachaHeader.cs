@@ -26,6 +26,12 @@ public class NachaHeader
     public int? ClearingHouseId { get; set; }
     public ClearingHouse? ClearingHouse { get; set; }
 
+    public int CycleNumber { get; set; }
+
+    public int? AchCycleId { get; set; }
+    public AchCycle? AchCycle { get; set; }
+
+
     public virtual ICollection<BatchHeader>? Batches { get; set; }
     public virtual ICollection<EntryDetail>? EntryDetails { get; set; }
     public virtual ICollection<AddendaRecord>? AddendaRecords { get; set; }

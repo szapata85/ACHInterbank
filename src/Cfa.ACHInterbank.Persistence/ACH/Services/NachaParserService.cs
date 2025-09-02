@@ -18,7 +18,7 @@ public class NachaParserService : INachaParserService
         _context = context;
     }
 
-    public async Task ParseAndSaveAsync(Stream nachaStream)
+    public async Task ParseAndSaveAsync(Stream nachaStream, string FileName)
     {
         try
         {
@@ -45,14 +45,12 @@ public class NachaParserService : INachaParserService
                 switch (recordType)
                 {
                     case '1':
-
-
                         // Precargar mapeo de códigos desde la BD
                         Dictionary<string,int> clearingHouseMap = await _context.ClearingHouses
                             .AsNoTracking()
                             .ToDictionaryAsync(ch => ch.OriginCode.Trim(), ch => ch.Id);
 
-                        LstNachaHeader = ParseFileHeaderLinq(resultLine, clearingHouseMap);
+                        LstNachaHeader = ParseFileHeaderLinq(resultLine, clearingHouseMap, FileName);
 
                         //Validación de existencia
                         bool NachaHeadersExists = await _context.NachaHeaders
@@ -94,11 +92,18 @@ public class NachaParserService : INachaParserService
         }
     }
 
-    private List<NachaHeader> ParseFileHeaderLinq(List<string> line, Dictionary<string, int> clearingHouseMap)
+    private List<NachaHeader> ParseFileHeaderLinq(List<string> line, Dictionary<string, int> clearingHouseMap, string FileName)
     {
+        var parts = FileName.Split('.');
+        var cycleNumber = int.Parse(parts[1]);
+
+        
+
         return line.Select(a =>
         {
             string ImmediateOrigin = a.Substring(13, 10).Trim();
+
+            var ClearingHouseId = clearingHouseMap.TryGetValue(ImmediateOrigin, out var chId) ? chId : (int?)null;
 
             return new NachaHeader
             {
@@ -116,7 +121,19 @@ public class NachaParserService : INachaParserService
                 ImmediateDestinationName = a.Substring(42, 23).Trim(),
                 ImmediateOriginName = a.Substring(65, 23).Trim(),
                 ReferenceCode = a.Substring(88, 8).Trim(),
-                ClearingHouseId = clearingHouseMap.TryGetValue(ImmediateOrigin, out var chId) ? chId : (int?)null
+                ClearingHouseId = ClearingHouseId,
+
+                CycleNumber = cycleNumber,
+
+                // 🔹 Relacionar con AchCycle (si existe en BD)
+                AchCycleId = _context.AchCycles
+                            .Where(c =>
+                                    c.ClearingHouseId == ClearingHouseId &&
+                                    c.ProcessingDate.Date == DateTime.ParseExact(a.Substring(23, 8), "yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture) &&                 // <- muy recomendable
+                                    EF.Functions.Like(c.CycleName, $"% {cycleNumber}")        // "Ciclo 2", "Ciclo 5", etc.
+                                )
+                            .Select(c => (int?)c.Id)
+                            .FirstOrDefault()
             };
         }).ToList();
     }
