@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Cfa.ACHInterbank.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class initdb : Migration
+    public partial class initDb : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -55,29 +55,6 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "NachaHeaders",
-                columns: table => new
-                {
-                    NachaID = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
-                    PriorityCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ImmediateDestination = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    ImmediateOrigin = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    FileCreationDate = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    FileCreationTime = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    FileIdModifier = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    RecordSize = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    BlockingFactor = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    FormatCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ImmediateDestinationName = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ImmediateOriginName = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ReferenceCode = table.Column<string>(type: "nvarchar(max)", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_NachaHeaders", x => x.NachaID);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "TaskDefinition",
                 columns: table => new
                 {
@@ -117,6 +94,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Code = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    OriginCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     ClearingHouseId = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
@@ -128,6 +106,169 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         principalTable: "ClearingHouseConfigs",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TaskExecutionLog",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TaskDefinitionId = table.Column<int>(type: "int", nullable: false),
+                    ScheduledAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    StartedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    FinishedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    Success = table.Column<bool>(type: "bit", nullable: false),
+                    Error = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Output = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ExecutionKey = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TaskExecutionLog", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TaskExecutionLog_TaskDefinition_TaskDefinitionId",
+                        column: x => x.TaskDefinitionId,
+                        principalTable: "TaskDefinition",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TaskParameters",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TaskDefinitionId = table.Column<int>(type: "int", nullable: false),
+                    Key = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Value = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TaskParameters", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TaskParameters_TaskDefinition_TaskDefinitionId",
+                        column: x => x.TaskDefinitionId,
+                        principalTable: "TaskDefinition",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AchCycles",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    CycleName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ProcessingDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CutoffTime = table.Column<TimeSpan>(type: "time", nullable: false),
+                    RescheduleOnHoliday = table.Column<bool>(type: "bit", nullable: false),
+                    ClearingHouseId = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AchCycles", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AchCycles_ClearingHouses_ClearingHouseId",
+                        column: x => x.ClearingHouseId,
+                        principalTable: "ClearingHouses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ClearingHouseCycleConfigs",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ClearingHouseId = table.Column<int>(type: "int", nullable: false),
+                    CycleName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CutoffTime = table.Column<TimeSpan>(type: "time", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    EffectiveFrom = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    EffectiveTo = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ClearingHouseCycleConfigs", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ClearingHouseCycleConfigs_ClearingHouses_ClearingHouseId",
+                        column: x => x.ClearingHouseId,
+                        principalTable: "ClearingHouses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "NachaHeaders",
+                columns: table => new
+                {
+                    NachaID = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    PriorityCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ImmediateDestination = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    ImmediateOrigin = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    FileCreationDate = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    FileCreationTime = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    FileIdModifier = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    RecordSize = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    BlockingFactor = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    FormatCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ImmediateDestinationName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ImmediateOriginName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ReferenceCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ClearingHouseId = table.Column<int>(type: "int", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_NachaHeaders", x => x.NachaID);
+                    table.ForeignKey(
+                        name: "FK_NachaHeaders_ClearingHouses_ClearingHouseId",
+                        column: x => x.ClearingHouseId,
+                        principalTable: "ClearingHouses",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AchTransactions",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    Reference = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Type = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    SourceInstitutionId = table.Column<int>(type: "int", nullable: false),
+                    DestinationInstitutionId = table.Column<int>(type: "int", nullable: false),
+                    AchCycleId = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AchTransactions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AchTransactions_AchCycles_AchCycleId",
+                        column: x => x.AchCycleId,
+                        principalTable: "AchCycles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AchTransactions_FinancialInstitutions_DestinationInstitutionId",
+                        column: x => x.DestinationInstitutionId,
+                        principalTable: "FinancialInstitutions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AchTransactions_FinancialInstitutions_SourceInstitutionId",
+                        column: x => x.SourceInstitutionId,
+                        principalTable: "FinancialInstitutions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -264,140 +405,6 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         principalColumn: "NachaID");
                 });
 
-            migrationBuilder.CreateTable(
-                name: "TaskExecutionLog",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    TaskDefinitionId = table.Column<int>(type: "int", nullable: false),
-                    ScheduledAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
-                    StartedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
-                    FinishedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
-                    Success = table.Column<bool>(type: "bit", nullable: false),
-                    Error = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    Output = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ExecutionKey = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_TaskExecutionLog", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_TaskExecutionLog_TaskDefinition_TaskDefinitionId",
-                        column: x => x.TaskDefinitionId,
-                        principalTable: "TaskDefinition",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "TaskParameters",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    TaskDefinitionId = table.Column<int>(type: "int", nullable: false),
-                    Key = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    Value = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_TaskParameters", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_TaskParameters_TaskDefinition_TaskDefinitionId",
-                        column: x => x.TaskDefinitionId,
-                        principalTable: "TaskDefinition",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "AchCycles",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    CycleName = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    ProcessingDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    CutoffTime = table.Column<TimeSpan>(type: "time", nullable: false),
-                    RescheduleOnHoliday = table.Column<bool>(type: "bit", nullable: false),
-                    ClearingHouseId = table.Column<int>(type: "int", nullable: false),
-                    CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
-                    UpdatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AchCycles", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_AchCycles_ClearingHouses_ClearingHouseId",
-                        column: x => x.ClearingHouseId,
-                        principalTable: "ClearingHouses",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "ClearingHouseCycleConfigs",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    ClearingHouseId = table.Column<int>(type: "int", nullable: false),
-                    CycleName = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    CutoffTime = table.Column<TimeSpan>(type: "time", nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    EffectiveFrom = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    EffectiveTo = table.Column<DateTime>(type: "datetime2", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_ClearingHouseCycleConfigs", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_ClearingHouseCycleConfigs_ClearingHouses_ClearingHouseId",
-                        column: x => x.ClearingHouseId,
-                        principalTable: "ClearingHouses",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "AchTransactions",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    Reference = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Type = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    SourceInstitutionId = table.Column<int>(type: "int", nullable: false),
-                    DestinationInstitutionId = table.Column<int>(type: "int", nullable: false),
-                    AchCycleId = table.Column<int>(type: "int", nullable: false),
-                    CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
-                    UpdatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AchTransactions", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_AchTransactions_AchCycles_AchCycleId",
-                        column: x => x.AchCycleId,
-                        principalTable: "AchCycles",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_AchTransactions_FinancialInstitutions_DestinationInstitutionId",
-                        column: x => x.DestinationInstitutionId,
-                        principalTable: "FinancialInstitutions",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_AchTransactions_FinancialInstitutions_SourceInstitutionId",
-                        column: x => x.SourceInstitutionId,
-                        principalTable: "FinancialInstitutions",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
             migrationBuilder.CreateIndex(
                 name: "IX_AchCycles_ClearingHouseId",
                 table: "AchCycles",
@@ -452,6 +459,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 name: "IX_FileControls_NachaID",
                 table: "FileControls",
                 column: "NachaID");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_NachaHeaders_ClearingHouseId",
+                table: "NachaHeaders",
+                column: "ClearingHouseId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_TaskDefinition_Code",

@@ -23,8 +23,8 @@ public class ClearingHouseSeeder : IDbSeeder
         {
             _context.ChangeTracker.AutoDetectChangesEnabled = false;
             _context.ClearingHouses.AddRange(
-                new ClearingHouse { Id = 1, Name = "ACH Colombia", Code = "ACHCOL", OriginCode = "000101006", ClearingHouseId = 1 },
-                new ClearingHouse { Id = 2, Name = "CENIT", Code = "CENIT", OriginCode = "011111111", ClearingHouseId = 1 }
+                new ClearingHouse {Name = "ACH Colombia", Code = "ACHCOL", OriginCode = "000101006", ClearingHouseId = 1 },
+                new ClearingHouse {Name = "CENIT", Code = "CENIT", OriginCode = "011111111", ClearingHouseId = 1 }
             );
 
             await _context.SaveChangesAsync();

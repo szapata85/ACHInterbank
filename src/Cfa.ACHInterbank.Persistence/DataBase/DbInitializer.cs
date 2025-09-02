@@ -15,12 +15,12 @@ public static class DbInitializer
                            .GetServices<IDbSeeder>()
                            .OrderBy(s => s.Order);
 
-        //foreach (var seeder in seeders)
-        //{
-        //    await seeder.SeedAsync();
-        //}
+        foreach (var seeder in seeders)
+        {
+            await seeder.SeedAsync();
+        }
 
-        await Task.WhenAll(seeders.Select(s => s.SeedAsync()));
+        //await Task.WhenAll(seeders.Select(s => s.SeedAsync()));
     }
 }
 

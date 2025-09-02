@@ -443,6 +443,10 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("OriginCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ClearingHouseId");
@@ -620,6 +624,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Property<string>("BlockingFactor")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("ClearingHouseId")
+                        .HasColumnType("int");
+
                     b.Property<string>("FileCreationDate")
                         .HasColumnType("nvarchar(max)");
 
@@ -656,6 +663,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("NachaID");
+
+                    b.HasIndex("ClearingHouseId");
 
                     b.ToTable("NachaHeaders", (string)null);
                 });
@@ -785,6 +794,15 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .HasForeignKey("NachaID");
 
                     b.Navigation("NachaHeader");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaHeader", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
+                        .WithMany()
+                        .HasForeignKey("ClearingHouseId");
+
+                    b.Navigation("ClearingHouse");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.SchedulerTask.TaskDefinition", b =>
