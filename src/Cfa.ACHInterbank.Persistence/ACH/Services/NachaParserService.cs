@@ -4,6 +4,7 @@ using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using System.Threading;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services;
 
@@ -44,7 +45,14 @@ public class NachaParserService : INachaParserService
                 switch (recordType)
                 {
                     case '1':
-                        LstNachaHeader = ParseFileHeaderLinq(resultLine);
+
+
+                        // Precargar mapeo de códigos desde la BD
+                        Dictionary<string,int> clearingHouseMap = await _context.ClearingHouses
+                            .AsNoTracking()
+                            .ToDictionaryAsync(ch => ch.OriginCode.Trim(), ch => ch.Id);
+
+                        LstNachaHeader = ParseFileHeaderLinq(resultLine, clearingHouseMap);
 
                         //Validación de existencia
                         bool NachaHeadersExists = await _context.NachaHeaders
@@ -86,24 +94,30 @@ public class NachaParserService : INachaParserService
         }
     }
 
-    private List<NachaHeader> ParseFileHeaderLinq(List<string> line)
+    private List<NachaHeader> ParseFileHeaderLinq(List<string> line, Dictionary<string, int> clearingHouseMap)
     {
-        return line.Select(a => new NachaHeader
+        return line.Select(a =>
         {
-            NachaID = HashHelper.GenerateHashSha1(
-                                $"{a.Substring(3, 10).Trim()}{a.Substring(13, 10).Trim()}{a.Substring(23, 8).Trim()}{a.Substring(31, 4).Trim()}"),
-            PriorityCode = a.Substring(1, 2),
-            ImmediateDestination = a.Substring(3, 10).Trim(),
-            ImmediateOrigin = a.Substring(13, 10).Trim(),
-            FileCreationDate = a.Substring(23, 8),
-            FileCreationTime = a.Substring(31, 4),
-            FileIdModifier = a.Substring(35, 1),
-            RecordSize = a.Substring(36, 3),
-            BlockingFactor = a.Substring(39, 2),
-            FormatCode = a.Substring(41, 1),
-            ImmediateDestinationName = a.Substring(42, 23).Trim(),
-            ImmediateOriginName = a.Substring(65, 23).Trim(),
-            ReferenceCode = a.Substring(88, 8).Trim()
+            string ImmediateOrigin = a.Substring(13, 10).Trim();
+
+            return new NachaHeader
+            {
+                NachaID = HashHelper.GenerateHashSha1(
+                    $"{a.Substring(3, 10).Trim()}{ImmediateOrigin}{a.Substring(23, 8).Trim()}{a.Substring(31, 4).Trim()}"),
+                PriorityCode = a.Substring(1, 2),
+                ImmediateDestination = a.Substring(3, 10).Trim(),
+                ImmediateOrigin = ImmediateOrigin,
+                FileCreationDate = a.Substring(23, 8),
+                FileCreationTime = a.Substring(31, 4),
+                FileIdModifier = a.Substring(35, 1),
+                RecordSize = a.Substring(36, 3),
+                BlockingFactor = a.Substring(39, 2),
+                FormatCode = a.Substring(41, 1),
+                ImmediateDestinationName = a.Substring(42, 23).Trim(),
+                ImmediateOriginName = a.Substring(65, 23).Trim(),
+                ReferenceCode = a.Substring(88, 8).Trim(),
+                ClearingHouseId = clearingHouseMap.TryGetValue(ImmediateOrigin, out var chId) ? chId : (int?)null
+            };
         }).ToList();
     }
 

@@ -22,6 +22,10 @@ public class NachaHeader
     public string? ImmediateOriginName { get; set; }
     public string? ReferenceCode { get; set; }
 
+    // Relación con ClearingHouse
+    public int? ClearingHouseId { get; set; }
+    public ClearingHouse? ClearingHouse { get; set; }
+
     public virtual ICollection<BatchHeader>? Batches { get; set; }
     public virtual ICollection<EntryDetail>? EntryDetails { get; set; }
     public virtual ICollection<AddendaRecord>? AddendaRecords { get; set; }
