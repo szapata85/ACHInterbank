@@ -102,8 +102,13 @@ public class NachaParserService : INachaParserService
         return line.Select(a =>
         {
             string ImmediateOrigin = a.Substring(13, 10).Trim();
+            int? ClearingHouseId = clearingHouseMap.TryGetValue(ImmediateOrigin, out var chId) ? chId : (int?)null;
 
-            var ClearingHouseId = clearingHouseMap.TryGetValue(ImmediateOrigin, out var chId) ? chId : (int?)null;
+            int? AchCycleId = _context.AchCycles.Where(c => c.ClearingHouseId == ClearingHouseId &&
+                                         c.ProcessingDate == DateTime.Today &&
+                                         c.CycleName.Contains(cycleNumber.ToString())
+                                   ).Select(c => (int?)c.Id)
+                             .FirstOrDefault();
 
             return new NachaHeader
             {
@@ -122,18 +127,9 @@ public class NachaParserService : INachaParserService
                 ImmediateOriginName = a.Substring(65, 23).Trim(),
                 ReferenceCode = a.Substring(88, 8).Trim(),
                 ClearingHouseId = ClearingHouseId,
-
                 CycleNumber = cycleNumber,
-
                 // 🔹 Relacionar con AchCycle (si existe en BD)
-                AchCycleId = _context.AchCycles
-                            .Where(c =>
-                                    c.ClearingHouseId == ClearingHouseId &&
-                                    c.ProcessingDate.Date == DateTime.ParseExact(a.Substring(23, 8), "yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture) &&                 // <- muy recomendable
-                                    EF.Functions.Like(c.CycleName, $"% {cycleNumber}")        // "Ciclo 2", "Ciclo 5", etc.
-                                )
-                            .Select(c => (int?)c.Id)
-                            .FirstOrDefault()
+                AchCycleId = AchCycleId
             };
         }).ToList();
     }
