@@ -32,7 +32,6 @@ public class TransactionsController : Controller
             request.Type,
             request.SourceInstitutionId,
             request.DestinationInstitutionId,
-            request.AchCycleId,
             request.Addendas?.Select(a => (a.AddendaType, a.Information)),
             ct
         );

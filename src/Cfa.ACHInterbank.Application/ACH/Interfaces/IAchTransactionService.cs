@@ -11,7 +11,6 @@ public interface IAchTransactionService
         TransactionTypeEnum type,
         int sourceInstitutionId,
         int destinationInstitutionId,
-        int achCycleId,
         IEnumerable<(string addendaType, string information)>? addendas = null,
         CancellationToken ct = default);
 

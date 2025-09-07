@@ -11,10 +11,12 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services;
 public class AchTransactionService : IAchTransactionService
 {
     private readonly AchDbContext _context;
+    private readonly IBankHoliday _holidayService;
 
-    public AchTransactionService(AchDbContext context)
+    public AchTransactionService(AchDbContext context, IBankHoliday holidayService)
     {
         _context = context;
+        _holidayService = holidayService;
     }
 
     public async Task<AchTransaction> RegisterTransactionAsync(
@@ -23,10 +25,25 @@ public class AchTransactionService : IAchTransactionService
         TransactionTypeEnum type,
         int sourceInstitutionId,
         int destinationInstitutionId,
-        int achCycleId,
         IEnumerable<(string addendaType, string information)>? addendas = null,
         CancellationToken ct = default)
     {
+        // 1) Fecha de hoy, ajustada a día hábil
+        var today = DateTime.Now;
+        var processingDate = GetNextBusinessDay(today);
+
+        // 2) Buscar próximo ciclo válido para hoy
+        var nextCycle = await _context.AchCycles
+            .Where(c =>
+                c.ProcessingDate.Date == processingDate.Date &&
+                c.CutoffTime > today.TimeOfDay)
+            .OrderBy(c => c.CutoffTime)
+            .FirstOrDefaultAsync(ct);
+
+        if (nextCycle == null)
+            throw new InvalidOperationException("No hay ciclos disponibles para la fecha actual.");
+
+        // 3) Crear transacción
         var tx = new AchTransaction
         {
             Amount = amount,
@@ -34,11 +51,11 @@ public class AchTransactionService : IAchTransactionService
             Type = type,
             SourceInstitutionId = sourceInstitutionId,
             DestinationInstitutionId = destinationInstitutionId,
-            AchCycleId = achCycleId,
+            AchCycleId = nextCycle.Id,
             Addendas = new List<AchTransactionAddenda>()
         };
 
-        // 🔹 Si se pasaron addendas, agregarlas
+        // 4) Registrar addendas si hay
         if (addendas != null)
         {
             foreach (var add in addendas)
@@ -57,6 +74,22 @@ public class AchTransactionService : IAchTransactionService
         return tx;
     }
 
+    // 🔹 Reutilizar servicio de festivos
+    private DateTime GetNextBusinessDay(DateTime date)
+    {
+        var holidays = _holidayService.GetHolidays(date.Year)
+                                      .Select(h => h.Date)
+                                      .ToHashSet();
+
+        var check = date.Date;
+        while (check.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ||
+               holidays.Contains(DateOnly.FromDateTime(check)))
+        {
+            check = check.AddDays(1);
+        }
+        return check;
+    }
+
     public async Task<List<AchTransaction>> GetTransactionsByCycleAsync(
         int achCycleId,
         CancellationToken ct = default)
@@ -64,7 +97,7 @@ public class AchTransactionService : IAchTransactionService
         return await _context.AchTransactions
             .Include(t => t.SourceInstitution)
             .Include(t => t.DestinationInstitution)
-            .Include(t => t.Addendas) //incluir Addendas en la consulta
+            .Include(t => t.Addendas)
             .Where(t => t.AchCycleId == achCycleId)
             .ToListAsync(ct);
     }

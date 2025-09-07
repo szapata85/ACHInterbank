@@ -9,8 +9,6 @@ public class CreateTransactionRequest
     public TransactionTypeEnum Type { get; set; }
     public int SourceInstitutionId { get; set; }
     public int DestinationInstitutionId { get; set; }
-    public int AchCycleId { get; set; }
-
     public List<AddendaDto>? Addendas { get; set; }
 }
 
