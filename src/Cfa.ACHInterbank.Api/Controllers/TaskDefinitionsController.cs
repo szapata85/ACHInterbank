@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("[controller]")]
 public class TaskDefinitionsController : Controller
 {
     private readonly AchDbContext _context;

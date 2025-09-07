@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using System.Text;
 
@@ -8,7 +9,7 @@ public class CenitClearingHouseStrategy : IClearingHouseStrategy
 {
     public bool ValidateTransaction(AchTransaction transaction)
     {
-        return (transaction.Type == "Credit" || transaction.Type == "Debit") && transaction.Amount >= 1000;
+        return (transaction.Type == TransactionTypeEnum.Credit || transaction.Type == TransactionTypeEnum.Debit) && transaction.Amount >= 1000;
     }
 
     public byte[] GenerateCycleFile(AchCycle cycle)

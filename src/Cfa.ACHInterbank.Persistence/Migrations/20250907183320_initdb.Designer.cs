@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Cfa.ACHInterbank.Persistence.Migrations
 {
     [DbContext(typeof(AchDbContext))]
-    [Migration("20250904043604_initDb")]
-    partial class initDb
+    [Migration("20250907183320_initdb")]
+    partial class initdb
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -255,7 +255,35 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     b.HasIndex("SourceInstitutionId");
 
-                    b.ToTable("AchTransactions");
+                    b.ToTable("AchTransactions", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchTransactionAddenda", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AchTransactionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("AddendaType")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<string>("Information")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AchTransactionId");
+
+                    b.ToTable("AchTransactionAddenda", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AddendaRecord", b =>
@@ -740,6 +768,17 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Navigation("SourceInstitution");
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchTransactionAddenda", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", "Transaction")
+                        .WithMany("Addendas")
+                        .HasForeignKey("AchTransactionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Transaction");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AddendaRecord", b =>
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.NachaHeader", "NachaHeader")
@@ -835,6 +874,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Navigation("NachaHeaders");
 
                     b.Navigation("Transactions");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", b =>
+                {
+                    b.Navigation("Addendas");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", b =>

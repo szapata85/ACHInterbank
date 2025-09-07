@@ -4,7 +4,6 @@ using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
-using System.Threading;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services;
 
@@ -46,7 +45,7 @@ public class NachaParserService : INachaParserService
                 {
                     case '1':
                         // Precargar mapeo de códigos desde la BD
-                        Dictionary<string,int> clearingHouseMap = await _context.ClearingHouses
+                        Dictionary<string, int> clearingHouseMap = await _context.ClearingHouses
                             .AsNoTracking()
                             .ToDictionaryAsync(ch => ch.OriginCode.Trim(), ch => ch.Id);
 
@@ -97,7 +96,7 @@ public class NachaParserService : INachaParserService
         var parts = FileName.Split('.');
         var cycleNumber = int.Parse(parts[1]);
 
-        
+
 
         return line.Select(a =>
         {

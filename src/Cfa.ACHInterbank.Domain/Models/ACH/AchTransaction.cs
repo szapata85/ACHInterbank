@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 
 namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
@@ -10,7 +11,8 @@ public class AchTransaction : AuditableEntity
 
     public string Reference { get; set; } = null!;
 
-    public string Type { get; set; } = null!; // e.g., "Credit", "Debit"
+    // 🔹 Cambiado a enum
+    public TransactionTypeEnum Type { get; set; }
 
     public int SourceInstitutionId { get; set; }
     public FinancialInstitution? SourceInstitution { get; set; }
@@ -20,4 +22,7 @@ public class AchTransaction : AuditableEntity
 
     public int AchCycleId { get; set; }
     public AchCycle? AchCycle { get; set; }
+
+    public ICollection<AchTransactionAddenda>? Addendas { get; set; }
 }
+

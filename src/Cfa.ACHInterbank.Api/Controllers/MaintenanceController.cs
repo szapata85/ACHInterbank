@@ -1,5 +1,4 @@
-﻿using Cfa.ACHInterbank.Application.DataBase;
-using Cfa.ACHInterbank.Persistence.DataBase;
+﻿using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cfa.ACHInterbank.Api.Controllers;

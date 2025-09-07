@@ -9,6 +9,7 @@ using System.Xml.Serialization;
 
 namespace Cfa.ACHInterbank.Application.ACHSobreDigital.Implementation;
 
+[Scoped]
 public class CryptoServiceScoped : ICryptoServiceScoped
 {
     private readonly IRsaKeyProvider _keys;

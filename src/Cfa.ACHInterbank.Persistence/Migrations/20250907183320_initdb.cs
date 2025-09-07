@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Cfa.ACHInterbank.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class initDb : Migration
+    public partial class initdb : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -280,6 +280,27 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "AchTransactionAddenda",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    AchTransactionId = table.Column<int>(type: "int", nullable: false),
+                    AddendaType = table.Column<string>(type: "nvarchar(2)", maxLength: 2, nullable: false),
+                    Information = table.Column<string>(type: "nvarchar(80)", maxLength: 80, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AchTransactionAddenda", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AchTransactionAddenda_AchTransactions_AchTransactionId",
+                        column: x => x.AchTransactionId,
+                        principalTable: "AchTransactions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "AddendaRecords",
                 columns: table => new
                 {
@@ -419,6 +440,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 column: "ClearingHouseId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_AchTransactionAddenda_AchTransactionId",
+                table: "AchTransactionAddenda",
+                column: "AchTransactionId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_AchTransactions_AchCycleId",
                 table: "AchTransactions",
                 column: "AchCycleId");
@@ -500,7 +526,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "AchTransactions");
+                name: "AchTransactionAddenda");
 
             migrationBuilder.DropTable(
                 name: "AddendaRecords");
@@ -530,13 +556,16 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 name: "TaskParameters");
 
             migrationBuilder.DropTable(
-                name: "FinancialInstitutions");
+                name: "AchTransactions");
 
             migrationBuilder.DropTable(
                 name: "NachaHeaders");
 
             migrationBuilder.DropTable(
                 name: "TaskDefinition");
+
+            migrationBuilder.DropTable(
+                name: "FinancialInstitutions");
 
             migrationBuilder.DropTable(
                 name: "AchCycles");

@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
-[Route("/[controller]")]
+[Route("[controller]")]
 [TypeFilter(typeof(ExceptionManager))]
 [AllowAnonymous]
 public class OauthsController : ControllerBase

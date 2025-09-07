@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cfa.ACHInterbank.Api.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("[controller]")]
     public class NachaUploadController : Controller
     {
         private readonly INachaParserService _parserService;
