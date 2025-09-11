@@ -28,22 +28,43 @@ public class AchTransactionService : IAchTransactionService
         IEnumerable<(string addendaType, string information)>? addendas = null,
         CancellationToken ct = default)
     {
-        // 1) Fecha de hoy, ajustada a día hábil
-        var today = DateTime.Now;
-        var processingDate = GetNextBusinessDay(today);
+        var now = DateTime.Now;
 
-        // 2) Buscar próximo ciclo válido para hoy
+        // 1️⃣ Buscar el próximo ciclo disponible
         var nextCycle = await _context.AchCycles
             .Where(c =>
-                c.ProcessingDate.Date == processingDate.Date &&
-                c.CutoffTime > today.TimeOfDay)
-            .OrderBy(c => c.CutoffTime)
+                c.ProcessingDate > now.Date ||
+                (c.ProcessingDate == now.Date && c.CutoffTime > now.TimeOfDay))
+            .OrderBy(c => c.ProcessingDate)
+            .ThenBy(c => c.CutoffTime)
             .FirstOrDefaultAsync(ct);
 
+        // 2️⃣ Si no hay ciclo (por ejemplo fin de semana o Quartz no lo ha generado),
+        //     creamos el primer ciclo del próximo día hábil.
         if (nextCycle == null)
-            throw new InvalidOperationException("No hay ciclos disponibles para la fecha actual.");
+        {
+            var nextBusinessDate = GetNextBusinessDay(now);
 
-        // 3) Crear transacción
+            // Determinar cámara por defecto: ajusta a tu lógica o pásala como parámetro
+            var defaultClearingHouse = await _context.ClearingHouses
+                .OrderBy(ch => ch.Id)
+                .FirstOrDefaultAsync(ct)
+                ?? throw new InvalidOperationException("No existe ninguna cámara de compensación.");
+
+            nextCycle = new AchCycle
+            {
+                ClearingHouseId = defaultClearingHouse.Id,
+                CycleName = "Ciclo 1",
+                ProcessingDate = nextBusinessDate,
+                CutoffTime = new TimeSpan(8, 0, 0), // hora de corte inicial
+                RescheduleOnHoliday = true
+            };
+
+            _context.AchCycles.Add(nextCycle);
+            await _context.SaveChangesAsync(ct);
+        }
+
+        // 3️⃣ Crear la transacción ligada al ciclo obtenido o creado
         var tx = new AchTransaction
         {
             Amount = amount,
@@ -55,7 +76,7 @@ public class AchTransactionService : IAchTransactionService
             Addendas = new List<AchTransactionAddenda>()
         };
 
-        // 4) Registrar addendas si hay
+        // 4️⃣ Agregar addendas si se enviaron
         if (addendas != null)
         {
             foreach (var add in addendas)
@@ -74,7 +95,10 @@ public class AchTransactionService : IAchTransactionService
         return tx;
     }
 
-    // 🔹 Reutilizar servicio de festivos
+    /// <summary>
+    /// Devuelve el próximo día hábil a partir de la fecha indicada,
+    /// ignorando sábados, domingos y festivos.
+    /// </summary>
     private DateTime GetNextBusinessDay(DateTime date)
     {
         var holidays = _holidayService.GetHolidays(date.Year)
@@ -82,11 +106,13 @@ public class AchTransactionService : IAchTransactionService
                                       .ToHashSet();
 
         var check = date.Date;
-        while (check.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ||
-               holidays.Contains(DateOnly.FromDateTime(check)))
+        do
         {
             check = check.AddDays(1);
         }
+        while (check.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ||
+               holidays.Contains(DateOnly.FromDateTime(check)));
+
         return check;
     }
 
@@ -102,5 +128,3 @@ public class AchTransactionService : IAchTransactionService
             .ToListAsync(ct);
     }
 }
-
-

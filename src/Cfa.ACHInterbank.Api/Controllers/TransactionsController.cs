@@ -1,5 +1,6 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
@@ -15,18 +16,13 @@ public class TransactionsController : Controller
         _transactionService = transactionService;
     }
 
-    /// <summary>
-    /// Registrar una nueva transacción ACH con addendas opcionales
-    /// </summary>
     [HttpPost]
     public async Task<IActionResult> CreateTransaction(
-        [FromBody] CreateTransactionRequest request,
-        CancellationToken ct)
+    [FromBody] CreateTransactionRequest request,
+    CancellationToken ct)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
 
-        var tx = await _transactionService.RegisterTransactionAsync(
+        AchTransaction tx = await _transactionService.RegisterTransactionAsync(
             request.Amount,
             request.Reference,
             request.Type,
@@ -38,6 +34,7 @@ public class TransactionsController : Controller
 
         return CreatedAtAction(nameof(GetTransactionById), new { id = tx.Id }, tx);
     }
+
 
     /// <summary>
     /// Obtener transacción por Id
