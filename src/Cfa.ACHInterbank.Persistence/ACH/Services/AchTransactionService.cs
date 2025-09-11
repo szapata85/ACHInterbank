@@ -28,6 +28,16 @@ public class AchTransactionService : IAchTransactionService
         IEnumerable<(string addendaType, string information)>? addendas = null,
         CancellationToken ct = default)
     {
+        // Validar instituciones
+        bool sourceExists = await _context.FinancialInstitutions
+            .AnyAsync(fi => fi.Id == sourceInstitutionId, ct);
+        bool destExists = await _context.FinancialInstitutions
+            .AnyAsync(fi => fi.Id == destinationInstitutionId, ct);
+
+        if (!sourceExists || !destExists)
+            throw new InvalidOperationException("La institución de origen o destino no existe.");
+
+
         var now = DateTime.Now;
 
         // 1️⃣ Buscar el próximo ciclo disponible

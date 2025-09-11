@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Cfa.ACHInterbank.Persistence.Migrations
 {
     [DbContext(typeof(AchDbContext))]
-    [Migration("20250907183320_initdb")]
+    [Migration("20250911052339_initdb")]
     partial class initdb
     {
         /// <inheritdoc />
@@ -633,17 +633,30 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("AchCode")
+                    b.Property<int>("ClearingHouseId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Code")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.HasKey("Id");
 
-                    b.ToTable("FinancialInstitutions");
+                    b.HasIndex("ClearingHouseId");
+
+                    b.ToTable("FinancialInstitutions", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaHeader", b =>
@@ -846,6 +859,17 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Navigation("NachaHeader");
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.FinancialInstitution", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
+                        .WithMany("FinancialInstitutions")
+                        .HasForeignKey("ClearingHouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ClearingHouse");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaHeader", b =>
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchCycle", "AchCycle")
@@ -884,6 +908,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", b =>
                 {
                     b.Navigation("AchCycles");
+
+                    b.Navigation("FinancialInstitutions");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouseConfig", b =>
