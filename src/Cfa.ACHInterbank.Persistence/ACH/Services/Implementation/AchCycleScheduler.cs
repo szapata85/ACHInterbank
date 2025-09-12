@@ -2,6 +2,8 @@
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Quartz.Impl.AdoJobStore.Common;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -9,74 +11,90 @@ public class AchCycleScheduler : IAchCycleScheduler
 {
     private readonly AchDbContext _context;
     private readonly IBankHoliday _holidayService;
+    private readonly IServiceProvider _provider;
 
-    public AchCycleScheduler(AchDbContext context, IBankHoliday holidayService)
+    public AchCycleScheduler(AchDbContext context, 
+                             IBankHoliday holidayService, IServiceProvider provider)
     {
         _context = context;
         _holidayService = holidayService;
+        _provider = provider;
     }
 
     public async Task ScheduleCyclesForClearingHouseAsync(int clearingHouseId)
     {
-        var clearingHouse = await _context.ClearingHouses
-            .FirstOrDefaultAsync(ch => ch.Id == clearingHouseId);
 
-        if (clearingHouse == null) throw new Exception("Clearing house not found");
+        IAchTransactionService? txService = _provider.GetRequiredService<IAchTransactionService>();
 
-        var today = DateTime.Today;
-        var currentYear = today.Year;
+        // Calcular próximo día hábil
+        DateTime nextBusinessDate = txService.GetNextBusinessDay(DateTime.Now);
 
+        // Ejecutar para todas las cámaras
+        List<int> houseIds = await _context.ClearingHouses.Select(ch => ch.Id).ToListAsync();
+        foreach (int id in houseIds)
+        {
+            await ScheduleCyclesForClearingHouseAsync(id, nextBusinessDate);
+        }
+
+    }
+
+    public async Task ScheduleCyclesForClearingHouseAsync(int clearingHouseId, DateTime processingDate)
+    {
+
+
+        ClearingHouse? clearingHouse = await _context.ClearingHouses
+                           .Include(ch => ch.ClearingHouseConfig) // solo si necesitas la config
+                           .FirstOrDefaultAsync(ch => ch.Id == clearingHouseId);
+
+
+        if (clearingHouse == null)
+            throw new InvalidOperationException("Clearing house not found");
+
+        // 🔹 Obtener ciclos desde la tabla de configuraciones de ciclos
+        List<ClearingHouseCycleConfig> cycles = await _context.ClearingHouseCycleConfigs
+            .Where(cfg => cfg.ClearingHouseId == clearingHouse.Id && cfg.IsActive)
+            .OrderBy(cfg => cfg.CutoffTime)
+            .ToListAsync();
+
+
+
+        // Festivos para ese año
         var holidays = await _context.BankHolidays
-            .Where(h => h.Date.Year == currentYear)
+            .Where(h => h.Date.Year == processingDate.Year)
             .Select(h => h.Date)
             .ToListAsync();
 
-        // 🔹 Trae las configuraciones activas vigentes
-        var cycleConfigs = await _context.ClearingHouseCycleConfigs
-            .Where(c => c.ClearingHouseId == clearingHouseId
-                     && c.IsActive
-                     && c.EffectiveFrom <= today
-                     && (c.EffectiveTo == null || c.EffectiveTo >= today))
-            .ToListAsync();
-
-        foreach (var config in cycleConfigs)
+        // Saltar si la fecha no es hábil
+        if (processingDate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ||
+            holidays.Contains(DateOnly.FromDateTime(processingDate)))
         {
-            var processingDate = today;
+            throw new InvalidOperationException("La fecha indicada no es un día hábil.");
+        }
 
-            if (holidays.Contains(DateOnly.FromDateTime(processingDate)) ||
-                processingDate.DayOfWeek == DayOfWeek.Saturday ||
-                processingDate.DayOfWeek == DayOfWeek.Sunday)
-            {
-                if (true) // puedes leer config.RescheduleOnHoliday si la agregas
-                {
-                    processingDate = GetNextBusinessDay(processingDate, holidays);
-                }
-                else
-                {
-                    continue;
-                }
-            }
-
-            var exists = await _context.AchCycles.AnyAsync(c =>
+        // Crear los ciclos para la fecha indicada según la configuración
+        foreach (var cfg in cycles)
+        {
+            bool exists = await _context.AchCycles.AnyAsync(c =>
                 c.ClearingHouseId == clearingHouseId &&
-                c.ProcessingDate == processingDate &&
-                c.CycleName == config.CycleName);
+                c.CycleName == cfg.CycleName &&
+                c.ProcessingDate.Date == processingDate.Date);
 
             if (!exists)
             {
                 _context.AchCycles.Add(new AchCycle
                 {
                     ClearingHouseId = clearingHouseId,
-                    CycleName = config.CycleName,
-                    CutoffTime = config.CutoffTime,
-                    ProcessingDate = processingDate,
-                    RescheduleOnHoliday = true // o parametrizable si lo agregas en config
+                    CycleName = cfg.CycleName,
+                    ProcessingDate = processingDate.Date,
+                    CutoffTime = cfg.CutoffTime,
+                    RescheduleOnHoliday = true
                 });
             }
         }
 
         await _context.SaveChangesAsync();
     }
+
 
     public async Task<List<AchCycle>> GetScheduledCyclesAsync(int clearingHouseId, DateTime date)
     {

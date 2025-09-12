@@ -2,8 +2,10 @@
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Quartz;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services;
 
@@ -12,11 +14,13 @@ public class AchTransactionService : IAchTransactionService
 {
     private readonly AchDbContext _context;
     private readonly IBankHoliday _holidayService;
+    private readonly IAchCycleScheduler _achCycleScheduler;
 
-    public AchTransactionService(AchDbContext context, IBankHoliday holidayService)
+    public AchTransactionService(AchDbContext context, IBankHoliday holidayService, IAchCycleScheduler achCycleScheduler)
     {
         _context = context;
         _holidayService = holidayService;
+        _achCycleScheduler = achCycleScheduler;
     }
 
     public async Task<AchTransaction> RegisterTransactionAsync(
@@ -52,34 +56,18 @@ public class AchTransactionService : IAchTransactionService
         // Si no existe un próximo ciclo, creamos uno en el siguiente día hábil
         if (nextCycle == null)
         {
-            var nextBusinessDate = GetNextBusinessDay(now);
+            // 1. Calcular el próximo día hábil (puedes usar tu servicio de festivos)
+            DateTime nextBusinessDate = GetNextBusinessDay(DateTime.Now);
 
-            // Buscar cámara de compensación predeterminada (o pásala como parámetro)
-            var defaultClearingHouse = await _context.ClearingHouses
-                .OrderBy(ch => ch.Id)
-                .FirstOrDefaultAsync(ct)
-                ?? throw new InvalidOperationException("No existe ninguna cámara de compensación.");
+            // 2. Obtener todas las cámaras registradas
+            var houseIds = await _context.ClearingHouses.Select(ch => ch.Id).ToListAsync();
 
-            // 🔹 Obtener la hora de corte del ciclo 1 de esta cámara
-            var cycle1Config = await _context.ClearingHouseCycleConfigs
-                .Where(c => c.ClearingHouseId == defaultClearingHouse.Id && c.CycleName == "Ciclo 1" && c.IsActive)
-                .OrderByDescending(c => c.EffectiveFrom)
-                .FirstOrDefaultAsync(ct);
-
-            if (cycle1Config == null)
-                throw new InvalidOperationException("No hay configuración de ciclo 1 para la cámara seleccionada.");
-
-            nextCycle = new AchCycle
+            // 3. Generar ciclos para cada cámara
+            // Ejecutar para todas las cámaras
+            foreach (int id in houseIds)
             {
-                ClearingHouseId = defaultClearingHouse.Id,
-                CycleName = "Ciclo 1",
-                ProcessingDate = nextBusinessDate,
-                CutoffTime = cycle1Config.CutoffTime, // 🔸 valor leído de la tabla
-                RescheduleOnHoliday = true
-            };
-
-            _context.AchCycles.Add(nextCycle);
-            await _context.SaveChangesAsync(ct);
+                await _achCycleScheduler.ScheduleCyclesForClearingHouseAsync(id, nextBusinessDate);
+            }
         }
 
 
@@ -118,7 +106,7 @@ public class AchTransactionService : IAchTransactionService
     /// Devuelve el próximo día hábil a partir de la fecha indicada,
     /// ignorando sábados, domingos y festivos.
     /// </summary>
-    private DateTime GetNextBusinessDay(DateTime date)
+    public DateTime GetNextBusinessDay(DateTime date)
     {
         var holidays = _holidayService.GetHolidays(date.Year)
                                       .Select(h => h.Date)

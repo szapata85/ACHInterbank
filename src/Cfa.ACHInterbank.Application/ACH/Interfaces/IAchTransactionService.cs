@@ -17,5 +17,7 @@ public interface IAchTransactionService
     Task<List<AchTransaction>> GetTransactionsByCycleAsync(
         int achCycleId,
         CancellationToken ct = default);
+
+    DateTime GetNextBusinessDay(DateTime date);
 }
 
