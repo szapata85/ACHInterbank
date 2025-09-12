@@ -29,13 +29,13 @@ public class AchTransactionService : IAchTransactionService
         CancellationToken ct = default)
     {
         // Validar instituciones
-        bool sourceExists = await _context.FinancialInstitutions
-            .AnyAsync(fi => fi.Id == sourceInstitutionId, ct);
-        bool destExists = await _context.FinancialInstitutions
-            .AnyAsync(fi => fi.Id == destinationInstitutionId, ct);
+        //bool sourceExists = await _context.FinancialInstitutions
+        //    .AnyAsync(fi => fi.Id == sourceInstitutionId, ct);
+        //bool destExists = await _context.FinancialInstitutions
+        //    .AnyAsync(fi => fi.Id == destinationInstitutionId, ct);
 
-        if (!sourceExists || !destExists)
-            throw new InvalidOperationException("La institución de origen o destino no existe.");
+        //if (!sourceExists || !destExists)
+        //    throw new InvalidOperationException("La institución de origen o destino no existe.");
 
 
         var now = DateTime.Now;
@@ -49,30 +49,39 @@ public class AchTransactionService : IAchTransactionService
             .ThenBy(c => c.CutoffTime)
             .FirstOrDefaultAsync(ct);
 
-        // 2️⃣ Si no hay ciclo (por ejemplo fin de semana o Quartz no lo ha generado),
-        //     creamos el primer ciclo del próximo día hábil.
+        // Si no existe un próximo ciclo, creamos uno en el siguiente día hábil
         if (nextCycle == null)
         {
             var nextBusinessDate = GetNextBusinessDay(now);
 
-            // Determinar cámara por defecto: ajusta a tu lógica o pásala como parámetro
+            // Buscar cámara de compensación predeterminada (o pásala como parámetro)
             var defaultClearingHouse = await _context.ClearingHouses
                 .OrderBy(ch => ch.Id)
                 .FirstOrDefaultAsync(ct)
                 ?? throw new InvalidOperationException("No existe ninguna cámara de compensación.");
+
+            // 🔹 Obtener la hora de corte del ciclo 1 de esta cámara
+            var cycle1Config = await _context.ClearingHouseCycleConfigs
+                .Where(c => c.ClearingHouseId == defaultClearingHouse.Id && c.CycleName == "Ciclo 1" && c.IsActive)
+                .OrderByDescending(c => c.EffectiveFrom)
+                .FirstOrDefaultAsync(ct);
+
+            if (cycle1Config == null)
+                throw new InvalidOperationException("No hay configuración de ciclo 1 para la cámara seleccionada.");
 
             nextCycle = new AchCycle
             {
                 ClearingHouseId = defaultClearingHouse.Id,
                 CycleName = "Ciclo 1",
                 ProcessingDate = nextBusinessDate,
-                CutoffTime = new TimeSpan(8, 0, 0), // hora de corte inicial
+                CutoffTime = cycle1Config.CutoffTime, // 🔸 valor leído de la tabla
                 RescheduleOnHoliday = true
             };
 
             _context.AchCycles.Add(nextCycle);
             await _context.SaveChangesAsync(ct);
         }
+
 
         // 3️⃣ Crear la transacción ligada al ciclo obtenido o creado
         var tx = new AchTransaction
