@@ -25,10 +25,16 @@ public class AchDbContext : DbContext
     public DbSet<AddendaRecord> AddendaRecords { get; set; }
     public DbSet<BatchControl> BatchControls { get; set; }
     public DbSet<FileControl> FileControls { get; set; }
+    public DbSet<Customer> Customers { get; set; }
+    public DbSet<CustomerAddress> CustomerAddress { get; set; }
+    public DbSet<CustomerPhone> CustomerPhones { get; set; }
+    public DbSet<CustomerEmail> CustomerEmails { get; set; }
 
     public DbSet<TaskDefinition> TaskDefinitions => Set<TaskDefinition>();
     public DbSet<TaskParameter> TaskParameters => Set<TaskParameter>();
     public DbSet<TaskExecutionLog> TaskExecutionLogs => Set<TaskExecutionLog>();
+
+
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
