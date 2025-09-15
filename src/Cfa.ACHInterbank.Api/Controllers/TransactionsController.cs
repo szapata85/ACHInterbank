@@ -26,7 +26,6 @@ public class TransactionsController : Controller
             request.Amount,
             request.Reference,
             request.Type,
-            request.SourceInstitutionId,
             request.DestinationInstitutionId,
             request.Addendas?.Select(a => (a.AddendaType, a.Information)),
             ct

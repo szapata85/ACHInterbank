@@ -2,10 +2,8 @@
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
-using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
-using Quartz;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services;
 
@@ -24,76 +22,47 @@ public class AchTransactionService : IAchTransactionService
     }
 
     public async Task<AchTransaction> RegisterTransactionAsync(
-        decimal amount,
-        string reference,
-        TransactionTypeEnum type,
-        int sourceInstitutionId,
-        int destinationInstitutionId,
-        IEnumerable<(string addendaType, string information)>? addendas = null,
-        CancellationToken ct = default)
+    decimal amount,
+    string reference,
+    TransactionTypeEnum type,
+    int destinationInstitutionId,
+    IEnumerable<(string addendaType, string information)>? addendas = null,
+    CancellationToken ct = default)
     {
-        // Validar instituciones
-        //bool sourceExists = await _context.FinancialInstitutions
-        //    .AnyAsync(fi => fi.Id == sourceInstitutionId, ct);
-        //bool destExists = await _context.FinancialInstitutions
-        //    .AnyAsync(fi => fi.Id == destinationInstitutionId, ct);
-
-        //if (!sourceExists || !destExists)
-        //    throw new InvalidOperationException("La institución de origen o destino no existe.");
-
-
-        var now = DateTime.Now;
-
-        // 1️⃣ Buscar el próximo ciclo disponible
-        var nextCycle = await _context.AchCycles
-            .Where(c =>
-                c.ProcessingDate > now.Date ||
-                (c.ProcessingDate == now.Date && c.CutoffTime > now.TimeOfDay))
-            .OrderBy(c => c.ProcessingDate)
-            .ThenBy(c => c.CutoffTime)
+        // 🔹 Obtener institución de origen por defecto
+        var defaultSource = await _context.FinancialInstitutions
+            .Where(fi => fi.IsDefaultSource)              // usa tu criterio (columna bool o Code fijo)
             .FirstOrDefaultAsync(ct);
 
-        // Si no existe un próximo ciclo, creamos uno en el siguiente día hábil
-        if (nextCycle == null)
-        {
-            // 1. Calcular el próximo día hábil (puedes usar tu servicio de festivos)
-            DateTime nextBusinessDate = GetNextBusinessDay(DateTime.Now);
+        if (defaultSource == null)
+            throw new InvalidOperationException("No hay institución de origen predeterminada configurada.");
 
-            // 2. Obtener todas las cámaras registradas
-            var houseIds = await _context.ClearingHouses.Select(ch => ch.Id).ToListAsync();
+        // Validar destino
+        var destExists = await _context.FinancialInstitutions
+            .AnyAsync(fi => fi.Id == destinationInstitutionId, ct);
+        if (!destExists)
+            throw new InvalidOperationException("La institución de destino no existe.");
 
-            // 3. Generar ciclos para cada cámara
-            // Ejecutar para todas las cámaras
-            foreach (int id in houseIds)
-            {
-                await _achCycleScheduler.ScheduleCyclesForClearingHouseAsync(id, nextBusinessDate);
-            }
-        }
+        // Buscar o crear próximo ciclo (igual que antes)
+        var nextCycle = await GetOrCreateNextCycleAsync(ct);
 
-
-        // 3️⃣ Crear la transacción ligada al ciclo obtenido o creado
         var tx = new AchTransaction
         {
             Amount = amount,
             Reference = reference,
             Type = type,
-            SourceInstitutionId = sourceInstitutionId,
+            SourceInstitutionId = defaultSource.Id,   // ✅ se toma de la BD
             DestinationInstitutionId = destinationInstitutionId,
-            AchCycleId = nextCycle.Id,
-            Addendas = new List<AchTransactionAddenda>()
+            AchCycleId = nextCycle.Id
         };
 
-        // 4️⃣ Agregar addendas si se enviaron
         if (addendas != null)
         {
-            foreach (var add in addendas)
+            tx.Addendas = addendas.Select(a => new AchTransactionAddenda
             {
-                tx.Addendas.Add(new AchTransactionAddenda
-                {
-                    AddendaType = add.addendaType,
-                    Information = add.information
-                });
-            }
+                AddendaType = a.addendaType,
+                Information = a.information
+            }).ToList();
         }
 
         _context.AchTransactions.Add(tx);
@@ -101,6 +70,18 @@ public class AchTransactionService : IAchTransactionService
 
         return tx;
     }
+
+
+
+
+    // Validar instituciones
+    //bool sourceExists = await _context.FinancialInstitutions
+    //    .AnyAsync(fi => fi.Id == sourceInstitutionId, ct);
+    //bool destExists = await _context.FinancialInstitutions
+    //    .AnyAsync(fi => fi.Id == destinationInstitutionId, ct);
+
+    //if (!sourceExists || !destExists)
+    //    throw new InvalidOperationException("La institución de origen o destino no existe.");
 
     /// <summary>
     /// Devuelve el próximo día hábil a partir de la fecha indicada,
@@ -134,4 +115,57 @@ public class AchTransactionService : IAchTransactionService
             .Where(t => t.AchCycleId == achCycleId)
             .ToListAsync(ct);
     }
+
+
+    private async Task<AchCycle> GetOrCreateNextCycleAsync(CancellationToken ct)
+    {
+        var now = DateTime.Now;
+
+        // 1️⃣ Buscar el siguiente ciclo ya existente
+        var nextCycle = await _context.AchCycles
+            .Where(c =>
+                c.ProcessingDate > now.Date ||
+                (c.ProcessingDate == now.Date && c.CutoffTime > now.TimeOfDay))
+            .OrderBy(c => c.ProcessingDate)
+            .ThenBy(c => c.CutoffTime)
+            .FirstOrDefaultAsync(ct);
+
+        if (nextCycle != null)
+            return nextCycle;
+
+        // 2️⃣ Calcular el próximo día hábil (sin sábados, domingos ni festivos)
+        var nextBusinessDate = GetNextBusinessDay(now);
+
+        // 3️⃣ Determinar la cámara compensadora por defecto
+        var defaultClearingHouse = await _context.ClearingHouses
+            .OrderBy(ch => ch.Id)
+            .FirstOrDefaultAsync(ct)
+            ?? throw new InvalidOperationException("No existe cámara de compensación predeterminada.");
+
+        // 4️⃣ Tomar la hora de corte del Ciclo 1 desde la tabla de configuraciones
+        var cycle1Config = await _context.ClearingHouseCycleConfigs
+            .Where(cfg => cfg.ClearingHouseId == defaultClearingHouse.Id &&
+                          cfg.CycleName == "Ciclo 1" && cfg.IsActive)
+            .OrderByDescending(cfg => cfg.EffectiveFrom)
+            .FirstOrDefaultAsync(ct);
+
+        if (cycle1Config == null)
+            throw new InvalidOperationException("No hay configuración activa para Ciclo 1.");
+
+        // 5️⃣ Crear el ciclo si no existía
+        nextCycle = new AchCycle
+        {
+            ClearingHouseId = defaultClearingHouse.Id,
+            CycleName = "Ciclo 1",
+            ProcessingDate = nextBusinessDate,
+            CutoffTime = cycle1Config.CutoffTime,
+            RescheduleOnHoliday = true
+        };
+
+        _context.AchCycles.Add(nextCycle);
+        await _context.SaveChangesAsync(ct);
+
+        return nextCycle;
+    }
+
 }

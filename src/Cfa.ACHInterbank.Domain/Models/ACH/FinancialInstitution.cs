@@ -7,6 +7,7 @@ public class FinancialInstitution : AuditableEntity
     public int Id { get; set; }
     public string Name { get; set; } = null!;
     public string Code { get; set; } = null!;   // Código propio de la entidad
+    public bool IsDefaultSource { get; set; } = false; // Indica si es la entidad por defecto para origen
 
     // 🔹 Nueva relación
     public int ClearingHouseId { get; set; }

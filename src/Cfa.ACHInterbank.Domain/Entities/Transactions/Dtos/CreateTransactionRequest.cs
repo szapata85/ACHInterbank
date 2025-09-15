@@ -7,10 +7,10 @@ public class CreateTransactionRequest
     public decimal Amount { get; set; }
     public string Reference { get; set; } = null!;
     public TransactionTypeEnum Type { get; set; }
-    public int SourceInstitutionId { get; set; }
     public int DestinationInstitutionId { get; set; }
     public List<AddendaDto>? Addendas { get; set; }
 }
+
 
 public class AddendaDto
 {
