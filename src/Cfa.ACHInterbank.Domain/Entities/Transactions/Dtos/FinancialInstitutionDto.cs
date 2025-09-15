@@ -6,5 +6,7 @@ public class FinancialInstitutionDto
     public string Name { get; set; } = null!;
     public string Code { get; set; } = null!;
     public int ClearingHouseId { get; set; }
+    public bool IsDefaultSource { get; set; }   // Nuevo campo
 }
+
 

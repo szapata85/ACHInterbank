@@ -27,7 +27,8 @@ public class FinancialInstitutionsController : Controller
                 Id = f.Id,
                 Name = f.Name,
                 Code = f.Code,
-                ClearingHouseId = f.ClearingHouseId
+                ClearingHouseId = f.ClearingHouseId,
+                IsDefaultSource = f.IsDefaultSource
             })
             .ToListAsync();
 
@@ -45,7 +46,8 @@ public class FinancialInstitutionsController : Controller
                 Id = f.Id,
                 Name = f.Name,
                 Code = f.Code,
-                ClearingHouseId = f.ClearingHouseId
+                ClearingHouseId = f.ClearingHouseId,
+                IsDefaultSource = f.IsDefaultSource
             })
             .FirstOrDefaultAsync();
 
@@ -61,11 +63,27 @@ public class FinancialInstitutionsController : Controller
         bool exists = await _context.ClearingHouses.AnyAsync(ch => ch.Id == dto.ClearingHouseId);
         if (!exists) return BadRequest("ClearingHouse no encontrado.");
 
+        // Si se marca como predeterminado, desmarcar a los demás
+        if (dto.IsDefaultSource)
+        {
+            var all = await _context.FinancialInstitutions.ToListAsync();
+            foreach (var fi in all)
+                fi.IsDefaultSource = false;
+        }
+        else
+        {
+            // Garantizar que siempre exista al menos un default
+            bool hasDefault = await _context.FinancialInstitutions.AnyAsync(fi => fi.IsDefaultSource);
+            if (!hasDefault)
+                dto.IsDefaultSource = true;
+        }
+
         var entity = new FinancialInstitution
         {
             Name = dto.Name,
             Code = dto.Code,
-            ClearingHouseId = dto.ClearingHouseId
+            ClearingHouseId = dto.ClearingHouseId,
+            IsDefaultSource = dto.IsDefaultSource
         };
 
         _context.FinancialInstitutions.Add(entity);
@@ -88,6 +106,23 @@ public class FinancialInstitutionsController : Controller
         entity.Code = dto.Code;
         entity.ClearingHouseId = dto.ClearingHouseId;
 
+        if (dto.IsDefaultSource)
+        {
+            // Desmarcar a todos los demás
+            var all = await _context.FinancialInstitutions.ToListAsync();
+            foreach (var fi in all)
+                fi.IsDefaultSource = fi.Id == id;
+        }
+        else
+        {
+            // No permitir que queden todas en false
+            bool otherDefault = await _context.FinancialInstitutions
+                .AnyAsync(fi => fi.Id != id && fi.IsDefaultSource);
+            if (!otherDefault)
+                return BadRequest("Debe existir al menos una entidad financiera por defecto.");
+            entity.IsDefaultSource = false;
+        }
+
         await _context.SaveChangesAsync();
         return NoContent();
     }
@@ -99,8 +134,18 @@ public class FinancialInstitutionsController : Controller
         var entity = await _context.FinancialInstitutions.FindAsync(id);
         if (entity == null) return NotFound();
 
+        // Evitar eliminar la última default
+        if (entity.IsDefaultSource)
+        {
+            bool otherDefault = await _context.FinancialInstitutions
+                .AnyAsync(fi => fi.Id != id && fi.IsDefaultSource);
+            if (!otherDefault)
+                return BadRequest("No se puede eliminar la única entidad predeterminada.");
+        }
+
         _context.FinancialInstitutions.Remove(entity);
         await _context.SaveChangesAsync();
         return NoContent();
     }
 }
+
