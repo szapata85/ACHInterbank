@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Cfa.ACHInterbank.Persistence.Migrations
 {
     [DbContext(typeof(AchDbContext))]
-    [Migration("20250917030439_InitDb")]
+    [Migration("20250917041652_InitDb")]
     partial class InitDb
     {
         /// <inheritdoc />
@@ -553,38 +553,49 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     b.Property<string>("AccountNumber")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
                     b.Property<string>("DocumentNumber")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
-                    b.Property<int>("DocumentType")
-                        .HasColumnType("int");
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
 
                     b.Property<string>("FirstName")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("LastName")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("MiddleName")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("SecondLastName")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
 
                     b.HasKey("Id");
 
-                    b.ToTable("Customer", (string)null);
+                    b.HasIndex("DocumentType", "DocumentNumber")
+                        .IsUnique();
+
+                    b.ToTable("Customers", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerAddress", b =>
@@ -595,16 +606,22 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("AddressType")
-                        .HasColumnType("int");
+                    b.Property<string>("AddressType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<string>("City")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("Country")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasDefaultValue("Colombia");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
@@ -614,18 +631,22 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     b.Property<string>("Line1")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("Line2")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("PostalCode")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<string>("State")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
@@ -634,7 +655,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     b.HasIndex("CustomerId");
 
-                    b.ToTable("CustomerAddress");
+                    b.ToTable("CustomerAddresses", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerEmail", b =>
@@ -647,7 +668,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     b.Property<string>("Address")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
@@ -655,20 +677,26 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Property<int>("CustomerId")
                         .HasColumnType("int");
 
-                    b.Property<int>("EmailType")
-                        .HasColumnType("int");
+                    b.Property<string>("EmailType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<bool>("IsPrimary")
-                        .HasColumnType("bit");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CustomerId");
+                    b.HasIndex("CustomerId", "IsPrimary")
+                        .IsUnique()
+                        .HasFilter("[IsPrimary] = 1");
 
-                    b.ToTable("CustomerEmails");
+                    b.ToTable("CustomerEmails", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerPhone", b =>
@@ -686,23 +714,30 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .HasColumnType("int");
 
                     b.Property<bool>("IsPrimary")
-                        .HasColumnType("bit");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Number")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
-                    b.Property<int>("PhoneType")
-                        .HasColumnType("int");
+                    b.Property<string>("PhoneType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CustomerId");
+                    b.HasIndex("CustomerId", "IsPrimary")
+                        .IsUnique()
+                        .HasFilter("[IsPrimary] = 1");
 
-                    b.ToTable("CustomerPhones");
+                    b.ToTable("CustomerPhones", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.EntryDetail", b =>

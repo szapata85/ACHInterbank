@@ -1,0 +1,28 @@
+﻿using Cfa.ACHInterbank.Domain.Models.ACH;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Cfa.ACHInterbank.Persistence.Configuration;
+
+public class CustomerEmailConfiguration : IEntityTypeConfiguration<CustomerEmail>
+{
+    public void Configure(EntityTypeBuilder<CustomerEmail> builder)
+    {
+        builder.ToTable("CustomerEmails");
+        builder.HasKey(m => m.Id);
+
+        builder.Property(m => m.EmailType).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(m => m.Address).HasMaxLength(160).IsRequired();
+        builder.Property(m => m.IsPrimary).HasDefaultValue(false);
+
+        builder.HasOne(m => m.Customer)
+         .WithMany(c => c.Emails)
+         .HasForeignKey(m => m.CustomerId)
+         .OnDelete(DeleteBehavior.Cascade);
+
+        // Permitir sólo un email primario por cliente (índice filtrado)
+        builder.HasIndex(m => new { m.CustomerId, m.IsPrimary })
+         .IsUnique()
+         .HasFilter("[IsPrimary] = 1");
+    }
+}
