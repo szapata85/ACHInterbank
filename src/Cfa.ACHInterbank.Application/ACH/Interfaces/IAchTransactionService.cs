@@ -14,10 +14,10 @@ public interface IAchTransactionService
     IEnumerable<(string addendaType, string information)>? addendas = null,
     CancellationToken ct = default);
 
-    Task<List<AchTransaction>> GetTransactionsByCycleAsync(
-        int achCycleId,
-        CancellationToken ct = default);
+    //Task<List<AchTransaction>> GetTransactionsByCycleAsync(
+    //    int achCycleId,
+    //    CancellationToken ct = default);
 
-    DateTime GetNextBusinessDay(DateTime date);
+    //DateTime GetNextBusinessDay(DateTime date);
 }
 

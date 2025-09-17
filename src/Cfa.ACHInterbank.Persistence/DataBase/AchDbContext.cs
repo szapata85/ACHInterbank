@@ -34,7 +34,7 @@ public class AchDbContext : DbContext
     public DbSet<TaskParameter> TaskParameters => Set<TaskParameter>();
     public DbSet<TaskExecutionLog> TaskExecutionLogs => Set<TaskExecutionLog>();
 
-
+    public DbSet<InstitutionClearingHousePreference> InstitutionClearingHousePreferences { get; set; } = null!;
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -15,6 +15,10 @@ public class FinancialInstitution : AuditableEntity
 
     public ICollection<AchTransaction> SourceTransactions { get; set; } = new List<AchTransaction>();
     public ICollection<AchTransaction> DestinationTransactions { get; set; } = new List<AchTransaction>();
+
+    // ✅ NUEVA relación para prioridades de cámara
+    public ICollection<InstitutionClearingHousePreference> ClearingHousePreferences { get; set; }
+        = new List<InstitutionClearingHousePreference>();
 }
 
 
