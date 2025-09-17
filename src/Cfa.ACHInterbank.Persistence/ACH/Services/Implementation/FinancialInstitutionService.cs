@@ -19,6 +19,8 @@ public class FinancialInstitutionService : IFinancialInstitutionService
 
     public async Task<IEnumerable<FinancialInstitutionDto>> GetAllAsync()
     {
+        //var result = Application.Helpers.DigitoChequeo.DigitoChequeo.CalcularDigitoChequeo("07640125");
+
         return await _context.FinancialInstitutions
             .Select(f => new FinancialInstitutionDto
             {

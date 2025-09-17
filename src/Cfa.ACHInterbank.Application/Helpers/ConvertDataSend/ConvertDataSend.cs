@@ -1,4 +1,3 @@
-using Cfa.ACHInterbank.Application.Helpers.AddressIp;
 using Cfa.ACHInterbank.Domain.Models.ConvertDataSend;
 using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;

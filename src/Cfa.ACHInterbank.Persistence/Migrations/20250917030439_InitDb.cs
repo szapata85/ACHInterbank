@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Cfa.ACHInterbank.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class initdb : Migration
+    public partial class InitDb : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -38,6 +38,27 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_ClearingHouseConfigs", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Customer",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    FirstName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    MiddleName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    LastName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    SecondLastName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    DocumentType = table.Column<int>(type: "int", nullable: false),
+                    DocumentNumber = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    AccountNumber = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Customer", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -90,6 +111,82 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         name: "FK_ClearingHouses_ClearingHouseConfigs_ClearingHouseId",
                         column: x => x.ClearingHouseId,
                         principalTable: "ClearingHouseConfigs",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CustomerAddress",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    CustomerId = table.Column<int>(type: "int", nullable: false),
+                    AddressType = table.Column<int>(type: "int", nullable: false),
+                    Line1 = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Line2 = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    City = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    State = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Country = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    PostalCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CustomerAddress", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CustomerAddress_Customer_CustomerId",
+                        column: x => x.CustomerId,
+                        principalTable: "Customer",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CustomerEmails",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    CustomerId = table.Column<int>(type: "int", nullable: false),
+                    EmailType = table.Column<int>(type: "int", nullable: false),
+                    Address = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    IsPrimary = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CustomerEmails", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CustomerEmails_Customer_CustomerId",
+                        column: x => x.CustomerId,
+                        principalTable: "Customer",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CustomerPhones",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    CustomerId = table.Column<int>(type: "int", nullable: false),
+                    PhoneType = table.Column<int>(type: "int", nullable: false),
+                    Number = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    IsPrimary = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CustomerPhones", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CustomerPhones_Customer_CustomerId",
+                        column: x => x.CustomerId,
+                        principalTable: "Customer",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -198,6 +295,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     Code = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    IsDefaultSource = table.Column<bool>(type: "bit", nullable: false),
                     ClearingHouseId = table.Column<int>(type: "int", nullable: false),
                     CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
@@ -262,6 +360,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     SourceInstitutionId = table.Column<int>(type: "int", nullable: false),
                     DestinationInstitutionId = table.Column<int>(type: "int", nullable: false),
                     AchCycleId = table.Column<int>(type: "int", nullable: false),
+                    CustomerId = table.Column<int>(type: "int", nullable: true),
                     CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
                 },
@@ -274,6 +373,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         principalTable: "AchCycles",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AchTransactions_Customer_CustomerId",
+                        column: x => x.CustomerId,
+                        principalTable: "Customer",
+                        principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_AchTransactions_FinancialInstitutions_DestinationInstitutionId",
                         column: x => x.DestinationInstitutionId,
@@ -459,6 +563,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 column: "AchCycleId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_AchTransactions_CustomerId",
+                table: "AchTransactions",
+                column: "CustomerId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_AchTransactions_DestinationInstitutionId",
                 table: "AchTransactions",
                 column: "DestinationInstitutionId");
@@ -492,6 +601,21 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 name: "IX_ClearingHouses_ClearingHouseId",
                 table: "ClearingHouses",
                 column: "ClearingHouseId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CustomerAddress_CustomerId",
+                table: "CustomerAddress",
+                column: "CustomerId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CustomerEmails_CustomerId",
+                table: "CustomerEmails",
+                column: "CustomerId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CustomerPhones_CustomerId",
+                table: "CustomerPhones",
+                column: "CustomerId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_EntryDetails_NachaID",
@@ -558,6 +682,15 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 name: "ClearingHouseCycleConfigs");
 
             migrationBuilder.DropTable(
+                name: "CustomerAddress");
+
+            migrationBuilder.DropTable(
+                name: "CustomerEmails");
+
+            migrationBuilder.DropTable(
+                name: "CustomerPhones");
+
+            migrationBuilder.DropTable(
                 name: "EntryDetails");
 
             migrationBuilder.DropTable(
@@ -577,6 +710,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "TaskDefinition");
+
+            migrationBuilder.DropTable(
+                name: "Customer");
 
             migrationBuilder.DropTable(
                 name: "FinancialInstitutions");

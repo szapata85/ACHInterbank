@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Cfa.ACHInterbank.Persistence.Migrations
 {
     [DbContext(typeof(AchDbContext))]
-    [Migration("20250911052339_initdb")]
-    partial class initdb
+    [Migration("20250917030439_InitDb")]
+    partial class InitDb
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -230,6 +230,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<int?>("CustomerId")
+                        .HasColumnType("int");
+
                     b.Property<int>("DestinationInstitutionId")
                         .HasColumnType("int");
 
@@ -250,6 +253,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AchCycleId");
+
+                    b.HasIndex("CustomerId");
 
                     b.HasIndex("DestinationInstitutionId");
 
@@ -538,6 +543,168 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.ToTable("ClearingHouseCycleConfigs");
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.Customer", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AccountNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DocumentNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("DocumentType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MiddleName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SecondLastName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Customer", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerAddress", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AddressType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Country")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Line1")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Line2")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PostalCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.ToTable("CustomerAddress");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerEmail", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("EmailType")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.ToTable("CustomerEmails");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerPhone", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("PhoneType")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.ToTable("CustomerPhones");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.EntryDetail", b =>
                 {
                     b.Property<int>("EntryDetailID")
@@ -643,6 +810,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsDefaultSource")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -762,6 +932,10 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.Customer", null)
+                        .WithMany("Transactions")
+                        .HasForeignKey("CustomerId");
+
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.FinancialInstitution", "DestinationInstitution")
                         .WithMany("DestinationTransactions")
                         .HasForeignKey("DestinationInstitutionId")
@@ -841,6 +1015,39 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Navigation("ClearingHouse");
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerAddress", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.Customer", "Customer")
+                        .WithMany("Addresses")
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerEmail", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.Customer", "Customer")
+                        .WithMany("Emails")
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerPhone", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.Customer", "Customer")
+                        .WithMany("Phones")
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.EntryDetail", b =>
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.NachaHeader", "NachaHeader")
@@ -915,6 +1122,17 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouseConfig", b =>
                 {
                     b.Navigation("ClearingHouses");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.Customer", b =>
+                {
+                    b.Navigation("Addresses");
+
+                    b.Navigation("Emails");
+
+                    b.Navigation("Phones");
+
+                    b.Navigation("Transactions");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.FinancialInstitution", b =>

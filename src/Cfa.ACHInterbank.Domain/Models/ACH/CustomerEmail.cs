@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 
 namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
