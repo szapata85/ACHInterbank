@@ -1,4 +1,5 @@
-﻿using Cfa.ACHInterbank.Domain.Models.ACH;
+﻿using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -20,7 +21,9 @@ public class FinancialInstitutionConfigurationConfiguration : IEntityTypeConfigu
               .HasForeignKey(f => f.ClearingHouseId)
               .OnDelete(DeleteBehavior.Restrict);
 
-
+        builder.Property(fi => fi.Status)
+               .HasConversion<int>()
+               .HasDefaultValue(FinancialInstitutionStatus.Active);
 
     }
 }

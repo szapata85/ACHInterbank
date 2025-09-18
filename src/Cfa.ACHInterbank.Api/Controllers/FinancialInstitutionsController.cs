@@ -1,51 +1,42 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Cfa.ACHInterbank.Api.Controllers;
-
 [ApiController]
-[Route("api/[controller]")]
-public class FinancialInstitutionsController : ControllerBase
+[Route("[controller]")]
+public class FinancialInstitutionController : Controller
 {
     private readonly IFinancialInstitutionService _service;
 
-    public FinancialInstitutionsController(IFinancialInstitutionService service)
+    public FinancialInstitutionController(IFinancialInstitutionService service)
     {
         _service = service;
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<FinancialInstitutionDto>>> GetAll()
-        => Ok(await _service.GetAllAsync());
+    public async Task<IActionResult> GetAll(bool includeInactive = false, CancellationToken ct = default)
+        => Ok(await _service.GetAllAsync(includeInactive, ct));
 
-    [HttpGet("{id:int}")]
-    public async Task<ActionResult<FinancialInstitutionDto>> GetById(int id)
-    {
-        var result = await _service.GetByIdAsync(id);
-        return result == null ? NotFound() : Ok(result);
-    }
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(int id, CancellationToken ct = default)
+        => Ok(await _service.GetByIdAsync(id, ct));
 
     [HttpPost]
-    public async Task<ActionResult<FinancialInstitutionDto>> Create(FinancialInstitutionDto dto)
+    public async Task<IActionResult> Create([FromBody] FinancialInstitutionDto dto, CancellationToken ct = default)
+        => Ok(await _service.CreateAsync(dto, ct));
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(int id, [FromBody] FinancialInstitutionDto dto, CancellationToken ct = default)
     {
-        var created = await _service.CreateAsync(dto);
-        return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+        if (id != dto.Id) return BadRequest();
+        return Ok(await _service.UpdateAsync(dto, ct));
     }
 
-    [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, FinancialInstitutionDto dto)
+    [HttpPatch("{id}/status")]
+    public async Task<IActionResult> SetStatus(int id, [FromBody] FinancialInstitutionStatus status, CancellationToken ct = default)
     {
-        await _service.UpdateAsync(id, dto);
-        return NoContent();
-    }
-
-    [HttpDelete("{id:int}")]
-    public async Task<IActionResult> Delete(int id)
-    {
-        await _service.DeleteAsync(id);
+        await _service.SetStatusAsync(id, status, ct);
         return NoContent();
     }
 }
-
-
