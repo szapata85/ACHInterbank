@@ -53,14 +53,14 @@ public static class DependencyInjectionService
 
             string AssemblyName = Assembly.GetExecutingAssembly().GetName().Name!.Replace(".Api", ".Domain");
 
-            Assembly.Load(AssemblyName)
-            .GetTypes()
-            .Where(c => c.Namespace!.Contains(AssemblyName) && c.Name.EndsWith("Model", StringComparison.OrdinalIgnoreCase))
-            .ToList()
-            .ForEach(c =>
-            {
-                option.MapType(c, () => new OpenApiSchema { Type = "object", Title = c.Name });
-            });
+            //Assembly.Load(AssemblyName)
+            //.GetTypes()
+            //.Where(c => c.Namespace!.Contains(AssemblyName) && c.Name.EndsWith("Model", StringComparison.OrdinalIgnoreCase))
+            //.ToList()
+            //.ForEach(c =>
+            //{
+            //    option.MapType(c, () => new OpenApiSchema { Type = "object", Title = c.Name });
+            //});
 
 
             var fileName = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
