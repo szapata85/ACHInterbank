@@ -41,7 +41,7 @@ public class TransactionsController : Controller
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetTransactionById(int id, CancellationToken ct)
     {
-        var tx = await _transactionService.GetTransactionsByCycleAsync(id, ct);
+        var tx = await _transactionService.GetTransactionsByCycleAsync(id, true, ct);
         if (tx == null)
             return NotFound();
 
@@ -54,7 +54,7 @@ public class TransactionsController : Controller
     [HttpGet("cycle/{cycleId:int}")]
     public async Task<IActionResult> GetTransactionsByCycle(int cycleId, CancellationToken ct)
     {
-        var txs = await _transactionService.GetTransactionsByCycleAsync(cycleId, ct);
+        var txs = await _transactionService.GetTransactionsByCycleAsync(cycleId, true, ct);
         return Ok(txs);
     }
 }

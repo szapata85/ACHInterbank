@@ -5,19 +5,22 @@ namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
 
 public interface IAchTransactionService
 {
-    
     Task<AchTransaction> RegisterTransactionAsync(
-    decimal amount,
-    string reference,
-    TransactionTypeEnum type,
-    int destinationInstitutionId,
-    IEnumerable<(string addendaType, string information)>? addendas = null,
-    CancellationToken ct = default);
+        decimal amount,
+        string reference,
+        TransactionTypeEnum type,
+        int destinationInstitutionId,
+        IEnumerable<(string addendaType, string information)>? addendas = null,
+        CancellationToken ct = default);
 
-    //Task<List<AchTransaction>> GetTransactionsByCycleAsync(
-    //    int achCycleId,
-    //    CancellationToken ct = default);
+    // 🔹 Devuelve la próxima fecha hábil (saltando fines de semana y festivos)
+    Task<DateTime> GetNextBusinessDayAsync(DateTime baseDate, CancellationToken ct = default);
 
-    //DateTime GetNextBusinessDay(DateTime date);
+    // 🔹 Obtiene transacciones por ciclo; opcionalmente incluye relaciones
+    Task<IReadOnlyList<AchTransaction>> GetTransactionsByCycleAsync(
+        int achCycleId,
+        bool includeRelations = false,
+        CancellationToken ct = default);
 }
+
 

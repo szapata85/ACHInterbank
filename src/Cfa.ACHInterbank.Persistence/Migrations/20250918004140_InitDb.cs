@@ -393,6 +393,34 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "InstitutionClearingHousePreferences",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    FinancialInstitutionId = table.Column<int>(type: "int", nullable: false),
+                    ClearingHouseId = table.Column<int>(type: "int", nullable: false),
+                    IsDefault = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    Priority = table.Column<int>(type: "int", nullable: false, defaultValue: 1)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_InstitutionClearingHousePreferences", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_InstitutionClearingHousePreferences_ClearingHouses_ClearingHouseId",
+                        column: x => x.ClearingHouseId,
+                        principalTable: "ClearingHouses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_InstitutionClearingHousePreferences_FinancialInstitutions_FinancialInstitutionId",
+                        column: x => x.FinancialInstitutionId,
+                        principalTable: "FinancialInstitutions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "AddendaRecords",
                 columns: table => new
                 {
@@ -643,6 +671,17 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 column: "ClearingHouseId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_InstitutionClearingHousePreferences_ClearingHouseId",
+                table: "InstitutionClearingHousePreferences",
+                column: "ClearingHouseId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InstitutionClearingHousePreferences_FinancialInstitutionId_ClearingHouseId",
+                table: "InstitutionClearingHousePreferences",
+                columns: new[] { "FinancialInstitutionId", "ClearingHouseId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_NachaHeaders_AchCycleId",
                 table: "NachaHeaders",
                 column: "AchCycleId");
@@ -705,6 +744,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "FileControls");
+
+            migrationBuilder.DropTable(
+                name: "InstitutionClearingHousePreferences");
 
             migrationBuilder.DropTable(
                 name: "TaskExecutionLog");

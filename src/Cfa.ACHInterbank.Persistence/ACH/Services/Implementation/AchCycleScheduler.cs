@@ -3,7 +3,6 @@ using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Quartz.Impl.AdoJobStore.Common;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -13,7 +12,7 @@ public class AchCycleScheduler : IAchCycleScheduler
     private readonly IBankHoliday _holidayService;
     private readonly IServiceProvider _provider;
 
-    public AchCycleScheduler(AchDbContext context, 
+    public AchCycleScheduler(AchDbContext context,
                              IBankHoliday holidayService, IServiceProvider provider)
     {
         _context = context;
@@ -27,7 +26,7 @@ public class AchCycleScheduler : IAchCycleScheduler
         IAchTransactionService? txService = _provider.GetRequiredService<IAchTransactionService>();
 
         // Calcular próximo día hábil
-        DateTime nextBusinessDate = txService.GetNextBusinessDay(DateTime.Now);
+        DateTime nextBusinessDate = await txService.GetNextBusinessDayAsync(DateTime.Now);
 
         // Ejecutar para todas las cámaras
         List<int> houseIds = await _context.ClearingHouses.Select(ch => ch.Id).ToListAsync();

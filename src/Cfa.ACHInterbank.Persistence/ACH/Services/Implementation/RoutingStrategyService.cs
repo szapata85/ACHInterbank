@@ -10,11 +10,16 @@ public class RoutingStrategyService : IRoutingStrategyService
 {
     private readonly AchDbContext _context;
     private readonly IBankHoliday _holidayService;
+    private readonly IAchCycleScheduler _cycleScheduler;
 
-    public RoutingStrategyService(AchDbContext context, IBankHoliday holidayService)
+    public RoutingStrategyService(
+    AchDbContext context,
+    IBankHoliday holidayService,
+    IAchCycleScheduler cycleScheduler)
     {
         _context = context;
         _holidayService = holidayService;
+        _cycleScheduler = cycleScheduler;
     }
 
     public async Task<int> ResolveClearingHouseForTransactionAsync(
@@ -55,6 +60,7 @@ public class RoutingStrategyService : IRoutingStrategyService
                 return openCycle.Id;
         }
 
+        // ...
         // 3️⃣ Si no hay ciclos abiertos, buscar el próximo ciclo válido en días hábiles
         foreach (var pref in prefs)
         {
@@ -65,9 +71,24 @@ public class RoutingStrategyService : IRoutingStrategyService
                 .ThenBy(c => c.CutoffTime)
                 .FirstOrDefaultAsync(ct);
 
+            if (nextCycle == null)
+            {
+                // ⚡ Crear ciclos “on-demand” para la fecha hábil
+                await _cycleScheduler.ScheduleCyclesForClearingHouseAsync(
+                    pref.ClearingHouseId, processingDate);
+
+                // Reintentar una vez creada la programación
+                nextCycle = await _context.AchCycles
+                    .Where(c => c.ClearingHouseId == pref.ClearingHouseId &&
+                                c.ProcessingDate == processingDate)
+                    .OrderBy(c => c.CutoffTime)
+                    .FirstOrDefaultAsync(ct);
+            }
+
             if (nextCycle != null)
                 return nextCycle.Id;
         }
+
 
         throw new InvalidOperationException("No hay ciclos disponibles para las cámaras preferidas.");
     }
