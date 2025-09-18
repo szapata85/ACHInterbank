@@ -13,13 +13,6 @@ public class FinancialInstitutionConfigurationConfiguration : IEntityTypeConfigu
 
         builder.HasKey(f => f.Id);
         builder.Property(f => f.Name).HasMaxLength(200).IsRequired();
-        builder.Property(f => f.Code).HasMaxLength(20).IsRequired();
-
-        // Relación con ClearingHouse
-        builder.HasOne(f => f.ClearingHouse)
-              .WithMany(ch => ch.FinancialInstitutions)
-              .HasForeignKey(f => f.ClearingHouseId)
-              .OnDelete(DeleteBehavior.Restrict);
 
         builder.Property(fi => fi.Status)
                .HasConversion<int>()

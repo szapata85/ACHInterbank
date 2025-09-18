@@ -3,6 +3,5 @@
 public enum FinancialInstitutionStatus
 {
     Active = 1,         // Opera normalmente
-    Inactive = 2,       // Existe en el histórico pero no opera
-    Withdrawn = 3       // Salió de la cámara o dejó de existir
+    Inactive = 2       // Existe en el histórico pero no opera
 }

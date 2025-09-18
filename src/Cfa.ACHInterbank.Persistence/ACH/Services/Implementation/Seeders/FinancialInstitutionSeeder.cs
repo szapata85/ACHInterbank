@@ -20,21 +20,6 @@ public class FinancialInstitutionSeeder : IDbSeeder
 
     public async Task SeedAsync()
     {
-        // ✅ Consultar cámaras ya sembradas
-        var idAchColombia = await _context.ClearingHouses
-            .Where(ch => ch.Code == "ACHCOL")
-            .Select(ch => ch.Id)
-            .FirstOrDefaultAsync();
-
-        var idCenit = await _context.ClearingHouses
-            .Where(ch => ch.Code == "CENIT")
-            .Select(ch => ch.Id)
-            .FirstOrDefaultAsync();
-
-        if (idAchColombia == 0 || idCenit == 0)
-            throw new InvalidOperationException(
-                "Las cámaras ACHCOL y/o CENIT no están registradas. Ejecuta primero el seeder de ClearingHouses.");
-
         // ⚡ Solo sembrar si la tabla está vacía
         if (!await _context.FinancialInstitutions.AnyAsync())
         {
@@ -43,48 +28,36 @@ public class FinancialInstitutionSeeder : IDbSeeder
             {
                 new FinancialInstitution {
                     Name = "Banco Agrario de Colombia",
-                    Code = "1040",
-                    ClearingHouseId = idCenit,
                     RoutingNumber = "001010",
                     TransitCode = "06",
                     Status = FinancialInstitutionStatus.Active
                 },
                 new FinancialInstitution {
                     Name = "Banco AV Villas",
-                    Code = "1052",
-                    ClearingHouseId = idCenit,
                     RoutingNumber = "001020",
                     TransitCode = "06",
                     Status = FinancialInstitutionStatus.Active
                 },
                 new FinancialInstitution {
                     Name = "Banco de Bogotá",
-                    Code = "1001",
-                    ClearingHouseId = idCenit,
                     RoutingNumber = "001030",
                     TransitCode = "06",
                     Status = FinancialInstitutionStatus.Active
                 },
                 new FinancialInstitution {
                     Name = "Banco Davivienda",
-                    Code = "1051",
-                    ClearingHouseId = idCenit,
                     RoutingNumber = "001040",
                     TransitCode = "06",
                     Status = FinancialInstitutionStatus.Active
                 },
                 new FinancialInstitution {
                     Name = "Banco BBVA",
-                    Code = "1013",
-                    ClearingHouseId = idCenit,
                     RoutingNumber = "001050",
                     TransitCode = "06",
                     Status = FinancialInstitutionStatus.Active
                 },
                 new FinancialInstitution {
                     Name = "Banco ACH Ejemplo",
-                    Code = "2001",
-                    ClearingHouseId = idAchColombia,
                     RoutingNumber = "001060",
                     TransitCode = "06",
                     Status = FinancialInstitutionStatus.Active
@@ -92,8 +65,6 @@ public class FinancialInstitutionSeeder : IDbSeeder
                 // 🆕 Cooperativa Financiera de Antioquia
                 new FinancialInstitution {
                     Name = "Cooperativa Financiera de Antioquia",
-                    Code = "CF001",
-                    ClearingHouseId = idCenit,
                     IsDefaultSource = true,
                     RoutingNumber = "001070",
                     TransitCode = "06",

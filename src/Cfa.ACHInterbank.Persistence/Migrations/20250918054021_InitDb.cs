@@ -294,13 +294,12 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    Code = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
                     IsDefaultSource = table.Column<bool>(type: "bit", nullable: false),
-                    ClearingHouseId = table.Column<int>(type: "int", nullable: false),
                     RoutingNumber = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     TransitCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     CheckDigit = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Status = table.Column<int>(type: "int", nullable: false, defaultValue: 1),
+                    ClearingHouseId = table.Column<int>(type: "int", nullable: true),
                     CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
                 },
@@ -311,8 +310,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         name: "FK_FinancialInstitutions_ClearingHouses_ClearingHouseId",
                         column: x => x.ClearingHouseId,
                         principalTable: "ClearingHouses",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
+                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateTable(

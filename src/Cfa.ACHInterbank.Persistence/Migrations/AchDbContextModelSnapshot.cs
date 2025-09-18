@@ -836,13 +836,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("ClearingHouseId")
+                    b.Property<int?>("ClearingHouseId")
                         .HasColumnType("int");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
@@ -1151,13 +1146,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.FinancialInstitution", b =>
                 {
-                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", null)
                         .WithMany("FinancialInstitutions")
-                        .HasForeignKey("ClearingHouseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ClearingHouse");
+                        .HasForeignKey("ClearingHouseId");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.InstitutionClearingHousePreference", b =>
