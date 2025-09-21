@@ -5,7 +5,7 @@ using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 
-namespace Cfa.ACHInterbank.Persistence.ACH.Services;
+namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
 public class NachaParserService : INachaParserService
@@ -101,7 +101,7 @@ public class NachaParserService : INachaParserService
         return line.Select(a =>
         {
             string ImmediateOrigin = a.Substring(13, 10).Trim();
-            int? ClearingHouseId = clearingHouseMap.TryGetValue(ImmediateOrigin, out var chId) ? chId : (int?)null;
+            int? ClearingHouseId = clearingHouseMap.TryGetValue(ImmediateOrigin, out var chId) ? chId : null;
 
             int? AchCycleId = _context.AchCycles.Where(c => c.ClearingHouseId == ClearingHouseId &&
                                          c.ProcessingDate == DateTime.Today &&
@@ -176,8 +176,8 @@ public class NachaParserService : INachaParserService
             CodeTypeAddendumRecord = a.Substring(1, 2).Trim(),
             IdUserOrig = a.Substring(3, 15).Trim(),
             PurposeOfTransaction = a.Substring(20, 10).Trim(),
-            InvoiceOrAccountNumber = (a.Substring(20, 10).ToUpper().Trim() == "TRANSFER") ? a.Substring(30, 24).Trim() : a.Substring(30, 53).Trim(),
-            InfofromOriginator = (a.Substring(20, 10).ToUpper().Trim() == "TRANSFER") ? a.Substring(56, 24).Trim() : null,
+            InvoiceOrAccountNumber = a.Substring(20, 10).ToUpper().Trim() == "TRANSFER" ? a.Substring(30, 24).Trim() : a.Substring(30, 53).Trim(),
+            InfofromOriginator = a.Substring(20, 10).ToUpper().Trim() == "TRANSFER" ? a.Substring(56, 24).Trim() : null,
             AddendumSequence = a.Substring(83, 4).Trim(),
             EntryDetailSequenceNumber = a.Substring(87, 7).Trim()
         }).ToList();

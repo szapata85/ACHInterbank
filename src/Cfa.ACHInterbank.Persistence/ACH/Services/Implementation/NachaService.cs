@@ -3,7 +3,7 @@ using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 
-namespace Cfa.ACHInterbank.Persistence.ACH.Services;
+namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
 public class NachaService : INachaService

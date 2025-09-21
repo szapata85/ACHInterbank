@@ -5,7 +5,7 @@ using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 
-namespace Cfa.ACHInterbank.Persistence.ACH.Services;
+namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
 public class AchTransactionService : IAchTransactionService
@@ -24,59 +24,56 @@ public class AchTransactionService : IAchTransactionService
     }
 
     public async Task<AchTransaction> RegisterTransactionAsync(
-        decimal amount,
-        string reference,
-        TransactionTypeEnum type,
-        int destinationInstitutionId,
-        IEnumerable<(string addendaType, string information)>? addendas = null,
-        CancellationToken ct = default)
+    decimal amount,
+    string reference,
+    TransactionTypeEnum type,
+    int destinationInstitutionId,
+    string sourceAccountNumber,
+    string destinationAccountNumber,
+    IEnumerable<(string addendaType, string information)>? addendas = null,
+    CancellationToken ct = default)
     {
         if (amount <= 0) throw new ArgumentException("El monto debe ser mayor a cero.");
         if (string.IsNullOrWhiteSpace(reference)) throw new ArgumentException("Referencia obligatoria.");
 
         // 1) Institución origen por defecto
-        var sourceId = await _context.FinancialInstitutions
+        int defaultSourceId = await _context.FinancialInstitutions
             .Where(fi => fi.IsDefaultSource)
             .Select(fi => fi.Id)
             .FirstOrDefaultAsync(ct);
-        if (sourceId == 0)
+        if (defaultSourceId == 0)
             throw new InvalidOperationException("No existe institución de origen por defecto.");
 
         // 2) Resolver ciclo (el ruteo ya considera días hábiles)
-        var now = DateTime.Now;
-        var cycleId = await _routing.ResolveClearingHouseForTransactionAsync(
-            destinationInstitutionId, now, ct);
+        int nextCycleId = await _routing.ResolveClearingHouseForTransactionAsync(
+            destinationInstitutionId, DateTime.Now, ct);
 
         // 3) Transacción
-        var tx = new AchTransaction
+        var transaction = new AchTransaction
         {
             Amount = amount,
             Reference = reference,
             Type = type,
-            SourceInstitutionId = sourceId,
+            SourceInstitutionId = defaultSourceId,
+            SourceAccountNumber = sourceAccountNumber,
             DestinationInstitutionId = destinationInstitutionId,
-            AchCycleId = cycleId
+            DestinationAccountNumber = destinationAccountNumber,
+            AchCycleId = nextCycleId
         };
 
-        _context.AchTransactions.Add(tx);
-        await _context.SaveChangesAsync(ct);
-
-        // 4) Addendas
+        // Addendas
         if (addendas != null)
         {
-            foreach (var (addendaType, information) in addendas)
+            transaction.Addendas = addendas.Select(a => new AchTransactionAddenda
             {
-                _context.Set<AchTransactionAddenda>().Add(new AchTransactionAddenda
-                {
-                    AchTransactionId = tx.Id,
-                    AddendaType = addendaType,
-                    Information = information
-                });
-            }
-            await _context.SaveChangesAsync(ct);
+                AddendaType = a.addendaType,
+                Information = a.information
+            }).ToList();
         }
 
-        return tx;
+        _context.AchTransactions.Add(transaction);
+        await _context.SaveChangesAsync(ct);
+        return transaction;
     }
 
     // ✅ Antes faltaba: próxima fecha hábil
