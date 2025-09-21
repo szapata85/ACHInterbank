@@ -3,6 +3,7 @@ using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using System.Drawing;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 
@@ -576,10 +577,12 @@ public class FinancialInstitutionSeeder : IDbSeeder
             };
 
             // 🔑 Calcular el dígito de chequeo para cada institución
-            foreach (var fi in institutions)
-            {
-                fi.CalculateCheckDigit();
-            }
+            //foreach (var fi in institutions)
+            //{
+            //    fi.CalculateCheckDigit();
+            //}
+            // Optimizado con LINQ
+            institutions.ToList().ForEach(fi => fi.CalculateCheckDigit());
 
             _context.FinancialInstitutions.AddRange(institutions);
             await _context.SaveChangesAsync();
