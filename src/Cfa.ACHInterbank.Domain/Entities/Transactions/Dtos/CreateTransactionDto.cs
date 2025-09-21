@@ -20,7 +20,7 @@ public class CreateTransactionDto
 
 public class AddendaDto
 {
-    public string AddendaType { get; set; } = null!;
+    public string AddendaType { get; set; } = "05";
     public string Information { get; set; } = null!;
 }
 

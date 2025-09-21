@@ -18,20 +18,30 @@ public class TransactionsController : Controller
 
     [HttpPost]
     public async Task<IActionResult> CreateTransaction(
-    [FromBody] CreateTransactionRequest request,
-    CancellationToken ct)
+        [FromBody] CreateTransactionDto dto,
+        CancellationToken ct)
     {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
 
-        AchTransaction tx = await _transactionService.RegisterTransactionAsync(
-            request.Amount,
-            request.Reference,
-            request.Type,
-            request.DestinationInstitutionId,
-            request.Addendas?.Select(a => (a.AddendaType, a.Information)),
-            ct
-        );
+        // Mapear addendas si llegan
+        IEnumerable<(string addendaType, string information)>? addendas = null;
+        if (dto.Addendas != null && dto.Addendas.Any())
+        {
+            addendas = dto.Addendas.Select(a => (a.AddendaType, a.Information));
+        }
 
-        return CreatedAtAction(nameof(GetTransactionById), new { id = tx.Id }, tx);
+        var result = await _transactionService.RegisterTransactionAsync(
+            amount: dto.Amount,
+            reference: dto.Reference,
+            type: dto.Type,
+            destinationInstitutionId: dto.DestinationInstitutionId,
+            sourceAccountNumber: dto.SourceAccountNumber,
+            destinationAccountNumber: dto.DestinationAccountNumber,
+            addendas: addendas,
+            ct: ct);
+
+        return CreatedAtAction(nameof(GetTransactionById), new { id = result.Id }, result);
     }
 
 
