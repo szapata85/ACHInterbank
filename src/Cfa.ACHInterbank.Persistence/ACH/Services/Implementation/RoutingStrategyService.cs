@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -27,14 +28,15 @@ public class RoutingStrategyService : IRoutingStrategyService
     DateTime now,
     CancellationToken ct)
     {
-        // 1️⃣ Cargar institución y preferencias
-        var fi = await _context.FinancialInstitutions
+        // 1️) Cargar institución y preferencias
+        FinancialInstitution? fi = await _context.FinancialInstitutions
             .Include(f => f.ClearingHousePreferences)
             .FirstOrDefaultAsync(f => f.Id == destinationInstitutionId, ct)
             ?? throw new InvalidOperationException("Institución destino no encontrada.");
 
-        var preferences = fi.ClearingHousePreferences
-            // 🔑 Primero los que son default, luego por prioridad
+        // Primero los que son default, luego por prioridad
+
+        List<InstitutionClearingHousePreference> preferences = fi.ClearingHousePreferences
             .OrderByDescending(p => p.IsDefault)  // true primero
             .ThenBy(p => p.Priority)
             .ThenBy(p => p.Id)
@@ -43,26 +45,26 @@ public class RoutingStrategyService : IRoutingStrategyService
         if (!preferences.Any())
             throw new InvalidOperationException("La institución no tiene cámaras asociadas.");
 
-        // 2️⃣ Próxima fecha hábil
-        var processingDate = GetNextBusinessDay(now.Date);
+        // 2️) Próxima fecha hábil
+        DateTime processingDate = GetNextBusinessDay(now.Date);
 
-        // 3️⃣ Crear ciclos on-demand solo si faltan
-        var prefIds = preferences.Select(p => p.ClearingHouseId).ToList();
-        var existing = await _context.AchCycles
+        // 3️) Crear ciclos on-demand solo si faltan
+        List<int> prefIds = preferences.Select(p => p.ClearingHouseId).ToList();
+        List<int> existing = await _context.AchCycles
             .Where(c => prefIds.Contains(c.ClearingHouseId) &&
                         c.ProcessingDate == processingDate)
             .Select(c => c.ClearingHouseId)
             .Distinct()
             .ToListAsync(ct);
 
-        var missing = prefIds.Except(existing).ToList();
-        foreach (var chId in missing)
+        List<int> missing = prefIds.Except(existing).ToList();
+        foreach (int chId in missing)
         {
             await _cycleScheduler.ScheduleCyclesForClearingHouseAsync(chId, processingDate);
         }
 
-        // 4️⃣ Evaluar cámaras en el orden IsDefault + Priority
-        foreach (var pref in preferences)
+        // 4️) Evaluar cámaras en el orden IsDefault + Priority
+        foreach (InstitutionClearingHousePreference pref in preferences)
         {
             var nextCycle = await _context.AchCycles
                 .Where(c =>
