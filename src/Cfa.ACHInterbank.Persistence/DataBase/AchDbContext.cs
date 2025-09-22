@@ -36,6 +36,9 @@ public class AchDbContext : DbContext
 
     public DbSet<InstitutionClearingHousePreference> InstitutionClearingHousePreferences { get; set; } = null!;
 
+    public DbSet<NachaRecordLayout> NachaRecordLayouts => Set<NachaRecordLayout>();
+    public DbSet<NachaRecordField> NachaRecordFields => Set<NachaRecordField>();
+
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

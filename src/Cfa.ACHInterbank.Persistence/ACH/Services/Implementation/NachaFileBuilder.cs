@@ -1,9 +1,9 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
-using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 using System.Text;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
@@ -18,111 +18,62 @@ public class NachaFileBuilder : INachaFileBuilder
         _context = context;
     }
 
-    public async Task<byte[]> BuildNachaFileAsync(int achCycleId, CancellationToken ct = default)
+    public async Task<string> BuildRecordAsync<T>(string recordType, T entity, CancellationToken ct)
     {
-        // 1. Traer ciclo e instituciones con transacciones
-        var cycle = await _context.AchCycles
-            .Include(c => c.Transactions!)
-                .ThenInclude(t => t.SourceInstitution)
-            .Include(c => c.Transactions!)
-                .ThenInclude(t => t.DestinationInstitution)
-            .Include(c => c.Transactions!)
-                .ThenInclude(t => t.Addendas)
-            .FirstOrDefaultAsync(c => c.Id == achCycleId, ct)
-            ?? throw new InvalidOperationException($"Ciclo {achCycleId} no encontrado.");
+        var layout = await _context.NachaRecordLayouts
+            .Include(l => l.Fields.OrderBy(f => f.StartPosition))
+            .FirstAsync(l => l.RecordType == recordType, ct);
 
-        var transactions = cycle.Transactions.ToList();
-        if (!transactions.Any())
-            throw new InvalidOperationException("No hay transacciones para este ciclo.");
+        var buffer = new char[layout.TotalLength];
+        Array.Fill(buffer, ' ');
 
-        var sb = new StringBuilder();
-
-        // 2. Header NACHA
-        sb.AppendLine(BuildFileHeader(cycle));
-
-        // 3. Lotes: en este ejemplo un solo batch
-        sb.AppendLine(BuildBatchHeader(cycle));
-
-        int entryHash = 0;
-        int addendaCount = 0;
-
-        foreach (var t in transactions)
+        foreach (var field in layout.Fields)
         {
-            sb.AppendLine(BuildEntryDetail(t));
-            entryHash += int.Parse(t.DestinationInstitution!.RoutingNumber);
-            if (t.Addendas != null)
-            {
-                foreach (var add in t.Addendas)
-                {
-                    sb.AppendLine(BuildAddendaRecord(add));
-                    addendaCount++;
-                }
-            }
+            var prop = typeof(T).GetProperty(field.DbColumn);
+            if (prop == null) continue;
+
+            var rawValue = prop.GetValue(entity);
+            string value = FormatValue(rawValue, field);
+
+            if (value.Length > field.Length)
+                value = value.Substring(0, field.Length);
+
+            value = field.Justification == 'R'
+                ? value.PadLeft(field.Length, field.PadChar)
+                : value.PadRight(field.Length, field.PadChar);
+
+            int start = field.StartPosition - 1;
+            for (int i = 0; i < value.Length; i++)
+                buffer[start + i] = value[i];
         }
 
-        // 4. Batch Control
-        sb.AppendLine(BuildBatchControl(transactions, entryHash, addendaCount));
-
-        // 5. File Control
-        sb.AppendLine(BuildFileControl(transactions, entryHash, addendaCount));
-
-        return Encoding.ASCII.GetBytes(sb.ToString());
+        return new string(buffer);
     }
 
-    private string BuildFileHeader(AchCycle cycle)
+    public async Task<string> BuildNachaFileAsync(IEnumerable<AchTransaction> transactions, CancellationToken ct)
     {
-        // Ajusta campos según especificación NACHA
-        string immediateDestination = "ACH"; // Ejemplo
-        string immediateOrigin = "CFA"; // Ejemplo
-        string fileIdModifier = "A";
-        return $"101{immediateDestination.PadLeft(10)}{immediateOrigin.PadLeft(10)}" +
-               $"{cycle.ProcessingDate:yyMMdd}{cycle.CutoffTime:hhmm}{fileIdModifier}094101";
+        var sb = new StringBuilder();
+        // Ejemplo: header
+        sb.Append(await BuildRecordAsync("HEADER", new { /* campos generales */ }, ct));
+
+        // Detalles
+        foreach (var tx in transactions)
+            sb.Append(await BuildRecordAsync("ENTRY_DETAIL", tx, ct));
+
+        // Control
+        sb.Append(await BuildRecordAsync("FILE_CONTROL", new { /* totales */ }, ct));
+
+        // Devuelve todo en una sola cadena sin saltos de línea
+        return sb.ToString();
     }
 
-    private string BuildBatchHeader(AchCycle cycle)
+    private static string FormatValue(object? raw, NachaRecordField field)
     {
-        string companyName = "CFA";
-        string companyId = "123456789";
-        return $"5200{companyName.PadRight(16)}PPD{companyId.PadLeft(10)}{cycle.ProcessingDate:yyMMdd}{cycle.CutoffTime:hhmm}1";
-    }
-
-    private string BuildEntryDetail(AchTransaction t)
-    {
-        string tranCode = t.Type == TransactionTypeEnum.Credit ? "22" : "27";
-        string routing = t.DestinationInstitution!.RoutingNumber + t.DestinationInstitution.CheckDigit;
-
-        // ✅ Ahora usamos las cuentas reales
-        string account = t.DestinationAccountNumber.PadRight(17);
-        string amount = ((int)(t.Amount * 100)).ToString().PadLeft(10, '0');
-
-        // Origin/Destination references
-        string individualId = t.SourceAccountNumber.PadRight(15);
-
-        return $"6{tranCode}{routing}{account}{amount}{individualId}  ";
-    }
-
-
-    private string BuildAddendaRecord(AchTransactionAddenda add)
-    {
-        // Record type 7
-        return $"7{add.AddendaType.PadRight(2)}{add.Information.PadRight(80)}";
-    }
-
-    private string BuildBatchControl(IEnumerable<AchTransaction> txs, int entryHash, int addendaCount)
-    {
-        decimal totalDebit = txs.Where(t => t.Type == TransactionTypeEnum.Debit).Sum(t => t.Amount);
-        decimal totalCredit = txs.Where(t => t.Type == TransactionTypeEnum.Credit).Sum(t => t.Amount);
-        return $"8200{txs.Count():000000}{entryHash:0000000000}" +
-               $"{(int)(totalDebit * 100):000000000000}{(int)(totalCredit * 100):000000000000}";
-    }
-
-    private string BuildFileControl(IEnumerable<AchTransaction> txs, int entryHash, int addendaCount)
-    {
-        int blockCount = (int)Math.Ceiling((txs.Count() + addendaCount + 4) / 10.0);
-        decimal totalDebit = txs.Where(t => t.Type == TransactionTypeEnum.Debit).Sum(t => t.Amount);
-        decimal totalCredit = txs.Where(t => t.Type == TransactionTypeEnum.Credit).Sum(t => t.Amount);
-        return $"9000001{txs.Count():000000}{entryHash:0000000000}" +
-               $"{(int)(totalDebit * 100):000000000000}{(int)(totalCredit * 100):000000000000}";
+        if (raw == null) return "";
+        if (raw is DateTime dt && !string.IsNullOrEmpty(field.Format))
+            return dt.ToString(field.Format, CultureInfo.InvariantCulture);
+        if (raw is decimal dec && !string.IsNullOrEmpty(field.Format))
+            return dec.ToString(field.Format, CultureInfo.InvariantCulture);
+        return raw.ToString() ?? "";
     }
 }
-
