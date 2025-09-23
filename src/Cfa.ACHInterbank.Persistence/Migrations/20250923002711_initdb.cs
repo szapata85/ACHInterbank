@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Cfa.ACHInterbank.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class initDB : Migration
+    public partial class initdb : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -59,6 +59,22 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Customers", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "NachaRecordLayouts",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    RecordType = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    RecordCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    TotalLength = table.Column<int>(type: "int", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_NachaRecordLayouts", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -187,6 +203,32 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         name: "FK_CustomerPhones_Customers_CustomerId",
                         column: x => x.CustomerId,
                         principalTable: "Customers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "NachaRecordFields",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    NachaRecordLayoutId = table.Column<int>(type: "int", nullable: false),
+                    FieldName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    StartPosition = table.Column<int>(type: "int", nullable: false),
+                    Length = table.Column<int>(type: "int", nullable: false),
+                    PadChar = table.Column<string>(type: "nvarchar(1)", nullable: false),
+                    Justification = table.Column<string>(type: "nvarchar(1)", nullable: false),
+                    DbColumn = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Format = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_NachaRecordFields", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_NachaRecordFields_NachaRecordLayouts_NachaRecordLayoutId",
+                        column: x => x.NachaRecordLayoutId,
+                        principalTable: "NachaRecordLayouts",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -696,6 +738,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 column: "ClearingHouseId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_NachaRecordFields_NachaRecordLayoutId",
+                table: "NachaRecordFields",
+                column: "NachaRecordLayoutId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_TaskDefinition_Code",
                 table: "TaskDefinition",
                 column: "Code",
@@ -753,6 +800,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 name: "InstitutionClearingHousePreferences");
 
             migrationBuilder.DropTable(
+                name: "NachaRecordFields");
+
+            migrationBuilder.DropTable(
                 name: "TaskExecutionLog");
 
             migrationBuilder.DropTable(
@@ -763,6 +813,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "NachaHeaders");
+
+            migrationBuilder.DropTable(
+                name: "NachaRecordLayouts");
 
             migrationBuilder.DropTable(
                 name: "TaskDefinition");

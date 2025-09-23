@@ -977,6 +977,76 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.ToTable("NachaHeaders", (string)null);
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordField", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("DbColumn")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FieldName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Format")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Justification")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<int>("Length")
+                        .HasColumnType("int");
+
+                    b.Property<int>("NachaRecordLayoutId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PadChar")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<int>("StartPosition")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NachaRecordLayoutId");
+
+                    b.ToTable("NachaRecordFields");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordLayout", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RecordCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RecordType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("TotalLength")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("NachaRecordLayouts");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.SchedulerTask.TaskExecutionLog", b =>
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Entities.SchedulerTask.TaskDefinition", "TaskDefinition")
@@ -1194,6 +1264,17 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Navigation("ClearingHouse");
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordField", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordLayout", "Layout")
+                        .WithMany("Fields")
+                        .HasForeignKey("NachaRecordLayoutId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Layout");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.SchedulerTask.TaskDefinition", b =>
                 {
                     b.Navigation("ExecutionLogs");
@@ -1256,6 +1337,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Navigation("EntryDetails");
 
                     b.Navigation("FileControls");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordLayout", b =>
+                {
+                    b.Navigation("Fields");
                 });
 #pragma warning restore 612, 618
         }
