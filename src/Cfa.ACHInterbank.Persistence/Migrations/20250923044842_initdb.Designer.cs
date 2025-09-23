@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Cfa.ACHInterbank.Persistence.Migrations
 {
     [DbContext(typeof(AchDbContext))]
-    [Migration("20250923002711_initdb")]
+    [Migration("20250923044842_initdb")]
     partial class initdb
     {
         /// <inheritdoc />
