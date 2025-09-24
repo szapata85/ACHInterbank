@@ -38,6 +38,9 @@ public class AchDbContext : DbContext
 
     public DbSet<NachaRecordLayout> NachaRecordLayouts => Set<NachaRecordLayout>();
     public DbSet<NachaRecordField> NachaRecordFields => Set<NachaRecordField>();
+    public DbSet<AchBatch> AchBatches => Set<AchBatch>();
+
+
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -356,6 +356,36 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "AchBatches",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ClearingHouseId = table.Column<int>(type: "int", nullable: false),
+                    AchCycleId = table.Column<int>(type: "int", nullable: true),
+                    CompanyName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CompanyIdentification = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    EffectiveEntryDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AchBatches", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AchBatches_AchCycles_AchCycleId",
+                        column: x => x.AchCycleId,
+                        principalTable: "AchCycles",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_AchBatches_ClearingHouses_ClearingHouseId",
+                        column: x => x.ClearingHouseId,
+                        principalTable: "ClearingHouses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "NachaHeaders",
                 columns: table => new
                 {
@@ -393,52 +423,6 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "AchTransactions",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    Reference = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Type = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    SourceInstitutionId = table.Column<int>(type: "int", nullable: false),
-                    SourceAccountNumber = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    DestinationInstitutionId = table.Column<int>(type: "int", nullable: false),
-                    DestinationAccountNumber = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    AchCycleId = table.Column<int>(type: "int", nullable: false),
-                    CustomerId = table.Column<int>(type: "int", nullable: true),
-                    CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
-                    UpdatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AchTransactions", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_AchTransactions_AchCycles_AchCycleId",
-                        column: x => x.AchCycleId,
-                        principalTable: "AchCycles",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_AchTransactions_Customers_CustomerId",
-                        column: x => x.CustomerId,
-                        principalTable: "Customers",
-                        principalColumn: "Id");
-                    table.ForeignKey(
-                        name: "FK_AchTransactions_FinancialInstitutions_DestinationInstitutionId",
-                        column: x => x.DestinationInstitutionId,
-                        principalTable: "FinancialInstitutions",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_AchTransactions_FinancialInstitutions_SourceInstitutionId",
-                        column: x => x.SourceInstitutionId,
-                        principalTable: "FinancialInstitutions",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "InstitutionClearingHousePreferences",
                 columns: table => new
                 {
@@ -464,6 +448,59 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         principalTable: "FinancialInstitutions",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AchTransactions",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    Reference = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Type = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    SourceInstitutionId = table.Column<int>(type: "int", nullable: false),
+                    SourceAccountNumber = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    DestinationInstitutionId = table.Column<int>(type: "int", nullable: false),
+                    DestinationAccountNumber = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    AchCycleId = table.Column<int>(type: "int", nullable: false),
+                    AchBatchId = table.Column<int>(type: "int", nullable: false),
+                    CustomerId = table.Column<int>(type: "int", nullable: true),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AchTransactions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AchTransactions_AchBatches_AchBatchId",
+                        column: x => x.AchBatchId,
+                        principalTable: "AchBatches",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_AchTransactions_AchCycles_AchCycleId",
+                        column: x => x.AchCycleId,
+                        principalTable: "AchCycles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AchTransactions_Customers_CustomerId",
+                        column: x => x.CustomerId,
+                        principalTable: "Customers",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_AchTransactions_FinancialInstitutions_DestinationInstitutionId",
+                        column: x => x.DestinationInstitutionId,
+                        principalTable: "FinancialInstitutions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AchTransactions_FinancialInstitutions_SourceInstitutionId",
+                        column: x => x.SourceInstitutionId,
+                        principalTable: "FinancialInstitutions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -622,6 +659,16 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_AchBatches_AchCycleId",
+                table: "AchBatches",
+                column: "AchCycleId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AchBatches_ClearingHouseId",
+                table: "AchBatches",
+                column: "ClearingHouseId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_AchCycles_ClearingHouseId",
                 table: "AchCycles",
                 column: "ClearingHouseId");
@@ -630,6 +677,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 name: "IX_AchTransactionAddenda_AchTransactionId",
                 table: "AchTransactionAddenda",
                 column: "AchTransactionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AchTransactions_AchBatchId",
+                table: "AchTransactions",
+                column: "AchBatchId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AchTransactions_AchCycleId",
@@ -819,6 +871,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "TaskDefinition");
+
+            migrationBuilder.DropTable(
+                name: "AchBatches");
 
             migrationBuilder.DropTable(
                 name: "Customers");

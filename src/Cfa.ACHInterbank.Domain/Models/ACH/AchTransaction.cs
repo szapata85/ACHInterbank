@@ -18,6 +18,10 @@ public class AchTransaction : AuditableEntity
     public int AchCycleId { get; set; }
     public AchCycle? AchCycle { get; set; }
     public ICollection<AchTransactionAddenda>? Addendas { get; set; }
+
+    public int AchBatchId { get; set; }
+    public AchBatch AchBatch { get; set; } = null!;
+
 }
 
 

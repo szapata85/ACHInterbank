@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Cfa.ACHInterbank.Persistence.Migrations
 {
     [DbContext(typeof(AchDbContext))]
-    [Migration("20250923044842_initdb")]
+    [Migration("20250924011159_initdb")]
     partial class initdb
     {
         /// <inheritdoc />
@@ -176,6 +176,46 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.ToTable("TaskParameters", (string)null);
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchBatch", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AchCycleId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ClearingHouseId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CompanyIdentification")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CompanyName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTime>("EffectiveEntryDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AchCycleId");
+
+                    b.HasIndex("ClearingHouseId");
+
+                    b.ToTable("AchBatches");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchCycle", b =>
                 {
                     b.Property<int>("Id")
@@ -221,6 +261,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("AchBatchId")
+                        .HasColumnType("int");
+
                     b.Property<int>("AchCycleId")
                         .HasColumnType("int");
 
@@ -259,6 +302,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .HasColumnType("datetimeoffset");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AchBatchId");
 
                     b.HasIndex("AchCycleId");
 
@@ -1072,6 +1117,23 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Navigation("TaskDefinition");
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchBatch", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchCycle", "AchCycle")
+                        .WithMany()
+                        .HasForeignKey("AchCycleId");
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
+                        .WithMany()
+                        .HasForeignKey("ClearingHouseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AchCycle");
+
+                    b.Navigation("ClearingHouse");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchCycle", b =>
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
@@ -1085,6 +1147,12 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", b =>
                 {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchBatch", "AchBatch")
+                        .WithMany("Transactions")
+                        .HasForeignKey("AchBatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchCycle", "AchCycle")
                         .WithMany("Transactions")
                         .HasForeignKey("AchCycleId")
@@ -1106,6 +1174,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .HasForeignKey("SourceInstitutionId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("AchBatch");
 
                     b.Navigation("AchCycle");
 
@@ -1283,6 +1353,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Navigation("ExecutionLogs");
 
                     b.Navigation("Parameters");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchBatch", b =>
+                {
+                    b.Navigation("Transactions");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchCycle", b =>

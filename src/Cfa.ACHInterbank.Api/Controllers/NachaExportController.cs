@@ -1,7 +1,5 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
-using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using System.Text;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
@@ -11,29 +9,35 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 public class NachaExportController : ControllerBase
 {
     private readonly INachaFileBuilder _nachaBuilder;
-    private readonly AchDbContext _context;
 
-    public NachaExportController(INachaFileBuilder nachaBuilder, AchDbContext context)
+    public NachaExportController(INachaFileBuilder nachaBuilder)
     {
         _nachaBuilder = nachaBuilder;
-        _context = context;
     }
 
-    [HttpGet("export")]
-    public async Task<IActionResult> Export([FromQuery] DateTime date, CancellationToken ct)
+    /// <summary>
+    /// Genera y descarga un archivo NACHA-M (106 caracteres por registro)
+    /// para los lotes indicados.
+    /// </summary>
+    /// <param name="batchIds">Lista de Ids de lotes ACH a exportar</param>
+    [HttpPost("export")]
+    public async Task<IActionResult> Export(
+        [FromBody] List<int> batchIds,
+        CancellationToken ct)
     {
-        var txs = await _context.AchTransactions
-            .Include(t => t.SourceInstitution)
-            .Include(t => t.DestinationInstitution)
-            .Where(t => t.CreatedAt.Date == date.Date)
-            .ToListAsync(ct);
+        if (batchIds == null || batchIds.Count == 0)
+            return BadRequest("Debe proporcionar al menos un Id de lote.");
 
-        if (!txs.Any())
-            return NotFound("No hay transacciones para la fecha solicitada.");
+        // Construye el archivo en una sola cadena sin saltos de línea
+        string nachaContent = await _nachaBuilder.BuildNachaFileAsync(batchIds, ct);
 
-        string fileContent = await _nachaBuilder.BuildNachaFileAsync(txs, ct);
-        byte[] bytes = Encoding.ASCII.GetBytes(fileContent);
+        // Nombre dinámico con fecha/hora
+        string fileName = $"NACHA_{DateTime.UtcNow:yyyyMMdd_HHmmss}.txt";
 
-        return File(bytes, "text/plain", $"NACHA_{date:yyyyMMdd}.txt");
+        // Devuelve como archivo de texto plano
+        return File(
+            Encoding.ASCII.GetBytes(nachaContent),
+            "text/plain",
+            fileName);
     }
 }
