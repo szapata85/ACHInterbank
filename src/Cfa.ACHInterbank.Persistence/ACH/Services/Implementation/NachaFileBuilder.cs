@@ -166,7 +166,7 @@ public class NachaFileBuilder : INachaFileBuilder
             {
                 sb.Append(await BuildRecordAsync("6", tx, ct)); // Detalle transacción
 
-                foreach (var add in tx.Addendas.OrderBy(a => a.Id))
+                foreach (var add in tx.Addendas!.OrderBy(a => a.Id))
                 {
                     sb.Append(await BuildRecordAsync("7", add, ct)); // Addenda
                 }
