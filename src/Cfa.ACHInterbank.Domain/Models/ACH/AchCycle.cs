@@ -22,6 +22,9 @@ public class AchCycle : AuditableEntity
     public int ClearingHouseId { get; set; }
     public ClearingHouse? ClearingHouse { get; set; }
 
+    // relación con lotes para el archivo NACHA-M de salida
+    public ICollection<AchBatch> Batches { get; set; } = new List<AchBatch>();
+
     //Relación inversa
     public ICollection<NachaHeader> NachaHeaders { get; set; } = new List<NachaHeader>();
 

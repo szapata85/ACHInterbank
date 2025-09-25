@@ -1,12 +1,10 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Nacha.Dtos;
-using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
-using System.Globalization;
 using System.Text;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
@@ -77,7 +75,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 var entry = new EntryDetailDto
                 {
                     TransactionCode = tx.Type == TransactionTypeEnum.Credit ? "22" : "27",
-                    RoutingNumber = tx.DestinationInstitution.RoutingNumber,
+                    RoutingNumber = tx.DestinationInstitution!.RoutingNumber,
                     AccountNumber = tx.DestinationAccountNumber,
                     AmountCents = (long)decimal.Truncate(tx.Amount * 100m),
                     Reference = tx.Reference
@@ -142,10 +140,49 @@ public class NachaFileBuilder : INachaFileBuilder
         return sb.ToString();
     }
 
-    /// <summary>
-    /// Genera una línea de 106 caracteres según la definición en las tablas
-    /// NachaRecordLayout y NachaRecordField.
-    /// </summary>
+
+    public async Task<string> BuildNachaFileByCycleAsync(int cycleId, CancellationToken ct = default)
+    {
+        // 1️⃣ Cargar ciclo, lotes, transacciones y addendas
+        var cycle = await _context.AchCycles
+            .Include(c => c.Batches)
+                .ThenInclude(b => b.Transactions)
+                    .ThenInclude(t => t.Addendas)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == cycleId, ct)
+            ?? throw new InvalidOperationException($"No existe el ciclo {cycleId}.");
+
+        var sb = new StringBuilder();
+
+        // 2️⃣ Registro 1: Encabezado de archivo
+        sb.Append(await BuildRecordAsync("1", cycle, ct));
+
+        // 3️⃣ Lotes
+        foreach (var batch in cycle.Batches.OrderBy(b => b.Id))
+        {
+            sb.Append(await BuildRecordAsync("5", batch, ct));  // Header de lote
+
+            foreach (var tx in batch.Transactions.OrderBy(t => t.Id))
+            {
+                sb.Append(await BuildRecordAsync("6", tx, ct)); // Detalle transacción
+
+                foreach (var add in tx.Addendas.OrderBy(a => a.Id))
+                {
+                    sb.Append(await BuildRecordAsync("7", add, ct)); // Addenda
+                }
+            }
+
+            sb.Append(await BuildRecordAsync("8", batch, ct));  // Control de lote
+        }
+
+        // 4️⃣ Registro 9: Control de archivo
+        sb.Append(await BuildRecordAsync("9", cycle, ct));
+
+        // Devuelve un único string, sin saltos de línea adicionales
+        return sb.ToString();
+    }
+
+    /// Construye un registro NACHA-M con layout paramétrico
     public async Task<string> BuildRecordAsync<T>(string recordType, T entity, CancellationToken ct)
     {
         var layout = await _context.NachaRecordLayouts
@@ -157,6 +194,7 @@ public class NachaFileBuilder : INachaFileBuilder
         var buffer = new char[layout.TotalLength];
         Array.Fill(buffer, ' ');
 
+        // Si hay código de registro fijo, ubicarlo en la primera posición
         if (!string.IsNullOrEmpty(layout.RecordCode))
             buffer[0] = layout.RecordCode[0];
 
@@ -183,18 +221,19 @@ public class NachaFileBuilder : INachaFileBuilder
         return new string(buffer);
     }
 
-    // Formatea según la definición de cada campo
-    private static string FormatValue(object? raw, NachaRecordField field)
+    private string FormatValue(object? raw, NachaRecordField field)
     {
         if (raw == null) return string.Empty;
 
-        if (!string.IsNullOrWhiteSpace(field.Format))
+        return raw switch
         {
-            if (raw is DateTime dt) return dt.ToString(field.Format, CultureInfo.InvariantCulture);
-            if (raw is int i) return i.ToString(field.Format, CultureInfo.InvariantCulture);
-            if (raw is long l) return l.ToString(field.Format, CultureInfo.InvariantCulture);
-            if (raw is decimal d) return d.ToString(field.Format, CultureInfo.InvariantCulture);
-        }
-        return raw.ToString() ?? string.Empty;
+            DateTime dt => dt.ToString(field.Format ?? "yyyyMMdd"),
+            decimal d => ((long)(d * 100)).ToString(),   // valores monetarios sin punto
+            _ => raw.ToString() ?? string.Empty
+        };
     }
+
+
+
+
 }
