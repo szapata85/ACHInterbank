@@ -22,20 +22,39 @@ public class AchCycleScheduler : IAchCycleScheduler
 
     public async Task ScheduleCyclesForClearingHouseAsync(int clearingHouseId)
     {
-
-        IAchTransactionService? txService = _provider.GetRequiredService<IAchTransactionService>();
-
-        // Calcular próximo día hábil
+        // Servicio para obtener el próximo día hábil
+        var txService = _provider.GetRequiredService<IAchTransactionService>();
         DateTime nextBusinessDate = await txService.GetNextBusinessDayAsync(DateTime.Now);
 
-        // Ejecutar para todas las cámaras
-        List<int> houseIds = await _context.ClearingHouses.Select(ch => ch.Id).ToListAsync();
-        foreach (int id in houseIds)
+        // ✅ Validar que no existan ciclos para esa cámara en la fecha
+        bool exists = await _context.AchCycles
+            .AnyAsync(c => c.ClearingHouseId == clearingHouseId &&
+                           c.ProcessingDate.Date == nextBusinessDate.Date);
+        if (exists)
         {
-            await ScheduleCyclesForClearingHouseAsync(id, nextBusinessDate);
+            // Si ya hay ciclos, no continuar
+            return;
         }
 
+        // 🔄 Si quieres programar para TODAS las cámaras, hazlo una sola vez
+        var houseIds = await _context.ClearingHouses
+            .Select(ch => ch.Id)
+            .ToListAsync();
+
+        foreach (int id in houseIds)
+        {
+            // Validar por cada cámara para la misma fecha
+            bool alreadyHas = await _context.AchCycles
+                .AnyAsync(c => c.ClearingHouseId == id &&
+                               c.ProcessingDate.Date == nextBusinessDate.Date);
+
+            if (!alreadyHas)
+            {
+                await ScheduleCyclesForClearingHouseAsync(id, nextBusinessDate);
+            }
+        }
     }
+
 
     public async Task ScheduleCyclesForClearingHouseAsync(int clearingHouseId, DateTime processingDate)
     {
