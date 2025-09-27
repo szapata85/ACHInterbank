@@ -7,8 +7,8 @@ public class AchBatch : AuditableEntity
     public int Id { get; set; }
 
     // Cámara compensadora a la que pertenece el lote
-    public int ClearingHouseId { get; set; }
-    public ClearingHouse ClearingHouse { get; set; } = null!;
+    //public int ClearingHouseId { get; set; }
+    //public ClearingHouse ClearingHouse { get; set; } = null!;
 
     // Ciclo de procesamiento (relación opcional si un lote corresponde a un ciclo)
     public int? AchCycleId { get; set; }

@@ -21,8 +21,10 @@ public class NachaFileBuilder : INachaFileBuilder
 
     public async Task<string> BuildNachaFileAsync(IEnumerable<int> batchIds, CancellationToken ct)
     {
+        // 🔹 Cargar lotes, incluyendo su ciclo y la cámara
         var batches = await _context.AchBatches
-            .Include(b => b.ClearingHouse)
+            .Include(b => b.AchCycle)
+                .ThenInclude(c => c!.ClearingHouse)
             .Include(b => b.Transactions)
                 .ThenInclude(t => t.Addendas)
             .Where(b => batchIds.Contains(b.Id))
@@ -31,17 +33,45 @@ public class NachaFileBuilder : INachaFileBuilder
         if (!batches.Any())
             throw new InvalidOperationException("No se encontraron lotes para exportar.");
 
+        // 🔹 Buscar institución de origen por defecto
+        var origin = await _context.FinancialInstitutions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                fi => fi.IsDefaultSource &&
+                      fi.Status == FinancialInstitutionStatus.Active,
+                ct
+            ) ?? throw new InvalidOperationException(
+                "No se encontró institución de origen por defecto."
+            );
+
+        // 🔹 Buscar institución de destino por defecto (al menos una cámara por defecto)
+        var destination = await _context.FinancialInstitutions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                fi => fi.Status == FinancialInstitutionStatus.Active &&
+                      fi.ClearingHousePreferences.Any(p => p.IsDefault),
+                ct
+            ) ?? throw new InvalidOperationException(
+                "No se encontró institución destino por defecto."
+            );
+
+        // 🔹 Construir los valores combinando Routing + Transit + CheckDigit
+        string immediateOrigin =
+            $"{origin.RoutingNumber}{origin.TransitCode}{origin.CheckDigit}";
+        string immediateDestination =
+            $"{destination.RoutingNumber}{destination.TransitCode}{destination.CheckDigit}";
+
         var sb = new StringBuilder();
 
-        // 1️⃣ Encabezado de archivo (record type "FILE_HEADER")
+        // 1️⃣ Encabezado de archivo (File Header – Registro tipo 1)
         var headerDto = new FileHeaderDto
         {
             PriorityCode = "01",
-            ImmediateDestination = "0000000000",
-            ImmediateOrigin = "0000000000",
+            ImmediateDestination = immediateDestination,
+            ImmediateOrigin = immediateOrigin,
             FileCreationDate = DateTime.UtcNow,
             FileCreationTime = DateTime.UtcNow,
-            ReferenceCode = "REF12345"
+            ReferenceCode = $"REF{DateTime.UtcNow:yyyyMMddHHmmss}"
         };
         sb.Append(await BuildRecordAsync("FILE_HEADER", headerDto, ct));
 
@@ -61,7 +91,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 CompanyName = batch.CompanyName,
                 CompanyIdentification = batch.CompanyIdentification,
                 CompanyEntryDescription = "PPD",
-                OriginOrOdfi = batch.ClearingHouse.Code,
+                OriginOrOdfi = batch.AchCycle!.ClearingHouse!.Code,
                 EffectiveEntryDate = batch.EffectiveEntryDate
             };
             sb.Append(await BuildRecordAsync("BATCH_HEADER", batchHeader, ct));
@@ -140,10 +170,8 @@ public class NachaFileBuilder : INachaFileBuilder
         return sb.ToString();
     }
 
-
     public async Task<string> BuildNachaFileByCycleAsync(int cycleId, CancellationToken ct = default)
     {
-        // 1️⃣ Cargar ciclo, lotes, transacciones y addendas
         var cycle = await _context.AchCycles
             .Include(c => c.Batches)
                 .ThenInclude(b => b.Transactions)
@@ -153,48 +181,39 @@ public class NachaFileBuilder : INachaFileBuilder
             ?? throw new InvalidOperationException($"No existe el ciclo {cycleId}.");
 
         var sb = new StringBuilder();
-
-        // 2️⃣ Registro 1: Encabezado de archivo
         sb.Append(await BuildRecordAsync("1", cycle, ct));
 
-        // 3️⃣ Lotes
         foreach (var batch in cycle.Batches.OrderBy(b => b.Id))
         {
-            sb.Append(await BuildRecordAsync("5", batch, ct));  // Header de lote
+            sb.Append(await BuildRecordAsync("5", batch, ct));
 
             foreach (var tx in batch.Transactions.OrderBy(t => t.Id))
             {
-                sb.Append(await BuildRecordAsync("6", tx, ct)); // Detalle transacción
-
+                sb.Append(await BuildRecordAsync("6", tx, ct));
                 foreach (var add in tx.Addendas!.OrderBy(a => a.Id))
                 {
-                    sb.Append(await BuildRecordAsync("7", add, ct)); // Addenda
+                    sb.Append(await BuildRecordAsync("7", add, ct));
                 }
             }
 
-            sb.Append(await BuildRecordAsync("8", batch, ct));  // Control de lote
+            sb.Append(await BuildRecordAsync("8", batch, ct));
         }
 
-        // 4️⃣ Registro 9: Control de archivo
         sb.Append(await BuildRecordAsync("9", cycle, ct));
-
-        // Devuelve un único string, sin saltos de línea adicionales
         return sb.ToString();
     }
 
-    /// Construye un registro NACHA-M con layout paramétrico
     public async Task<string> BuildRecordAsync<T>(string recordType, T entity, CancellationToken ct)
     {
         var layout = await _context.NachaRecordLayouts
             .Include(l => l.Fields)
-            .FirstOrDefaultAsync(l => l.RecordType == recordType, ct)
+            .FirstOrDefaultAsync(l => l.RecordCode == recordType, ct)
             ?? throw new InvalidOperationException($"Layout no encontrado para '{recordType}'.");
 
         var fields = layout.Fields.OrderBy(f => f.StartPosition).ToList();
         var buffer = new char[layout.TotalLength];
         Array.Fill(buffer, ' ');
 
-        // Si hay código de registro fijo, ubicarlo en la primera posición
         if (!string.IsNullOrEmpty(layout.RecordCode))
             buffer[0] = layout.RecordCode[0];
 
@@ -228,12 +247,8 @@ public class NachaFileBuilder : INachaFileBuilder
         return raw switch
         {
             DateTime dt => dt.ToString(field.Format ?? "yyyyMMdd"),
-            decimal d => ((long)(d * 100)).ToString(),   // valores monetarios sin punto
+            decimal d => ((long)(d * 100)).ToString(),
             _ => raw.ToString() ?? string.Empty
         };
     }
-
-
-
-
 }
