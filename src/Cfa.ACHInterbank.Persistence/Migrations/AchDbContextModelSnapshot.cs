@@ -184,9 +184,6 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Property<int?>("AchCycleId")
                         .HasColumnType("int");
 
-                    b.Property<int>("ClearingHouseId")
-                        .HasColumnType("int");
-
                     b.Property<string>("CompanyIdentification")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -208,9 +205,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     b.HasIndex("AchCycleId");
 
-                    b.HasIndex("ClearingHouseId");
-
-                    b.ToTable("AchBatches");
+                    b.ToTable("AchBatches", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchCycle", b =>
@@ -1118,17 +1113,10 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchCycle", "AchCycle")
                         .WithMany("Batches")
-                        .HasForeignKey("AchCycleId");
-
-                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
-                        .WithMany()
-                        .HasForeignKey("ClearingHouseId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("AchCycleId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("AchCycle");
-
-                    b.Navigation("ClearingHouse");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchCycle", b =>

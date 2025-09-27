@@ -172,13 +172,20 @@ public class NachaFileBuilder : INachaFileBuilder
 
     public async Task<string> BuildNachaFileByCycleAsync(int cycleId, CancellationToken ct = default)
     {
+        //var cycle = await _context.AchCycles
+        //    .Include(c => c.Batches)
+        //        .ThenInclude(b => b.Transactions)
+        //            .ThenInclude(t => t.Addendas)
+        //    .AsNoTracking()
+        //    .FirstOrDefaultAsync(c => c.Id == cycleId, ct)
+        //    ?? throw new InvalidOperationException($"No existe el ciclo {cycleId}.");
+
         var cycle = await _context.AchCycles
-            .Include(c => c.Batches)
-                .ThenInclude(b => b.Transactions)
-                    .ThenInclude(t => t.Addendas)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == cycleId, ct)
-            ?? throw new InvalidOperationException($"No existe el ciclo {cycleId}.");
+                    .Include(c => c.Batches)
+                        .ThenInclude(b => b.Transactions)
+                            .ThenInclude(t => t.Addendas)
+                    .AsSplitQuery() // <-- evita combinaciones de JOIN enormes
+                    .FirstOrDefaultAsync(c => c.Id == cycleId, ct);
 
         var sb = new StringBuilder();
         sb.Append(await BuildRecordAsync("1", cycle, ct));

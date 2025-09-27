@@ -14,6 +14,7 @@ public class AchBatch : AuditableEntity
     public int? AchCycleId { get; set; }
     public AchCycle? AchCycle { get; set; }
 
+
     // Campos propios del encabezado de lote
     public string CompanyName { get; set; } = null!;
     public string CompanyIdentification { get; set; } = null!;

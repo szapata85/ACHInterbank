@@ -10,11 +10,13 @@ internal class AchBatchConfiguration : IEntityTypeConfiguration<AchBatch>
     {
         builder.ToTable("AchBatches");
 
-        builder.HasKey(a => a.Id);
+        //builder.HasKey(a => a.Id);
 
         builder.HasOne(b => b.AchCycle)
             .WithMany(c => c.Batches)
             .HasForeignKey(b => b.AchCycleId)
             .OnDelete(DeleteBehavior.Restrict);
+
+
     }
 }
