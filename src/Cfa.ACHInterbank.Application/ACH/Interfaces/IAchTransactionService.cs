@@ -6,17 +6,20 @@ namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
 public interface IAchTransactionService
 {
     /// <summary>
-    /// Registra una nueva transacción ACH y crea automáticamente
-    /// el lote (Batch) y el ciclo si es necesario.
+    /// Registra una transacción ACH asegurando consistencia con el ciclo y lote activo.
     /// </summary>
-    /// <param name="amount">Monto de la transacción en pesos colombianos.</param>
-    /// <param name="reference">Referencia de la transacción.</param>
+    /// <param name="amount">Monto de la transacción.</param>
+    /// <param name="reference">Referencia única o descripción del movimiento.</param>
     /// <param name="type">Tipo de transacción (Crédito/Débito).</param>
-    /// <param name="destinationInstitutionId">Id de la entidad financiera destino.</param>
-    /// <param name="sourceAccountNumber">Número de cuenta de origen.</param>
-    /// <param name="destinationAccountNumber">Número de cuenta de destino.</param>
-    /// <param name="addendas">Colección opcional de addendas.</param>
+    /// <param name="destinationInstitutionId">ID de la institución financiera destino.</param>
+    /// <param name="sourceAccountNumber">Número de cuenta origen.</param>
+    /// <param name="destinationAccountNumber">Número de cuenta destino.</param>
+    /// <param name="companyName">Nombre de la empresa o entidad que origina el pago.</param>
+    /// <param name="companyIdentification">Identificación de la compañía.</param>
+    /// <param name="companyEntryDescription">Descripción breve de la transacción (PPD, CCD, etc.).</param>
+    /// <param name="addendas">Addendas opcionales con información adicional.</param>
     /// <param name="ct">Token de cancelación.</param>
+    /// <returns>Instancia persistida de <see cref="AchTransaction"/>.</returns>
     Task<AchTransaction> RegisterTransactionAsync(
         decimal amount,
         string reference,
@@ -24,22 +27,25 @@ public interface IAchTransactionService
         int destinationInstitutionId,
         string sourceAccountNumber,
         string destinationAccountNumber,
+        string companyName,
+        string companyIdentification,
+        string companyEntryDescription,
         IEnumerable<(string addendaType, string information)>? addendas = null,
         CancellationToken ct = default);
 
     /// <summary>
-    /// Devuelve la próxima fecha hábil (omite fines de semana y festivos).
+    /// Obtiene la próxima fecha hábil (omite fines de semana y festivos).
     /// </summary>
     Task<DateTime> GetNextBusinessDayAsync(DateTime baseDate, CancellationToken ct = default);
 
     /// <summary>
-    /// Obtiene todas las transacciones de un ciclo ACH, con opción de incluir
-    /// las relaciones (instituciones, addendas, etc.).
+    /// Retorna todas las transacciones asociadas a un ciclo.
     /// </summary>
     Task<IReadOnlyList<AchTransaction>> GetTransactionsByCycleAsync(
         int achCycleId,
         bool includeRelations = false,
         CancellationToken ct = default);
 }
+
 
 

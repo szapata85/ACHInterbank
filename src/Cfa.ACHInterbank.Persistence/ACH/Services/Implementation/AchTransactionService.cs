@@ -11,19 +11,21 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class AchTransactionService : IAchTransactionService
 {
     private readonly AchDbContext _context;
-    private readonly IRoutingStrategyService _routing;
     private readonly IBankHoliday _holidayService;
+    private readonly IRoutingStrategyService _routing;
 
-    public AchTransactionService(
-        AchDbContext context,
-        IRoutingStrategyService routing,
-        IBankHoliday holidayService)
+    public AchTransactionService(AchDbContext context,
+                                 IBankHoliday holidayService,
+                                 IRoutingStrategyService routing)
     {
         _context = context;
-        _routing = routing;
         _holidayService = holidayService;
+        _routing = routing;
     }
 
+    /// <summary>
+    /// Registra una transacción completa alineada al estándar NACHA-M.
+    /// </summary>
     public async Task<AchTransaction> RegisterTransactionAsync(
         decimal amount,
         string reference,
@@ -31,135 +33,165 @@ public class AchTransactionService : IAchTransactionService
         int destinationInstitutionId,
         string sourceAccountNumber,
         string destinationAccountNumber,
+        string companyName,
+        string companyIdentification,
+        string companyEntryDescription,
         IEnumerable<(string addendaType, string information)>? addendas = null,
         CancellationToken ct = default)
     {
-        if (amount <= 0) throw new ArgumentException("El monto debe ser mayor a cero.", nameof(amount));
-        if (string.IsNullOrWhiteSpace(reference)) throw new ArgumentException("Referencia obligatoria.", nameof(reference));
-        if (string.IsNullOrWhiteSpace(sourceAccountNumber)) throw new ArgumentException("Cuenta de origen obligatoria.", nameof(sourceAccountNumber));
-        if (string.IsNullOrWhiteSpace(destinationAccountNumber)) throw new ArgumentException("Cuenta de destino obligatoria.", nameof(destinationAccountNumber));
+        if (amount <= 0)
+            throw new ArgumentException("El monto debe ser mayor a cero.");
 
-        // 1) Institución de origen por defecto y ACTIVA
+        if (string.IsNullOrWhiteSpace(reference))
+            throw new ArgumentException("Referencia obligatoria.");
+
+        // 1️⃣ Obtener institución de origen por defecto
         var sourceInstitution = await _context.FinancialInstitutions
             .AsNoTracking()
-            .FirstOrDefaultAsync(fi => fi.IsDefaultSource && fi.Status == FinancialInstitutionStatus.Active, ct)
-            ?? throw new InvalidOperationException("No existe institución de origen por defecto activa.");
+            .FirstOrDefaultAsync(f => f.IsDefaultSource, ct)
+            ?? throw new InvalidOperationException("No existe institución de origen por defecto.");
 
-        // 2) Resolver ciclo (el ruteo ya maneja días hábiles y prioridades de cámara)
-        int nextCycleId = await _routing.ResolveClearingHouseForTransactionAsync(
-            destinationInstitutionId, DateTime.UtcNow, ct);
+        // 2️⃣ Validar institución destino
+        var destInstitution = await _context.FinancialInstitutions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(f => f.Id == destinationInstitutionId, ct)
+            ?? throw new InvalidOperationException("Institución destino no encontrada.");
 
-        // 3) Crear/Reusar lote para ese ciclo
-        var batch = await _context.AchBatches
-            .FirstOrDefaultAsync(b => b.AchCycleId == nextCycleId, ct);
+        // 3️⃣ Resolver automáticamente cámara y ciclo
+        int achCycleId = await _routing.ResolveClearingHouseForTransactionAsync(
+            destinationInstitutionId, DateTime.Now, ct);
 
-        if (batch == null)
+        var achCycle = await _context.AchCycles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == achCycleId, ct)
+            ?? throw new InvalidOperationException("No se encontró el ciclo asignado.");
+
+        // 4️⃣ Calcular fecha hábil efectiva del ciclo
+        var effectiveEntryDate = await GetNextBusinessDayAsync(achCycle.ProcessingDate, ct);
+
+        // 5️⃣ Buscar o crear lote asociado al ciclo
+        var existingBatch = await _context.AchBatches
+            .FirstOrDefaultAsync(b =>
+                b.AchCycleId == achCycleId &&
+                b.CompanyIdentification == companyIdentification, ct);
+
+        if (existingBatch == null)
         {
-            var companyIdentification = ComposeCompanyIdentification(sourceInstitution);
-            batch = new AchBatch
+            existingBatch = new AchBatch
             {
-                AchCycleId = nextCycleId,
-                CompanyName = sourceInstitution.Name,
+                AchCycleId = achCycleId,
+                CompanyName = companyName,
                 CompanyIdentification = companyIdentification,
-                EffectiveEntryDate = DateTime.UtcNow.Date
+                CompanyEntryDescription = companyEntryDescription,
+                EffectiveEntryDate = effectiveEntryDate,
+                OriginOrOdfi = $"{sourceInstitution.RoutingNumber}{sourceInstitution.TransitCode}",
+                ServiceClassCode = "220",
+                TotalCreditAmount = 0,
+                TotalDebitAmount = 0
             };
-            _context.AchBatches.Add(batch);
+
+            _context.AchBatches.Add(existingBatch);
             await _context.SaveChangesAsync(ct);
         }
 
-        // 4) Crear transacción
+        // 6️⃣ Generar TraceNumber único
+        string traceBase = $"{sourceInstitution.RoutingNumber}{sourceInstitution.TransitCode}";
+        int seq = await _context.AchTransactions.CountAsync(ct) + 1;
+        string traceNumber = $"{traceBase}{seq:D7}".Substring(0, 15);
+
+        // 7️⃣ Crear transacción
         var transaction = new AchTransaction
         {
             Amount = amount,
             Reference = reference,
             Type = type,
             SourceInstitutionId = sourceInstitution.Id,
-            SourceAccountNumber = sourceAccountNumber,
             DestinationInstitutionId = destinationInstitutionId,
+            SourceAccountNumber = sourceAccountNumber,
             DestinationAccountNumber = destinationAccountNumber,
-            AchCycleId = nextCycleId,
-            AchBatchId = batch.Id
+            CompanyName = companyName,
+            CompanyIdentification = companyIdentification,
+            CompanyEntryDescription = companyEntryDescription,
+            OriginatingDFI = traceBase,
+            ReceivingDFI = $"{destInstitution.RoutingNumber}{destInstitution.TransitCode}",
+            TraceNumber = traceNumber,
+            TraceSequenceNumber = seq,
+            TransactionCode = type == TransactionTypeEnum.Credit ? "22" : "27",
+            EffectiveEntryDate = effectiveEntryDate,
+            AddendaRecordIndicator = addendas != null && addendas.Any(),
+            AchBatchId = existingBatch.Id,
+            AchCycleId = achCycleId
         };
 
-        // 5) Addendas (opcional)
+        // 8️⃣ Registrar addendas (si existen)
         if (addendas != null)
         {
+            int i = 1;
             transaction.Addendas = addendas.Select(a => new AchTransactionAddenda
             {
                 AddendaType = a.addendaType,
-                Information = a.information
+                Information = a.information,
+                SequenceNumber = i++,
+                EntryDetailSequenceNumber = transaction.TraceSequenceNumber
             }).ToList();
         }
 
+        // 9️⃣ Persistir y actualizar totales
         _context.AchTransactions.Add(transaction);
-        await _context.SaveChangesAsync(ct);
 
+        if (type == TransactionTypeEnum.Debit)
+            existingBatch.TotalDebitAmount += amount;
+        else
+            existingBatch.TotalCreditAmount += amount;
+
+        await _context.SaveChangesAsync(ct);
         return transaction;
     }
 
+    /// <summary>
+    /// Obtiene la próxima fecha hábil.
+    /// </summary>
     public Task<DateTime> GetNextBusinessDayAsync(DateTime baseDate, CancellationToken ct = default)
         => Task.FromResult(GetNextBusinessDay(baseDate));
 
+    /// <summary>
+    /// Consulta todas las transacciones por ciclo.
+    /// </summary>
     public async Task<IReadOnlyList<AchTransaction>> GetTransactionsByCycleAsync(
-        int achCycleId,
-        bool includeRelations = false,
-        CancellationToken ct = default)
+        int achCycleId, bool includeRelations = false, CancellationToken ct = default)
     {
-        IQueryable<AchTransaction> q = _context.AchTransactions.AsNoTracking()
+        IQueryable<AchTransaction> query = _context.AchTransactions
+            .AsNoTracking()
             .Where(t => t.AchCycleId == achCycleId);
 
         if (includeRelations)
         {
-            q = q
+            query = query
                 .Include(t => t.SourceInstitution)
                 .Include(t => t.DestinationInstitution)
-                .Include(t => t.Addendas);
+                .Include(t => t.Addendas)
+                .Include(t => t.AchBatch);
         }
 
-        return await q.OrderBy(t => t.Id).ToListAsync(ct);
+        return await query.OrderBy(t => t.Id).ToListAsync(ct);
     }
 
-    // ───────────────────────────────────────────────
-    // Helpers privados
-    // ───────────────────────────────────────────────
-
-    /// Construye el CompanyIdentification desde la entidad de origen.
-    /// Usa el CheckDigit ya almacenado o lo calcula en caliente si viniera vacío.
-    private static string ComposeCompanyIdentification(FinancialInstitution fi)
-    {
-        // CheckDigit tiene private set; si por alguna razón viene vacío, lo calculamos localmente
-        string checkDigit = string.IsNullOrWhiteSpace(fi.CheckDigit)
-            ? Domain.Helpers.DigitoChequeoHelper.CalcularDigitoChequeo($"{fi.RoutingNumber}{fi.TransitCode}")
-            : fi.CheckDigit;
-
-        return $"{fi.RoutingNumber}{fi.TransitCode}{checkDigit}";
-    }
-
+    /// <summary>
+    /// Calcula la próxima fecha hábil interna.
+    /// </summary>
     private DateTime GetNextBusinessDay(DateTime startDate)
     {
         var date = startDate.Date;
-        var currentYear = date.Year;
-        var holidays = _holidayService.GetHolidays(currentYear)
-                                      .Select(h => h.Date)
-                                      .ToHashSet();
+        var holidays = _holidayService.GetHolidays(date.Year)
+            .Select(h => h.Date)
+            .ToHashSet();
 
-        while (true)
+        while (date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ||
+               holidays.Contains(DateOnly.FromDateTime(date)))
         {
-            if (date.Year != currentYear)
-            {
-                currentYear = date.Year;
-                holidays = _holidayService.GetHolidays(currentYear)
-                                          .Select(h => h.Date)
-                                          .ToHashSet();
-            }
-
-            bool isWeekend = date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
-            bool isHoliday = holidays.Contains(DateOnly.FromDateTime(date));
-
-            if (!isWeekend && !isHoliday)
-                return date;
-
             date = date.AddDays(1);
         }
+
+        return date;
     }
 }

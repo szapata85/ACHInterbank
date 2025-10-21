@@ -19,10 +19,13 @@ public class NachaFileBuilder : INachaFileBuilder
         _context = context;
     }
 
-    public async Task<string> BuildNachaFileAsync(IEnumerable<int> batchIds, CancellationToken ct)
+    // ─────────────────────────────────────────────────────────────────────────────
+    // MÉTODO PRINCIPAL: Generar archivo NACHA-M por lotes
+    // ─────────────────────────────────────────────────────────────────────────────
+    public async Task<string> BuildNachaFileAsync(IEnumerable<int> batchIds, CancellationToken ct = default)
     {
-        // 🔹 Cargar lotes, incluyendo su ciclo y la cámara
         var batches = await _context.AchBatches
+            .AsNoTracking()
             .Include(b => b.AchCycle)
                 .ThenInclude(c => c!.ClearingHouse)
             .Include(b => b.Transactions)
@@ -33,190 +36,133 @@ public class NachaFileBuilder : INachaFileBuilder
         if (!batches.Any())
             throw new InvalidOperationException("No se encontraron lotes para exportar.");
 
-        // 🔹 Buscar institución de origen por defecto
-        var origin = await _context.FinancialInstitutions
+        var sb = new StringBuilder(capacity: 10240);
+        var cycle = batches.First().AchCycle!;
+
+        var layoutCache = await _context.NachaRecordLayouts
             .AsNoTracking()
-            .FirstOrDefaultAsync(
-                fi => fi.IsDefaultSource &&
-                      fi.Status == FinancialInstitutionStatus.Active,
-                ct
-            ) ?? throw new InvalidOperationException(
-                "No se encontró institución de origen por defecto."
-            );
+            .Include(l => l.Fields)
+            .ToDictionaryAsync(l => l.RecordType, ct);
 
-        // 🔹 Buscar institución de destino por defecto (al menos una cámara por defecto)
-        var destination = await _context.FinancialInstitutions
-            .AsNoTracking()
-            .FirstOrDefaultAsync(
-                fi => fi.Status == FinancialInstitutionStatus.Active &&
-                      fi.ClearingHousePreferences.Any(p => p.IsDefault),
-                ct
-            ) ?? throw new InvalidOperationException(
-                "No se encontró institución destino por defecto."
-            );
-
-        // 🔹 Construir los valores combinando Routing + Transit + CheckDigit
-        string immediateOrigin =
-            $"{origin.RoutingNumber}{origin.TransitCode}{origin.CheckDigit}";
-        string immediateDestination =
-            $"{destination.RoutingNumber}{destination.TransitCode}{destination.CheckDigit}";
-
-        var sb = new StringBuilder();
-
-        // 1️⃣ Encabezado de archivo (File Header – Registro tipo 1)
-        var headerDto = new FileHeaderDto
-        {
-            PriorityCode = "01",
-            ImmediateDestination = immediateDestination,
-            ImmediateOrigin = immediateOrigin,
-            FileCreationDate = DateTime.UtcNow,
-            FileCreationTime = DateTime.UtcNow,
-            ReferenceCode = $"REF{DateTime.UtcNow:yyyyMMddHHmmss}"
-        };
-        sb.Append(await BuildRecordAsync("FILE_HEADER", headerDto, ct));
+        // 1️⃣ Encabezado de archivo (registro tipo 1)
+        sb.Append(await BuildRecordInternalAsync("1", cycle, layoutCache["1"]));
 
         long totalDebit = 0, totalCredit = 0;
-        int fileEntryAddendaCount = 0;
-        int fileBatchCount = 0;
-        int recordCount = 1; // contamos el header de archivo
+        int recordCount = 1, batchCount = 0, entryAddendaCount = 0;
 
-        foreach (var batch in batches)
+        // 2️⃣ Procesar lotes
+        foreach (var batch in batches.OrderBy(b => b.Id))
         {
-            fileBatchCount++;
-
-            // 5️⃣ Encabezado de lote
-            var batchHeader = new BatchHeaderDto
-            {
-                ServiceClassCode = "220",
-                CompanyName = batch.CompanyName,
-                CompanyIdentification = batch.CompanyIdentification,
-                CompanyEntryDescription = "PPD",
-                OriginOrOdfi = batch.AchCycle!.ClearingHouse!.Code,
-                EffectiveEntryDate = batch.EffectiveEntryDate
-            };
-            sb.Append(await BuildRecordAsync("BATCH_HEADER", batchHeader, ct));
+            batchCount++;
+            sb.Append(await BuildRecordInternalAsync("5", batch, layoutCache["5"]));
             recordCount++;
 
             long batchDebit = 0, batchCredit = 0;
-            int batchEntryAddenda = 0;
+            int batchEntries = 0;
 
-            foreach (var tx in batch.Transactions)
+            // 3️⃣ Transacciones
+            foreach (var tx in batch.Transactions.OrderBy(t => t.Id))
             {
-                var entry = new EntryDetailDto
-                {
-                    TransactionCode = tx.Type == TransactionTypeEnum.Credit ? "22" : "27",
-                    RoutingNumber = tx.DestinationInstitution!.RoutingNumber,
-                    AccountNumber = tx.DestinationAccountNumber,
-                    AmountCents = (long)decimal.Truncate(tx.Amount * 100m),
-                    Reference = tx.Reference
-                };
-                sb.Append(await BuildRecordAsync("ENTRY_DETAIL", entry, ct));
+                sb.Append(await BuildRecordInternalAsync("6", tx, layoutCache["6"]));
                 recordCount++;
-                batchEntryAddenda++;
+                batchEntries++;
 
                 if (tx.Type == TransactionTypeEnum.Debit)
-                    batchDebit += (long)decimal.Truncate(tx.Amount * 100m);
+                    batchDebit += (long)(tx.Amount * 100);
                 else
-                    batchCredit += (long)decimal.Truncate(tx.Amount * 100m);
+                    batchCredit += (long)(tx.Amount * 100);
 
-                if (tx.Addendas != null)
+                // 4️⃣ Addendas
+                var addendasOrdered = tx.Addendas?
+                    .OrderBy(a => a.SequenceNumber)
+                    ?? Enumerable.Empty<AchTransactionAddenda>();
+
+                foreach (var addenda in addendasOrdered)
                 {
-                    int seq = 1;
-                    foreach (var add in tx.Addendas)
-                    {
-                        var addDto = new AddendaFileDto
-                        {
-                            Information = add.Information ?? string.Empty,
-                            SequenceNumber = seq,
-                            EntryDetailSequenceNumber = tx.Id
-                        };
-                        sb.Append(await BuildRecordAsync("ADDENDA", addDto, ct));
-                        recordCount++;
-                        batchEntryAddenda++;
-                        seq++;
-                    }
+                    sb.Append(await BuildRecordInternalAsync("7", addenda, layoutCache["7"]));
+                    recordCount++;
+                    batchEntries++;
                 }
             }
 
-            // 8️⃣ Control de lote
-            var batchControl = new BatchControlDto
-            {
-                ServiceClassCode = "220",
-                EntryAddendaCount = batchEntryAddenda,
-                TotalDebitAmountCents = batchDebit,
-                TotalCreditAmountCents = batchCredit,
-                CompanyIdentification = batch.CompanyIdentification
-            };
-            sb.Append(await BuildRecordAsync("BATCH_CONTROL", batchControl, ct));
+            // 5️⃣ Control de lote (tipo 8)
+            sb.Append(await BuildRecordInternalAsync("8", batch, layoutCache["8"]));
             recordCount++;
 
             totalDebit += batchDebit;
             totalCredit += batchCredit;
-            fileEntryAddendaCount += batchEntryAddenda;
+            entryAddendaCount += batchEntries;
         }
 
-        // 9️⃣ Control de archivo
-        int blockCount = (int)Math.Ceiling(recordCount / 10.0);
-        var fileControl = new FileControlDto
-        {
-            BatchCount = fileBatchCount,
-            BlockCount = blockCount,
-            EntryAddendaCount = fileEntryAddendaCount,
-            TotalDebitAmountCents = totalDebit,
-            TotalCreditAmountCents = totalCredit
-        };
-        sb.Append(await BuildRecordAsync("FILE_CONTROL", fileControl, ct));
+        // 6️⃣ Control de archivo (tipo 9)
+        sb.Append(await BuildRecordInternalAsync("9", cycle, layoutCache["9"]));
 
         return sb.ToString();
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // MÉTODO ALTERNATIVO: Generar NACHA-M por ciclo
+    // ─────────────────────────────────────────────────────────────────────────────
     public async Task<string> BuildNachaFileByCycleAsync(int cycleId, CancellationToken ct = default)
     {
-        //var cycle = await _context.AchCycles
-        //    .Include(c => c.Batches)
-        //        .ThenInclude(b => b.Transactions)
-        //            .ThenInclude(t => t.Addendas)
-        //    .AsNoTracking()
-        //    .FirstOrDefaultAsync(c => c.Id == cycleId, ct)
-        //    ?? throw new InvalidOperationException($"No existe el ciclo {cycleId}.");
-
         var cycle = await _context.AchCycles
-                    .Include(c => c.Batches)
-                        .ThenInclude(b => b.Transactions)
-                            .ThenInclude(t => t.Addendas)
-                    .AsSplitQuery() // <-- evita combinaciones de JOIN enormes
-                    .FirstOrDefaultAsync(c => c.Id == cycleId, ct);
+            .AsNoTracking()
+            .Include(c => c.Batches)
+                .ThenInclude(b => b.Transactions)
+                    .ThenInclude(t => t.Addendas)
+            .FirstOrDefaultAsync(c => c.Id == cycleId, ct)
+            ?? throw new InvalidOperationException($"No existe el ciclo {cycleId}.");
 
-        var sb = new StringBuilder();
-        sb.Append(await BuildRecordAsync("1", cycle, ct));
+        var sb = new StringBuilder(capacity: 10240);
+        var layoutCache = await _context.NachaRecordLayouts
+            .AsNoTracking()
+            .Include(l => l.Fields)
+            .ToDictionaryAsync(l => l.RecordType, ct);
+
+        sb.Append(await BuildRecordInternalAsync("1", cycle, layoutCache["1"]));
 
         foreach (var batch in cycle.Batches.OrderBy(b => b.Id))
         {
-            sb.Append(await BuildRecordAsync("5", batch, ct));
+            sb.Append(await BuildRecordInternalAsync("5", batch, layoutCache["5"]));
 
             foreach (var tx in batch.Transactions.OrderBy(t => t.Id))
             {
-                sb.Append(await BuildRecordAsync("6", tx, ct));
-                foreach (var add in tx.Addendas!.OrderBy(a => a.Id))
-                {
-                    sb.Append(await BuildRecordAsync("7", add, ct));
-                }
+                sb.Append(await BuildRecordInternalAsync("6", tx, layoutCache["6"]));
+
+                var addendasOrdered = tx.Addendas?
+                    .OrderBy(a => a.SequenceNumber)
+                    ?? Enumerable.Empty<AchTransactionAddenda>();
+
+                foreach (var addenda in addendasOrdered)
+                    sb.Append(await BuildRecordInternalAsync("7", addenda, layoutCache["7"]));
             }
 
-            sb.Append(await BuildRecordAsync("8", batch, ct));
+            sb.Append(await BuildRecordInternalAsync("8", batch, layoutCache["8"]));
         }
 
-        sb.Append(await BuildRecordAsync("9", cycle, ct));
+        sb.Append(await BuildRecordInternalAsync("9", cycle, layoutCache["9"]));
         return sb.ToString();
     }
 
-    public async Task<string> BuildRecordAsync<T>(string recordType, T entity, CancellationToken ct)
+    // ─────────────────────────────────────────────────────────────────────────────
+    // MÉTODO DE INTERFAZ: Cumple contrato de INachaFileBuilder
+    // ─────────────────────────────────────────────────────────────────────────────
+    public async Task<string> BuildRecordAsync<T>(string recordType, T entity, CancellationToken ct = default)
     {
         var layout = await _context.NachaRecordLayouts
+            .AsNoTracking()
             .Include(l => l.Fields)
-            .FirstOrDefaultAsync(l => l.RecordCode == recordType, ct)
+            .FirstOrDefaultAsync(l => l.RecordType == recordType, ct)
             ?? throw new InvalidOperationException($"Layout no encontrado para '{recordType}'.");
 
+        return await BuildRecordInternalAsync(recordType, entity, layout);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // MÉTODO INTERNO OPTIMIZADO
+    // ─────────────────────────────────────────────────────────────────────────────
+    private static Task<string> BuildRecordInternalAsync<T>(string recordType, T entity, NachaRecordLayout layout)
+    {
         var fields = layout.Fields.OrderBy(f => f.StartPosition).ToList();
         var buffer = new char[layout.TotalLength];
         Array.Fill(buffer, ' ');
@@ -240,14 +186,16 @@ public class NachaFileBuilder : INachaFileBuilder
                 : value.PadRight(field.Length, field.PadChar);
 
             int start = field.StartPosition - 1;
-            for (int i = 0; i < value.Length; i++)
-                buffer[start + i] = value[i];
+            value.CopyTo(0, buffer, start, value.Length);
         }
 
-        return new string(buffer);
+        return Task.FromResult(new string(buffer));
     }
 
-    private string FormatValue(object? raw, NachaRecordField field)
+    // ─────────────────────────────────────────────────────────────────────────────
+    // AUXILIAR: Formateo de valores
+    // ─────────────────────────────────────────────────────────────────────────────
+    private static string FormatValue(object? raw, NachaRecordField field)
     {
         if (raw == null) return string.Empty;
 
@@ -255,6 +203,7 @@ public class NachaFileBuilder : INachaFileBuilder
         {
             DateTime dt => dt.ToString(field.Format ?? "yyyyMMdd"),
             decimal d => ((long)(d * 100)).ToString(),
+            bool b => b ? "1" : "0",
             _ => raw.ToString() ?? string.Empty
         };
     }
