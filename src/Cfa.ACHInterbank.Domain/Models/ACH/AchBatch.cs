@@ -6,21 +6,20 @@ public class AchBatch : AuditableEntity
 {
     public int Id { get; set; }
 
-    // Cámara compensadora a la que pertenece el lote
-    //public int ClearingHouseId { get; set; }
-    //public ClearingHouse ClearingHouse { get; set; } = null!;
-
-    // Ciclo de procesamiento (relación opcional si un lote corresponde a un ciclo)
     public int? AchCycleId { get; set; }
     public AchCycle? AchCycle { get; set; }
 
+    public string ServiceClassCode { get; set; } = "220";
+    public string CompanyName { get; set; } = string.Empty;
+    public string CompanyIdentification { get; set; } = string.Empty;
+    public string CompanyEntryDescription { get; set; } = "PAGOS";
+    public string OriginOrOdfi { get; set; } = string.Empty;
 
-    // Campos propios del encabezado de lote
-    public string CompanyName { get; set; } = null!;
-    public string CompanyIdentification { get; set; } = null!;
     public DateTime EffectiveEntryDate { get; set; }
 
-    // Transacciones del lote
+    public int BatchSequenceNumber { get; set; }
+    public decimal TotalDebitAmount { get; set; }
+    public decimal TotalCreditAmount { get; set; }
+
     public ICollection<AchTransaction> Transactions { get; set; } = new List<AchTransaction>();
 }
-
