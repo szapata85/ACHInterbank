@@ -1,5 +1,6 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,64 +8,89 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
 [Route("[controller]")]
-public class TransactionsController : Controller
+public class TransactionsController : ControllerBase
 {
     private readonly IAchTransactionService _transactionService;
+    private readonly ILogger<TransactionsController> _logger;
 
-    public TransactionsController(IAchTransactionService transactionService)
+    public TransactionsController(
+        IAchTransactionService transactionService,
+        ILogger<TransactionsController> logger)
     {
         _transactionService = transactionService;
+        _logger = logger;
     }
 
+    /// <summary>Registra una nueva transacción ACH.</summary>
     [HttpPost]
-    public async Task<IActionResult> CreateTransaction(
-        [FromBody] CreateTransactionDto dto,
-        CancellationToken ct)
+    [ProducesResponseType(typeof(AchTransaction), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> CreateTransaction([FromBody] AchTransactionRequest request, CancellationToken ct)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
+        if (request is null) return BadRequest("El cuerpo de la solicitud no puede estar vacío.");
+        if (request.Amount <= 0) return BadRequest("El monto debe ser mayor a cero.");
+        if (string.IsNullOrWhiteSpace(request.Reference)) return BadRequest("La referencia es obligatoria.");
+        if (string.IsNullOrWhiteSpace(request.SourceAccountNumber)) return BadRequest("La cuenta de origen es obligatoria.");
+        if (string.IsNullOrWhiteSpace(request.DestinationAccountNumber)) return BadRequest("La cuenta de destino es obligatoria.");
 
-        // Mapear addendas si llegan
-        IEnumerable<(string addendaType, string information)>? addendas = null;
-        if (dto.Addendas != null && dto.Addendas.Any())
+        try
         {
-            addendas = dto.Addendas.Select(a => (a.AddendaType, a.Information));
+            var tx = await _transactionService.RegisterTransactionAsync(
+                amount: request.Amount,
+                reference: request.Reference,
+                type: request.Type,
+                destinationInstitutionId: request.DestinationInstitutionId,
+                sourceAccountNumber: request.SourceAccountNumber,
+                destinationAccountNumber: request.DestinationAccountNumber,
+                addendas: request.Addendas,
+                ct: ct
+            );
+
+            _logger.LogInformation("Transacción ACH creada: {Id}", tx.Id);
+            return CreatedAtAction(nameof(GetById), new { id = tx.Id }, tx);
         }
-
-        var result = await _transactionService.RegisterTransactionAsync(
-            amount: dto.Amount,
-            reference: dto.Reference,
-            type: dto.Type,
-            destinationInstitutionId: dto.DestinationInstitutionId,
-            sourceAccountNumber: dto.SourceAccountNumber,
-            destinationAccountNumber: dto.DestinationAccountNumber,
-            addendas: addendas,
-            ct: ct);
-
-        return CreatedAtAction(nameof(GetTransactionById), new { id = result.Id }, result);
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Validación fallida al registrar transacción");
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error interno al registrar transacción");
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Error interno del servidor" });
+        }
     }
-
 
     /// <summary>
-    /// Obtener transacción por Id
+    /// Consulta una transacción por ID.
     /// </summary>
     [HttpGet("{id:int}")]
-    public async Task<IActionResult> GetTransactionById(int id, CancellationToken ct)
+    [ProducesResponseType(typeof(AchTransaction), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetById(int id, CancellationToken ct)
     {
-        var tx = await _transactionService.GetTransactionsByCycleAsync(id, true, ct);
+        var tx = await _transactionService.GetTransactionByIdAsync(id, ct);
         if (tx == null)
-            return NotFound();
+            return NotFound(new { message = $"No se encontró la transacción con ID {id}" });
 
         return Ok(tx);
     }
+}
 
-    /// <summary>
-    /// Listar transacciones por ciclo
-    /// </summary>
-    [HttpGet("cycle/{cycleId:int}")]
-    public async Task<IActionResult> GetTransactionsByCycle(int cycleId, CancellationToken ct)
-    {
-        var txs = await _transactionService.GetTransactionsByCycleAsync(cycleId, true, ct);
-        return Ok(txs);
-    }
+// ✅ DTO para solicitud de creación
+public class AchTransactionRequest
+{
+    public decimal Amount { get; set; }
+    public string Reference { get; set; } = string.Empty;
+    public TransactionTypeEnum Type { get; set; }
+    public int DestinationInstitutionId { get; set; }
+    public string SourceAccountNumber { get; set; } = string.Empty;
+    public string DestinationAccountNumber { get; set; } = string.Empty;
+
+    public string CompanyName { get; set; } = string.Empty;
+    public string CompanyIdentification { get; set; } = string.Empty;
+    public string CompanyEntryDescription { get; set; } = "PAGOS";
+
+    public IEnumerable<(string addendaType, string information)>? Addendas { get; set; }
 }

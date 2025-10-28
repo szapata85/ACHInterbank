@@ -16,6 +16,12 @@ public class AchTransactionConfiguration : IEntityTypeConfiguration<AchTransacti
         builder.Property(t => t.Type)
             .HasConversion<string>()
             .IsRequired();
+
+        builder.HasOne(t => t.AchBatch)
+            .WithMany(b => b.Transactions)
+            .HasForeignKey(t => t.AchBatchId)
+            .OnDelete(DeleteBehavior.Restrict);
+
     }
 }
 

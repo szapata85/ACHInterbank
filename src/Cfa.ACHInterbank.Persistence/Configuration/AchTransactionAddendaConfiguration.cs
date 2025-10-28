@@ -13,17 +13,18 @@ public class AchTransactionAddendaConfiguration : IEntityTypeConfiguration<AchTr
         builder.HasKey(a => a.Id);
 
         builder.Property(a => a.AddendaType)
-            .HasMaxLength(2)
-            .IsRequired();
+            .IsRequired()
+            .HasMaxLength(10);
 
         builder.Property(a => a.Information)
-            .HasMaxLength(80) // estándar NACHA
-            .IsRequired();
+            .IsRequired()
+            .HasMaxLength(500);
 
         builder.HasOne(a => a.Transaction)
             .WithMany(t => t.Addendas)
             .HasForeignKey(a => a.AchTransactionId)
             .OnDelete(DeleteBehavior.Cascade);
+
     }
 }
 

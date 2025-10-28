@@ -11,21 +11,19 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class AchTransactionService : IAchTransactionService
 {
     private readonly AchDbContext _context;
-    private readonly IBankHoliday _holidayService;
     private readonly IRoutingStrategyService _routing;
+    private readonly IBankHoliday _holidayService;
 
-    public AchTransactionService(AchDbContext context,
-                                 IBankHoliday holidayService,
-                                 IRoutingStrategyService routing)
+    public AchTransactionService(
+        AchDbContext context,
+        IRoutingStrategyService routing,
+        IBankHoliday holidayService)
     {
         _context = context;
-        _holidayService = holidayService;
         _routing = routing;
+        _holidayService = holidayService;
     }
 
-    /// <summary>
-    /// Registra una transacción completa alineada al estándar NACHA-M.
-    /// </summary>
     public async Task<AchTransaction> RegisterTransactionAsync(
         decimal amount,
         string reference,
@@ -33,165 +31,222 @@ public class AchTransactionService : IAchTransactionService
         int destinationInstitutionId,
         string sourceAccountNumber,
         string destinationAccountNumber,
-        string companyName,
-        string companyIdentification,
-        string companyEntryDescription,
         IEnumerable<(string addendaType, string information)>? addendas = null,
         CancellationToken ct = default)
     {
-        if (amount <= 0)
-            throw new ArgumentException("El monto debe ser mayor a cero.");
+        if (amount <= 0) throw new ArgumentException("El monto debe ser mayor a cero.", nameof(amount));
+        if (string.IsNullOrWhiteSpace(reference)) throw new ArgumentException("La referencia es obligatoria.", nameof(reference));
 
-        if (string.IsNullOrWhiteSpace(reference))
-            throw new ArgumentException("Referencia obligatoria.");
-
-        // 1️⃣ Obtener institución de origen por defecto
-        var sourceInstitution = await _context.FinancialInstitutions
+        // 1) Institución origen por defecto (activa)
+        var source = await _context.FinancialInstitutions
             .AsNoTracking()
-            .FirstOrDefaultAsync(f => f.IsDefaultSource, ct)
-            ?? throw new InvalidOperationException("No existe institución de origen por defecto.");
+            .Where(fi => fi.IsDefaultSource && fi.Status == FinancialInstitutionStatus.Active)
+            .Select(fi => new
+            {
+                fi.Id,
+                fi.Name,
+                fi.RoutingNumber,   // 8 dígitos del ODFI
+                fi.TransitCode,     // 1 dígito (si lo manejas así)
+                fi.CheckDigit       // dígito de chequeo final
+            })
+            .FirstOrDefaultAsync(ct)
+            ?? throw new InvalidOperationException("No existe institución de origen por defecto y activa.");
 
-        // 2️⃣ Validar institución destino
-        var destInstitution = await _context.FinancialInstitutions
+        // 2) Institución destino (activa)
+        var dest = await _context.FinancialInstitutions
             .AsNoTracking()
-            .FirstOrDefaultAsync(f => f.Id == destinationInstitutionId, ct)
-            ?? throw new InvalidOperationException("Institución destino no encontrada.");
+            .Where(fi => fi.Id == destinationInstitutionId && fi.Status == FinancialInstitutionStatus.Active)
+            .Select(fi => new
+            {
+                fi.Id,
+                fi.RoutingNumber,  // RFDI (Receiving DFI)
+                fi.TransitCode,
+                fi.CheckDigit
+            })
+            .FirstOrDefaultAsync(ct)
+            ?? throw new InvalidOperationException("Institución destino no encontrada o inactiva.");
 
-        // 3️⃣ Resolver automáticamente cámara y ciclo
-        int achCycleId = await _routing.ResolveClearingHouseForTransactionAsync(
-            destinationInstitutionId, DateTime.Now, ct);
+        // 3) Ruteo + próxima fecha hábil
+        var now = DateTime.Now;
+        int achCycleId = await _routing.ResolveClearingHouseForTransactionAsync(destinationInstitutionId, now, ct);
+        DateTime effectiveEntryDate = await GetNextBusinessDayAsync(now, ct);
 
-        var achCycle = await _context.AchCycles
-            .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == achCycleId, ct)
-            ?? throw new InvalidOperationException("No se encontró el ciclo asignado.");
+        // 4) Determinar/crear el lote (para este ciclo + compañía/identificación)
+        string companyName = source.Name;
+        string companyIdentification = $"{source.RoutingNumber}{source.TransitCode}{source.CheckDigit}";
+        string companyEntryDescription = "PAGOS"; // puedes parametrizar por tipo si lo deseas
 
-        // 4️⃣ Calcular fecha hábil efectiva del ciclo
-        var effectiveEntryDate = await GetNextBusinessDayAsync(achCycle.ProcessingDate, ct);
-
-        // 5️⃣ Buscar o crear lote asociado al ciclo
-        var existingBatch = await _context.AchBatches
+        // Intentamos reutilizar un lote del mismo ciclo/compañía/fecha
+        var batch = await _context.AchBatches
             .FirstOrDefaultAsync(b =>
                 b.AchCycleId == achCycleId &&
-                b.CompanyIdentification == companyIdentification, ct);
+                b.CompanyName == companyName &&
+                b.CompanyIdentification == companyIdentification &&
+                b.EffectiveEntryDate == effectiveEntryDate, ct);
 
-        if (existingBatch == null)
+        if (batch is null)
         {
-            existingBatch = new AchBatch
+            batch = new AchBatch
             {
                 AchCycleId = achCycleId,
                 CompanyName = companyName,
                 CompanyIdentification = companyIdentification,
-                CompanyEntryDescription = companyEntryDescription,
-                EffectiveEntryDate = effectiveEntryDate,
-                OriginOrOdfi = $"{sourceInstitution.RoutingNumber}{sourceInstitution.TransitCode}",
-                ServiceClassCode = "220",
-                TotalCreditAmount = 0,
-                TotalDebitAmount = 0
+                EffectiveEntryDate = effectiveEntryDate
             };
-
-            _context.AchBatches.Add(existingBatch);
+            _context.AchBatches.Add(batch);
             await _context.SaveChangesAsync(ct);
         }
 
-        // 6️⃣ Generar TraceNumber único
-        string traceBase = $"{sourceInstitution.RoutingNumber}{sourceInstitution.TransitCode}";
-        int seq = await _context.AchTransactions.CountAsync(ct) + 1;
-        string traceNumber = $"{traceBase}{seq:D7}".Substring(0, 15);
+        // 5) Calcular campos NACHA-m por defecto:
+        // ServiceClassCode: “200” mixed (débitos+créditos) o “220” (créditos) / “225” (débitos)
+        // TransactionCode: ejemplo “22” (credit to checking) ó “27” (debit to checking)
+        // OriginatingDFI: 8 dígitos del ODFI (sin check digit)
+        // ReceivingDFI : 8 dígitos del RDFI (sin check digit)
+        string serviceClass = "200"; // Mixed por defecto (puedes variarlo por lote/empresa)
+        string transactionCode = type == TransactionTypeEnum.Credit ? "22" : "27";
 
-        // 7️⃣ Crear transacción
-        var transaction = new AchTransaction
+        string originatingDfi = source.RoutingNumber; // asumiendo 8 dígitos aquí
+        string receivingDfi = dest.RoutingNumber;     // idem
+
+        // Trace: suele ser ODFI(8) + 7 secuencia; aquí generamos una secuencia simple por lote.
+        int nextSeq = await _context.AchTransactions
+            .Where(t => t.AchBatchId == batch.Id)
+            .Select(t => (int?)t.TraceSequenceNumber)
+            .MaxAsync(ct) ?? 0;
+        nextSeq++;
+        string traceNumber = $"{originatingDfi}{nextSeq.ToString().PadLeft(7, '0')}";
+
+        // 6) Crear la transacción completa alineada a tu modelo extendido
+        var tx = new AchTransaction
         {
             Amount = amount,
             Reference = reference,
             Type = type,
-            SourceInstitutionId = sourceInstitution.Id,
-            DestinationInstitutionId = destinationInstitutionId,
-            SourceAccountNumber = sourceAccountNumber,
-            DestinationAccountNumber = destinationAccountNumber,
+
+            TransactionCode = transactionCode,
+            ServiceClassCode = serviceClass,
+            CompanyEntryDescription = companyEntryDescription,
             CompanyName = companyName,
             CompanyIdentification = companyIdentification,
-            CompanyEntryDescription = companyEntryDescription,
-            OriginatingDFI = traceBase,
-            ReceivingDFI = $"{destInstitution.RoutingNumber}{destInstitution.TransitCode}",
+
+            OriginatingDFI = originatingDfi,
+            ReceivingDFI = receivingDfi,
+
             TraceNumber = traceNumber,
-            TraceSequenceNumber = seq,
-            TransactionCode = type == TransactionTypeEnum.Credit ? "22" : "27",
+            TraceSequenceNumber = nextSeq,
+
             EffectiveEntryDate = effectiveEntryDate,
-            AddendaRecordIndicator = addendas != null && addendas.Any(),
-            AchBatchId = existingBatch.Id,
-            AchCycleId = achCycleId
+            AddendaRecordIndicator = (addendas != null && addendas.Any()),
+
+            SourceAccountNumber = sourceAccountNumber,
+            DestinationAccountNumber = destinationAccountNumber,
+
+            SourceInstitutionId = source.Id,
+            DestinationInstitutionId = dest.Id,
+
+            AchCycleId = achCycleId,
+            AchBatchId = batch.Id
         };
 
-        // 8️⃣ Registrar addendas (si existen)
         if (addendas != null)
         {
-            int i = 1;
-            transaction.Addendas = addendas.Select(a => new AchTransactionAddenda
+            tx.Addendas = addendas.Select((a, idx) => new AchTransactionAddenda
             {
                 AddendaType = a.addendaType,
                 Information = a.information,
-                SequenceNumber = i++,
-                EntryDetailSequenceNumber = transaction.TraceSequenceNumber
+                SequenceNumber = idx + 1
             }).ToList();
         }
 
-        // 9️⃣ Persistir y actualizar totales
-        _context.AchTransactions.Add(transaction);
-
-        if (type == TransactionTypeEnum.Debit)
-            existingBatch.TotalDebitAmount += amount;
-        else
-            existingBatch.TotalCreditAmount += amount;
-
+        _context.AchTransactions.Add(tx);
         await _context.SaveChangesAsync(ct);
-        return transaction;
+
+        // 🔁 Recalcular el ServiceClassCode del lote si aplica
+        await UpdateBatchServiceClassCodeAsync(batch, ct);
+
+
+        return tx;
     }
 
-    /// <summary>
-    /// Obtiene la próxima fecha hábil.
-    /// </summary>
     public Task<DateTime> GetNextBusinessDayAsync(DateTime baseDate, CancellationToken ct = default)
-        => Task.FromResult(GetNextBusinessDay(baseDate));
+    {
+        var date = baseDate.Date;
+        var currentYear = date.Year;
+        var holidays = _holidayService.GetHolidays(currentYear)
+            .Select(h => h.Date)
+            .ToHashSet();
 
-    /// <summary>
-    /// Consulta todas las transacciones por ciclo.
-    /// </summary>
+        while (true)
+        {
+            if (date.Year != currentYear)
+            {
+                currentYear = date.Year;
+                holidays = _holidayService.GetHolidays(currentYear)
+                    .Select(h => h.Date)
+                    .ToHashSet();
+            }
+
+            bool weekend = date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+            bool holiday = holidays.Contains(DateOnly.FromDateTime(date));
+
+            if (!weekend && !holiday)
+                return Task.FromResult(date);
+
+            date = date.AddDays(1);
+        }
+    }
+
+
     public async Task<IReadOnlyList<AchTransaction>> GetTransactionsByCycleAsync(
         int achCycleId, bool includeRelations = false, CancellationToken ct = default)
     {
-        IQueryable<AchTransaction> query = _context.AchTransactions
-            .AsNoTracking()
+        IQueryable<AchTransaction> q = _context.AchTransactions.AsNoTracking()
             .Where(t => t.AchCycleId == achCycleId);
 
         if (includeRelations)
         {
-            query = query
+            q = q
                 .Include(t => t.SourceInstitution)
                 .Include(t => t.DestinationInstitution)
                 .Include(t => t.Addendas)
-                .Include(t => t.AchBatch);
+                .Include(t => t.AchBatch); // ← importante: el nombre correcto es AchBatch
         }
 
-        return await query.OrderBy(t => t.Id).ToListAsync(ct);
+        return await q.OrderBy(t => t.Id).ToListAsync(ct);
     }
 
-    /// <summary>
-    /// Calcula la próxima fecha hábil interna.
-    /// </summary>
-    private DateTime GetNextBusinessDay(DateTime startDate)
+    private async Task UpdateBatchServiceClassCodeAsync(AchBatch batch, CancellationToken ct)
     {
-        var date = startDate.Date;
-        var holidays = _holidayService.GetHolidays(date.Year)
-            .Select(h => h.Date)
-            .ToHashSet();
+        var transactions = await _context.AchTransactions
+            .Where(t => t.AchBatchId == batch.Id)
+            .Select(t => t.Type)
+            .ToListAsync(ct);
 
-        while (date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ||
-               holidays.Contains(DateOnly.FromDateTime(date)))
+        if (!transactions.Any())
+            return;
+
+        bool allCredits = transactions.All(t => t == TransactionTypeEnum.Credit);
+        bool allDebits = transactions.All(t => t == TransactionTypeEnum.Debit);
+
+        string newCode = allCredits ? "220" : allDebits ? "225" : "200";
+
+        if (batch.ServiceClassCode != newCode)
         {
-            date = date.AddDays(1);
+            batch.ServiceClassCode = newCode;
+            _context.AchBatches.Update(batch);
+            await _context.SaveChangesAsync(ct);
         }
-
-        return date;
     }
+
+    public async Task<AchTransaction?> GetTransactionByIdAsync(int transactionId, CancellationToken ct = default)
+    {
+        return await _context.AchTransactions
+            .Include(t => t.SourceInstitution)
+            .Include(t => t.DestinationInstitution)
+            .Include(t => t.Addendas)
+            .Include(t => t.AchBatch)
+            .Include(t => t.AchCycle)
+            .FirstOrDefaultAsync(t => t.Id == transactionId, ct);
+    }
+
 }
