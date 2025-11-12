@@ -44,7 +44,11 @@ public class AchTransactionNachaTests
             destinationInstitutionId: 2,
             sourceAccountNumber: "111122223333",
             destinationAccountNumber: "999988887777",
-            addendas: null,
+            addendas: new List<(string, string)>
+            {
+                ("05", "Factura #123"),
+                ("99", "Pago complementario")
+            },
             ct: CancellationToken.None);
 
         Assert.NotEqual(0, tx.Id);
@@ -53,11 +57,28 @@ public class AchTransactionNachaTests
 
         var savedTransaction = await context.AchTransactions
             .Include(t => t.AchBatch)
+            .Include(t => t.Addendas)
             .SingleAsync();
 
         Assert.Equal(tx.Id, savedTransaction.Id);
         Assert.Equal("220", savedTransaction.AchBatch.ServiceClassCode);
-        Assert.False(savedTransaction.AddendaRecordIndicator);
+        Assert.True(savedTransaction.AddendaRecordIndicator);
+        Assert.Equal(2, savedTransaction.Addendas.Count);
+        Assert.Collection(
+            savedTransaction.Addendas.OrderBy(a => a.SequenceNumber),
+            first =>
+            {
+                Assert.Equal("05", first.AddendaType);
+                Assert.Equal("Factura #123", first.Information);
+                Assert.Equal(1, first.SequenceNumber);
+            },
+            second =>
+            {
+                Assert.Equal("99", second.AddendaType);
+                Assert.Equal("Pago complementario", second.Information);
+                Assert.Equal(2, second.SequenceNumber);
+            });
+        Assert.Equal(1, savedTransaction.SourceInstitutionId);
 
         var batch = await context.AchBatches.Include(b => b.Transactions).SingleAsync();
         Assert.Single(batch.Transactions);
@@ -185,7 +206,18 @@ public class AchTransactionNachaTests
         context.ClearingHouseConfigs.Add(config);
         context.ClearingHouses.Add(clearingHouse);
         context.AchCycles.Add(cycle);
-        context.FinancialInstitutions.AddRange(sourceInstitution, destinationInstitution);
+        var alternativeSource = new FinancialInstitution
+        {
+            Id = 3,
+            Name = "Banco Alterno",
+            IsDefaultSource = false,
+            RoutingNumber = "3333333",
+            TransitCode = "1",
+            Status = FinancialInstitutionStatus.Active
+        };
+        alternativeSource.CalculateCheckDigit();
+
+        context.FinancialInstitutions.AddRange(sourceInstitution, destinationInstitution, alternativeSource);
         context.SaveChanges();
     }
 
