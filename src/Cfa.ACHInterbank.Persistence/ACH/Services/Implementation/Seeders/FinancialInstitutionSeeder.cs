@@ -42,8 +42,7 @@ public class FinancialInstitutionSeeder : IDbSeeder
                     Name = "Bancolombia",
                     RoutingNumber = "00001",
                     TransitCode = "007",
-                    Status = FinancialInstitutionStatus.Active,
-                    IsDefaultSource = true
+                    Status = FinancialInstitutionStatus.Active
                 },
                 new FinancialInstitution {
                     Name = "Banco de Bogota",
@@ -610,16 +609,21 @@ public class FinancialInstitutionSeeder : IDbSeeder
 
         if (!hasDefault)
         {
-            var firstActive = await _context.FinancialInstitutions
+            var cooperativa = await _context.FinancialInstitutions
+                .FirstOrDefaultAsync(
+                    fi => fi.Status == FinancialInstitutionStatus.Active &&
+                          fi.Name == "Cooperativa Financiera de Antioquia");
+
+            var fallback = cooperativa ?? await _context.FinancialInstitutions
                 .FirstOrDefaultAsync(fi => fi.Status == FinancialInstitutionStatus.Active);
 
-            if (firstActive is null)
+            if (fallback is null)
             {
                 return;
             }
 
-            firstActive.IsDefaultSource = true;
-            _context.FinancialInstitutions.Update(firstActive);
+            fallback.IsDefaultSource = true;
+            _context.FinancialInstitutions.Update(fallback);
             await _context.SaveChangesAsync();
         }
     }
