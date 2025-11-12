@@ -20,6 +20,7 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Cfa.ACHInterbank.Api\Cfa.ACHInterbank.Api.csproj" />
     <ProjectReference Include="..\..\src\Cfa.ACHInterbank.Application\Cfa.ACHInterbank.Application.csproj" />
     <ProjectReference Include="..\..\src\Cfa.ACHInterbank.Domain\Cfa.ACHInterbank.Domain.csproj" />
     <ProjectReference Include="..\..\src\Cfa.ACHInterbank.Persistence\Cfa.ACHInterbank.Persistence.csproj" />
