@@ -53,7 +53,10 @@ public class AchTransactionNachaTests
 
         Assert.NotEqual(0, tx.Id);
         Assert.Equal("PAGO-REF-001", tx.Reference);
-        Assert.StartsWith("1234567", tx.TraceNumber);
+        Assert.StartsWith("12345678", tx.TraceNumber);
+        Assert.Equal("123456780", tx.CompanyIdentification);
+        Assert.Equal("12345678", tx.OriginatingDFI);
+        Assert.Equal("76543210", tx.ReceivingDFI);
 
         var savedTransaction = await context.AchTransactions
             .Include(t => t.AchBatch)
@@ -83,6 +86,44 @@ public class AchTransactionNachaTests
         var batch = await context.AchBatches.Include(b => b.Transactions).SingleAsync();
         Assert.Single(batch.Transactions);
         Assert.Equal(tx.Id, batch.Transactions.Single().Id);
+    }
+
+    [Fact]
+    public async Task RegisterTransactionAsync_WithoutDefaultSource_Throws()
+    {
+        using var context = CreateContext();
+        SeedCoreEntities(context);
+
+        var defaultSource = await context.FinancialInstitutions
+            .SingleAsync(fi => fi.IsDefaultSource);
+        defaultSource.IsDefaultSource = false;
+        context.FinancialInstitutions.Update(defaultSource);
+        await context.SaveChangesAsync();
+
+        var routing = new Mock<IRoutingStrategyService>();
+        routing
+            .Setup(r => r.ResolveClearingHouseForTransactionAsync(
+                It.IsAny<int>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        var holiday = new Mock<IBankHoliday>();
+        holiday
+            .Setup(h => h.GetHolidays(It.IsAny<int>()))
+            .Returns(new List<BankHolidayModel>());
+
+        var service = new AchTransactionService(context, routing.Object, holiday.Object);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterTransactionAsync(
+            amount: 1500m,
+            reference: "PAGO-REF-003",
+            type: TransactionTypeEnum.Credit,
+            destinationInstitutionId: 2,
+            sourceAccountNumber: "111122223333",
+            destinationAccountNumber: "999988887777",
+            addendas: null,
+            ct: CancellationToken.None));
     }
 
     [Fact]

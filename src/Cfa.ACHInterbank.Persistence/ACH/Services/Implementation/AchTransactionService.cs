@@ -1,5 +1,6 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -45,12 +46,26 @@ public class AchTransactionService : IAchTransactionService
             {
                 fi.Id,
                 fi.Name,
-                fi.RoutingNumber,   // 8 dígitos del ODFI
-                fi.TransitCode,     // 1 dígito (si lo manejas así)
-                fi.CheckDigit       // dígito de chequeo final
+                fi.RoutingNumber,
+                fi.TransitCode,
+                fi.CheckDigit
             })
             .FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("No existe institución de origen por defecto y activa.");
+
+        string sourceRouting = source.RoutingNumber?.Trim() ?? string.Empty;
+        string sourceTransit = source.TransitCode?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(sourceRouting) || string.IsNullOrWhiteSpace(sourceTransit))
+            throw new InvalidOperationException("La institución de origen no tiene configurado el código de ruteo/transito.");
+
+        string originBase = $"{sourceRouting}{sourceTransit}";
+        if (originBase.Length != 8)
+            throw new InvalidOperationException($"La institución de origen tiene una longitud inválida para el ruteo: {originBase}.");
+
+        string sourceCheckDigit = string.IsNullOrWhiteSpace(source.CheckDigit)
+            ? DigitoChequeoHelper.CalcularDigitoChequeo(originBase)
+            : source.CheckDigit.Trim();
 
         // 2) Institución destino (activa)
         var dest = await _context.FinancialInstitutions
@@ -59,12 +74,22 @@ public class AchTransactionService : IAchTransactionService
             .Select(fi => new
             {
                 fi.Id,
-                fi.RoutingNumber,  // RFDI (Receiving DFI)
+                fi.RoutingNumber,
                 fi.TransitCode,
                 fi.CheckDigit
             })
             .FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("Institución destino no encontrada o inactiva.");
+
+        string destRouting = dest.RoutingNumber?.Trim() ?? string.Empty;
+        string destTransit = dest.TransitCode?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(destRouting) || string.IsNullOrWhiteSpace(destTransit))
+            throw new InvalidOperationException("La institución destino no tiene configurado el código de ruteo/transito.");
+
+        string destinationBase = $"{destRouting}{destTransit}";
+        if (destinationBase.Length != 8)
+            throw new InvalidOperationException($"La institución destino tiene una longitud inválida para el ruteo: {destinationBase}.");
 
         // 3) Ruteo + próxima fecha hábil
         var now = DateTime.Now;
@@ -73,7 +98,7 @@ public class AchTransactionService : IAchTransactionService
 
         // 4) Determinar/crear el lote (para este ciclo + compañía/identificación)
         string companyName = source.Name;
-        string companyIdentification = $"{source.RoutingNumber}{source.TransitCode}{source.CheckDigit}";
+        string companyIdentification = $"{originBase}{sourceCheckDigit}";
         string companyEntryDescription = "PAGOS"; // puedes parametrizar por tipo si lo deseas
 
         // Intentamos reutilizar un lote del mismo ciclo/compañía/fecha
@@ -105,8 +130,8 @@ public class AchTransactionService : IAchTransactionService
         string serviceClass = "200"; // Mixed por defecto (puedes variarlo por lote/empresa)
         string transactionCode = type == TransactionTypeEnum.Credit ? "22" : "27";
 
-        string originatingDfi = source.RoutingNumber; // asumiendo 8 dígitos aquí
-        string receivingDfi = dest.RoutingNumber;     // idem
+        string originatingDfi = originBase;
+        string receivingDfi = destinationBase;
 
         // Trace: suele ser ODFI(8) + 7 secuencia; aquí generamos una secuencia simple por lote.
         int nextSeq = await _context.AchTransactions

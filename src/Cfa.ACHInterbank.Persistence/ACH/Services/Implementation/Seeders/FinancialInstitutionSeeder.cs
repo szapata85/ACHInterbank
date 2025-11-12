@@ -1,19 +1,23 @@
-﻿using Cfa.ACHInterbank.Application.DataBase;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
-using System.Drawing;
+using Microsoft.Extensions.Hosting;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 
 public class FinancialInstitutionSeeder : IDbSeeder
 {
     private readonly AchDbContext _context;
+    private readonly IHostEnvironment _environment;
 
-    public FinancialInstitutionSeeder(AchDbContext context)
+    public FinancialInstitutionSeeder(AchDbContext context, IHostEnvironment environment)
     {
         _context = context;
+        _environment = environment;
     }
 
     // Se ejecuta después del seeder de ClearingHouses (Order = 1)
@@ -21,9 +25,16 @@ public class FinancialInstitutionSeeder : IDbSeeder
 
     public async Task SeedAsync()
     {
-        // ⚡ Solo sembrar si la tabla está vacía
-        if (!await _context.FinancialInstitutions.AnyAsync())
+        bool hasRecords = await _context.FinancialInstitutions.AnyAsync();
+
+        if (!hasRecords)
         {
+            // Evitar sembrar datos dummy en ambientes productivos
+            if (!_environment.IsDevelopment() && !_environment.IsEnvironment("Testing"))
+            {
+                return;
+            }
+
             // Definición de instituciones con Routing/Transit
             var institutions = new List<FinancialInstitution>
             {
@@ -31,7 +42,8 @@ public class FinancialInstitutionSeeder : IDbSeeder
                     Name = "Bancolombia",
                     RoutingNumber = "00001",
                     TransitCode = "007",
-                    Status = FinancialInstitutionStatus.Active
+                    Status = FinancialInstitutionStatus.Active,
+                    IsDefaultSource = true
                 },
                 new FinancialInstitution {
                     Name = "Banco de Bogota",
@@ -582,22 +594,33 @@ public class FinancialInstitutionSeeder : IDbSeeder
             //    fi.CalculateCheckDigit();
             //}
             // Optimizado con LINQ
-            institutions.ToList().ForEach(fi => fi.CalculateCheckDigit());
+            foreach (var institution in institutions)
+            {
+                institution.CalculateCheckDigit();
+            }
 
             _context.FinancialInstitutions.AddRange(institutions);
             await _context.SaveChangesAsync();
+            return;
         }
-        else
+
+        // ✅ Garantizar que exista una entidad por defecto dentro de los registros actuales
+        bool hasDefault = await _context.FinancialInstitutions
+            .AnyAsync(fi => fi.IsDefaultSource && fi.Status == FinancialInstitutionStatus.Active);
+
+        if (!hasDefault)
         {
-            // ✅ Garantizar que exista una entidad por defecto
-            bool hasDefault = await _context.FinancialInstitutions
-                .AnyAsync(fi => fi.IsDefaultSource);
-            if (!hasDefault)
+            var firstActive = await _context.FinancialInstitutions
+                .FirstOrDefaultAsync(fi => fi.Status == FinancialInstitutionStatus.Active);
+
+            if (firstActive is null)
             {
-                var first = await _context.FinancialInstitutions.FirstAsync();
-                first.IsDefaultSource = true;
-                await _context.SaveChangesAsync();
+                return;
             }
+
+            firstActive.IsDefaultSource = true;
+            _context.FinancialInstitutions.Update(firstActive);
+            await _context.SaveChangesAsync();
         }
     }
 }
