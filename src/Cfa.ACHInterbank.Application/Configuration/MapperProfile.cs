@@ -1,5 +1,7 @@
 using AutoMapper;
 using Cfa.ACHInterbank.Domain.Entities.Servers;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Microsoft.Extensions.Logging;
 using static Cfa.ACHInterbank.Domain.Entities.JwksService.JwksService;
@@ -12,6 +14,12 @@ public class MapperProfile : Profile
     {
         CreateMap<Key, KeyMap>();
         CreateMap<ServicesIntegration, ServerCache>();
+        CreateMap<FinancialInstitution, FinancialInstitutionDto>();
+        CreateMap<FinancialInstitutionDto, FinancialInstitution>()
+            .ForMember(dest => dest.CheckDigit, opt => opt.Ignore())
+            .ForMember(dest => dest.ClearingHousePreferences, opt => opt.Ignore())
+            .ForMember(dest => dest.SourceTransactions, opt => opt.Ignore())
+            .ForMember(dest => dest.DestinationTransactions, opt => opt.Ignore());
     }
 }
 
