@@ -5,6 +5,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, map, tap, take } from 'rxjs';
 import { TransactionsService } from './transactions.service';
 import { DestinationInstitution, TransactionDraft, TransactionResponse } from './transactions.models';
+import { TransactionTypeEnum } from './transactions.types';
 import { ErrorMessageComponent } from '../shared/error-message.component';
 
 @Component({
@@ -20,10 +21,7 @@ export class TransactionFormComponent implements OnInit {
   private readonly transactionsService = inject(TransactionsService);
   private readonly destroyRef = inject(DestroyRef);
 
-  readonly TransactionType = {
-    Credit: 'Credit',
-    Debit: 'Debit'
-  } as const;
+  readonly TransactionType = TransactionTypeEnum;
 
   readonly institutions$: Observable<DestinationInstitution[]> = this.transactionsService
     .getDestinationInstitutions()
@@ -32,7 +30,7 @@ export class TransactionFormComponent implements OnInit {
   readonly form: FormGroup = this.fb.group({
     amount: [null, [Validators.required, Validators.min(0.01)]],
     reference: ['', [Validators.required, Validators.maxLength(30)]],
-    type: ['Credit', Validators.required],
+    type: [TransactionTypeEnum.Credit, Validators.required],
     destinationInstitutionId: [null, [Validators.required, Validators.min(1)]],
     sourceAccountNumber: [
       '',
@@ -92,6 +90,7 @@ export class TransactionFormComponent implements OnInit {
     const payload = this.form.getRawValue() as TransactionDraft;
     const sanitizedPayload: TransactionDraft = {
       ...payload,
+      type: Number(payload.type) as TransactionTypeEnum,
       amount: Number(payload.amount),
       destinationInstitutionId: Number(payload.destinationInstitutionId),
       reference: payload.reference.trim(),
@@ -120,7 +119,7 @@ export class TransactionFormComponent implements OnInit {
             this.errorMessage$.setValue(null);
             this.submissionState$.setValue('success');
             this.form.reset({
-              type: 'Credit',
+              type: TransactionTypeEnum.Credit,
               companyEntryDescription: 'PAGOS'
             });
             this.addendas.clear();
