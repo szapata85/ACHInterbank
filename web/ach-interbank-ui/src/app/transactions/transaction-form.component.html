@@ -34,19 +34,13 @@
 
       <label>
         <span>Institución destino *</span>
-        <input
-          type="number"
-          formControlName="destinationInstitutionId"
-          required
-          list="institutions-list"
-          min="1"
-        />
-        <datalist id="institutions-list">
-          <option *ngFor="let institution of institutions$ | async" [value]="institution.id">
+        <select formControlName="destinationInstitutionId" required>
+          <option [ngValue]="null" disabled>Seleccione una institución</option>
+          <option *ngFor="let institution of institutions$ | async" [ngValue]="institution.id">
             {{ institution.name }}
           </option>
-        </datalist>
-        <small class="muted">Seleccione una opción de la lista o ingrese el identificador manualmente.</small>
+        </select>
+        <small class="muted">Seleccione una institución de la lista.</small>
         <app-error [control]="form.get('destinationInstitutionId')"></app-error>
       </label>
 
