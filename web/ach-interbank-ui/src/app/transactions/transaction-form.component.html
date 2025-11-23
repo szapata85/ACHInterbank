@@ -43,7 +43,7 @@
         />
         <datalist id="institutions-list">
           <option *ngFor="let institution of institutions$ | async" [value]="institution.id">
-            {{ institution.name }} ({{ institution.routingNumber }})
+            {{ institution.name }}
           </option>
         </datalist>
         <small class="muted">Seleccione una opción de la lista o ingrese el identificador manualmente.</small>
