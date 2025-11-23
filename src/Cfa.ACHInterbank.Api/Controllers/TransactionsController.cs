@@ -92,5 +92,5 @@ public class AchTransactionRequest
     public string CompanyIdentification { get; set; } = string.Empty;
     public string CompanyEntryDescription { get; set; } = "PAGOS";
 
-    public IEnumerable<(string addendaType, string information)>? Addendas { get; set; }
+    public List<AddendaDto>? Addendas { get; set; }
 }
