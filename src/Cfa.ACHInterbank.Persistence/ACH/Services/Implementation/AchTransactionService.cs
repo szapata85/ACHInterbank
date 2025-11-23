@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -32,7 +33,7 @@ public class AchTransactionService : IAchTransactionService
         int destinationInstitutionId,
         string sourceAccountNumber,
         string destinationAccountNumber,
-        IEnumerable<(string addendaType, string information)>? addendas = null,
+        IEnumerable<AddendaDto>? addendas = null,
         CancellationToken ct = default)
     {
         if (amount <= 0) throw new ArgumentException("El monto debe ser mayor a cero.", nameof(amount));
@@ -177,8 +178,8 @@ public class AchTransactionService : IAchTransactionService
         {
             tx.Addendas = addendas.Select((a, idx) => new AchTransactionAddenda
             {
-                AddendaType = a.addendaType,
-                Information = a.information,
+                AddendaType = a.AddendaType,
+                Information = a.Information,
                 SequenceNumber = idx + 1
             }).ToList();
         }
