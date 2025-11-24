@@ -14,6 +14,8 @@ namespace Cfa.ACHInterbank.Api;
 
 public static class DependencyInjectionService
 {
+    private const string CorsPolicyName = "CorsPolicy";
+
     public static IServiceCollection AddWebApi(this IServiceCollection services)
     {
         // Configuración del Swagger
@@ -109,14 +111,14 @@ public static class DependencyInjectionService
             });
         });
 
-        //services.AddCors(options => options.AddPolicy("CorsPolicy", builder =>
-        //{
-        //    builder
-        //        .AllowAnyMethod()
-        //        .AllowAnyHeader()
-        //        .SetIsOriginAllowed(origin => true)
-        //        .AllowCredentials();
-        //}));
+        services.AddCors(options => options.AddPolicy(CorsPolicyName, builder =>
+        {
+            builder
+                .WithOrigins("http://localhost:4200", "https://localhost:4200")
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials();
+        }));
 
         services.AddHttpClient();
 
@@ -180,7 +182,7 @@ public static class DependencyInjectionService
         app.UseRateLimiter();
         app.UseRouting();
         //app.UseCsrfTokenMiddleware();
-        //app.UseCors("CorsPolicy");
+        app.UseCors(CorsPolicyName);
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapControllers();

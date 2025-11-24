@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -32,7 +33,7 @@ public class AchTransactionService : IAchTransactionService
         int destinationInstitutionId,
         string sourceAccountNumber,
         string destinationAccountNumber,
-        IEnumerable<(string addendaType, string information)>? addendas = null,
+        IEnumerable<AddendaDto>? addendas = null,
         CancellationToken ct = default)
     {
         if (amount <= 0) throw new ArgumentException("El monto debe ser mayor a cero.", nameof(amount));
@@ -116,7 +117,8 @@ public class AchTransactionService : IAchTransactionService
                 AchCycleId = achCycleId,
                 CompanyName = companyName,
                 CompanyIdentification = companyIdentification,
-                EffectiveEntryDate = effectiveEntryDate
+                EffectiveEntryDate = effectiveEntryDate,
+                OriginOrOdfi = originBase
             };
             _context.AchBatches.Add(batch);
             await _context.SaveChangesAsync(ct);
@@ -177,8 +179,8 @@ public class AchTransactionService : IAchTransactionService
         {
             tx.Addendas = addendas.Select((a, idx) => new AchTransactionAddenda
             {
-                AddendaType = a.addendaType,
-                Information = a.information,
+                AddendaType = a.AddendaType,
+                Information = a.Information,
                 SequenceNumber = idx + 1
             }).ToList();
         }
@@ -186,6 +188,7 @@ public class AchTransactionService : IAchTransactionService
         _context.AchTransactions.Add(tx);
         await _context.SaveChangesAsync(ct);
 
+        await UpdateBatchTotalsAsync(batch, ct);
         // 🔁 Recalcular el ServiceClassCode del lote si aplica
         await UpdateBatchServiceClassCodeAsync(batch, ct);
 
@@ -238,6 +241,37 @@ public class AchTransactionService : IAchTransactionService
         }
 
         return await q.OrderBy(t => t.Id).ToListAsync(ct);
+    }
+
+    private async Task UpdateBatchTotalsAsync(AchBatch batch, CancellationToken ct)
+    {
+        var totals = await _context.AchTransactions
+            .Where(t => t.AchBatchId == batch.Id)
+            .GroupBy(t => t.Type)
+            .Select(g => new
+            {
+                Type = g.Key,
+                Sum = g.Sum(t => t.Amount)
+            })
+            .ToListAsync(ct);
+
+        decimal debit = totals
+            .Where(t => t.Type == TransactionTypeEnum.Debit)
+            .Select(t => t.Sum)
+            .FirstOrDefault();
+
+        decimal credit = totals
+            .Where(t => t.Type == TransactionTypeEnum.Credit)
+            .Select(t => t.Sum)
+            .FirstOrDefault();
+
+        if (batch.TotalDebitAmount != debit || batch.TotalCreditAmount != credit)
+        {
+            batch.TotalDebitAmount = debit;
+            batch.TotalCreditAmount = credit;
+            _context.AchBatches.Update(batch);
+            await _context.SaveChangesAsync(ct);
+        }
     }
 
     private async Task UpdateBatchServiceClassCodeAsync(AchBatch batch, CancellationToken ct)

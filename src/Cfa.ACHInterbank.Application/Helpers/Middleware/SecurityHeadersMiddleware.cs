@@ -23,7 +23,7 @@ public class SecurityHeadersMiddleware
             // Añade los headers de seguridad
             context.Response.Headers.Add("Strict-Transport-Security", "max-age=63072000");
             context.Response.Headers.Add("Content-Security-Policy", "default-src 'self', frame-src 'self', script-src 'self';");
-            context.Response.Headers.Add("Access-Control-Allow-Methods", "GET,POST;");
+            context.Response.Headers["Access-Control-Allow-Methods"] = "GET,POST";
             context.Response.Headers.Add("X-Content-Type-Options", "nosniff");
             context.Response.Headers.Add("Referrer-Policy", "no-referrer-when-downgrade");
             context.Response.Headers.Add("Feature-Policy", "geolocation 'self'");
