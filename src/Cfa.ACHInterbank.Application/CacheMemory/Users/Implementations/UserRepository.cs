@@ -7,14 +7,14 @@ namespace Cfa.ACHInterbank.Application.CacheMemory.Implementations;
 [Singleton]
 public class UserRepository : IUserRepository
 {
-    private readonly Dictionary<string, User> _users = new();
+    private readonly Dictionary<Guid, User> _users = new();
 
     public void AddUser(User user)
     {
-        _users[user.Id!] = user;
+        _users[user.Id] = user;
     }
 
-    public User GetUser(string userId)
+    public User GetUser(Guid userId)
     {
         _users.TryGetValue(userId, out var user);
         return user!;

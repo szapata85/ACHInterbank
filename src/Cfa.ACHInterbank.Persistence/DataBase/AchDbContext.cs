@@ -1,5 +1,7 @@
 ﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
+using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Services;
+using Cfa.ACHInterbank.Domain.Entities.User;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.EntityFrameworkCore;
 
@@ -39,6 +41,12 @@ public class AchDbContext : DbContext
     public DbSet<NachaRecordLayout> NachaRecordLayouts => Set<NachaRecordLayout>();
     public DbSet<NachaRecordField> NachaRecordFields => Set<NachaRecordField>();
     public DbSet<AchBatch> AchBatches => Set<AchBatch>();
+
+    public DbSet<User> Users => Set<User>();
+    public DbSet<Role> Roles => Set<Role>();
+    public DbSet<Permission> Permissions => Set<Permission>();
+    public DbSet<UserRole> UserRoles => Set<UserRole>();
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
 
 
 
