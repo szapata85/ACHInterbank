@@ -2,6 +2,8 @@ using Cfa.ACHInterbank.Application.DataBase.Repositories.Security;
 using Cfa.ACHInterbank.Application.Helpers.Hash;
 using Cfa.ACHInterbank.Application.Services.Authentication.Interfaces;
 using Cfa.ACHInterbank.Application.Services.Authentication.Models;
+using Cfa.ACHInterbank.Application.Services.Notifications.Interfaces;
+using Cfa.ACHInterbank.Domain.Entities.User;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -14,11 +16,18 @@ namespace Cfa.ACHInterbank.Application.Services.Authentication.Implementations;
 public class AuthService : IAuthService
 {
     private readonly IUserAuthRepository _userRepository;
+    private readonly IPasswordResetTokenRepository _passwordResetTokenRepository;
+    private readonly IEmailSender _emailSender;
     private readonly Token _tokenSettings;
 
-    public AuthService(IUserAuthRepository userRepository)
+    public AuthService(
+        IUserAuthRepository userRepository,
+        IPasswordResetTokenRepository passwordResetTokenRepository,
+        IEmailSender emailSender)
     {
         _userRepository = userRepository;
+        _passwordResetTokenRepository = passwordResetTokenRepository;
+        _emailSender = emailSender;
         _tokenSettings = AppSettings.Settings.TokenManager!;
     }
 
@@ -86,6 +95,82 @@ public class AuthService : IAuthService
             Roles = roles,
             Permissions = permissions
         };
+    }
+
+    public async Task<OperationResult> RequestPasswordResetAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return new OperationResult { Success = false, Message = "El correo es requerido" };
+        }
+
+        var user = await _userRepository.GetByEmailAsync(request.Email, cancellationToken);
+
+        // Siempre responder genérico para no filtrar datos
+        const string genericMessage = "Si el correo existe, se ha enviado un enlace de recuperación";
+
+        if (user is null || !user.IsActive)
+        {
+            return new OperationResult { Success = true, Message = genericMessage };
+        }
+
+        var resetToken = BuildToken(user);
+        await _passwordResetTokenRepository.AddAsync(resetToken, cancellationToken);
+
+        var resetLink = BuildResetLink(resetToken.Token);
+        await _emailSender.SendPasswordResetAsync(user, resetLink, cancellationToken);
+
+        return new OperationResult { Success = true, Message = genericMessage };
+    }
+
+    public async Task<OperationResult> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Token))
+        {
+            return new OperationResult { Success = false, Message = "Token inválido" };
+        }
+
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || string.IsNullOrWhiteSpace(request.ConfirmPassword))
+        {
+            return new OperationResult { Success = false, Message = "La nueva contraseña es requerida" };
+        }
+
+        if (!string.Equals(request.NewPassword, request.ConfirmPassword, StringComparison.Ordinal))
+        {
+            return new OperationResult { Success = false, Message = "Las contraseñas no coinciden" };
+        }
+
+        var tokenEntity = await _passwordResetTokenRepository.GetValidTokenAsync(request.Token, cancellationToken);
+
+        if (tokenEntity?.User is null)
+        {
+            return new OperationResult { Success = false, Message = "Token inválido o expirado" };
+        }
+
+        var newHash = HashHelper.GenerateHashSha1(request.NewPassword);
+        await _userRepository.UpdatePasswordHashAsync(tokenEntity.User, newHash, cancellationToken);
+        await _passwordResetTokenRepository.MarkAsUsedAsync(tokenEntity, cancellationToken);
+
+        return new OperationResult { Success = true, Message = "Contraseña actualizada correctamente" };
+    }
+
+    private static PasswordResetToken BuildToken(User user)
+    {
+        return new PasswordResetToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Token = Guid.NewGuid().ToString("N"),
+            Expiration = DateTimeOffset.UtcNow.AddMinutes(60),
+            IsUsed = false,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+    }
+
+    private static string BuildResetLink(string token)
+    {
+        var baseUrl = AppSettings.Settings.address ?? "https://localhost:4200";
+        return $"{baseUrl.TrimEnd('/')}/reset-password?token={token}";
     }
 
     private DateTimeOffset CalculateExpiration()

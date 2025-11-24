@@ -26,4 +26,20 @@ public class UserAuthRepository : IUserAuthRepository
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Username == username, cancellationToken);
     }
+
+    public async Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
+    {
+        return await _context.Users
+            .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
+    }
+
+    public async Task UpdatePasswordHashAsync(User user, string passwordHash, CancellationToken cancellationToken = default)
+    {
+        user.PasswordHash = passwordHash;
+        _context.Users.Update(user);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 }

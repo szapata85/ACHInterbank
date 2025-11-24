@@ -25,4 +25,22 @@ public class AuthController : ControllerBase
 
         return Ok(ResponseApiService.Response(StatusCodes.Status200OK, result));
     }
+
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, [FromServices] IAuthService authService, CancellationToken cancellationToken)
+    {
+        var result = await authService.RequestPasswordResetAsync(request, cancellationToken);
+        var statusCode = result.Success ? StatusCodes.Status200OK : StatusCodes.Status400BadRequest;
+        return StatusCode(statusCode, ResponseApiService.Response(statusCode, result.Message, result.Message));
+    }
+
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request, [FromServices] IAuthService authService, CancellationToken cancellationToken)
+    {
+        var result = await authService.ResetPasswordAsync(request, cancellationToken);
+        var statusCode = result.Success ? StatusCodes.Status200OK : StatusCodes.Status400BadRequest;
+        return StatusCode(statusCode, ResponseApiService.Response(statusCode, result.Message, result.Message));
+    }
 }

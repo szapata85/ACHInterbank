@@ -12,4 +12,5 @@ public class User
     public bool IsActive { get; set; } = true;
 
     public ICollection<UserRole> UserRoles { get; set; } = new Collection<UserRole>();
+    public ICollection<PasswordResetToken> PasswordResetTokens { get; set; } = new Collection<PasswordResetToken>();
 }

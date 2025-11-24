@@ -1,5 +1,7 @@
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
+using Cfa.ACHInterbank.Application.Services.Notifications.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.External.Notifications;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +19,8 @@ public static class DependencyInjectionService
 
     public static IServiceCollection AddExternal(this IServiceCollection services, IConfiguration configuration)
     {
+
+        services.AddScoped<IEmailSender, LoggingEmailSender>();
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(option =>
         {
