@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.DataBase.Repositories.Security;
 using Cfa.ACHInterbank.Domain.Entities.User;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 
