@@ -1,12 +1,10 @@
 import { NgModule } from '@angular/core';
-import { RouterModule, Routes } from '@angular/router';
 import { SharedModule } from '../../shared/shared.module';
-import { TransactionFormComponent } from './transaction-form.component';
-
-const routes: Routes = [{ path: 'new', component: TransactionFormComponent }];
+import { TransactionsRoutingModule } from './transactions-routing.module';
+import { TransactionCreateComponent } from './components/transaction-create/transaction-create.component';
 
 @NgModule({
-  declarations: [TransactionFormComponent],
-  imports: [SharedModule, RouterModule.forChild(routes)]
+  declarations: [TransactionCreateComponent],
+  imports: [SharedModule, TransactionsRoutingModule]
 })
 export class TransactionsModule {}

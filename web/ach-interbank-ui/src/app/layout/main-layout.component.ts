@@ -34,6 +34,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     { label: 'Alias y cuentas', route: '/aliases', icon: 'key' },
     { label: 'Ciclos ACH', route: '/ach-cycles', icon: 'schedule' },
     { label: 'Transacciones', route: '/transactions', icon: 'swap_horiz' },
+    { label: 'Crear transacción', route: '/transactions/create', icon: 'add' },
     { label: 'Catálogos', route: '/catalogs', icon: 'inventory' }
   ];
 

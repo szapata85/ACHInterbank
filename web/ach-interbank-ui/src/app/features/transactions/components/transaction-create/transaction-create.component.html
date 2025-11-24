@@ -1,5 +1,9 @@
-<section class="transaction-card" aria-labelledby="transaction-title">
-  <h2 id="transaction-title">Registrar transacción ACH</h2>
+<section class="transaction-card" aria-labelledby="transaction-create-title">
+  <div class="header">
+    <h2 id="transaction-create-title">Crear transacción ACH</h2>
+    <p class="subtitle">Complete los datos 1:1 con el DTO expuesto por el backend.</p>
+  </div>
+
   <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
     <div class="form-grid">
       <label>
@@ -41,7 +45,7 @@
             {{ institution.name }}
           </option>
         </select>
-        <small class="muted">Seleccione una institución de la lista.</small>
+        <small class="muted">Seleccione una institución habilitada.</small>
         <app-error-message [control]="form.get('destinationInstitutionId')"></app-error-message>
       </label>
 
@@ -97,7 +101,9 @@
             <input type="text" formControlName="information" required maxlength="80" />
             <app-error-message [control]="addenda.get('information')"></app-error-message>
           </label>
-          <button type="button" class="danger" (click)="removeAddenda(i)" aria-label="Eliminar addenda">Eliminar</button>
+          <button type="button" class="danger" (click)="removeAddenda(i)" aria-label="Eliminar addenda">
+            Eliminar
+          </button>
         </div>
       </ng-container>
       <ng-template #noAddendas>
@@ -106,32 +112,35 @@
     </div>
 
     <div class="actions">
-      <button type="submit" [disabled]="submissionState$.value === 'pending' || form.invalid">
-        {{ submissionState$.value === 'pending' ? 'Registrando…' : 'Registrar transacción' }}
+      <button type="submit" [disabled]="isSubmitting.value || form.invalid">
+        {{ isSubmitting.value ? 'Registrando…' : 'Registrar transacción' }}
+      </button>
+      <button type="button" class="ghost" [disabled]="isSubmitting.value" routerLink="/transactions">
+        Cancelar
       </button>
     </div>
   </form>
 
-  <section *ngIf="submissionState$.value === 'success' && response$.value" class="result success" role="status">
-    <h3>Transacción creada correctamente</h3>
-    <dl>
+  <section *ngIf="successMessage.value" class="result success" role="status">
+    <h3>{{ successMessage.value }}</h3>
+    <dl *ngIf="createdResponse.value">
       <div>
         <dt>ID</dt>
-        <dd>{{ response$.value?.id }}</dd>
+        <dd>{{ createdResponse.value?.id }}</dd>
       </div>
       <div>
         <dt>Monto</dt>
-        <dd>{{ response$.value?.amount | currency: 'COP':'symbol-narrow' }}</dd>
+        <dd>{{ createdResponse.value?.amount | currency: 'COP': 'symbol-narrow' }}</dd>
       </div>
       <div>
         <dt>Referencia</dt>
-        <dd>{{ response$.value?.reference }}</dd>
+        <dd>{{ createdResponse.value?.reference }}</dd>
       </div>
     </dl>
   </section>
 
-  <section *ngIf="submissionState$.value === 'error' && errorMessage$.value" class="result error" role="alert">
+  <section *ngIf="errorMessage.value" class="result error" role="alert">
     <h3>Error al crear la transacción</h3>
-    <p>{{ errorMessage$.value }}</p>
+    <p>{{ errorMessage.value }}</p>
   </section>
 </section>

@@ -3,68 +3,60 @@ import {
   ChangeDetectorRef,
   Component,
   DestroyRef,
-  inject,
-  OnInit
+  OnInit,
+  inject
 } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Observable, map, tap, take } from 'rxjs';
-import { TransactionsService } from './transactions.service';
-import { DestinationInstitution, TransactionDraft, TransactionResponse } from './transactions.models';
-import { TransactionTypeEnum } from './transactions.types';
+import { map, take, tap } from 'rxjs';
+import { Router } from '@angular/router';
+import { TransactionsApiService } from '../../services/transactions-api.service';
+import { TransactionDraft, TransactionResponse } from '../../transactions.models';
+import { TransactionTypeEnum } from '../../transactions.types';
+import { NotificationService } from '../../../../core/services/notification.service';
 
 @Component({
-  selector: 'app-transaction-form',
-  templateUrl: './transaction-form.component.html',
-  styleUrls: ['./transaction-form.component.scss'],
+  selector: 'app-transaction-create',
+  templateUrl: './transaction-create.component.html',
+  styleUrls: ['./transaction-create.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class TransactionFormComponent implements OnInit {
+export class TransactionCreateComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
-  private readonly transactionsService = inject(TransactionsService);
+  private readonly api = inject(TransactionsApiService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly router = inject(Router);
+  private readonly notifications = inject(NotificationService);
 
   readonly TransactionType = TransactionTypeEnum;
-
-  readonly institutions$: Observable<DestinationInstitution[]> = this.transactionsService
+  readonly institutions$ = this.api
     .getDestinationInstitutions()
-    .pipe(map((list) => list.sort((a, b) => a.name.localeCompare(b.name))));
+    .pipe(map((list) => (list ?? []).filter((item) => item.status === 1).sort((a, b) => a.name.localeCompare(b.name))));
 
   readonly form: FormGroup = this.fb.group({
     amount: [null, [Validators.required, Validators.min(0.01)]],
     reference: ['', [Validators.required, Validators.maxLength(30)]],
     type: [TransactionTypeEnum.Credit, Validators.required],
     destinationInstitutionId: [null, [Validators.required, Validators.min(1)]],
-    sourceAccountNumber: [
-      '',
-      [Validators.required, Validators.pattern(/^[0-9]{6,18}$/)]
-    ],
-    destinationAccountNumber: [
-      '',
-      [Validators.required, Validators.pattern(/^[0-9]{6,18}$/)]
-    ],
+    sourceAccountNumber: ['', [Validators.required, Validators.pattern(/^[0-9]{6,18}$/)]],
+    destinationAccountNumber: ['', [Validators.required, Validators.pattern(/^[0-9]{6,18}$/)]],
     companyName: ['', [Validators.required, Validators.maxLength(16)]],
-    companyIdentification: [
-      '',
-      [Validators.required, Validators.pattern(/^[A-Z0-9]{4,10}$/)]
-    ],
+    companyIdentification: ['', [Validators.required, Validators.pattern(/^[A-Z0-9]{4,10}$/)]],
     companyEntryDescription: ['PAGOS', [Validators.required, Validators.maxLength(10)]],
     addendas: this.fb.array([])
   });
 
-  readonly submissionState$ = new FormControl<'idle' | 'pending' | 'success' | 'error'>('idle', { nonNullable: true });
-  readonly response$ = new FormControl<TransactionResponse | null>(null);
-  readonly errorMessage$ = new FormControl<string | null>(null);
+  readonly isSubmitting = new FormControl(false, { nonNullable: true });
+  readonly errorMessage = new FormControl<string | null>(null);
+  readonly successMessage = new FormControl<string | null>(null);
+  readonly createdResponse = new FormControl<TransactionResponse | null>(null);
 
   ngOnInit(): void {
     this.form.setValidators(this.validateAccountDifference);
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-      if (this.submissionState$.value !== 'idle') {
-        this.submissionState$.setValue('idle');
-        this.errorMessage$.setValue(null);
-        this.response$.setValue(null);
-      }
+      this.errorMessage.setValue(null);
+      this.successMessage.setValue(null);
     });
   }
 
@@ -92,7 +84,7 @@ export class TransactionFormComponent implements OnInit {
     }
 
     const payload = this.form.getRawValue() as TransactionDraft;
-    const sanitizedPayload: TransactionDraft = {
+    const sanitized: TransactionDraft = {
       ...payload,
       type: Number(payload.type) as TransactionTypeEnum,
       amount: Number(payload.amount),
@@ -110,29 +102,34 @@ export class TransactionFormComponent implements OnInit {
         }))
         .filter((item) => item.addendaType && item.information)
     };
-    this.submissionState$.setValue('pending');
-    this.errorMessage$.setValue(null);
 
-    this.transactionsService
-      .registerTransaction(sanitizedPayload)
+    this.isSubmitting.setValue(true);
+    this.errorMessage.setValue(null);
+    this.successMessage.setValue(null);
+
+    this.api
+      .createTransaction(sanitized)
       .pipe(
         take(1),
         tap({
           next: (response) => {
-            this.response$.setValue(response);
-            this.errorMessage$.setValue(null);
-            this.submissionState$.setValue('success');
+            this.createdResponse.setValue(response);
+            this.successMessage.setValue('Transacción creada correctamente.');
+            this.notifications.success('Transacción creada correctamente');
+            this.isSubmitting.setValue(false);
             this.form.reset({
               type: TransactionTypeEnum.Credit,
               companyEntryDescription: 'PAGOS'
             });
             this.addendas.clear();
             this.cdr.markForCheck();
+            this.router.navigate(['/transactions']);
           },
-          error: (error) => {
-            this.response$.setValue(null);
-            this.errorMessage$.setValue(error.message ?? 'Error inesperado');
-            this.submissionState$.setValue('error');
+          error: (error: Error) => {
+            this.isSubmitting.setValue(false);
+            this.successMessage.setValue(null);
+            this.errorMessage.setValue(error.message || 'Ocurrió un error inesperado');
+            this.notifications.error(this.errorMessage.value ?? 'Error al crear la transacción');
             this.cdr.markForCheck();
           }
         })
@@ -140,8 +137,8 @@ export class TransactionFormComponent implements OnInit {
       .subscribe();
   }
 
-  trackAddenda(_: number, item: FormGroup): string {
-    return item.get('addendaType')?.value ?? '';
+  trackAddenda(index: number): number {
+    return index;
   }
 
   private validateAccountDifference = (group: FormGroup) => {
