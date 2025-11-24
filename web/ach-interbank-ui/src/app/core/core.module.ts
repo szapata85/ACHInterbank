@@ -4,6 +4,7 @@ import { RouterModule } from '@angular/router';
 
 import { AuthInterceptor } from './interceptors/auth.interceptor';
 import { ErrorInterceptor } from './interceptors/error.interceptor';
+import { LoadingInterceptor } from './interceptors/loading.interceptor';
 
 @NgModule({
   imports: [HttpClientModule, RouterModule],
@@ -11,6 +12,11 @@ import { ErrorInterceptor } from './interceptors/error.interceptor';
     {
       provide: HTTP_INTERCEPTORS,
       useClass: AuthInterceptor,
+      multi: true
+    },
+    {
+      provide: HTTP_INTERCEPTORS,
+      useClass: LoadingInterceptor,
       multi: true
     },
     {
