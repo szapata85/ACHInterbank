@@ -1,6 +1,7 @@
 using AutoMapper;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 
@@ -37,5 +38,28 @@ public class ClearingHouseService : IClearingHouseService
             .FirstOrDefaultAsync(ch => ch.Id == id, ct);
 
         return _mapper.Map<ClearingHouseDto?>(entity);
+    }
+
+    public async Task<PaginatedResult<ClearingHouseDto>> GetAsync(PaginationRequest request, CancellationToken ct = default)
+    {
+        var query = _context.ClearingHouses
+            .Include(ch => ch.ClearingHouseConfig)
+            .AsNoTracking()
+            .OrderBy(ch => ch.Name);
+
+        var total = await query.CountAsync(ct);
+
+        var items = await query
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .ToListAsync(ct);
+
+        return new PaginatedResult<ClearingHouseDto>
+        {
+            Items = _mapper.Map<IEnumerable<ClearingHouseDto>>(items),
+            Page = request.Page,
+            PageSize = request.PageSize,
+            TotalCount = total
+        };
     }
 }

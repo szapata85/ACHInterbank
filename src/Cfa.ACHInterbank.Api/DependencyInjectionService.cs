@@ -170,6 +170,7 @@ public static class DependencyInjectionService
 
 
         // Configure the HTTP request pipeline
+        app.UseMiddleware<GlobalExceptionMiddleware>();
         // Middleware Waf
         app.UseMiddleware<WafMiddleware>();
         // Middleware Log

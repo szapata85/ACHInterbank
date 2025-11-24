@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,9 +21,9 @@ public class ClearingHousesController : ControllerBase
 
     [HttpGet]
     [Authorize(Policy = "CanReadAch")]
-    public async Task<IActionResult> Get(CancellationToken ct)
+    public async Task<IActionResult> Get([FromQuery] PaginationRequest request, CancellationToken ct)
     {
-        var result = await _service.GetAllAsync(ct);
+        var result = await _service.GetAsync(request, ct);
         return Ok(result);
     }
 
