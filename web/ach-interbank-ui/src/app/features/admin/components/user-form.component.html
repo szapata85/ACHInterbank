@@ -1,0 +1,44 @@
+<div class="card">
+  <h2>{{ isEdit ? 'Editar usuario' : 'Nuevo usuario' }}</h2>
+
+  <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
+    <label>
+      Usuario
+      <input type="text" formControlName="userName" />
+      <app-error-message [control]="form.get('userName')"></app-error-message>
+    </label>
+
+    <label>
+      Nombre completo
+      <input type="text" formControlName="fullName" />
+    </label>
+
+    <label>
+      Email
+      <input type="email" formControlName="email" />
+      <app-error-message [control]="form.get('email')"></app-error-message>
+    </label>
+
+    <label>
+      Teléfono
+      <input type="text" formControlName="phoneNumber" />
+    </label>
+
+    <label>
+      Contraseña
+      <input type="password" formControlName="password" [required]="!isEdit" />
+    </label>
+
+    <label>
+      Roles
+      <select formControlName="roleIds" multiple>
+        <option *ngFor="let role of roles" [value]="role.id">{{ role.name }}</option>
+      </select>
+    </label>
+
+    <div class="actions">
+      <button type="button" routerLink="/users">Cancelar</button>
+      <button type="submit" class="primary">Guardar</button>
+    </div>
+  </form>
+</div>

@@ -1,0 +1,45 @@
+<div class="toolbar">
+  <form [formGroup]="filterForm" (ngSubmit)="load()" class="filters">
+    <input type="text" formControlName="search" placeholder="Alias o cuenta" />
+    <input type="text" formControlName="documentNumber" placeholder="Documento" />
+    <input type="text" formControlName="phoneNumber" placeholder="Teléfono" />
+    <button type="submit">Buscar</button>
+    <button type="button" class="primary" (click)="create()">Nuevo alias</button>
+  </form>
+</div>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Alias</th>
+      <th>Cuenta</th>
+      <th>Titular</th>
+      <th>Documento</th>
+      <th>Teléfono</th>
+      <th>Estado</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let item of aliases">
+      <td>{{ item.alias }}</td>
+      <td>{{ item.accountNumber }}</td>
+      <td>{{ item.ownerName || '-' }}</td>
+      <td>{{ item.documentNumber || '-' }}</td>
+      <td>{{ item.phoneNumber || '-' }}</td>
+      <td>{{ item.status }}</td>
+      <td><button type="button" (click)="edit(item)">Editar</button></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="pagination">
+  <button (click)="changePage(filterForm.value.page! - 1)" [disabled]="filterForm.value.page === 1">Anterior</button>
+  <span>Página {{ filterForm.value.page }} de {{ Math.ceil(total / (filterForm.value.pageSize || 10)) || 1 }}</span>
+  <button
+    (click)="changePage(filterForm.value.page! + 1)"
+    [disabled]="filterForm.value.page! >= Math.ceil(total / (filterForm.value.pageSize || 10))"
+  >
+    Siguiente
+  </button>
+</div>

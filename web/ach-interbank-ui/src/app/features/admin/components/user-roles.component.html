@@ -1,0 +1,16 @@
+<div class="card" *ngIf="user">
+  <h2>Roles para {{ user.userName }}</h2>
+
+  <div class="roles">
+    <label *ngFor="let role of roles">
+      <input type="checkbox" [checked]="selectedRoleIds.has(role.id)" (change)="toggleRole(role)" />
+      <span class="role-name">{{ role.name }}</span>
+      <small class="description">{{ role.description || 'Sin descripción' }}</small>
+    </label>
+  </div>
+
+  <div class="actions">
+    <button type="button" routerLink="/users">Cancelar</button>
+    <button type="button" class="primary" (click)="save()">Guardar</button>
+  </div>
+</div>
