@@ -14,13 +14,13 @@
           aria-describedby="amount-help"
         />
         <small id="amount-help">Ingrese el monto en pesos colombianos.</small>
-        <app-error [control]="form.get('amount')"></app-error>
+        <app-error-message [control]="form.get('amount')"></app-error-message>
       </label>
 
       <label>
         <span>Referencia *</span>
         <input type="text" formControlName="reference" maxlength="30" required />
-        <app-error [control]="form.get('reference')"></app-error>
+        <app-error-message [control]="form.get('reference')"></app-error-message>
       </label>
 
       <label>
@@ -29,7 +29,7 @@
           <option [ngValue]="TransactionType.Credit">Crédito</option>
           <option [ngValue]="TransactionType.Debit">Débito</option>
         </select>
-        <app-error [control]="form.get('type')"></app-error>
+        <app-error-message [control]="form.get('type')"></app-error-message>
       </label>
 
       <label>
@@ -41,37 +41,37 @@
           </option>
         </select>
         <small class="muted">Seleccione una institución de la lista.</small>
-        <app-error [control]="form.get('destinationInstitutionId')"></app-error>
+        <app-error-message [control]="form.get('destinationInstitutionId')"></app-error-message>
       </label>
 
       <label>
         <span>Cuenta origen *</span>
         <input type="text" formControlName="sourceAccountNumber" required inputmode="numeric" />
-        <app-error [control]="form.get('sourceAccountNumber')"></app-error>
+        <app-error-message [control]="form.get('sourceAccountNumber')"></app-error-message>
       </label>
 
       <label>
         <span>Cuenta destino *</span>
         <input type="text" formControlName="destinationAccountNumber" required inputmode="numeric" />
-        <app-error [control]="form.get('destinationAccountNumber')"></app-error>
+        <app-error-message [control]="form.get('destinationAccountNumber')"></app-error-message>
       </label>
 
       <label>
         <span>Empresa *</span>
         <input type="text" formControlName="companyName" required maxlength="16" />
-        <app-error [control]="form.get('companyName')"></app-error>
+        <app-error-message [control]="form.get('companyName')"></app-error-message>
       </label>
 
       <label>
         <span>Identificación empresa *</span>
         <input type="text" formControlName="companyIdentification" required maxlength="10" />
-        <app-error [control]="form.get('companyIdentification')"></app-error>
+        <app-error-message [control]="form.get('companyIdentification')"></app-error-message>
       </label>
 
       <label>
         <span>Descripción de la entrada *</span>
         <input type="text" formControlName="companyEntryDescription" required maxlength="10" />
-        <app-error [control]="form.get('companyEntryDescription')"></app-error>
+        <app-error-message [control]="form.get('companyEntryDescription')"></app-error-message>
       </label>
     </div>
 
@@ -89,12 +89,12 @@
           <label>
             <span>Tipo *</span>
             <input type="text" formControlName="addendaType" required maxlength="80" />
-            <app-error [control]="addenda.get('addendaType')"></app-error>
+            <app-error-message [control]="addenda.get('addendaType')"></app-error-message>
           </label>
           <label>
             <span>Información *</span>
             <input type="text" formControlName="information" required maxlength="80" />
-            <app-error [control]="addenda.get('information')"></app-error>
+            <app-error-message [control]="addenda.get('information')"></app-error-message>
           </label>
           <button type="button" class="danger" (click)="removeAddenda(i)" aria-label="Eliminar addenda">Eliminar</button>
         </div>

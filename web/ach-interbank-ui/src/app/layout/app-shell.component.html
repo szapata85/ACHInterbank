@@ -1,0 +1,25 @@
+<header class="topbar" role="banner">
+  <div class="brand">
+    <div class="logo" aria-hidden="true">ACH</div>
+    <div>
+      <p class="title">ACH Interbank</p>
+      <small>Portal transaccional</small>
+    </div>
+  </div>
+
+  <nav class="nav" aria-label="Menú principal">
+    <a routerLink="/transactions/new" routerLinkActive="active">Transacciones</a>
+  </nav>
+
+  <div class="user" *ngIf="user$ | async as user">
+    <div class="user-info">
+      <span class="name">{{ user.fullName }}</span>
+      <small>{{ user.roles?.join(', ') || 'Usuario' }}</small>
+    </div>
+    <button type="button" (click)="logout()">Cerrar sesión</button>
+  </div>
+</header>
+
+<main class="content" role="main">
+  <router-outlet></router-outlet>
+</main>

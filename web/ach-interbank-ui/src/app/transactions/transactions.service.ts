@@ -8,7 +8,7 @@ import { DestinationInstitution, TransactionDraft, TransactionResponse } from '.
 export class TransactionsService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiBaseUrl}/transactions`;
-  private readonly institutionsUrl = `${environment.apiBaseUrl}/FinancialInstitution`;
+  private readonly institutionsUrl = `${environment.apiBaseUrl}/api/financial-institutions`;
 
   registerTransaction(payload: TransactionDraft) {
     return this.http.post<TransactionResponse>(this.baseUrl, payload).pipe(

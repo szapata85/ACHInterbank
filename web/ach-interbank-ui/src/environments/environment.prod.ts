@@ -1,4 +1,4 @@
 export const environment = {
   production: true,
-  apiBaseUrl: 'https://api.cooperativa-interbank.local'
+  apiBaseUrl: 'https://localhost:7269'
 };

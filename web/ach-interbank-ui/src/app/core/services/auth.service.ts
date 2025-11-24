@@ -1,0 +1,107 @@
+import { Injectable, inject } from '@angular/core';
+import { Router } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
+import { BehaviorSubject, Observable, map, tap, throwError } from 'rxjs';
+import { TokenStorageService } from '../../security/token-storage.service';
+import { environment } from '../../../environments/environment';
+import { ApiResponse } from '../models/api-response.model';
+import { AuthPayload, LoginRequestModel, UserSession } from '../models/auth.models';
+
+@Injectable({ providedIn: 'root' })
+export class AuthService {
+  private readonly http = inject(HttpClient);
+  private readonly tokenStorage = inject(TokenStorageService);
+  private readonly router = inject(Router);
+
+  private readonly authUrl = `${environment.apiBaseUrl}/api/auth`;
+  private readonly userSubject = new BehaviorSubject<UserSession | null>(null);
+  readonly user$: Observable<UserSession | null> = this.userSubject.asObservable();
+
+  constructor() {
+    const token = this.tokenStorage.getAccessToken();
+    if (token) {
+      this.hydrateFromToken(token);
+    }
+  }
+
+  login(credentials: LoginRequestModel): Observable<UserSession> {
+    return this.http
+      .post<ApiResponse<AuthPayload>>(`${this.authUrl}/login`, credentials)
+      .pipe(
+        map((response) => {
+          if (!response.sucess || !response.data?.token) {
+            throw new Error(response.message ?? 'No fue posible iniciar sesión.');
+          }
+          return response.data;
+        }),
+        map((payload) => this.persistSession(payload)),
+        tap((session) => this.userSubject.next(session))
+      );
+  }
+
+  logout(): void {
+    this.tokenStorage.clear();
+    this.userSubject.next(null);
+    this.router.navigate(['/login']);
+  }
+
+  isAuthenticated(): boolean {
+    const session = this.userSubject.value;
+    if (!session) {
+      return false;
+    }
+
+    if (!session.expiresAt) {
+      return true;
+    }
+
+    return session.expiresAt.getTime() > Date.now();
+  }
+
+  get currentUser(): UserSession | null {
+    return this.userSubject.value;
+  }
+
+  private persistSession(payload: AuthPayload): UserSession {
+    this.tokenStorage.setAccessToken(payload.token);
+    return this.hydrateFromToken(payload.token, payload);
+  }
+
+  private hydrateFromToken(token: string, payload?: AuthPayload): UserSession {
+    const parsed = this.parseJwt(token);
+    const rawExp = parsed['exp'];
+    const exp = typeof rawExp === 'number' ? rawExp : typeof rawExp === 'string' ? Number(rawExp) : undefined;
+    const expiresAt = exp ? new Date(exp * 1000) : undefined;
+    const roles = this.toStringArray(parsed['role'] ?? parsed['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] ?? payload?.roles);
+    const permissions = this.toStringArray(parsed['permission'] ?? payload?.permissions);
+
+    const session: UserSession = {
+      token,
+      username: (parsed['unique_name'] as string) ?? payload?.username ?? 'usuario',
+      fullName: (parsed['name'] as string) ?? payload?.fullName ?? payload?.username ?? 'Usuario',
+      userId: (parsed['uid'] as string) ?? (parsed['sub'] as string),
+      roles,
+      permissions,
+      expiresAt
+    };
+
+    this.userSubject.next(session);
+    return session;
+  }
+
+  private parseJwt(token: string): Record<string, unknown> {
+    try {
+      const [, payload] = token.split('.');
+      const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+      return JSON.parse(decoded) as Record<string, unknown>;
+    } catch (error) {
+      throw new Error('Token inválido');
+    }
+  }
+
+  private toStringArray(value: unknown): string[] {
+    if (!value) return [];
+    if (Array.isArray(value)) return value.map((item) => String(item));
+    return [String(value)];
+  }
+}
