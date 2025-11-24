@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
@@ -49,10 +50,10 @@ public class AchTransactionNachaTests
                 destinationInstitutionId: 2,
                 sourceAccountNumber: "111122223333",
                 destinationAccountNumber: "999988887777",
-                addendas: new List<(string, string)>
+                addendas: new List<AddendaDto>
                 {
-                    ("05", "Factura #123"),
-                    ("99", "Pago complementario")
+                    new() { AddendaType = "05", Information = "Factura #123" },
+                    new() { AddendaType = "99", Information = "Pago complementario" }
                 },
                 ct: CancellationToken.None);
 
