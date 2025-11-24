@@ -8,11 +8,12 @@ import { LoginLayoutComponent } from './layout/login-layout.component';
 
 const routes: Routes = [
   {
-    path: 'login',
+    path: 'auth',
     component: LoginLayoutComponent,
-    data: { title: 'Iniciar sesión', breadcrumb: 'Login' },
+    data: { title: 'Autenticación', breadcrumb: 'Auth' },
     loadChildren: () => import('./features/auth/auth.module').then((m) => m.AuthModule)
   },
+  { path: 'login', pathMatch: 'full', redirectTo: '/auth/login' },
   {
     path: '',
     component: MainLayoutComponent,

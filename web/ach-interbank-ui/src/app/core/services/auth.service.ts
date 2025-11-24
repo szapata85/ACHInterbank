@@ -39,10 +39,26 @@ export class AuthService {
       );
   }
 
+  forgotPassword(email: string): Observable<void> {
+    return this.api
+      .post<ApiResponse<unknown>>(`${this.authEndpoint}/forgot-password`, { email })
+      .pipe(map(() => void 0));
+  }
+
+  resetPassword(token: string, newPassword: string, confirmPassword: string): Observable<void> {
+    return this.api
+      .post<ApiResponse<unknown>>(`${this.authEndpoint}/reset-password`, {
+        token,
+        newPassword,
+        confirmPassword
+      })
+      .pipe(map(() => void 0));
+  }
+
   logout(): void {
     this.tokenStorage.clear();
     this.userSubject.next(null);
-    this.router.navigate(['/login']);
+    this.router.navigate(['/auth/login']);
   }
 
   getToken(): string | null {
