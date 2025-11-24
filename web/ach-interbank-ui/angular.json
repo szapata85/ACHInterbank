@@ -47,11 +47,11 @@
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
-            "browserTarget": "ach-interbank-ui:build"
+            "buildTarget": "ach-interbank-ui:build"
           },
           "configurations": {
             "production": {
-              "browserTarget": "ach-interbank-ui:build:production"
+              "buildTarget": "ach-interbank-ui:build:production"
             }
           }
         },
