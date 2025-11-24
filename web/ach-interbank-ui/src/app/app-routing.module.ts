@@ -2,6 +2,8 @@ import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { AppShellComponent } from './layout/app-shell.component';
 import { authGuard } from './core/guards/auth.guard';
+import { roleGuard } from './core/guards/role.guard';
+import { permissionGuard } from './core/guards/permission.guard';
 
 const routes: Routes = [
   {
@@ -15,6 +17,8 @@ const routes: Routes = [
     children: [
       {
         path: 'transactions',
+        canActivate: [roleGuard, permissionGuard],
+        data: { roles: ['Admin', 'ACH.Operator'], permissions: ['CanManageAch', 'CanReadAch'] },
         loadChildren: () => import('./features/transactions/transactions.module').then((m) => m.TransactionsModule)
       },
       { path: '', pathMatch: 'full', redirectTo: 'transactions/new' },

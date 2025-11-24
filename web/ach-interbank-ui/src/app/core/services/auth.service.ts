@@ -45,6 +45,14 @@ export class AuthService {
     this.router.navigate(['/login']);
   }
 
+  getToken(): string | null {
+    return this.tokenStorage.getAccessToken();
+  }
+
+  getCurrentUser(): UserSession | null {
+    return this.userSubject.value;
+  }
+
   isAuthenticated(): boolean {
     const session = this.userSubject.value;
     if (!session) {
@@ -56,6 +64,22 @@ export class AuthService {
     }
 
     return session.expiresAt.getTime() > Date.now();
+  }
+
+  hasRole(expected: string | string[]): boolean {
+    const session = this.userSubject.value;
+    if (!session) return false;
+
+    const roles = Array.isArray(expected) ? expected : [expected];
+    return roles.some((role) => session.roles.includes(role));
+  }
+
+  hasPermission(expected: string | string[]): boolean {
+    const session = this.userSubject.value;
+    if (!session) return false;
+
+    const permissions = Array.isArray(expected) ? expected : [expected];
+    return permissions.some((permission) => session.permissions.includes(permission));
   }
 
   get currentUser(): UserSession | null {
