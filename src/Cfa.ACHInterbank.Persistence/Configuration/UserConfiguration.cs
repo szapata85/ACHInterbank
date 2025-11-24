@@ -8,7 +8,7 @@ namespace Cfa.ACHInterbank.Persistence.Configuration;
 
 public class UserConfiguration : IEntityTypeConfiguration<User>
 {
-    private static readonly Guid AdminUserId = Guid.Parse("0f7d6a26-df0e-4b14-8734-3280c1da6e3d");
+    public static readonly Guid AdminUserId = Guid.Parse("0f7d6a26-df0e-4b14-8734-3280c1da6e3d");
 
     public void Configure(EntityTypeBuilder<User> builder)
     {
