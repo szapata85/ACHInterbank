@@ -1,4 +1,5 @@
-﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -52,6 +53,12 @@ public class AchBatchService : IAchBatchService
             CompanyName = companyName,
             CompanyIdentification = companyId,
             EffectiveEntryDate = effectiveEntryDate,
+            TotalDebitAmount = transactions
+                .Where(t => t.Type == TransactionTypeEnum.Debit)
+                .Sum(t => t.Amount),
+            TotalCreditAmount = transactions
+                .Where(t => t.Type == TransactionTypeEnum.Credit)
+                .Sum(t => t.Amount),
             Transactions = transactions
         };
 
