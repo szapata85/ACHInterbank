@@ -17,6 +17,9 @@ export class AliasesListComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly notifications = inject(NotificationService);
 
+  // Exponer Math para cálculos de paginación en la plantilla
+  readonly math = Math;
+
   readonly filterForm = this.fb.group({
     search: [''],
     documentNumber: [''],
@@ -50,7 +53,8 @@ export class AliasesListComponent implements OnInit {
   }
 
   changePage(page: number): void {
-    this.filterForm.patchValue({ page });
+    const nextPage = Math.max(1, page);
+    this.filterForm.patchValue({ page: nextPage });
     this.load();
   }
 

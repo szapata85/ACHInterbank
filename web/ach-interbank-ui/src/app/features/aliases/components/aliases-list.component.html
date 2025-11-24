@@ -40,10 +40,10 @@
 
 <div class="pagination">
   <button (click)="changePage(filterForm.value.page! - 1)" [disabled]="filterForm.value.page === 1">Anterior</button>
-  <span>Página {{ filterForm.value.page }} de {{ Math.ceil(total / (filterForm.value.pageSize || 10)) || 1 }}</span>
+  <span>Página {{ filterForm.value.page }} de {{ math.ceil(total / (filterForm.value.pageSize || 10)) || 1 }}</span>
   <button
     (click)="changePage(filterForm.value.page! + 1)"
-    [disabled]="filterForm.value.page! >= Math.ceil(total / (filterForm.value.pageSize || 10))"
+    [disabled]="filterForm.value.page! >= math.ceil(total / (filterForm.value.pageSize || 10))"
   >
     Siguiente
   </button>
