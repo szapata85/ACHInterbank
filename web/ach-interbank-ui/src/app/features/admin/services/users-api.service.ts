@@ -33,6 +33,10 @@ export class UsersApiService {
   assignRoles(id: string, roleIds: string[]): Observable<void> {
     return this.api.post<void>(`${this.basePath}/${id}/roles`, { roleIds });
   }
+
+  deactivateUser(id: string): Observable<void> {
+    return this.api.delete<void>(`${this.basePath}/${id}`);
+  }
 }
 
 @Injectable({ providedIn: 'root' })

@@ -14,6 +14,7 @@
           aria-describedby="amount-help"
         />
         <small id="amount-help">Ingrese el monto en pesos colombianos.</small>
+        <small class="muted">Valor a enviar: {{ form.get('amount')?.value | currencyCol }}</small>
         <app-error-message [control]="form.get('amount')"></app-error-message>
       </label>
 

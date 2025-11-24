@@ -26,6 +26,7 @@ export class AchCycleListComponent implements OnInit {
   cycles: AchCycleSummary[] = [];
   clearingHouses: ClearingHouseOption[] = [];
   total = 0;
+  today = new Date();
 
   ngOnInit(): void {
     this.clearingHouseApi.list().subscribe((items) => (this.clearingHouses = items));
@@ -35,7 +36,19 @@ export class AchCycleListComponent implements OnInit {
   load(): void {
     const filter: AchCycleFilter = this.filterForm.value;
     this.api.search(filter).subscribe((response) => {
-      this.cycles = response.items;
+      const formatter = new Intl.DateTimeFormat('es-CO', {
+        timeZone: 'America/Bogota',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+
+      this.cycles = response.items.map((cycle) => ({
+        ...cycle,
+        dateText: cycle.date ? formatter.format(new Date(cycle.date)) : '-',
+        startText: cycle.startTime,
+        endText: cycle.endTime
+      }));
       this.total = response.total;
     });
   }
