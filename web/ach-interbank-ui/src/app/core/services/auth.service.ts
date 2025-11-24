@@ -1,19 +1,19 @@
 import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, map, tap, throwError } from 'rxjs';
+import { BehaviorSubject, Observable, map, tap } from 'rxjs';
 import { TokenStorageService } from '../../security/token-storage.service';
 import { environment } from '../../../environments/environment';
 import { ApiResponse } from '../models/api-response.model';
 import { AuthPayload, LoginRequestModel, UserSession } from '../models/auth.models';
+import { ApiService } from './api.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly http = inject(HttpClient);
+  private readonly api = inject(ApiService);
   private readonly tokenStorage = inject(TokenStorageService);
   private readonly router = inject(Router);
 
-  private readonly authUrl = `${environment.apiBaseUrl}/api/auth`;
+  private readonly authEndpoint = environment.authEndpoint ?? 'auth';
   private readonly userSubject = new BehaviorSubject<UserSession | null>(null);
   readonly user$: Observable<UserSession | null> = this.userSubject.asObservable();
 
@@ -25,8 +25,8 @@ export class AuthService {
   }
 
   login(credentials: LoginRequestModel): Observable<UserSession> {
-    return this.http
-      .post<ApiResponse<AuthPayload>>(`${this.authUrl}/login`, credentials)
+    return this.api
+      .post<ApiResponse<AuthPayload>>(`${this.authEndpoint}/login`, credentials)
       .pipe(
         map((response) => {
           if (!response.sucess || !response.data?.token) {
@@ -72,7 +72,9 @@ export class AuthService {
     const rawExp = parsed['exp'];
     const exp = typeof rawExp === 'number' ? rawExp : typeof rawExp === 'string' ? Number(rawExp) : undefined;
     const expiresAt = exp ? new Date(exp * 1000) : undefined;
-    const roles = this.toStringArray(parsed['role'] ?? parsed['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] ?? payload?.roles);
+    const roles = this.toStringArray(
+      parsed['role'] ?? parsed['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] ?? payload?.roles
+    );
     const permissions = this.toStringArray(parsed['permission'] ?? payload?.permissions);
 
     const session: UserSession = {

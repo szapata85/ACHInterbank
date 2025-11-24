@@ -1,18 +1,15 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { catchError, map, of, throwError } from 'rxjs';
-import { environment } from '../../../environments/environment';
+import { ApiService } from '../../core/services/api.service';
 import { DestinationInstitution, TransactionDraft, TransactionResponse } from './transactions.models';
 
 @Injectable({ providedIn: 'root' })
 export class TransactionsService {
-  private readonly http = inject(HttpClient);
-  private readonly baseUrl = `${environment.apiBaseUrl}/transactions`;
-  private readonly institutionsUrl = `${environment.apiBaseUrl}/api/financial-institutions`;
+  private readonly api = inject(ApiService);
 
   registerTransaction(payload: TransactionDraft) {
-    return this.http.post<TransactionResponse>(this.baseUrl, payload).pipe(
-      catchError((error: HttpErrorResponse) => {
+    return this.api.post<TransactionResponse>('transactions', payload).pipe(
+      catchError((error) => {
         if (error.status === 400) {
           return throwError(() => new Error(error.error?.message ?? 'Solicitud inválida'));
         }
@@ -25,10 +22,10 @@ export class TransactionsService {
   }
 
   getDestinationInstitutions() {
-    return this.http
-      .get<Array<{ id: number; name: string; routingNumber: string; status: number }>>(
-        `${this.institutionsUrl}?includeInactive=false`
-      )
+    return this.api
+      .get<Array<{ id: number; name: string; routingNumber: string; status: number }>>('financial-institutions', {
+        params: { includeInactive: false }
+      })
       .pipe(
         map((institutions) =>
           (institutions ?? [])
@@ -39,7 +36,7 @@ export class TransactionsService {
               routingNumber: institution.routingNumber
             }))
         ),
-        catchError(() => of([]))
+        catchError(() => of<DestinationInstitution[]>([]))
       );
   }
 }

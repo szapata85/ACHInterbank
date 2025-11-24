@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import {
   HttpErrorResponse,
   HttpEvent,
@@ -8,20 +8,22 @@ import {
 } from '@angular/common/http';
 import { Observable, catchError, throwError } from 'rxjs';
 import { Router } from '@angular/router';
-import { TokenStorageService } from './token-storage.service';
-import { AuthService } from '../core/services/auth.service';
+import { TokenStorageService } from '../../security/token-storage.service';
+import { AuthService } from '../services/auth.service';
+import { environment } from '../../../environments/environment';
 
 @Injectable()
 export class AuthInterceptor implements HttpInterceptor {
-  constructor(
-    private readonly tokenService: TokenStorageService,
-    private readonly authService: AuthService,
-    private readonly router: Router
-  ) {}
+  private readonly tokenService = inject(TokenStorageService);
+  private readonly authService = inject(AuthService);
+  private readonly router = inject(Router);
+  private readonly apiBase = environment.apiBaseUrl;
 
   intercept(req: HttpRequest<unknown>, next: HttpHandler): Observable<HttpEvent<unknown>> {
     const token = this.tokenService.getAccessToken();
-    const secureReq = token
+    const shouldAttach = this.isApiRequest(req.url);
+
+    const secureReq = token && shouldAttach
       ? req.clone({
           setHeaders: {
             Authorization: `Bearer ${token}`
@@ -39,5 +41,12 @@ export class AuthInterceptor implements HttpInterceptor {
         return throwError(() => error);
       })
     );
+  }
+
+  private isApiRequest(url: string): boolean {
+    if (/^https?:\/\//i.test(url)) {
+      return url.startsWith(this.apiBase);
+    }
+    return true;
   }
 }
