@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, HostListener, OnDestroy, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 import { Subscription, filter } from 'rxjs';
 import { AuthService } from '../core/services/auth.service';
@@ -39,6 +39,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   breadcrumbs: Breadcrumb[] = [];
   pageTitle = 'Inicio';
+  isMenuOpen = false;
 
   private subscription?: Subscription;
 
@@ -47,6 +48,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       .pipe(filter((event) => event instanceof NavigationEnd))
       .subscribe(() => {
         this.buildBreadcrumbs();
+        this.handleNavigation();
         this.cdr.markForCheck();
       });
 
@@ -59,6 +61,31 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   logout(): void {
     this.authService.logout();
+  }
+
+  toggleMenu(): void {
+    this.isMenuOpen = !this.isMenuOpen;
+    this.cdr.markForCheck();
+  }
+
+  closeMenu(): void {
+    if (this.isMenuOpen) {
+      this.isMenuOpen = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  onNavItemSelected(): void {
+    if (this.isMobileView()) {
+      this.closeMenu();
+    }
+  }
+
+  @HostListener('window:resize')
+  onResize(): void {
+    if (!this.isMobileView() && this.isMenuOpen) {
+      this.closeMenu();
+    }
   }
 
   private buildBreadcrumbs(): void {
@@ -90,5 +117,15 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     }
 
     this.breadcrumbs = breadcrumbs;
+  }
+
+  private handleNavigation(): void {
+    if (this.isMobileView()) {
+      this.closeMenu();
+    }
+  }
+
+  private isMobileView(): boolean {
+    return typeof window !== 'undefined' && window.innerWidth < 992;
   }
 }
