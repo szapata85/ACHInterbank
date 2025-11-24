@@ -1,12 +1,12 @@
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-
-import { AppShellComponent } from './app-shell.component';
+import { MainLayoutComponent } from './main-layout.component';
+import { LoginLayoutComponent } from './login-layout.component';
 
 @NgModule({
-  declarations: [AppShellComponent],
+  declarations: [MainLayoutComponent, LoginLayoutComponent],
   imports: [CommonModule, RouterModule],
-  exports: [AppShellComponent]
+  exports: [MainLayoutComponent, LoginLayoutComponent]
 })
 export class LayoutModule {}

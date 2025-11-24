@@ -1,0 +1,50 @@
+<div class="layout">
+  <aside class="sidebar" role="navigation" aria-label="Menú principal">
+    <div class="brand">
+      <div class="logo">ACH</div>
+      <div>
+        <p class="title">ACH Interbank</p>
+        <small>Portal backoffice</small>
+      </div>
+    </div>
+
+    <nav class="menu">
+      <a
+        *ngFor="let item of navItems"
+        [routerLink]="item.route"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: item.exact }"
+      >
+        <span class="icon" aria-hidden="true">{{ item.icon }}</span>
+        <span class="label">{{ item.label }}</span>
+      </a>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <header class="topbar" role="banner">
+      <div class="page-meta">
+        <h1 class="page-title">{{ pageTitle }}</h1>
+        <nav class="breadcrumbs" aria-label="Breadcrumbs">
+          <ng-container *ngFor="let crumb of breadcrumbs; let last = last">
+            <a *ngIf="!last" [routerLink]="crumb.url">{{ crumb.label }}</a>
+            <span *ngIf="last" aria-current="page">{{ crumb.label }}</span>
+            <span *ngIf="!last" class="divider">/</span>
+          </ng-container>
+        </nav>
+      </div>
+
+      <div class="user" *ngIf="user$ | async as user">
+        <div class="user-info">
+          <span class="name">{{ user.fullName }}</span>
+          <small>{{ user.roles?.join(', ') || 'Usuario' }}</small>
+        </div>
+        <button type="button" (click)="logout()">Salir</button>
+      </div>
+    </header>
+
+    <main class="content" role="main">
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+</div>
