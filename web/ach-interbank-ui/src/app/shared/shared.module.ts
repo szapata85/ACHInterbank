@@ -9,6 +9,8 @@ import { PageHeaderComponent } from './components/page-header.component';
 import { NotificationContainerComponent } from './components/notification-container.component';
 import { CurrencyColPipe } from './pipes/currency-col.pipe';
 import { DateFormatPipe } from './pipes/date-format.pipe';
+import { UnauthorizedComponent } from './components/status/unauthorized.component';
+import { NotFoundComponent } from './components/status/not-found.component';
 
 @NgModule({
   imports: [
@@ -19,7 +21,9 @@ import { DateFormatPipe } from './pipes/date-format.pipe';
     TableComponent,
     ConfirmDialogComponent,
     PageHeaderComponent,
-    NotificationContainerComponent
+    NotificationContainerComponent,
+    UnauthorizedComponent,
+    NotFoundComponent
   ],
   declarations: [CurrencyColPipe, DateFormatPipe],
   exports: [
@@ -31,6 +35,8 @@ import { DateFormatPipe } from './pipes/date-format.pipe';
     ConfirmDialogComponent,
     PageHeaderComponent,
     NotificationContainerComponent,
+    UnauthorizedComponent,
+    NotFoundComponent,
     CurrencyColPipe,
     DateFormatPipe
   ]

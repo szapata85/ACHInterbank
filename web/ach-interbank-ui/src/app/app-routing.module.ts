@@ -49,8 +49,20 @@ const routes: Routes = [
         path: 'catalogs',
         loadChildren: () => import('./features/catalogs/catalogs.module').then((m) => m.CatalogsModule)
       },
+      {
+        path: 'unauthorized',
+        data: { title: 'No autorizado', breadcrumb: 'Error 403' },
+        loadComponent: () =>
+          import('./shared/components/status/unauthorized.component').then((m) => m.UnauthorizedComponent)
+      },
+      {
+        path: 'not-found',
+        data: { title: 'No encontrado', breadcrumb: 'Error 404' },
+        loadComponent: () =>
+          import('./shared/components/status/not-found.component').then((m) => m.NotFoundComponent)
+      },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
-      { path: '**', redirectTo: 'dashboard' }
+      { path: '**', redirectTo: 'not-found' }
     ]
   }
 ];

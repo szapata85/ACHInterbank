@@ -8,7 +8,9 @@
   </form>
 </div>
 
-<table class="table">
+<div *ngIf="loading" class="loading">Cargando alias...</div>
+
+<table class="table" *ngIf="!loading">
   <thead>
     <tr>
       <th>Alias</th>
@@ -21,6 +23,9 @@
     </tr>
   </thead>
   <tbody>
+    <tr *ngIf="aliases.length === 0">
+      <td colspan="7" class="muted">No hay registros para mostrar</td>
+    </tr>
     <tr *ngFor="let item of aliases">
       <td>{{ item.alias }}</td>
       <td>{{ item.accountNumber }}</td>

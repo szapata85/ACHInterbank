@@ -3,6 +3,7 @@ import { FormBuilder } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AliasesApiService } from '../services/aliases-api.service';
 import { AliasFilter, AliasSummary } from '../models/alias.model';
+import { NotificationService } from '../../../core/services/notification.service';
 
 @Component({
   selector: 'app-aliases-list',
@@ -14,6 +15,7 @@ export class AliasesListComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(AliasesApiService);
   private readonly router = inject(Router);
+  private readonly notifications = inject(NotificationService);
 
   readonly filterForm = this.fb.group({
     search: [''],
@@ -25,6 +27,7 @@ export class AliasesListComponent implements OnInit {
 
   aliases: AliasSummary[] = [];
   total = 0;
+  loading = false;
 
   ngOnInit(): void {
     this.load();
@@ -32,9 +35,17 @@ export class AliasesListComponent implements OnInit {
 
   load(): void {
     const filter: AliasFilter = this.filterForm.value;
-    this.api.search(filter).subscribe((response) => {
-      this.aliases = response.items;
-      this.total = response.total;
+    this.loading = true;
+    this.api.search(filter).subscribe({
+      next: (response) => {
+        this.aliases = response.items;
+        this.total = response.total;
+        this.loading = false;
+      },
+      error: () => {
+        this.notifications.error('No fue posible cargar los alias registrados');
+        this.loading = false;
+      }
     });
   }
 
