@@ -1,7 +1,7 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { catchError, map, of, throwError } from 'rxjs';
-import { environment } from '../../environments/environment';
+import { environment } from '../../../environments/environment';
 import { DestinationInstitution, TransactionDraft, TransactionResponse } from './transactions.models';
 
 @Injectable({ providedIn: 'root' })

@@ -1,16 +1,12 @@
-import { CommonModule } from '@angular/common';
 import { Component, ChangeDetectionStrategy, inject } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { FormBuilder, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
 import { EMPTY, catchError, finalize, tap } from 'rxjs';
-import { AuthService } from '../core/services/auth.service';
-import { LoginRequestModel } from '../core/models/auth.models';
-import { ErrorMessageComponent } from '../shared/error-message.component';
+import { AuthService } from '../../core/services/auth.service';
+import { LoginRequestModel } from '../../core/models/auth.models';
 
 @Component({
   selector: 'app-login',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, ErrorMessageComponent],
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush

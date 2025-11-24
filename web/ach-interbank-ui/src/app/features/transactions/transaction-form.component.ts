@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -7,18 +6,15 @@ import {
   inject,
   OnInit
 } from '@angular/core';
-import { FormArray, FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, map, tap, take } from 'rxjs';
 import { TransactionsService } from './transactions.service';
 import { DestinationInstitution, TransactionDraft, TransactionResponse } from './transactions.models';
 import { TransactionTypeEnum } from './transactions.types';
-import { ErrorMessageComponent } from '../shared/error-message.component';
 
 @Component({
   selector: 'app-transaction-form',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ErrorMessageComponent],
   templateUrl: './transaction-form.component.html',
   styleUrls: ['./transaction-form.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
