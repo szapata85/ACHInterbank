@@ -10,6 +10,7 @@ import { ErrorInterceptor } from './interceptors/error.interceptor';
 import { LoadingInterceptor } from './interceptors/loading.interceptor';
 
 @NgModule({
+  declarations: [],
   imports: [CommonModule, HttpClientModule, RouterModule, NotificationContainerComponent, LoadingOverlayComponent],
   exports: [NotificationContainerComponent, LoadingOverlayComponent],
   providers: [
