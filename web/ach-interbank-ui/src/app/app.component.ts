@@ -6,5 +6,5 @@ import { Component } from '@angular/core';
   styleUrls: ['./app.component.scss']
 })
 export class AppComponent {
-  readonly title = 'Gestión de Transacciones ACH';
+  title = 'ACH Interbank SPA';
 }
