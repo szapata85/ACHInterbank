@@ -1,9 +1,12 @@
+import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { NotificationMessage, NotificationService } from '../../core/services/notification.service';
 
 @Component({
   selector: 'app-notification-container',
+  standalone: true,
+  imports: [CommonModule],
   template: `
     <section class="notifications" aria-live="polite" aria-atomic="true">
       <article *ngFor="let message of messages" class="toast" [class]="'toast ' + message.type">

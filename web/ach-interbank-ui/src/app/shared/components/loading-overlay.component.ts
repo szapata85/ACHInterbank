@@ -1,8 +1,11 @@
+import { CommonModule } from '@angular/common';
 import { Component, ChangeDetectionStrategy, inject } from '@angular/core';
 import { LoadingService } from '../../core/services/loading.service';
 
 @Component({
   selector: 'app-loading-overlay',
+  standalone: true,
+  imports: [CommonModule],
   template: `
     <div class="overlay" *ngIf="loadingService.isLoading$ | async">
       <div class="spinner"></div>
