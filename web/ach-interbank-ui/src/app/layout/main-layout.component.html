@@ -12,7 +12,7 @@
 
     <nav class="menu">
       <a
-        *ngFor="let item of navItems"
+        *ngFor="let item of filteredNavItems"
         [routerLink]="item.route"
         routerLinkActive="active"
         [routerLinkActiveOptions]="{ exact: item.exact }"
@@ -22,12 +22,30 @@
         <span class="label">{{ item.label }}</span>
       </a>
     </nav>
+
+    <section class="session" *ngIf="user$ | async as user">
+      <p class="session-title">Perfil</p>
+      <div class="session-user">
+        <div class="avatar" aria-hidden="true">{{ user.fullName?.charAt(0) || 'U' }}</div>
+        <div class="session-meta">
+          <span class="session-name">{{ user.fullName }}</span>
+          <small class="session-roles">{{ user.roles?.join(', ') || 'Usuario' }}</small>
+        </div>
+      </div>
+      <button type="button" class="logout" (click)="onLogoutSelected()">Cerrar sesión</button>
+    </section>
   </aside>
 
   <div class="main">
     <header class="topbar" role="banner">
       <div class="topbar-left">
-        <button class="menu-toggle" type="button" aria-label="Abrir menú" (click)="toggleMenu()">
+        <button
+          class="menu-toggle"
+          type="button"
+          aria-label="Alternar menú"
+          [attr.aria-expanded]="isMenuOpen"
+          (click)="toggleMenu()"
+        >
           <span class="hamburger" [class.open]="isMenuOpen"></span>
         </button>
 

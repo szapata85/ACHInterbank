@@ -15,6 +15,8 @@ interface NavItem {
   icon?: string;
   route: string;
   exact?: boolean;
+  roles?: string[];
+  permissions?: string[];
 }
 
 @Component({
@@ -34,12 +36,23 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly user$ = this.authService.user$;
   readonly navItems: NavItem[] = [
     { label: 'Dashboard', route: '/dashboard', icon: 'dashboard' },
-    { label: 'Usuarios y roles', route: '/users', icon: 'group' },
-    { label: 'Alias y cuentas', route: '/aliases', icon: 'key' },
-    { label: 'Ciclos ACH', route: '/ach-cycles', icon: 'schedule' },
-    { label: 'Transacciones', route: '/transactions', icon: 'swap_horiz' },
-    { label: 'Crear transacción', route: '/transactions/create', icon: 'add' },
-    { label: 'Catálogos', route: '/catalogs', icon: 'inventory' }
+    {
+      label: 'Usuarios',
+      route: '/users',
+      icon: 'group',
+      roles: ['Admin'],
+      permissions: ['CanManageUsers']
+    },
+    { label: 'Alias', route: '/aliases', icon: 'key', permissions: ['CanReadAliases'] },
+    { label: 'Ciclos ACH', route: '/ach-cycles', icon: 'schedule', permissions: ['CanReadAch'] },
+    { label: 'Catálogos', route: '/catalogs', icon: 'inventory', permissions: ['CanReadCatalogs'] },
+    {
+      label: 'Transacciones',
+      route: '/transactions',
+      icon: 'swap_horiz',
+      roles: ['Admin', 'ACH.Operator'],
+      permissions: ['CanManageAch', 'CanReadAch']
+    }
   ];
 
   breadcrumbs: Breadcrumb[] = [];
@@ -68,6 +81,10 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.authService.logout();
   }
 
+  get filteredNavItems(): NavItem[] {
+    return this.navItems.filter((item) => this.canDisplay(item));
+  }
+
   toggleMenu(): void {
     this.isMenuOpen = !this.isMenuOpen;
     this.cdr.markForCheck();
@@ -84,6 +101,11 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     if (this.isMobileView()) {
       this.closeMenu();
     }
+  }
+
+  onLogoutSelected(): void {
+    this.logout();
+    this.onNavItemSelected();
   }
 
   @HostListener('window:resize')
@@ -131,6 +153,13 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   }
 
   private isMobileView(): boolean {
-    return typeof window !== 'undefined' && window.innerWidth < 992;
+    return typeof window !== 'undefined' && window.innerWidth < 960;
+  }
+
+  private canDisplay(item: NavItem): boolean {
+    const hasRequiredRole = !item.roles || this.authService.hasRole(item.roles);
+    const hasRequiredPermission = !item.permissions || this.authService.hasPermission(item.permissions);
+
+    return hasRequiredRole && hasRequiredPermission;
   }
 }
