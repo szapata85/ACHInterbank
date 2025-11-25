@@ -48,7 +48,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     { label: 'Catálogos', route: '/catalogs', icon: 'inventory', permissions: ['CanReadCatalogs'] },
     {
       label: 'Transacciones',
-      route: '/transactions/create',
+      route: '/transactions',
       icon: 'swap_horiz',
       roles: ['Admin', 'ACH.Operator'],
       permissions: ['CanManageAch', 'CanReadAch']
