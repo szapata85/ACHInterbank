@@ -7,16 +7,12 @@ import { TransactionsApiService } from '../../services/transactions-api.service'
 import { TransactionDraft, TransactionResponse } from '../../transactions.models';
 import { TransactionTypeEnum } from '../../transactions.types';
 import { NotificationService } from '../../../../core/services/notification.service';
-import { SharedModule } from '../../../../shared/shared.module';
-import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-transaction-create',
   templateUrl: './transaction-create.component.html',
   styleUrls: ['./transaction-create.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  standalone: true,
-  imports: [SharedModule, RouterModule]
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TransactionCreateComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
