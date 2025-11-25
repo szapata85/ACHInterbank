@@ -6,6 +6,7 @@ import { DashboardComponent } from './dashboard.component';
 const routes: Routes = [{ path: '', component: DashboardComponent, data: { breadcrumb: 'Dashboard', title: 'Inicio' } }];
 
 @NgModule({
-  imports: [SharedModule, RouterModule.forChild(routes), DashboardComponent]
+  declarations: [DashboardComponent],
+  imports: [SharedModule, RouterModule.forChild(routes)]
 })
 export class DashboardModule {}

@@ -1,10 +1,7 @@
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, Input, TemplateRef } from '@angular/core';
 
 @Component({
   selector: 'app-page-header',
-  standalone: true,
-  imports: [CommonModule],
   template: `
     <header class="page-header">
       <div>

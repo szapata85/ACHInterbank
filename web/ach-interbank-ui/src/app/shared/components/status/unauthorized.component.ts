@@ -1,11 +1,8 @@
-import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
-import { RouterModule, Router } from '@angular/router';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-unauthorized',
-  standalone: true,
-  imports: [CommonModule, RouterModule],
   template: `
     <div class="status-page">
       <div class="code">403</div>

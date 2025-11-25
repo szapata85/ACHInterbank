@@ -7,12 +7,9 @@ import { TransactionsApiService } from '../../services/transactions-api.service'
 import { TransactionDraft, TransactionResponse } from '../../transactions.models';
 import { TransactionTypeEnum } from '../../transactions.types';
 import { NotificationService } from '../../../../core/services/notification.service';
-import { SharedModule } from '../../../../shared/shared.module';
 
 @Component({
   selector: 'app-transaction-create',
-  standalone: true,
-  imports: [SharedModule],
   templateUrl: './transaction-create.component.html',
   styleUrls: ['./transaction-create.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush

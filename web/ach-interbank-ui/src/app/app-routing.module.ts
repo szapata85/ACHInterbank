@@ -5,6 +5,8 @@ import { roleGuard } from './core/guards/role.guard';
 import { permissionGuard } from './core/guards/permission.guard';
 import { MainLayoutComponent } from './layout/main-layout.component';
 import { LoginLayoutComponent } from './layout/login-layout.component';
+import { UnauthorizedComponent } from './shared/components/status/unauthorized.component';
+import { NotFoundComponent } from './shared/components/status/not-found.component';
 
 const routes: Routes = [
   {
@@ -53,14 +55,12 @@ const routes: Routes = [
       {
         path: 'unauthorized',
         data: { title: 'No autorizado', breadcrumb: 'Error 403' },
-        loadComponent: () =>
-          import('./shared/components/status/unauthorized.component').then((m) => m.UnauthorizedComponent)
+        component: UnauthorizedComponent
       },
       {
         path: 'not-found',
         data: { title: 'No encontrado', breadcrumb: 'Error 404' },
-        loadComponent: () =>
-          import('./shared/components/status/not-found.component').then((m) => m.NotFoundComponent)
+        component: NotFoundComponent
       },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
       { path: '**', redirectTo: 'not-found' }

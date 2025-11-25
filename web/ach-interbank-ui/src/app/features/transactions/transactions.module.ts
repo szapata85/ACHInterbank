@@ -5,6 +5,7 @@ import { TransactionsRoutingModule } from './transactions-routing.module';
 import { TransactionCreateComponent } from './components/transaction-create/transaction-create.component';
 
 @NgModule({
-  imports: [SharedModule, RouterModule, TransactionCreateComponent, TransactionsRoutingModule]
+  declarations: [TransactionCreateComponent],
+  imports: [SharedModule, RouterModule, TransactionsRoutingModule]
 })
 export class TransactionsModule {}

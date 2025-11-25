@@ -5,7 +5,8 @@ import { MainLayoutComponent } from './main-layout.component';
 import { LoginLayoutComponent } from './login-layout.component';
 
 @NgModule({
-  imports: [CommonModule, RouterModule, MainLayoutComponent, LoginLayoutComponent],
+  declarations: [MainLayoutComponent, LoginLayoutComponent],
+  imports: [CommonModule, RouterModule],
   exports: [MainLayoutComponent, LoginLayoutComponent]
 })
 export class LayoutModule {}

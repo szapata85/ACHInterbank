@@ -1,11 +1,8 @@
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { AbstractControl } from '@angular/forms';
 
 @Component({
   selector: 'app-error-message',
-  standalone: true,
-  imports: [CommonModule],
   template: `
     <p *ngIf="messageToShow" class="error-message">{{ messageToShow }}</p>
   `,

@@ -5,6 +5,7 @@ import { AchCycleListComponent } from './components/ach-cycle-list.component';
 import { AchCycleFormComponent } from './components/ach-cycle-form.component';
 
 @NgModule({
-  imports: [SharedModule, AchCyclesRoutingModule, AchCycleListComponent, AchCycleFormComponent]
+  declarations: [AchCycleListComponent, AchCycleFormComponent],
+  imports: [SharedModule, AchCyclesRoutingModule]
 })
 export class AchCyclesModule {}

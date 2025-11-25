@@ -2,8 +2,6 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, HostListener, On
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 import { Subscription, filter } from 'rxjs';
 import { AuthService } from '../core/services/auth.service';
-import { SharedModule } from '../shared/shared.module';
-import { RouterModule } from '@angular/router';
 
 interface Breadcrumb {
   label: string;
@@ -23,9 +21,7 @@ interface NavItem {
   selector: 'app-main-layout',
   templateUrl: './main-layout.component.html',
   styleUrls: ['./main-layout.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  standalone: true,
-  imports: [SharedModule, RouterModule]
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class MainLayoutComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);

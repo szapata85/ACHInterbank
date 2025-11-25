@@ -4,6 +4,7 @@ import { CatalogsRoutingModule } from './catalogs-routing.module';
 import { CatalogsListComponent } from './components/catalogs-list.component';
 
 @NgModule({
-  imports: [SharedModule, CatalogsRoutingModule, CatalogsListComponent]
+  declarations: [CatalogsListComponent],
+  imports: [SharedModule, CatalogsRoutingModule]
 })
 export class CatalogsModule {}

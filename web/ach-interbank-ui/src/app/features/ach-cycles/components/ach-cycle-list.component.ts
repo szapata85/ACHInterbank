@@ -4,16 +4,12 @@ import { Router } from '@angular/router';
 import { AchCyclesApiService, ClearingHousesApiService } from '../services/ach-cycles-api.service';
 import { AchCycleFilter, AchCycleSummary, ClearingHouseOption } from '../models/ach-cycle.model';
 import { NotificationService } from '../../../core/services/notification.service';
-import { SharedModule } from '../../../shared/shared.module';
-import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-ach-cycle-list',
   templateUrl: './ach-cycle-list.component.html',
   styleUrls: ['./ach-cycle-list.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  standalone: true,
-  imports: [SharedModule, RouterModule]
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AchCycleListComponent implements OnInit {
   private readonly fb = inject(FormBuilder);

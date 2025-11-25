@@ -1,6 +1,7 @@
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 
 import { ErrorMessageComponent } from './error-message.component';
 import { TableComponent } from './components/table.component';
@@ -10,31 +11,36 @@ import { CurrencyColPipe } from './pipes/currency-col.pipe';
 import { DateFormatPipe } from './pipes/date-format.pipe';
 import { UnauthorizedComponent } from './components/status/unauthorized.component';
 import { NotFoundComponent } from './components/status/not-found.component';
+import { NotificationContainerComponent } from './components/notification-container.component';
+import { LoadingOverlayComponent } from './components/loading-overlay.component';
 
 @NgModule({
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    FormsModule,
+  declarations: [
     ErrorMessageComponent,
     TableComponent,
     ConfirmDialogComponent,
     PageHeaderComponent,
     UnauthorizedComponent,
     NotFoundComponent,
+    NotificationContainerComponent,
+    LoadingOverlayComponent,
     CurrencyColPipe,
     DateFormatPipe
   ],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterModule],
   exports: [
     CommonModule,
     ReactiveFormsModule,
     FormsModule,
+    RouterModule,
     ErrorMessageComponent,
     TableComponent,
     ConfirmDialogComponent,
     PageHeaderComponent,
     UnauthorizedComponent,
     NotFoundComponent,
+    NotificationContainerComponent,
+    LoadingOverlayComponent,
     CurrencyColPipe,
     DateFormatPipe
   ]

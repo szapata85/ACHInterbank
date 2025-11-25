@@ -3,16 +3,12 @@ import { FormBuilder, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { EMPTY, catchError, finalize, tap } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
-import { SharedModule } from '../../shared/shared.module';
-import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-forgot-password',
   templateUrl: './forgot-password.component.html',
   styleUrls: ['./forgot-password.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  standalone: true,
-  imports: [SharedModule, RouterModule]
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ForgotPasswordComponent {
   private readonly fb = inject(FormBuilder);

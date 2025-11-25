@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, TemplateRef } from '@angular/core';
 
 export interface TableColumn {
@@ -10,8 +9,6 @@ export interface TableColumn {
 
 @Component({
   selector: 'app-table',
-  standalone: true,
-  imports: [CommonModule],
   template: `
     <div class="table-wrapper" [class.loading]="loading">
       <div class="table-scroll">

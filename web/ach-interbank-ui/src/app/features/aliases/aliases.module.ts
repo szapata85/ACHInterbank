@@ -5,6 +5,7 @@ import { AliasesListComponent } from './components/aliases-list.component';
 import { AliasFormComponent } from './components/alias-form.component';
 
 @NgModule({
-  imports: [SharedModule, AliasesRoutingModule, AliasesListComponent, AliasFormComponent]
+  declarations: [AliasesListComponent, AliasFormComponent],
+  imports: [SharedModule, AliasesRoutingModule]
 })
 export class AliasesModule {}

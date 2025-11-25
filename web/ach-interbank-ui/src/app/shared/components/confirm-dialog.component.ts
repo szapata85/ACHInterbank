@@ -1,10 +1,7 @@
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 
 @Component({
   selector: 'app-confirm-dialog',
-  standalone: true,
-  imports: [CommonModule],
   template: `
     <div class="backdrop" *ngIf="open">
       <div class="dialog" role="alertdialog" aria-modal="true">

@@ -5,16 +5,12 @@ import { NotificationService } from '../../../core/services/notification.service
 import { TableColumn } from '../../../shared/components/table.component';
 import { RolesApiService, UsersApiService } from '../services/users-api.service';
 import { RoleSummary, UserFilter, UserSummary } from '../models/user.model';
-import { SharedModule } from '../../../shared/shared.module';
-import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-users-list',
   templateUrl: './users-list.component.html',
   styleUrls: ['./users-list.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  standalone: true,
-  imports: [SharedModule, RouterModule]
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class UsersListComponent implements OnInit {
   private readonly fb = inject(FormBuilder);

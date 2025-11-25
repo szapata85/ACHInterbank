@@ -3,16 +3,12 @@ import { FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AliasesApiService } from '../services/aliases-api.service';
 import { AliasSummary, SaveAliasRequest } from '../models/alias.model';
-import { SharedModule } from '../../../shared/shared.module';
-import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-alias-form',
   templateUrl: './alias-form.component.html',
   styleUrls: ['./alias-form.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  standalone: true,
-  imports: [SharedModule, RouterModule]
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AliasFormComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
