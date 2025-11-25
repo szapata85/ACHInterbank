@@ -18,7 +18,9 @@
         [routerLinkActiveOptions]="{ exact: item.exact }"
         (click)="onNavItemSelected()"
       >
-        <span class="icon" aria-hidden="true">{{ item.icon }}</span>
+        <span *ngIf="item.icon" class="icon material-symbols-outlined" aria-hidden="true">
+          {{ item.icon }}
+        </span>
         <span class="label">{{ item.label }}</span>
       </a>
     </nav>

@@ -149,7 +149,10 @@
 }
 
 .icon {
-  font-size: 1rem;
+  font-family: 'Material Symbols Outlined';
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  font-size: 20px;
+  line-height: 1;
   width: 24px;
   text-align: center;
   flex-shrink: 0;
