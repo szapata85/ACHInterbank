@@ -3,6 +3,8 @@ import { AbstractControl, FormBuilder, ValidationErrors, Validators } from '@ang
 import { ActivatedRoute, Router } from '@angular/router';
 import { EMPTY, catchError, finalize, tap } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
+import { SharedModule } from '../../shared/shared.module';
+import { RouterModule } from '@angular/router';
 
 function passwordsMatch(control: AbstractControl): ValidationErrors | null {
   const newPassword = control.get('newPassword')?.value;
@@ -16,7 +18,9 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
   selector: 'app-reset-password',
   templateUrl: './reset-password.component.html',
   styleUrls: ['./reset-password.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: true,
+  imports: [SharedModule, RouterModule]
 })
 export class ResetPasswordComponent implements OnInit {
   private readonly fb = inject(FormBuilder);

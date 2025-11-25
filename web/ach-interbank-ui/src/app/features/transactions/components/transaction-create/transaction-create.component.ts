@@ -1,33 +1,30 @@
-import {
-  ChangeDetectionStrategy,
-  ChangeDetectorRef,
-  Component,
-  DestroyRef,
-  OnInit,
-  inject
-} from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { map, take, tap } from 'rxjs';
+import { map, take, takeUntil, tap } from 'rxjs';
+import { Subject } from 'rxjs';
 import { Router } from '@angular/router';
 import { TransactionsApiService } from '../../services/transactions-api.service';
 import { TransactionDraft, TransactionResponse } from '../../transactions.models';
 import { TransactionTypeEnum } from '../../transactions.types';
 import { NotificationService } from '../../../../core/services/notification.service';
+import { SharedModule } from '../../../../shared/shared.module';
+import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-transaction-create',
   templateUrl: './transaction-create.component.html',
   styleUrls: ['./transaction-create.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: true,
+  imports: [SharedModule, RouterModule]
 })
-export class TransactionCreateComponent implements OnInit {
+export class TransactionCreateComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(TransactionsApiService);
   private readonly cdr = inject(ChangeDetectorRef);
-  private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   private readonly notifications = inject(NotificationService);
+  private readonly destroy$ = new Subject<void>();
 
   readonly TransactionType = TransactionTypeEnum;
   readonly institutions$ = this.api
@@ -54,10 +51,15 @@ export class TransactionCreateComponent implements OnInit {
 
   ngOnInit(): void {
     this.form.setValidators(this.validateAccountDifference);
-    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+    this.form.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(() => {
       this.errorMessage.setValue(null);
       this.successMessage.setValue(null);
     });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   get addendas(): FormArray<FormGroup> {

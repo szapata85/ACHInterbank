@@ -3,12 +3,16 @@ import { FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AchCyclesApiService, ClearingHousesApiService } from '../services/ach-cycles-api.service';
 import { AchCycleSummary, ClearingHouseOption, SaveAchCycleRequest } from '../models/ach-cycle.model';
+import { SharedModule } from '../../../shared/shared.module';
+import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-ach-cycle-form',
   templateUrl: './ach-cycle-form.component.html',
   styleUrls: ['./ach-cycle-form.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: true,
+  imports: [SharedModule, RouterModule]
 })
 export class AchCycleFormComponent implements OnInit {
   private readonly fb = inject(FormBuilder);

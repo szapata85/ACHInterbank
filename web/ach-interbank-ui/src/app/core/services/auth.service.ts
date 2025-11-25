@@ -7,6 +7,8 @@ import { ApiResponse } from '../models/api-response.model';
 import { AuthPayload, LoginRequestModel, UserSession } from '../models/auth.models';
 import { ApiService } from './api.service';
 
+interface AuthResponse extends ApiResponse<AuthPayload> {}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly api = inject(ApiService);
@@ -26,7 +28,7 @@ export class AuthService {
 
   login(credentials: LoginRequestModel): Observable<UserSession> {
     return this.api
-      .post<ApiResponse<AuthPayload>>(`${this.authEndpoint}/login`, credentials)
+      .post<AuthResponse>(`${this.authEndpoint}/login`, credentials)
       .pipe(
         map((response) => {
           if (!response.sucess || !response.data?.token) {
@@ -34,8 +36,8 @@ export class AuthService {
           }
           return response.data;
         }),
-        map((payload) => this.persistSession(payload)),
-        tap((session) => this.userSubject.next(session))
+        map((payload: AuthPayload) => this.persistSession(payload)),
+        tap((session: UserSession) => this.userSubject.next(session))
       );
   }
 

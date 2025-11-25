@@ -6,7 +6,6 @@ import { UserFormComponent } from './components/user-form.component';
 import { UserRolesComponent } from './components/user-roles.component';
 
 @NgModule({
-  declarations: [UsersListComponent, UserFormComponent, UserRolesComponent],
-  imports: [SharedModule, AdminRoutingModule]
+  imports: [SharedModule, AdminRoutingModule, UsersListComponent, UserFormComponent, UserRolesComponent]
 })
 export class AdminModule {}

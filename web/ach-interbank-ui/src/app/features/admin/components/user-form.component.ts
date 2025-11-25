@@ -3,12 +3,16 @@ import { FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { UsersApiService, RolesApiService } from '../services/users-api.service';
 import { RoleSummary, SaveUserRequest, UserSummary } from '../models/user.model';
+import { SharedModule } from '../../../shared/shared.module';
+import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-user-form',
   templateUrl: './user-form.component.html',
   styleUrls: ['./user-form.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: true,
+  imports: [SharedModule, RouterModule]
 })
 export class UserFormComponent implements OnInit {
   private readonly fb = inject(FormBuilder);

@@ -4,12 +4,16 @@ import { Router } from '@angular/router';
 import { EMPTY, catchError, finalize, tap } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { LoginRequestModel } from '../../core/models/auth.models';
+import { SharedModule } from '../../shared/shared.module';
+import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-login',
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: true,
+  imports: [SharedModule, RouterModule]
 })
 export class LoginComponent {
   private readonly fb = inject(FormBuilder);

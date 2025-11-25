@@ -4,12 +4,16 @@ import { Router } from '@angular/router';
 import { AliasesApiService } from '../services/aliases-api.service';
 import { AliasFilter, AliasSummary } from '../models/alias.model';
 import { NotificationService } from '../../../core/services/notification.service';
+import { SharedModule } from '../../../shared/shared.module';
+import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-aliases-list',
   templateUrl: './aliases-list.component.html',
   styleUrls: ['./aliases-list.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: true,
+  imports: [SharedModule, RouterModule]
 })
 export class AliasesListComponent implements OnInit {
   private readonly fb = inject(FormBuilder);

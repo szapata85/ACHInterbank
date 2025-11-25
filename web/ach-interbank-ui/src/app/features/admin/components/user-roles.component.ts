@@ -2,12 +2,16 @@ import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/cor
 import { ActivatedRoute, Router } from '@angular/router';
 import { RolesApiService, UsersApiService } from '../services/users-api.service';
 import { RoleSummary, UserSummary } from '../models/user.model';
+import { SharedModule } from '../../../shared/shared.module';
+import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-user-roles',
   templateUrl: './user-roles.component.html',
   styleUrls: ['./user-roles.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: true,
+  imports: [SharedModule, RouterModule]
 })
 export class UserRolesComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);

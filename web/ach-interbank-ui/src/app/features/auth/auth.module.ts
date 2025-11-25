@@ -14,7 +14,13 @@ const routes: Routes = [
 ];
 
 @NgModule({
-  declarations: [LoginComponent, ForgotPasswordComponent, ResetPasswordComponent],
-  imports: [SharedModule, ReactiveFormsModule, RouterModule.forChild(routes)]
+  imports: [
+    SharedModule,
+    ReactiveFormsModule,
+    RouterModule.forChild(routes),
+    LoginComponent,
+    ForgotPasswordComponent,
+    ResetPasswordComponent
+  ]
 })
 export class AuthModule {}

@@ -25,9 +25,10 @@ import { NotFoundComponent } from './components/status/not-found.component';
     NotificationContainerComponent,
     LoadingOverlayComponent,
     UnauthorizedComponent,
-    NotFoundComponent
+    NotFoundComponent,
+    CurrencyColPipe,
+    DateFormatPipe
   ],
-  declarations: [CurrencyColPipe, DateFormatPipe],
   exports: [
     CommonModule,
     ReactiveFormsModule,
