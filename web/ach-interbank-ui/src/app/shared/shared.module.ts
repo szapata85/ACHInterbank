@@ -14,6 +14,7 @@ import { UnauthorizedComponent } from './components/status/unauthorized.componen
 import { NotFoundComponent } from './components/status/not-found.component';
 
 @NgModule({
+  declarations: [NotificationContainerComponent, LoadingOverlayComponent],
   imports: [
     CommonModule,
     ReactiveFormsModule,
@@ -22,8 +23,6 @@ import { NotFoundComponent } from './components/status/not-found.component';
     TableComponent,
     ConfirmDialogComponent,
     PageHeaderComponent,
-    NotificationContainerComponent,
-    LoadingOverlayComponent,
     UnauthorizedComponent,
     NotFoundComponent,
     CurrencyColPipe,
