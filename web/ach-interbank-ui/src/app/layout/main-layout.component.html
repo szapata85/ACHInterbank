@@ -15,7 +15,7 @@
         *ngFor="let item of filteredNavItems"
         [routerLink]="item.route"
         routerLinkActive="active"
-        [routerLinkActiveOptions]="{ exact: item.exact }"
+        [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
         (click)="onNavItemSelected()"
       >
         <span *ngIf="item.icon" class="icon material-symbols-outlined" aria-hidden="true">

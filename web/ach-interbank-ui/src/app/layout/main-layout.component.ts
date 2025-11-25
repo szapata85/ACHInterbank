@@ -52,6 +52,14 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       icon: 'swap_horiz',
       roles: ['Admin', 'ACH.Operator'],
       permissions: ['CanManageAch', 'CanReadAch']
+    },
+    {
+      label: 'Crear transacción',
+      route: '/transactions/create',
+      icon: 'note_add',
+      exact: true,
+      roles: ['Admin', 'ACH.Operator'],
+      permissions: ['CanManageAch', 'CanReadAch']
     }
   ];
 
