@@ -1,0 +1,37 @@
+<div class="card">
+  <h2>{{ isEdit ? 'Editar alias' : 'Nuevo alias' }}</h2>
+
+  <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
+    <label>
+      Alias
+      <input type="text" formControlName="alias" />
+      <app-error-message [control]="form.get('alias')"></app-error-message>
+    </label>
+
+    <label>
+      Cuenta
+      <input type="text" formControlName="accountNumber" />
+      <app-error-message [control]="form.get('accountNumber')"></app-error-message>
+    </label>
+
+    <label>
+      Documento
+      <input type="text" formControlName="documentNumber" />
+    </label>
+
+    <label>
+      Teléfono
+      <input type="text" formControlName="phoneNumber" />
+    </label>
+
+    <label>
+      Titular
+      <input type="text" formControlName="ownerName" />
+    </label>
+
+    <div class="actions">
+      <button type="button" routerLink="/aliases">Cancelar</button>
+      <button type="submit" class="primary">Guardar</button>
+    </div>
+  </form>
+</div>

@@ -1,0 +1,39 @@
+<app-page-header title="Ciclos ACH" subtitle="Programación de cámara" [actionsTemplate]="headerActions"></app-page-header>
+
+<div class="toolbar">
+  <form [formGroup]="filterForm" (ngSubmit)="load()" class="filters">
+    <select formControlName="clearingHouseId">
+      <option value="">Todas las cámaras</option>
+      <option *ngFor="let ch of clearingHouses" [value]="ch.id">{{ ch.name }}</option>
+    </select>
+    <input type="date" formControlName="date" />
+    <button type="submit">Filtrar</button>
+  </form>
+</div>
+
+<app-table
+  [columns]="[
+    { key: 'clearingHouseName', label: 'Cámara' },
+    { key: 'dateText', label: 'Fecha' },
+    { key: 'startText', label: 'Inicio' },
+    { key: 'endText', label: 'Fin' },
+    { key: 'status', label: 'Estado' }
+  ]"
+  [data]="cycles"
+  [page]="filterForm.value.page!"
+  [pageSize]="filterForm.value.pageSize!"
+  [total]="total"
+  [loading]="loading"
+  [rowActions]="rowActions"
+  (pageChange)="changePage($event)"
+></app-table>
+
+<ng-template #rowActions let-cycle>
+  <button type="button" (click)="edit(cycle)">Editar</button>
+</ng-template>
+
+<ng-template #headerActions>
+  <button type="button" class="primary" (click)="create()">Nuevo ciclo</button>
+</ng-template>
+
+<p class="muted">Actualizado: {{ today | dateFormat }}</p>

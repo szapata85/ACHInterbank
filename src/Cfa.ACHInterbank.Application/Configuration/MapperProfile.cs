@@ -1,4 +1,5 @@
 using AutoMapper;
+using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Servers;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -20,6 +21,14 @@ public class MapperProfile : Profile
             .ForMember(dest => dest.ClearingHousePreferences, opt => opt.Ignore())
             .ForMember(dest => dest.SourceTransactions, opt => opt.Ignore())
             .ForMember(dest => dest.DestinationTransactions, opt => opt.Ignore());
+
+        CreateMap<ClearingHouse, ClearingHouseDto>()
+            .ForMember(dest => dest.HolidayStrategy, opt => opt.MapFrom(src => src.ClearingHouseConfig != null ? src.ClearingHouseConfig.HolidayStrategy : null));
+
+        CreateMap<AchCycle, AchCycleDto>()
+            .ForMember(dest => dest.ClearingHouseName, opt => opt.MapFrom(src => src.ClearingHouse != null ? src.ClearingHouse.Name : null));
+
+        CreateMap<AchCycleRequest, AchCycle>();
     }
 }
 

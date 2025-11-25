@@ -1,13 +1,10 @@
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { AbstractControl } from '@angular/forms';
 
 @Component({
-  selector: 'app-error',
-  standalone: true,
-  imports: [CommonModule],
+  selector: 'app-error-message',
   template: `
-    <p *ngIf="message" class="error-message">{{ message }}</p>
+    <p *ngIf="messageToShow" class="error-message">{{ messageToShow }}</p>
   `,
   styles: [
     `
@@ -22,8 +19,13 @@ import { AbstractControl } from '@angular/forms';
 })
 export class ErrorMessageComponent {
   @Input() control: AbstractControl | null = null;
+  @Input() text: string | null = null;
 
-  get message(): string | null {
+  get messageToShow(): string | null {
+    if (this.text) {
+      return this.text;
+    }
+
     if (!this.control || !this.control.touched || !this.control.invalid) {
       return null;
     }

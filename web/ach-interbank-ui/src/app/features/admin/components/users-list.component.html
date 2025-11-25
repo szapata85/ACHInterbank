@@ -1,0 +1,45 @@
+<app-page-header title="Usuarios" subtitle="Administración" [actionsTemplate]="headerActions"></app-page-header>
+
+<form [formGroup]="filterForm" (ngSubmit)="loadUsers()" class="filters">
+  <input type="text" formControlName="search" placeholder="Buscar usuario" />
+  <select formControlName="roleId">
+    <option value="">Todos los roles</option>
+    <option *ngFor="let role of roles" [value]="role.id">{{ role.name }}</option>
+  </select>
+  <button type="submit">Filtrar</button>
+</form>
+
+<app-table
+  [columns]="columns"
+  [data]="users"
+  [loading]="loading"
+  [page]="filterForm.value.page!"
+  [pageSize]="filterForm.value.pageSize!"
+  [total]="total"
+  [rowActions]="rowActions"
+  (pageChange)="changePage($event)"
+></app-table>
+
+<ng-template #rowActions let-user>
+  <div class="actions">
+    <button type="button" (click)="editUser(user)">Editar</button>
+    <button type="button" (click)="manageRoles(user)">Roles</button>
+    <button type="button" class="danger" (click)="confirmDisable(user)" [disabled]="!user.isActive">
+      Desactivar
+    </button>
+  </div>
+</ng-template>
+
+<ng-template #headerActions>
+  <button type="button" class="primary" (click)="createUser()">Nuevo usuario</button>
+</ng-template>
+
+<app-confirm-dialog
+  [open]="!!confirmUser"
+  title="Desactivar usuario"
+  [message]="confirmUser ? '¿Desactivar a ' + confirmUser.userName + '?' : ''"
+  confirmText="Sí, desactivar"
+  cancelText="Cancelar"
+  (confirm)="disableUser()"
+  (cancel)="confirmUser = null"
+></app-confirm-dialog>

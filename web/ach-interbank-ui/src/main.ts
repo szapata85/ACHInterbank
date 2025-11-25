@@ -1,17 +1,8 @@
 import 'zone.js';
-import { bootstrapApplication } from '@angular/platform-browser';
-import { provideHttpClient, withInterceptors } from '@angular/common/http';
-import { importProvidersFrom } from '@angular/core';
-import { provideRouter } from '@angular/router';
-import { ReactiveFormsModule } from '@angular/forms';
-import { AppComponent } from './app/app.component';
-import { routes } from './app/app.routes';
-import { authInterceptor } from './app/security/auth.interceptor';
+import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
 
-bootstrapApplication(AppComponent, {
-  providers: [
-    provideHttpClient(withInterceptors([authInterceptor])),
-    provideRouter(routes),
-    importProvidersFrom(ReactiveFormsModule)
-  ]
-}).catch((err) => console.error(err));
+import { AppModule } from './app/app.module';
+
+platformBrowserDynamic()
+  .bootstrapModule(AppModule)
+  .catch((err) => console.error(err));

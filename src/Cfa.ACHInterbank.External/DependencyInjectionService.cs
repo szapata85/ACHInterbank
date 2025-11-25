@@ -1,11 +1,15 @@
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
+using Cfa.ACHInterbank.Application.Services.Notifications.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.External.Notifications;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using System.Reflection;
+using System.Security.Claims;
 using System.Text;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace Cfa.ACHInterbank.External;
 
@@ -15,6 +19,8 @@ public static class DependencyInjectionService
 
     public static IServiceCollection AddExternal(this IServiceCollection services, IConfiguration configuration)
     {
+
+        services.AddScoped<IEmailSender, LoggingEmailSender>();
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(option =>
         {
@@ -27,8 +33,17 @@ public static class DependencyInjectionService
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_appSettings.TokenManager!.secretKetJwt!)),
                 ValidIssuer = _appSettings.TokenManager.issuerJwt,
                 ValidAudience = _appSettings.TokenManager.audienceJwt,
+                NameClaimType = JwtRegisteredClaimNames.Sub,
+                RoleClaimType = ClaimTypes.Role,
                 ClockSkew = TimeSpan.Zero
             };
+        });
+
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+            options.AddPolicy("CanManageAch", policy => policy.RequireClaim("permission", "ach.manage"));
+            options.AddPolicy("CanReadAch", policy => policy.RequireClaim("permission", "ach.read"));
         });
 
         #region Services

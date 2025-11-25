@@ -1,0 +1,34 @@
+<section class="login-card" aria-labelledby="login-title">
+  <header>
+    <h1 id="login-title">Ingreso al portal ACH Interbank</h1>
+    <p>Autentícate para gestionar transacciones y catálogos.</p>
+  </header>
+
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <label class="field">
+      <span>Usuario</span>
+      <input type="text" formControlName="username" autocomplete="username" />
+      <small *ngIf="form.get('username')?.touched && form.get('username')?.invalid">
+        Ingrese un usuario válido.
+      </small>
+    </label>
+
+    <label class="field">
+      <span>Contraseña</span>
+      <input type="password" formControlName="password" autocomplete="current-password" />
+      <small *ngIf="form.get('password')?.touched && form.get('password')?.invalid">
+        La contraseña debe tener al menos 6 caracteres.
+      </small>
+    </label>
+
+    <app-error-message [text]="errorMessage"></app-error-message>
+
+    <button type="submit" [disabled]="isSubmitting">
+      {{ isSubmitting ? 'Ingresando...' : 'Ingresar' }}
+    </button>
+
+    <div class="helper-links">
+      <a routerLink="/auth/forgot-password">¿Olvidaste tu clave?</a>
+    </div>
+  </form>
+</section>

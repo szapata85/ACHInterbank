@@ -1,0 +1,45 @@
+<div class="card">
+  <h2>{{ isEdit ? 'Editar ciclo' : 'Nuevo ciclo' }}</h2>
+
+  <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
+    <label>
+      Cámara
+      <select formControlName="clearingHouseId">
+        <option value="">Seleccione</option>
+        <option *ngFor="let ch of clearingHouses" [value]="ch.id">{{ ch.name }}</option>
+      </select>
+      <app-error-message [control]="form.get('clearingHouseId')"></app-error-message>
+    </label>
+
+    <label>
+      Fecha
+      <input type="date" formControlName="date" />
+      <app-error-message [control]="form.get('date')"></app-error-message>
+    </label>
+
+    <label>
+      Hora inicio
+      <input type="time" formControlName="startTime" />
+      <app-error-message [control]="form.get('startTime')"></app-error-message>
+    </label>
+
+    <label>
+      Hora fin
+      <input type="time" formControlName="endTime" />
+      <app-error-message [control]="form.get('endTime')"></app-error-message>
+    </label>
+
+    <label>
+      Estado
+      <select formControlName="status">
+        <option value="Activo">Activo</option>
+        <option value="Inactivo">Inactivo</option>
+      </select>
+    </label>
+
+    <div class="actions">
+      <button type="button" routerLink="/ach-cycles">Cancelar</button>
+      <button type="submit" class="primary">Guardar</button>
+    </div>
+  </form>
+</div>
