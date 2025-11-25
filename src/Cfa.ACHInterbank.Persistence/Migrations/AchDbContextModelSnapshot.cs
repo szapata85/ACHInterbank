@@ -173,6 +173,217 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.ToTable("TaskParameters", (string)null);
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.PasswordResetToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("Expiration")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsUsed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("PasswordResetTokens", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.Permission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Permissions", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a"),
+                            Description = "Gestión completa de operaciones ACH",
+                            Name = "ach.manage"
+                        },
+                        new
+                        {
+                            Id = new Guid("4f0cbde9-1b2e-4ad8-b8e6-62f0a1cd6cf7"),
+                            Description = "Consulta de operaciones ACH",
+                            Name = "ach.read"
+                        });
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.Role", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Roles", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
+                            Description = "Acceso completo al sistema",
+                            Name = "Admin"
+                        },
+                        new
+                        {
+                            Id = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56"),
+                            Description = "Operaciones básicas sobre ACH",
+                            Name = "Operator"
+                        });
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.RolePermission", b =>
+                {
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("PermissionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("RoleId", "PermissionId");
+
+                    b.HasIndex("PermissionId");
+
+                    b.ToTable("RolePermissions", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
+                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
+                            PermissionId = new Guid("4f0cbde9-1b2e-4ad8-b8e6-62f0a1cd6cf7")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56"),
+                            PermissionId = new Guid("4f0cbde9-1b2e-4ad8-b8e6-62f0a1cd6cf7")
+                        });
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.User", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
+                    b.Property<string>("FullName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasFilter("[Email] IS NOT NULL");
+
+                    b.HasIndex("Username")
+                        .IsUnique();
+
+                    b.ToTable("Users", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("0f7d6a26-df0e-4b14-8734-3280c1da6e3d"),
+                            Email = "admin@achinterbank.local",
+                            FullName = "Administrador ACH",
+                            IsActive = true,
+                            PasswordHash = "664819d8c5343676c9225b5ed00a5cdc6f3a1ff3",
+                            Username = "admin"
+                        });
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.UserRole", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("UserId", "RoleId");
+
+                    b.HasIndex("RoleId");
+
+                    b.ToTable("UserRoles", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            UserId = new Guid("0f7d6a26-df0e-4b14-8734-3280c1da6e3d"),
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
+                        });
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchBatch", b =>
                 {
                     b.Property<int>("Id")
@@ -248,10 +459,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     b.Property<string>("CycleName")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<DateTime>("ProcessingDate")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("date");
 
                     b.Property<bool>("RescheduleOnHoliday")
                         .HasColumnType("bit");
@@ -261,7 +473,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ClearingHouseId");
+                    b.HasIndex("ClearingHouseId", "ProcessingDate", "CycleName")
+                        .IsUnique();
 
                     b.ToTable("AchCycles");
                 });
@@ -589,19 +802,25 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
 
                     b.Property<string>("Code")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("OriginCode")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.HasKey("Id");
 
                     b.HasIndex("ClearingHouseId");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
 
                     b.ToTable("ClearingHouses");
                 });
@@ -618,9 +837,13 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("HolidayStrategy")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ClearingHouseId")
+                        .IsUnique();
 
                     b.ToTable("ClearingHouseConfigs");
                 });
@@ -1180,6 +1403,55 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Navigation("TaskDefinition");
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.PasswordResetToken", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Entities.User.User", "User")
+                        .WithMany("PasswordResetTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.RolePermission", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Entities.User.Permission", "Permission")
+                        .WithMany("RolePermissions")
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Entities.User.Role", "Role")
+                        .WithMany("RolePermissions")
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Permission");
+
+                    b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.UserRole", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Entities.User.Role", "Role")
+                        .WithMany("UserRoles")
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Entities.User.User", "User")
+                        .WithMany("UserRoles")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Role");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchBatch", b =>
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchCycle", "AchCycle")
@@ -1195,7 +1467,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
                         .WithMany("AchCycles")
                         .HasForeignKey("ClearingHouseId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("ClearingHouse");
@@ -1283,7 +1555,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouseConfig", "ClearingHouseConfig")
                         .WithMany("ClearingHouses")
                         .HasForeignKey("ClearingHouseId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("ClearingHouseConfig");
@@ -1409,6 +1681,25 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Navigation("ExecutionLogs");
 
                     b.Navigation("Parameters");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.Permission", b =>
+                {
+                    b.Navigation("RolePermissions");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.Role", b =>
+                {
+                    b.Navigation("RolePermissions");
+
+                    b.Navigation("UserRoles");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.User", b =>
+                {
+                    b.Navigation("PasswordResetTokens");
+
+                    b.Navigation("UserRoles");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchBatch", b =>
