@@ -37,7 +37,8 @@
     }
 
     input,
-    select {
+    select,
+    textarea {
       border: 1px solid #e5e7eb;
       border-radius: 8px;
       padding: 0.65rem 0.75rem;
@@ -51,57 +52,15 @@
         box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.2);
       }
     }
-
-    small {
-      color: #6b7280;
-    }
-
-    .muted {
-      color: #9ca3af;
-    }
   }
 }
 
-.addenda-section {
-  border-top: 1px solid #f3f4f6;
-  padding-top: 1rem;
+.description-field {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-
-    button.link {
-      background: transparent;
-      color: #0f766e;
-      border: none;
-      font-weight: 700;
-      cursor: pointer;
-    }
-  }
-
-  .addenda-item {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 0.75rem;
-    align-items: end;
-    background: #f9fafb;
-    padding: 0.75rem;
-    border-radius: 8px;
-
-    button.danger {
-      justify-self: flex-start;
-      background: #fee2e2;
-      border: 1px solid #fecaca;
-      color: #b91c1c;
-      border-radius: 8px;
-      padding: 0.35rem 0.75rem;
-      cursor: pointer;
-    }
-  }
+  gap: 0.35rem;
+  font-weight: 600;
+  color: #111827;
 }
 
 .actions {

@@ -1,0 +1,77 @@
+<section class="transaction-card" aria-labelledby="create-transaction-title">
+  <header class="header">
+    <h2 id="create-transaction-title">Crear transacción</h2>
+    <p class="subtitle">Complete los datos requeridos para registrar una nueva transacción ACH.</p>
+  </header>
+
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <div class="form-grid">
+      <label>
+        <span>Cuenta origen *</span>
+        <input type="text" formControlName="sourceAccount" inputmode="numeric" required />
+        <app-error-message [control]="form.get('sourceAccount')"></app-error-message>
+      </label>
+
+      <label>
+        <span>Cuenta destino *</span>
+        <input type="text" formControlName="destinationAccount" inputmode="numeric" required />
+        <app-error-message [control]="form.get('destinationAccount')"></app-error-message>
+      </label>
+
+      <label>
+        <span>Monto *</span>
+        <input type="number" min="0.01" step="0.01" formControlName="amount" required />
+        <app-error-message [control]="form.get('amount')"></app-error-message>
+      </label>
+
+      <label>
+        <span>Institución destino *</span>
+        <select formControlName="destinationInstitutionId" required>
+          <option [ngValue]="null" disabled>Seleccione una institución</option>
+          <option *ngFor="let institution of institutions$ | async" [ngValue]="institution.id">
+            {{ institution.name }}
+          </option>
+        </select>
+        <app-error-message [control]="form.get('destinationInstitutionId')"></app-error-message>
+      </label>
+    </div>
+
+    <label class="description-field">
+      <span>Descripción *</span>
+      <textarea rows="3" formControlName="description" required></textarea>
+      <app-error-message [control]="form.get('description')"></app-error-message>
+    </label>
+
+    <div class="actions">
+      <button type="submit" [disabled]="form.invalid || isSubmitting">
+        {{ isSubmitting ? 'Creando...' : 'Crear transacción' }}
+      </button>
+      <button type="button" class="ghost" [disabled]="isSubmitting" routerLink="/transactions">
+        Cancelar
+      </button>
+    </div>
+  </form>
+
+  <section *ngIf="submissionSuccess" class="result success" role="status">
+    <h3>{{ submissionSuccess }}</h3>
+    <dl *ngIf="createdResponse">
+      <div>
+        <dt>ID</dt>
+        <dd>{{ createdResponse.id }}</dd>
+      </div>
+      <div>
+        <dt>Monto</dt>
+        <dd>{{ createdResponse.amount | currency: 'COP': 'symbol-narrow' }}</dd>
+      </div>
+      <div>
+        <dt>Referencia</dt>
+        <dd>{{ createdResponse.reference }}</dd>
+      </div>
+    </dl>
+  </section>
+
+  <section *ngIf="submissionError" class="result error" role="alert">
+    <h3>Error al crear la transacción</h3>
+    <p>{{ submissionError }}</p>
+  </section>
+</section>

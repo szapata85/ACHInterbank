@@ -4,22 +4,16 @@ export interface DestinationInstitution {
   id: number;
   name: string;
   routingNumber: string;
+  status: number;
 }
 
-export interface TransactionDraft {
+export interface CreateTransactionRequest {
   amount: number;
   reference: string;
   type: TransactionTypeEnum;
   destinationInstitutionId: number;
   sourceAccountNumber: string;
   destinationAccountNumber: string;
-  companyName: string;
-  companyIdentification: string;
-  companyEntryDescription: string;
-  addendas: Array<{
-    addendaType: string;
-    information: string;
-  }>;
 }
 
 export interface TransactionResponse {

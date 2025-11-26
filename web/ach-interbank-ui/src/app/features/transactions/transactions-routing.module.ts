@@ -1,12 +1,12 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
-import { TransactionCreateComponent } from './components/transaction-create/transaction-create.component';
+import { CreateTransactionComponent } from './pages/create-transaction/create-transaction.component';
 
 const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'create' },
   {
     path: 'create',
-    component: TransactionCreateComponent,
+    component: CreateTransactionComponent,
     data: { title: 'Crear transacción', breadcrumb: 'Crear transacción' }
   }
 ];
