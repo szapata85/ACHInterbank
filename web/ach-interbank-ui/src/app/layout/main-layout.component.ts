@@ -4,19 +4,11 @@ import { Subscription, filter } from 'rxjs';
 import { AuthService } from '../core/services/auth.service';
 import { SharedModule } from '../shared/shared.module';
 import { RouterModule } from '@angular/router';
+import { NAV_ITEMS, NavItem } from './navigation.config';
 
 interface Breadcrumb {
   label: string;
   url: string;
-}
-
-interface NavItem {
-  label: string;
-  icon?: string;
-  route: string;
-  exact?: boolean;
-  roles?: string[];
-  permissions?: string[];
 }
 
 @Component({
@@ -34,34 +26,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   private readonly authService = inject(AuthService);
 
   readonly user$ = this.authService.user$;
-  readonly navItems: NavItem[] = [
-    { label: 'Dashboard', route: '/dashboard', icon: 'dashboard' },
-    {
-      label: 'Usuarios',
-      route: '/users',
-      icon: 'group',
-      roles: ['Admin'],
-      permissions: ['CanManageUsers']
-    },
-    { label: 'Alias', route: '/aliases', icon: 'key', permissions: ['CanReadAliases'] },
-    { label: 'Ciclos ACH', route: '/ach-cycles', icon: 'schedule', permissions: ['CanReadAch'] },
-    { label: 'Catálogos', route: '/catalogs', icon: 'inventory', permissions: ['CanReadCatalogs'] },
-    {
-      label: 'Transacciones',
-      route: '/transactions',
-      icon: 'swap_horiz',
-      roles: ['Admin', 'ACH.Operator'],
-      permissions: ['CanManageAch', 'CanReadAch']
-    },
-    {
-      label: 'Crear transacción',
-      route: '/transactions/create',
-      icon: 'swap_horiz',
-      exact: true,
-      roles: ['Admin', 'ACH.Operator'],
-      permissions: ['CanManageAch', 'CanReadAch']
-    }
-  ];
+  readonly navItems: NavItem[] = NAV_ITEMS;
 
   breadcrumbs: Breadcrumb[] = [];
   pageTitle = 'Inicio';
