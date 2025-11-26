@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, HostListener, OnDestroy, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
-import { Subscription, filter } from 'rxjs';
+import { Observable, Subscription, map, filter } from 'rxjs';
 import { AuthService } from '../core/services/auth.service';
 import { SharedModule } from '../shared/shared.module';
 import { RouterModule } from '@angular/router';
@@ -27,6 +27,9 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   readonly user$ = this.authService.user$;
   readonly navItems: NavItem[] = NAV_ITEMS;
+  readonly menuItems$: Observable<NavItem[]> = this.authService.user$.pipe(
+    map(() => this.filterNavItems(this.navItems))
+  );
 
   breadcrumbs: Breadcrumb[] = [];
   pageTitle = 'Inicio';
@@ -52,10 +55,6 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   logout(): void {
     this.authService.logout();
-  }
-
-  get filteredNavItems(): NavItem[] {
-    return this.navItems.filter((item) => this.canDisplay(item));
   }
 
   toggleMenu(): void {
@@ -127,6 +126,10 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   private isMobileView(): boolean {
     return typeof window !== 'undefined' && window.innerWidth < 960;
+  }
+
+  private filterNavItems(items: NavItem[]): NavItem[] {
+    return items.filter((item) => this.canDisplay(item));
   }
 
   private canDisplay(item: NavItem): boolean {

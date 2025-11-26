@@ -12,7 +12,7 @@
 
     <nav class="menu">
       <a
-        *ngFor="let item of filteredNavItems"
+        *ngFor="let item of menuItems$ | async"
         [routerLink]="item.route"
         routerLinkActive="active"
         [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
