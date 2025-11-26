@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, HostListener, On
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 import { Observable, Subscription, map, filter } from 'rxjs';
 import { AuthService } from '../core/services/auth.service';
+import { UserSession } from '../core/models/auth.models';
 import { SharedModule } from '../shared/shared.module';
 import { RouterModule } from '@angular/router';
 import { NAV_ITEMS, NavItem } from './navigation.config';
@@ -28,7 +29,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly user$ = this.authService.user$;
   readonly navItems: NavItem[] = NAV_ITEMS;
   readonly menuItems$: Observable<NavItem[]> = this.authService.user$.pipe(
-    map(() => this.filterNavItems(this.navItems))
+    map((user) => this.filterNavItems(this.navItems, user))
   );
 
   breadcrumbs: Breadcrumb[] = [];
@@ -128,13 +129,25 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     return typeof window !== 'undefined' && window.innerWidth < 960;
   }
 
-  private filterNavItems(items: NavItem[]): NavItem[] {
-    return items.filter((item) => this.canDisplay(item));
+  private filterNavItems(items: NavItem[], user: UserSession | null): NavItem[] {
+    return items.filter((item) => this.canDisplay(item, user));
   }
 
-  private canDisplay(item: NavItem): boolean {
-    const hasRequiredRole = !item.roles || this.authService.hasRole(item.roles);
-    const hasRequiredPermission = !item.permissions || this.authService.hasPermission(item.permissions);
+  private canDisplay(item: NavItem, user: UserSession | null): boolean {
+    if (!item.roles && !item.permissions) {
+      return true;
+    }
+
+    if (!user) {
+      return false;
+    }
+
+    const userRoles = (user.roles ?? []).map((role) => role.toLowerCase());
+    const userPermissions = (user.permissions ?? []).map((permission) => permission.toLowerCase());
+
+    const hasRequiredRole = !item.roles || item.roles.some((role) => userRoles.includes(role.toLowerCase()));
+    const hasRequiredPermission =
+      !item.permissions || item.permissions.some((permission) => userPermissions.includes(permission.toLowerCase()));
 
     return hasRequiredRole && hasRequiredPermission;
   }
