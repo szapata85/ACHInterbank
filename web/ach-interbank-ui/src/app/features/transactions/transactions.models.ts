@@ -1,5 +1,21 @@
 import { FinancialInstitutionStatusEnum, TransactionTypeEnum } from './transactions.types';
 
+export interface CreateTransactionRequest {
+  amount: number;
+  reference: string;
+  type: TransactionTypeEnum;
+  destinationInstitutionId: number;
+  sourceAccountNumber: string;
+  destinationAccountNumber: string;
+  companyName?: string;
+  companyIdentification?: string;
+  companyEntryDescription?: string;
+  addendas?: Array<{
+    addendaType: string;
+    information: string;
+  }>;
+}
+
 export interface DestinationInstitution {
   id: number;
   name: string;
@@ -10,13 +26,7 @@ export interface DestinationInstitution {
   status: FinancialInstitutionStatusEnum;
 }
 
-export interface TransactionDraft {
-  amount: number;
-  reference: string;
-  type: TransactionTypeEnum;
-  destinationInstitutionId: number;
-  sourceAccountNumber: string;
-  destinationAccountNumber: string;
+export interface TransactionDraft extends CreateTransactionRequest {
   companyName: string;
   companyIdentification: string;
   companyEntryDescription: string;
