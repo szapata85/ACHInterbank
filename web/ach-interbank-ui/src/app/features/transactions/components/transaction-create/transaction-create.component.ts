@@ -5,9 +5,10 @@ import { Subject } from 'rxjs';
 import { Router } from '@angular/router';
 import { TransactionsApiService } from '../../services/transactions-api.service';
 import { TransactionDraft, TransactionResponse } from '../../transactions.models';
-import { TransactionTypeEnum } from '../../transactions.types';
+import { FinancialInstitutionStatusEnum, TransactionTypeEnum } from '../../transactions.types';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SharedModule } from '../../../../shared/shared.module';
+import { FinancialInstitutionsApiService } from '../../services/financial-institutions-api.service';
 
 @Component({
   selector: 'app-transaction-create',
@@ -23,12 +24,17 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly router = inject(Router);
   private readonly notifications = inject(NotificationService);
+  private readonly financialInstitutionsApi = inject(FinancialInstitutionsApiService);
   private readonly destroy$ = new Subject<void>();
 
   readonly TransactionType = TransactionTypeEnum;
-  readonly institutions$ = this.api
-    .getDestinationInstitutions()
-    .pipe(map((list) => (list ?? []).filter((item) => item.status === 1).sort((a, b) => a.name.localeCompare(b.name))));
+  readonly institutions$ = this.financialInstitutionsApi.getAll().pipe(
+    map((list) =>
+      (list ?? [])
+        .filter((item) => item.status === FinancialInstitutionStatusEnum.Active)
+        .sort((a, b) => a.name.localeCompare(b.name))
+    )
+  );
 
   readonly form: FormGroup = this.fb.group({
     amount: [null, [Validators.required, Validators.min(0.01)]],

@@ -28,11 +28,4 @@ export class TransactionsApiService {
       })
     );
   }
-
-  getDestinationInstitutions() {
-    return this.api.get<Array<{ id: number; name: string; routingNumber: string; status: number }>>(
-      'financial-institutions',
-      { params: { includeInactive: false } }
-    );
-  }
 }

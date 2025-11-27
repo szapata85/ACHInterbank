@@ -1,9 +1,13 @@
-import { TransactionTypeEnum } from './transactions.types';
+import { FinancialInstitutionStatusEnum, TransactionTypeEnum } from './transactions.types';
 
 export interface DestinationInstitution {
   id: number;
   name: string;
   routingNumber: string;
+  transitCode: string;
+  checkDigit: string;
+  isDefaultSource: boolean;
+  status: FinancialInstitutionStatusEnum;
 }
 
 export interface TransactionDraft {
