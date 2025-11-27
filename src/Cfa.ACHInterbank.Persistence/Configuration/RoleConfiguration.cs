@@ -29,7 +29,7 @@ public class RoleConfiguration : IEntityTypeConfiguration<Role>
             new Role
             {
                 Id = OperatorRoleId,
-                Name = "Operator",
+                Name = "ACH.Operator",
                 Description = "Operaciones básicas sobre ACH"
             });
     }

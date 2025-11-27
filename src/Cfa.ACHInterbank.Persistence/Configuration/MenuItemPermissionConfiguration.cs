@@ -1,0 +1,65 @@
+using Cfa.ACHInterbank.Domain.Entities.Navigation;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Cfa.ACHInterbank.Persistence.Configuration;
+
+public class MenuItemPermissionConfiguration : IEntityTypeConfiguration<MenuItemPermission>
+{
+    public void Configure(EntityTypeBuilder<MenuItemPermission> builder)
+    {
+        builder.ToTable("MenuItemPermissions");
+
+        builder.HasKey(x => new { x.MenuItemId, x.PermissionId });
+
+        builder.HasOne(x => x.MenuItem)
+            .WithMany(x => x.MenuItemPermissions)
+            .HasForeignKey(x => x.MenuItemId);
+
+        builder.HasOne(x => x.Permission)
+            .WithMany()
+            .HasForeignKey(x => x.PermissionId);
+
+        builder.HasData(
+            new MenuItemPermission
+            {
+                MenuItemId = MenuItemConfiguration.UsersId,
+                PermissionId = PermissionConfiguration.ManageUsersPermissionId
+            },
+            new MenuItemPermission
+            {
+                MenuItemId = MenuItemConfiguration.AliasesId,
+                PermissionId = PermissionConfiguration.ReadAliasesPermissionId
+            },
+            new MenuItemPermission
+            {
+                MenuItemId = MenuItemConfiguration.AchCyclesId,
+                PermissionId = PermissionConfiguration.ReadAchPermissionId
+            },
+            new MenuItemPermission
+            {
+                MenuItemId = MenuItemConfiguration.CatalogsId,
+                PermissionId = PermissionConfiguration.ReadCatalogsPermissionId
+            },
+            new MenuItemPermission
+            {
+                MenuItemId = MenuItemConfiguration.TransactionsId,
+                PermissionId = PermissionConfiguration.ManageAchPermissionId
+            },
+            new MenuItemPermission
+            {
+                MenuItemId = MenuItemConfiguration.TransactionsId,
+                PermissionId = PermissionConfiguration.ReadAchPermissionId
+            },
+            new MenuItemPermission
+            {
+                MenuItemId = MenuItemConfiguration.TransactionsCreateId,
+                PermissionId = PermissionConfiguration.ManageAchPermissionId
+            },
+            new MenuItemPermission
+            {
+                MenuItemId = MenuItemConfiguration.TransactionsCreateId,
+                PermissionId = PermissionConfiguration.ReadAchPermissionId
+            });
+    }
+}

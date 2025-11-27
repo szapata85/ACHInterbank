@@ -1,4 +1,4 @@
-﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
+﻿using Cfa.ACHInterbank.Domain.Entities.Navigation;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Services;
 using Cfa.ACHInterbank.Domain.Entities.User;
@@ -48,6 +48,10 @@ public class AchDbContext : DbContext
     public DbSet<UserRole> UserRoles => Set<UserRole>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+    public DbSet<Menu> Menus => Set<Menu>();
+    public DbSet<MenuItem> MenuItems => Set<MenuItem>();
+    public DbSet<MenuItemRole> MenuItemRoles => Set<MenuItemRole>();
+    public DbSet<MenuItemPermission> MenuItemPermissions => Set<MenuItemPermission>();
 
 
 

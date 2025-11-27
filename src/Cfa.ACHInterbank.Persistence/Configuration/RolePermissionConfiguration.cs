@@ -33,8 +33,38 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
             },
             new RolePermission
             {
+                RoleId = RoleConfiguration.AdminRoleId,
+                PermissionId = PermissionConfiguration.ReadAliasesPermissionId
+            },
+            new RolePermission
+            {
+                RoleId = RoleConfiguration.AdminRoleId,
+                PermissionId = PermissionConfiguration.ReadCatalogsPermissionId
+            },
+            new RolePermission
+            {
+                RoleId = RoleConfiguration.AdminRoleId,
+                PermissionId = PermissionConfiguration.ManageUsersPermissionId
+            },
+            new RolePermission
+            {
+                RoleId = RoleConfiguration.OperatorRoleId,
+                PermissionId = PermissionConfiguration.ManageAchPermissionId
+            },
+            new RolePermission
+            {
                 RoleId = RoleConfiguration.OperatorRoleId,
                 PermissionId = PermissionConfiguration.ReadAchPermissionId
+            },
+            new RolePermission
+            {
+                RoleId = RoleConfiguration.OperatorRoleId,
+                PermissionId = PermissionConfiguration.ReadAliasesPermissionId
+            },
+            new RolePermission
+            {
+                RoleId = RoleConfiguration.OperatorRoleId,
+                PermissionId = PermissionConfiguration.ReadCatalogsPermissionId
             });
     }
 }

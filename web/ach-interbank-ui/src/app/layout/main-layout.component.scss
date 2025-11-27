@@ -148,6 +148,32 @@
   border: 1px solid rgba(14, 165, 233, 0.3);
 }
 
+.submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-left: 0.75rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+
+  .submenu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 8px;
+    color: #cbd5e1;
+    text-decoration: none;
+    transition: background 0.2s ease, color 0.2s ease;
+
+    &:hover,
+    &.active {
+      background: rgba(255, 255, 255, 0.06);
+      color: #ffffff;
+    }
+  }
+}
+
 .icon {
   font-family: 'Material Symbols Outlined';
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;

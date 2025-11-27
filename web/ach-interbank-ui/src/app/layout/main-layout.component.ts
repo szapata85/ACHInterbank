@@ -2,21 +2,14 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, HostListener, On
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 import { Subscription, filter } from 'rxjs';
 import { AuthService } from '../core/services/auth.service';
+import { NavigationService } from '../core/services/navigation.service';
+import { MenuItem } from '../core/models/menu.model';
 import { SharedModule } from '../shared/shared.module';
 import { RouterModule } from '@angular/router';
 
 interface Breadcrumb {
   label: string;
   url: string;
-}
-
-interface NavItem {
-  label: string;
-  icon?: string;
-  route: string;
-  exact?: boolean;
-  roles?: string[];
-  permissions?: string[];
 }
 
 @Component({
@@ -32,42 +25,17 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly authService = inject(AuthService);
+  private readonly navigationService = inject(NavigationService);
 
   readonly user$ = this.authService.user$;
-  readonly navItems: NavItem[] = [
-    { label: 'Dashboard', route: '/dashboard', icon: 'dashboard' },
-    {
-      label: 'Usuarios',
-      route: '/users',
-      icon: 'group',
-      roles: ['Admin'],
-      permissions: ['CanManageUsers']
-    },
-    { label: 'Alias', route: '/aliases', icon: 'key', permissions: ['CanReadAliases'] },
-    { label: 'Ciclos ACH', route: '/ach-cycles', icon: 'schedule', permissions: ['CanReadAch'] },
-    { label: 'Catálogos', route: '/catalogs', icon: 'inventory', permissions: ['CanReadCatalogs'] },
-    {
-      label: 'Transacciones',
-      route: '/transactions',
-      icon: 'swap_horiz',
-      roles: ['Admin', 'ACH.Operator'],
-      permissions: ['CanManageAch', 'CanReadAch']
-    },
-    {
-      label: 'Crear transacción',
-      route: '/transactions/create',
-      icon: 'note_add',
-      exact: true,
-      roles: ['Admin', 'ACH.Operator'],
-      permissions: ['CanManageAch', 'CanReadAch']
-    }
-  ];
+  menuItems: MenuItem[] = [];
 
   breadcrumbs: Breadcrumb[] = [];
   pageTitle = 'Inicio';
   isMenuOpen = false;
 
   private subscription?: Subscription;
+  private menuSubscription?: Subscription;
 
   ngOnInit(): void {
     this.subscription = this.router.events
@@ -79,18 +47,20 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       });
 
     this.buildBreadcrumbs();
+
+    this.menuSubscription = this.navigationService.getMenu().subscribe((items) => {
+      this.menuItems = items;
+      this.cdr.markForCheck();
+    });
   }
 
   ngOnDestroy(): void {
     this.subscription?.unsubscribe();
+    this.menuSubscription?.unsubscribe();
   }
 
   logout(): void {
     this.authService.logout();
-  }
-
-  get filteredNavItems(): NavItem[] {
-    return this.navItems.filter((item) => this.canDisplay(item));
   }
 
   toggleMenu(): void {
@@ -162,12 +132,5 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   private isMobileView(): boolean {
     return typeof window !== 'undefined' && window.innerWidth < 960;
-  }
-
-  private canDisplay(item: NavItem): boolean {
-    const hasRequiredRole = !item.roles || this.authService.hasRole(item.roles);
-    const hasRequiredPermission = !item.permissions || this.authService.hasPermission(item.permissions);
-
-    return hasRequiredRole && hasRequiredPermission;
   }
 }
