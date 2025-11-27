@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text;
 
@@ -16,6 +17,7 @@ public class NachaExportController : ControllerBase
     }
 
     [HttpGet("{cycleId:int}")]
+    [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> Export(int cycleId, CancellationToken ct)
     {
         string nachaContent = await _nachaBuilder.BuildNachaFileByCycleAsync(cycleId, ct);

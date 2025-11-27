@@ -1,0 +1,31 @@
+<app-page-header
+  title="Exportar archivos NACHA-M"
+  subtitle="Descarga los archivos planos por ciclo ejecutado"
+  [actionsTemplate]="headerActions"
+></app-page-header>
+
+<div class="export-wrapper">
+  <app-table
+    [columns]="[
+      { key: 'cycleName', label: 'Ciclo' },
+      { key: 'clearingHouseName', label: 'Cámara' },
+      { key: 'processingDateText', label: 'Fecha de procesamiento' },
+      { key: 'transactionCount', label: 'Transacciones', align: 'end' }
+    ]"
+    [data]="cycles"
+    [loading]="loading"
+    [pageSize]="cycles.length || 10"
+    [total]="cycles.length"
+    [rowActions]="rowActions"
+  ></app-table>
+</div>
+
+<ng-template #rowActions let-cycle>
+  <button type="button" class="primary" [disabled]="downloadingId === cycle.id" (click)="download(cycle)">
+    {{ downloadingId === cycle.id ? 'Generando...' : 'Generar NACHA' }}
+  </button>
+</ng-template>
+
+<ng-template #headerActions>
+  <a routerLink="/ach-cycles" class="link">Volver a ciclos</a>
+</ng-template>

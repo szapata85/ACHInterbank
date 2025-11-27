@@ -9,4 +9,5 @@ public interface IAchCycleAppService
     Task<AchCycleDto> CreateAsync(AchCycleRequest request, CancellationToken ct = default);
     Task<AchCycleDto> UpdateAsync(int id, AchCycleRequest request, CancellationToken ct = default);
     Task DeleteAsync(int id, CancellationToken ct = default);
+    Task<IEnumerable<AchCycleExportDto>> GetExecutedWithTransactionsAsync(CancellationToken ct = default);
 }

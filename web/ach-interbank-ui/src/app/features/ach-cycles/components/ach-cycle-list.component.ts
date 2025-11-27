@@ -80,4 +80,8 @@ export class AchCycleListComponent implements OnInit {
   edit(item: AchCycleSummary): void {
     this.router.navigate(['/ach-cycles', item.id, 'edit']);
   }
+
+  goToExport(): void {
+    this.router.navigate(['/ach-cycles/nacha/export']);
+  }
 }

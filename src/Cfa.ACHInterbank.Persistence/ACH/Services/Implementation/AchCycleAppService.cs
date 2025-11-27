@@ -94,6 +94,27 @@ public class AchCycleAppService : IAchCycleAppService
         await _context.SaveChangesAsync(ct);
     }
 
+    public async Task<IEnumerable<AchCycleExportDto>> GetExecutedWithTransactionsAsync(CancellationToken ct = default)
+    {
+        var today = DateTime.UtcNow.Date;
+
+        return await _context.AchCycles
+            .AsNoTracking()
+            .Where(cycle => cycle.ProcessingDate <= today)
+            .Where(cycle => cycle.Transactions.Any())
+            .Select(cycle => new AchCycleExportDto
+            {
+                Id = cycle.Id,
+                CycleName = cycle.CycleName,
+                ProcessingDate = cycle.ProcessingDate,
+                ClearingHouseName = cycle.ClearingHouse != null ? cycle.ClearingHouse.Name : null,
+                TransactionCount = cycle.Transactions.Count
+            })
+            .OrderByDescending(cycle => cycle.ProcessingDate)
+            .ThenBy(cycle => cycle.Id)
+            .ToListAsync(ct);
+    }
+
     private async Task ValidateClearingHouseAsync(int clearingHouseId, CancellationToken ct)
     {
         var exists = await _context.ClearingHouses.AnyAsync(ch => ch.Id == clearingHouseId, ct);
