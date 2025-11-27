@@ -2,14 +2,14 @@ import { Injectable, inject } from '@angular/core';
 import { catchError, throwError } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { TransactionTypeEnum } from '../transactions.types';
-import { CreateTransactionRequest, DestinationInstitution, TransactionResponse } from '../transactions.models';
+import { TransactionDraft, TransactionResponse } from '../transactions.models';
 
 @Injectable({ providedIn: 'root' })
 export class TransactionsApiService {
   private readonly api = inject(ApiService);
 
-  createTransaction(payload: CreateTransactionRequest) {
-    const sanitized: CreateTransactionRequest = {
+  createTransaction(payload: TransactionDraft) {
+    const sanitized: TransactionDraft = {
       ...payload,
       amount: Number(payload.amount),
       destinationInstitutionId: Number(payload.destinationInstitutionId),
@@ -27,9 +27,5 @@ export class TransactionsApiService {
         return throwError(() => new Error('No fue posible crear la transacción.'));
       })
     );
-  }
-
-  getDestinationInstitutions() {
-    return this.api.get<DestinationInstitution[]>('financial-institutions', { params: { includeInactive: false } });
   }
 }

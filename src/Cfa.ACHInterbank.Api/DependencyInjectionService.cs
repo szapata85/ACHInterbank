@@ -121,6 +121,7 @@ public static class DependencyInjectionService
         }));
 
         services.AddHttpClient();
+        services.AddHttpContextAccessor();
 
         services.AddScoped<AchInitializationService>();
 

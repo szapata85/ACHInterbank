@@ -1,11 +1,11 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, HostListener, OnDestroy, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
-import { Observable, Subscription, map, filter } from 'rxjs';
+import { Subscription, filter } from 'rxjs';
 import { AuthService } from '../core/services/auth.service';
-import { UserSession } from '../core/models/auth.models';
+import { NavigationService } from '../core/services/navigation.service';
+import { MenuItem } from '../core/models/menu.model';
 import { SharedModule } from '../shared/shared.module';
 import { RouterModule } from '@angular/router';
-import { NAV_ITEMS, NavItem } from './navigation.config';
 
 interface Breadcrumb {
   label: string;
@@ -25,18 +25,17 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly authService = inject(AuthService);
+  private readonly navigationService = inject(NavigationService);
 
   readonly user$ = this.authService.user$;
-  readonly navItems: NavItem[] = NAV_ITEMS;
-  readonly menuItems$: Observable<NavItem[]> = this.authService.user$.pipe(
-    map((user) => this.filterNavItems(this.navItems, user))
-  );
+  menuItems: MenuItem[] = [];
 
   breadcrumbs: Breadcrumb[] = [];
   pageTitle = 'Inicio';
   isMenuOpen = false;
 
   private subscription?: Subscription;
+  private menuSubscription?: Subscription;
 
   ngOnInit(): void {
     this.subscription = this.router.events
@@ -48,10 +47,16 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       });
 
     this.buildBreadcrumbs();
+
+    this.menuSubscription = this.navigationService.getMenu().subscribe((items) => {
+      this.menuItems = items;
+      this.cdr.markForCheck();
+    });
   }
 
   ngOnDestroy(): void {
     this.subscription?.unsubscribe();
+    this.menuSubscription?.unsubscribe();
   }
 
   logout(): void {
@@ -127,28 +132,5 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   private isMobileView(): boolean {
     return typeof window !== 'undefined' && window.innerWidth < 960;
-  }
-
-  private filterNavItems(items: NavItem[], user: UserSession | null): NavItem[] {
-    return items.filter((item) => this.canDisplay(item, user));
-  }
-
-  private canDisplay(item: NavItem, user: UserSession | null): boolean {
-    if (!item.roles && !item.permissions) {
-      return true;
-    }
-
-    if (!user) {
-      return false;
-    }
-
-    const userRoles = (user.roles ?? []).map((role) => role.toLowerCase());
-    const userPermissions = (user.permissions ?? []).map((permission) => permission.toLowerCase());
-
-    const hasRequiredRole = !item.roles || item.roles.some((role) => userRoles.includes(role.toLowerCase()));
-    const hasRequiredPermission =
-      !item.permissions || item.permissions.some((permission) => userPermissions.includes(permission.toLowerCase()));
-
-    return hasRequiredRole && hasRequiredPermission;
   }
 }

@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Application.Validators.TokenClientValidator;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using FluentValidation;
+using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Reflection;
@@ -26,6 +27,8 @@ public static class DependencyInjectionService
         MapperBootstrapper.Configure(loggerFactory);
 
         services.AddSingleton(MapperBootstrapper.Instance);
+
+        services.AddMediatR(typeof(DependencyInjectionService).Assembly);
         #endregion
 
         #region Services

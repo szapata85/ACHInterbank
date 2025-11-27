@@ -1,0 +1,146 @@
+<section class="transaction-card" aria-labelledby="transaction-create-title">
+  <div class="header">
+    <h2 id="transaction-create-title">Crear transacción ACH</h2>
+    <p class="subtitle">Complete los datos 1:1 con el DTO expuesto por el backend.</p>
+  </div>
+
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <div class="form-grid">
+      <label>
+        <span>Monto *</span>
+        <input
+          type="number"
+          formControlName="amount"
+          inputmode="decimal"
+          min="0.01"
+          step="0.01"
+          required
+          aria-describedby="amount-help"
+        />
+        <small id="amount-help">Ingrese el monto en pesos colombianos.</small>
+        <small class="muted">Valor a enviar: {{ form.get('amount')?.value | currencyCol }}</small>
+        <app-error-message [control]="form.get('amount')"></app-error-message>
+      </label>
+
+      <label>
+        <span>Referencia *</span>
+        <input type="text" formControlName="reference" maxlength="30" required />
+        <app-error-message [control]="form.get('reference')"></app-error-message>
+      </label>
+
+      <label>
+        <span>Tipo *</span>
+        <select formControlName="type" required>
+          <option [ngValue]="TransactionType.Credit">Crédito</option>
+          <option [ngValue]="TransactionType.Debit">Débito</option>
+        </select>
+        <app-error-message [control]="form.get('type')"></app-error-message>
+      </label>
+
+      <label>
+        <span>Institución destino *</span>
+        <select formControlName="destinationInstitutionId" required>
+          <option [ngValue]="null" disabled>Seleccione una institución</option>
+          <option *ngFor="let institution of institutions" [ngValue]="institution.id">
+            {{ institution.name }}
+          </option>
+        </select>
+        <small class="muted">Seleccione una institución habilitada.</small>
+        <app-error-message [control]="form.get('destinationInstitutionId')"></app-error-message>
+      </label>
+
+      <label>
+        <span>Cuenta origen *</span>
+        <input type="text" formControlName="sourceAccountNumber" required inputmode="numeric" />
+        <app-error-message [control]="form.get('sourceAccountNumber')"></app-error-message>
+      </label>
+
+      <label>
+        <span>Cuenta destino *</span>
+        <input type="text" formControlName="destinationAccountNumber" required inputmode="numeric" />
+        <app-error-message [control]="form.get('destinationAccountNumber')"></app-error-message>
+      </label>
+
+      <label>
+        <span>Empresa *</span>
+        <input type="text" formControlName="companyName" required maxlength="16" />
+        <app-error-message [control]="form.get('companyName')"></app-error-message>
+      </label>
+
+      <label>
+        <span>Identificación empresa *</span>
+        <input type="text" formControlName="companyIdentification" required maxlength="10" />
+        <app-error-message [control]="form.get('companyIdentification')"></app-error-message>
+      </label>
+
+      <label>
+        <span>Descripción de la entrada *</span>
+        <input type="text" formControlName="companyEntryDescription" required maxlength="10" />
+        <app-error-message [control]="form.get('companyEntryDescription')"></app-error-message>
+      </label>
+    </div>
+
+    <div class="addenda-section">
+      <div class="section-header">
+        <h3>Addendas</h3>
+        <button type="button" class="link" (click)="addAddenda()">Agregar addenda</button>
+      </div>
+      <ng-container *ngIf="addendas.controls.length; else noAddendas">
+        <div
+          class="addenda-item"
+          *ngFor="let addenda of addendas.controls; let i = index; trackBy: trackAddenda"
+          [formGroup]="addenda"
+        >
+          <label>
+            <span>Tipo *</span>
+            <input type="text" formControlName="addendaType" required maxlength="80" />
+            <app-error-message [control]="addenda.get('addendaType')"></app-error-message>
+          </label>
+          <label>
+            <span>Información *</span>
+            <input type="text" formControlName="information" required maxlength="80" />
+            <app-error-message [control]="addenda.get('information')"></app-error-message>
+          </label>
+          <button type="button" class="danger" (click)="removeAddenda(i)" aria-label="Eliminar addenda">
+            Eliminar
+          </button>
+        </div>
+      </ng-container>
+      <ng-template #noAddendas>
+        <p class="muted">No se han agregado addendas.</p>
+      </ng-template>
+    </div>
+
+    <div class="actions">
+      <button type="submit" [disabled]="isSubmitting.value || form.invalid">
+        {{ isSubmitting.value ? 'Registrando…' : 'Registrar transacción' }}
+      </button>
+      <button type="button" class="ghost" [disabled]="isSubmitting.value" routerLink="/transactions">
+        Cancelar
+      </button>
+    </div>
+  </form>
+
+  <section *ngIf="successMessage.value" class="result success" role="status">
+    <h3>{{ successMessage.value }}</h3>
+    <dl *ngIf="createdResponse.value">
+      <div>
+        <dt>ID</dt>
+        <dd>{{ createdResponse.value?.id }}</dd>
+      </div>
+      <div>
+        <dt>Monto</dt>
+        <dd>{{ createdResponse.value?.amount | currency: 'COP': 'symbol-narrow' }}</dd>
+      </div>
+      <div>
+        <dt>Referencia</dt>
+        <dd>{{ createdResponse.value?.reference }}</dd>
+      </div>
+    </dl>
+  </section>
+
+  <section *ngIf="errorMessage.value" class="result error" role="alert">
+    <h3>Error al crear la transacción</h3>
+    <p>{{ errorMessage.value }}</p>
+  </section>
+</section>

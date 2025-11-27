@@ -42,8 +42,8 @@ public static class DependencyInjectionService
         services.AddAuthorization(options =>
         {
             options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
-            options.AddPolicy("CanManageAch", policy => policy.RequireClaim("permission", "ach.manage"));
-            options.AddPolicy("CanReadAch", policy => policy.RequireClaim("permission", "ach.read"));
+            options.AddPolicy("CanManageAch", policy => policy.RequireClaim("permission", "CanManageAch"));
+            options.AddPolicy("CanReadAch", policy => policy.RequireClaim("permission", "CanReadAch"));
         });
 
         #region Services

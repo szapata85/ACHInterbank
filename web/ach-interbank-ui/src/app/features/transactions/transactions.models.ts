@@ -1,19 +1,29 @@
-import { TransactionTypeEnum } from './transactions.types';
+import { FinancialInstitutionStatusEnum, TransactionTypeEnum } from './transactions.types';
 
 export interface DestinationInstitution {
   id: number;
   name: string;
   routingNumber: string;
-  status: number;
+  transitCode: string;
+  checkDigit: string;
+  isDefaultSource: boolean;
+  status: FinancialInstitutionStatusEnum;
 }
 
-export interface CreateTransactionRequest {
+export interface TransactionDraft {
   amount: number;
   reference: string;
   type: TransactionTypeEnum;
   destinationInstitutionId: number;
   sourceAccountNumber: string;
   destinationAccountNumber: string;
+  companyName: string;
+  companyIdentification: string;
+  companyEntryDescription: string;
+  addendas: Array<{
+    addendaType: string;
+    information: string;
+  }>;
 }
 
 export interface TransactionResponse {
