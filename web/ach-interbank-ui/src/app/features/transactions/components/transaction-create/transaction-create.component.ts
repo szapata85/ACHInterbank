@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { map, take, takeUntil, tap } from 'rxjs';
+import { take, takeUntil, tap } from 'rxjs';
 import { Subject } from 'rxjs';
 import { Router } from '@angular/router';
 import { TransactionsApiService } from '../../services/transactions-api.service';
-import { TransactionDraft, TransactionResponse } from '../../transactions.models';
+import { DestinationInstitution, TransactionDraft, TransactionResponse } from '../../transactions.models';
 import { FinancialInstitutionStatusEnum, TransactionTypeEnum } from '../../transactions.types';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SharedModule } from '../../../../shared/shared.module';
@@ -28,13 +28,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
 
   readonly TransactionType = TransactionTypeEnum;
-  readonly institutions$ = this.financialInstitutionsApi.getAll().pipe(
-    map((list) =>
-      (list ?? [])
-        .filter((item) => item.status === FinancialInstitutionStatusEnum.Active)
-        .sort((a, b) => a.name.localeCompare(b.name))
-    )
-  );
+  readonly institutions: DestinationInstitution[] = [];
 
   readonly form: FormGroup = this.fb.group({
     amount: [null, [Validators.required, Validators.min(0.01)]],
@@ -56,6 +50,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.form.setValidators(this.validateAccountDifference);
+    this.loadInstitutions();
     this.form.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(() => {
       this.errorMessage.setValue(null);
       this.successMessage.setValue(null);
@@ -146,6 +141,32 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
   trackAddenda(index: number): number {
     return index;
+  }
+
+  private loadInstitutions(): void {
+    this.financialInstitutionsApi
+      .getAll()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (list) => {
+          this.institutions.splice(
+            0,
+            this.institutions.length,
+            ...(list ?? [])
+              .filter((item) => item.status === FinancialInstitutionStatusEnum.Active)
+              .sort((a, b) => a.name.localeCompare(b.name))
+          );
+          this.cdr.markForCheck();
+        },
+        error: (error: Error) => {
+          this.errorMessage.setValue(
+            'No fue posible cargar las instituciones de destino. Intente nuevamente más tarde.'
+          );
+          this.notifications.error(this.errorMessage.value ?? 'Error al cargar instituciones destino');
+          this.cdr.markForCheck();
+          console.error('Error al cargar instituciones de destino', error);
+        }
+      });
   }
 
   private validateAccountDifference = (group: FormGroup) => {

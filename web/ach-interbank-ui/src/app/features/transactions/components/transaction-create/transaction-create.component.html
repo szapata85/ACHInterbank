@@ -41,7 +41,7 @@
         <span>Institución destino *</span>
         <select formControlName="destinationInstitutionId" required>
           <option [ngValue]="null" disabled>Seleccione una institución</option>
-          <option *ngFor="let institution of institutions$ | async" [ngValue]="institution.id">
+          <option *ngFor="let institution of institutions" [ngValue]="institution.id">
             {{ institution.name }}
           </option>
         </select>
