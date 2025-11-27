@@ -26,12 +26,15 @@
 
       <label>
         <span>Institución destino *</span>
-        <select formControlName="destinationInstitutionId" required>
-          <option [ngValue]="null" disabled>Seleccione una institución</option>
-          <option *ngFor="let institution of institutions$ | async" [ngValue]="institution.id">
+        <select formControlName="destinationInstitutionId" [disabled]="isLoadingInstitutions || !!institutionsError" required>
+          <option [ngValue]="null" disabled>
+            {{ isLoadingInstitutions ? 'Cargando instituciones...' : 'Seleccione una institución' }}
+          </option>
+          <option *ngFor="let institution of financialInstitutions" [ngValue]="institution.id">
             {{ institution.name }}
           </option>
         </select>
+        <p *ngIf="institutionsError" class="helper error" role="alert">{{ institutionsError }}</p>
         <app-error-message [control]="form.get('destinationInstitutionId')"></app-error-message>
       </label>
     </div>

@@ -7,6 +7,21 @@ export interface DestinationInstitution {
   status: number;
 }
 
+export enum FinancialInstitutionStatus {
+  Active = 1,
+  Inactive = 2
+}
+
+export interface FinancialInstitution {
+  id: number;
+  name: string;
+  isDefaultSource: boolean;
+  routingNumber: string;
+  transitCode: string;
+  checkDigit: string;
+  status: FinancialInstitutionStatus | number;
+}
+
 export interface CreateTransactionRequest {
   amount: number;
   reference: string;

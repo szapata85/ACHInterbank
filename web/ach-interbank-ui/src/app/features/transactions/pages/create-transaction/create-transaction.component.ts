@@ -1,10 +1,16 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
-import { Subject, finalize, map, takeUntil } from 'rxjs';
+import { Subject, finalize, takeUntil } from 'rxjs';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SharedModule } from '../../../../shared/shared.module';
+import { FinancialInstitutionsService } from '../../services/financial-institutions.service';
 import { TransactionsApiService } from '../../services/transactions-api.service';
-import { CreateTransactionRequest, TransactionResponse } from '../../transactions.models';
+import {
+  CreateTransactionRequest,
+  FinancialInstitution,
+  FinancialInstitutionStatus,
+  TransactionResponse
+} from '../../transactions.models';
 import { TransactionTypeEnum } from '../../transactions.types';
 
 @Component({
@@ -18,12 +24,13 @@ import { TransactionTypeEnum } from '../../transactions.types';
 export class CreateTransactionComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(TransactionsApiService);
+  private readonly financialInstitutionsService = inject(FinancialInstitutionsService);
   private readonly notifications = inject(NotificationService);
   private readonly destroy$ = new Subject<void>();
 
-  readonly institutions$ = this.api
-    .getDestinationInstitutions()
-    .pipe(map((list) => (list ?? []).filter((item) => item.status === 1).sort((a, b) => a.name.localeCompare(b.name))));
+  financialInstitutions: FinancialInstitution[] = [];
+  institutionsError: string | null = null;
+  isLoadingInstitutions = false;
 
   readonly form = this.fb.group({
     sourceAccount: ['', [Validators.required, Validators.pattern(/^[0-9]{6,18}$/)]],
@@ -39,6 +46,8 @@ export class CreateTransactionComponent implements OnInit, OnDestroy {
   createdResponse: TransactionResponse | null = null;
 
   ngOnInit(): void {
+    this.loadFinancialInstitutions();
+
     this.form.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(() => {
       this.submissionError = null;
       this.submissionSuccess = null;
@@ -88,6 +97,31 @@ export class CreateTransactionComponent implements OnInit, OnDestroy {
         error: (error: Error) => {
           this.submissionError = error.message || 'Ocurrió un error al crear la transacción';
           this.notifications.error(this.submissionError);
+        }
+      });
+  }
+
+  private loadFinancialInstitutions(): void {
+    this.isLoadingInstitutions = true;
+    this.institutionsError = null;
+
+    this.financialInstitutionsService
+      .getFinancialInstitutions()
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.isLoadingInstitutions = false;
+        })
+      )
+      .subscribe({
+        next: (institutions) => {
+          this.financialInstitutions = (institutions ?? [])
+            .filter((institution) => institution.status === FinancialInstitutionStatus.Active)
+            .sort((a, b) => a.name.localeCompare(b.name));
+        },
+        error: (error: Error) => {
+          this.institutionsError = error.message || 'No fue posible cargar las entidades financieras.';
+          this.notifications.error(this.institutionsError);
         }
       });
   }
