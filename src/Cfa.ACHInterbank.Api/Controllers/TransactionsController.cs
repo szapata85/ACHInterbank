@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
-[Route("[controller]")]
+[Route("api/[controller]")]
 public class TransactionsController : ControllerBase
 {
     private readonly IAchTransactionService _transactionService;
