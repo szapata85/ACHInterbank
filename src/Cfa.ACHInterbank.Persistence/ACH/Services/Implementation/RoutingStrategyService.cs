@@ -48,35 +48,44 @@ public class RoutingStrategyService : IRoutingStrategyService
         // 2️) Próxima fecha hábil
         DateTime processingDate = GetNextBusinessDay(now.Date);
 
-        // 3️) Crear ciclos on-demand solo si faltan
-        List<int> prefIds = preferences.Select(p => p.ClearingHouseId).ToList();
-        List<int> existing = await _context.AchCycles
-            .Where(c => prefIds.Contains(c.ClearingHouseId) &&
-                        c.ProcessingDate == processingDate)
-            .Select(c => c.ClearingHouseId)
-            .Distinct()
-            .ToListAsync(ct);
-
-        List<int> missing = prefIds.Except(existing).ToList();
-        foreach (int chId in missing)
+        // 3️) Buscar el siguiente ciclo disponible, avanzando al próximo día hábil
+        //     cuando los cortes de hoy ya pasaron.
+        for (int attempt = 0; attempt < 15; attempt++)
         {
-            await _cycleScheduler.ScheduleCyclesForClearingHouseAsync(chId, processingDate);
-        }
+            // Crear ciclos on-demand solo si faltan
+            List<int> prefIds = preferences.Select(p => p.ClearingHouseId).ToList();
+            List<int> existing = await _context.AchCycles
+                .Where(c => prefIds.Contains(c.ClearingHouseId) &&
+                            c.ProcessingDate == processingDate)
+                .Select(c => c.ClearingHouseId)
+                .Distinct()
+                .ToListAsync(ct);
 
-        // 4️) Evaluar cámaras en el orden IsDefault + Priority
-        foreach (InstitutionClearingHousePreference pref in preferences)
-        {
-            var nextCycle = await _context.AchCycles
-                .Where(c =>
-                    c.ClearingHouseId == pref.ClearingHouseId &&
-                    c.ProcessingDate >= processingDate &&
-                    (c.ProcessingDate > now.Date || c.CutoffTime > now.TimeOfDay))
-                .OrderBy(c => c.ProcessingDate)
-                .ThenBy(c => c.CutoffTime)
-                .FirstOrDefaultAsync(ct);
+            List<int> missing = prefIds.Except(existing).ToList();
+            foreach (int chId in missing)
+            {
+                await _cycleScheduler.ScheduleCyclesForClearingHouseAsync(chId, processingDate);
+            }
 
-            if (nextCycle != null)
-                return nextCycle.Id;
+            // 4️) Evaluar cámaras en el orden IsDefault + Priority
+            foreach (InstitutionClearingHousePreference pref in preferences)
+            {
+                var nextCycle = await _context.AchCycles
+                    .Where(c =>
+                        c.ClearingHouseId == pref.ClearingHouseId &&
+                        c.ProcessingDate == processingDate &&
+                        (processingDate > now.Date || c.CutoffTime > now.TimeOfDay))
+                    .OrderBy(c => c.ProcessingDate)
+                    .ThenBy(c => c.CutoffTime)
+                    .FirstOrDefaultAsync(ct);
+
+                if (nextCycle != null)
+                    return nextCycle.Id;
+            }
+
+            // Si no hay ciclos con cortes futuros en la fecha actual,
+            // avanzamos al siguiente día hábil y volvemos a intentar.
+            processingDate = GetNextBusinessDay(processingDate.AddDays(1));
         }
 
         throw new InvalidOperationException(
