@@ -2,9 +2,9 @@ export const environment = {
   production: false,
   /**
    * URL base para los endpoints REST del backend ACH Interbank.
-   * Incluye el prefijo /api para simplificar el consumo desde ApiService.
+   * No incluye el prefijo /api porque ApiService lo añade según las rutas solicitadas.
    */
-  apiBaseUrl: 'https://localhost:7269/api',
+  apiBaseUrl: 'https://localhost:7269',
   /** Endpoint relativo para las operaciones de autenticación */
   authEndpoint: 'auth',
   /** Tiempo máximo de espera para peticiones HTTP (en milisegundos) */
