@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("[controller]")]
 [TypeFilter(typeof(ExceptionManager))]
 public class AuthController : ControllerBase
 {

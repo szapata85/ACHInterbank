@@ -12,7 +12,7 @@ import { Observable } from 'rxjs';
 @Injectable({ providedIn: 'root' })
 export class AchCyclesApiService {
   private readonly api = inject(ApiService);
-  private readonly basePath = 'api/ach-cycles';
+  private readonly basePath = '/ach-cycles';
 
   search(filter: AchCycleFilter): Observable<PagedAchCycleResponse> {
     const params: Record<string, string | number | boolean | undefined> = {
@@ -40,7 +40,7 @@ export class AchCyclesApiService {
 @Injectable({ providedIn: 'root' })
 export class ClearingHousesApiService {
   private readonly api = inject(ApiService);
-  private readonly basePath = 'api/clearing-houses';
+  private readonly basePath = 'clearing-houses';
 
   list(): Observable<ClearingHouseOption[]> {
     return this.api.get<ClearingHouseOption[]>(this.basePath);

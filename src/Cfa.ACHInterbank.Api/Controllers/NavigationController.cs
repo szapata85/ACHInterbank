@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
-[Route("api/navigation")]
+[Route("navigation")]
 [Authorize]
 public class NavigationController : ControllerBase
 {

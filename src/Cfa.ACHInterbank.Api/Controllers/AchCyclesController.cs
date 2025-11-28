@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
-[Route("api/ach-cycles")]
+[Route("ach-cycles")]
 [Authorize]
 public class AchCyclesController : ControllerBase
 {

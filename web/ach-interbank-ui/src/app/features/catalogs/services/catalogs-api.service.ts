@@ -6,7 +6,7 @@ import { Observable } from 'rxjs';
 @Injectable({ providedIn: 'root' })
 export class CatalogsApiService {
   private readonly api = inject(ApiService);
-  private readonly basePath = 'api/financial-institutions';
+  private readonly basePath = 'financial-institutions';
 
   listBanks(): Observable<CatalogItem[]> {
     return this.api.get<CatalogItem[]>(this.basePath);

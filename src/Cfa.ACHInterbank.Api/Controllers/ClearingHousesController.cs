@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
-[Route("api/clearing-houses")]
+[Route("clearing-houses")]
 [Authorize]
 public class ClearingHousesController : ControllerBase
 {

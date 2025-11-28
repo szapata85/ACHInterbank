@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
-[Route("api/financial-institutions")]
+[Route("financial-institutions")]
 [Authorize]
 public class FinancialInstitutionsController : ControllerBase
 {
