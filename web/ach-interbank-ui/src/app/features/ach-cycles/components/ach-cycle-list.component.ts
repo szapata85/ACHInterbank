@@ -48,6 +48,7 @@ export class AchCycleListComponent implements OnInit {
     this.loading = true;
     this.api.search(filter).subscribe({
       next: (response) => {
+        const items = response?.items ?? [];
         const formatter = new Intl.DateTimeFormat('es-CO', {
           timeZone: 'America/Bogota',
           year: 'numeric',
@@ -55,13 +56,13 @@ export class AchCycleListComponent implements OnInit {
           day: '2-digit'
         });
 
-        this.cycles = response.items.map((cycle) => ({
+        this.cycles = items.map((cycle) => ({
           ...cycle,
           dateText: cycle.date ? formatter.format(new Date(cycle.date)) : '-',
           startText: cycle.startTime,
           endText: cycle.endTime
         }));
-        this.total = response.total;
+        this.total = response?.total ?? 0;
         this.loading = false;
       },
       error: () => {

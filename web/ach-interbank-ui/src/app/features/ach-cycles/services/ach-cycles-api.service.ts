@@ -16,10 +16,13 @@ export class AchCyclesApiService {
 
   search(filter: AchCycleFilter): Observable<PagedAchCycleResponse> {
     const params: Record<string, string | number | boolean> = {
-      date: filter.date,
       page: filter.page ?? 1,
       pageSize: filter.pageSize ?? 10
     };
+
+    if (filter.date) {
+      params.date = filter.date;
+    }
 
     if (filter.clearingHouseId !== undefined && filter.clearingHouseId !== null) {
       params.clearingHouseId = filter.clearingHouseId;
