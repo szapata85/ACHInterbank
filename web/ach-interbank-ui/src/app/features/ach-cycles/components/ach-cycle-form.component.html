@@ -5,8 +5,8 @@
     <label>
       Cámara
       <select formControlName="clearingHouseId">
-        <option value="">Seleccione</option>
-        <option *ngFor="let ch of clearingHouses" [value]="ch.id">{{ ch.name }}</option>
+        <option [ngValue]="null">Seleccione</option>
+        <option *ngFor="let ch of clearingHouses" [ngValue]="ch.id">{{ ch.name }}</option>
       </select>
       <app-error-message [control]="form.get('clearingHouseId')"></app-error-message>
     </label>

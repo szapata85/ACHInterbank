@@ -1,11 +1,11 @@
 export interface ClearingHouseOption {
-  id: string;
+  id: number;
   name: string;
 }
 
 export interface AchCycleSummary {
   id: string;
-  clearingHouseId: string;
+  clearingHouseId: number;
   clearingHouseName: string;
   date: string;
   startTime: string;
@@ -14,14 +14,14 @@ export interface AchCycleSummary {
 }
 
 export interface AchCycleFilter {
-  clearingHouseId?: string;
+  clearingHouseId?: number;
   date?: string;
   page?: number;
   pageSize?: number;
 }
 
 export interface SaveAchCycleRequest {
-  clearingHouseId: string;
+  clearingHouseId: number;
   date: string;
   startTime: string;
   endTime: string;

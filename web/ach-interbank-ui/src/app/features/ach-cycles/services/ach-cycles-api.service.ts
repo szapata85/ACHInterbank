@@ -16,7 +16,7 @@ export class AchCyclesApiService {
 
   search(filter: AchCycleFilter): Observable<PagedAchCycleResponse> {
     const params: Record<string, string | number | boolean | undefined> = {
-      clearingHouseId: filter.clearingHouseId,
+      clearingHouseId: filter.clearingHouseId ?? undefined,
       date: filter.date,
       page: filter.page ?? 1,
       pageSize: filter.pageSize ?? 10

@@ -26,7 +26,7 @@ export class AchCycleFormComponent implements OnInit {
   cycleId: string | null = null;
 
   readonly form = this.fb.group({
-    clearingHouseId: ['', Validators.required],
+    clearingHouseId: [null as number | null, Validators.required],
     date: ['', Validators.required],
     startTime: ['', Validators.required],
     endTime: ['', Validators.required],

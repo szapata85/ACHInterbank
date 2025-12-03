@@ -23,7 +23,7 @@ export class AchCycleListComponent implements OnInit {
   private readonly notifications = inject(NotificationService);
 
   readonly filterForm = this.fb.group({
-    clearingHouseId: [''],
+    clearingHouseId: [null as number | null],
     date: [''],
     page: [1],
     pageSize: [10]
@@ -41,7 +41,10 @@ export class AchCycleListComponent implements OnInit {
   }
 
   load(): void {
-    const filter: AchCycleFilter = this.filterForm.value;
+    const filter: AchCycleFilter = {
+      ...this.filterForm.value,
+      clearingHouseId: this.filterForm.value.clearingHouseId ?? undefined
+    };
     this.loading = true;
     this.api.search(filter).subscribe({
       next: (response) => {

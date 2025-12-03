@@ -3,8 +3,8 @@
 <div class="toolbar">
   <form [formGroup]="filterForm" (ngSubmit)="load()" class="filters">
     <select formControlName="clearingHouseId">
-      <option value="">Todas las cámaras</option>
-      <option *ngFor="let ch of clearingHouses" [value]="ch.id">{{ ch.name }}</option>
+      <option [ngValue]="null">Todas las cámaras</option>
+      <option *ngFor="let ch of clearingHouses" [ngValue]="ch.id">{{ ch.name }}</option>
     </select>
     <input type="date" formControlName="date" />
     <button type="submit">Filtrar</button>
