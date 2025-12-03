@@ -7,7 +7,7 @@ import {
   PagedAchCycleResponse,
   SaveAchCycleRequest
 } from '../models/ach-cycle.model';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class AchCyclesApiService {
@@ -27,7 +27,26 @@ export class AchCyclesApiService {
     if (filter.clearingHouseId !== undefined && filter.clearingHouseId !== null) {
       params.clearingHouseId = filter.clearingHouseId;
     }
-    return this.api.get<PagedAchCycleResponse>(this.basePath, { params });
+
+    return this.api.get<PagedAchCycleResponse | AchCycleSummary[]>(this.basePath, { params }).pipe(
+      map((response) => {
+        if (Array.isArray(response)) {
+          return {
+            items: response,
+            total: response.length,
+            page: filter.page ?? 1,
+            pageSize: filter.pageSize ?? Math.max(1, response.length)
+          } satisfies PagedAchCycleResponse;
+        }
+
+        return {
+          items: response?.items ?? [],
+          total: response?.total ?? 0,
+          page: response?.page ?? filter.page ?? 1,
+          pageSize: response?.pageSize ?? filter.pageSize ?? 10
+        } satisfies PagedAchCycleResponse;
+      })
+    );
   }
 
   getById(id: string): Observable<AchCycleSummary> {
@@ -49,6 +68,8 @@ export class ClearingHousesApiService {
   private readonly basePath = 'clearing-houses';
 
   list(): Observable<ClearingHouseOption[]> {
-    return this.api.get<ClearingHouseOption[]>(this.basePath);
+    return this.api.get<ClearingHouseOption[] | { items?: ClearingHouseOption[] }>(this.basePath).pipe(
+      map((response) => (Array.isArray(response) ? response : response?.items ?? []))
+    );
   }
 }
