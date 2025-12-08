@@ -10,7 +10,7 @@ export class NachaExportApiService {
   private readonly apiBaseUrl = environment.apiBaseUrl.replace(/\/+$/, '');
 
   getExportableCycles(): Observable<ExportableAchCycle[]> {
-    return this.http.get<ExportableAchCycle[]>(`${this.apiBaseUrl}/api/ach-cycles/exportable`);
+    return this.http.get<ExportableAchCycle[]>(`${this.apiBaseUrl}/ach-cycles/exportable`);
   }
 
   downloadFile(cycleId: number): Observable<HttpResponse<Blob>> {
