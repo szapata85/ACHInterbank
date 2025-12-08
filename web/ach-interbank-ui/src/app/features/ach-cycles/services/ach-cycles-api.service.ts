@@ -12,7 +12,7 @@ import { Observable, map, shareReplay } from 'rxjs';
 @Injectable({ providedIn: 'root' })
 export class AchCyclesApiService {
   private readonly api = inject(ApiService);
-  private readonly basePath = '/ach-cycles';
+  private readonly basePath = 'ach-cycles';
 
   search(filter: AchCycleFilter): Observable<PagedAchCycleResponse> {
     const params: Record<string, string | number | boolean> = {
@@ -21,7 +21,7 @@ export class AchCyclesApiService {
     };
 
     if (filter.date) {
-      params.date = filter.date;
+      params.processingDate = filter.date;
     }
 
     if (filter.clearingHouseId !== undefined && filter.clearingHouseId !== null) {
