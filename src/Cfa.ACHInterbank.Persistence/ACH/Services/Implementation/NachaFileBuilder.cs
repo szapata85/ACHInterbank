@@ -42,7 +42,7 @@ public class NachaFileBuilder : INachaFileBuilder
         var layoutCache = await _context.NachaRecordLayouts
             .AsNoTracking()
             .Include(l => l.Fields)
-            .ToDictionaryAsync(l => l.RecordType, ct);
+            .ToDictionaryAsync(l => l.RecordCode!, ct);
 
         // 1️⃣ Encabezado de archivo (registro tipo 1)
         sb.Append(await BuildRecordInternalAsync("1", cycle, layoutCache["1"]));
@@ -117,7 +117,7 @@ public class NachaFileBuilder : INachaFileBuilder
         var layoutCache = await _context.NachaRecordLayouts
             .AsNoTracking()
             .Include(l => l.Fields)
-            .ToDictionaryAsync(l => l.RecordType, ct);
+            .ToDictionaryAsync(l => l.RecordCode!, ct);
 
         sb.Append(await BuildRecordInternalAsync("1", cycle, layoutCache["1"]));
 
@@ -152,7 +152,7 @@ public class NachaFileBuilder : INachaFileBuilder
         var layout = await _context.NachaRecordLayouts
             .AsNoTracking()
             .Include(l => l.Fields)
-            .FirstOrDefaultAsync(l => l.RecordType == recordType, ct)
+            .FirstOrDefaultAsync(l => l.RecordCode == recordType, ct)
             ?? throw new InvalidOperationException($"Layout no encontrado para '{recordType}'.");
 
         return await BuildRecordInternalAsync(recordType, entity, layout);
