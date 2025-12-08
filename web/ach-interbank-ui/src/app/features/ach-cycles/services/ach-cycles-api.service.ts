@@ -31,11 +31,15 @@ export class AchCyclesApiService {
     return this.api.get<PagedAchCycleResponse | AchCycleSummary[]>(this.basePath, { params }).pipe(
       map((response) => {
         if (Array.isArray(response)) {
+          const page = filter.page ?? 1;
+          const pageSize = filter.pageSize ?? 10;
+          const start = Math.max(0, (page - 1) * pageSize);
+
           return {
-            items: response,
+            items: response.slice(start, start + pageSize),
             total: response.length,
-            page: filter.page ?? 1,
-            pageSize: filter.pageSize ?? Math.max(1, response.length)
+            page,
+            pageSize
           } satisfies PagedAchCycleResponse;
         }
 
