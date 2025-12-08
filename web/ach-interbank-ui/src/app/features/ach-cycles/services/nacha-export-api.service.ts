@@ -13,7 +13,7 @@ export class NachaExportApiService {
   }
 
   downloadFile(cycleId: number): Observable<HttpResponse<Blob>> {
-    return this.api.get<HttpResponse<Blob>>(`NachaExport/${cycleId}`, {
+    return this.api.get(`NachaExport/${cycleId}`, {
       observe: 'response',
       responseType: 'blob'
     });
