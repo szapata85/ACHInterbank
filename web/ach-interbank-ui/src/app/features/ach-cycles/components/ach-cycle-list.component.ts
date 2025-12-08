@@ -37,7 +37,6 @@ export class AchCycleListComponent implements OnInit {
 
   ngOnInit(): void {
     this.clearingHouseApi.list().subscribe((items) => (this.clearingHouses = items));
-    this.load();
   }
 
   load(): void {
