@@ -41,19 +41,68 @@ export class ApiService {
   get(path: string, options: BlobBodyRequestOptions): Observable<Blob>;
   get(path: string, options: BlobResponseRequestOptions): Observable<HttpResponse<Blob>>;
   get<T>(path: string, options?: RequestOptions): Observable<T | Blob | HttpResponse<Blob>> {
-    return this.http.get(this.buildUrl(path), options as never);
+    const url = this.buildUrl(path);
+
+    if (options?.responseType === 'blob') {
+      if (options.observe === 'response') {
+        return this.http.get<Blob>(url, options);
+      }
+
+      return this.http.get<Blob>(url, options);
+    }
+
+    return this.http.get<T>(url, options);
   }
 
-  post<T>(path: string, body: unknown, options?: RequestOptions): Observable<T> {
-    return this.http.post<T>(this.buildUrl(path), body, options);
+  post<T>(path: string, body: unknown, options?: JsonRequestOptions): Observable<T>;
+  post(path: string, body: unknown, options: BlobBodyRequestOptions): Observable<Blob>;
+  post(path: string, body: unknown, options: BlobResponseRequestOptions): Observable<HttpResponse<Blob>>;
+  post<T>(path: string, body: unknown, options?: RequestOptions): Observable<T | Blob | HttpResponse<Blob>> {
+    const url = this.buildUrl(path);
+
+    if (options?.responseType === 'blob') {
+      if (options.observe === 'response') {
+        return this.http.post<Blob>(url, body, options);
+      }
+
+      return this.http.post<Blob>(url, body, options);
+    }
+
+    return this.http.post<T>(url, body, options);
   }
 
-  put<T>(path: string, body: unknown, options?: RequestOptions): Observable<T> {
-    return this.http.put<T>(this.buildUrl(path), body, options);
+  put<T>(path: string, body: unknown, options?: JsonRequestOptions): Observable<T>;
+  put(path: string, body: unknown, options: BlobBodyRequestOptions): Observable<Blob>;
+  put(path: string, body: unknown, options: BlobResponseRequestOptions): Observable<HttpResponse<Blob>>;
+  put<T>(path: string, body: unknown, options?: RequestOptions): Observable<T | Blob | HttpResponse<Blob>> {
+    const url = this.buildUrl(path);
+
+    if (options?.responseType === 'blob') {
+      if (options.observe === 'response') {
+        return this.http.put<Blob>(url, body, options);
+      }
+
+      return this.http.put<Blob>(url, body, options);
+    }
+
+    return this.http.put<T>(url, body, options);
   }
 
-  delete<T>(path: string, options?: RequestOptions): Observable<T> {
-    return this.http.delete<T>(this.buildUrl(path), options);
+  delete<T>(path: string, options?: JsonRequestOptions): Observable<T>;
+  delete(path: string, options: BlobBodyRequestOptions): Observable<Blob>;
+  delete(path: string, options: BlobResponseRequestOptions): Observable<HttpResponse<Blob>>;
+  delete<T>(path: string, options?: RequestOptions): Observable<T | Blob | HttpResponse<Blob>> {
+    const url = this.buildUrl(path);
+
+    if (options?.responseType === 'blob') {
+      if (options.observe === 'response') {
+        return this.http.delete<Blob>(url, options);
+      }
+
+      return this.http.delete<Blob>(url, options);
+    }
+
+    return this.http.delete<T>(url, options);
   }
 
   private buildUrl(path: string): string {
