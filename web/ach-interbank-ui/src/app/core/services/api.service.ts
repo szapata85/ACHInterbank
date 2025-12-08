@@ -7,7 +7,8 @@ export interface RequestOptions {
   headers?: HttpHeaders | { [header: string]: string | string[] };
   params?: HttpParams | { [param: string]: string | number | boolean | readonly (string | number | boolean)[] };
   reportProgress?: boolean;
-  responseType?: 'json';
+  responseType?: 'json' | 'blob';
+  observe?: 'body' | 'response';
   withCredentials?: boolean;
 }
 

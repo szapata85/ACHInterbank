@@ -1,20 +1,19 @@
-import { HttpClient, HttpResponse } from '@angular/common/http';
+import { HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { environment } from '../../../../environments/environment';
-import { ExportableAchCycle } from '../models/ach-cycle-export.model';
 import { Observable } from 'rxjs';
+import { ApiService } from '../../../core/services/api.service';
+import { ExportableAchCycle } from '../models/ach-cycle-export.model';
 
 @Injectable({ providedIn: 'root' })
 export class NachaExportApiService {
-  private readonly http = inject(HttpClient);
-  private readonly apiBaseUrl = environment.apiBaseUrl.replace(/\/+$/, '');
+  private readonly api = inject(ApiService);
 
   getExportableCycles(): Observable<ExportableAchCycle[]> {
-    return this.http.get<ExportableAchCycle[]>(`${this.apiBaseUrl}/api/ach-cycles/exportable`);
+    return this.api.get<ExportableAchCycle[]>('ach-cycles/exportable');
   }
 
   downloadFile(cycleId: number): Observable<HttpResponse<Blob>> {
-    return this.http.get(`${this.apiBaseUrl}/NachaExport/${cycleId}`, {
+    return this.api.get<HttpResponse<Blob>>(`NachaExport/${cycleId}`, {
       observe: 'response',
       responseType: 'blob'
     });
