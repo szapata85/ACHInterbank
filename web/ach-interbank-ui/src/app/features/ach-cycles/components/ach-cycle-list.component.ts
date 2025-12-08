@@ -40,6 +40,53 @@ export class AchCycleListComponent implements OnInit {
   }
 
   load(): void {
+    const formatDate = (date: string | null | undefined): string => {
+      if (!date) {
+        return '-';
+      }
+
+      const [year, month, day] = date.split('-').map((part) => Number(part));
+      if (!year || !month || !day) {
+        return date;
+      }
+
+      const formatter = new Intl.DateTimeFormat('es-CO', {
+        timeZone: 'America/Bogota',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+
+      return formatter.format(new Date(year, month - 1, day));
+    };
+
+    const formatTime = (time: string | null | undefined): string => {
+      if (!time) {
+        return '-';
+      }
+
+      const [hours, minutes] = time.split(':');
+      return hours && minutes ? `${hours}:${minutes}` : time;
+    };
+
+    const formatStatus = (status: string | null | undefined): string => {
+      if (!status) {
+        return '-';
+      }
+
+      const normalized = status.toLowerCase();
+
+      if (normalized === 'activo' || normalized === 'active') {
+        return 'Activo';
+      }
+
+      if (normalized === 'inactivo' || normalized === 'inactive') {
+        return 'Inactivo';
+      }
+
+      return status;
+    };
+
     const filter: AchCycleFilter = {
       ...this.filterForm.value,
       clearingHouseId: this.filterForm.value.clearingHouseId ?? undefined
@@ -48,18 +95,12 @@ export class AchCycleListComponent implements OnInit {
     this.api.search(filter).subscribe({
       next: (response) => {
         const items = response?.items ?? [];
-        const formatter = new Intl.DateTimeFormat('es-CO', {
-          timeZone: 'America/Bogota',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit'
-        });
-
         this.cycles = items.map((cycle) => ({
           ...cycle,
-          dateText: cycle.date ? formatter.format(new Date(cycle.date)) : '-',
-          startText: cycle.startTime,
-          endText: cycle.endTime
+          dateText: formatDate(cycle.date),
+          startText: formatTime(cycle.startTime),
+          endText: formatTime(cycle.endTime),
+          statusText: formatStatus(cycle.status)
         }));
         this.total = response?.total ?? 0;
         this.loading = false;
