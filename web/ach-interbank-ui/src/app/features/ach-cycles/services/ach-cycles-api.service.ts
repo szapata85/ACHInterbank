@@ -7,7 +7,7 @@ import {
   PagedAchCycleResponse,
   SaveAchCycleRequest
 } from '../models/ach-cycle.model';
-import { Observable, map } from 'rxjs';
+import { Observable, map, shareReplay } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class AchCyclesApiService {
@@ -66,10 +66,18 @@ export class AchCyclesApiService {
 export class ClearingHousesApiService {
   private readonly api = inject(ApiService);
   private readonly basePath = 'clearing-houses';
+  private cachedClearingHouses$?: Observable<ClearingHouseOption[]>;
 
   list(): Observable<ClearingHouseOption[]> {
-    return this.api.get<ClearingHouseOption[] | { items?: ClearingHouseOption[] }>(this.basePath).pipe(
-      map((response) => (Array.isArray(response) ? response : response?.items ?? []))
-    );
+    if (!this.cachedClearingHouses$) {
+      this.cachedClearingHouses$ = this.api
+        .get<ClearingHouseOption[] | { items?: ClearingHouseOption[] }>(this.basePath)
+        .pipe(
+          map((response) => (Array.isArray(response) ? response : response?.items ?? [])),
+          shareReplay(1)
+        );
+    }
+
+    return this.cachedClearingHouses$;
   }
 }
