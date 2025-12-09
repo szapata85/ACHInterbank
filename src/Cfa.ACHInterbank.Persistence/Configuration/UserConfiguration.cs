@@ -10,7 +10,7 @@ namespace Cfa.ACHInterbank.Persistence.Configuration;
 public class UserConfiguration : IEntityTypeConfiguration<User>
 {
     public static readonly Guid AdminUserId = Guid.Parse("0f7d6a26-df0e-4b14-8734-3280c1da6e3d");
-    public static readonly DateTimeOffset SeedAuditTimestamp = new DateTimeOffset(2024, 01, 01, 0, 0, 0, TimeSpan.Zero);
+    public static readonly DateTimeOffset SeedAuditTimestamp = DateTimeOffset.UtcNow;
 
     public void Configure(EntityTypeBuilder<User> builder)
     {
