@@ -20,6 +20,8 @@ export class LoginComponent {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
 
+  passwordVisible = false;
+
   readonly form = this.fb.group({
     username: ['', [Validators.required, Validators.minLength(3)]],
     password: ['', [Validators.required, Validators.minLength(6)]]
@@ -27,6 +29,10 @@ export class LoginComponent {
 
   errorMessage: string | null = null;
   isSubmitting = false;
+
+  togglePasswordVisibility(): void {
+    this.passwordVisible = !this.passwordVisible;
+  }
 
   submit(): void {
     if (this.form.invalid) {
