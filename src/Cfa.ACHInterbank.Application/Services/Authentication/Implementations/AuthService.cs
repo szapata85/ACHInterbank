@@ -45,56 +45,13 @@ public class AuthService : IAuthService
             return new AuthResult { Success = false, Message = "Usuario o contraseña incorrectos" };
         }
 
-        var incomingHash = HashHelper.GenerateHashSha1(request.Password);
+        var incomingHash = HashHelper.GenerateHashSha256(request.Password);
         if (!string.Equals(user.PasswordHash, incomingHash, StringComparison.OrdinalIgnoreCase))
         {
             return new AuthResult { Success = false, Message = "Usuario o contraseña incorrectos" };
         }
 
-        var roles = user.UserRoles.Select(x => x.Role!.Name!).Distinct().ToList();
-        var permissions = user.UserRoles
-            .SelectMany(x => x.Role!.RolePermissions)
-            .Select(rp => rp.Permission!.Name!)
-            .Distinct()
-            .ToList();
-
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var key = Encoding.UTF8.GetBytes(_tokenSettings.secretKetJwt!);
-        var expires = CalculateExpiration();
-
-        var claims = new List<Claim>
-        {
-            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new(JwtRegisteredClaimNames.UniqueName, user.Username!),
-            new("name", user.FullName ?? user.Username!),
-            new("uid", user.Id.ToString())
-        };
-
-        claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
-        claims.AddRange(permissions.Select(permission => new Claim("permission", permission)));
-
-        var descriptor = new SecurityTokenDescriptor
-        {
-            Subject = new ClaimsIdentity(claims),
-            Expires = expires.UtcDateTime,
-            Issuer = _tokenSettings.issuerJwt,
-            Audience = _tokenSettings.audienceJwt,
-            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-        };
-
-        var token = tokenHandler.CreateToken(descriptor);
-        var serializedToken = tokenHandler.WriteToken(token);
-
-        return new AuthResult
-        {
-            Success = true,
-            Token = serializedToken,
-            ExpiresAt = expires,
-            Username = user.Username,
-            FullName = user.FullName,
-            Roles = roles,
-            Permissions = permissions
-        };
+        return BuildAuthResult(user);
     }
 
     public async Task<OperationResult> RequestPasswordResetAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
@@ -147,11 +104,23 @@ public class AuthService : IAuthService
             return new OperationResult { Success = false, Message = "Token inválido o expirado" };
         }
 
-        var newHash = HashHelper.GenerateHashSha1(request.NewPassword);
+        var newHash = HashHelper.GenerateHashSha256(request.NewPassword);
         await _userRepository.UpdatePasswordHashAsync(tokenEntity.User, newHash, cancellationToken);
         await _passwordResetTokenRepository.MarkAsUsedAsync(tokenEntity, cancellationToken);
 
         return new OperationResult { Success = true, Message = "Contraseña actualizada correctamente" };
+    }
+
+    public async Task<AuthResult> RefreshSessionAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+
+        if (user is null || !user.IsActive)
+        {
+            return new AuthResult { Success = false, Message = "Sesión inválida" };
+        }
+
+        return BuildAuthResult(user);
     }
 
     private static PasswordResetToken BuildToken(User user)
@@ -171,6 +140,54 @@ public class AuthService : IAuthService
     {
         var baseUrl = AppSettings.Settings.address ?? "https://localhost:4200";
         return $"{baseUrl.TrimEnd('/')}/reset-password?token={token}";
+    }
+
+    private AuthResult BuildAuthResult(User user)
+    {
+        var roles = user.UserRoles.Select(x => x.Role!.Name!).Distinct().ToList();
+        var permissions = user.UserRoles
+            .SelectMany(x => x.Role!.RolePermissions)
+            .Select(rp => rp.Permission!.Name!)
+            .Distinct()
+            .ToList();
+
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var key = Encoding.UTF8.GetBytes(_tokenSettings.secretKetJwt!);
+        var expires = CalculateExpiration();
+
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new(JwtRegisteredClaimNames.UniqueName, user.Username!),
+            new("name", user.FullName ?? user.Username!),
+            new("uid", user.Id.ToString())
+        };
+
+        claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+        claims.AddRange(permissions.Select(permission => new Claim("permission", permission)));
+
+        var descriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(claims),
+            Expires = expires.UtcDateTime,
+            Issuer = _tokenSettings.issuerJwt,
+            Audience = _tokenSettings.audienceJwt,
+            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+        };
+
+        var token = tokenHandler.CreateToken(descriptor);
+        var serializedToken = tokenHandler.WriteToken(token);
+
+        return new AuthResult
+        {
+            Success = true,
+            Token = serializedToken,
+            ExpiresAt = expires,
+            Username = user.Username,
+            FullName = user.FullName,
+            Roles = roles,
+            Permissions = permissions
+        };
     }
 
     private DateTimeOffset CalculateExpiration()

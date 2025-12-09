@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { Router } from '@angular/router';
-import { BehaviorSubject, Observable, map, tap } from 'rxjs';
+import { NavigationEnd, Router } from '@angular/router';
+import { BehaviorSubject, EMPTY, Observable, catchError, filter, map, switchMap, tap } from 'rxjs';
 import { TokenStorageService } from '../../security/token-storage.service';
 import { environment } from '../../../environments/environment';
 import { ApiResponse } from '../models/api-response.model';
@@ -24,6 +24,21 @@ export class AuthService {
     if (token) {
       this.hydrateFromToken(token);
     }
+
+    this.router.events
+      .pipe(
+        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+        filter(() => this.isAuthenticated()),
+        switchMap(() =>
+          this.refreshSession().pipe(
+            catchError(() => {
+              this.logout();
+              return EMPTY;
+            })
+          )
+        )
+      )
+      .subscribe();
   }
 
   login(credentials: LoginRequestModel): Observable<UserSession> {
@@ -55,6 +70,21 @@ export class AuthService {
         confirmPassword
       })
       .pipe(map(() => void 0));
+  }
+
+  refreshSession(): Observable<UserSession> {
+    return this.api
+      .post<AuthResponse>(`${this.authEndpoint}/refresh`, {})
+      .pipe(
+        map((response) => {
+          if (!response.sucess || !response.data?.token) {
+            throw new Error(response.message ?? 'No fue posible refrescar la sesión.');
+          }
+          return response.data;
+        }),
+        map((payload: AuthPayload) => this.persistSession(payload)),
+        tap((session: UserSession) => this.userSubject.next(session))
+      );
   }
 
   logout(): void {

@@ -670,7 +670,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                             Email = "admin@achinterbank.local",
                             FullName = "Administrador ACH",
                             IsActive = true,
-                            PasswordHash = "664819d8c5343676c9225b5ed00a5cdc6f3a1ff3",
+                            PasswordHash = "3eb3fe66b31e3b4d10fa70b5cad49c7112294af6ae4e476a1c405155d45aa121",
                             Username = "admin"
                         });
                 });

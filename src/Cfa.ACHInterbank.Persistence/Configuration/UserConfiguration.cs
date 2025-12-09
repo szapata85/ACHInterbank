@@ -36,9 +36,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
 
     private static string BuildHash(string value)
     {
-        using var sha1 = SHA1.Create();
+        using var sha256 = SHA256.Create();
         var bytes = Encoding.UTF8.GetBytes(value);
-        var hashBytes = sha1.ComputeHash(bytes);
+        var hashBytes = sha256.ComputeHash(bytes);
         return BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
     }
 }

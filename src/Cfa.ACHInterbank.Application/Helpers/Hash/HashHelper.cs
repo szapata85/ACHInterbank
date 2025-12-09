@@ -12,4 +12,12 @@ public static class HashHelper
         var hashBytes = sha1.ComputeHash(bytes);
         return BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
     }
+
+    public static string GenerateHashSha256(string input)
+    {
+        using var sha256 = SHA256.Create();
+        var bytes = Encoding.UTF8.GetBytes(input);
+        var hashBytes = sha256.ComputeHash(bytes);
+        return BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
+    }
 }
