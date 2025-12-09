@@ -116,6 +116,14 @@ public class UsersController : ControllerBase
             return BadRequest("El usuario y la contraseña son obligatorios.");
         }
 
+        var usernameExists = await _dbContext.Users
+            .AnyAsync(u => u.Username == request.UserName, cancellationToken);
+
+        if (usernameExists)
+        {
+            return Conflict($"Ya existe un usuario con el nombre {request.UserName}.");
+        }
+
         var user = new User
         {
             Id = Guid.NewGuid(),
@@ -149,7 +157,19 @@ public class UsersController : ControllerBase
             return NotFound();
         }
 
-        user.Username = request.UserName ?? user.Username;
+        if (!string.IsNullOrWhiteSpace(request.UserName) && request.UserName != user.Username)
+        {
+            var usernameExists = await _dbContext.Users
+                .AnyAsync(u => u.Username == request.UserName && u.Id != id, cancellationToken);
+
+            if (usernameExists)
+            {
+                return Conflict($"Ya existe un usuario con el nombre {request.UserName}.");
+            }
+
+            user.Username = request.UserName;
+        }
+
         user.FullName = request.FullName;
         user.Email = request.Email;
 
