@@ -22,6 +22,9 @@ public class PasswordResetTokenConfiguration : IEntityTypeConfiguration<Password
         builder.Property(x => x.CreatedAt)
             .IsRequired();
 
+        builder.Property(x => x.UpdatedAt)
+            .IsRequired();
+
         builder.HasIndex(x => x.Token).IsUnique();
 
         builder
