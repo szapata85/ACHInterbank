@@ -1,8 +1,9 @@
+using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
 using System.Collections.ObjectModel;
 
 namespace Cfa.ACHInterbank.Domain.Entities.User;
 
-public class User
+public class User : AuditableEntity
 {
     public Guid Id { get; set; }
     public string? Username { get; set; }
