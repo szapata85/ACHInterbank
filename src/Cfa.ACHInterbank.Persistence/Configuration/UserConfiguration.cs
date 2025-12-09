@@ -9,6 +9,7 @@ namespace Cfa.ACHInterbank.Persistence.Configuration;
 public class UserConfiguration : IEntityTypeConfiguration<User>
 {
     public static readonly Guid AdminUserId = Guid.Parse("0f7d6a26-df0e-4b14-8734-3280c1da6e3d");
+    public static readonly DateTimeOffset SeedAuditTimestamp = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
     public void Configure(EntityTypeBuilder<User> builder)
     {
@@ -39,7 +40,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             FullName = "Administrador ACH",
             Email = "admin@achinterbank.local",
             PasswordHash = BuildHash("Admin123!"),
-            IsActive = true
+            IsActive = true,
+            CreatedAt = SeedAuditTimestamp,
+            UpdatedAt = SeedAuditTimestamp
         });
     }
 
