@@ -72,7 +72,7 @@ form {
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: #475569;
+  color: #0f172a;
   cursor: pointer;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
@@ -80,12 +80,13 @@ form {
 .password-toggle:hover,
 .password-toggle:focus-visible {
   background: #e2e8f0;
-  color: #0f172a;
+  color: #0ea5e9;
 }
 
-.password-toggle svg {
+.password-toggle .icon {
   width: 1.25rem;
   height: 1.25rem;
+  display: block;
 }
 
 .sr-only {
