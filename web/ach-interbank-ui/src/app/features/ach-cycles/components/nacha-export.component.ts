@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { SharedModule } from '../../../shared/shared.module';
 import { NachaExportApiService } from '../services/nacha-export-api.service';
@@ -20,6 +20,7 @@ interface ExportableAchCycleView extends ExportableAchCycle {
 export class NachaExportComponent implements OnInit {
   private readonly api = inject(NachaExportApiService);
   private readonly notifications = inject(NotificationService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   cycles: ExportableAchCycleView[] = [];
   loading = false;
@@ -45,10 +46,12 @@ export class NachaExportComponent implements OnInit {
           processingDateText: formatter.format(new Date(cycle.processingDate))
         }));
         this.loading = false;
+        this.cdr.markForCheck();
       },
       error: () => {
         this.notifications.error('No fue posible cargar los ciclos con transacciones');
         this.loading = false;
+        this.cdr.markForCheck();
       }
     });
   }
@@ -69,10 +72,12 @@ export class NachaExportComponent implements OnInit {
 
         window.URL.revokeObjectURL(url);
         this.downloadingId = null;
+        this.cdr.markForCheck();
       },
       error: () => {
         this.notifications.error('No fue posible generar el archivo NACHA-M');
         this.downloadingId = null;
+        this.cdr.markForCheck();
       }
     });
   }
