@@ -39,8 +39,10 @@ public class UsersController : ControllerBase
         }
 
         var query = _dbContext.Users
+            .AsNoTracking()
             .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
+            .AsSplitQuery()
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -225,8 +227,10 @@ public class UsersController : ControllerBase
     private IQueryable<UserSummaryDto> BuildUserQuery()
     {
         return _dbContext.Users
+            .AsNoTracking()
             .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
+            .AsSplitQuery()
             .Select(u => new UserSummaryDto
             {
                 Id = u.Id,
