@@ -1,7 +1,6 @@
 using Cfa.ACHInterbank.Domain.Entities.User;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using System;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -10,7 +9,6 @@ namespace Cfa.ACHInterbank.Persistence.Configuration;
 public class UserConfiguration : IEntityTypeConfiguration<User>
 {
     public static readonly Guid AdminUserId = Guid.Parse("0f7d6a26-df0e-4b14-8734-3280c1da6e3d");
-    public static readonly DateTimeOffset SeedAuditTimestamp = DateTimeOffset.UtcNow;
 
     public void Configure(EntityTypeBuilder<User> builder)
     {
@@ -21,8 +19,15 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(x => x.FullName).HasMaxLength(200);
         builder.Property(x => x.Email).HasMaxLength(320);
         builder.Property(x => x.PasswordHash).IsRequired().HasMaxLength(256);
-        builder.Property(x => x.CreatedAt).IsRequired();
-        builder.Property(x => x.UpdatedAt).IsRequired();
+        builder.Property(x => x.CreatedAt)
+            .IsRequired()
+            .ValueGeneratedOnAdd()
+            .HasDefaultValueSql("SYSUTCDATETIME()");
+
+        builder.Property(x => x.UpdatedAt)
+            .IsRequired()
+            .ValueGeneratedOnAdd()
+            .HasDefaultValueSql("SYSUTCDATETIME()");
 
         builder.HasIndex(x => x.Username).IsUnique();
         builder.HasIndex(x => x.Email).IsUnique();
@@ -34,9 +39,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             FullName = "Administrador ACH",
             Email = "admin@achinterbank.local",
             PasswordHash = BuildHash("Admin123!"),
-            IsActive = true,
-            CreatedAt = SeedAuditTimestamp,
-            UpdatedAt = SeedAuditTimestamp
+            IsActive = true
         });
     }
 

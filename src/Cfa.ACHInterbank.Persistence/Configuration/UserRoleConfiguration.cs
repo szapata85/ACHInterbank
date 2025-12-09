@@ -20,15 +20,20 @@ public class UserRoleConfiguration : IEntityTypeConfiguration<UserRole>
             .WithMany(r => r.UserRoles)
             .HasForeignKey(x => x.RoleId);
 
-        builder.Property(x => x.CreatedAt).IsRequired();
-        builder.Property(x => x.UpdatedAt).IsRequired();
+        builder.Property(x => x.CreatedAt)
+            .IsRequired()
+            .ValueGeneratedOnAdd()
+            .HasDefaultValueSql("SYSUTCDATETIME()");
+
+        builder.Property(x => x.UpdatedAt)
+            .IsRequired()
+            .ValueGeneratedOnAdd()
+            .HasDefaultValueSql("SYSUTCDATETIME()");
 
         builder.HasData(new UserRole
         {
             UserId = UserConfiguration.AdminUserId,
-            RoleId = RoleConfiguration.AdminRoleId,
-            CreatedAt = UserConfiguration.SeedAuditTimestamp,
-            UpdatedAt = UserConfiguration.SeedAuditTimestamp
+            RoleId = RoleConfiguration.AdminRoleId
         });
     }
 }
