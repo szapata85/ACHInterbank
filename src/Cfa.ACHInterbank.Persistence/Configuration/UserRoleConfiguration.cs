@@ -26,7 +26,9 @@ public class UserRoleConfiguration : IEntityTypeConfiguration<UserRole>
         builder.HasData(new UserRole
         {
             UserId = UserConfiguration.AdminUserId,
-            RoleId = RoleConfiguration.AdminRoleId
+            RoleId = RoleConfiguration.AdminRoleId,
+            CreatedAt = UserConfiguration.SeedAuditTimestamp,
+            UpdatedAt = UserConfiguration.SeedAuditTimestamp
         });
     }
 }
