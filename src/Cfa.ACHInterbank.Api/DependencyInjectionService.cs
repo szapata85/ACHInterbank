@@ -3,8 +3,9 @@ using Cfa.ACHInterbank.Application.Helpers.Middleware;
 using Cfa.ACHInterbank.Persistence.ACH.Services;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using NLog.Extensions.Logging;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -38,20 +39,12 @@ public static class DependencyInjectionService
                 Description = "Ingrese un token válido",
             });
 
-            option.AddSecurityRequirement(new OpenApiSecurityRequirement
-                {
-                    {
-                     new OpenApiSecurityScheme
-                     {
-                         Reference = new OpenApiReference
-                         {
-                             Type = ReferenceType.SecurityScheme,
-                             Id = "Bearer"
-                         }
-                     },
-                     new string[]{}
-                    }
-                });
+            var bearerReference = new OpenApiSecuritySchemeReference("Bearer", new OpenApiDocument(), null);
+
+            option.SwaggerGeneratorOptions.SecurityRequirements.Add(_ => new OpenApiSecurityRequirement
+            {
+                { bearerReference, new List<string>() }
+            });
 
             string AssemblyName = Assembly.GetExecutingAssembly().GetName().Name!.Replace(".Api", ".Domain");
 
