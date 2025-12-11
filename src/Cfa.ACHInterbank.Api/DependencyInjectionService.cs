@@ -3,7 +3,7 @@ using Cfa.ACHInterbank.Application.Helpers.Middleware;
 using Cfa.ACHInterbank.Persistence.ACH.Services;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using System;
 using NLog.Extensions.Logging;
 using System.Collections.Generic;
@@ -42,17 +42,12 @@ public static class DependencyInjectionService
 
             option.AddSecurityDefinition("Bearer", securityScheme);
 
+            var securitySchemeReference = new OpenApiSecuritySchemeReference("Bearer", null, null);
+
             option.AddSecurityRequirement(new OpenApiSecurityRequirement
             {
                 {
-                    new OpenApiSecurityScheme
-                    {
-                        Reference = new OpenApiReference
-                        {
-                            Type = ReferenceType.SecurityScheme,
-                            Id = "Bearer"
-                        }
-                    },
+                    securitySchemeReference,
                     new List<string>()
                 }
             });
