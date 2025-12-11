@@ -34,7 +34,7 @@ public class MapperProfile : Profile
 
 public static class MapperBootstrapper
 {
-    private static IMapper _instance;
+    private static IMapper _instance = null!;
     public static IMapper Instance => _instance;
 
     public static void Configure(ILoggerFactory loggerFactory)

@@ -7,13 +7,13 @@ public class SignerInfo
 {
 
     [XmlElement(ElementName = "signatureAlgorithm")]
-    public string SignatureAlgorithm { get; set; }
+    public string SignatureAlgorithm { get; set; } = string.Empty;
 
     [XmlElement(ElementName = "certificateInfo")]
-    public CertificateInfo CertificateInfo { get; set; }
+    public CertificateInfo CertificateInfo { get; set; } = new();
 
     [XmlElement(ElementName = "certificate")]
-    public string Certificate { get; set; }
+    public string Certificate { get; set; } = string.Empty;
 }
 
 [XmlRoot(ElementName = "signedData")]
@@ -21,14 +21,14 @@ public class SignedData
 {
 
     [XmlElement(ElementName = "version")]
-    public string Version { get; set; }
+    public string Version { get; set; } = string.Empty;
 
     [XmlElement(ElementName = "signerInfo")]
-    public SignerInfo SignerInfo { get; set; }
+    public SignerInfo SignerInfo { get; set; } = new();
 
     [XmlElement(ElementName = "contentInfo")]
-    public string ContentInfo { get; set; }
+    public string ContentInfo { get; set; } = string.Empty;
 
     [XmlElement(ElementName = "encryptedDigest")]
-    public string EncryptedDigest { get; set; }
+    public string EncryptedDigest { get; set; } = string.Empty;
 }

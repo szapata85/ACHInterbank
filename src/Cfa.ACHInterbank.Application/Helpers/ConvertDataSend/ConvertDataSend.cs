@@ -6,26 +6,26 @@ namespace Cfa.ACHInterbank.Application.Helpers.ConvertDataSend;
 
 public static class ConvertDataSend
 {
-    public static string DataSend<T>(HttpRequest Request = null, string parametros = "", string controller = "", string entidad = "", string Documento = "", string Clientid = "")
+    public static string DataSend<T>(HttpRequest? request = null, string parametros = "", string controller = "", string entidad = "", string documento = "", string clientId = "")
     {
         ObjectSendingModel model = new();
-        string ClientId = string.Empty;
-        string XChannel = string.Empty;
-        string Ip = string.Empty;
+        string idSesion = string.Empty;
+        string channel = string.Empty;
+        string ip = string.Empty;
 
 
-        if (Request != null)
+        if (request != null)
         {
-            XChannel = Request.Headers["Canal"];
-            Ip = AddressIp.AddressIp.GetAddressIp(Request);
-            ClientId = Request.Headers["IdSesion"];
+            channel = request.Headers["Canal"];
+            ip = AddressIp.AddressIp.GetAddressIp(request);
+            idSesion = request.Headers["IdSesion"];
 
-            if (!string.IsNullOrEmpty(ClientId))
-                model.Controller = new ControllerModel { Controlador = controller, Entidad = entidad, IdSession = Clientid, Ip = Ip, Documento = Documento, Canal = XChannel };
-            else if (!string.IsNullOrEmpty(Documento))
-                model.Controller = new ControllerModel { Controlador = controller, Entidad = entidad, Ip = Ip, Documento = Documento, Canal = XChannel };
-            else if (string.IsNullOrEmpty(Documento) && string.IsNullOrEmpty(Clientid))
-                model.Controller = new ControllerModel { Controlador = controller, Entidad = entidad, Ip = Ip, Documento = Documento, Canal = XChannel };
+            if (!string.IsNullOrEmpty(idSesion))
+                model.Controller = new ControllerModel { Controlador = controller, Entidad = entidad, IdSession = idSesion, Ip = ip, Documento = documento, Canal = channel };
+            else if (!string.IsNullOrEmpty(documento))
+                model.Controller = new ControllerModel { Controlador = controller, Entidad = entidad, Ip = ip, Documento = documento, Canal = channel };
+            else if (string.IsNullOrEmpty(documento) && string.IsNullOrEmpty(clientId))
+                model.Controller = new ControllerModel { Controlador = controller, Entidad = entidad, Ip = ip, Documento = documento, Canal = channel };
 
         }
         else
