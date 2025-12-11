@@ -3,7 +3,7 @@ using Cfa.ACHInterbank.Application.Helpers.Middleware;
 using Cfa.ACHInterbank.Persistence.ACH.Services;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi;
+using Microsoft.OpenApi.Models;
 using System;
 using NLog.Extensions.Logging;
 using System.Collections.Generic;
@@ -37,18 +37,21 @@ public static class DependencyInjectionService
                 Scheme = "bearer",
                 BearerFormat = "JWT",
                 In = ParameterLocation.Header,
-                Description = "Ingrese un token válido"
+                Description = "Ingrese un token válido",
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
             };
 
             option.AddSecurityDefinition("Bearer", securityScheme);
 
-            var securitySchemeReference = new OpenApiSecuritySchemeReference("Bearer", null, null);
-
             option.AddSecurityRequirement(new OpenApiSecurityRequirement
             {
                 {
-                    securitySchemeReference,
-                    new List<string>()
+                    securityScheme,
+                    Array.Empty<string>()
                 }
             });
 
