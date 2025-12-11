@@ -28,7 +28,7 @@ public static class DependencyInjectionService
 
         services.AddSingleton(MapperBootstrapper.Instance);
 
-        services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<DependencyInjectionService>());
+        services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<ApplicationMediatorEntryPoint>());
         #endregion
 
         #region Services
@@ -77,4 +77,8 @@ public static class DependencyInjectionService
 
         return services;
     }
+}
+
+internal sealed class ApplicationMediatorEntryPoint
+{
 }
