@@ -3,7 +3,7 @@ using Cfa.ACHInterbank.Application.Helpers.Middleware;
 using Cfa.ACHInterbank.Persistence.ACH.Services;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi;
+using Microsoft.OpenApi.Models;
 using System;
 using NLog.Extensions.Logging;
 using System.Collections.Generic;
@@ -30,22 +30,31 @@ public static class DependencyInjectionService
                 Description = "Creación de plantilla generica arquitectura limpia CFA"
             });
 
-            var securityScheme = new OpenApiSecuritySchemeReference
+            var securityScheme = new OpenApiSecurityScheme
             {
                 Name = "Authorization",
                 Type = SecuritySchemeType.Http,
                 Scheme = "bearer",
                 BearerFormat = "JWT",
                 In = ParameterLocation.Header,
-                Description = "Ingrese un token válido",
-                Id = "Bearer"
+                Description = "Ingrese un token válido"
             };
 
             option.AddSecurityDefinition("Bearer", securityScheme);
 
             option.AddSecurityRequirement(new OpenApiSecurityRequirement
             {
-                { securityScheme, new List<string>() }
+                {
+                    new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference
+                        {
+                            Type = ReferenceType.SecurityScheme,
+                            Id = "Bearer"
+                        }
+                    },
+                    new List<string>()
+                }
             });
 
             string AssemblyName = Assembly.GetExecutingAssembly().GetName().Name!.Replace(".Api", ".Domain");
