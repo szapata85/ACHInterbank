@@ -38,6 +38,16 @@ public class MenuItemRoleConfiguration : IEntityTypeConfiguration<MenuItemRole>
             },
             new MenuItemRole
             {
+                MenuItemId = MenuItemConfiguration.TransactionsListId,
+                RoleId = RoleConfiguration.AdminRoleId
+            },
+            new MenuItemRole
+            {
+                MenuItemId = MenuItemConfiguration.TransactionsListId,
+                RoleId = RoleConfiguration.OperatorRoleId
+            },
+            new MenuItemRole
+            {
                 MenuItemId = MenuItemConfiguration.TransactionsCreateId,
                 RoleId = RoleConfiguration.AdminRoleId
             },

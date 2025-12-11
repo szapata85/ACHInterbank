@@ -13,6 +13,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int CatalogsId = 5;
     public const int TransactionsId = 6;
     public const int TransactionsCreateId = 7;
+    public const int TransactionsListId = 8;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -112,13 +113,25 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
             },
             new MenuItem
             {
+                Id = TransactionsListId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = TransactionsId,
+                Label = "Consultar transacciones",
+                Route = "/transactions/list",
+                Icon = "list_alt",
+                Order = 1,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
                 Id = TransactionsCreateId,
                 MenuId = MenuConfiguration.MainMenuId,
                 ParentId = TransactionsId,
                 Label = "Crear transacción",
                 Route = "/transactions/create",
                 Icon = "note_add",
-                Order = 1,
+                Order = 2,
                 Exact = true,
                 IsActive = true
             });
