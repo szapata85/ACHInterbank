@@ -21,6 +21,15 @@ public class TransactionsController : ControllerBase
         _logger = logger;
     }
 
+    /// <summary>Obtiene todas las transacciones ACH.</summary>
+    [HttpGet]
+    [ProducesResponseType(typeof(IEnumerable<AchTransactionListDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAll(CancellationToken ct)
+    {
+        var transactions = await _transactionService.GetAllAsync(ct);
+        return Ok(transactions);
+    }
+
     /// <summary>Registra una nueva transacción ACH.</summary>
     [HttpPost]
     [ProducesResponseType(typeof(AchTransaction), StatusCodes.Status201Created)]

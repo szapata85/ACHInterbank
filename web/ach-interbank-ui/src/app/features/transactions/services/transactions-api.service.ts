@@ -1,8 +1,8 @@
 import { Injectable, inject } from '@angular/core';
-import { catchError, throwError } from 'rxjs';
+import { catchError, map, throwError } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { TransactionTypeEnum } from '../transactions.types';
-import { TransactionDraft, TransactionResponse } from '../transactions.models';
+import { TransactionDraft, TransactionListItem, TransactionResponse } from '../transactions.models';
 
 @Injectable({ providedIn: 'root' })
 export class TransactionsApiService {
@@ -26,6 +26,12 @@ export class TransactionsApiService {
         }
         return throwError(() => new Error('No fue posible crear la transacción.'));
       })
+    );
+  }
+
+  getAll() {
+    return this.api.get<TransactionListItem[]>('transactions').pipe(
+      map((items) => (items ?? []).map((item) => ({ ...item, amount: Number(item.amount) })))
     );
   }
 }

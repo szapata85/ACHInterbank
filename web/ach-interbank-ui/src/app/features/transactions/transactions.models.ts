@@ -34,3 +34,22 @@ export interface TransactionResponse {
   traceNumber: string;
   createdAt: string;
 }
+
+export interface TransactionListItem {
+  id: number;
+  amount: number;
+  reference: string;
+  type: TransactionTypeEnum;
+  traceNumber: string;
+  effectiveEntryDate: string;
+  createdAt: string;
+  sourceAccountNumber: string;
+  destinationAccountNumber: string;
+  sourceInstitutionName: string;
+  destinationInstitutionName: string;
+  achBatchId: number;
+  batchSequenceNumber: number;
+  batchCompanyName: string;
+  batchEffectiveEntryDate: string;
+  achCycleId: number;
+}

@@ -1,0 +1,26 @@
+<app-page-header title="Transacciones" description="Consulta y agrupa las transacciones por lote"></app-page-header>
+
+<div class="actions">
+  <button type="button" (click)="createNew()">Crear transacción</button>
+</div>
+
+<div class="group-list" *ngIf="groups.length > 0; else emptyState">
+  <section class="batch" *ngFor="let group of groups">
+    <header class="batch__header">
+      <div class="batch__titles">
+        <p class="batch__eyebrow">{{ group.batchLabel }}</p>
+        <h3>Fecha efectiva: {{ group.batchDate }}</h3>
+      </div>
+      <span class="badge">{{ group.items.length }} transacciones</span>
+    </header>
+
+    <app-table [columns]="columns" [data]="group.items" [loading]="loading"></app-table>
+  </section>
+</div>
+
+<ng-template #emptyState>
+  <div class="empty">
+    <p *ngIf="!loading">No hay transacciones registradas.</p>
+    <p *ngIf="loading">Cargando transacciones...</p>
+  </div>
+</ng-template>

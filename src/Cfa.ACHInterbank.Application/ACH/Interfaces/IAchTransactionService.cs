@@ -23,6 +23,7 @@ public interface IAchTransactionService
         bool includeRelations = false,
         CancellationToken ct = default);
 
-    // ✅ Nuevo método:
     Task<AchTransaction?> GetTransactionByIdAsync(int transactionId, CancellationToken ct = default);
+
+    Task<IReadOnlyList<AchTransactionListDto>> GetAllAsync(CancellationToken ct = default);
 }

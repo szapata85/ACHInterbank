@@ -243,6 +243,37 @@ public class AchTransactionService : IAchTransactionService
         return await q.OrderBy(t => t.Id).ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<AchTransactionListDto>> GetAllAsync(CancellationToken ct = default)
+    {
+        return await _context.AchTransactions
+            .AsNoTracking()
+            .Include(t => t.AchBatch)
+            .Include(t => t.AchCycle)
+            .Include(t => t.SourceInstitution)
+            .Include(t => t.DestinationInstitution)
+            .OrderByDescending(t => t.CreatedAt)
+            .Select(t => new AchTransactionListDto
+            {
+                Id = t.Id,
+                Amount = t.Amount,
+                Reference = t.Reference,
+                Type = t.Type,
+                TraceNumber = t.TraceNumber,
+                EffectiveEntryDate = t.EffectiveEntryDate,
+                CreatedAt = t.CreatedAt,
+                SourceAccountNumber = t.SourceAccountNumber,
+                DestinationAccountNumber = t.DestinationAccountNumber,
+                SourceInstitutionName = t.SourceInstitution.Name,
+                DestinationInstitutionName = t.DestinationInstitution.Name,
+                AchBatchId = t.AchBatchId,
+                BatchSequenceNumber = t.AchBatch.BatchSequenceNumber,
+                BatchCompanyName = t.AchBatch.CompanyName,
+                BatchEffectiveEntryDate = t.AchBatch.EffectiveEntryDate,
+                AchCycleId = t.AchCycleId
+            })
+            .ToListAsync(ct);
+    }
+
     private async Task UpdateBatchTotalsAsync(AchBatch batch, CancellationToken ct)
     {
         var totals = await _context.AchTransactions
