@@ -28,7 +28,7 @@ public static class DependencyInjectionService
 
         services.AddSingleton(MapperBootstrapper.Instance);
 
-        services.AddMediatR(typeof(DependencyInjectionService).Assembly);
+        services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<DependencyInjectionService>());
         #endregion
 
         #region Services
