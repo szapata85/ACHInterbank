@@ -119,7 +119,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Label = "Consultar transacciones",
                 Route = "/transactions/list",
                 Icon = "list_alt",
-                Order = 1,
+                Order = 2,
                 Exact = true,
                 IsActive = true
             },
@@ -131,7 +131,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Label = "Crear transacción",
                 Route = "/transactions/create",
                 Icon = "note_add",
-                Order = 2,
+                Order = 1,
                 Exact = true,
                 IsActive = true
             });
