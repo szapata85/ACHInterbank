@@ -6,6 +6,8 @@ import { TransactionListItem } from '../../transactions.models';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { TransactionTypeEnum } from '../../transactions.types';
 import { TableColumn } from '../../../../shared/components/table.component';
+import { AchCyclesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
+import { AchCycleSummary } from '../../../ach-cycles/models/ach-cycle.model';
 
 type TransactionListRow = TransactionListItem & {
   typeLabel: string;
@@ -20,6 +22,11 @@ interface TransactionGroup {
   items: TransactionListRow[];
 }
 
+interface AchCycleOption {
+  id: number;
+  label: string;
+}
+
 @Component({
   selector: 'app-transaction-list',
   standalone: true,
@@ -30,6 +37,7 @@ interface TransactionGroup {
 })
 export class TransactionListComponent implements OnInit {
   private readonly api = inject(TransactionsApiService);
+  private readonly achCyclesApi = inject(AchCyclesApiService);
   private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
   private readonly currencyFormatter = new Intl.NumberFormat('es-CO', {
@@ -56,18 +64,41 @@ export class TransactionListComponent implements OnInit {
 
   loading = false;
   groups: TransactionGroup[] = [];
+  cycles: AchCycleOption[] = [];
+  selectedCycleId: number | null = null;
 
   ngOnInit(): void {
-    this.load();
+    this.loadCycles();
   }
 
   createNew(): void {
     this.router.navigate(['/transactions/create']);
   }
 
-  private load(): void {
+  applyFilters(): void {
+    this.loadTransactions();
+  }
+
+  private loadCycles(): void {
+    this.achCyclesApi.search({ page: 1, pageSize: 100 }).subscribe({
+      next: (response) => {
+        this.cycles = (response?.items ?? []).map((cycle) => this.mapCycleOption(cycle));
+
+        if (!this.selectedCycleId && this.cycles.length > 0) {
+          this.selectedCycleId = this.cycles[0].id;
+        }
+
+        this.loadTransactions();
+      },
+      error: () => {
+        this.notifications.error('No fue posible cargar los ciclos ACH');
+      }
+    });
+  }
+
+  private loadTransactions(): void {
     this.loading = true;
-    this.api.getAll().subscribe({
+    this.api.getAll(this.selectedCycleId).subscribe({
       next: (items) => {
         const normalized = (items ?? []).map((item) => this.mapRow(item));
         const grouped = new Map<number, TransactionGroup>();
@@ -95,6 +126,14 @@ export class TransactionListComponent implements OnInit {
         this.loading = false;
       }
     });
+  }
+
+  private mapCycleOption(cycle: AchCycleSummary): AchCycleOption {
+    const id = Number(cycle.id);
+    const date = this.formatDate(cycle.date);
+    const label = `${cycle.clearingHouseName ?? 'ACH'} · ${date}`;
+
+    return { id, label };
   }
 
   private mapRow(item: TransactionListItem): TransactionListRow {

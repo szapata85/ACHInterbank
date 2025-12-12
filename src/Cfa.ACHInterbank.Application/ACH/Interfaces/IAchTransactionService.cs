@@ -25,5 +25,5 @@ public interface IAchTransactionService
 
     Task<AchTransaction?> GetTransactionByIdAsync(int transactionId, CancellationToken ct = default);
 
-    Task<IReadOnlyList<AchTransactionListDto>> GetAllAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<AchTransactionListDto>> GetAllAsync(int? achCycleId = default, CancellationToken ct = default);
 }

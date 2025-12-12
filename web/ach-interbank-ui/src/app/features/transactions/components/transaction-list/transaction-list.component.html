@@ -1,6 +1,15 @@
 <app-page-header title="Transacciones" description="Consulta y agrupa las transacciones por lote"></app-page-header>
 
 <div class="actions">
+  <div class="filters">
+    <label for="cycle">Ciclo</label>
+    <select id="cycle" [(ngModel)]="selectedCycleId">
+      <option [ngValue]="null">Selecciona un ciclo</option>
+      <option *ngFor="let cycle of cycles" [ngValue]="cycle.id">{{ cycle.label }}</option>
+    </select>
+    <button type="button" class="ghost" (click)="applyFilters()" [disabled]="loading">Aplicar</button>
+  </div>
+
   <button type="button" (click)="createNew()">Crear transacción</button>
 </div>
 

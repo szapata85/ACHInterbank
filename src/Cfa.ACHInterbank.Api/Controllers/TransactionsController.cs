@@ -24,9 +24,9 @@ public class TransactionsController : ControllerBase
     /// <summary>Obtiene todas las transacciones ACH.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<AchTransactionListDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll(CancellationToken ct)
+    public async Task<IActionResult> GetAll([FromQuery] int? achCycleId, CancellationToken ct)
     {
-        var transactions = await _transactionService.GetAllAsync(ct);
+        var transactions = await _transactionService.GetAllAsync(achCycleId, ct);
         return Ok(transactions);
     }
 

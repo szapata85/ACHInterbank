@@ -243,14 +243,22 @@ public class AchTransactionService : IAchTransactionService
         return await q.OrderBy(t => t.Id).ToListAsync(ct);
     }
 
-    public async Task<IReadOnlyList<AchTransactionListDto>> GetAllAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<AchTransactionListDto>> GetAllAsync(int? achCycleId = default, CancellationToken ct = default)
     {
-        return await _context.AchTransactions
+        var query = _context.AchTransactions
             .AsNoTracking()
             .Include(t => t.AchBatch)
             .Include(t => t.AchCycle)
             .Include(t => t.SourceInstitution)
             .Include(t => t.DestinationInstitution)
+            .AsQueryable();
+
+        if (achCycleId.HasValue)
+        {
+            query = query.Where(t => t.AchCycleId == achCycleId.Value);
+        }
+
+        return await query
             .OrderByDescending(t => t.CreatedAt)
             .Select(t => new AchTransactionListDto
             {

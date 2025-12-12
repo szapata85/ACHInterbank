@@ -29,8 +29,14 @@ export class TransactionsApiService {
     );
   }
 
-  getAll() {
-    return this.api.get<TransactionListItem[]>('transactions').pipe(
+  getAll(achCycleId?: number | null) {
+    const params: Record<string, string | number> = {};
+
+    if (achCycleId !== undefined && achCycleId !== null) {
+      params.achCycleId = achCycleId;
+    }
+
+    return this.api.get<TransactionListItem[]>('transactions', { params }).pipe(
       map((items) => (items ?? []).map((item) => ({ ...item, amount: Number(item.amount) })))
     );
   }
