@@ -2,6 +2,7 @@ using Cfa.ACHInterbank.Application.Helpers.AddressIp;
 using Cfa.ACHInterbank.Application.Helpers.Middleware;
 using Cfa.ACHInterbank.Persistence.ACH.Services;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
 using NLog.Extensions.Logging;
@@ -166,6 +167,29 @@ public static class DependencyInjectionService
         // Configure the HTTP request pipeline
         app.UseRouting();
         app.UseCors(CorsPolicyName);
+
+        app.Use(async (context, next) =>
+        {
+            if (HttpMethods.IsOptions(context.Request.Method))
+            {
+                var origin = context.Request.Headers["Origin"].ToString();
+                if (!string.IsNullOrEmpty(origin))
+                {
+                    context.Response.Headers.TryAdd("Access-Control-Allow-Origin", origin);
+                    context.Response.Headers.TryAdd("Vary", "Origin");
+                }
+
+                context.Response.Headers.TryAdd("Access-Control-Allow-Credentials", "true");
+                context.Response.Headers.TryAdd("Access-Control-Allow-Headers", "*");
+                context.Response.Headers.TryAdd("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+
+                context.Response.StatusCode = StatusCodes.Status200OK;
+                await context.Response.CompleteAsync();
+                return;
+            }
+
+            await next();
+        });
         app.UseMiddleware<GlobalExceptionMiddleware>();
         // Middleware Waf
         app.UseMiddleware<WafMiddleware>();
