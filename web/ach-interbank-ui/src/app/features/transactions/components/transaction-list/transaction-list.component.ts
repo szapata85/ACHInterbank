@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { AgGridModule } from 'ag-grid-angular';
 import { ColDef, RowSelectionOptions } from 'ag-grid-community';
@@ -48,6 +48,7 @@ export class TransactionListComponent implements OnInit {
   private readonly clearingHousesApi = inject(ClearingHousesApiService);
   private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly currencyFormatter = new Intl.NumberFormat('es-CO', {
     style: 'currency',
     currency: 'COP'
@@ -120,6 +121,7 @@ export class TransactionListComponent implements OnInit {
     this.clearingHousesApi.list().subscribe({
       next: (items) => {
         this.clearingHouses = items ?? [];
+        this.cdr.markForCheck();
       },
       error: () => {
         this.notifications.error('No fue posible cargar las cámaras compensadoras');
@@ -152,15 +154,19 @@ export class TransactionListComponent implements OnInit {
           if (autoLoadTransactions) {
             this.loadTransactions();
           }
+
+          this.cdr.markForCheck();
         },
         error: () => {
           this.notifications.error('No fue posible cargar los ciclos ACH');
+          this.cdr.markForCheck();
         }
       });
   }
 
   private loadTransactions(): void {
     this.loading = true;
+    this.cdr.markForCheck();
     this.api
       .getAll({
         achCycleId: this.selectedCycleId,
@@ -187,13 +193,16 @@ export class TransactionListComponent implements OnInit {
           });
 
           this.groups = Array.from(grouped.values()).sort((a, b) => b.batchId - a.batchId);
+          this.cdr.markForCheck();
         },
         error: () => {
           this.notifications.error('No fue posible cargar las transacciones');
           this.loading = false;
+          this.cdr.markForCheck();
         },
         complete: () => {
           this.loading = false;
+          this.cdr.markForCheck();
         }
       });
   }
