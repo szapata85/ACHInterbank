@@ -4,13 +4,13 @@ import {
   ElementRef,
   HostListener,
   OnInit,
-  TemplateRef,
   ViewChild,
   inject
 } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { SharedModule } from '../../../shared/shared.module';
-import { TableColumn } from '../../../shared/components/table.component';
+import { AgGridAngular } from 'ag-grid-angular';
+import { ColDef, GridApi, GridReadyEvent, ICellRendererParams } from 'ag-grid-community';
 import { NavigationMenuItem, SaveNavigationMenuItem } from '../models/navigation-menu.model';
 import { NavigationMenuService } from '../services/navigation-menu.service';
 import { RolesApiService } from '../../admin/services/users-api.service';
@@ -25,10 +25,17 @@ interface FlatMenuItem {
   depth: number;
 }
 
+type NavigationRow = NavigationMenuItem & {
+  label: string;
+  status: string;
+  rolesText: string;
+  permissionsText: string;
+};
+
 @Component({
   selector: 'app-navigation-menu',
   standalone: true,
-  imports: [SharedModule, NgIf, NgFor],
+  imports: [SharedModule, NgIf, NgFor, AgGridAngular],
   templateUrl: './navigation-menu.component.html',
   styleUrls: ['./navigation-menu.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -40,20 +47,48 @@ export class NavigationMenuComponent implements OnInit {
   private readonly rolesApi = inject(RolesApiService);
   private readonly permissionsService = inject(PermissionsService);
 
-  @ViewChild('rowActions', { static: true }) rowActionsTemplate!: TemplateRef<any>;
-
   menuItems: NavigationMenuItem[] = [];
   flatItems: FlatMenuItem[] = [];
   roles: RoleSummary[] = [];
   permissions: Permission[] = [];
   private roleLookup = new Map<string, string>();
   private permissionLookup = new Map<string, string>();
+  private gridApi?: GridApi;
   loading = false;
   saving = false;
   deletingId: number | null = null;
   iconMenuOpen = false;
 
   @ViewChild('iconSelectRoot', { static: false }) iconSelectRoot?: ElementRef<HTMLElement>;
+
+  readonly gridContext = { component: this };
+
+  readonly defaultColDef: ColDef = {
+    resizable: true,
+    sortable: true,
+    filter: true,
+    flex: 1,
+    minWidth: 140
+  };
+
+  readonly columnDefs: ColDef[] = [
+    { field: 'label', headerName: 'Etiqueta', flex: 1.2 },
+    { field: 'route', headerName: 'Ruta' },
+    { field: 'order', headerName: 'Orden', type: 'numericColumn', cellClass: 'ag-right-aligned-cell', width: 110 },
+    { field: 'status', headerName: 'Estado', width: 120 },
+    { field: 'rolesText', headerName: 'Roles', flex: 1.1 },
+    { field: 'permissionsText', headerName: 'Permisos', flex: 1.2 },
+    {
+      headerName: 'Acciones',
+      colId: 'actions',
+      cellRenderer: (params) => this.renderActions(params),
+      width: 190,
+      maxWidth: 220,
+      suppressMovable: true,
+      filter: false,
+      sortable: false
+    }
+  ];
 
   readonly iconOptions: string[] = [
     '',
@@ -80,15 +115,6 @@ export class NavigationMenuComponent implements OnInit {
     'help'
   ];
 
-  readonly columns: TableColumn[] = [
-    { key: 'label', label: 'Etiqueta' },
-    { key: 'route', label: 'Ruta' },
-    { key: 'order', label: 'Orden', align: 'end' },
-    { key: 'status', label: 'Estado' },
-    { key: 'rolesText', label: 'Roles' },
-    { key: 'permissionsText', label: 'Permisos' }
-  ];
-
   readonly form = this.fb.group({
     id: [null as number | null],
     label: ['', Validators.required],
@@ -110,15 +136,22 @@ export class NavigationMenuComponent implements OnInit {
 
   loadMenuItems(): void {
     this.loading = true;
+    this.gridApi?.showLoadingOverlay();
     this.navigationService.getMenuItems().subscribe({
       next: (items) => {
         this.menuItems = items;
         this.flatItems = this.flatten(items);
         this.loading = false;
+        if (!items.length) {
+          this.gridApi?.showNoRowsOverlay();
+        } else {
+          this.gridApi?.hideOverlay();
+        }
       },
       error: () => {
         this.notificationService.error('No fue posible cargar el menú de navegación');
         this.loading = false;
+        this.gridApi?.hideOverlay();
       }
     });
   }
@@ -175,6 +208,10 @@ export class NavigationMenuComponent implements OnInit {
       roleIds: [],
       permissionIds: []
     });
+  }
+
+  onGridReady(event: GridReadyEvent): void {
+    this.gridApi = event.api;
   }
 
   editItem(item: NavigationMenuItem): void {
@@ -234,15 +271,18 @@ export class NavigationMenuComponent implements OnInit {
     }
 
     this.deletingId = item.id;
+    this.refreshActionCells();
     this.navigationService.deleteMenuItem(item.id).subscribe({
       next: () => {
         this.notificationService.success('Elemento eliminado');
         this.deletingId = null;
+        this.refreshActionCells();
         this.loadMenuItems();
       },
       error: () => {
         this.notificationService.error('No fue posible eliminar el elemento');
         this.deletingId = null;
+        this.refreshActionCells();
       }
     });
   }
@@ -272,7 +312,7 @@ export class NavigationMenuComponent implements OnInit {
     return names.join(', ');
   }
 
-  get tableData(): any[] {
+  get tableData(): NavigationRow[] {
     return this.flatItems.map(({ item, depth }) => ({
       ...item,
       label: `${depth ? '— '.repeat(depth) : ''}${item.label}`,
@@ -280,6 +320,32 @@ export class NavigationMenuComponent implements OnInit {
       rolesText: this.getRolesText(item),
       permissionsText: this.getPermissionsText(item)
     }));
+  }
+
+  private renderActions(params: ICellRendererParams): HTMLElement {
+    const component = params.context?.component as NavigationMenuComponent;
+    const row = params.data as NavigationRow | undefined;
+    const container = document.createElement('div');
+    container.classList.add('actions');
+
+    if (!row) {
+      return container;
+    }
+
+    const editButton = document.createElement('button');
+    editButton.type = 'button';
+    editButton.textContent = 'Editar';
+    editButton.addEventListener('click', () => component.editItem(row));
+
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.textContent = component.deletingId === row.id ? 'Eliminando...' : 'Eliminar';
+    deleteButton.classList.add('danger');
+    deleteButton.disabled = component.deletingId === row.id;
+    deleteButton.addEventListener('click', () => component.confirmDelete(row));
+
+    container.append(editButton, deleteButton);
+    return container;
   }
 
   private flatten(items: NavigationMenuItem[], depth = 0): FlatMenuItem[] {
@@ -291,5 +357,9 @@ export class NavigationMenuComponent implements OnInit {
       }
     }
     return result;
+  }
+
+  private refreshActionCells(): void {
+    this.gridApi?.refreshCells({ columns: ['actions'], force: true });
   }
 }
