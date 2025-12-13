@@ -39,6 +39,17 @@
   font-weight: 600;
 }
 
+.ag-grid-wrapper {
+  width: 100%;
+}
+
+.ag-theme-alpine {
+  --ag-header-height: 42px;
+  --ag-font-size: 14px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

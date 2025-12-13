@@ -110,21 +110,21 @@
         <button type="button" class="link" (click)="loadMenuItems()">Refrescar</button>
       </div>
 
-      <app-table
-        [columns]="columns"
-        [data]="tableData"
-        [rowActions]="rowActionsTemplate"
-        [loading]="loading"
-      ></app-table>
-
-      <ng-template #rowActions let-row>
-        <div class="actions">
-          <button type="button" (click)="editItem(row)">Editar</button>
-          <button type="button" class="danger" [disabled]="deletingId === row.id" (click)="confirmDelete(row)">
-            {{ deletingId === row.id ? 'Eliminando...' : 'Eliminar' }}
-          </button>
-        </div>
-      </ng-template>
+      <div class="ag-grid-wrapper">
+        <ag-grid-angular
+          class="ag-theme-alpine"
+          [columnDefs]="columnDefs"
+          [defaultColDef]="defaultColDef"
+          [rowData]="tableData"
+          [context]="gridContext"
+          [domLayout]="'autoHeight'"
+          [animateRows]="true"
+          [suppressCellFocus]="true"
+          (gridReady)="onGridReady($event)"
+          [overlayLoadingTemplate]="'<span class=\'ag-overlay-loading-center\'>Cargando...</span>'"
+          [overlayNoRowsTemplate]="'No hay elementos de menú'"
+        ></ag-grid-angular>
+      </div>
     </div>
   </div>
 </section>
