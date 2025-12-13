@@ -103,11 +103,11 @@
 }
 
 .inline-icon {
-  position: absolute;
-  left: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   color: #111827;
   font-size: 20px;
 }
@@ -126,7 +126,7 @@
   background: #fff;
   border: 1px solid #d1d5db;
   border-radius: 6px;
-  padding: 0.5rem 0.75rem 0.5rem 2.5rem;
+  padding: 0.5rem 0.75rem;
   text-align: left;
   cursor: pointer;
 }
