@@ -122,7 +122,8 @@ export class TransactionListComponent implements OnInit {
       })
       .subscribe({
         next: (response) => {
-          this.cycles = (response?.items ?? []).map((cycle) => this.mapCycleOption(cycle));
+          const mapped = (response?.items ?? []).map((cycle) => this.mapCycleOption(cycle));
+          this.cycles = this.distinctCycles(mapped);
           this.cycleGroups = this.groupCycles(this.cycles);
 
           if (!this.selectedCycleId && this.cycles.length > 0) {
@@ -183,11 +184,23 @@ export class TransactionListComponent implements OnInit {
 
   private mapCycleOption(cycle: AchCycleSummary): AchCycleOption {
     const id = Number(cycle.id);
-    const date = this.formatDate(cycle.date);
     const name = cycle.cycleName?.trim() || `Ciclo ${id}`;
-    const label = `${name}${date !== '-' ? ' · ' + date : ''}`;
 
-    return { id, label, group: name };
+    return { id, label: name, group: name };
+  }
+
+  private distinctCycles(options: AchCycleOption[]): AchCycleOption[] {
+    const seen = new Set<string>();
+
+    return options.filter((option) => {
+      const key = option.label.toLocaleLowerCase();
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    });
   }
 
   private groupCycles(options: AchCycleOption[]): AchCycleOptionGroup[] {
