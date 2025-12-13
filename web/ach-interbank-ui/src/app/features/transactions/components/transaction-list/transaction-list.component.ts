@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { AgGridModule } from 'ag-grid-angular';
-import { ColDef } from 'ag-grid-community';
+import { ColDef, RowSelectionOptions } from 'ag-grid-community';
 import { SharedModule } from '../../../../shared/shared.module';
 import { TransactionsApiService } from '../../services/transactions-api.service';
 import { TransactionListItem } from '../../transactions.models';
@@ -75,6 +75,10 @@ export class TransactionListComponent implements OnInit {
     sortable: true,
     suppressHeaderKeyboardEvent: () => true,
     filterParams: { suppressAndOrCondition: true }
+  };
+
+  readonly rowSelection: RowSelectionOptions = {
+    mode: 'single'
   };
 
   readonly noRowsTemplate = 'No hay transacciones registradas.';
