@@ -14,6 +14,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int TransactionsId = 6;
     public const int TransactionsCreateId = 7;
     public const int TransactionsListId = 8;
+    public const int NavigationAdminId = 9;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -109,6 +110,17 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Icon = "swap_horiz",
                 Order = 6,
                 Exact = false,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = NavigationAdminId,
+                MenuId = MenuConfiguration.MainMenuId,
+                Label = "Navegación",
+                Route = "/navigation/menu-items",
+                Icon = "category",
+                Order = 7,
+                Exact = true,
                 IsActive = true
             },
             new MenuItem

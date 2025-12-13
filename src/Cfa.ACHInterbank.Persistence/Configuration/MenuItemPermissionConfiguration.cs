@@ -28,6 +28,11 @@ public class MenuItemPermissionConfiguration : IEntityTypeConfiguration<MenuItem
             },
             new MenuItemPermission
             {
+                MenuItemId = MenuItemConfiguration.NavigationAdminId,
+                PermissionId = PermissionConfiguration.ManageUsersPermissionId
+            },
+            new MenuItemPermission
+            {
                 MenuItemId = MenuItemConfiguration.AliasesId,
                 PermissionId = PermissionConfiguration.ReadAliasesPermissionId
             },

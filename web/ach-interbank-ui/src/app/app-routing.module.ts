@@ -47,6 +47,17 @@ const routes: Routes = [
         loadChildren: () => import('./features/transactions/transactions.module').then((m) => m.TransactionsModule)
       },
       {
+        path: 'navigation',
+        canActivate: [roleGuard, permissionGuard],
+        data: {
+          roles: ['Admin'],
+          permissions: ['CanManageUsers'],
+          breadcrumb: 'Navegación',
+          title: 'Menú de navegación'
+        },
+        loadChildren: () => import('./features/navigation/navigation.module').then((m) => m.NavigationModule)
+      },
+      {
         path: 'catalogs',
         loadChildren: () => import('./features/catalogs/catalogs.module').then((m) => m.CatalogsModule)
       },

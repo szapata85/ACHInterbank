@@ -1,0 +1,95 @@
+<section class="navigation-admin">
+  <app-page-header title="Menú de navegación" subtitle="Administra los accesos visibles en la SPA"></app-page-header>
+
+  <div class="grid">
+    <div class="card">
+      <div class="card-header">
+        <h2>{{ form.value.id ? 'Editar elemento' : 'Nuevo elemento' }}</h2>
+        <button type="button" class="link" (click)="startCreate()" *ngIf="form.value.id">Limpiar</button>
+      </div>
+
+      <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
+        <label class="field">
+          <span>Etiqueta</span>
+          <input type="text" formControlName="label" placeholder="Texto visible" />
+          <app-error-message *ngIf="form.get('label')?.touched" [control]="form.get('label')"></app-error-message>
+        </label>
+
+        <label class="field">
+          <span>Ruta</span>
+          <input type="text" formControlName="route" placeholder="/ruta" />
+          <app-error-message *ngIf="form.get('route')?.touched" [control]="form.get('route')"></app-error-message>
+        </label>
+
+        <label class="field">
+          <span>Ícono (material symbols)</span>
+          <input type="text" formControlName="icon" placeholder="dashboard" />
+        </label>
+
+        <label class="field inline">
+          <span>Orden</span>
+          <input type="number" formControlName="order" min="0" />
+        </label>
+
+        <label class="field inline">
+          <span>Exacto</span>
+          <input type="checkbox" formControlName="exact" />
+        </label>
+
+        <label class="field inline">
+          <span>Activo</span>
+          <input type="checkbox" formControlName="isActive" />
+        </label>
+
+        <label class="field">
+          <span>Padre</span>
+          <select formControlName="parentId">
+            <option [ngValue]="null">(Sin padre)</option>
+            <option *ngFor="let option of parentOptions" [ngValue]="option.item.id">
+              {{ option.item.label }}
+            </option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Roles permitidos</span>
+          <select formControlName="roleIds" multiple>
+            <option *ngFor="let role of roles" [ngValue]="role.id">{{ role.name }}</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Permisos necesarios</span>
+          <select formControlName="permissionIds" multiple>
+            <option *ngFor="let perm of permissions" [ngValue]="perm.id">{{ perm.name }}</option>
+          </select>
+        </label>
+
+        <button type="submit" [disabled]="saving">{{ form.value.id ? 'Actualizar' : 'Crear' }}</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>Estructura</h2>
+        <button type="button" class="link" (click)="loadMenuItems()">Refrescar</button>
+      </div>
+
+      <app-table
+        [columns]="columns"
+        [data]="tableData"
+        [rowActions]="rowActionsTemplate"
+        [loading]="loading"
+      ></app-table>
+
+      <ng-template #rowActions let-row>
+        <div class="actions">
+          <button type="button" (click)="editItem(row)">Editar</button>
+          <button type="button" class="danger" [disabled]="deletingId === row.id" (click)="confirmDelete(row)">
+            {{ deletingId === row.id ? 'Eliminando...' : 'Eliminar' }}
+          </button>
+        </div>
+      </ng-template>
+    </div>
+  </div>
+</section>
