@@ -164,6 +164,8 @@ public static class DependencyInjectionService
 
 
         // Configure the HTTP request pipeline
+        app.UseRouting();
+        app.UseCors(CorsPolicyName);
         app.UseMiddleware<GlobalExceptionMiddleware>();
         // Middleware Waf
         app.UseMiddleware<WafMiddleware>();
@@ -175,9 +177,7 @@ public static class DependencyInjectionService
         app.UseMiddleware<SecurityHeadersMiddleware>();
         app.UseHttpsRedirection();
         app.UseRateLimiter();
-        app.UseRouting();
         //app.UseCsrfTokenMiddleware();
-        app.UseCors(CorsPolicyName);
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapControllers();
