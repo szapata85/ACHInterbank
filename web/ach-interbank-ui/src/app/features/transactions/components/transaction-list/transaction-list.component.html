@@ -2,11 +2,27 @@
 
 <div class="actions">
   <div class="filters">
-    <label for="cycle">Ciclo</label>
-    <select id="cycle" [(ngModel)]="selectedCycleId">
-      <option [ngValue]="null">Selecciona un ciclo</option>
-      <option *ngFor="let cycle of cycles" [ngValue]="cycle.id">{{ cycle.label }}</option>
-    </select>
+    <div class="filter-field">
+      <label for="date">Fecha</label>
+      <input id="date" type="date" [(ngModel)]="selectedDate" />
+    </div>
+
+    <div class="filter-field">
+      <label for="clearingHouse">Cámara compensadora</label>
+      <select id="clearingHouse" [(ngModel)]="selectedClearingHouseId" (ngModelChange)="onClearingHouseChange()">
+        <option [ngValue]="null">Todas las cámaras</option>
+        <option *ngFor="let house of clearingHouses" [ngValue]="house.id">{{ house.name }}</option>
+      </select>
+    </div>
+
+    <div class="filter-field">
+      <label for="cycle">Ciclo</label>
+      <select id="cycle" [(ngModel)]="selectedCycleId">
+        <option [ngValue]="null">Todos los ciclos</option>
+        <option *ngFor="let cycle of cycles" [ngValue]="cycle.id">{{ cycle.label }}</option>
+      </select>
+    </div>
+
     <button type="button" class="ghost" (click)="applyFilters()" [disabled]="loading">Aplicar</button>
   </div>
 

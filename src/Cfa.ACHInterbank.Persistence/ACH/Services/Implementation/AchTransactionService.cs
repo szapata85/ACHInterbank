@@ -243,7 +243,11 @@ public class AchTransactionService : IAchTransactionService
         return await q.OrderBy(t => t.Id).ToListAsync(ct);
     }
 
-    public async Task<IReadOnlyList<AchTransactionListDto>> GetAllAsync(int? achCycleId = default, CancellationToken ct = default)
+    public async Task<IReadOnlyList<AchTransactionListDto>> GetAllAsync(
+        int? achCycleId = default,
+        DateTime? effectiveDate = default,
+        int? clearingHouseId = default,
+        CancellationToken ct = default)
     {
         var query = _context.AchTransactions
             .AsNoTracking()
@@ -256,6 +260,17 @@ public class AchTransactionService : IAchTransactionService
         if (achCycleId.HasValue)
         {
             query = query.Where(t => t.AchCycleId == achCycleId.Value);
+        }
+
+        if (effectiveDate.HasValue)
+        {
+            var targetDate = effectiveDate.Value.Date;
+            query = query.Where(t => t.EffectiveEntryDate.Date == targetDate);
+        }
+
+        if (clearingHouseId.HasValue)
+        {
+            query = query.Where(t => t.AchCycle.ClearingHouseId == clearingHouseId.Value);
         }
 
         return await query

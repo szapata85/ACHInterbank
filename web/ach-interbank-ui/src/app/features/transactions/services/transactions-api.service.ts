@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { catchError, map, throwError } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { TransactionTypeEnum } from '../transactions.types';
-import { TransactionDraft, TransactionListItem, TransactionResponse } from '../transactions.models';
+import { TransactionDraft, TransactionListFilter, TransactionListItem, TransactionResponse } from '../transactions.models';
 
 @Injectable({ providedIn: 'root' })
 export class TransactionsApiService {
@@ -29,11 +29,19 @@ export class TransactionsApiService {
     );
   }
 
-  getAll(achCycleId?: number | null) {
+  getAll(filter?: TransactionListFilter) {
     const params: Record<string, string | number> = {};
 
-    if (achCycleId !== undefined && achCycleId !== null) {
-      params.achCycleId = achCycleId;
+    if (filter?.achCycleId !== undefined && filter?.achCycleId !== null) {
+      params.achCycleId = filter.achCycleId;
+    }
+
+    if (filter?.effectiveDate) {
+      params.effectiveDate = filter.effectiveDate;
+    }
+
+    if (filter?.clearingHouseId !== undefined && filter?.clearingHouseId !== null) {
+      params.clearingHouseId = filter.clearingHouseId;
     }
 
     return this.api.get<TransactionListItem[]>('transactions', { params }).pipe(

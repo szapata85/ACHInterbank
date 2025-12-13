@@ -6,8 +6,8 @@ import { TransactionListItem } from '../../transactions.models';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { TransactionTypeEnum } from '../../transactions.types';
 import { TableColumn } from '../../../../shared/components/table.component';
-import { AchCyclesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
-import { AchCycleSummary } from '../../../ach-cycles/models/ach-cycle.model';
+import { AchCyclesApiService, ClearingHousesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
+import { AchCycleSummary, ClearingHouseOption } from '../../../ach-cycles/models/ach-cycle.model';
 
 type TransactionListRow = TransactionListItem & {
   typeLabel: string;
@@ -38,6 +38,7 @@ interface AchCycleOption {
 export class TransactionListComponent implements OnInit {
   private readonly api = inject(TransactionsApiService);
   private readonly achCyclesApi = inject(AchCyclesApiService);
+  private readonly clearingHousesApi = inject(ClearingHousesApiService);
   private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
   private readonly currencyFormatter = new Intl.NumberFormat('es-CO', {
@@ -65,9 +66,13 @@ export class TransactionListComponent implements OnInit {
   loading = false;
   groups: TransactionGroup[] = [];
   cycles: AchCycleOption[] = [];
+  clearingHouses: ClearingHouseOption[] = [];
   selectedCycleId: number | null = null;
+  selectedClearingHouseId: number | null = null;
+  selectedDate = '';
 
   ngOnInit(): void {
+    this.loadClearingHouses();
     this.loadCycles();
   }
 
@@ -79,53 +84,83 @@ export class TransactionListComponent implements OnInit {
     this.loadTransactions();
   }
 
-  private loadCycles(): void {
-    this.achCyclesApi.search({ page: 1, pageSize: 100 }).subscribe({
-      next: (response) => {
-        this.cycles = (response?.items ?? []).map((cycle) => this.mapCycleOption(cycle));
+  onClearingHouseChange(): void {
+    this.selectedCycleId = null;
+    this.loadCycles(false);
+  }
 
-        if (!this.selectedCycleId && this.cycles.length > 0) {
-          this.selectedCycleId = this.cycles[0].id;
-        }
-
-        this.loadTransactions();
+  private loadClearingHouses(): void {
+    this.clearingHousesApi.list().subscribe({
+      next: (items) => {
+        this.clearingHouses = items ?? [];
       },
       error: () => {
-        this.notifications.error('No fue posible cargar los ciclos ACH');
+        this.notifications.error('No fue posible cargar las cámaras compensadoras');
       }
     });
   }
 
+  private loadCycles(autoLoadTransactions = true): void {
+    this.achCyclesApi
+      .search({ page: 1, pageSize: 100, clearingHouseId: this.selectedClearingHouseId ?? undefined })
+      .subscribe({
+        next: (response) => {
+          this.cycles = (response?.items ?? []).map((cycle) => this.mapCycleOption(cycle));
+
+          if (!this.selectedCycleId && this.cycles.length > 0) {
+            this.selectedCycleId = this.cycles[0].id;
+          }
+
+          if (this.cycles.length === 0) {
+            this.selectedCycleId = null;
+          }
+
+          if (autoLoadTransactions) {
+            this.loadTransactions();
+          }
+        },
+        error: () => {
+          this.notifications.error('No fue posible cargar los ciclos ACH');
+        }
+      });
+  }
+
   private loadTransactions(): void {
     this.loading = true;
-    this.api.getAll(this.selectedCycleId).subscribe({
-      next: (items) => {
-        const normalized = (items ?? []).map((item) => this.mapRow(item));
-        const grouped = new Map<number, TransactionGroup>();
+    this.api
+      .getAll({
+        achCycleId: this.selectedCycleId,
+        effectiveDate: this.selectedDate || undefined,
+        clearingHouseId: this.selectedClearingHouseId
+      })
+      .subscribe({
+        next: (items) => {
+          const normalized = (items ?? []).map((item) => this.mapRow(item));
+          const grouped = new Map<number, TransactionGroup>();
 
-        normalized.forEach((item) => {
-          const current = grouped.get(item.achBatchId);
-          if (!current) {
-            grouped.set(item.achBatchId, {
-              batchId: item.achBatchId,
-              batchLabel: this.buildBatchLabel(item),
-              batchDate: this.formatDate(item.batchEffectiveEntryDate),
-              items: [item]
-            });
-          } else {
-            current.items.push(item);
-          }
-        });
+          normalized.forEach((item) => {
+            const current = grouped.get(item.achBatchId);
+            if (!current) {
+              grouped.set(item.achBatchId, {
+                batchId: item.achBatchId,
+                batchLabel: this.buildBatchLabel(item),
+                batchDate: this.formatDate(item.batchEffectiveEntryDate),
+                items: [item]
+              });
+            } else {
+              current.items.push(item);
+            }
+          });
 
-        this.groups = Array.from(grouped.values()).sort((a, b) => b.batchId - a.batchId);
-      },
-      error: () => {
-        this.notifications.error('No fue posible cargar las transacciones');
-      },
-      complete: () => {
-        this.loading = false;
-      }
-    });
+          this.groups = Array.from(grouped.values()).sort((a, b) => b.batchId - a.batchId);
+        },
+        error: () => {
+          this.notifications.error('No fue posible cargar las transacciones');
+        },
+        complete: () => {
+          this.loading = false;
+        }
+      });
   }
 
   private mapCycleOption(cycle: AchCycleSummary): AchCycleOption {

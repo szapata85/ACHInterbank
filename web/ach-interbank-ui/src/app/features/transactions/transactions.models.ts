@@ -53,3 +53,9 @@ export interface TransactionListItem {
   batchEffectiveEntryDate: string;
   achCycleId: number;
 }
+
+export interface TransactionListFilter {
+  achCycleId?: number | null;
+  effectiveDate?: string;
+  clearingHouseId?: number | null;
+}
