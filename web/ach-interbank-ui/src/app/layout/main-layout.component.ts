@@ -29,6 +29,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   readonly user$ = this.authService.user$;
   menuItems: MenuItem[] = [];
+  expandedItems = new Set<number>();
 
   breadcrumbs: Breadcrumb[] = [];
   pageTitle = 'Inicio';
@@ -50,6 +51,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
     this.menuSubscription = this.navigationService.getMenu().subscribe((items) => {
       this.menuItems = items;
+      this.syncExpandedItems();
       this.cdr.markForCheck();
     });
   }
@@ -73,6 +75,25 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       this.isMenuOpen = false;
       this.cdr.markForCheck();
     }
+  }
+
+  toggleSubmenu(item: MenuItem, event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const key = item.id;
+
+    if (this.expandedItems.has(key)) {
+      this.expandedItems.delete(key);
+    } else {
+      this.expandedItems.add(key);
+    }
+
+    this.cdr.markForCheck();
+  }
+
+  isItemExpanded(item: MenuItem): boolean {
+    return this.expandedItems.has(item.id);
   }
 
   onNavItemSelected(): void {
@@ -128,9 +149,48 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     if (this.isMobileView()) {
       this.closeMenu();
     }
+
+    this.syncExpandedItems();
   }
 
   private isMobileView(): boolean {
     return typeof window !== 'undefined' && window.innerWidth < 960;
+  }
+
+  private syncExpandedItems(): void {
+    const currentUrl = this.router.url;
+    const expandedItems = new Set<number>();
+
+    const markExpanded = (items: MenuItem[]): boolean => {
+      return items.some((item) => {
+        const hasActiveChild = item.children?.length ? markExpanded(item.children) : false;
+        const isActive = this.isRouteActive(currentUrl, item.route, item.exact);
+
+        if (hasActiveChild) {
+          expandedItems.add(item.id);
+        }
+
+        if (isActive && item.children?.length) {
+          expandedItems.add(item.id);
+        }
+
+        return isActive || hasActiveChild;
+      });
+    };
+
+    markExpanded(this.menuItems);
+    this.expandedItems = expandedItems;
+  }
+
+  private isRouteActive(currentUrl: string, route: string, exact?: boolean): boolean {
+    if (!route) {
+      return false;
+    }
+
+    if (exact) {
+      return currentUrl === route;
+    }
+
+    return currentUrl === route || currentUrl.startsWith(`${route}/`);
   }
 }

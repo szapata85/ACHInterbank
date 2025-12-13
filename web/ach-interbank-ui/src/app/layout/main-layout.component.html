@@ -12,33 +12,56 @@
 
     <nav class="menu">
       <ng-container *ngFor="let item of menuItems">
-        <a
-          [routerLink]="item.route"
-          routerLinkActive="active"
-          [routerLinkActiveOptions]="item.exact ? { exact: true } : {}"
-          class="menu-item"
-          (click)="onNavItemSelected()"
-        >
-          <span *ngIf="item.icon" class="icon material-symbols-outlined" aria-hidden="true">
-            {{ item.icon }}
-          </span>
-          <span class="label">{{ item.label }}</span>
-        </a>
+        <div class="menu-group" [class.has-children]="item.children?.length" [class.expanded]="isItemExpanded(item)">
+          <div class="menu-header">
+            <a
+              [routerLink]="item.route"
+              routerLinkActive="active"
+              [routerLinkActiveOptions]="item.exact ? { exact: true } : {}"
+              class="menu-item"
+              (click)="onNavItemSelected()"
+            >
+              <span *ngIf="item.icon" class="icon material-symbols-outlined" aria-hidden="true">
+                {{ item.icon }}
+              </span>
+              <span class="label">{{ item.label }}</span>
+            </a>
 
-        <div *ngIf="item.children?.length" class="submenu">
-          <a
-            *ngFor="let child of item.children"
-            [routerLink]="child.route"
-            routerLinkActive="active"
-            [routerLinkActiveOptions]="child.exact ? { exact: true } : {}"
-            class="submenu-item"
-            (click)="onNavItemSelected()"
+            <button
+              *ngIf="item.children?.length"
+              type="button"
+              class="submenu-toggle"
+              (click)="toggleSubmenu(item, $event)"
+              [attr.aria-expanded]="isItemExpanded(item)"
+              [attr.aria-controls]="'submenu-' + item.id"
+              aria-label="Alternar submenú de {{ item.label }}"
+            >
+              <span class="chevron material-symbols-outlined" aria-hidden="true">expand_more</span>
+            </button>
+          </div>
+
+          <div
+            *ngIf="item.children?.length"
+            class="submenu"
+            [class.open]="isItemExpanded(item)"
+            [id]="'submenu-' + item.id"
+            role="group"
+            [attr.aria-label]="'Submenú de ' + item.label"
           >
-            <span *ngIf="child.icon" class="icon material-symbols-outlined" aria-hidden="true">
-              {{ child.icon }}
-            </span>
-            <span class="label">{{ child.label }}</span>
-          </a>
+            <a
+              *ngFor="let child of item.children"
+              [routerLink]="child.route"
+              routerLinkActive="active"
+              [routerLinkActiveOptions]="child.exact ? { exact: true } : {}"
+              class="submenu-item"
+              (click)="onNavItemSelected()"
+            >
+              <span *ngIf="child.icon" class="icon material-symbols-outlined" aria-hidden="true">
+                {{ child.icon }}
+              </span>
+              <span class="label">{{ child.label }}</span>
+            </a>
+          </div>
         </div>
       </ng-container>
     </nav>

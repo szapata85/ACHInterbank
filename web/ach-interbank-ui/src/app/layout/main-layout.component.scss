@@ -124,6 +124,19 @@
   gap: 0.35rem;
 }
 
+.menu-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.menu-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .menu a {
   display: flex;
   align-items: center;
@@ -148,6 +161,33 @@
   border: 1px solid rgba(14, 165, 233, 0.3);
 }
 
+.submenu-toggle {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e2e8f0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(14, 165, 233, 0.4);
+  }
+}
+
+.chevron {
+  font-size: 20px;
+  transition: transform 0.2s ease;
+}
+
+.menu-group.expanded .chevron {
+  transform: rotate(180deg);
+}
+
 .submenu {
   display: flex;
   flex-direction: column;
@@ -155,6 +195,17 @@
   margin-left: 0.75rem;
   padding-left: 0.75rem;
   border-left: 1px solid rgba(255, 255, 255, 0.08);
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+
+  &.open {
+    max-height: 600px;
+    opacity: 1;
+    pointer-events: auto;
+  }
 
   .submenu-item {
     display: flex;
