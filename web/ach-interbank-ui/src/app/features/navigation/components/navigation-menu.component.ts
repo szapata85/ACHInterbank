@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, OnInit, TemplateRef, ViewChild, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  HostListener,
+  OnInit,
+  TemplateRef,
+  ViewChild,
+  inject
+} from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { SharedModule } from '../../../shared/shared.module';
 import { TableColumn } from '../../../shared/components/table.component';
@@ -42,6 +51,9 @@ export class NavigationMenuComponent implements OnInit {
   loading = false;
   saving = false;
   deletingId: number | null = null;
+  iconMenuOpen = false;
+
+  @ViewChild('iconSelectRoot', { static: false }) iconSelectRoot?: ElementRef<HTMLElement>;
 
   readonly iconOptions: string[] = [
     '',
@@ -123,6 +135,31 @@ export class NavigationMenuComponent implements OnInit {
       this.permissions = permissions;
       this.permissionLookup = new Map(permissions.map((permission) => [permission.id, permission.name]));
     });
+  }
+
+  toggleIconMenu(event?: Event): void {
+    event?.stopPropagation();
+    this.iconMenuOpen = !this.iconMenuOpen;
+  }
+
+  selectIcon(icon: string, event?: Event): void {
+    event?.preventDefault();
+    this.form.get('icon')?.setValue(icon);
+    this.iconMenuOpen = false;
+  }
+
+  @HostListener('document:click', ['$event'])
+  closeIconMenu(event: Event): void {
+    if (!this.iconMenuOpen) {
+      return;
+    }
+
+    const target = event.target as Node;
+    if (this.iconSelectRoot?.nativeElement.contains(target)) {
+      return;
+    }
+
+    this.iconMenuOpen = false;
   }
 
   startCreate(): void {

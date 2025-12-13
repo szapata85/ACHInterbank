@@ -23,11 +23,32 @@
 
         <label class="field">
           <span>Ícono (material symbols)</span>
-          <div class="icon-select">
+          <div class="icon-select" #iconSelectRoot>
             <div class="icon-select-input">
-              <span *ngIf="form.value.icon" class="material-symbols-outlined inline-icon">{{ form.value.icon }}</span>
-              <span *ngIf="!form.value.icon" class="inline-icon no-icon">–</span>
-              <select formControlName="icon">
+              <button type="button" class="icon-select-trigger" (click)="toggleIconMenu($event)" [attr.aria-expanded]="iconMenuOpen">
+                <span *ngIf="form.value.icon" class="material-symbols-outlined inline-icon">{{ form.value.icon }}</span>
+                <span *ngIf="!form.value.icon" class="inline-icon no-icon">–</span>
+                <span class="icon-value">{{ form.value.icon || '(Sin ícono)' }}</span>
+                <span class="chevron" aria-hidden="true">▾</span>
+              </button>
+
+              <div class="icon-options" *ngIf="iconMenuOpen">
+                <button
+                  type="button"
+                  *ngFor="let icon of iconOptions"
+                  class="icon-option"
+                  [class.active]="form.value.icon === icon"
+                  (click)="selectIcon(icon, $event)"
+                >
+                  <span class="inline-icon" [class.no-icon]="!icon">
+                    <span *ngIf="icon" class="material-symbols-outlined">{{ icon }}</span>
+                    <span *ngIf="!icon">–</span>
+                  </span>
+                  <span class="icon-name">{{ icon || '(Sin ícono)' }}</span>
+                </button>
+              </div>
+
+              <select formControlName="icon" class="sr-only">
                 <option *ngFor="let icon of iconOptions" [ngValue]="icon">
                   {{ icon || '(Sin ícono)' }}
                 </option>

@@ -77,11 +77,6 @@
   flex: 1;
 }
 
-.icon-select select {
-  width: 100%;
-  padding-left: 2.5rem;
-}
-
 .icon-preview {
   min-width: 72px;
   display: inline-flex;
@@ -120,6 +115,86 @@
 .inline-icon.no-icon {
   color: #9ca3af;
   font-weight: 700;
+}
+
+.icon-select-trigger {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem 0.5rem 2.5rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.icon-value {
+  color: #111827;
+}
+
+.chevron {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.icon-options {
+  position: absolute;
+  z-index: 10;
+  margin-top: 0.25rem;
+  width: 100%;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+  max-height: 240px;
+  overflow: auto;
+}
+
+.icon-option {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.icon-option:hover,
+.icon-option.active {
+  background: #f3f4f6;
+}
+
+.icon-option .inline-icon {
+  position: static;
+  transform: none;
+  justify-self: center;
+}
+
+.icon-option .material-symbols-outlined {
+  font-size: 20px;
+}
+
+.icon-name {
+  color: #111827;
+  font-size: 0.95rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
 }
 
 .field.inline {
