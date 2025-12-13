@@ -72,8 +72,14 @@
   gap: 0.5rem;
 }
 
-.icon-select select {
+.icon-select-input {
+  position: relative;
   flex: 1;
+}
+
+.icon-select select {
+  width: 100%;
+  padding-left: 2.5rem;
 }
 
 .icon-preview {
@@ -99,6 +105,21 @@
 
 .icon-preview .no-icon {
   font-size: 0.9rem;
+}
+
+.inline-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #111827;
+  font-size: 20px;
+}
+
+.inline-icon.no-icon {
+  color: #9ca3af;
+  font-weight: 700;
 }
 
 .field.inline {

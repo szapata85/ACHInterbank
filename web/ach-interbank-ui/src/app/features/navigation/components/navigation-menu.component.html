@@ -24,11 +24,15 @@
         <label class="field">
           <span>Ícono (material symbols)</span>
           <div class="icon-select">
-            <select formControlName="icon">
-              <option *ngFor="let icon of iconOptions" [ngValue]="icon">
-                {{ icon || '(Sin ícono)' }}
-              </option>
-            </select>
+            <div class="icon-select-input">
+              <span *ngIf="form.value.icon" class="material-symbols-outlined inline-icon">{{ form.value.icon }}</span>
+              <span *ngIf="!form.value.icon" class="inline-icon no-icon">–</span>
+              <select formControlName="icon">
+                <option *ngFor="let icon of iconOptions" [ngValue]="icon">
+                  {{ icon || '(Sin ícono)' }}
+                </option>
+              </select>
+            </div>
             <div class="icon-preview" [class.empty]="!form.value.icon">
               <span *ngIf="form.value.icon" class="material-symbols-outlined">{{ form.value.icon }}</span>
               <span *ngIf="!form.value.icon" class="no-icon">Sin ícono</span>
