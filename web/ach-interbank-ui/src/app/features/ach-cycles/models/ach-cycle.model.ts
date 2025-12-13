@@ -5,6 +5,7 @@ export interface ClearingHouseOption {
 
 export interface AchCycleSummary {
   id: string;
+  cycleName: string;
   clearingHouseId: number;
   clearingHouseName: string;
   date: string;

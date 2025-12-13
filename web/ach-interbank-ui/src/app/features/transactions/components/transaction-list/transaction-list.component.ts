@@ -89,6 +89,11 @@ export class TransactionListComponent implements OnInit {
     this.loadCycles(false);
   }
 
+  onDateChange(): void {
+    this.selectedCycleId = null;
+    this.loadCycles(false);
+  }
+
   private loadClearingHouses(): void {
     this.clearingHousesApi.list().subscribe({
       next: (items) => {
@@ -102,7 +107,12 @@ export class TransactionListComponent implements OnInit {
 
   private loadCycles(autoLoadTransactions = true): void {
     this.achCyclesApi
-      .search({ page: 1, pageSize: 100, clearingHouseId: this.selectedClearingHouseId ?? undefined })
+      .search({
+        page: 1,
+        pageSize: 100,
+        clearingHouseId: this.selectedClearingHouseId ?? undefined,
+        date: this.selectedDate || undefined
+      })
       .subscribe({
         next: (response) => {
           this.cycles = (response?.items ?? []).map((cycle) => this.mapCycleOption(cycle));
@@ -131,7 +141,7 @@ export class TransactionListComponent implements OnInit {
       .getAll({
         achCycleId: this.selectedCycleId,
         effectiveDate: this.selectedDate || undefined,
-        clearingHouseId: this.selectedClearingHouseId
+        clearingHouseId: this.selectedClearingHouseId ?? undefined
       })
       .subscribe({
         next: (items) => {
@@ -166,7 +176,8 @@ export class TransactionListComponent implements OnInit {
   private mapCycleOption(cycle: AchCycleSummary): AchCycleOption {
     const id = Number(cycle.id);
     const date = this.formatDate(cycle.date);
-    const label = `${cycle.clearingHouseName ?? 'ACH'} · ${date}`;
+    const name = cycle.cycleName?.trim() || `Ciclo ${id}`;
+    const label = `${name}${date !== '-' ? ' · ' + date : ''}`;
 
     return { id, label };
   }
