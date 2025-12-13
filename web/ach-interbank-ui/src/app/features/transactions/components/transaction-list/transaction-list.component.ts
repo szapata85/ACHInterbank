@@ -77,9 +77,9 @@ export class TransactionListComponent implements OnInit {
     filterParams: { suppressAndOrCondition: true }
   };
 
-  readonly rowSelection: RowSelectionOptions = {
+  readonly rowSelection = {
     mode: 'singleRow'
-  };
+  } satisfies RowSelectionOptions;
 
   readonly noRowsTemplate = 'No hay transacciones registradas.';
   readonly loadingTemplate = 'Cargando transacciones...';
