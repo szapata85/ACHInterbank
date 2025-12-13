@@ -73,7 +73,7 @@ export class TransactionListComponent implements OnInit {
   readonly defaultColDef: ColDef<TransactionListRow> = {
     resizable: true,
     sortable: true,
-    suppressHeaderKeyboardTraversal: true,
+    suppressHeaderKeyboardEvent: () => true,
     filterParams: { suppressAndOrCondition: true }
   };
 
