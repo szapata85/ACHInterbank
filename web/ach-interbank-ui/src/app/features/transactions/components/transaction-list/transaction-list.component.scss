@@ -1,3 +1,6 @@
+@import 'ag-grid-community/styles/ag-grid.css';
+@import 'ag-grid-community/styles/ag-theme-alpine.css';
+
 .actions {
   display: flex;
   justify-content: space-between;
@@ -85,6 +88,15 @@
     margin: 0;
     color: #6b7280;
     font-size: 0.9rem;
+  }
+}
+
+.transactions-grid {
+  width: 100%;
+  margin-top: 0.5rem;
+
+  .text-end {
+    text-align: right;
   }
 }
 

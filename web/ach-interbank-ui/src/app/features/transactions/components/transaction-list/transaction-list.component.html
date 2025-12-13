@@ -43,7 +43,18 @@
       <span class="badge">{{ group.items.length }} transacciones</span>
     </header>
 
-    <app-table [columns]="columns" [data]="group.items" [loading]="loading"></app-table>
+    <ag-grid-angular
+      class="ag-theme-alpine transactions-grid"
+      [columnDefs]="columnDefs"
+      [defaultColDef]="defaultColDef"
+      [rowData]="group.items"
+      [domLayout]="'autoHeight'"
+      [overlayNoRowsTemplate]="noRowsTemplate"
+      [overlayLoadingTemplate]="loadingTemplate"
+      [rowSelection]="'single'"
+      [animateRows]="true"
+      [suppressCellFocus]="true"
+    ></ag-grid-angular>
   </section>
 </div>
 

@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
+import { AgGridModule } from 'ag-grid-angular';
+import { ColDef } from 'ag-grid-community';
 import { SharedModule } from '../../../../shared/shared.module';
 import { TransactionsApiService } from '../../services/transactions-api.service';
 import { TransactionListItem } from '../../transactions.models';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { TransactionTypeEnum } from '../../transactions.types';
-import { TableColumn } from '../../../../shared/components/table.component';
 import { AchCyclesApiService, ClearingHousesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
 import { AchCycleSummary, ClearingHouseOption } from '../../../ach-cycles/models/ach-cycle.model';
 
@@ -36,7 +37,7 @@ interface AchCycleOptionGroup {
 @Component({
   selector: 'app-transaction-list',
   standalone: true,
-  imports: [SharedModule, RouterModule],
+  imports: [SharedModule, RouterModule, AgGridModule],
   templateUrl: './transaction-list.component.html',
   styleUrls: ['./transaction-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -58,16 +59,26 @@ export class TransactionListComponent implements OnInit {
     day: '2-digit'
   });
 
-  readonly columns: TableColumn[] = [
-    { key: 'id', label: 'ID', width: '80px' },
-    { key: 'reference', label: 'Referencia' },
-    { key: 'typeLabel', label: 'Tipo' },
-    { key: 'amountText', label: 'Monto', align: 'end' },
-    { key: 'sourceAccountNumber', label: 'Cuenta origen' },
-    { key: 'destinationAccountNumber', label: 'Cuenta destino' },
-    { key: 'destinationInstitutionName', label: 'Institución destino' },
-    { key: 'effectiveEntryDateText', label: 'Fecha efectiva' }
+  readonly columnDefs: ColDef<TransactionListRow>[] = [
+    { field: 'id', headerName: 'ID', width: 90, maxWidth: 120, sortable: true },
+    { field: 'reference', headerName: 'Referencia', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'typeLabel', headerName: 'Tipo', width: 160, filter: 'agSetColumnFilter' },
+    { field: 'amountText', headerName: 'Monto', width: 140, maxWidth: 180, cellClass: 'text-end' },
+    { field: 'sourceAccountNumber', headerName: 'Cuenta origen', filter: 'agTextColumnFilter' },
+    { field: 'destinationAccountNumber', headerName: 'Cuenta destino', filter: 'agTextColumnFilter' },
+    { field: 'destinationInstitutionName', headerName: 'Institución destino', filter: 'agTextColumnFilter', flex: 1 },
+    { field: 'effectiveEntryDateText', headerName: 'Fecha efectiva', width: 160 }
   ];
+
+  readonly defaultColDef: ColDef<TransactionListRow> = {
+    resizable: true,
+    sortable: true,
+    suppressHeaderKeyboardTraversal: true,
+    filterParams: { suppressAndOrCondition: true }
+  };
+
+  readonly noRowsTemplate = 'No hay transacciones registradas.';
+  readonly loadingTemplate = 'Cargando transacciones...';
 
   loading = false;
   groups: TransactionGroup[] = [];
