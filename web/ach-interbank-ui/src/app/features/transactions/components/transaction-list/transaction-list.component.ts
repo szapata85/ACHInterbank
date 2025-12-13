@@ -175,6 +175,7 @@ export class TransactionListComponent implements OnInit {
         },
         error: () => {
           this.notifications.error('No fue posible cargar las transacciones');
+          this.loading = false;
         },
         complete: () => {
           this.loading = false;
