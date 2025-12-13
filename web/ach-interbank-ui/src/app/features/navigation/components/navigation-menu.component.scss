@@ -66,6 +66,41 @@
   font-size: 0.95rem;
 }
 
+.icon-select {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.icon-select select {
+  flex: 1;
+}
+
+.icon-preview {
+  min-width: 72px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  background: #f9fafb;
+  color: #111827;
+}
+
+.icon-preview.empty {
+  color: #6b7280;
+}
+
+.icon-preview .material-symbols-outlined {
+  font-size: 20px;
+}
+
+.icon-preview .no-icon {
+  font-size: 0.9rem;
+}
+
 .field.inline {
   flex-direction: row;
   align-items: center;
