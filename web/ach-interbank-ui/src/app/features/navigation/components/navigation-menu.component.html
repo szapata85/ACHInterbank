@@ -23,7 +23,11 @@
 
         <label class="field">
           <span>Ícono (material symbols)</span>
-          <input type="text" formControlName="icon" placeholder="dashboard" />
+          <select formControlName="icon">
+            <option *ngFor="let icon of iconOptions" [ngValue]="icon">
+              {{ icon || '(Sin ícono)' }}
+            </option>
+          </select>
         </label>
 
         <label class="field inline">

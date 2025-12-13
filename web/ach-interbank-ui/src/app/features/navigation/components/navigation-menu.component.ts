@@ -43,6 +43,31 @@ export class NavigationMenuComponent implements OnInit {
   saving = false;
   deletingId: number | null = null;
 
+  readonly iconOptions: string[] = [
+    '',
+    'dashboard',
+    'home',
+    'settings',
+    'group',
+    'manage_accounts',
+    'list',
+    'menu',
+    'credit_card',
+    'receipt_long',
+    'account_balance',
+    'payments',
+    'sync',
+    'lock',
+    'visibility',
+    'assignment',
+    'folder',
+    'upload',
+    'download',
+    'analytics',
+    'support',
+    'help'
+  ];
+
   readonly columns: TableColumn[] = [
     { key: 'label', label: 'Etiqueta' },
     { key: 'route', label: 'Ruta' },
