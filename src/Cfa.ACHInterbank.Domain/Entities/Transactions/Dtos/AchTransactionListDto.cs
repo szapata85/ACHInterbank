@@ -21,5 +21,5 @@ public class AchTransactionListDto
     public string BatchCompanyName { get; set; } = string.Empty;
     public DateTime BatchEffectiveEntryDate { get; set; }
 
-    public int AchCycleId { get; set; }
+    public string AchCycleId { get; set; } = string.Empty;
 }

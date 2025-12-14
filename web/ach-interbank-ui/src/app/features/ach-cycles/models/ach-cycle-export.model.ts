@@ -1,5 +1,5 @@
 export interface ExportableAchCycle {
-  id: number;
+  id: string;
   cycleName: string;
   processingDate: string;
   clearingHouseName?: string;

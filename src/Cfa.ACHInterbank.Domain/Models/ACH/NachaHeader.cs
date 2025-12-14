@@ -28,7 +28,7 @@ public class NachaHeader
 
     public int CycleNumber { get; set; }
 
-    public int? AchCycleId { get; set; }
+    public string? AchCycleId { get; set; }
     public AchCycle? AchCycle { get; set; }
 
 

@@ -2,7 +2,7 @@
 
 public interface IRoutingStrategyService
 {
-    Task<int> ResolveClearingHouseForTransactionAsync(
+    Task<string> ResolveClearingHouseForTransactionAsync(
         int destinationInstitutionId,
         DateTime now,
         CancellationToken ct);

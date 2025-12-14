@@ -8,6 +8,10 @@ public class AchCycleConfiguration : IEntityTypeConfiguration<AchCycle>
 {
     public void Configure(EntityTypeBuilder<AchCycle> builder)
     {
+        builder.Property(cycle => cycle.Id)
+            .HasMaxLength(40)
+            .ValueGeneratedNever();
+
         builder.Property(cycle => cycle.CycleName)
             .HasMaxLength(200)
             .IsRequired();

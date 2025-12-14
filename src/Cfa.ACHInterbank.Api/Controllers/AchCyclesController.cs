@@ -33,9 +33,9 @@ public class AchCyclesController : ControllerBase
         return Ok(cycles);
     }
 
-    [HttpGet("{id:int}")]
+    [HttpGet("{id}")]
     [Authorize(Policy = "CanReadAch")]
-    public async Task<IActionResult> GetById(int id, CancellationToken ct)
+    public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var cycle = await _service.GetByIdAsync(id, ct);
         return cycle is null ? NotFound() : Ok(cycle);
@@ -49,17 +49,17 @@ public class AchCyclesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = cycle.Id }, cycle);
     }
 
-    [HttpPut("{id:int}")]
+    [HttpPut("{id}")]
     [Authorize(Policy = "CanManageAch")]
-    public async Task<IActionResult> Update(int id, [FromBody] AchCycleRequest request, CancellationToken ct)
+    public async Task<IActionResult> Update(string id, [FromBody] AchCycleRequest request, CancellationToken ct)
     {
         var cycle = await _service.UpdateAsync(id, request, ct);
         return Ok(cycle);
     }
 
-    [HttpDelete("{id:int}")]
+    [HttpDelete("{id}")]
     [Authorize(Policy = "CanManageAch")]
-    public async Task<IActionResult> Delete(int id, CancellationToken ct)
+    public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {
         await _service.DeleteAsync(id, ct);
         return NoContent();

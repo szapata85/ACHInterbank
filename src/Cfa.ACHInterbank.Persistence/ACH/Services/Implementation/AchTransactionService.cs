@@ -94,7 +94,7 @@ public class AchTransactionService : IAchTransactionService
 
         // 3) Ruteo + próxima fecha hábil
         var now = DateTime.Now;
-        int achCycleId = await _routing.ResolveClearingHouseForTransactionAsync(destinationInstitutionId, now, ct);
+        string achCycleId = await _routing.ResolveClearingHouseForTransactionAsync(destinationInstitutionId, now, ct);
         DateTime effectiveEntryDate = await GetNextBusinessDayAsync(now, ct);
 
         // 4) Determinar/crear el lote (para este ciclo + compañía/identificación)
@@ -226,7 +226,7 @@ public class AchTransactionService : IAchTransactionService
 
 
     public async Task<IReadOnlyList<AchTransaction>> GetTransactionsByCycleAsync(
-        int achCycleId, bool includeRelations = false, CancellationToken ct = default)
+        string achCycleId, bool includeRelations = false, CancellationToken ct = default)
     {
         IQueryable<AchTransaction> q = _context.AchTransactions.AsNoTracking()
             .Where(t => t.AchCycleId == achCycleId);
@@ -244,7 +244,7 @@ public class AchTransactionService : IAchTransactionService
     }
 
     public async Task<IReadOnlyList<AchTransactionListDto>> GetAllAsync(
-        int? achCycleId = default,
+        string? achCycleId = default,
         DateTime? effectiveDate = default,
         int? clearingHouseId = default,
         CancellationToken ct = default)
@@ -257,9 +257,9 @@ public class AchTransactionService : IAchTransactionService
             .Include(t => t.DestinationInstitution)
             .AsQueryable();
 
-        if (achCycleId.HasValue)
+        if (!string.IsNullOrWhiteSpace(achCycleId))
         {
-            query = query.Where(t => t.AchCycleId == achCycleId.Value);
+            query = query.Where(t => t.AchCycleId == achCycleId);
         }
 
         if (effectiveDate.HasValue)

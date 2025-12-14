@@ -35,7 +35,7 @@ public class AchTransaction : AuditableEntity
     public int DestinationInstitutionId { get; set; }
     public FinancialInstitution DestinationInstitution { get; set; } = null!;
 
-    public int AchCycleId { get; set; }
+    public string AchCycleId { get; set; } = null!;
     public AchCycle AchCycle { get; set; } = null!;
 
     public int AchBatchId { get; set; }

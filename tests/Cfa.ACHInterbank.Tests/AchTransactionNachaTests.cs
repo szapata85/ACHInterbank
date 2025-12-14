@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -28,13 +29,15 @@ public class AchTransactionNachaTests
         {
             SeedCoreEntities(arrangeContext);
 
+            string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+
             var routing = new Mock<IRoutingStrategyService>();
             routing
                 .Setup(r => r.ResolveClearingHouseForTransactionAsync(
                     It.IsAny<int>(),
                     It.IsAny<DateTime>(),
                     It.IsAny<CancellationToken>()))
-                .ReturnsAsync(1);
+                .ReturnsAsync(cycleId);
 
             var holiday = new Mock<IBankHoliday>();
             holiday
@@ -238,7 +241,7 @@ public class AchTransactionNachaTests
 
         var cycle = new AchCycle
         {
-            Id = 1,
+            Id = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today),
             CycleName = "CICLO-TEST",
             ProcessingDate = DateTime.Today,
             CutoffTime = TimeSpan.FromHours(17),

@@ -4,7 +4,7 @@ namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
 public class AchCycle : AuditableEntity
 {
-    public int Id { get; set; }
+    public string Id { get; set; } = null!;
 
     // Ejemplo: "Ciclo 1 - ACH Colombia"
     public string CycleName { get; set; } = null!;

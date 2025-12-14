@@ -2,7 +2,7 @@ namespace Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
 
 public class AchCycleDto
 {
-    public int Id { get; set; }
+    public string Id { get; set; } = null!;
     public string CycleName { get; set; } = null!;
     public DateTime ProcessingDate { get; set; }
     public TimeSpan CutoffTime { get; set; }
@@ -22,7 +22,7 @@ public class AchCycleRequest
 
 public class AchCycleExportDto
 {
-    public int Id { get; set; }
+    public string Id { get; set; } = null!;
     public string CycleName { get; set; } = null!;
     public DateTime ProcessingDate { get; set; }
     public string? ClearingHouseName { get; set; }

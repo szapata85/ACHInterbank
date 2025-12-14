@@ -23,7 +23,7 @@ public class RoutingStrategyService : IRoutingStrategyService
         _cycleScheduler = cycleScheduler;
     }
 
-    public async Task<int> ResolveClearingHouseForTransactionAsync(
+    public async Task<string> ResolveClearingHouseForTransactionAsync(
     int destinationInstitutionId,
     DateTime now,
     CancellationToken ct)

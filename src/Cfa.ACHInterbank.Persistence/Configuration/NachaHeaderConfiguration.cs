@@ -16,6 +16,9 @@ public class NachaHeaderConfiguration : IEntityTypeConfiguration<NachaHeader>
         builder.Property(n => n.CycleNumber)
             .IsRequired();
 
+        builder.Property(n => n.AchCycleId)
+            .HasMaxLength(40);
+
         builder.HasOne(n => n.AchCycle)
             .WithMany(c => c.NachaHeaders)
             .HasForeignKey(n => n.AchCycleId)

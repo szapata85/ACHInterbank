@@ -1,6 +1,7 @@
 using AutoMapper;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
+using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -46,7 +47,7 @@ public class AchCycleAppService : IAchCycleAppService
         return _mapper.Map<IEnumerable<AchCycleDto>>(cycles);
     }
 
-    public async Task<AchCycleDto?> GetByIdAsync(int id, CancellationToken ct = default)
+    public async Task<AchCycleDto?> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var entity = await _context.AchCycles
             .AsNoTracking()
@@ -61,6 +62,7 @@ public class AchCycleAppService : IAchCycleAppService
         await ValidateClearingHouseAsync(request.ClearingHouseId, ct);
 
         var entity = _mapper.Map<AchCycle>(request);
+        entity.Id = AchCycleIdHelper.GenerateId(request.ClearingHouseId, request.CycleName, request.ProcessingDate.Date);
         entity.ProcessingDate = entity.ProcessingDate.Date;
 
         _context.AchCycles.Add(entity);
@@ -69,7 +71,7 @@ public class AchCycleAppService : IAchCycleAppService
         return (await GetByIdAsync(entity.Id, ct))!;
     }
 
-    public async Task<AchCycleDto> UpdateAsync(int id, AchCycleRequest request, CancellationToken ct = default)
+    public async Task<AchCycleDto> UpdateAsync(string id, AchCycleRequest request, CancellationToken ct = default)
     {
         var entity = await _context.AchCycles
             .FirstOrDefaultAsync(cycle => cycle.Id == id, ct)
@@ -85,7 +87,7 @@ public class AchCycleAppService : IAchCycleAppService
         return (await GetByIdAsync(entity.Id, ct))!;
     }
 
-    public async Task DeleteAsync(int id, CancellationToken ct = default)
+    public async Task DeleteAsync(string id, CancellationToken ct = default)
     {
         var entity = await _context.AchCycles.FirstOrDefaultAsync(cycle => cycle.Id == id, ct)
             ?? throw new KeyNotFoundException("Ciclo ACH no encontrado");

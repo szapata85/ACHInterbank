@@ -12,6 +12,9 @@ internal class AchBatchConfiguration : IEntityTypeConfiguration<AchBatch>
 
         //builder.HasKey(a => a.Id);
 
+        builder.Property(batch => batch.AchCycleId)
+            .HasMaxLength(40);
+
         builder.HasOne(b => b.AchCycle)
             .WithMany(c => c.Batches)
             .HasForeignKey(b => b.AchCycleId)

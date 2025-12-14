@@ -6,7 +6,7 @@ public class AchBatch : AuditableEntity
 {
     public int Id { get; set; }
 
-    public int? AchCycleId { get; set; }
+    public string? AchCycleId { get; set; }
     public AchCycle? AchCycle { get; set; }
 
     public string ServiceClassCode { get; set; } = "220";

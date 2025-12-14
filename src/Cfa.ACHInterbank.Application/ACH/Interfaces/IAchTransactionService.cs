@@ -19,14 +19,14 @@ public interface IAchTransactionService
     Task<DateTime> GetNextBusinessDayAsync(DateTime baseDate, CancellationToken ct = default);
 
     Task<IReadOnlyList<AchTransaction>> GetTransactionsByCycleAsync(
-        int achCycleId,
+        string achCycleId,
         bool includeRelations = false,
         CancellationToken ct = default);
 
     Task<AchTransaction?> GetTransactionByIdAsync(int transactionId, CancellationToken ct = default);
 
     Task<IReadOnlyList<AchTransactionListDto>> GetAllAsync(
-        int? achCycleId = default,
+        string? achCycleId = default,
         DateTime? effectiveDate = default,
         int? clearingHouseId = default,
         CancellationToken ct = default);

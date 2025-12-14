@@ -103,10 +103,10 @@ public class NachaParserService : INachaParserService
             string ImmediateOrigin = a.Substring(13, 10).Trim();
             int? ClearingHouseId = clearingHouseMap.TryGetValue(ImmediateOrigin, out var chId) ? chId : null;
 
-            int? AchCycleId = _context.AchCycles.Where(c => c.ClearingHouseId == ClearingHouseId &&
+            string? AchCycleId = _context.AchCycles.Where(c => c.ClearingHouseId == ClearingHouseId &&
                                          c.ProcessingDate == DateTime.Today &&
                                          c.CycleName.Contains(cycleNumber.ToString())
-                                   ).Select(c => (int?)c.Id)
+                                   ).Select(c => c.Id)
                              .FirstOrDefault();
 
             return new NachaHeader

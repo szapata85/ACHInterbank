@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -101,6 +102,7 @@ public class AchCycleScheduler : IAchCycleScheduler
             {
                 _context.AchCycles.Add(new AchCycle
                 {
+                    Id = AchCycleIdHelper.GenerateId(clearingHouseId, cfg.CycleName, processingDate.Date),
                     ClearingHouseId = clearingHouseId,
                     CycleName = cfg.CycleName,
                     ProcessingDate = processingDate.Date,
