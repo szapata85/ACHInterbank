@@ -20,7 +20,7 @@ public interface INachaFileBuilder
     /// <param name="cycleId">Identificador del ciclo ACH.</param>
     /// <param name="ct">Token de cancelación.</param>
     /// <returns>Archivo NACHA-M en formato plano concatenando registros 1-9.</returns>
-    Task<string> BuildNachaFileByCycleAsync(int cycleId, CancellationToken ct = default);
+    Task<string> BuildNachaFileByCycleAsync(string cycleId, CancellationToken ct = default);
 
     /// <summary>
     /// Construye un registro NACHA-M individual de acuerdo con su layout configurado.

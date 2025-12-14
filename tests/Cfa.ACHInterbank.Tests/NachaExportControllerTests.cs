@@ -15,7 +15,7 @@ public class NachaExportControllerTests
     public async Task Export_ReturnsPlainTextFileWithNachaContent()
     {
         // Arrange
-        const int cycleId = 42;
+        const string cycleId = "cycle-42";
         const string nachaContent = "HEADER\nDETAIL";
 
         var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);

@@ -16,9 +16,9 @@ public class NachaExportController : ControllerBase
         _nachaBuilder = nachaBuilder;
     }
 
-    [HttpGet("{cycleId:int}")]
+    [HttpGet("{cycleId}")]
     [Authorize(Policy = "CanReadAch")]
-    public async Task<IActionResult> Export(int cycleId, CancellationToken ct)
+    public async Task<IActionResult> Export(string cycleId, CancellationToken ct)
     {
         string nachaContent = await _nachaBuilder.BuildNachaFileByCycleAsync(cycleId, ct);
         string fileName = $"NACHA_{cycleId}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.txt";

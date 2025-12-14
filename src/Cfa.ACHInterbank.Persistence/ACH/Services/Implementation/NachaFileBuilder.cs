@@ -49,7 +49,7 @@ public class NachaFileBuilder : INachaFileBuilder
     // ─────────────────────────────────────────────────────────────────────────────
     // MÉTODO ALTERNATIVO: Generar NACHA-M por ciclo
     // ─────────────────────────────────────────────────────────────────────────────
-    public async Task<string> BuildNachaFileByCycleAsync(int cycleId, CancellationToken ct = default)
+    public async Task<string> BuildNachaFileByCycleAsync(string cycleId, CancellationToken ct = default)
     {
         var cycle = await _context.AchCycles
             .AsNoTracking()
@@ -204,7 +204,7 @@ public class NachaFileBuilder : INachaFileBuilder
         return sb.ToString();
     }
 
-    private async Task<NachaHeader?> LoadHeaderAsync(int cycleId, CancellationToken ct)
+    private async Task<NachaHeader?> LoadHeaderAsync(string cycleId, CancellationToken ct)
     {
         return await _context.NachaHeaders
             .AsNoTracking()
