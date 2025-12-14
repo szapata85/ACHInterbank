@@ -1,5 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
+using Cfa.ACHInterbank.Api.Encryption;
+using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.IO;
@@ -13,11 +15,19 @@ public class NachaExportController : ControllerBase
 {
     private readonly INachaFileBuilder _nachaBuilder;
     private readonly ICryptoServiceScoped _crypto;
+    private readonly IAchCycleAppService _cycleService;
+    private readonly IDigitalEnvelopePolicy _envelopePolicy;
 
-    public NachaExportController(INachaFileBuilder nachaBuilder, ICryptoServiceScoped crypto)
+    public NachaExportController(
+        INachaFileBuilder nachaBuilder,
+        ICryptoServiceScoped crypto,
+        IAchCycleAppService cycleService,
+        IDigitalEnvelopePolicy envelopePolicy)
     {
         _nachaBuilder = nachaBuilder;
         _crypto = crypto;
+        _cycleService = cycleService;
+        _envelopePolicy = envelopePolicy;
     }
 
     [HttpGet("{cycleId}")]
@@ -34,8 +44,19 @@ public class NachaExportController : ControllerBase
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> ExportEncrypted(string cycleId, CancellationToken ct)
     {
+        AchCycleDto? cycle = await _cycleService.GetByIdAsync(cycleId, ct);
+        if (cycle is null)
+        {
+            return NotFound();
+        }
+
         string nachaContent = await _nachaBuilder.BuildNachaFileByCycleAsync(cycleId, ct);
         string fileName = $"NACHA_{cycleId}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.txt";
+
+        if (!_envelopePolicy.ShouldEncrypt(cycle.ClearingHouseId))
+        {
+            return File(Encoding.ASCII.GetBytes(nachaContent), "text/plain", fileName);
+        }
 
         byte[] digitalEnvelope = await _crypto.CreateEnvelopeAsync(Encoding.ASCII.GetBytes(nachaContent), fileName);
         string envelopeFileName = $"{Path.GetFileNameWithoutExtension(fileName)}.ENV";
