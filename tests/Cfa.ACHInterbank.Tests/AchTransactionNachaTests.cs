@@ -146,13 +146,14 @@ public class AchTransactionNachaTests
     {
         using var connection = CreateOpenConnection();
 
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+
         using (var arrangeContext = CreateContext(connection))
         {
             SeedCoreEntities(arrangeContext);
             SeedNachaLayouts(arrangeContext);
 
             var routing = new Mock<IRoutingStrategyService>();
-            string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
             routing
                 .Setup(r => r.ResolveClearingHouseForTransactionAsync(
                     It.IsAny<int>(),
