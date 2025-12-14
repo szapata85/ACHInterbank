@@ -42,7 +42,7 @@ public class NachaExportController : ControllerBase
 
     [HttpGet("{cycleId}/sobre-digital")]
     [Authorize(Policy = "CanReadAch")]
-    public async Task<IActionResult> ExportEncrypted(string cycleId, CancellationToken ct)
+    public async Task<IActionResult> ExportEncrypted(string cycleId, [FromQuery] bool forceEncryption = false, CancellationToken ct = default)
     {
         AchCycleDto? cycle = await _cycleService.GetByIdAsync(cycleId, ct);
         if (cycle is null)
@@ -53,7 +53,7 @@ public class NachaExportController : ControllerBase
         string nachaContent = await _nachaBuilder.BuildNachaFileByCycleAsync(cycleId, ct);
         string fileName = $"NACHA_{cycleId}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.txt";
 
-        if (!_envelopePolicy.ShouldEncrypt(cycle.ClearingHouseId))
+        if (!forceEncryption && !_envelopePolicy.ShouldEncrypt(cycle.ClearingHouseId))
         {
             return File(Encoding.ASCII.GetBytes(nachaContent), "text/plain", fileName);
         }

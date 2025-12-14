@@ -56,12 +56,12 @@ export class NachaExportComponent implements OnInit {
     });
   }
 
-  download(cycle: ExportableAchCycle): void {
+  download(cycle: ExportableAchCycle, encrypted: boolean): void {
     this.downloadingId = cycle.id;
-    this.api.downloadFile(cycle.id).subscribe({
+    this.api.downloadFile(cycle.id, encrypted).subscribe({
       next: (response) => {
         const fileName = this.extractFileName(response.headers.get('content-disposition')) ??
-          `NACHA_${cycle.id}_${this.buildTimestamp()}.txt`;
+          `NACHA_${cycle.id}_${this.buildTimestamp()}.${encrypted ? 'ENV' : 'txt'}`;
         const blob = response.body ?? new Blob();
         const url = window.URL.createObjectURL(blob);
 
@@ -75,7 +75,9 @@ export class NachaExportComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: () => {
-        this.notifications.error('No fue posible generar el archivo NACHA-M');
+        this.notifications.error(encrypted
+          ? 'No fue posible generar el archivo NACHA-M con Sobre Digital'
+          : 'No fue posible generar el archivo NACHA-M');
         this.downloadingId = null;
         this.cdr.markForCheck();
       }

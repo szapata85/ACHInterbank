@@ -16,6 +16,25 @@ button.primary[disabled] {
   cursor: not-allowed;
 }
 
+button.secondary {
+  background: #fff;
+  color: #0ea5e9;
+  border: 1px solid #0ea5e9;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button.secondary[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.row-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 a.link {
   color: #0ea5e9;
   text-decoration: none;

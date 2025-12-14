@@ -16,8 +16,12 @@ export class NachaExportApiService {
       .pipe(map((response) => (Array.isArray(response) ? response : response?.items ?? [])));
   }
 
-  downloadFile(cycleId: string): Observable<HttpResponse<Blob>> {
-    return this.http.get(`${this.apiBaseUrl}/NachaExport/${cycleId}`, {
+  downloadFile(cycleId: string, encrypted = false): Observable<HttpResponse<Blob>> {
+    const url = encrypted
+      ? `${this.apiBaseUrl}/NachaExport/${cycleId}/sobre-digital?forceEncryption=true`
+      : `${this.apiBaseUrl}/NachaExport/${cycleId}`;
+
+    return this.http.get(url, {
       observe: 'response',
       responseType: 'blob'
     });
