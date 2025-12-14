@@ -24,7 +24,7 @@ export class NachaExportComponent implements OnInit {
 
   cycles: ExportableAchCycleView[] = [];
   loading = false;
-  downloadingId: number | null = null;
+  downloadingId: string | null = null;
 
   ngOnInit(): void {
     this.load();

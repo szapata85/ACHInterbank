@@ -16,7 +16,7 @@ export class NachaExportApiService {
       .pipe(map((response) => (Array.isArray(response) ? response : response?.items ?? [])));
   }
 
-  downloadFile(cycleId: number): Observable<HttpResponse<Blob>> {
+  downloadFile(cycleId: string): Observable<HttpResponse<Blob>> {
     return this.http.get(`${this.apiBaseUrl}/NachaExport/${cycleId}`, {
       observe: 'response',
       responseType: 'blob'
