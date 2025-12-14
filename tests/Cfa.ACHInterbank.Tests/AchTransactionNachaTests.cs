@@ -115,12 +115,13 @@ public class AchTransactionNachaTests
         await arrangeContext.SaveChangesAsync();
 
         var routing = new Mock<IRoutingStrategyService>();
+        string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
         routing
             .Setup(r => r.ResolveClearingHouseForTransactionAsync(
                 It.IsAny<int>(),
                 It.IsAny<DateTime>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
+            .ReturnsAsync(cycleId);
 
         var holiday = new Mock<IBankHoliday>();
         holiday
@@ -151,12 +152,13 @@ public class AchTransactionNachaTests
             SeedNachaLayouts(arrangeContext);
 
             var routing = new Mock<IRoutingStrategyService>();
+            string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
             routing
                 .Setup(r => r.ResolveClearingHouseForTransactionAsync(
                     It.IsAny<int>(),
                     It.IsAny<DateTime>(),
                     It.IsAny<CancellationToken>()))
-                .ReturnsAsync(1);
+                .ReturnsAsync(cycleId);
 
             var holiday = new Mock<IBankHoliday>();
             holiday
