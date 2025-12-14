@@ -9,5 +9,9 @@ public interface IAchCycleAppService
     Task<AchCycleDto> CreateAsync(AchCycleRequest request, CancellationToken ct = default);
     Task<AchCycleDto> UpdateAsync(string id, AchCycleRequest request, CancellationToken ct = default);
     Task DeleteAsync(string id, CancellationToken ct = default);
-    Task<IEnumerable<AchCycleExportDto>> GetExecutedWithTransactionsAsync(CancellationToken ct = default);
+    Task<IEnumerable<AchCycleExportDto>> GetExecutedWithTransactionsAsync(
+        int? clearingHouseId = null,
+        DateTime? startDate = null,
+        DateTime? endDate = null,
+        CancellationToken ct = default);
 }

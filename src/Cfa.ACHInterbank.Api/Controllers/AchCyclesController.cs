@@ -27,9 +27,13 @@ public class AchCyclesController : ControllerBase
 
     [HttpGet("exportable")]
     [Authorize(Policy = "CanReadAch")]
-    public async Task<IActionResult> GetExportable(CancellationToken ct)
+    public async Task<IActionResult> GetExportable(
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate,
+        CancellationToken ct)
     {
-        var cycles = await _service.GetExecutedWithTransactionsAsync(ct);
+        var cycles = await _service.GetExecutedWithTransactionsAsync(clearingHouseId, startDate, endDate, ct);
         return Ok(cycles);
     }
 
