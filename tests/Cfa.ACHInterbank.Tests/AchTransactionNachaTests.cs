@@ -181,7 +181,6 @@ public class AchTransactionNachaTests
 
         using var executionContext = CreateContext(connection);
         var builder = new NachaFileBuilder(executionContext);
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
         var nachaContent = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
 
         // 5 registros esperados: 1,5,6,8,9
