@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AchCyclesApiService, ClearingHousesApiService } from '../services/ach-cycles-api.service';
@@ -22,6 +22,7 @@ export class AchCycleListComponent implements OnInit, OnDestroy {
   private readonly clearingHouseApi = inject(ClearingHousesApiService);
   private readonly router = inject(Router);
   private readonly notifications = inject(NotificationService);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly dateFormatter = new Intl.DateTimeFormat('es-CO', {
     timeZone: 'America/Bogota',
     year: 'numeric',
@@ -44,7 +45,8 @@ export class AchCycleListComponent implements OnInit, OnDestroy {
   loading = false;
 
   ngOnInit(): void {
-    this.clearingHouseApi.list().subscribe((items) => (this.clearingHouses = items));
+    this.loadClearingHouses();
+    this.load();
   }
 
   ngOnDestroy(): void {
@@ -63,9 +65,15 @@ export class AchCycleListComponent implements OnInit, OnDestroy {
       clearingHouseId: this.filterForm.value.clearingHouseId ?? undefined
     };
     this.loading = true;
+    this.cdr.markForCheck();
     this.requestSub = this.api
       .search(filter)
-      .pipe(finalize(() => (this.loading = false)))
+      .pipe(
+        finalize(() => {
+          this.loading = false;
+          this.cdr.markForCheck();
+        })
+      )
       .subscribe({
         next: (response) => {
           const items = response?.items ?? [];
@@ -77,11 +85,26 @@ export class AchCycleListComponent implements OnInit, OnDestroy {
             statusText: this.formatStatus(cycle.status)
           }));
           this.total = response?.total ?? 0;
+          this.cdr.markForCheck();
         },
         error: () => {
           this.notifications.error('No fue posible cargar los ciclos ACH');
+          this.cdr.markForCheck();
         }
       });
+  }
+
+  private loadClearingHouses(): void {
+    this.clearingHouseApi.list().subscribe({
+      next: (items) => {
+        this.clearingHouses = items;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.notifications.error('No fue posible cargar las cámaras compensadoras');
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   private formatDate(date: string | null | undefined): string {
