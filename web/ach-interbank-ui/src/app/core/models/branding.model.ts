@@ -7,4 +7,6 @@ export interface BrandingSettings {
   publicBackground?: string | null;
   /** Color o gradiente para el fondo privado (panel principal). */
   privateBackground?: string | null;
+  /** Color principal de los botones a nivel de aplicación. */
+  buttonColor?: string | null;
 }

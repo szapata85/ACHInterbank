@@ -20,11 +20,13 @@ export class BrandingSettingsComponent {
 
   private readonly defaultPublicBackground = '#0ea5e9';
   private readonly defaultPrivateBackground = '#f8fafc';
+  private readonly defaultButtonColor = '#0ea5e9';
 
   publicLogoPreview: string | null | undefined = this.brandingService.getBrandingSnapshot().publicLogo;
   privateLogoPreview: string | null | undefined = this.brandingService.getBrandingSnapshot().privateLogo;
   publicBackground: string | null = this.brandingService.getBrandingSnapshot().publicBackground ?? null;
   privateBackground: string | null = this.brandingService.getBrandingSnapshot().privateBackground ?? null;
+  buttonColor: string | null = this.brandingService.getBrandingSnapshot().buttonColor ?? null;
 
   get publicBackgroundPreview(): string {
     return this.publicBackground ?? 'linear-gradient(135deg, #0ea5e9, #0f172a)';
@@ -40,6 +42,14 @@ export class BrandingSettingsComponent {
 
   get privateBackgroundInput(): string {
     return this.privateBackground ?? this.defaultPrivateBackground;
+  }
+
+  get buttonColorInput(): string {
+    return this.buttonColor ?? this.defaultButtonColor;
+  }
+
+  get buttonColorPreview(): string {
+    return this.buttonColor ?? this.defaultButtonColor;
   }
 
   onFileSelected(event: Event, type: 'public' | 'private'): void {
@@ -94,12 +104,21 @@ export class BrandingSettingsComponent {
     }
   }
 
+  changeButtonColor(event: Event): void {
+    this.buttonColor = (event.target as HTMLInputElement).value;
+  }
+
+  clearButtonColor(): void {
+    this.buttonColor = null;
+  }
+
   reset(): void {
     const current = this.brandingService.getBrandingSnapshot();
     this.publicLogoPreview = current.publicLogo;
     this.privateLogoPreview = current.privateLogo;
     this.publicBackground = current.publicBackground ?? null;
     this.privateBackground = current.privateBackground ?? null;
+    this.buttonColor = current.buttonColor ?? null;
   }
 
   save(): void {
@@ -107,7 +126,8 @@ export class BrandingSettingsComponent {
       publicLogo: this.publicLogoPreview,
       privateLogo: this.privateLogoPreview,
       publicBackground: this.publicBackground,
-      privateBackground: this.privateBackground
+      privateBackground: this.privateBackground,
+      buttonColor: this.buttonColor
     };
 
     this.brandingService.updateBranding(payload);

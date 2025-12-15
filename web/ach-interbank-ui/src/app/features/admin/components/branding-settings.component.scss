@@ -50,6 +50,10 @@
   gap: 0.75rem;
 }
 
+.panel.full {
+  grid-column: 1 / -1;
+}
+
 .background-picker {
   display: flex;
   align-items: center;
@@ -128,6 +132,26 @@ header {
   object-fit: contain;
 }
 
+.button-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.button-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.hint {
+  margin: 0;
+  color: #475569;
+  max-width: 320px;
+}
+
 .current {
   display: grid;
   gap: 0.35rem;
@@ -160,7 +184,7 @@ header {
 }
 
 button.primary {
-  background: #2563eb;
+  background: var(--button-color, #2563eb);
   color: white;
   border: none;
   padding: 0.65rem 1.1rem;

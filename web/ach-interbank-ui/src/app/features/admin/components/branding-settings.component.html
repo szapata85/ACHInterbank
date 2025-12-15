@@ -1,8 +1,9 @@
 <div class="card">
   <h2>Identidad y colores</h2>
   <p class="description">
-    Personaliza los logos y fondos de la aplicación para el acceso público y el portal autenticado. Las imágenes
-    pueden ser PNG o SVG, y los colores aceptan cualquier valor compatible con CSS (hexadecimal, rgb, degradados).
+    Personaliza los logos, fondos y botones de la aplicación para el acceso público y el portal autenticado. Las
+    imágenes pueden ser PNG o SVG, y los colores aceptan cualquier valor compatible con CSS (hexadecimal, rgb,
+    degradados).
   </p>
 
   <aside class="requirements">
@@ -103,6 +104,28 @@
       <div class="background-preview" [style.background]="privateBackgroundPreview"></div>
     </section>
   </div>
+
+  <section class="panel full">
+    <header>
+      <div>
+        <p class="panel-title">Botones principales</p>
+        <small>Define el color base de los botones destacados en toda la aplicación.</small>
+      </div>
+      <button type="button" class="ghost" (click)="clearButtonColor()">Usar color por defecto</button>
+    </header>
+
+    <div class="button-controls">
+      <label>
+        Color del botón
+        <input type="color" [value]="buttonColorInput" (input)="changeButtonColor($event)" />
+      </label>
+
+      <div class="button-preview">
+        <button type="button" class="primary" [style.--button-color]="buttonColorPreview">Vista previa</button>
+        <p class="hint">Se aplica al botón principal de formularios, listados y la pantalla de ingreso.</p>
+      </div>
+    </div>
+  </section>
 
   <div class="actions">
     <button type="button" (click)="reset()">Restaurar</button>

@@ -34,7 +34,7 @@
 .card-header .link {
   background: none;
   border: none;
-  color: #2563eb;
+  color: var(--button-color, #2563eb);
   cursor: pointer;
   font-weight: 600;
 }
@@ -221,7 +221,7 @@
 
 button[type='submit'] {
   margin-top: 0.5rem;
-  background: #2563eb;
+  background: var(--button-color, #2563eb);
   color: #fff;
   border: none;
   cursor: pointer;
