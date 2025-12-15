@@ -221,7 +221,7 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
     this.editing = null;
     this.form.reset({ priority: 1, isDefault: false, isActive: true });
     this.createForm.reset({
-      financialInstitutionId: '',
+      financialInstitutionId: null,
       clearingHouseId: null,
       priority: 1,
       isDefault: false,
@@ -239,7 +239,7 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
       isActive: preference.isActive
     });
     this.createForm.reset({
-      financialInstitutionId: '',
+      financialInstitutionId: null,
       clearingHouseId: null,
       priority: 1,
       isDefault: false,
@@ -254,7 +254,7 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
     this.editing = null;
     this.form.reset({ priority: 1, isDefault: false, isActive: true });
     this.createForm.reset({
-      financialInstitutionId: '',
+      financialInstitutionId: null,
       clearingHouseId: null,
       priority: 1,
       isDefault: false,
