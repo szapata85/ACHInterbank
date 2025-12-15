@@ -71,17 +71,6 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
             },
             new MenuItem
             {
-                Id = AliasesId,
-                MenuId = MenuConfiguration.MainMenuId,
-                Label = "Alias",
-                Route = "/aliases",
-                Icon = "key",
-                Order = 3,
-                Exact = true,
-                IsActive = true
-            },
-            new MenuItem
-            {
                 Id = AchCyclesId,
                 MenuId = MenuConfiguration.MainMenuId,
                 Label = "Ciclos ACH",

@@ -33,11 +33,6 @@ public class MenuItemPermissionConfiguration : IEntityTypeConfiguration<MenuItem
             },
             new MenuItemPermission
             {
-                MenuItemId = MenuItemConfiguration.AliasesId,
-                PermissionId = PermissionConfiguration.ReadAliasesPermissionId
-            },
-            new MenuItemPermission
-            {
                 MenuItemId = MenuItemConfiguration.AchCyclesId,
                 PermissionId = PermissionConfiguration.ReadAchPermissionId
             },
