@@ -38,6 +38,11 @@ public class MenuItemPermissionConfiguration : IEntityTypeConfiguration<MenuItem
             },
             new MenuItemPermission
             {
+                MenuItemId = MenuItemConfiguration.ClearingHousePreferencesId,
+                PermissionId = PermissionConfiguration.ManageAchPermissionId
+            },
+            new MenuItemPermission
+            {
                 MenuItemId = MenuItemConfiguration.BrandingId,
                 PermissionId = PermissionConfiguration.ManageUsersPermissionId
             },

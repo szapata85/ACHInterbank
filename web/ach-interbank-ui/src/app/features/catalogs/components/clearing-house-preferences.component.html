@@ -1,0 +1,69 @@
+<section class="card">
+  <div class="header">
+    <div>
+      <p class="eyebrow">Catálogos</p>
+      <h2>Prioridades por cámara compensadora</h2>
+      <p class="lede">
+        Ajusta la prioridad y la marca predeterminada de cada cámara compensadora por institución financiera.
+      </p>
+    </div>
+    <div class="actions">
+      <button type="button" class="secondary" (click)="loadPreferences()" [disabled]="loading || saving">Recargar</button>
+    </div>
+  </div>
+
+  <div class="grid" *ngIf="preferences.length; else empty">
+    <ag-grid-angular
+      class="ag-theme-alpine"
+      [rowData]="preferences"
+      [columnDefs]="columnDefs"
+      [defaultColDef]="defaultColDef"
+      [suppressScrollOnNewData]="true"
+      [pagination]="true"
+      [paginationPageSize]="10"
+      [context]="{ componentParent: this }"
+      [overlayNoRowsTemplate]="noRowsTemplate"
+      [overlayLoadingTemplate]="loadingTemplate"
+      (gridReady)="onGridReady($event)"
+    ></ag-grid-angular>
+  </div>
+
+  <ng-template #empty>
+    <div class="empty">
+      <p>No hay preferencias registradas.</p>
+      <button type="button" class="primary" (click)="loadPreferences()" [disabled]="loading">Recargar</button>
+    </div>
+  </ng-template>
+</section>
+
+<section class="card">
+  <h3>Editar prioridad</h3>
+  <p class="hint" *ngIf="!editing">
+    Selecciona una fila para administrar la prioridad y marca predeterminada de la cámara compensadora.
+  </p>
+
+  <form [formGroup]="form" (ngSubmit)="save()" class="form-grid" *ngIf="editing">
+    <div class="summary">
+      <p class="label">Institución</p>
+      <p class="value">{{ editing.financialInstitutionName }}</p>
+      <p class="label">Cámara compensadora</p>
+      <p class="value">{{ editing.clearingHouseName }}</p>
+    </div>
+
+    <label>
+      Prioridad
+      <input type="number" formControlName="priority" min="1" max="99" />
+      <app-error-message [control]="form.get('priority')"></app-error-message>
+    </label>
+
+    <label class="checkbox">
+      <input type="checkbox" formControlName="isDefault" />
+      <span>Marcar como predeterminada</span>
+    </label>
+
+    <div class="form-actions">
+      <button type="button" class="secondary" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
+      <button type="submit" class="primary" [disabled]="saving">Guardar cambios</button>
+    </div>
+  </form>
+</section>

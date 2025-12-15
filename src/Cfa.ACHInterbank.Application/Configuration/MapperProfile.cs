@@ -25,6 +25,10 @@ public class MapperProfile : Profile
         CreateMap<ClearingHouse, ClearingHouseDto>()
             .ForMember(dest => dest.HolidayStrategy, opt => opt.MapFrom(src => src.ClearingHouseConfig != null ? src.ClearingHouseConfig.HolidayStrategy : null));
 
+        CreateMap<InstitutionClearingHousePreference, InstitutionClearingHousePreferenceDto>()
+            .ForMember(dest => dest.FinancialInstitutionName, opt => opt.MapFrom(src => src.FinancialInstitution.Name))
+            .ForMember(dest => dest.ClearingHouseName, opt => opt.MapFrom(src => src.ClearingHouse.Name));
+
         CreateMap<AchCycle, AchCycleDto>()
             .ForMember(dest => dest.ClearingHouseName, opt => opt.MapFrom(src => src.ClearingHouse != null ? src.ClearingHouse.Name : null));
 

@@ -75,6 +75,16 @@ public class MenuItemRoleConfiguration : IEntityTypeConfiguration<MenuItemRole>
             {
                 MenuItemId = MenuItemConfiguration.FinancialInstitutionsId,
                 RoleId = RoleConfiguration.OperatorRoleId
+            },
+            new MenuItemRole
+            {
+                MenuItemId = MenuItemConfiguration.ClearingHousePreferencesId,
+                RoleId = RoleConfiguration.AdminRoleId
+            },
+            new MenuItemRole
+            {
+                MenuItemId = MenuItemConfiguration.ClearingHousePreferencesId,
+                RoleId = RoleConfiguration.OperatorRoleId
             });
     }
 }
