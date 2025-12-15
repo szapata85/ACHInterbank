@@ -28,6 +28,10 @@ export class ApiService {
     return this.http.put<T>(this.buildUrl(path), body, options);
   }
 
+  patch<T>(path: string, body: unknown, options?: RequestOptions): Observable<T> {
+    return this.http.patch<T>(this.buildUrl(path), body, options);
+  }
+
   delete<T>(path: string, options?: RequestOptions): Observable<T> {
     return this.http.delete<T>(this.buildUrl(path), options);
   }

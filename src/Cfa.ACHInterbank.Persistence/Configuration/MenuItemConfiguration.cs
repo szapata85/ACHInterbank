@@ -18,6 +18,8 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int NachaSecurityId = 10;
     public const int NachaExportId = 11;
     public const int BrandingId = 12;
+    public const int FinancialInstitutionsId = 13;
+    public const int ClearingHousePreferencesId = 14;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -114,6 +116,30 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Route = "/catalogs",
                 Icon = "inventory",
                 Order = 5,
+                Exact = false,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = FinancialInstitutionsId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = CatalogsId,
+                Label = "Instituciones financieras",
+                Route = "/catalogs/financial-institutions",
+                Icon = "account_balance",
+                Order = 1,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = ClearingHousePreferencesId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = CatalogsId,
+                Label = "Prioridades cámaras",
+                Route = "/catalogs/clearing-house-preferences",
+                Icon = "tune",
+                Order = 2,
                 Exact = true,
                 IsActive = true
             },

@@ -37,6 +37,7 @@ public class RoutingStrategyService : IRoutingStrategyService
         // Primero los que son default, luego por prioridad
 
         List<InstitutionClearingHousePreference> preferences = fi.ClearingHousePreferences
+            .Where(p => p.IsActive)
             .OrderByDescending(p => p.IsDefault)  // true primero
             .ThenBy(p => p.Priority)
             .ThenBy(p => p.Id)

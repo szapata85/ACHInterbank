@@ -9,6 +9,28 @@ const routes: Routes = [
     component: CatalogsListComponent,
     canActivate: [permissionGuard],
     data: { permissions: ['CanReadCatalogs'], breadcrumb: 'Catálogos', title: 'Catálogos' }
+  },
+  {
+    path: 'financial-institutions',
+    loadComponent: () =>
+      import('./components/financial-institutions.component').then((m) => m.FinancialInstitutionsComponent),
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['CanManageAch'],
+      breadcrumb: 'Instituciones financieras',
+      title: 'Instituciones financieras'
+    }
+  },
+  {
+    path: 'clearing-house-preferences',
+    loadComponent: () =>
+      import('./components/clearing-house-preferences.component').then((m) => m.ClearingHousePreferencesComponent),
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['CanManageAch'],
+      breadcrumb: 'Prioridades cámaras',
+      title: 'Prioridades cámaras'
+    }
   }
 ];
 

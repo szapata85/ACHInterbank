@@ -1,0 +1,84 @@
+<section class="card">
+  <div class="header">
+    <div>
+      <p class="eyebrow">Catálogos</p>
+      <h2>Instituciones financieras</h2>
+      <p class="lede">Administra las instituciones configuradas en ACH, incluyendo su estado y datos de enrutamiento.</p>
+    </div>
+    <div class="actions">
+      <button type="button" class="secondary" (click)="loadInstitutions()" [disabled]="loading || saving">Recargar</button>
+      <button type="button" class="primary" (click)="startCreate()" [disabled]="saving">Nueva institución</button>
+    </div>
+  </div>
+
+  <div class="grid" *ngIf="institutions.length; else empty">
+    <ag-grid-angular
+      class="ag-theme-alpine"
+      [rowData]="institutions"
+      [columnDefs]="columnDefs"
+      [defaultColDef]="defaultColDef"
+      [suppressScrollOnNewData]="true"
+      [pagination]="true"
+      [paginationPageSize]="pageSize"
+      [paginationPageSizeSelector]="pageSizeOptions"
+      [context]="{ componentParent: this }"
+      [overlayNoRowsTemplate]="noRowsTemplate"
+      [overlayLoadingTemplate]="loadingTemplate"
+      (gridReady)="onGridReady($event)"
+    ></ag-grid-angular>
+  </div>
+
+  <ng-template #empty>
+    <div class="empty">
+      <p>No hay instituciones registradas.</p>
+      <button type="button" class="primary" (click)="startCreate()" [disabled]="saving">Agregar primera institución</button>
+    </div>
+  </ng-template>
+</section>
+
+<section class="card" *ngIf="showForm">
+  <h3>{{ editing ? 'Editar institución' : 'Nueva institución' }}</h3>
+  <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
+    <label>
+      Nombre
+      <input type="text" formControlName="name" maxlength="100" />
+      <app-error-message [control]="form.get('name')"></app-error-message>
+    </label>
+
+    <label>
+      Routing number
+      <input type="text" formControlName="routingNumber" maxlength="9" />
+      <app-error-message [control]="form.get('routingNumber')"></app-error-message>
+    </label>
+
+    <label>
+      Transit code
+      <input type="text" formControlName="transitCode" maxlength="4" />
+      <app-error-message [control]="form.get('transitCode')"></app-error-message>
+    </label>
+
+    <label>
+      Dígito de control
+      <input type="text" formControlName="checkDigit" maxlength="1" readonly />
+      <app-error-message [control]="form.get('checkDigit')"></app-error-message>
+    </label>
+
+    <label class="checkbox">
+      <input type="checkbox" formControlName="isDefaultSource" />
+      <span>Usar como origen por defecto</span>
+    </label>
+
+    <label>
+      Estado
+      <select formControlName="status">
+        <option [ngValue]="statusEnum.Active">Activa</option>
+        <option [ngValue]="statusEnum.Inactive">Inactiva</option>
+      </select>
+    </label>
+
+    <div class="form-actions">
+      <button type="button" class="secondary" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
+      <button type="submit" class="primary" [disabled]="saving">{{ editing ? 'Actualizar' : 'Guardar' }}</button>
+    </div>
+  </form>
+</section>
