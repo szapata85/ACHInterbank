@@ -1,0 +1,78 @@
+<div class="card">
+  <h2>Identidad y colores</h2>
+  <p class="description">
+    Personaliza los logos y fondos de la aplicación para el acceso público y el portal autenticado. Las imágenes
+    pueden ser PNG o SVG, y los colores aceptan cualquier valor compatible con CSS (hexadecimal, rgb, degradados).
+  </p>
+
+  <div class="grid">
+    <section class="panel">
+      <header>
+        <div>
+          <p class="panel-title">Acceso público</p>
+          <small>Logo y color de fondo para la pantalla de inicio de sesión.</small>
+        </div>
+        <button type="button" class="ghost" (click)="removeLogo('public')">Quitar</button>
+      </header>
+
+      <label class="upload">
+        <input type="file" accept="image/*" (change)="onFileSelected($event, 'public')" />
+        <span>Seleccionar imagen</span>
+      </label>
+
+      <div class="preview" *ngIf="publicLogoPreview; else publicPlaceholder">
+        <img [src]="publicLogoPreview" alt="Vista previa del logo público" />
+      </div>
+      <ng-template #publicPlaceholder>
+        <div class="placeholder">Sin logo público</div>
+      </ng-template>
+
+      <div class="background-picker">
+        <label>
+          Fondo
+          <input type="color" [value]="publicBackgroundInput" (input)="changeBackground($event, 'public')" />
+        </label>
+        <button type="button" class="ghost" (click)="clearBackground('public')">Usar color por defecto</button>
+      </div>
+
+      <div class="background-preview" [style.background]="publicBackgroundPreview"></div>
+    </section>
+
+    <section class="panel">
+      <header>
+        <div>
+          <p class="panel-title">Portal interno</p>
+          <small>Logo y color de fondo para el panel privado.</small>
+        </div>
+        <button type="button" class="ghost" (click)="removeLogo('private')">Quitar</button>
+      </header>
+
+      <label class="upload">
+        <input type="file" accept="image/*" (change)="onFileSelected($event, 'private')" />
+        <span>Seleccionar imagen</span>
+      </label>
+
+      <div class="preview" *ngIf="privateLogoPreview; else privatePlaceholder">
+        <img [src]="privateLogoPreview" alt="Vista previa del logo privado" />
+      </div>
+      <ng-template #privatePlaceholder>
+        <div class="placeholder">Sin logo privado</div>
+      </ng-template>
+
+      <div class="background-picker">
+        <label>
+          Fondo
+          <input type="color" [value]="privateBackgroundInput" (input)="changeBackground($event, 'private')" />
+        </label>
+        <button type="button" class="ghost" (click)="clearBackground('private')">Usar color por defecto</button>
+      </div>
+
+      <div class="background-preview" [style.background]="privateBackgroundPreview"></div>
+    </section>
+  </div>
+
+  <div class="actions">
+    <button type="button" (click)="reset()">Restaurar</button>
+    <button type="button" class="primary" (click)="save()">Guardar cambios</button>
+  </div>
+</div>
