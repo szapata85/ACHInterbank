@@ -1,5 +1,5 @@
 import { NgIf } from '@angular/common';
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, NgZone, OnInit, inject } from '@angular/core';
 import { AgGridModule } from 'ag-grid-angular';
 import { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
 import { FormBuilder, Validators } from '@angular/forms';
@@ -26,6 +26,7 @@ export class FinancialInstitutionsComponent implements OnInit {
   private readonly service = inject(FinancialInstitutionAdminService);
   private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly zone = inject(NgZone);
 
   institutions: DestinationInstitution[] = [];
   loading = false;
@@ -86,7 +87,9 @@ export class FinancialInstitutionsComponent implements OnInit {
         edit.classList.add('link');
         edit.innerText = 'Editar';
         edit.addEventListener('click', () => {
-          params.context?.componentParent?.startEdit(params.data);
+          this.zone.run(() => {
+            params.context?.componentParent?.startEdit(params.data);
+          });
         });
 
         const toggle = document.createElement('button');
@@ -96,7 +99,9 @@ export class FinancialInstitutionsComponent implements OnInit {
         toggle.innerText =
           params.data.status === FinancialInstitutionStatusEnum.Active ? 'Desactivar' : 'Activar';
         toggle.addEventListener('click', () => {
-          params.context?.componentParent?.toggleStatus(params.data);
+          this.zone.run(() => {
+            params.context?.componentParent?.toggleStatus(params.data);
+          });
         });
 
         container.append(edit, toggle);
