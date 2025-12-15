@@ -152,7 +152,7 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
   });
 
   createForm = this.fb.nonNullable.group({
-    financialInstitutionId: [null as number | null, [Validators.required]],
+    financialInstitutionId: ['', [Validators.required, Validators.pattern(/^\d+$/)]],
     clearingHouseId: [null as number | null, [Validators.required]],
     priority: [1, [Validators.required]],
     isDefault: [false],
@@ -221,7 +221,13 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
   startCreate(): void {
     this.editing = null;
     this.form.reset({ priority: 1, isDefault: false, isActive: true });
-    this.createForm.reset({ priority: 1, isDefault: false, isActive: true });
+    this.createForm.reset({
+      financialInstitutionId: '',
+      clearingHouseId: null,
+      priority: 1,
+      isDefault: false,
+      isActive: true
+    });
     this.cdr.markForCheck();
   }
 
@@ -233,7 +239,13 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
       isDefault: preference.isDefault,
       isActive: preference.isActive
     });
-    this.createForm.reset({ priority: 1, isDefault: false, isActive: true });
+    this.createForm.reset({
+      financialInstitutionId: '',
+      clearingHouseId: null,
+      priority: 1,
+      isDefault: false,
+      isActive: true
+    });
     if (markForCheck) {
       this.cdr.markForCheck();
     }
@@ -242,7 +254,13 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
   cancelEdit(): void {
     this.editing = null;
     this.form.reset({ priority: 1, isDefault: false, isActive: true });
-    this.createForm.reset({ priority: 1, isDefault: false, isActive: true });
+    this.createForm.reset({
+      financialInstitutionId: '',
+      clearingHouseId: null,
+      priority: 1,
+      isDefault: false,
+      isActive: true
+    });
     this.cdr.markForCheck();
   }
 
@@ -283,9 +301,15 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const raw = this.createForm.getRawValue();
+    const payload = {
+      ...raw,
+      financialInstitutionId: Number(raw.financialInstitutionId)
+    };
+
     this.saving = true;
     this.service
-      .create(this.createForm.getRawValue())
+      .create(payload)
       .pipe(
         finalize(() => {
           this.saving = false;
