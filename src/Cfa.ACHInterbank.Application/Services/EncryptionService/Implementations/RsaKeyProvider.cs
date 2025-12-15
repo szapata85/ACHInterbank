@@ -1,4 +1,6 @@
 ﻿using Cfa.ACHInterbank.Application.Services.EncryptionService.Interfaces;
+using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
+using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -6,14 +8,28 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace Cfa.ACHInterbank.Application.Services.EncryptionService.Implementations;
 
-[Singleton]
+[
+    Scoped
+]
 public class RsaKeyProvider : IRsaKeyProvider
 {
     private readonly AppSettings _appSettings = AppSettings.Settings;
+    private readonly IDigitalEnvelopeCertificateRepository _certificateRepository;
+
+    public RsaKeyProvider(IDigitalEnvelopeCertificateRepository certificateRepository)
+    {
+        _certificateRepository = certificateRepository;
+    }
 
 
     public X509Certificate2 ObtenerCertificate(string Key_cert)
     {
+        var fromRepository = ResolveFromRepository(Key_cert);
+        if (fromRepository != null)
+        {
+            return fromRepository;
+        }
+
         var jsonresult = JsonConvert.SerializeObject(_appSettings.Certificates);
 
         JObject? _servicesCertificates = JObject.Parse(jsonresult);
@@ -54,6 +70,30 @@ public class RsaKeyProvider : IRsaKeyProvider
 
             // Retorna el primer certificado encontrado
             return certCollection[0];
+        }
+    }
+
+    private X509Certificate2? ResolveFromRepository(string key)
+    {
+        var type = key?.Equals("CertCrypt", StringComparison.OrdinalIgnoreCase) == true
+            ? DigitalEnvelopeCertificateType.EncryptionPublic
+            : DigitalEnvelopeCertificateType.SigningKeyPair;
+
+        var stored = _certificateRepository.GetLatestAsync(type).GetAwaiter().GetResult();
+        if (stored == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return string.IsNullOrWhiteSpace(stored.Password)
+                ? new X509Certificate2(stored.RawData)
+                : new X509Certificate2(stored.RawData, stored.Password, X509KeyStorageFlags.MachineKeySet);
+        }
+        catch
+        {
+            return null;
         }
     }
 

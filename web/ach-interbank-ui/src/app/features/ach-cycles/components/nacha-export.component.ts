@@ -1,9 +1,12 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { FormBuilder } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { SharedModule } from '../../../shared/shared.module';
 import { NachaExportApiService } from '../services/nacha-export-api.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { ExportableAchCycle } from '../models/ach-cycle-export.model';
+import { ClearingHouseOption } from '../models/ach-cycle.model';
+import { ClearingHousesApiService } from '../services/ach-cycles-api.service';
 
 interface ExportableAchCycleView extends ExportableAchCycle {
   processingDateText: string;
@@ -18,21 +21,47 @@ interface ExportableAchCycleView extends ExportableAchCycle {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class NachaExportComponent implements OnInit {
+  private readonly fb = inject(FormBuilder);
   private readonly api = inject(NachaExportApiService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly clearingHouseApi = inject(ClearingHousesApiService);
 
   cycles: ExportableAchCycleView[] = [];
+  clearingHouses: ClearingHouseOption[] = [];
   loading = false;
   downloadingId: string | null = null;
 
+  readonly filterForm = this.fb.group({
+    clearingHouseId: [null as number | null],
+    startDate: [''],
+    endDate: ['']
+  });
+
   ngOnInit(): void {
+    this.loadClearingHouses();
+    this.load();
+  }
+
+  submit(): void {
+    if (this.isInvalidDateRange()) {
+      this.notifications.error('La fecha inicial no puede ser posterior a la fecha final');
+      return;
+    }
+
     this.load();
   }
 
   load(): void {
     this.loading = true;
-    this.api.getExportableCycles().subscribe({
+    this.cdr.markForCheck();
+    const filter = {
+      clearingHouseId: this.filterForm.value.clearingHouseId ?? undefined,
+      startDate: this.filterForm.value.startDate || undefined,
+      endDate: this.filterForm.value.endDate || undefined
+    };
+
+    this.api.getExportableCycles(filter).subscribe({
       next: (items) => {
         const formatter = new Intl.DateTimeFormat('es-CO', {
           timeZone: 'America/Bogota',
@@ -56,12 +85,12 @@ export class NachaExportComponent implements OnInit {
     });
   }
 
-  download(cycle: ExportableAchCycle): void {
+  download(cycle: ExportableAchCycle, encrypted: boolean): void {
     this.downloadingId = cycle.id;
-    this.api.downloadFile(cycle.id).subscribe({
+    this.api.downloadFile(cycle.id, encrypted).subscribe({
       next: (response) => {
         const fileName = this.extractFileName(response.headers.get('content-disposition')) ??
-          `NACHA_${cycle.id}_${this.buildTimestamp()}.txt`;
+          `NACHA_${cycle.id}_${this.buildTimestamp()}.${encrypted ? 'ENV' : 'txt'}`;
         const blob = response.body ?? new Blob();
         const url = window.URL.createObjectURL(blob);
 
@@ -75,8 +104,23 @@ export class NachaExportComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: () => {
-        this.notifications.error('No fue posible generar el archivo NACHA-M');
+        this.notifications.error(encrypted
+          ? 'No fue posible generar el archivo NACHA-M con Sobre Digital'
+          : 'No fue posible generar el archivo NACHA-M');
         this.downloadingId = null;
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  private loadClearingHouses(): void {
+    this.clearingHouseApi.list().subscribe({
+      next: (items) => {
+        this.clearingHouses = items;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.notifications.error('No fue posible cargar las cámaras compensadoras');
         this.cdr.markForCheck();
       }
     });
@@ -97,5 +141,10 @@ export class NachaExportComponent implements OnInit {
     const now = new Date();
     const pad = (value: number) => value.toString().padStart(2, '0');
     return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  }
+
+  private isInvalidDateRange(): boolean {
+    const { startDate, endDate } = this.filterForm.value;
+    return Boolean(startDate && endDate && new Date(startDate) > new Date(endDate));
   }
 }

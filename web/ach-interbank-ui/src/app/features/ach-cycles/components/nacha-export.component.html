@@ -4,6 +4,24 @@
   [actionsTemplate]="headerActions"
 ></app-page-header>
 
+<div class="toolbar">
+  <form [formGroup]="filterForm" (ngSubmit)="submit()" class="filters">
+    <select formControlName="clearingHouseId">
+      <option [ngValue]="null">Todas las cámaras</option>
+      <option *ngFor="let ch of clearingHouses" [ngValue]="ch.id">{{ ch.name }}</option>
+    </select>
+    <label>
+      Desde
+      <input type="date" formControlName="startDate" />
+    </label>
+    <label>
+      Hasta
+      <input type="date" formControlName="endDate" />
+    </label>
+    <button type="submit">Filtrar</button>
+  </form>
+</div>
+
 <div class="export-wrapper">
   <app-table
     [columns]="[
@@ -21,9 +39,14 @@
 </div>
 
 <ng-template #rowActions let-cycle>
-  <button type="button" class="primary" [disabled]="downloadingId === cycle.id" (click)="download(cycle)">
-    {{ downloadingId === cycle.id ? 'Generando...' : 'Generar NACHA' }}
-  </button>
+  <div class="row-actions">
+    <button type="button" class="primary" [disabled]="downloadingId === cycle.id" (click)="download(cycle, false)">
+      {{ downloadingId === cycle.id ? 'Generando...' : 'Generar NACHA' }}
+    </button>
+    <button type="button" class="secondary" [disabled]="downloadingId === cycle.id" (click)="download(cycle, true)">
+      {{ downloadingId === cycle.id ? 'Generando...' : 'Generar Sobre Digital' }}
+    </button>
+  </div>
 </ng-template>
 
 <ng-template #headerActions>

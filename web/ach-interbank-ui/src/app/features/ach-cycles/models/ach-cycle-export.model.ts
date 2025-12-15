@@ -5,3 +5,9 @@ export interface ExportableAchCycle {
   clearingHouseName?: string;
   transactionCount: number;
 }
+
+export interface ExportableAchCycleFilter {
+  clearingHouseId?: number;
+  startDate?: string;
+  endDate?: string;
+}
