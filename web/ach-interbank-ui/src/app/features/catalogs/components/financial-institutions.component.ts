@@ -1,5 +1,7 @@
 import { NgFor, NgIf } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { AgGridModule } from 'ag-grid-angular';
+import { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
 import { FormBuilder, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { SharedModule } from '../../../shared/shared.module';
@@ -15,7 +17,7 @@ import {
   templateUrl: './financial-institutions.component.html',
   styleUrls: ['./financial-institutions.component.scss'],
   standalone: true,
-  imports: [SharedModule, NgFor, NgIf],
+  imports: [SharedModule, NgFor, NgIf, AgGridModule],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class FinancialInstitutionsComponent implements OnInit {
@@ -30,6 +32,88 @@ export class FinancialInstitutionsComponent implements OnInit {
   saving = false;
   showForm = false;
   editing: DestinationInstitution | null = null;
+  gridApi?: GridApi<DestinationInstitution>;
+
+  readonly columnDefs: ColDef<DestinationInstitution>[] = [
+    { field: 'name', headerName: 'Nombre', flex: 1, filter: 'agTextColumnFilter' },
+    { field: 'routingNumber', headerName: 'Routing', maxWidth: 140 },
+    { field: 'transitCode', headerName: 'Transit', maxWidth: 120 },
+    { field: 'checkDigit', headerName: 'Dígito', maxWidth: 120 },
+    {
+      field: 'isDefaultSource',
+      headerName: 'Origen por defecto',
+      maxWidth: 180,
+      cellRenderer: (params) => {
+        const pill = document.createElement('span');
+        pill.classList.add('pill');
+        if (params.value) {
+          pill.classList.add('success');
+          pill.innerText = 'Sí';
+        } else {
+          pill.classList.add('muted');
+          pill.innerText = 'No';
+        }
+        return pill;
+      }
+    },
+    {
+      field: 'status',
+      headerName: 'Estado',
+      maxWidth: 140,
+      cellRenderer: (params) => {
+        const pill = document.createElement('span');
+        pill.classList.add('pill');
+        if (params.value === FinancialInstitutionStatusEnum.Active) {
+          pill.classList.add('success');
+          pill.innerText = 'Activa';
+        } else {
+          pill.classList.add('warning');
+          pill.innerText = 'Inactiva';
+        }
+        return pill;
+      }
+    },
+    {
+      headerName: 'Acciones',
+      colId: 'actions',
+      maxWidth: 200,
+      cellRenderer: (params) => {
+        const container = document.createElement('div');
+        container.classList.add('row-actions');
+
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.classList.add('link');
+        edit.innerText = 'Editar';
+        edit.addEventListener('click', () => {
+          params.context?.componentParent?.startEdit(params.data);
+        });
+
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.classList.add('link');
+        toggle.classList.add('danger');
+        toggle.innerText =
+          params.data.status === FinancialInstitutionStatusEnum.Active ? 'Desactivar' : 'Activar';
+        toggle.addEventListener('click', () => {
+          params.context?.componentParent?.toggleStatus(params.data);
+        });
+
+        container.append(edit, toggle);
+        return container;
+      }
+    }
+  ];
+
+  readonly defaultColDef: ColDef<DestinationInstitution> = {
+    resizable: true,
+    sortable: true,
+    suppressHeaderKeyboardEvent: () => true,
+    filterParams: { suppressAndOrCondition: true }
+  };
+
+  readonly noRowsTemplate = 'No hay instituciones registradas.';
+  readonly loadingTemplate = 'Cargando instituciones...';
 
   form = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(100)]],
@@ -44,8 +128,14 @@ export class FinancialInstitutionsComponent implements OnInit {
     this.loadInstitutions();
   }
 
+  onGridReady(event: GridReadyEvent<DestinationInstitution>): void {
+    this.gridApi = event.api;
+    this.updateGridOverlays();
+  }
+
   loadInstitutions(): void {
     this.loading = true;
+    this.updateGridOverlays();
     this.service
       .list(true)
       .pipe(
@@ -56,6 +146,7 @@ export class FinancialInstitutionsComponent implements OnInit {
       )
       .subscribe((data) => {
         this.institutions = data;
+        this.updateGridOverlays();
       });
   }
 
@@ -143,5 +234,22 @@ export class FinancialInstitutionsComponent implements OnInit {
         })
       )
       .subscribe(() => this.loadInstitutions());
+  }
+
+  private updateGridOverlays(): void {
+    if (!this.gridApi) {
+      return;
+    }
+
+    if (this.loading) {
+      this.gridApi.showLoadingOverlay();
+      return;
+    }
+
+    if (!this.institutions.length) {
+      this.gridApi.showNoRowsOverlay();
+    } else {
+      this.gridApi.hideOverlay();
+    }
   }
 }

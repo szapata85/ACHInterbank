@@ -11,51 +11,19 @@
     </div>
   </div>
 
-  <div class="table-wrap" *ngIf="institutions.length; else empty">
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Nombre</th>
-          <th>Routing</th>
-          <th>Transit</th>
-          <th>Dígito</th>
-          <th>Origen por defecto</th>
-          <th>Estado</th>
-          <th class="actions-col">Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let bank of institutions">
-          <td>{{ bank.name }}</td>
-          <td>{{ bank.routingNumber }}</td>
-          <td>{{ bank.transitCode }}</td>
-          <td>{{ bank.checkDigit }}</td>
-          <td>
-            <span class="pill" [class.success]="bank.isDefaultSource" [class.muted]="!bank.isDefaultSource">
-              {{ bank.isDefaultSource ? 'Sí' : 'No' }}
-            </span>
-          </td>
-          <td>
-            <span class="pill" [class.success]="bank.status === statusEnum.Active" [class.warning]="bank.status === statusEnum.Inactive">
-              {{ bank.status === statusEnum.Active ? 'Activa' : 'Inactiva' }}
-            </span>
-          </td>
-          <td class="actions-col">
-            <div class="row-actions">
-              <button type="button" class="link" (click)="startEdit(bank)" [disabled]="saving">Editar</button>
-              <button
-                type="button"
-                class="link danger"
-                (click)="toggleStatus(bank)"
-                [disabled]="saving"
-              >
-                {{ bank.status === statusEnum.Active ? 'Desactivar' : 'Activar' }}
-              </button>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+  <div class="grid" *ngIf="institutions.length; else empty">
+    <ag-grid-angular
+      class="ag-theme-alpine"
+      [rowData]="institutions"
+      [columnDefs]="columnDefs"
+      [defaultColDef]="defaultColDef"
+      [domLayout]="'autoHeight'"
+      [suppressScrollOnNewData]="true"
+      [context]="{ componentParent: this }"
+      [overlayNoRowsTemplate]="noRowsTemplate"
+      [overlayLoadingTemplate]="loadingTemplate"
+      (gridReady)="onGridReady($event)"
+    ></ag-grid-angular>
   </div>
 
   <ng-template #empty>

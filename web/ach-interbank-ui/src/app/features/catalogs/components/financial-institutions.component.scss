@@ -28,32 +28,21 @@
   color: #4b5563;
 }
 
-.table-wrap {
-  overflow: auto;
+.grid {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  overflow: hidden;
 }
 
-.table {
-  width: 100%;
-  border-collapse: collapse;
-
-  th,
-  td {
-    padding: 0.75rem;
-    text-align: left;
-  }
-
-  thead {
-    background: #f3f4f6;
-
-    th {
-      font-weight: 600;
-      color: #111827;
-    }
-  }
-
-  tbody tr:nth-child(even) {
-    background: #f9fafb;
-  }
+.ag-theme-alpine {
+  --ag-foreground-color: #111827;
+  --ag-header-foreground-color: #111827;
+  --ag-border-color: #e5e7eb;
+  --ag-secondary-border-color: #f3f4f6;
+  --ag-header-background-color: #f9fafb;
+  --ag-odd-row-background-color: #f9fafb;
+  --ag-font-size: 14px;
+  --ag-font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 .pill {
