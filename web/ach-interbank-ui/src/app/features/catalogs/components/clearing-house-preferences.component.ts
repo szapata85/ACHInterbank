@@ -12,14 +12,14 @@ import { AgGridModule } from 'ag-grid-angular';
 import { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
 import { FormBuilder, Validators } from '@angular/forms';
 import { Subject } from 'rxjs';
-import { finalize, takeUntil } from 'rxjs/operators';
-import { CatalogsApiService } from '../services/catalogs-api.service';
-import { CatalogItem } from '../models/catalog.model';
+import { finalize, map, takeUntil } from 'rxjs/operators';
 import { ClearingHousesApiService } from '../../ach-cycles/services/ach-cycles-api.service';
 import { ClearingHouseOption } from '../../ach-cycles/models/ach-cycle.model';
 import { SharedModule } from '../../../shared/shared.module';
 import { InstitutionClearingHousePreference } from '../models/institution-clearing-house-preference.model';
 import { InstitutionClearingHousePreferencesService } from '../services/institution-clearing-house-preferences.service';
+import { FinancialInstitutionsApiService } from '../../transactions/services/financial-institutions-api.service';
+import { FinancialInstitutionStatusEnum } from '../../transactions/transactions.types';
 
 @Component({
   selector: 'app-clearing-house-preferences',
@@ -34,17 +34,24 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly zone = inject(NgZone);
-  private readonly catalogsApi = inject(CatalogsApiService);
+  private readonly financialInstitutionsApi = inject(FinancialInstitutionsApiService);
   private readonly clearingHouseApi = inject(ClearingHousesApiService);
 
   preferences: InstitutionClearingHousePreference[] = [];
-  financialInstitutions: CatalogItem[] = [];
   clearingHouses: ClearingHouseOption[] = [];
   loading = false;
   saving = false;
   editing: InstitutionClearingHousePreference | null = null;
   gridApi?: GridApi<InstitutionClearingHousePreference>;
   private readonly destroy$ = new Subject<void>();
+
+  readonly institutions$ = this.financialInstitutionsApi.getAll().pipe(
+    map((list) =>
+      (list ?? [])
+        .filter((item) => item.status === FinancialInstitutionStatusEnum.Active)
+        .sort((a, b) => a.name.localeCompare(b.name))
+    )
+  );
 
   readonly priorityOptions: { value: number; label: string }[] = [
     { value: 1, label: '1 - Máxima prioridad' },
@@ -152,7 +159,7 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
   });
 
   createForm = this.fb.nonNullable.group({
-    financialInstitutionId: ['', [Validators.required, Validators.pattern(/^\d+$/)]],
+    financialInstitutionId: [null as number | null, [Validators.required, Validators.min(1)]],
     clearingHouseId: [null as number | null, [Validators.required]],
     priority: [1, [Validators.required]],
     isDefault: [false],
@@ -201,14 +208,6 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
   }
 
   loadCatalogs(): void {
-    this.catalogsApi
-      .listBanks()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe((banks) => {
-        this.financialInstitutions = banks;
-        this.cdr.markForCheck();
-      });
-
     this.clearingHouseApi
       .list()
       .pipe(takeUntil(this.destroy$))

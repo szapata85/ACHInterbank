@@ -45,17 +45,13 @@
     <form [formGroup]="createForm" (ngSubmit)="create()" class="form-grid">
       <label>
         Institución
-        <input
-          type="text"
-          formControlName="financialInstitutionId"
-          inputmode="numeric"
-          [attr.list]="'financial-institutions-list'"
-          placeholder="ID de institución"
-        />
-        <datalist id="financial-institutions-list">
-          <option *ngFor="let bank of financialInstitutions" [value]="bank.id">{{ bank.description }}</option>
-        </datalist>
-        <small class="hint">Escribe o selecciona el ID de la institución financiera.</small>
+        <select formControlName="financialInstitutionId">
+          <option [ngValue]="null" disabled>Selecciona una institución</option>
+          <option *ngFor="let institution of institutions$ | async" [ngValue]="institution.id">
+            {{ institution.name }}
+          </option>
+        </select>
+        <small class="hint">Usa la misma lista de instituciones activas disponible al crear transacciones.</small>
         <app-error-message [control]="createForm.get('financialInstitutionId')"></app-error-message>
       </label>
 
