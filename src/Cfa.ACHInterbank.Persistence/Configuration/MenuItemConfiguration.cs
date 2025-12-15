@@ -17,6 +17,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int NavigationAdminId = 9;
     public const int NachaSecurityId = 10;
     public const int NachaExportId = 11;
+    public const int BrandingId = 12;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -66,6 +67,18 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Label = "Usuarios",
                 Route = "/users",
                 Icon = "group",
+                Order = 2,
+                Exact = false,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = BrandingId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = UsersId,
+                Label = "Identidad y colores",
+                Route = "/users/branding",
+                Icon = "palette",
                 Order = 2,
                 Exact = true,
                 IsActive = true
