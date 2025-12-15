@@ -38,10 +38,24 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
   gridApi?: GridApi<InstitutionClearingHousePreference>;
   private readonly destroy$ = new Subject<void>();
 
+  readonly priorityOptions: { value: number; label: string }[] = [
+    { value: 1, label: '1 - Máxima prioridad' },
+    { value: 2, label: '2 - Alta prioridad' },
+    { value: 3, label: '3 - Prioridad media' },
+    { value: 4, label: '4 - Prioridad baja' },
+    { value: 5, label: '5 - Prioridad mínima' }
+  ];
+
   readonly columnDefs: ColDef<InstitutionClearingHousePreference>[] = [
     { field: 'financialInstitutionName', headerName: 'Institución', flex: 1.2, filter: 'agTextColumnFilter' },
     { field: 'clearingHouseName', headerName: 'Cámara compensadora', flex: 1, filter: 'agTextColumnFilter' },
-    { field: 'priority', headerName: 'Prioridad', maxWidth: 140, filter: 'agNumberColumnFilter' },
+    {
+      field: 'priority',
+      headerName: 'Prioridad',
+      maxWidth: 200,
+      filter: 'agTextColumnFilter',
+      valueFormatter: (params) => this.mapPriorityLabel(params.value)
+    },
     {
       field: 'isDefault',
       headerName: 'Predeterminada',
@@ -94,7 +108,7 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
   readonly loadingTemplate = 'Cargando preferencias...';
 
   form = this.fb.nonNullable.group({
-    priority: [1, [Validators.required, Validators.min(1), Validators.max(99)]],
+    priority: [1, [Validators.required]],
     isDefault: [false]
   });
 
@@ -140,6 +154,7 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
 
   startEdit(preference: InstitutionClearingHousePreference, markForCheck = true): void {
     this.editing = preference;
+    this.ensurePriorityOption(preference.priority);
     this.form.reset({
       priority: preference.priority,
       isDefault: preference.isDefault
@@ -200,6 +215,20 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
       this.gridApi.showNoRowsOverlay();
     } else {
       this.gridApi.hideOverlay();
+    }
+  }
+
+  private mapPriorityLabel(value: number): string {
+    const option = this.priorityOptions.find((opt) => opt.value === value);
+    if (option) {
+      return option.label;
+    }
+    return `Prioridad ${value}`;
+  }
+
+  private ensurePriorityOption(value: number): void {
+    if (!this.priorityOptions.some((opt) => opt.value === value)) {
+      this.priorityOptions.push({ value, label: `Prioridad ${value}` });
     }
   }
 }
