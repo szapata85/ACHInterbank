@@ -2,8 +2,13 @@
   <div class="backdrop" *ngIf="isMenuOpen" (click)="closeMenu()" aria-hidden="true"></div>
 
   <aside class="sidebar" [class.open]="isMenuOpen" role="navigation" aria-label="Menú principal">
-    <div class="brand">
-      <div class="logo">ACH</div>
+    <div class="brand" *ngIf="branding$ | async as branding">
+      <div class="logo" [class.with-image]="branding.privateLogo">
+        <ng-container *ngIf="branding.privateLogo; else defaultPrivateLogo">
+          <img [src]="branding.privateLogo" alt="Logo de la aplicación" />
+        </ng-container>
+        <ng-template #defaultPrivateLogo>ACH</ng-template>
+      </div>
       <div class="brand-copy">
         <p class="title">ACH Interbank</p>
         <small>Portal backoffice</small>

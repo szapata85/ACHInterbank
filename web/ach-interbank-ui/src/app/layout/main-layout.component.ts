@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, HostListener, OnDestroy, OnInit, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  HostBinding,
+  HostListener,
+  OnDestroy,
+  OnInit,
+  inject
+} from '@angular/core';
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 import { Subscription, filter } from 'rxjs';
 import { AuthService } from '../core/services/auth.service';
@@ -6,6 +15,7 @@ import { NavigationService } from '../core/services/navigation.service';
 import { MenuItem } from '../core/models/menu.model';
 import { SharedModule } from '../shared/shared.module';
 import { RouterModule } from '@angular/router';
+import { BrandingService } from '../core/services/branding.service';
 
 interface Breadcrumb {
   label: string;
@@ -26,8 +36,17 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly authService = inject(AuthService);
   private readonly navigationService = inject(NavigationService);
+  private readonly brandingService = inject(BrandingService);
+
+  @HostBinding('style.--private-bg')
+  public privateBackground: string | null = this.brandingService.getBrandingSnapshot().privateBackground ?? null;
+  @HostBinding('style.--sidebar-bg')
+  public sidebarBackground: string | null = this.brandingService.getBrandingSnapshot().sidebarBackground ?? null;
+  @HostBinding('style.--button-color')
+  public buttonColor: string | null = this.brandingService.getBrandingSnapshot().buttonColor ?? null;
 
   readonly user$ = this.authService.user$;
+  readonly branding$ = this.brandingService.branding$;
   menuItems: MenuItem[] = [];
   expandedItems = new Set<number>();
 
@@ -37,6 +56,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   private subscription?: Subscription;
   private menuSubscription?: Subscription;
+  private brandingSubscription?: Subscription;
 
   ngOnInit(): void {
     this.subscription = this.router.events
@@ -54,11 +74,19 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       this.syncExpandedItems();
       this.cdr.markForCheck();
     });
+
+    this.brandingSubscription = this.brandingService.branding$.subscribe((branding) => {
+      this.privateBackground = branding.privateBackground ?? null;
+      this.sidebarBackground = branding.sidebarBackground ?? null;
+      this.buttonColor = branding.buttonColor ?? null;
+      this.cdr.markForCheck();
+    });
   }
 
   ngOnDestroy(): void {
     this.subscription?.unsubscribe();
     this.menuSubscription?.unsubscribe();
+    this.brandingSubscription?.unsubscribe();
   }
 
   logout(): void {

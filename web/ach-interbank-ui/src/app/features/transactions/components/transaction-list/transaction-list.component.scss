@@ -6,8 +6,8 @@
   gap: 1rem;
 
   button {
-    border: 1px solid #2563eb;
-    background: #2563eb;
+    border: 1px solid var(--button-color, #2563eb);
+    background: var(--button-color, #2563eb);
     color: #fff;
     padding: 0.5rem 1rem;
     border-radius: 6px;
@@ -15,7 +15,7 @@
   }
 
   button:hover {
-    background: #1d4ed8;
+    background: var(--button-color, #1d4ed8);
   }
 }
 
@@ -46,7 +46,7 @@
 
   .ghost {
     background: transparent;
-    color: #2563eb;
+    color: var(--button-color, #2563eb);
   }
 
   .ghost:hover {

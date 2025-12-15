@@ -94,6 +94,10 @@ export class UsersListComponent implements OnInit {
     this.router.navigate(['/users', user.id, 'roles']);
   }
 
+  goToBranding(): void {
+    this.router.navigate(['/users/branding']);
+  }
+
   confirmDisable(user: UserSummary): void {
     this.confirmUser = user;
   }
