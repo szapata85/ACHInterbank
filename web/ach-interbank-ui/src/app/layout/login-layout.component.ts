@@ -16,7 +16,7 @@ export class LoginLayoutComponent implements OnDestroy {
   private readonly brandingService = inject(BrandingService);
 
   @HostBinding('style.--public-bg')
-  private publicBackground = this.brandingService.getBrandingSnapshot().publicBackground ?? null;
+  public publicBackground: string | null = this.brandingService.getBrandingSnapshot().publicBackground ?? null;
 
   readonly branding$ = this.brandingService.branding$;
 

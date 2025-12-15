@@ -39,7 +39,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   private readonly brandingService = inject(BrandingService);
 
   @HostBinding('style.--private-bg')
-  private privateBackground = this.brandingService.getBrandingSnapshot().privateBackground ?? null;
+  public privateBackground: string | null = this.brandingService.getBrandingSnapshot().privateBackground ?? null;
 
   readonly user$ = this.authService.user$;
   readonly branding$ = this.brandingService.branding$;
