@@ -1,0 +1,84 @@
+<div class="page-header">
+  <h1>Seguridad de NACHA Files</h1>
+  <p class="subtitle">Administra los certificados usados para Sobre Digital.</p>
+</div>
+
+<div class="alerts" *ngIf="error">
+  <app-alert type="error">{{ error }}</app-alert>
+</div>
+
+<section class="cards" *ngIf="!loading; else loadingTpl">
+  <div class="card" *ngFor="let slot of slots">
+    <div class="card__header">
+      <div>
+        <h2>{{ slot.title }}</h2>
+        <p>{{ slot.description }}</p>
+      </div>
+      <span class="chip">{{ slot.type === 'EncryptionPublic' ? 'Llave pública' : 'Firma' }}</span>
+    </div>
+
+    <div class="card__body" *ngIf="slot.certificate; else empty">
+      <dl class="meta">
+        <div>
+          <dt>Archivo</dt>
+          <dd>{{ slot.certificate?.fileName }}</dd>
+        </div>
+        <div>
+          <dt>Asunto</dt>
+          <dd>{{ slot.certificate?.subject }}</dd>
+        </div>
+        <div>
+          <dt>Emisor</dt>
+          <dd>{{ slot.certificate?.issuer }}</dd>
+        </div>
+        <div>
+          <dt>Vigencia</dt>
+          <dd>
+            {{ slot.certificate?.notBefore | date: 'shortDate' }}
+            -
+            {{ slot.certificate?.notAfter | date: 'shortDate' }}
+          </dd>
+        </div>
+        <div>
+          <dt>Huella</dt>
+          <dd>{{ slot.certificate?.thumbprint }}</dd>
+        </div>
+      </dl>
+
+      <div class="actions">
+        <button appButton color="warn" variant="ghost" (click)="deleteCertificate(slot.certificate!)">
+          Eliminar certificado
+        </button>
+      </div>
+    </div>
+
+    <ng-template #empty>
+      <p class="empty">Aún no has cargado un certificado para esta función.</p>
+    </ng-template>
+
+    <form class="upload" [formGroup]="forms[slot.type]" (ngSubmit)="upload(slot.type)">
+      <label class="file-input">
+        <input type="file" (change)="onFileSelected(slot.type, $event)" />
+        <span>Seleccionar archivo</span>
+      </label>
+
+      <ng-container *ngIf="slot.requiresPassword">
+        <label class="field">
+          <span>Contraseña (opcional)</span>
+          <input type="password" formControlName="password" placeholder="Contraseña del .pfx" />
+        </label>
+      </ng-container>
+
+      <button appButton type="submit" [disabled]="uploadingType === slot.type">
+        {{ uploadingType === slot.type ? 'Cargando...' : 'Cargar certificado' }}
+      </button>
+    </form>
+  </div>
+</section>
+
+<ng-template #loadingTpl>
+  <div class="loading">
+    <app-spinner></app-spinner>
+    <p>Cargando certificados...</p>
+  </div>
+</ng-template>

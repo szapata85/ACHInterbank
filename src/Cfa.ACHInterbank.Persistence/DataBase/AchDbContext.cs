@@ -3,6 +3,7 @@ using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Services;
 using Cfa.ACHInterbank.Domain.Entities.User;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Persistence.DataBase;
@@ -52,6 +53,8 @@ public class AchDbContext : DbContext
     public DbSet<MenuItem> MenuItems => Set<MenuItem>();
     public DbSet<MenuItemRole> MenuItemRoles => Set<MenuItemRole>();
     public DbSet<MenuItemPermission> MenuItemPermissions => Set<MenuItemPermission>();
+
+    public DbSet<DigitalEnvelopeCertificate> DigitalEnvelopeCertificates => Set<DigitalEnvelopeCertificate>();
 
 
 

@@ -32,9 +32,13 @@ const routes: Routes = [
         loadChildren: () => import('./features/aliases/aliases.module').then((m) => m.AliasesModule)
       },
       {
-        path: 'ach-cycles',
-        loadChildren: () => import('./features/ach-cycles/ach-cycles.module').then((m) => m.AchCyclesModule)
-      },
+      path: 'ach-cycles',
+      loadChildren: () => import('./features/ach-cycles/ach-cycles.module').then((m) => m.AchCyclesModule)
+    },
+    {
+      path: 'nacha-security',
+      loadChildren: () => import('./features/nacha-security/nacha-security.module').then((m) => m.NachaSecurityModule)
+    },
       {
         path: 'transactions',
         canActivate: [roleGuard, permissionGuard],

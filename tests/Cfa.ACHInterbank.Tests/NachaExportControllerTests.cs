@@ -77,7 +77,7 @@ public class NachaExportControllerTests
         var controller = new NachaExportController(builder.Object, crypto.Object, cycleService.Object, envelopePolicy.Object);
 
         // Act
-        var result = await controller.ExportEncrypted(cycleId, CancellationToken.None);
+        var result = await controller.ExportEncrypted(cycleId, false, CancellationToken.None);
 
         // Assert
         var fileResult = Assert.IsType<FileContentResult>(result);
@@ -120,7 +120,7 @@ public class NachaExportControllerTests
         var controller = new NachaExportController(builder.Object, crypto.Object, cycleService.Object, envelopePolicy.Object);
 
         // Act
-        var result = await controller.ExportEncrypted(cycleId, CancellationToken.None);
+        var result = await controller.ExportEncrypted(cycleId, false, CancellationToken.None);
 
         // Assert
         var fileResult = Assert.IsType<FileContentResult>(result);
