@@ -1,17 +1,18 @@
 using AutoMapper;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
+using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
-using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
-    public class InstitutionClearingHousePreferenceService : IInstitutionClearingHousePreferenceService
-    {
-        private readonly AchDbContext _context;
-        private readonly IMapper _mapper;
+public class InstitutionClearingHousePreferenceService : IInstitutionClearingHousePreferenceService
+{
+    private readonly AchDbContext _context;
+    private readonly IMapper _mapper;
 
     public InstitutionClearingHousePreferenceService(AchDbContext context, IMapper mapper)
     {
