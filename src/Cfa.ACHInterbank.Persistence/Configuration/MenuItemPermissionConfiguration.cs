@@ -38,6 +38,11 @@ public class MenuItemPermissionConfiguration : IEntityTypeConfiguration<MenuItem
             },
             new MenuItemPermission
             {
+                MenuItemId = MenuItemConfiguration.NachaExportId,
+                PermissionId = PermissionConfiguration.ReadAchPermissionId
+            },
+            new MenuItemPermission
+            {
                 MenuItemId = MenuItemConfiguration.CatalogsId,
                 PermissionId = PermissionConfiguration.ReadCatalogsPermissionId
             },
