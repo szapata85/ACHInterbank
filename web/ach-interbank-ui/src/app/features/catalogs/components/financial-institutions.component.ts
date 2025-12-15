@@ -1,9 +1,18 @@
 import { NgIf } from '@angular/common';
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, NgZone, OnInit, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  NgZone,
+  OnDestroy,
+  OnInit,
+  inject
+} from '@angular/core';
 import { AgGridModule } from 'ag-grid-angular';
 import { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
 import { FormBuilder, Validators } from '@angular/forms';
-import { finalize } from 'rxjs/operators';
+import { Subject } from 'rxjs';
+import { finalize, takeUntil } from 'rxjs/operators';
 import { SharedModule } from '../../../shared/shared.module';
 import { DestinationInstitution } from '../../transactions/transactions.models';
 import { FinancialInstitutionStatusEnum } from '../../transactions/transactions.types';
@@ -20,7 +29,7 @@ import {
   imports: [SharedModule, NgIf, AgGridModule],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class FinancialInstitutionsComponent implements OnInit {
+export class FinancialInstitutionsComponent implements OnInit, OnDestroy {
   readonly statusEnum = FinancialInstitutionStatusEnum;
   readonly pageSizeOptions = [10, 25, 50];
   readonly pageSize = this.pageSizeOptions[0];
@@ -36,6 +45,7 @@ export class FinancialInstitutionsComponent implements OnInit {
   showForm = false;
   editing: DestinationInstitution | null = null;
   gridApi?: GridApi<DestinationInstitution>;
+  private readonly destroy$ = new Subject<void>();
 
   readonly columnDefs: ColDef<DestinationInstitution>[] = [
     { field: 'name', headerName: 'Nombre', flex: 1, filter: 'agTextColumnFilter' },
@@ -133,6 +143,12 @@ export class FinancialInstitutionsComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadInstitutions();
+    this.setupCheckDigitAutoCalc();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   onGridReady(event: GridReadyEvent<DestinationInstitution>): void {
@@ -168,6 +184,7 @@ export class FinancialInstitutionsComponent implements OnInit {
       isDefaultSource: false,
       status: FinancialInstitutionStatusEnum.Active
     });
+    this.updateCheckDigit();
     this.cdr.markForCheck();
   }
 
@@ -182,6 +199,7 @@ export class FinancialInstitutionsComponent implements OnInit {
       isDefaultSource: item.isDefaultSource,
       status: item.status
     });
+    this.updateCheckDigit();
     this.cdr.markForCheck();
   }
 
@@ -196,6 +214,7 @@ export class FinancialInstitutionsComponent implements OnInit {
       isDefaultSource: false,
       status: FinancialInstitutionStatusEnum.Active
     });
+    this.updateCheckDigit();
     this.cdr.markForCheck();
   }
 
@@ -258,5 +277,38 @@ export class FinancialInstitutionsComponent implements OnInit {
     } else {
       this.gridApi.hideOverlay();
     }
+  }
+
+  private setupCheckDigitAutoCalc(): void {
+    const routingCtrl = this.form.controls.routingNumber;
+    const transitCtrl = this.form.controls.transitCode;
+
+    routingCtrl.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(() => this.updateCheckDigit());
+    transitCtrl.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(() => this.updateCheckDigit());
+
+    this.updateCheckDigit();
+  }
+
+  private updateCheckDigit(): void {
+    const routing = (this.form.controls.routingNumber.value ?? '').trim();
+    const transit = (this.form.controls.transitCode.value ?? '').trim();
+    const ruta = `${routing}${transit}`;
+
+    if (ruta.length !== 8 || /\D/.test(ruta)) {
+      this.form.controls.checkDigit.setValue('', { emitEvent: false });
+      return;
+    }
+
+    const pesos = [3, 7, 1, 3, 7, 1, 3, 7];
+    const suma = ruta
+      .split('')
+      .map((char, index) => (Number.isNaN(+char) ? 0 : +char) * pesos[index])
+      .reduce((acc, val) => acc + val, 0);
+
+    const proximoMultiplo10 = Math.ceil(suma / 10) * 10;
+    const digitoChequeo = proximoMultiplo10 - suma;
+    const value = digitoChequeo === 10 ? '0' : digitoChequeo.toString();
+
+    this.form.controls.checkDigit.setValue(value, { emitEvent: false });
   }
 }
