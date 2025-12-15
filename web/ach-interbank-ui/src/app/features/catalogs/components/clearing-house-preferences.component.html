@@ -37,8 +37,8 @@
   </ng-template>
 </section>
 
-<section class="card forms">
-  <div>
+<section class="card forms" *ngIf="showCreateForm || editing">
+  <div *ngIf="showCreateForm">
     <h3>Nueva relación</h3>
     <p class="hint">Crea vínculos entre instituciones y cámaras compensadoras.</p>
 
@@ -89,13 +89,10 @@
     </form>
   </div>
 
-  <div>
+  <div *ngIf="editing && !showCreateForm">
     <h3>Editar relación</h3>
-    <p class="hint" *ngIf="!editing">
-      Selecciona una fila para administrar la prioridad, el estado y la marca predeterminada de la cámara compensadora.
-    </p>
 
-    <form [formGroup]="form" (ngSubmit)="save()" class="form-grid" *ngIf="editing">
+    <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
       <div class="summary">
         <p class="label">Institución</p>
         <p class="value">{{ editing.financialInstitutionName }}</p>

@@ -41,6 +41,7 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
   clearingHouses: ClearingHouseOption[] = [];
   loading = false;
   saving = false;
+  showCreateForm = false;
   editing: InstitutionClearingHousePreference | null = null;
   gridApi?: GridApi<InstitutionClearingHousePreference>;
   private readonly destroy$ = new Subject<void>();
@@ -201,8 +202,6 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
           if (updated) {
             this.startEdit(updated, false);
           }
-        } else if (data.length) {
-          this.startEdit(data[0], false);
         }
       });
   }
@@ -218,6 +217,7 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
   }
 
   startCreate(): void {
+    this.showCreateForm = true;
     this.editing = null;
     this.form.reset({ priority: 1, isDefault: false, isActive: true });
     this.createForm.reset({
@@ -231,6 +231,7 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
   }
 
   startEdit(preference: InstitutionClearingHousePreference, markForCheck = true): void {
+    this.showCreateForm = false;
     this.editing = preference;
     this.ensurePriorityOption(preference.priority);
     this.form.reset({
@@ -252,6 +253,7 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
 
   cancelEdit(): void {
     this.editing = null;
+    this.showCreateForm = false;
     this.form.reset({ priority: 1, isDefault: false, isActive: true });
     this.createForm.reset({
       financialInstitutionId: null,
