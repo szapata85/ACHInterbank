@@ -23,27 +23,27 @@
   background: #0f172a;
   color: #e2e8f0;
   padding: 1.5rem 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  row-gap: 1.25rem;
   box-shadow: 2px 0 12px rgba(15, 23, 42, 0.35);
   position: sticky;
   top: 0;
   height: 100vh;
   z-index: 30;
   transition: transform 0.25s ease;
-  overflow-y: auto;
+  overflow: hidden;
   scrollbar-gutter: stable;
 }
 
 .session {
-  margin-top: auto;
   padding: 1rem;
   background: rgba(255, 255, 255, 0.04);
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   position: sticky;
   bottom: 1rem;
+  align-self: end;
 }
 
 .session-title {
@@ -126,8 +126,9 @@
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  flex: 1 1 auto;
   min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.25rem;
 }
 
 .menu-group {
