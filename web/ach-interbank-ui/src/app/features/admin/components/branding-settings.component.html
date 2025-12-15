@@ -102,6 +102,16 @@
       </div>
 
       <div class="background-preview" [style.background]="privateBackgroundPreview"></div>
+
+      <div class="background-picker">
+        <label>
+          Fondo del menú lateral
+          <input type="color" [value]="sidebarBackgroundInput" (input)="changeBackground($event, 'sidebar')" />
+        </label>
+        <button type="button" class="ghost" (click)="clearBackground('sidebar')">Usar color por defecto</button>
+      </div>
+
+      <div class="background-preview background-preview--sidebar" [style.background]="sidebarBackgroundPreview"></div>
     </section>
   </div>
 

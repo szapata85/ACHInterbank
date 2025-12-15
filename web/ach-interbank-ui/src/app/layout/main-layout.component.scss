@@ -20,7 +20,7 @@
 }
 
 .sidebar {
-  background: #0f172a;
+  background: var(--sidebar-bg, #0f172a);
   color: #e2e8f0;
   padding: 1.5rem 1rem;
   display: grid;

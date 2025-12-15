@@ -40,6 +40,8 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   @HostBinding('style.--private-bg')
   public privateBackground: string | null = this.brandingService.getBrandingSnapshot().privateBackground ?? null;
+  @HostBinding('style.--sidebar-bg')
+  public sidebarBackground: string | null = this.brandingService.getBrandingSnapshot().sidebarBackground ?? null;
   @HostBinding('style.--button-color')
   public buttonColor: string | null = this.brandingService.getBrandingSnapshot().buttonColor ?? null;
 
@@ -75,6 +77,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
     this.brandingSubscription = this.brandingService.branding$.subscribe((branding) => {
       this.privateBackground = branding.privateBackground ?? null;
+      this.sidebarBackground = branding.sidebarBackground ?? null;
       this.buttonColor = branding.buttonColor ?? null;
       this.cdr.markForCheck();
     });
