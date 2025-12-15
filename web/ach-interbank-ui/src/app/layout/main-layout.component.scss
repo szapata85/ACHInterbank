@@ -32,6 +32,8 @@
   height: 100vh;
   z-index: 30;
   transition: transform 0.25s ease;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .session {
@@ -40,6 +42,8 @@
   background: rgba(255, 255, 255, 0.04);
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
+  position: sticky;
+  bottom: 1rem;
 }
 
 .session-title {
@@ -121,7 +125,9 @@
 .menu {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.3rem;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .menu-group {
@@ -141,13 +147,13 @@
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  padding: 0.75rem 1rem;
+  padding: 0.65rem 0.9rem;
   border-radius: 10px;
   color: #cbd5e1;
   text-decoration: none;
   transition: background 0.2s ease, color 0.2s ease;
-  line-height: 1.5;
-  min-height: 48px;
+  line-height: 1.45;
+  min-height: 44px;
 }
 
 .menu a:hover {
