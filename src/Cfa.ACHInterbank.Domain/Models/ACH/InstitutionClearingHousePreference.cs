@@ -13,6 +13,8 @@ public class InstitutionClearingHousePreference
 
     public bool IsDefault { get; set; } = false; // puede haber varias en true
     public int Priority { get; set; } = 1;       // 1 = mayor prioridad
+
+    public bool IsActive { get; set; } = true;
 }
 
 

@@ -9,6 +9,7 @@
     </div>
     <div class="actions">
       <button type="button" class="secondary" (click)="loadPreferences()" [disabled]="loading || saving">Recargar</button>
+      <button type="button" class="primary" (click)="startCreate()" [disabled]="saving">Nueva relación</button>
     </div>
   </div>
 
@@ -36,37 +37,92 @@
   </ng-template>
 </section>
 
-<section class="card">
-  <h3>Editar prioridad</h3>
-  <p class="hint" *ngIf="!editing">
-    Selecciona una fila para administrar la prioridad y marca predeterminada de la cámara compensadora.
-  </p>
+<section class="card forms">
+  <div>
+    <h3>Nueva relación</h3>
+    <p class="hint">Crea vínculos entre instituciones y cámaras compensadoras.</p>
 
-  <form [formGroup]="form" (ngSubmit)="save()" class="form-grid" *ngIf="editing">
-    <div class="summary">
-      <p class="label">Institución</p>
-      <p class="value">{{ editing.financialInstitutionName }}</p>
-      <p class="label">Cámara compensadora</p>
-      <p class="value">{{ editing.clearingHouseName }}</p>
-    </div>
+    <form [formGroup]="createForm" (ngSubmit)="create()" class="form-grid">
+      <label>
+        Institución
+        <select formControlName="financialInstitutionId">
+          <option [ngValue]="null">Selecciona institución</option>
+          <option *ngFor="let bank of financialInstitutions" [ngValue]="bank.id">{{ bank.description }}</option>
+        </select>
+        <app-error-message [control]="createForm.get('financialInstitutionId')"></app-error-message>
+      </label>
 
-    <label>
-      Prioridad
-      <select formControlName="priority">
-        <option *ngFor="let option of priorityOptions" [ngValue]="option.value">{{ option.label }}</option>
-      </select>
-      <small class="hint">Selecciona la prioridad usando las descripciones del catálogo.</small>
-      <app-error-message [control]="form.get('priority')"></app-error-message>
-    </label>
+      <label>
+        Cámara compensadora
+        <select formControlName="clearingHouseId">
+          <option [ngValue]="null">Selecciona cámara</option>
+          <option *ngFor="let house of clearingHouses" [ngValue]="house.id">{{ house.name }}</option>
+        </select>
+        <app-error-message [control]="createForm.get('clearingHouseId')"></app-error-message>
+      </label>
 
-    <label class="checkbox">
-      <input type="checkbox" formControlName="isDefault" />
-      <span>Marcar como predeterminada</span>
-    </label>
+      <label>
+        Prioridad
+        <select formControlName="priority">
+          <option *ngFor="let option of priorityOptions" [ngValue]="option.value">{{ option.label }}</option>
+        </select>
+        <small class="hint">Selecciona la prioridad usando las descripciones del catálogo.</small>
+        <app-error-message [control]="createForm.get('priority')"></app-error-message>
+      </label>
 
-    <div class="form-actions">
-      <button type="button" class="secondary" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
-      <button type="submit" class="primary" [disabled]="saving">Guardar cambios</button>
-    </div>
-  </form>
+      <label class="checkbox">
+        <input type="checkbox" formControlName="isDefault" />
+        <span>Marcar como predeterminada</span>
+      </label>
+
+      <label class="checkbox">
+        <input type="checkbox" formControlName="isActive" />
+        <span>Relación activa</span>
+      </label>
+
+      <div class="form-actions">
+        <button type="submit" class="primary" [disabled]="saving">Crear relación</button>
+      </div>
+    </form>
+  </div>
+
+  <div>
+    <h3>Editar relación</h3>
+    <p class="hint" *ngIf="!editing">
+      Selecciona una fila para administrar la prioridad, el estado y la marca predeterminada de la cámara compensadora.
+    </p>
+
+    <form [formGroup]="form" (ngSubmit)="save()" class="form-grid" *ngIf="editing">
+      <div class="summary">
+        <p class="label">Institución</p>
+        <p class="value">{{ editing.financialInstitutionName }}</p>
+        <p class="label">Cámara compensadora</p>
+        <p class="value">{{ editing.clearingHouseName }}</p>
+      </div>
+
+      <label>
+        Prioridad
+        <select formControlName="priority">
+          <option *ngFor="let option of priorityOptions" [ngValue]="option.value">{{ option.label }}</option>
+        </select>
+        <small class="hint">Selecciona la prioridad usando las descripciones del catálogo.</small>
+        <app-error-message [control]="form.get('priority')"></app-error-message>
+      </label>
+
+      <label class="checkbox">
+        <input type="checkbox" formControlName="isDefault" />
+        <span>Marcar como predeterminada</span>
+      </label>
+
+      <label class="checkbox">
+        <input type="checkbox" formControlName="isActive" />
+        <span>Relación activa</span>
+      </label>
+
+      <div class="form-actions">
+        <button type="button" class="secondary" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
+        <button type="submit" class="primary" [disabled]="saving">Guardar cambios</button>
+      </div>
+    </form>
+  </div>
 </section>

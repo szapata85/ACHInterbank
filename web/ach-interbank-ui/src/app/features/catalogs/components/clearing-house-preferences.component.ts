@@ -1,4 +1,4 @@
-import { NgIf } from '@angular/common';
+import { NgFor, NgIf } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -13,6 +13,10 @@ import { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
 import { FormBuilder, Validators } from '@angular/forms';
 import { Subject } from 'rxjs';
 import { finalize, takeUntil } from 'rxjs/operators';
+import { CatalogsApiService } from '../services/catalogs-api.service';
+import { CatalogItem } from '../models/catalog.model';
+import { ClearingHousesApiService } from '../../ach-cycles/services/ach-cycles-api.service';
+import { ClearingHouseOption } from '../../ach-cycles/models/ach-cycle.model';
 import { SharedModule } from '../../../shared/shared.module';
 import { InstitutionClearingHousePreference } from '../models/institution-clearing-house-preference.model';
 import { InstitutionClearingHousePreferencesService } from '../services/institution-clearing-house-preferences.service';
@@ -22,7 +26,7 @@ import { InstitutionClearingHousePreferencesService } from '../services/institut
   templateUrl: './clearing-house-preferences.component.html',
   styleUrls: ['./clearing-house-preferences.component.scss'],
   standalone: true,
-  imports: [SharedModule, NgIf, AgGridModule],
+  imports: [SharedModule, NgIf, NgFor, AgGridModule],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
@@ -30,8 +34,12 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly zone = inject(NgZone);
+  private readonly catalogsApi = inject(CatalogsApiService);
+  private readonly clearingHouseApi = inject(ClearingHousesApiService);
 
   preferences: InstitutionClearingHousePreference[] = [];
+  financialInstitutions: CatalogItem[] = [];
+  clearingHouses: ClearingHouseOption[] = [];
   loading = false;
   saving = false;
   editing: InstitutionClearingHousePreference | null = null;
@@ -74,9 +82,21 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
       }
     },
     {
+      field: 'isActive',
+      headerName: 'Estado',
+      maxWidth: 140,
+      cellRenderer: (params) => {
+        const pill = document.createElement('span');
+        pill.classList.add('pill');
+        pill.innerText = params.value ? 'Activa' : 'Inactiva';
+        pill.classList.add(params.value ? 'success' : 'muted');
+        return pill;
+      }
+    },
+    {
       headerName: 'Acciones',
       colId: 'actions',
-      maxWidth: 160,
+      maxWidth: 240,
       cellRenderer: (params) => {
         const container = document.createElement('div');
         container.classList.add('row-actions');
@@ -91,7 +111,25 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
           });
         });
 
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.classList.add('link');
+        toggle.innerText = params.data?.isActive ? 'Inactivar' : 'Activar';
+        toggle.addEventListener('click', () => {
+          this.zone.run(() => params.context?.componentParent?.toggleActive(params.data));
+        });
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.classList.add('link', 'danger');
+        remove.innerText = 'Eliminar';
+        remove.addEventListener('click', () => {
+          this.zone.run(() => params.context?.componentParent?.deletePreference(params.data));
+        });
+
         container.append(edit);
+        container.append(toggle);
+        container.append(remove);
         return container;
       }
     }
@@ -109,10 +147,20 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
 
   form = this.fb.nonNullable.group({
     priority: [1, [Validators.required]],
-    isDefault: [false]
+    isDefault: [false],
+    isActive: [true]
+  });
+
+  createForm = this.fb.nonNullable.group({
+    financialInstitutionId: [null as number | null, [Validators.required]],
+    clearingHouseId: [null as number | null, [Validators.required]],
+    priority: [1, [Validators.required]],
+    isDefault: [false],
+    isActive: [true]
   });
 
   ngOnInit(): void {
+    this.loadCatalogs();
     this.loadPreferences();
   }
 
@@ -152,13 +200,40 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
       });
   }
 
+  loadCatalogs(): void {
+    this.catalogsApi
+      .listBanks()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((banks) => {
+        this.financialInstitutions = banks;
+        this.cdr.markForCheck();
+      });
+
+    this.clearingHouseApi
+      .list()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((houses) => {
+        this.clearingHouses = houses;
+        this.cdr.markForCheck();
+      });
+  }
+
+  startCreate(): void {
+    this.editing = null;
+    this.form.reset({ priority: 1, isDefault: false, isActive: true });
+    this.createForm.reset({ priority: 1, isDefault: false, isActive: true });
+    this.cdr.markForCheck();
+  }
+
   startEdit(preference: InstitutionClearingHousePreference, markForCheck = true): void {
     this.editing = preference;
     this.ensurePriorityOption(preference.priority);
     this.form.reset({
       priority: preference.priority,
-      isDefault: preference.isDefault
+      isDefault: preference.isDefault,
+      isActive: preference.isActive
     });
+    this.createForm.reset({ priority: 1, isDefault: false, isActive: true });
     if (markForCheck) {
       this.cdr.markForCheck();
     }
@@ -166,7 +241,8 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
 
   cancelEdit(): void {
     this.editing = null;
-    this.form.reset({ priority: 1, isDefault: false });
+    this.form.reset({ priority: 1, isDefault: false, isActive: true });
+    this.createForm.reset({ priority: 1, isDefault: false, isActive: true });
     this.cdr.markForCheck();
   }
 
@@ -198,6 +274,67 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
       .subscribe((updated) => {
         this.preferences = this.preferences.map((pref) => (pref.id === updated.id ? updated : pref));
         this.startEdit(updated, false);
+      });
+  }
+
+  create(): void {
+    if (this.createForm.invalid) {
+      this.createForm.markAllAsTouched();
+      return;
+    }
+
+    this.saving = true;
+    this.service
+      .create(this.createForm.getRawValue())
+      .pipe(
+        finalize(() => {
+          this.saving = false;
+          this.cdr.markForCheck();
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((created) => {
+        this.preferences = [...this.preferences, created];
+        this.updateGridOverlays();
+        this.startEdit(created, false);
+      });
+  }
+
+  toggleActive(preference: InstitutionClearingHousePreference): void {
+    const payload = { ...preference, isActive: !preference.isActive };
+    this.saving = true;
+    this.service
+      .update(preference.id, payload)
+      .pipe(
+        finalize(() => {
+          this.saving = false;
+          this.cdr.markForCheck();
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((updated) => {
+        this.preferences = this.preferences.map((pref) => (pref.id === updated.id ? updated : pref));
+        this.startEdit(updated, false);
+      });
+  }
+
+  deletePreference(preference: InstitutionClearingHousePreference): void {
+    this.saving = true;
+    this.service
+      .delete(preference.id)
+      .pipe(
+        finalize(() => {
+          this.saving = false;
+          this.cdr.markForCheck();
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe(() => {
+        this.preferences = this.preferences.filter((pref) => pref.id !== preference.id);
+        if (this.editing?.id === preference.id) {
+          this.editing = null;
+        }
+        this.updateGridOverlays();
       });
   }
 

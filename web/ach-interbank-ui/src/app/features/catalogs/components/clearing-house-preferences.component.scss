@@ -72,6 +72,10 @@
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+
+  .danger {
+    color: #b91c1c;
+  }
 }
 
 .empty {
@@ -92,6 +96,11 @@
   align-items: start;
   max-width: 860px;
   margin-top: 0.5rem;
+}
+
+.forms {
+  display: grid;
+  gap: 1.5rem;
 }
 
 .form-grid label {

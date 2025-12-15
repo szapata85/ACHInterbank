@@ -6,4 +6,5 @@ export interface InstitutionClearingHousePreference {
   clearingHouseName: string;
   isDefault: boolean;
   priority: number;
+  isActive: boolean;
 }

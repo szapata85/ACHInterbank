@@ -16,6 +16,7 @@ public class InstitutionClearingHousePreferenceConfiguration : IEntityTypeConfig
 
         builder.Property(x => x.IsDefault).HasDefaultValue(false);
         builder.Property(x => x.Priority).HasDefaultValue(1);
+        builder.Property(x => x.IsActive).HasDefaultValue(true);
 
         builder.HasOne(x => x.FinancialInstitution)
          .WithMany(fi => fi.ClearingHousePreferences)

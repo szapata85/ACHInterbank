@@ -9,4 +9,5 @@ public class InstitutionClearingHousePreferenceDto
     public string ClearingHouseName { get; set; } = null!;
     public bool IsDefault { get; set; }
     public int Priority { get; set; }
+    public bool IsActive { get; set; }
 }
