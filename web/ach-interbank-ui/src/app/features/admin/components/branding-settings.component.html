@@ -5,6 +5,15 @@
     pueden ser PNG o SVG, y los colores aceptan cualquier valor compatible con CSS (hexadecimal, rgb, degradados).
   </p>
 
+  <aside class="requirements">
+    <p class="requirements__title">Requisitos sugeridos para el logo</p>
+    <ul>
+      <li>Formato PNG o SVG con fondo transparente.</li>
+      <li>Dimensiones recomendadas: 240 × 80 px (proporción 3:1) para verse nítido en los encabezados.</li>
+      <li>Peso máximo sugerido: 300 KB.</li>
+    </ul>
+  </aside>
+
   <div class="grid">
     <section class="panel">
       <header>
@@ -14,6 +23,18 @@
         </div>
         <button type="button" class="ghost" (click)="removeLogo('public')">Quitar</button>
       </header>
+
+      <div class="current">
+        <p class="current__label">Logo actual</p>
+        <div class="preview current__preview" *ngIf="branding$ | async as branding">
+          <ng-container *ngIf="branding.publicLogo; else currentPublicPlaceholder">
+            <img [src]="branding.publicLogo" alt="Logo público actual" />
+          </ng-container>
+        </div>
+        <ng-template #currentPublicPlaceholder>
+          <div class="placeholder current__preview">Se mostrará el texto ACH si no hay logo.</div>
+        </ng-template>
+      </div>
 
       <label class="upload">
         <input type="file" accept="image/*" (change)="onFileSelected($event, 'public')" />
@@ -46,6 +67,18 @@
         </div>
         <button type="button" class="ghost" (click)="removeLogo('private')">Quitar</button>
       </header>
+
+      <div class="current">
+        <p class="current__label">Logo actual</p>
+        <div class="preview current__preview" *ngIf="branding$ | async as branding">
+          <ng-container *ngIf="branding.privateLogo; else currentPrivatePlaceholder">
+            <img [src]="branding.privateLogo" alt="Logo privado actual" />
+          </ng-container>
+        </div>
+        <ng-template #currentPrivatePlaceholder>
+          <div class="placeholder current__preview">Se mostrará el texto ACH si no hay logo.</div>
+        </ng-template>
+      </div>
 
       <label class="upload">
         <input type="file" accept="image/*" (change)="onFileSelected($event, 'private')" />
