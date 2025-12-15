@@ -22,6 +22,8 @@ import {
 })
 export class FinancialInstitutionsComponent implements OnInit {
   readonly statusEnum = FinancialInstitutionStatusEnum;
+  readonly pageSizeOptions = [10, 25, 50];
+  readonly pageSize = this.pageSizeOptions[0];
 
   private readonly service = inject(FinancialInstitutionAdminService);
   private readonly fb = inject(FormBuilder);
