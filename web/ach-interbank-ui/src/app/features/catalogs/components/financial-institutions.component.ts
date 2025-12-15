@@ -1,4 +1,4 @@
-import { AsyncPipe, NgFor, NgIf } from '@angular/common';
+import { NgFor, NgIf } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -15,7 +15,7 @@ import {
   templateUrl: './financial-institutions.component.html',
   styleUrls: ['./financial-institutions.component.scss'],
   standalone: true,
-  imports: [SharedModule, NgFor, NgIf, AsyncPipe],
+  imports: [SharedModule, NgFor, NgIf],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class FinancialInstitutionsComponent implements OnInit {
