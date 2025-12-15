@@ -1,4 +1,4 @@
-import { NgFor, NgIf } from '@angular/common';
+import { NgIf } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { AgGridModule } from 'ag-grid-angular';
 import { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
@@ -17,7 +17,7 @@ import {
   templateUrl: './financial-institutions.component.html',
   styleUrls: ['./financial-institutions.component.scss'],
   standalone: true,
-  imports: [SharedModule, NgFor, NgIf, AgGridModule],
+  imports: [SharedModule, NgIf, AgGridModule],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class FinancialInstitutionsComponent implements OnInit {
