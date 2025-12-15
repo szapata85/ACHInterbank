@@ -1,6 +1,11 @@
 <div class="login-layout">
-  <header class="hero">
-    <div class="logo">ACH</div>
+  <header class="hero" *ngIf="branding$ | async as branding">
+    <div class="logo" [class.with-image]="branding.publicLogo">
+      <ng-container *ngIf="branding.publicLogo; else defaultPublicLogo">
+        <img [src]="branding.publicLogo" alt="Logo de la aplicación" />
+      </ng-container>
+      <ng-template #defaultPublicLogo>ACH</ng-template>
+    </div>
     <div>
       <p class="title">ACH Interbank</p>
       <small>Acceso seguro al portal</small>

@@ -1,7 +1,7 @@
 :host {
   display: block;
   min-height: 100vh;
-  background: #f8fafc;
+  background: var(--private-bg, #f8fafc);
   color: #0f172a;
 }
 
@@ -20,7 +20,7 @@
 }
 
 .sidebar {
-  background: #0f172a;
+  background: var(--sidebar-bg, #0f172a);
   color: #e2e8f0;
   padding: 1.5rem 1rem;
   display: grid;
@@ -115,6 +115,19 @@
   font-weight: 800;
   letter-spacing: 0.5px;
   color: #fff;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+  &.with-image {
+    background: #0f172a;
+    padding: 4px;
+  }
 }
 
 .title {
@@ -369,8 +382,8 @@
 }
 
 button {
-  border: 1px solid #cbd5e1;
-  background: #0ea5e9;
+  border: 1px solid var(--button-color, #0ea5e9);
+  background: var(--button-color, #0ea5e9);
   color: #ffffff;
   padding: 0.45rem 0.85rem;
   border-radius: 8px;

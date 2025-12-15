@@ -53,3 +53,10 @@
   color: #b91c1c;
   font-weight: 600;
 }
+
+button.ghost {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  padding: 0.5rem 0.9rem;
+  border-radius: 0.5rem;
+}

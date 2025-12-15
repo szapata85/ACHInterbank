@@ -33,7 +33,7 @@ label {
 }
 
 button.primary {
-  background: #2563eb;
+  background: var(--button-color, #2563eb);
   color: white;
   border: none;
   padding: 0.5rem 1rem;

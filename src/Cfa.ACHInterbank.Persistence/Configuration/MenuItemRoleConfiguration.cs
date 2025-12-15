@@ -60,6 +60,11 @@ public class MenuItemRoleConfiguration : IEntityTypeConfiguration<MenuItemRole>
             {
                 MenuItemId = MenuItemConfiguration.NavigationAdminId,
                 RoleId = RoleConfiguration.AdminRoleId
+            },
+            new MenuItemRole
+            {
+                MenuItemId = MenuItemConfiguration.BrandingId,
+                RoleId = RoleConfiguration.AdminRoleId
             });
     }
 }
