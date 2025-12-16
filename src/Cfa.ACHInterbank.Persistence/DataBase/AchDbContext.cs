@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Domain.Entities.Navigation;
+using Cfa.ACHInterbank.Domain.Entities.Branding;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Services;
 using Cfa.ACHInterbank.Domain.Entities.User;
@@ -55,6 +56,7 @@ public class AchDbContext : DbContext
     public DbSet<MenuItemPermission> MenuItemPermissions => Set<MenuItemPermission>();
 
     public DbSet<DigitalEnvelopeCertificate> DigitalEnvelopeCertificates => Set<DigitalEnvelopeCertificate>();
+    public DbSet<BrandingSetting> BrandingSettings => Set<BrandingSetting>();
 
 
 

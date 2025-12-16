@@ -3,6 +3,7 @@ import { SharedModule } from '../../../shared/shared.module';
 import { BrandingService } from '../../../core/services/branding.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { BrandingSettings } from '../../../core/models/branding.model';
+import { finalize } from 'rxjs/operators';
 
 @Component({
   selector: 'app-branding-settings',
@@ -29,6 +30,7 @@ export class BrandingSettingsComponent {
   privateBackground: string | null = this.brandingService.getBrandingSnapshot().privateBackground ?? null;
   sidebarBackground: string | null = this.brandingService.getBrandingSnapshot().sidebarBackground ?? null;
   buttonColor: string | null = this.brandingService.getBrandingSnapshot().buttonColor ?? null;
+  isSaving = false;
 
   get publicBackgroundPreview(): string {
     return this.publicBackground ?? 'linear-gradient(135deg, #0ea5e9, #0f172a)';
@@ -150,7 +152,13 @@ export class BrandingSettingsComponent {
       buttonColor: this.buttonColor
     };
 
-    this.brandingService.updateBranding(payload);
-    this.notifications.success('Identidad actualizada');
+    this.isSaving = true;
+    this.brandingService
+      .updateBranding(payload)
+      .pipe(finalize(() => (this.isSaving = false)))
+      .subscribe({
+        next: () => this.notifications.success('Identidad actualizada'),
+        error: () => this.notifications.error('No fue posible actualizar la identidad')
+      });
   }
 }
