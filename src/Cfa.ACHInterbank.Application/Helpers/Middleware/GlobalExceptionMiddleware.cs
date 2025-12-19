@@ -3,6 +3,7 @@ using System.Text;
 using Cfa.ACHInterbank.Application.Features;
 using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
 using Newtonsoft.Json;
 
 namespace Cfa.ACHInterbank.Application.Helpers.Middleware;
