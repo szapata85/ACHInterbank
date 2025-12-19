@@ -52,12 +52,12 @@ public class BrandingController : ControllerBase
             _dbContext.BrandingSettings.Add(branding);
         }
 
-        branding.PublicLogo = request.PublicLogo;
-        branding.PrivateLogo = request.PrivateLogo;
-        branding.PublicBackground = request.PublicBackground;
-        branding.PrivateBackground = request.PrivateBackground;
-        branding.SidebarBackground = request.SidebarBackground;
-        branding.ButtonColor = request.ButtonColor;
+        branding.PublicLogo = request.PublicLogo ?? branding.PublicLogo;
+        branding.PrivateLogo = request.PrivateLogo ?? branding.PrivateLogo;
+        branding.PublicBackground = request.PublicBackground ?? branding.PublicBackground;
+        branding.PrivateBackground = request.PrivateBackground ?? branding.PrivateBackground;
+        branding.SidebarBackground = request.SidebarBackground ?? branding.SidebarBackground;
+        branding.ButtonColor = request.ButtonColor ?? branding.ButtonColor;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 

@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, inject } from '@angular/core';
 import { SharedModule } from '../../../shared/shared.module';
 import { BrandingService } from '../../../core/services/branding.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { BrandingSettings } from '../../../core/models/branding.model';
 import { finalize } from 'rxjs/operators';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-branding-settings',
@@ -13,11 +14,12 @@ import { finalize } from 'rxjs/operators';
   styleUrls: ['./branding-settings.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class BrandingSettingsComponent {
+export class BrandingSettingsComponent implements OnDestroy {
   private readonly brandingService = inject(BrandingService);
   private readonly notifications = inject(NotificationService);
 
   readonly branding$ = this.brandingService.branding$;
+  private readonly brandingSubscription: Subscription;
 
   private readonly defaultPublicBackground = '#0ea5e9';
   private readonly defaultPrivateBackground = '#f8fafc';
@@ -31,6 +33,17 @@ export class BrandingSettingsComponent {
   sidebarBackground: string | null = this.brandingService.getBrandingSnapshot().sidebarBackground ?? null;
   buttonColor: string | null = this.brandingService.getBrandingSnapshot().buttonColor ?? null;
   isSaving = false;
+
+  constructor() {
+    this.brandingSubscription = this.brandingService.branding$.subscribe((branding) => {
+      this.publicLogoPreview = branding.publicLogo;
+      this.privateLogoPreview = branding.privateLogo;
+      this.publicBackground = branding.publicBackground ?? null;
+      this.privateBackground = branding.privateBackground ?? null;
+      this.sidebarBackground = branding.sidebarBackground ?? null;
+      this.buttonColor = branding.buttonColor ?? null;
+    });
+  }
 
   get publicBackgroundPreview(): string {
     return this.publicBackground ?? 'linear-gradient(135deg, #0ea5e9, #0f172a)';
@@ -160,5 +173,9 @@ export class BrandingSettingsComponent {
         next: () => this.notifications.success('Identidad actualizada'),
         error: () => this.notifications.error('No fue posible actualizar la identidad')
       });
+  }
+
+  ngOnDestroy(): void {
+    this.brandingSubscription.unsubscribe();
   }
 }
