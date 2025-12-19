@@ -3,12 +3,10 @@ import { BehaviorSubject, Observable, catchError, map, of, tap } from 'rxjs';
 import { BrandingSettings } from '../models/branding.model';
 import { ApiService } from './api.service';
 
-const STORAGE_KEY = 'ach-branding-settings';
-
 @Injectable({ providedIn: 'root' })
 export class BrandingService {
   private readonly api = inject(ApiService);
-  private readonly brandingSubject = new BehaviorSubject<BrandingSettings>(this.loadFromStorage());
+  private readonly brandingSubject = new BehaviorSubject<BrandingSettings>({});
   readonly branding$: Observable<BrandingSettings> = this.brandingSubject.asObservable();
 
   constructor() {
@@ -33,41 +31,15 @@ export class BrandingService {
       map((settings) => settings ?? {}),
       tap((settings) => this.persistBranding(settings)),
       catchError(() => {
-        const stored = this.loadFromStorage();
-        this.brandingSubject.next(stored);
-        return of(stored);
+        const fallback = this.brandingSubject.value;
+        this.brandingSubject.next(fallback);
+        return of(fallback);
       })
     );
-  }
-
-  private loadFromStorage(): BrandingSettings {
-    if (typeof localStorage === 'undefined') {
-      return {};
-    }
-
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) {
-      return {};
-    }
-
-    try {
-      return JSON.parse(stored) as BrandingSettings;
-    } catch {
-      return {};
-    }
-  }
-
-  private saveToStorage(settings: BrandingSettings): void {
-    if (typeof localStorage === 'undefined') {
-      return;
-    }
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   }
 
   private persistBranding(settings: BrandingSettings): void {
     const next: BrandingSettings = { ...this.brandingSubject.value, ...settings };
     this.brandingSubject.next(next);
-    this.saveToStorage(next);
   }
 }
