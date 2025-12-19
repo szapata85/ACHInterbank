@@ -11,10 +11,10 @@ public class CertificateInfo
 {
 
     [XmlElement(ElementName = "issuer")]
-    public string Issuer { get; set; }
+    public string Issuer { get; set; } = string.Empty;
 
     [XmlElement(ElementName = "serial")]
-    public string Serial { get; set; }
+    public string Serial { get; set; } = string.Empty;
 }
 
 [XmlRoot(ElementName = "recipientInfo")]
@@ -22,13 +22,13 @@ public class RecipientInfo
 {
 
     [XmlElement(ElementName = "certificateInfo")]
-    public CertificateInfo CertificateInfo { get; set; }
+    public CertificateInfo CertificateInfo { get; set; } = new();
 
     [XmlElement(ElementName = "keyEncryptionAlgorithm")]
-    public string KeyEncryptionAlgorithm { get; set; }
+    public string KeyEncryptionAlgorithm { get; set; } = string.Empty;
 
     [XmlElement(ElementName = "encryptedKey")]
-    public string EncryptedKey { get; set; }
+    public string EncryptedKey { get; set; } = string.Empty;
 }
 
 [XmlRoot(ElementName = "encryptedContentInfo")]
@@ -36,13 +36,13 @@ public class EncryptedContentInfo
 {
 
     [XmlElement(ElementName = "contentType")]
-    public string ContentType { get; set; }
+    public string ContentType { get; set; } = string.Empty;
 
     [XmlElement(ElementName = "contentEncryptionAlgorithm")]
-    public string ContentEncryptionAlgorithm { get; set; }
+    public string ContentEncryptionAlgorithm { get; set; } = string.Empty;
 
     [XmlElement(ElementName = "encryptedContent")]
-    public string EncryptedContent { get; set; }
+    public string EncryptedContent { get; set; } = string.Empty;
 }
 
 [XmlRoot(ElementName = "envelope")]
@@ -53,14 +53,14 @@ public class DigitalEnvelopeModel
     public int Version { get; set; }
 
     [XmlElement(ElementName = "identifier")]
-    public string Identifier { get; set; }
+    public string Identifier { get; set; } = string.Empty;
 
     [XmlElement(ElementName = "timestamp")]
-    public string Timestamp { get; set; }
+    public string Timestamp { get; set; } = string.Empty;
 
     [XmlElement(ElementName = "recipientInfo")]
-    public RecipientInfo RecipientInfo { get; set; }
+    public RecipientInfo RecipientInfo { get; set; } = new();
 
     [XmlElement(ElementName = "encryptedContentInfo")]
-    public EncryptedContentInfo EncryptedContentInfo { get; set; }
+    public EncryptedContentInfo EncryptedContentInfo { get; set; } = new();
 }
