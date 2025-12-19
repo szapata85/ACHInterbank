@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 using Cfa.ACHInterbank.Application.Features;
 using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
 using Microsoft.AspNetCore.Http;
@@ -26,7 +27,31 @@ public class GlobalExceptionMiddleware
         catch (Exception ex)
         {
             _logger.LogError($"Unhandled exception: {ex.Message} - {ex.StackTrace}");
+            await WriteCrashLogAsync(context, ex);
             await HandleExceptionAsync(context, ex);
+        }
+    }
+
+    private static async Task WriteCrashLogAsync(HttpContext context, Exception exception)
+    {
+        try
+        {
+            var logPath = Path.Combine(AppContext.BaseDirectory, "crash.log");
+            var message = new StringBuilder()
+                .AppendLine($"[{DateTimeOffset.UtcNow:O}] Unhandled exception")
+                .AppendLine($"Method: {context.Request.Method}")
+                .AppendLine($"Path: {context.Request.Path}")
+                .AppendLine($"Query: {context.Request.QueryString}")
+                .AppendLine($"Message: {exception.Message}")
+                .AppendLine(exception.StackTrace)
+                .AppendLine(new string('-', 80))
+                .ToString();
+
+            await File.AppendAllTextAsync(logPath, message);
+        }
+        catch
+        {
+            // Avoid throwing from logging.
         }
     }
 
