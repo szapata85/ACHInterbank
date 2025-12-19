@@ -170,7 +170,12 @@ export class BrandingSettingsComponent implements OnDestroy {
       .updateBranding(payload)
       .pipe(finalize(() => (this.isSaving = false)))
       .subscribe({
-        next: () => this.notifications.success('Identidad actualizada'),
+        next: () => {
+          this.notifications.success('Identidad actualizada');
+          if (typeof window !== 'undefined') {
+            window.location.reload();
+          }
+        },
         error: () => this.notifications.error('No fue posible actualizar la identidad')
       });
   }
