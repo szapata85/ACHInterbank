@@ -88,8 +88,8 @@ public class RsaKeyProvider : IRsaKeyProvider
         try
         {
             return string.IsNullOrWhiteSpace(stored.Password)
-                ? new X509Certificate2(stored.RawData)
-                : new X509Certificate2(stored.RawData, stored.Password, X509KeyStorageFlags.MachineKeySet);
+                ? X509CertificateLoader.LoadCertificate(stored.RawData)
+                : X509CertificateLoader.LoadPkcs12(stored.RawData, stored.Password, X509KeyStorageFlags.MachineKeySet);
         }
         catch
         {

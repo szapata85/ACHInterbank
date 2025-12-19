@@ -38,8 +38,8 @@ public class MapperProfile : Profile
 
 public static class MapperBootstrapper
 {
-    private static IMapper _instance;
-    public static IMapper Instance => _instance;
+    private static IMapper? _instance;
+    public static IMapper Instance => _instance ?? throw new InvalidOperationException("MapperProfile has not been configured.");
 
     public static void Configure(ILoggerFactory loggerFactory)
     {
@@ -53,4 +53,3 @@ public static class MapperBootstrapper
         }
     }
 }
-

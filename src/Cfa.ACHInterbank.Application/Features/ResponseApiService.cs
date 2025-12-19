@@ -4,7 +4,7 @@ namespace Cfa.ACHInterbank.Application.Features;
 
 public static class ResponseApiService
 {
-    public static BaseResponseModel Response(int statusCode, object Data = null, string message = null)
+    public static BaseResponseModel Response(int statusCode, object? data = null, string? message = null)
     {
         bool sucess = false;
 
@@ -16,7 +16,7 @@ public static class ResponseApiService
             StatusCode = statusCode,
             Sucess = sucess,
             Message = message,
-            Data = Data
+            Data = data
         };
 
         return result;

@@ -47,8 +47,8 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
         try
         {
             certificate = string.IsNullOrWhiteSpace(request.Password)
-                ? new X509Certificate2(rawData)
-                : new X509Certificate2(rawData, request.Password, X509KeyStorageFlags.MachineKeySet);
+                ? X509CertificateLoader.LoadCertificate(rawData)
+                : X509CertificateLoader.LoadPkcs12(rawData, request.Password, X509KeyStorageFlags.MachineKeySet);
         }
         catch (CryptographicException)
         {
