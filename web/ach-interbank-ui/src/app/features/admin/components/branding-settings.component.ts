@@ -26,6 +26,7 @@ export class BrandingSettingsComponent implements OnDestroy {
   private readonly defaultSidebarBackground = '#0f172a';
   private readonly defaultButtonColor = '#0ea5e9';
   private readonly maxLogoBytes = 300 * 1024;
+  private readonly allowedLogoTypes = ['image/png', 'image/svg+xml'];
 
   publicLogoPreview: string | null | undefined = this.brandingService.getBrandingSnapshot().publicLogo;
   privateLogoPreview: string | null | undefined = this.brandingService.getBrandingSnapshot().privateLogo;
@@ -86,8 +87,8 @@ export class BrandingSettingsComponent implements OnDestroy {
       return;
     }
 
-    if (!file.type.startsWith('image/')) {
-      this.notifications.error('Solo se permiten archivos de imagen');
+    if (!this.allowedLogoTypes.includes(file.type)) {
+      this.notifications.error('Solo se permiten logos PNG o SVG');
       target.value = '';
       return;
     }
