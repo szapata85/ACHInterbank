@@ -11,11 +11,13 @@ public class GlobalExceptionMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILoggerManager _logger;
+    private readonly IHostEnvironment _environment;
 
-    public GlobalExceptionMiddleware(RequestDelegate next, ILoggerManager logger)
+    public GlobalExceptionMiddleware(RequestDelegate next, ILoggerManager logger, IHostEnvironment environment)
     {
         _next = next;
         _logger = logger;
+        _environment = environment;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -32,11 +34,17 @@ public class GlobalExceptionMiddleware
         }
     }
 
-    private static async Task WriteCrashLogAsync(HttpContext context, Exception exception)
+    private async Task WriteCrashLogAsync(HttpContext context, Exception exception)
     {
         try
         {
-            var logPath = Path.Combine(AppContext.BaseDirectory, "crash.log");
+            var logPath = Path.Combine(_environment.ContentRootPath, "crash.log");
+            var directory = Path.GetDirectoryName(logPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
             var message = new StringBuilder()
                 .AppendLine($"[{DateTimeOffset.UtcNow:O}] Unhandled exception")
                 .AppendLine($"Method: {context.Request.Method}")
