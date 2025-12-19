@@ -25,6 +25,8 @@ export class BrandingSettingsComponent implements OnDestroy {
   private readonly defaultPrivateBackground = '#f8fafc';
   private readonly defaultSidebarBackground = '#0f172a';
   private readonly defaultButtonColor = '#0ea5e9';
+  private readonly maxLogoBytes = 300 * 1024;
+  private readonly allowedLogoTypes = ['image/png', 'image/svg+xml'];
 
   publicLogoPreview: string | null | undefined = this.brandingService.getBrandingSnapshot().publicLogo;
   privateLogoPreview: string | null | undefined = this.brandingService.getBrandingSnapshot().privateLogo;
@@ -85,8 +87,14 @@ export class BrandingSettingsComponent implements OnDestroy {
       return;
     }
 
-    if (!file.type.startsWith('image/')) {
-      this.notifications.error('Solo se permiten archivos de imagen');
+    if (!this.allowedLogoTypes.includes(file.type)) {
+      this.notifications.error('Solo se permiten logos PNG o SVG');
+      target.value = '';
+      return;
+    }
+
+    if (file.size > this.maxLogoBytes) {
+      this.notifications.error('El logo supera el tamaño máximo permitido (300 KB)');
       target.value = '';
       return;
     }
@@ -170,7 +178,12 @@ export class BrandingSettingsComponent implements OnDestroy {
       .updateBranding(payload)
       .pipe(finalize(() => (this.isSaving = false)))
       .subscribe({
-        next: () => this.notifications.success('Identidad actualizada'),
+        next: () => {
+          this.notifications.success('Identidad actualizada');
+          if (typeof window !== 'undefined') {
+            window.location.reload();
+          }
+        },
         error: () => this.notifications.error('No fue posible actualizar la identidad')
       });
   }

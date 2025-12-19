@@ -131,6 +131,7 @@ public static class DependencyInjectionService
             c.RoutePrefix = string.Empty;
         });
 
+        app.UseMiddleware<GlobalExceptionMiddleware>();
 
         //// Configurar el middleware de autenticación MTLS
         //app.Use(async (context, next) =>
@@ -190,7 +191,6 @@ public static class DependencyInjectionService
 
             await next();
         });
-        app.UseMiddleware<GlobalExceptionMiddleware>();
         // Middleware Waf
         app.UseMiddleware<WafMiddleware>();
         // Middleware Log
