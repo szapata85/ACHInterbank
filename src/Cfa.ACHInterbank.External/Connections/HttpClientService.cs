@@ -20,7 +20,7 @@ public class HttpClientService : IHttpClientService
         _logger = logger;
     }
 
-    public async Task<T> SendPostRequestAsync<T>(string url, object content, HttpMethod method, TypeBody typeBody, string token = "")
+    public async Task<T> SendPostRequestAsync<T>(string url, object content, HttpMethod method, TypeBody typeBody, string? token = null)
     {
         try
         {

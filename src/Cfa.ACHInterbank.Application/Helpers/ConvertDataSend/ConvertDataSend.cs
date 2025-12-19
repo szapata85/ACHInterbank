@@ -16,9 +16,9 @@ public static class ConvertDataSend
 
         if (request != null)
         {
-            XChannel = request.Headers["Canal"];
-            Ip = AddressIp.AddressIp.GetAddressIp(request);
-            headerClientId = request.Headers["IdSesion"];
+            XChannel = request.Headers["Canal"].ToString();
+            Ip = AddressIp.AddressIp.GetAddressIp(request) ?? string.Empty;
+            headerClientId = request.Headers["IdSesion"].ToString();
 
             if (!string.IsNullOrEmpty(headerClientId))
                 model.Controller = new ControllerModel { Controlador = controller, Entidad = entidad, IdSession = clientId, Ip = Ip, Documento = documento, Canal = XChannel };
