@@ -20,6 +20,7 @@ public class AchDbContext : DbContext
     public DbSet<AchTransactionAddenda> AchTransactionAddendas { get; set; }
     public DbSet<FinancialInstitution> FinancialInstitutions { get; set; }
     public DbSet<BankHolidayModel> BankHolidays { get; set; }
+    public DbSet<ClearingHouseSpecialDate> ClearingHouseSpecialDates { get; set; }
     public DbSet<ClearingHouseConfig> ClearingHouseConfigs { get; set; }
     public DbSet<ClearingHouseCycleConfig> ClearingHouseCycleConfigs { get; set; }
 

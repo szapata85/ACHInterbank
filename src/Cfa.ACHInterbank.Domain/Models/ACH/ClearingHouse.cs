@@ -16,4 +16,5 @@ public class ClearingHouse
 
     public virtual ICollection<AchCycle> AchCycles { get; set; } = new List<AchCycle>();
     public virtual ICollection<FinancialInstitution> FinancialInstitutions { get; set; } = new List<FinancialInstitution>();
+    public virtual ICollection<ClearingHouseSpecialDate> SpecialDates { get; set; } = new List<ClearingHouseSpecialDate>();
 }

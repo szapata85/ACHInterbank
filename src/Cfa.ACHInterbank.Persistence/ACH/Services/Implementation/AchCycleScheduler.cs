@@ -77,17 +77,23 @@ public class AchCycleScheduler : IAchCycleScheduler
 
 
 
-        // Festivos para ese año
+        // Festivos y fechas especiales de la cámara para ese año
         var holidays = await _context.BankHolidays
             .Where(h => h.Date.Year == processingDate.Year)
             .Select(h => h.Date)
             .ToListAsync();
 
+        var specialDates = await _context.ClearingHouseSpecialDates
+            .Where(d => d.ClearingHouseId == clearingHouseId && d.Date.Year == processingDate.Year)
+            .Select(d => d.Date)
+            .ToListAsync();
+
         // Saltar si la fecha no es hábil
         if (processingDate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ||
-            holidays.Contains(DateOnly.FromDateTime(processingDate)))
+            holidays.Contains(DateOnly.FromDateTime(processingDate)) ||
+            specialDates.Contains(DateOnly.FromDateTime(processingDate)))
         {
-            throw new InvalidOperationException("La fecha indicada no es un día hábil.");
+            return;
         }
 
         // Crear los ciclos para la fecha indicada según la configuración
