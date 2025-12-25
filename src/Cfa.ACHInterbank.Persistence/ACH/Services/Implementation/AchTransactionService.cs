@@ -92,10 +92,14 @@ public class AchTransactionService : IAchTransactionService
         if (destinationBase.Length != 8)
             throw new InvalidOperationException($"La institución destino tiene una longitud inválida para el ruteo: {destinationBase}.");
 
-        // 3) Ruteo + próxima fecha hábil
+        // 3) Ruteo + fecha efectiva alineada al ciclo ACH
         var now = DateTime.Now;
         string achCycleId = await _routing.ResolveClearingHouseForTransactionAsync(destinationInstitutionId, now, ct);
-        DateTime effectiveEntryDate = await GetNextBusinessDayAsync(now, ct);
+        var cycle = await _context.AchCycles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == achCycleId, ct)
+            ?? throw new InvalidOperationException("No se encontró el ciclo ACH para la transacción.");
+        DateTime effectiveEntryDate = cycle.ProcessingDate.Date;
 
         // 4) Determinar/crear el lote (para este ciclo + compañía/identificación)
         string companyName = source.Name;
