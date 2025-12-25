@@ -18,7 +18,7 @@ public class ClearingHouseSpecialDateService : IClearingHouseSpecialDateService
 
     public async Task<IReadOnlyList<ClearingHouseSpecialDateDto>> GetAllAsync(int? year, CancellationToken ct = default)
     {
-        var query = _context.ClearingHouseSpecialDates
+        IQueryable<ClearingHouseSpecialDate> query = _context.ClearingHouseSpecialDates
             .AsNoTracking()
             .Include(d => d.ClearingHouse);
 
