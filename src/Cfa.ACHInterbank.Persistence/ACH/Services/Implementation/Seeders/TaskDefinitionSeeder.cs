@@ -47,8 +47,21 @@ public class TaskDefinitionSeeder : IDbSeeder
             });
         }
 
+        if (!_context.TaskDefinitions.Any(t => t.Code == "SeedBankHolidays"))
+        {
+            _context.TaskDefinitions.Add(new TaskDefinition
+            {
+                Code = "SeedBankHolidays",
+                Name = "Sembrar festivos (Ley Emiliani)",
+                PeriodicityType = PeriodicityTypeEnum.Cron,
+                CronExpression = "0 10 0 1 1 ? *",
+                TimeZoneId = "America/Bogota",
+                CalendarPolicy = CalendarPolicyEnum.IgnoreCalendar,
+                StartAt = new DateTimeOffset(2025, 1, 1, 0, 10, 0, new TimeSpan(-5, 0, 0))
+            });
+        }
+
         await _context.SaveChangesAsync();
         _context.ChangeTracker.AutoDetectChangesEnabled = true;
     }
 }
-
