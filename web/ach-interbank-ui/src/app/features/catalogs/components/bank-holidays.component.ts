@@ -1,13 +1,5 @@
 import { NgIf } from '@angular/common';
-import {
-  ChangeDetectionStrategy,
-  ChangeDetectorRef,
-  Component,
-  NgZone,
-  OnDestroy,
-  OnInit,
-  inject
-} from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, NgZone, OnDestroy, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { AgGridModule } from 'ag-grid-angular';
 import { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
@@ -25,7 +17,7 @@ import { BankHolidaysAdminService } from '../services/bank-holidays-admin.servic
   imports: [SharedModule, NgIf, AgGridModule],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class BankHolidaysComponent implements OnInit, OnDestroy {
+export class BankHolidaysComponent implements OnDestroy {
   private readonly service = inject(BankHolidaysAdminService);
   private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -35,6 +27,7 @@ export class BankHolidaysComponent implements OnInit, OnDestroy {
   loading = false;
   saving = false;
   showForm = false;
+  hasSearched = false;
   editing: BankHoliday | null = null;
   gridApi?: GridApi<BankHoliday>;
   private readonly destroy$ = new Subject<void>();
@@ -93,15 +86,15 @@ export class BankHolidaysComponent implements OnInit, OnDestroy {
   readonly noRowsTemplate = 'No hay festivos registrados.';
   readonly loadingTemplate = 'Cargando festivos...';
 
+  filterForm = this.fb.nonNullable.group({
+    year: [new Date().getFullYear(), [Validators.required, Validators.min(1900), Validators.max(2100)]]
+  });
+
   form = this.fb.nonNullable.group({
     date: ['', Validators.required],
     description: ['', [Validators.required, Validators.maxLength(200)]],
     countryCode: ['CO', [Validators.required, Validators.maxLength(5)]]
   });
-
-  ngOnInit(): void {
-    this.load();
-  }
 
   ngOnDestroy(): void {
     this.destroy$.next();
@@ -113,11 +106,12 @@ export class BankHolidaysComponent implements OnInit, OnDestroy {
     this.updateGridOverlays();
   }
 
-  load(): void {
+  load(year?: number): void {
     this.loading = true;
+    this.hasSearched = true;
     this.updateGridOverlays();
     this.service
-      .list()
+      .list(year)
       .pipe(
         finalize(() => {
           this.loading = false;
@@ -128,6 +122,16 @@ export class BankHolidaysComponent implements OnInit, OnDestroy {
         this.holidays = data;
         this.updateGridOverlays();
       });
+  }
+
+  search(): void {
+    if (this.filterForm.invalid) {
+      this.filterForm.markAllAsTouched();
+      return;
+    }
+
+    const { year } = this.filterForm.getRawValue();
+    this.load(year);
   }
 
   startCreate(): void {
@@ -188,7 +192,7 @@ export class BankHolidaysComponent implements OnInit, OnDestroy {
       )
       .subscribe(() => {
         this.cancelEdit();
-        this.load();
+        this.search();
       });
   }
 
@@ -207,7 +211,9 @@ export class BankHolidaysComponent implements OnInit, OnDestroy {
         })
       )
       .subscribe(() => {
-        this.load();
+        if (this.hasSearched) {
+          this.search();
+        }
       });
   }
 
@@ -216,7 +222,7 @@ export class BankHolidaysComponent implements OnInit, OnDestroy {
 
     if (this.loading) {
       this.gridApi.showLoadingOverlay();
-    } else if (!this.holidays.length) {
+    } else if (this.hasSearched && !this.holidays.length) {
       this.gridApi.showNoRowsOverlay();
     } else {
       this.gridApi.hideOverlay();
