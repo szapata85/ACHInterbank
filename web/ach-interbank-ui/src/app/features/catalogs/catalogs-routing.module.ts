@@ -31,6 +31,27 @@ const routes: Routes = [
       breadcrumb: 'Prioridades cámaras',
       title: 'Prioridades cámaras'
     }
+  },
+  {
+    path: 'bank-holidays',
+    loadComponent: () => import('./components/bank-holidays.component').then((m) => m.BankHolidaysComponent),
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['CanManageAch'],
+      breadcrumb: 'Festivos bancarios',
+      title: 'Festivos bancarios'
+    }
+  },
+  {
+    path: 'clearing-house-special-dates',
+    loadComponent: () =>
+      import('./components/clearing-house-special-dates.component').then((m) => m.ClearingHouseSpecialDatesComponent),
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['CanManageAch'],
+      breadcrumb: 'Fechas especiales cámaras',
+      title: 'Fechas especiales cámaras'
+    }
   }
 ];
 

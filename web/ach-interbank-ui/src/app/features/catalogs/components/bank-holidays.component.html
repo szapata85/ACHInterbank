@@ -1,0 +1,64 @@
+<section class="card">
+  <div class="header">
+    <div>
+      <p class="eyebrow">Catálogos</p>
+      <h2>Festivos bancarios</h2>
+      <p class="lede">Administra los días festivos que no deben ejecutarse ciclos.</p>
+    </div>
+    <div class="actions">
+      <button type="button" class="secondary" (click)="load()" [disabled]="loading || saving">Recargar</button>
+      <button type="button" class="primary" (click)="startCreate()" [disabled]="saving">Nuevo festivo</button>
+    </div>
+  </div>
+
+  <div class="grid" *ngIf="holidays.length; else empty">
+    <ag-grid-angular
+      class="ag-theme-alpine"
+      [rowData]="holidays"
+      [columnDefs]="columnDefs"
+      [defaultColDef]="defaultColDef"
+      [suppressScrollOnNewData]="true"
+      [pagination]="true"
+      [paginationPageSize]="10"
+      [context]="{ componentParent: this }"
+      [overlayNoRowsTemplate]="noRowsTemplate"
+      [overlayLoadingTemplate]="loadingTemplate"
+      (gridReady)="onGridReady($event)"
+    ></ag-grid-angular>
+  </div>
+
+  <ng-template #empty>
+    <div class="empty">
+      <p>No hay festivos registrados.</p>
+      <button type="button" class="primary" (click)="startCreate()" [disabled]="saving">Agregar festivo</button>
+    </div>
+  </ng-template>
+</section>
+
+<section class="card" *ngIf="showForm">
+  <h3>{{ editing ? 'Editar festivo' : 'Nuevo festivo' }}</h3>
+  <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
+    <label>
+      Fecha
+      <input type="date" formControlName="date" />
+      <app-error-message [control]="form.get('date')"></app-error-message>
+    </label>
+
+    <label>
+      Descripción
+      <input type="text" formControlName="description" maxlength="200" />
+      <app-error-message [control]="form.get('description')"></app-error-message>
+    </label>
+
+    <label>
+      País
+      <input type="text" formControlName="countryCode" maxlength="5" />
+      <app-error-message [control]="form.get('countryCode')"></app-error-message>
+    </label>
+
+    <div class="form-actions">
+      <button type="button" class="secondary" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
+      <button type="submit" class="primary" [disabled]="saving">{{ editing ? 'Actualizar' : 'Guardar' }}</button>
+    </div>
+  </form>
+</section>

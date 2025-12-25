@@ -20,6 +20,8 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int BrandingId = 12;
     public const int FinancialInstitutionsId = 13;
     public const int ClearingHousePreferencesId = 14;
+    public const int BankHolidaysId = 15;
+    public const int ClearingHouseSpecialDatesId = 16;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -140,6 +142,30 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Route = "/catalogs/clearing-house-preferences",
                 Icon = "tune",
                 Order = 2,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = BankHolidaysId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = CatalogsId,
+                Label = "Festivos bancarios",
+                Route = "/catalogs/bank-holidays",
+                Icon = "event",
+                Order = 3,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = ClearingHouseSpecialDatesId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = CatalogsId,
+                Label = "Fechas especiales cámaras",
+                Route = "/catalogs/clearing-house-special-dates",
+                Icon = "event_busy",
+                Order = 4,
                 Exact = true,
                 IsActive = true
             },

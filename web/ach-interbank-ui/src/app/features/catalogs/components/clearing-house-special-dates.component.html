@@ -1,0 +1,67 @@
+<section class="card">
+  <div class="header">
+    <div>
+      <p class="eyebrow">Catálogos</p>
+      <h2>Fechas especiales por cámara</h2>
+      <p class="lede">Define fechas no operativas específicas por cámara de compensación.</p>
+    </div>
+    <div class="actions">
+      <button type="button" class="secondary" (click)="load()" [disabled]="loading || saving">Recargar</button>
+      <button type="button" class="primary" (click)="startCreate()" [disabled]="saving">Nueva fecha</button>
+    </div>
+  </div>
+
+  <div class="grid" *ngIf="specialDates.length; else empty">
+    <ag-grid-angular
+      class="ag-theme-alpine"
+      [rowData]="specialDates"
+      [columnDefs]="columnDefs"
+      [defaultColDef]="defaultColDef"
+      [suppressScrollOnNewData]="true"
+      [pagination]="true"
+      [paginationPageSize]="10"
+      [context]="{ componentParent: this }"
+      [overlayNoRowsTemplate]="noRowsTemplate"
+      [overlayLoadingTemplate]="loadingTemplate"
+      (gridReady)="onGridReady($event)"
+    ></ag-grid-angular>
+  </div>
+
+  <ng-template #empty>
+    <div class="empty">
+      <p>No hay fechas especiales registradas.</p>
+      <button type="button" class="primary" (click)="startCreate()" [disabled]="saving">Agregar fecha</button>
+    </div>
+  </ng-template>
+</section>
+
+<section class="card" *ngIf="showForm">
+  <h3>{{ editing ? 'Editar fecha especial' : 'Nueva fecha especial' }}</h3>
+  <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
+    <label>
+      Cámara de compensación
+      <select formControlName="clearingHouseId">
+        <option [ngValue]="0" disabled>Selecciona una cámara</option>
+        <option *ngFor="let house of clearingHouses" [ngValue]="house.id">{{ house.name }}</option>
+      </select>
+      <app-error-message [control]="form.get('clearingHouseId')"></app-error-message>
+    </label>
+
+    <label>
+      Fecha
+      <input type="date" formControlName="date" />
+      <app-error-message [control]="form.get('date')"></app-error-message>
+    </label>
+
+    <label>
+      Descripción
+      <input type="text" formControlName="description" maxlength="200" />
+      <app-error-message [control]="form.get('description')"></app-error-message>
+    </label>
+
+    <div class="form-actions">
+      <button type="button" class="secondary" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
+      <button type="submit" class="primary" [disabled]="saving">{{ editing ? 'Actualizar' : 'Guardar' }}</button>
+    </div>
+  </form>
+</section>
