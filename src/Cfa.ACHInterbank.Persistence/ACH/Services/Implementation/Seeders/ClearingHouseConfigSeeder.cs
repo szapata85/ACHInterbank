@@ -2,6 +2,7 @@
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 
