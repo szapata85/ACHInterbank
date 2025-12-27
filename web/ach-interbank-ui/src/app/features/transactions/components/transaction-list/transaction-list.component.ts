@@ -58,6 +58,8 @@ export class TransactionListComponent implements OnInit {
     { field: 'id', headerName: 'ID', width: 90, maxWidth: 120, sortable: true },
     { field: 'reference', headerName: 'Referencia', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
     { field: 'typeLabel', headerName: 'Tipo', width: 160, filter: 'agSetColumnFilter' },
+    { field: 'achCycleName', headerName: 'Ciclo', width: 200, filter: 'agTextColumnFilter' },
+    { field: 'clearingHouseName', headerName: 'Cámara', width: 200, filter: 'agTextColumnFilter' },
     { field: 'amountText', headerName: 'Monto', width: 140, maxWidth: 180, cellClass: 'text-end' },
     { field: 'sourceAccountNumber', headerName: 'Cuenta origen', filter: 'agTextColumnFilter' },
     { field: 'destinationAccountNumber', headerName: 'Cuenta destino', filter: 'agTextColumnFilter' },

@@ -52,6 +52,8 @@ export interface TransactionListItem {
   batchCompanyName: string;
   batchEffectiveEntryDate: string;
   achCycleId: number;
+  achCycleName: string;
+  clearingHouseName: string;
 }
 
 export interface TransactionListFilter {

@@ -22,4 +22,6 @@ public class AchTransactionListDto
     public DateTime BatchEffectiveEntryDate { get; set; }
 
     public string AchCycleId { get; set; } = string.Empty;
+    public string AchCycleName { get; set; } = string.Empty;
+    public string ClearingHouseName { get; set; } = string.Empty;
 }
