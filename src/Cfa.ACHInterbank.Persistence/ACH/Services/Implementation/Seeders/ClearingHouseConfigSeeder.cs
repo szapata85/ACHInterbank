@@ -19,7 +19,11 @@ public class ClearingHouseConfigSeeder : IDbSeeder
 
     public async Task SeedAsync()
     {
-        
+        if (!await ClearingHouseConfigsTableExistsAsync())
+        {
+            return;
+        }
+
         if (!_context.ClearingHouseConfigs.Any())
         {
             _context.ChangeTracker.AutoDetectChangesEnabled = false;
@@ -28,7 +32,31 @@ public class ClearingHouseConfigSeeder : IDbSeeder
             await _context.SaveChangesAsync();
             _context.ChangeTracker.AutoDetectChangesEnabled = true;
         }
+    }
 
-        
+    private async Task<bool> ClearingHouseConfigsTableExistsAsync()
+    {
+        var connection = _context.Database.GetDbConnection();
+        var shouldClose = connection.State == System.Data.ConnectionState.Closed;
+
+        if (shouldClose)
+        {
+            await connection.OpenAsync();
+        }
+
+        try
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'ClearingHouseConfigs'";
+            var result = await command.ExecuteScalarAsync();
+            return result != null;
+        }
+        finally
+        {
+            if (shouldClose)
+            {
+                await connection.CloseAsync();
+            }
+        }
     }
 }
