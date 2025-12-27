@@ -132,7 +132,9 @@ export class TransactionListComponent implements OnInit {
       })
       .subscribe({
         next: (response) => {
-          const mapped = (response?.items ?? []).map((cycle) => this.mapCycleOption(cycle));
+          const mapped = (response?.items ?? [])
+            .map((cycle) => this.mapCycleOption(cycle))
+            .filter((option): option is AchCycleOption => option !== null);
           this.cycles = this.distinctCycles(mapped);
 
           if (!this.selectedCycleId && this.cycles.length > 0) {
@@ -159,9 +161,10 @@ export class TransactionListComponent implements OnInit {
   private loadTransactions(): void {
     this.loading = true;
     this.cdr.markForCheck();
+    const cycleId = this.getSelectedCycleId();
     this.api
       .getAll({
-        achCycleId: this.selectedCycleId,
+        achCycleId: cycleId,
         effectiveDate: this.selectedDate || undefined,
         clearingHouseId: this.selectedClearingHouseId ?? undefined
       })
@@ -199,8 +202,12 @@ export class TransactionListComponent implements OnInit {
       });
   }
 
-  private mapCycleOption(cycle: AchCycleSummary): AchCycleOption {
+  private mapCycleOption(cycle: AchCycleSummary): AchCycleOption | null {
     const id = Number(cycle.id);
+    if (!Number.isFinite(id)) {
+      return null;
+    }
+
     const name = cycle.cycleName?.trim() || `Ciclo ${id}`;
 
     return { id, label: name };
@@ -218,6 +225,14 @@ export class TransactionListComponent implements OnInit {
       seen.add(key);
       return true;
     });
+  }
+
+  private getSelectedCycleId(): number | undefined {
+    if (!Number.isFinite(this.selectedCycleId)) {
+      return undefined;
+    }
+
+    return this.selectedCycleId ?? undefined;
   }
 
   private mapRow(item: TransactionListItem): TransactionListRow {
