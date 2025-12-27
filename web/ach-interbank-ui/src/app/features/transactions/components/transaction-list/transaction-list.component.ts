@@ -24,7 +24,7 @@ interface TransactionGroup {
 }
 
 interface AchCycleOption {
-  id: number;
+  id: string;
   label: string;
 }
 
@@ -85,7 +85,7 @@ export class TransactionListComponent implements OnInit {
   groups: TransactionGroup[] = [];
   cycles: AchCycleOption[] = [];
   clearingHouses: ClearingHouseOption[] = [];
-  selectedCycleId: number | null = null;
+  selectedCycleId: string | null = null;
   selectedClearingHouseId: number | null = null;
   selectedDate = '';
 
@@ -134,9 +134,7 @@ export class TransactionListComponent implements OnInit {
       })
       .subscribe({
         next: (response) => {
-          const mapped = (response?.items ?? [])
-            .map((cycle) => this.mapCycleOption(cycle))
-            .filter((option): option is AchCycleOption => option !== null);
+          const mapped = (response?.items ?? []).map((cycle) => this.mapCycleOption(cycle));
           this.cycles = this.distinctCycles(mapped);
 
           if (!this.selectedCycleId && this.cycles.length > 0) {
@@ -163,10 +161,9 @@ export class TransactionListComponent implements OnInit {
   private loadTransactions(): void {
     this.loading = true;
     this.cdr.markForCheck();
-    const cycleId = this.getSelectedCycleId();
     this.api
       .getAll({
-        achCycleId: cycleId,
+        achCycleId: this.selectedCycleId,
         effectiveDate: this.selectedDate || undefined,
         clearingHouseId: this.selectedClearingHouseId ?? undefined
       })
@@ -204,12 +201,8 @@ export class TransactionListComponent implements OnInit {
       });
   }
 
-  private mapCycleOption(cycle: AchCycleSummary): AchCycleOption | null {
-    const id = Number(cycle.id);
-    if (!Number.isFinite(id)) {
-      return null;
-    }
-
+  private mapCycleOption(cycle: AchCycleSummary): AchCycleOption {
+    const id = cycle.id?.trim();
     const name = cycle.cycleName?.trim() || `Ciclo ${id}`;
 
     return { id, label: name };
@@ -227,14 +220,6 @@ export class TransactionListComponent implements OnInit {
       seen.add(key);
       return true;
     });
-  }
-
-  private getSelectedCycleId(): number | undefined {
-    if (!Number.isFinite(this.selectedCycleId)) {
-      return undefined;
-    }
-
-    return this.selectedCycleId ?? undefined;
   }
 
   private mapRow(item: TransactionListItem): TransactionListRow {
