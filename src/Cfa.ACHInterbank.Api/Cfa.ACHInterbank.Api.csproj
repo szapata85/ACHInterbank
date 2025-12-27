@@ -8,7 +8,7 @@
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <DocumentationFile>C:\ACHInterbank\ACHInterbank\src\Cfa.ACHInterbank.Api.xml</DocumentationFile>
     <UserSecretsId>fdac4e92-4a82-41e2-80cd-245f18336eff</UserSecretsId>
-    <DockerDefaultTargetOS>Windows</DockerDefaultTargetOS>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     <DockerfileContext>..\..</DockerfileContext>
   </PropertyGroup>
 

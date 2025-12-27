@@ -1,6 +1,15 @@
 # GenericArchitecture
 
+## Soporte Docker (Linux)
 
+El API incluye un Dockerfile con imagen base Linux. Para construir y ejecutar el contenedor:
+
+```bash
+docker build -f src/Cfa.ACHInterbank.Api/Dockerfile -t achinterbank-api .
+docker run --rm -p 8080:8080 -p 8081:8081 achinterbank-api
+```
+
+Por defecto, el servicio queda disponible en `http://localhost:8080`.
 
 ## Getting started
 
