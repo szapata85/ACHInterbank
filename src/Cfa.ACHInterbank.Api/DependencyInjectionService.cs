@@ -108,7 +108,12 @@ public static class DependencyInjectionService
         services.AddCors(options => options.AddPolicy(CorsPolicyName, builder =>
         {
             builder
-                .WithOrigins("http://localhost:4200", "https://localhost:4200")
+                .WithOrigins(
+                    "http://localhost:4200",
+                    "https://localhost:4200",
+                    "http://localhost:7269",
+                    "https://localhost:7269"
+                )
                 .AllowAnyMethod()
                 .AllowAnyHeader()
                 .AllowCredentials();
