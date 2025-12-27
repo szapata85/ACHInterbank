@@ -7,7 +7,7 @@ El API incluye un Dockerfile con imagen base Linux. Para construir y ejecutar el
 ```bash
 docker build -f src/Cfa.ACHInterbank.Api/Dockerfile -t achinterbank-api .
 docker run --rm \
-  -e ConnectionStrings__SqlConnection="Server=localhost,1433;Database=ACHInterbank;User Id=sa;Password=Cooperativa1*;TrustServerCertificate=True" \
+  -e ConnectionStrings__SqlConnection="Server=host.docker.internal,1433;Database=ACHInterbank;User Id=sa;Password=Cooperativa1*;TrustServerCertificate=True" \
   -e Database__ApplyMigrations=true \
   -e Database__AllowSeed=true \
   -p 8080:8080 -p 8081:8081 \
@@ -16,6 +16,13 @@ docker run --rm \
 
 En contenedores, las migraciones y el endpoint de seeding se omiten por defecto; use `Database__ApplyMigrations=true` y `Database__AllowSeed=true` si desea habilitarlos.
 Por defecto, el servicio queda disponible en `http://localhost:8080`.
+
+Si la base de datos corre en otro contenedor, conecte ambos servicios a la misma red de Docker y use el nombre del contenedor como host (por ejemplo `db,1433`).
+También puede usar el archivo `docker-compose.yml` incluido:
+
+```bash
+docker compose up --build
+```
 
 ## Getting started
 
