@@ -19,6 +19,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
         }
 
         [HttpPost("upload")]
+        [Consumes("multipart/form-data")]
         public async Task<IActionResult> UploadNachaFile([FromForm] IFormFile file)
         {
             if (file == null || file.Length == 0)
