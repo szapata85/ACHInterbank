@@ -18,16 +18,6 @@ public class MaintenanceController : Controller
     [HttpPost("seed")]
     public async Task<IActionResult> RunDbInitializer()
     {
-        var allowSeed = _configuration.GetValue("Database:AllowSeed", !IsRunningInContainer());
-        if (!allowSeed)
-        {
-            return StatusCode(StatusCodes.Status503ServiceUnavailable, new
-            {
-                Message = "Seeding deshabilitado. Configure Database__AllowSeed=true para habilitarlo.",
-                Date = DateTime.UtcNow
-            });
-        }
-
         var connectionString = _configuration.GetConnectionString("SqlConnection");
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -45,10 +35,5 @@ public class MaintenanceController : Controller
             Message = "Seeding ejecutado correctamente desde Controller",
             Date = DateTime.UtcNow
         });
-    }
-
-    private static bool IsRunningInContainer()
-    {
-        return string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase);
     }
 }
