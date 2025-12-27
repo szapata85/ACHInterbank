@@ -50,7 +50,7 @@
     <label>
       Fecha
       <input type="date" formControlName="date" />
-      <app-error-message [control]="form.get('date')"></app-error-message>
+      <app-error-message [control]="form.get('date')" [text]="dateErrorText"></app-error-message>
     </label>
 
     <label>
