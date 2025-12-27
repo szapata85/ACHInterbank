@@ -10,22 +10,32 @@ namespace Cfa.ACHInterbank.Api.Controllers
     public class NachaUploadController : Controller
     {
         private readonly INachaParserService _parserService;
+        private readonly ILogger<NachaUploadController> _logger;
 
-        public NachaUploadController(INachaParserService parserService)
+        public NachaUploadController(INachaParserService parserService, ILogger<NachaUploadController> logger)
         {
             _parserService = parserService;
+            _logger = logger;
         }
 
         [HttpPost("upload")]
-        public async Task<IActionResult> UploadNachaFile(IFormFile file)
+        public async Task<IActionResult> UploadNachaFile([FromForm] IFormFile file)
         {
             if (file == null || file.Length == 0)
                 return BadRequest("Archivo inválido.");
 
-            using var stream = file.OpenReadStream();
-            await _parserService.ParseAndSaveAsync(stream, file.FileName);
+            try
+            {
+                using var stream = file.OpenReadStream();
+                await _parserService.ParseAndSaveAsync(stream, file.FileName);
 
-            return Ok("Archivo procesado y guardado.");
+                return Ok("Archivo procesado y guardado.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al procesar archivo NACHA-M {FileName}", file.FileName);
+                return StatusCode(StatusCodes.Status500InternalServerError, "No fue posible procesar el archivo.");
+            }
         }
     }
 }
