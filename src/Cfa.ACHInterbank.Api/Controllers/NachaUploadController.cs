@@ -20,8 +20,9 @@ namespace Cfa.ACHInterbank.Api.Controllers
 
         [HttpPost("upload")]
         [Consumes("multipart/form-data")]
-        public async Task<IActionResult> UploadNachaFile([FromForm] IFormFile file)
+        public async Task<IActionResult> UploadNachaFile([FromForm] NachaUploadRequest request)
         {
+            var file = request.File;
             if (file == null || file.Length == 0)
                 return BadRequest("Archivo inválido.");
 
@@ -38,5 +39,10 @@ namespace Cfa.ACHInterbank.Api.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, "No fue posible procesar el archivo.");
             }
         }
+    }
+
+    public class NachaUploadRequest
+    {
+        public IFormFile File { get; set; } = null!;
     }
 }
