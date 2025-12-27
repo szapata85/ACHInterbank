@@ -159,13 +159,19 @@ public static class DependencyInjectionService
 
 
 
-        using (var scope = app.Services.CreateScope())
+        var applyMigrations = app.Configuration.GetValue("Database:ApplyMigrations", !IsRunningInContainer());
+        if (applyMigrations)
         {
+            using var scope = app.Services.CreateScope();
             AchDbContext Context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
             //var initializer = scope.ServiceProvider.GetRequiredService<AchInitializationService>();
             Context.Database.Migrate();
 
             //_ = initializer.InitializeAsync(); // Aquí se ejecuta tu lógica en runtime
+        }
+        else
+        {
+            app.Logger.LogInformation("Skipping database migrations. Set Database__ApplyMigrations=true to enable.");
         }
 
 
@@ -210,6 +216,11 @@ public static class DependencyInjectionService
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapControllers();
+    }
+
+    private static bool IsRunningInContainer()
+    {
+        return string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase);
     }
 
 }
