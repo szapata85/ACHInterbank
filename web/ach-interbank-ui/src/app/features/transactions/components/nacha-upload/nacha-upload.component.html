@@ -1,0 +1,23 @@
+<app-page-header
+  title="Cargar archivo NACHA-M"
+  description="Sube archivos NACHA-M enviados por cámaras compensadoras externas."
+></app-page-header>
+
+<section class="upload-card">
+  <form [formGroup]="form" (ngSubmit)="upload()" novalidate>
+    <label class="file-input">
+      <span>Archivo NACHA-M *</span>
+      <input type="file" (change)="onFileSelected($event)" />
+      <small class="muted" *ngIf="fileName; else emptyFile">Archivo seleccionado: {{ fileName }}</small>
+      <ng-template #emptyFile>
+        <small class="muted">Selecciona el archivo NACHA-M a cargar.</small>
+      </ng-template>
+      <app-error-message [control]="form.get('file')"></app-error-message>
+    </label>
+
+    <div class="actions">
+      <button type="submit" [disabled]="uploading">{{ uploading ? 'Cargando...' : 'Cargar archivo' }}</button>
+      <button type="button" class="ghost" routerLink="/transactions">Cancelar</button>
+    </div>
+  </form>
+</section>
