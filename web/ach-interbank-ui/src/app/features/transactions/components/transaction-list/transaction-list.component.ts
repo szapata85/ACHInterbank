@@ -24,14 +24,8 @@ interface TransactionGroup {
 }
 
 interface AchCycleOption {
-  id: number;
+  id: string;
   label: string;
-  group: string;
-}
-
-interface AchCycleOptionGroup {
-  name: string;
-  options: AchCycleOption[];
 }
 
 @Component({
@@ -64,6 +58,8 @@ export class TransactionListComponent implements OnInit {
     { field: 'id', headerName: 'ID', width: 90, maxWidth: 120, sortable: true },
     { field: 'reference', headerName: 'Referencia', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
     { field: 'typeLabel', headerName: 'Tipo', width: 160, filter: 'agSetColumnFilter' },
+    { field: 'achCycleName', headerName: 'Ciclo', width: 200, filter: 'agTextColumnFilter' },
+    { field: 'clearingHouseName', headerName: 'Cámara', width: 200, filter: 'agTextColumnFilter' },
     { field: 'amountText', headerName: 'Monto', width: 140, maxWidth: 180, cellClass: 'text-end' },
     { field: 'sourceAccountNumber', headerName: 'Cuenta origen', filter: 'agTextColumnFilter' },
     { field: 'destinationAccountNumber', headerName: 'Cuenta destino', filter: 'agTextColumnFilter' },
@@ -88,9 +84,8 @@ export class TransactionListComponent implements OnInit {
   loading = false;
   groups: TransactionGroup[] = [];
   cycles: AchCycleOption[] = [];
-  cycleGroups: AchCycleOptionGroup[] = [];
   clearingHouses: ClearingHouseOption[] = [];
-  selectedCycleId: number | null = null;
+  selectedCycleId: string | null = null;
   selectedClearingHouseId: number | null = null;
   selectedDate = '';
 
@@ -141,7 +136,6 @@ export class TransactionListComponent implements OnInit {
         next: (response) => {
           const mapped = (response?.items ?? []).map((cycle) => this.mapCycleOption(cycle));
           this.cycles = this.distinctCycles(mapped);
-          this.cycleGroups = this.groupCycles(this.cycles);
 
           if (!this.selectedCycleId && this.cycles.length > 0) {
             this.selectedCycleId = this.cycles[0].id;
@@ -208,10 +202,10 @@ export class TransactionListComponent implements OnInit {
   }
 
   private mapCycleOption(cycle: AchCycleSummary): AchCycleOption {
-    const id = Number(cycle.id);
+    const id = cycle.id?.trim();
     const name = cycle.cycleName?.trim() || `Ciclo ${id}`;
 
-    return { id, label: name, group: name };
+    return { id, label: name };
   }
 
   private distinctCycles(options: AchCycleOption[]): AchCycleOption[] {
@@ -226,21 +220,6 @@ export class TransactionListComponent implements OnInit {
       seen.add(key);
       return true;
     });
-  }
-
-  private groupCycles(options: AchCycleOption[]): AchCycleOptionGroup[] {
-    const groups = new Map<string, AchCycleOption[]>();
-
-    options.forEach((option) => {
-      const current = groups.get(option.group) ?? [];
-      current.push(option);
-      groups.set(option.group, current);
-    });
-
-    return Array.from(groups.entries()).map(([name, opts]) => ({
-      name,
-      options: opts
-    }));
   }
 
   private mapRow(item: TransactionListItem): TransactionListRow {

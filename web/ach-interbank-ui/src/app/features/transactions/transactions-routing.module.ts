@@ -2,6 +2,7 @@ import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { TransactionCreateComponent } from './components/transaction-create/transaction-create.component';
 import { TransactionListComponent } from './components/transaction-list/transaction-list.component';
+import { NachaUploadComponent } from './components/nacha-upload/nacha-upload.component';
 
 const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'list' },
@@ -14,6 +15,11 @@ const routes: Routes = [
     path: 'create',
     component: TransactionCreateComponent,
     data: { title: 'Crear transacción', breadcrumb: 'Crear transacción' }
+  },
+  {
+    path: 'nacha-upload',
+    component: NachaUploadComponent,
+    data: { title: 'Cargar NACHA-M', breadcrumb: 'Cargar NACHA-M' }
   }
 ];
 

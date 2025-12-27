@@ -22,6 +22,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int ClearingHousePreferencesId = 14;
     public const int BankHolidaysId = 15;
     public const int ClearingHouseSpecialDatesId = 16;
+    public const int NachaUploadId = 17;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -223,6 +224,18 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Route = "/transactions/create",
                 Icon = "note_add",
                 Order = 1,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = NachaUploadId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = TransactionsId,
+                Label = "Cargar NACHA-M",
+                Route = "/transactions/nacha-upload",
+                Icon = "upload_file",
+                Order = 3,
                 Exact = true,
                 IsActive = true
             });

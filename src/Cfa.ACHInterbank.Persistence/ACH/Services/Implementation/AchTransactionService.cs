@@ -257,6 +257,7 @@ public class AchTransactionService : IAchTransactionService
             .AsNoTracking()
             .Include(t => t.AchBatch)
             .Include(t => t.AchCycle)
+            .ThenInclude(cycle => cycle.ClearingHouse)
             .Include(t => t.SourceInstitution)
             .Include(t => t.DestinationInstitution)
             .AsQueryable();
@@ -296,7 +297,9 @@ public class AchTransactionService : IAchTransactionService
                 BatchSequenceNumber = t.AchBatch.BatchSequenceNumber,
                 BatchCompanyName = t.AchBatch.CompanyName,
                 BatchEffectiveEntryDate = t.AchBatch.EffectiveEntryDate,
-                AchCycleId = t.AchCycleId
+                AchCycleId = t.AchCycleId,
+                AchCycleName = t.AchCycle.CycleName,
+                ClearingHouseName = t.AchCycle.ClearingHouse!.Name
             })
             .ToListAsync(ct);
     }

@@ -51,11 +51,13 @@ export interface TransactionListItem {
   batchSequenceNumber: number;
   batchCompanyName: string;
   batchEffectiveEntryDate: string;
-  achCycleId: number;
+  achCycleId: string;
+  achCycleName: string;
+  clearingHouseName: string;
 }
 
 export interface TransactionListFilter {
-  achCycleId?: number | null;
+  achCycleId?: string | null;
   effectiveDate?: string;
   clearingHouseId?: number | null;
 }
