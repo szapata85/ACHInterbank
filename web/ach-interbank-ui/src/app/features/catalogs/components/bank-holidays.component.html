@@ -6,31 +6,49 @@
       <p class="lede">Administra los días festivos que no deben ejecutarse ciclos.</p>
     </div>
     <div class="actions">
-      <button type="button" class="secondary" (click)="load()" [disabled]="loading || saving">Recargar</button>
+      <button type="button" class="secondary" (click)="search()" [disabled]="loading || saving || filterForm.invalid">
+        Buscar
+      </button>
       <button type="button" class="primary" (click)="startCreate()" [disabled]="saving">Nuevo festivo</button>
     </div>
   </div>
 
-  <div class="grid" *ngIf="holidays.length; else empty">
-    <ag-grid-angular
-      class="ag-theme-alpine"
-      [rowData]="holidays"
-      [columnDefs]="columnDefs"
-      [defaultColDef]="defaultColDef"
-      [suppressScrollOnNewData]="true"
-      [pagination]="true"
-      [paginationPageSize]="10"
-      [context]="{ componentParent: this }"
-      [overlayNoRowsTemplate]="noRowsTemplate"
-      [overlayLoadingTemplate]="loadingTemplate"
-      (gridReady)="onGridReady($event)"
-    ></ag-grid-angular>
-  </div>
+  <form [formGroup]="filterForm" (ngSubmit)="search()" class="filters">
+    <label>
+      Año
+      <input type="number" formControlName="year" min="1900" max="2100" />
+      <app-error-message [control]="filterForm.get('year')"></app-error-message>
+    </label>
+  </form>
 
-  <ng-template #empty>
+  <ng-container *ngIf="hasSearched; else initial">
+    <div class="grid" *ngIf="holidays.length; else empty">
+      <ag-grid-angular
+        class="ag-theme-alpine"
+        [rowData]="holidays"
+        [columnDefs]="columnDefs"
+        [defaultColDef]="defaultColDef"
+        [suppressScrollOnNewData]="true"
+        [pagination]="true"
+        [paginationPageSize]="10"
+        [context]="{ componentParent: this }"
+        [overlayNoRowsTemplate]="noRowsTemplate"
+        [overlayLoadingTemplate]="loadingTemplate"
+        (gridReady)="onGridReady($event)"
+      ></ag-grid-angular>
+    </div>
+
+    <ng-template #empty>
+      <div class="empty">
+        <p>No hay festivos registrados.</p>
+        <button type="button" class="primary" (click)="startCreate()" [disabled]="saving">Agregar festivo</button>
+      </div>
+    </ng-template>
+  </ng-container>
+
+  <ng-template #initial>
     <div class="empty">
-      <p>No hay festivos registrados.</p>
-      <button type="button" class="primary" (click)="startCreate()" [disabled]="saving">Agregar festivo</button>
+      <p>Selecciona un año y presiona Buscar para ver los festivos.</p>
     </div>
   </ng-template>
 </section>

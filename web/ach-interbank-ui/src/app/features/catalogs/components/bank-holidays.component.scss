@@ -35,6 +35,27 @@
   height: 480px;
 }
 
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  margin: 1.5rem 0;
+  max-width: 420px;
+}
+
+.filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-weight: 600;
+  width: 100%;
+}
+
+.filters input {
+  width: 100%;
+}
+
 .ag-theme-alpine {
   --ag-foreground-color: #111827;
   --ag-header-foreground-color: #111827;

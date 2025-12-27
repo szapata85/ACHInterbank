@@ -19,11 +19,7 @@
       <label for="cycle">Ciclo</label>
       <select id="cycle" [(ngModel)]="selectedCycleId">
         <option [ngValue]="null">Todos los ciclos</option>
-        <ng-container *ngFor="let group of cycleGroups">
-          <optgroup [label]="group.name">
-            <option *ngFor="let cycle of group.options" [ngValue]="cycle.id">{{ cycle.label }}</option>
-          </optgroup>
-        </ng-container>
+        <option *ngFor="let cycle of cycles" [ngValue]="cycle.id">{{ cycle.label }}</option>
       </select>
     </div>
 
