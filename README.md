@@ -9,11 +9,12 @@ docker build -f src/Cfa.ACHInterbank.Api/Dockerfile -t achinterbank-api .
 docker run --rm \
   -e ConnectionStrings__SqlConnection="Server=localhost,1433;Database=ACHInterbank;User Id=sa;Password=Cooperativa1*;TrustServerCertificate=True" \
   -e Database__ApplyMigrations=true \
+  -e Database__AllowSeed=true \
   -p 8080:8080 -p 8081:8081 \
   achinterbank-api
 ```
 
-En contenedores, las migraciones se omiten por defecto; use `Database__ApplyMigrations=true` si desea aplicarlas al iniciar.
+En contenedores, las migraciones y el endpoint de seeding se omiten por defecto; use `Database__ApplyMigrations=true` y `Database__AllowSeed=true` si desea habilitarlos.
 Por defecto, el servicio queda disponible en `http://localhost:8080`.
 
 ## Getting started
