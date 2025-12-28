@@ -33,7 +33,7 @@ services:
       - "8080:8080"
       - "8081:8081"
     volumes:
-      - ./certs:/https:ro
+      - ./certs:/https:rw
     depends_on:
       db:
         condition: service_healthy
