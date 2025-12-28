@@ -66,6 +66,11 @@ public class AchDbContext : DbContext
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AchDbContext).Assembly);
 
+        var isPostgres = Database.ProviderName?.Contains("Npgsql") == true;
+        modelBuilder.Entity<DigitalEnvelopeCertificate>()
+            .Property(c => c.UploadedAt)
+            .HasDefaultValueSql(isPostgres ? "timezone('utc', now())" : "GETUTCDATE()");
+
 
         modelBuilder.Entity<FinancialInstitution>()
             .HasMany(i => i.SourceTransactions)

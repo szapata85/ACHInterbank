@@ -35,7 +35,6 @@ public class DigitalEnvelopeCertificateConfiguration : IEntityTypeConfiguration<
         builder.Property(c => c.Thumbprint)
             .HasMaxLength(200);
 
-        builder.Property(c => c.UploadedAt)
-            .HasDefaultValueSql("GETUTCDATE()");
+        builder.Property(c => c.UploadedAt);
     }
 }
