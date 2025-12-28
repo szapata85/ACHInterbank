@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -10,19 +11,38 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.CreateTable(
-                name: "ClearingHouseConfigs",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    ClearingHouseId = table.Column<int>(type: "int", nullable: false),
-                    HolidayStrategy = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_ClearingHouseConfigs", x => x.Id);
-                });
+            if (migrationBuilder.ActiveProvider == "Npgsql.EntityFrameworkCore.PostgreSQL")
+            {
+                migrationBuilder.CreateTable(
+                    name: "ClearingHouseConfigs",
+                    columns: table => new
+                    {
+                        Id = table.Column<int>(type: "int", nullable: false)
+                            .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                        ClearingHouseId = table.Column<int>(type: "int", nullable: false),
+                        HolidayStrategy = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true)
+                    },
+                    constraints: table =>
+                    {
+                        table.PrimaryKey("PK_ClearingHouseConfigs", x => x.Id);
+                    });
+            }
+            else
+            {
+                migrationBuilder.CreateTable(
+                    name: "ClearingHouseConfigs",
+                    columns: table => new
+                    {
+                        Id = table.Column<int>(type: "int", nullable: false)
+                            .Annotation("SqlServer:Identity", "1, 1"),
+                        ClearingHouseId = table.Column<int>(type: "int", nullable: false),
+                        HolidayStrategy = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true)
+                    },
+                    constraints: table =>
+                    {
+                        table.PrimaryKey("PK_ClearingHouseConfigs", x => x.Id);
+                    });
+            }
 
             migrationBuilder.CreateIndex(
                 name: "IX_ClearingHouseConfigs_ClearingHouseId",
