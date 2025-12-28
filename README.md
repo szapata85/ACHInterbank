@@ -45,6 +45,20 @@ Con el contenedor arriba, Swagger queda disponible en:
 - HTTP: `http://localhost:8080`
 - HTTPS: `https://localhost:8081`
 
+Para abrir automáticamente en el navegador al levantar Docker Compose:
+
+```bash
+docker compose up --build --detach
+./scripts/open-swagger.sh
+```
+
+En Windows:
+
+```powershell
+docker compose up --build --detach
+./scripts/open-swagger.ps1
+```
+
 ## Getting started
 
 To make it easy for you to get started with GitLab, here's a list of recommended next steps.
