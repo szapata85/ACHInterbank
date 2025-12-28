@@ -90,4 +90,4 @@ services:
     volumes:
       - ./certs:/https:rw
     ports:
-      - "4200:443"
+      - "4200:80"
