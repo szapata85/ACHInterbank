@@ -26,7 +26,7 @@ docker compose up --build
 
 Si la base de datos está fuera de `docker compose` (otro contenedor o el host), use `host.docker.internal` como host en Linux o conecte ambos contenedores a una red compartida.
 
-El frontend Angular se levanta en `http://localhost:4200` mediante el servicio `web` del compose.
+El frontend Angular se levanta en `https://localhost:4200` mediante el servicio `web` del compose.
 
 ### HTTPS y Swagger en Docker
 
@@ -41,6 +41,8 @@ Si no existe el PFX, el contenedor generará uno automáticamente al iniciar.
 Para evitar timeouts durante el seeding en contenedor, puede ajustar `Database__CommandTimeoutSeconds` (por ejemplo `180`) en el compose o en `docker run`.
 
 El seeding de instituciones financieras solo se ejecuta en entornos Development/Testing; el `docker-compose.yml` ya configura `ASPNETCORE_ENVIRONMENT=Development`.
+
+Para el frontend HTTPS (`https://localhost:4200`), asegúrese de que existan `certs/aspnetapp.crt` y `certs/aspnetapp.key`. Si inició el API primero, estos archivos se generan automáticamente y el servicio `web` los reutiliza.
 
 Con el contenedor arriba, Swagger queda disponible en:
 
