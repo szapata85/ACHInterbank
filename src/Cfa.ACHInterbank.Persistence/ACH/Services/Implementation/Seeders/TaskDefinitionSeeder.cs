@@ -30,7 +30,7 @@ public class TaskDefinitionSeeder : IDbSeeder
                 PeriodicityType = PeriodicityTypeEnum.Cron,
                 CronExpression = "0 30 0 1 1 ? *",
                 TimeZoneId = "America/Bogota",
-                StartAt = new DateTimeOffset(2025, 1, 1, 0, 30, 0, new TimeSpan(-5, 0, 0))
+                StartAt = new DateTimeOffset(2025, 1, 1, 0, 30, 0, TimeSpan.Zero)
             });
         }
 
@@ -43,7 +43,7 @@ public class TaskDefinitionSeeder : IDbSeeder
                 PeriodicityType = PeriodicityTypeEnum.DailyAtTime,
                 TimeOfDayTicks = new TimeOnly(2, 0).Ticks,
                 TimeZoneId = "America/Bogota",
-                StartAt = new DateTimeOffset(2025, 1, 1, 2, 0, 0, new TimeSpan(-5, 0, 0))
+                StartAt = new DateTimeOffset(2025, 1, 1, 2, 0, 0, TimeSpan.Zero)
             });
         }
 
@@ -57,7 +57,7 @@ public class TaskDefinitionSeeder : IDbSeeder
                 CronExpression = "0 10 0 1 1 ? *",
                 TimeZoneId = "America/Bogota",
                 CalendarPolicy = CalendarPolicyEnum.IgnoreCalendar,
-                StartAt = new DateTimeOffset(2025, 1, 1, 0, 10, 0, new TimeSpan(-5, 0, 0))
+                StartAt = new DateTimeOffset(2025, 1, 1, 0, 10, 0, TimeSpan.Zero)
             });
         }
 
