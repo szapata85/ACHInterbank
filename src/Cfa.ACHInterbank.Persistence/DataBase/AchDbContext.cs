@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Domain.Entities.User;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Cfa.ACHInterbank.Persistence.DataBase;
 
@@ -70,6 +71,42 @@ public class AchDbContext : DbContext
         modelBuilder.Entity<DigitalEnvelopeCertificate>()
             .Property(c => c.UploadedAt)
             .HasDefaultValueSql(isPostgres ? "timezone('utc', now())" : "GETUTCDATE()");
+
+        if (isPostgres)
+        {
+            var dateTimeConverter = new ValueConverter<DateTime, DateTime>(
+                value => value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc),
+                value => DateTime.SpecifyKind(value, DateTimeKind.Utc));
+            var nullableDateTimeConverter = new ValueConverter<DateTime?, DateTime?>(
+                value => value.HasValue
+                    ? (value.Value.Kind == DateTimeKind.Utc
+                        ? value.Value
+                        : DateTime.SpecifyKind(value.Value, DateTimeKind.Utc))
+                    : value,
+                value => value.HasValue
+                    ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+                    : value);
+
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+            {
+                foreach (var property in entityType.GetProperties())
+                {
+                    if (property.GetValueConverter() != null)
+                    {
+                        continue;
+                    }
+
+                    if (property.ClrType == typeof(DateTime))
+                    {
+                        property.SetValueConverter(dateTimeConverter);
+                    }
+                    else if (property.ClrType == typeof(DateTime?))
+                    {
+                        property.SetValueConverter(nullableDateTimeConverter);
+                    }
+                }
+            }
+        }
 
         var auditDefaultSql = isPostgres ? "timezone('utc', now())" : "SYSUTCDATETIME()";
         modelBuilder.Entity<User>()
