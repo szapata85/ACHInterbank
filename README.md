@@ -45,6 +45,8 @@ Con el contenedor arriba, Swagger queda disponible en:
 - HTTP: `http://localhost:8080`
 - HTTPS: `https://localhost:8081`
 
+En Docker Desktop, puede usar el botón **Open in browser** del servicio `api` y abrirá `https://localhost:8081` (el puerto HTTPS está listado primero).
+
 Para abrir automáticamente en el navegador al levantar Docker Compose:
 
 ```bash
