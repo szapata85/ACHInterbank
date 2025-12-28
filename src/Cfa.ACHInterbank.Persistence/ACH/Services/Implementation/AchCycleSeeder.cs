@@ -29,22 +29,22 @@ public class AchCycleSeeder : IAchCycleSeeder
         {
             configs.AddRange(new[]
             {
-                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 1", CutoffTime = new TimeSpan(10,30,0), EffectiveFrom = new DateTime(year,1,1) },
-                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 2", CutoffTime = new TimeSpan(13,00,0), EffectiveFrom = new DateTime(year,1,1) },
-                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 3", CutoffTime = new TimeSpan(15,30,0), EffectiveFrom = new DateTime(year,1,1) },
-                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 4", CutoffTime = new TimeSpan(17,30,0), EffectiveFrom = new DateTime(year,1,1) },
-                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 5", CutoffTime = new TimeSpan(19,00,0), EffectiveFrom = new DateTime(year,1,1) }
+                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 1", CutoffTime = new TimeSpan(10,30,0), EffectiveFrom = DateTime.SpecifyKind(new DateTime(year,1,1), DateTimeKind.Utc) },
+                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 2", CutoffTime = new TimeSpan(13,00,0), EffectiveFrom = DateTime.SpecifyKind(new DateTime(year,1,1), DateTimeKind.Utc) },
+                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 3", CutoffTime = new TimeSpan(15,30,0), EffectiveFrom = DateTime.SpecifyKind(new DateTime(year,1,1), DateTimeKind.Utc) },
+                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 4", CutoffTime = new TimeSpan(17,30,0), EffectiveFrom = DateTime.SpecifyKind(new DateTime(year,1,1), DateTimeKind.Utc) },
+                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 5", CutoffTime = new TimeSpan(19,00,0), EffectiveFrom = DateTime.SpecifyKind(new DateTime(year,1,1), DateTimeKind.Utc) }
             });
         }
         else if (clearingHouseId == 2) // CENIT
         {
             configs.AddRange(new[]
             {
-                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 1", CutoffTime = new TimeSpan(9,30,0), EffectiveFrom = new DateTime(year,1,1) },
-                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 2", CutoffTime = new TimeSpan(12,00,0), EffectiveFrom = new DateTime(year,1,1) },
-                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 3", CutoffTime = new TimeSpan(15,00,0), EffectiveFrom = new DateTime(year,1,1) },
-                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 4", CutoffTime = new TimeSpan(17,15,0), EffectiveFrom = new DateTime(year,1,1) },
-                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 5", CutoffTime = new TimeSpan(19,15,0), EffectiveFrom = new DateTime(year,1,1) }
+                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 1", CutoffTime = new TimeSpan(9,30,0), EffectiveFrom = DateTime.SpecifyKind(new DateTime(year,1,1), DateTimeKind.Utc) },
+                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 2", CutoffTime = new TimeSpan(12,00,0), EffectiveFrom = DateTime.SpecifyKind(new DateTime(year,1,1), DateTimeKind.Utc) },
+                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 3", CutoffTime = new TimeSpan(15,00,0), EffectiveFrom = DateTime.SpecifyKind(new DateTime(year,1,1), DateTimeKind.Utc) },
+                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 4", CutoffTime = new TimeSpan(17,15,0), EffectiveFrom = DateTime.SpecifyKind(new DateTime(year,1,1), DateTimeKind.Utc) },
+                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 5", CutoffTime = new TimeSpan(19,15,0), EffectiveFrom = DateTime.SpecifyKind(new DateTime(year,1,1), DateTimeKind.Utc) }
             });
         }
 

@@ -95,6 +95,22 @@ public class AchDbContext : DbContext
             .IsUnique()
             .HasFilter(primaryFilter);
 
+        modelBuilder.Entity<ClearingHouseCycleConfig>()
+            .Property(c => c.EffectiveFrom)
+            .HasConversion(
+                value => DateTime.SpecifyKind(value, DateTimeKind.Utc),
+                value => DateTime.SpecifyKind(value, DateTimeKind.Utc));
+
+        modelBuilder.Entity<ClearingHouseCycleConfig>()
+            .Property(c => c.EffectiveTo)
+            .HasConversion(
+                value => value.HasValue
+                    ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+                    : value,
+                value => value.HasValue
+                    ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+                    : value);
+
 
         modelBuilder.Entity<FinancialInstitution>()
             .HasMany(i => i.SourceTransactions)
