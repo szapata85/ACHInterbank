@@ -28,7 +28,17 @@ public static class DependencyInjectionService
 
         //services.AddDbContext<DataBaseService>(options => options.UseSqlServer(configuration.GetConnectionString("SqlConnection")));
 
-        services.AddDbContext<AchDbContext>(options => options.UseSqlServer(configuration.GetConnectionString("SqlConnection")));
+        var commandTimeout = configuration.GetValue<int?>("Database:CommandTimeoutSeconds");
+        services.AddDbContext<AchDbContext>(options =>
+            options.UseSqlServer(
+                configuration.GetConnectionString("SqlConnection"),
+                sqlOptions =>
+                {
+                    if (commandTimeout.HasValue)
+                    {
+                        sqlOptions.CommandTimeout(commandTimeout.Value);
+                    }
+                }));
 
         services.AddQuartz(q =>
         {
