@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   db:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    image: mcr.microsoft.com/mssql/server:2025-latest
     container_name: ACHinterbank
     environment:
       ACCEPT_EULA: "Y"
@@ -26,7 +26,6 @@ services:
       ASPNETCORE_Kestrel__Certificates__Default__Password: "changeit"
       ConnectionStrings__SqlConnection: "Server=db,1433;Database=ACHInterbank;User Id=sa;Password=Cooperativa1*;TrustServerCertificate=True"
       Database__ApplyMigrations: "true"
-      Database__AllowSeed: "true"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
