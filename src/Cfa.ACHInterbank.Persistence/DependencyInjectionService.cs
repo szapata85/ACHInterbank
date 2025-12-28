@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Persistence.ACH.Quartz;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Quartz;
@@ -33,6 +34,9 @@ public static class DependencyInjectionService
         var connectionString = GetConnectionString(provider, configuration);
         services.AddDbContext<AchDbContext>(options =>
         {
+            options.ConfigureWarnings(warnings =>
+                warnings.Ignore(RelationalEventId.PendingModelChangesWarning));
+
             switch (provider.Trim().ToLowerInvariant())
             {
                 case "sqlserver":
