@@ -38,6 +38,8 @@ Si no existe el PFX, el contenedor generará uno automáticamente al iniciar.
 
 Para evitar timeouts durante el seeding en contenedor, puede ajustar `Database__CommandTimeoutSeconds` (por ejemplo `180`) en el compose o en `docker run`.
 
+El seeding de instituciones financieras solo se ejecuta en entornos Development/Testing; el `docker-compose.yml` ya configura `ASPNETCORE_ENVIRONMENT=Development`.
+
 Con el contenedor arriba, Swagger queda disponible en:
 
 - HTTP: `http://localhost:8080`
