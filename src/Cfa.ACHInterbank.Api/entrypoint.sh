@@ -4,6 +4,10 @@ set -e
 cert_path="${ASPNETCORE_Kestrel__Certificates__Default__Path:-/https/aspnetapp.pfx}"
 cert_password="${ASPNETCORE_Kestrel__Certificates__Default__Password:-changeit}"
 
+if [ -z "${Database__Provider:-}" ] && [ -n "${ConnectionStrings__PostgresConnection:-}" ]; then
+  export Database__Provider="Postgres"
+fi
+
 if [ "${ASPNETCORE_URLS:-}" != "" ] && [ ! -f "$cert_path" ] && command -v openssl >/dev/null 2>&1; then
   cert_dir="$(dirname "$cert_path")"
   mkdir -p "$cert_dir"
