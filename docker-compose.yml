@@ -1,7 +1,8 @@
 services:
-  db:
+  db-sqlserver:
+    profiles: ["sqlserver"]
     image: mcr.microsoft.com/mssql/server:2025-latest
-    container_name: ACHinterbank
+    container_name: ACHinterbank-sqlserver
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "Cooperativa1*"
@@ -13,7 +14,24 @@ services:
       timeout: 5s
       retries: 10
 
-  api:
+  db-postgres:
+    profiles: ["postgres"]
+    image: postgres:16
+    container_name: ACHinterbank-postgres
+    environment:
+      POSTGRES_DB: "ACHInterbank"
+      POSTGRES_USER: "sa"
+      POSTGRES_PASSWORD: "Cooperativa1*"
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sa -d ACHInterbank"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api-sqlserver:
+    profiles: ["sqlserver"]
     build:
       context: .
       dockerfile: src/Cfa.ACHInterbank.Api/Dockerfile
@@ -23,7 +41,8 @@ services:
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/aspnetapp.pfx"
       ASPNETCORE_Kestrel__Certificates__Default__Password: "changeit"
-      ConnectionStrings__SqlConnection: "Server=db,1433;Database=ACHInterbank;User Id=sa;Password=Cooperativa1*;TrustServerCertificate=True"
+      Database__Provider: "SqlServer"
+      ConnectionStrings__SqlConnection: "Server=db-sqlserver,1433;Database=ACHInterbank;User Id=sa;Password=Cooperativa1*;TrustServerCertificate=True"
       Database__ApplyMigrations: "true"
       Database__CommandTimeoutSeconds: "180"
     extra_hosts:
@@ -33,6 +52,35 @@ services:
       - "8080:8080"
     volumes:
       - ./certs:/https:rw
+    depends_on:
+      db-sqlserver:
+        condition: service_healthy
+
+  api-postgres:
+    profiles: ["postgres"]
+    build:
+      context: .
+      dockerfile: src/Cfa.ACHInterbank.Api/Dockerfile
+    container_name: Cfa.ACHInterbank.Api
+    environment:
+      ASPNETCORE_URLS: "https://+:8081;http://+:8080"
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/aspnetapp.pfx"
+      ASPNETCORE_Kestrel__Certificates__Default__Password: "changeit"
+      Database__Provider: "Postgres"
+      ConnectionStrings__PostgresConnection: "Host=db-postgres;Port=5432;Database=ACHInterbank;Username=sa;Password=Cooperativa1*"
+      Database__ApplyMigrations: "true"
+      Database__CommandTimeoutSeconds: "180"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8081:8081"
+      - "8080:8080"
+    volumes:
+      - ./certs:/https:rw
+    depends_on:
+      db-postgres:
+        condition: service_healthy
 
   web:
     build:
@@ -43,6 +91,3 @@ services:
       - ./certs:/https:rw
     ports:
       - "4200:443"
-    depends_on:
-      db:
-        condition: service_healthy

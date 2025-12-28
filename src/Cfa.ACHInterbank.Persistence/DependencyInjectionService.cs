@@ -29,16 +29,41 @@ public static class DependencyInjectionService
         //services.AddDbContext<DataBaseService>(options => options.UseSqlServer(configuration.GetConnectionString("SqlConnection")));
 
         var commandTimeout = configuration.GetValue<int?>("Database:CommandTimeoutSeconds");
+        var provider = configuration.GetValue<string>("Database:Provider") ?? "SqlServer";
+        var connectionString = GetConnectionString(provider, configuration);
         services.AddDbContext<AchDbContext>(options =>
-            options.UseSqlServer(
-                configuration.GetConnectionString("SqlConnection"),
-                sqlOptions =>
-                {
-                    if (commandTimeout.HasValue)
-                    {
-                        sqlOptions.CommandTimeout(commandTimeout.Value);
-                    }
-                }));
+        {
+            switch (provider.Trim().ToLowerInvariant())
+            {
+                case "sqlserver":
+                case "mssql":
+                    options.UseSqlServer(
+                        connectionString,
+                        sqlOptions =>
+                        {
+                            if (commandTimeout.HasValue)
+                            {
+                                sqlOptions.CommandTimeout(commandTimeout.Value);
+                            }
+                        });
+                    break;
+                case "postgres":
+                case "postgresql":
+                case "npgsql":
+                    options.UseNpgsql(
+                        connectionString,
+                        npgsqlOptions =>
+                        {
+                            if (commandTimeout.HasValue)
+                            {
+                                npgsqlOptions.CommandTimeout(commandTimeout.Value);
+                            }
+                        });
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unsupported database provider '{provider}'.");
+            }
+        });
 
         services.AddQuartz(q =>
         {
@@ -89,5 +114,23 @@ public static class DependencyInjectionService
         //_ = DbInitializer.SeedAllAsync(services.BuildServiceProvider());
 
         return services;
+    }
+
+    private static string GetConnectionString(string provider, IConfiguration configuration)
+    {
+        var connectionStringName = provider?.Trim().ToLowerInvariant() switch
+        {
+            "postgres" or "postgresql" or "npgsql" => "PostgresConnection",
+            _ => "SqlConnection"
+        };
+
+        var connectionString = configuration.GetConnectionString(connectionStringName);
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                $"Connection string '{connectionStringName}' is missing for provider '{provider}'.");
+        }
+
+        return connectionString;
     }
 }

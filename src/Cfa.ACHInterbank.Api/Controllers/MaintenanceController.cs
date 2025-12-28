@@ -18,12 +18,19 @@ public class MaintenanceController : Controller
     [HttpPost("seed")]
     public async Task<IActionResult> RunDbInitializer()
     {
-        var connectionString = _configuration.GetConnectionString("SqlConnection");
+        var provider = _configuration.GetValue<string>("Database:Provider") ?? "SqlServer";
+        var connectionStringName = provider.Trim().ToLowerInvariant() switch
+        {
+            "postgres" or "postgresql" or "npgsql" => "PostgresConnection",
+            _ => "SqlConnection"
+        };
+
+        var connectionString = _configuration.GetConnectionString(connectionStringName);
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             return BadRequest(new
             {
-                Message = "No se encontró ConnectionStrings:SqlConnection.",
+                Message = $"No se encontró ConnectionStrings:{connectionStringName}.",
                 Date = DateTime.UtcNow
             });
         }
