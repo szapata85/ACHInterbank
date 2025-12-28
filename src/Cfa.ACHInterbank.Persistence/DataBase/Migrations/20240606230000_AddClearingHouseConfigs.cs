@@ -11,7 +11,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            if (migrationBuilder.ActiveProvider == "Npgsql.EntityFrameworkCore.PostgreSQL")
+            var isPostgres = migrationBuilder.ActiveProvider?.Contains("Npgsql") == true;
+            if (isPostgres)
             {
                 migrationBuilder.CreateTable(
                     name: "ClearingHouseConfigs",

@@ -12,11 +12,11 @@ public class BrandingSettingConfiguration : IEntityTypeConfiguration<BrandingSet
 
         builder.HasKey(b => b.Id);
 
-        builder.Property(b => b.PublicLogo).HasColumnType("nvarchar(max)");
-        builder.Property(b => b.PrivateLogo).HasColumnType("nvarchar(max)");
-        builder.Property(b => b.PublicBackground).HasColumnType("nvarchar(max)");
-        builder.Property(b => b.PrivateBackground).HasColumnType("nvarchar(max)");
-        builder.Property(b => b.SidebarBackground).HasColumnType("nvarchar(max)");
+        builder.Property(b => b.PublicLogo);
+        builder.Property(b => b.PrivateLogo);
+        builder.Property(b => b.PublicBackground);
+        builder.Property(b => b.PrivateBackground);
+        builder.Property(b => b.SidebarBackground);
         builder.Property(b => b.ButtonColor).HasMaxLength(150);
     }
 }
