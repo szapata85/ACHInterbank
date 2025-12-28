@@ -85,6 +85,16 @@ public class AchDbContext : DbContext
             .Property(ur => ur.UpdatedAt)
             .HasDefaultValueSql(auditDefaultSql);
 
+        var primaryFilter = isPostgres ? "\"IsPrimary\" = true" : "[IsPrimary] = 1";
+        modelBuilder.Entity<CustomerPhone>()
+            .HasIndex(p => new { p.CustomerId, p.IsPrimary })
+            .IsUnique()
+            .HasFilter(primaryFilter);
+        modelBuilder.Entity<CustomerEmail>()
+            .HasIndex(e => new { e.CustomerId, e.IsPrimary })
+            .IsUnique()
+            .HasFilter(primaryFilter);
+
 
         modelBuilder.Entity<FinancialInstitution>()
             .HasMany(i => i.SourceTransactions)

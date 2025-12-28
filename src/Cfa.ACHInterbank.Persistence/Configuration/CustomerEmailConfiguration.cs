@@ -20,9 +20,7 @@ public class CustomerEmailConfiguration : IEntityTypeConfiguration<CustomerEmail
          .HasForeignKey(m => m.CustomerId)
          .OnDelete(DeleteBehavior.Cascade);
 
-        // Permitir sólo un email primario por cliente (índice filtrado)
         builder.HasIndex(m => new { m.CustomerId, m.IsPrimary })
-         .IsUnique()
-         .HasFilter("[IsPrimary] = 1");
+         .IsUnique();
     }
 }

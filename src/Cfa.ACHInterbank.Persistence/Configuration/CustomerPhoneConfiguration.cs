@@ -20,9 +20,7 @@ public class CustomerPhoneConfiguration : IEntityTypeConfiguration<CustomerPhone
          .HasForeignKey(p => p.CustomerId)
          .OnDelete(DeleteBehavior.Cascade);
 
-        // Permitir sólo un teléfono primario por cliente (índice filtrado)
         builder.HasIndex(p => new { p.CustomerId, p.IsPrimary })
-         .IsUnique()
-         .HasFilter("[IsPrimary] = 1");
+         .IsUnique();
     }
 }
