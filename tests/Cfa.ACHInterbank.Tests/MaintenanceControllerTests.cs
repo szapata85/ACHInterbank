@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Api.Controllers;
 using Cfa.ACHInterbank.Application.DataBase;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using Moq;
 using Xunit;
 
@@ -36,7 +37,14 @@ public class MaintenanceControllerTests
         services.AddSingleton(earlySeeder.Object);
         services.AddSingleton(lateSeeder.Object);
 
-        var controller = new MaintenanceController(services.BuildServiceProvider());
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:SqlConnection"] = "Server=localhost;Database=ACHInterbank;User Id=sa;Password=Cooperativa1*;TrustServerCertificate=True"
+            })
+            .Build();
+
+        var controller = new MaintenanceController(services.BuildServiceProvider(), configuration);
 
         // Act
         var result = await controller.RunDbInitializer();
