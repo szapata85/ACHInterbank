@@ -26,6 +26,8 @@ docker compose up --build
 
 Si la base de datos está fuera de `docker compose` (otro contenedor o el host), use `host.docker.internal` como host en Linux o conecte ambos contenedores a una red compartida.
 
+El frontend Angular se levanta en `http://localhost:4200` mediante el servicio `web` del compose.
+
 ### HTTPS y Swagger en Docker
 
 El `docker-compose.yml` expone HTTP (8080) y HTTPS (8081). Para habilitar HTTPS, coloque un certificado PFX en `./certs/aspnetapp.pfx` con contraseña `changeit` (o actualice los valores en el compose). El volumen `./certs` se monta con permisos de escritura para permitir la generación automática.
