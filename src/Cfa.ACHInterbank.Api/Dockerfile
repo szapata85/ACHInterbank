@@ -33,4 +33,6 @@ RUN dotnet publish "./Cfa.ACHInterbank.Api.csproj" -c $BUILD_CONFIGURATION -o /a
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "Cfa.ACHInterbank.Api.dll"]
+COPY ["src/Cfa.ACHInterbank.Api/entrypoint.sh", "/app/entrypoint.sh"]
+RUN chmod +x /app/entrypoint.sh
+ENTRYPOINT ["/app/entrypoint.sh"]

@@ -34,6 +34,8 @@ El `docker-compose.yml` expone HTTP (8080) y HTTPS (8081). Para habilitar HTTPS,
 dotnet dev-certs https -ep certs/aspnetapp.pfx -p changeit
 ```
 
+Si no existe el PFX, el contenedor generará uno automáticamente al iniciar.
+
 Con el contenedor arriba, Swagger queda disponible en:
 
 - HTTP: `http://localhost:8080`
