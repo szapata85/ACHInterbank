@@ -22,13 +22,11 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(x => x.PasswordHash).IsRequired().HasMaxLength(256);
         builder.Property(x => x.CreatedAt)
             .IsRequired()
-            .ValueGeneratedOnAdd()
-            .HasDefaultValueSql("SYSUTCDATETIME()");
+            .ValueGeneratedOnAdd();
 
         builder.Property(x => x.UpdatedAt)
             .IsRequired()
-            .ValueGeneratedOnAdd()
-            .HasDefaultValueSql("SYSUTCDATETIME()");
+            .ValueGeneratedOnAdd();
 
         builder.HasIndex(x => x.Username).IsUnique();
         builder.HasIndex(x => x.Email).IsUnique();

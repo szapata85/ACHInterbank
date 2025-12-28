@@ -22,13 +22,11 @@ public class UserRoleConfiguration : IEntityTypeConfiguration<UserRole>
 
         builder.Property(x => x.CreatedAt)
             .IsRequired()
-            .ValueGeneratedOnAdd()
-            .HasDefaultValueSql("SYSUTCDATETIME()");
+            .ValueGeneratedOnAdd();
 
         builder.Property(x => x.UpdatedAt)
             .IsRequired()
-            .ValueGeneratedOnAdd()
-            .HasDefaultValueSql("SYSUTCDATETIME()");
+            .ValueGeneratedOnAdd();
 
         builder.HasData(new UserRole
         {

@@ -71,6 +71,20 @@ public class AchDbContext : DbContext
             .Property(c => c.UploadedAt)
             .HasDefaultValueSql(isPostgres ? "timezone('utc', now())" : "GETUTCDATE()");
 
+        var auditDefaultSql = isPostgres ? "timezone('utc', now())" : "SYSUTCDATETIME()";
+        modelBuilder.Entity<User>()
+            .Property(u => u.CreatedAt)
+            .HasDefaultValueSql(auditDefaultSql);
+        modelBuilder.Entity<User>()
+            .Property(u => u.UpdatedAt)
+            .HasDefaultValueSql(auditDefaultSql);
+        modelBuilder.Entity<UserRole>()
+            .Property(ur => ur.CreatedAt)
+            .HasDefaultValueSql(auditDefaultSql);
+        modelBuilder.Entity<UserRole>()
+            .Property(ur => ur.UpdatedAt)
+            .HasDefaultValueSql(auditDefaultSql);
+
 
         modelBuilder.Entity<FinancialInstitution>()
             .HasMany(i => i.SourceTransactions)
