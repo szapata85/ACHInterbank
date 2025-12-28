@@ -9,7 +9,7 @@ services:
     ports:
       - "1433:1433"
     healthcheck:
-      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Cooperativa1*", "-Q", "SELECT 1", "-C"]
+      test: ["CMD-SHELL", "bash -c '>/dev/tcp/localhost/1433'"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -22,6 +22,8 @@ services:
       ConnectionStrings__SqlConnection: "Server=db,1433;Database=ACHInterbank;User Id=sa;Password=Cooperativa1*;TrustServerCertificate=True"
       Database__ApplyMigrations: "true"
       Database__AllowSeed: "true"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8080:8080"
       - "8081:8081"

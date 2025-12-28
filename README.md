@@ -24,6 +24,8 @@ También puede usar el archivo `docker-compose.yml` incluido:
 docker compose up --build
 ```
 
+Si la base de datos está fuera de `docker compose` (otro contenedor o el host), use `host.docker.internal` como host en Linux o conecte ambos contenedores a una red compartida.
+
 ## Getting started
 
 To make it easy for you to get started with GitLab, here's a list of recommended next steps.
