@@ -26,6 +26,19 @@ docker compose up --build
 
 Si la base de datos está fuera de `docker compose` (otro contenedor o el host), use `host.docker.internal` como host en Linux o conecte ambos contenedores a una red compartida.
 
+### HTTPS y Swagger en Docker
+
+El `docker-compose.yml` expone HTTP (8080) y HTTPS (8081). Para habilitar HTTPS, coloque un certificado PFX en `./certs/aspnetapp.pfx` con contraseña `changeit` (o actualice los valores en el compose). Ejemplo para generar un certificado de desarrollo:
+
+```bash
+dotnet dev-certs https -ep certs/aspnetapp.pfx -p changeit
+```
+
+Con el contenedor arriba, Swagger queda disponible en:
+
+- HTTP: `http://localhost:8080`
+- HTTPS: `https://localhost:8081`
+
 ## Getting started
 
 To make it easy for you to get started with GitLab, here's a list of recommended next steps.

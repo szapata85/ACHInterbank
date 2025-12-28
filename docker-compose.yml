@@ -21,6 +21,9 @@ services:
       dockerfile: src/Cfa.ACHInterbank.Api/Dockerfile
     container_name: Cfa.ACHInterbank.Api
     environment:
+      ASPNETCORE_URLS: "https://+:8081;http://+:8080"
+      ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/aspnetapp.pfx"
+      ASPNETCORE_Kestrel__Certificates__Default__Password: "changeit"
       ConnectionStrings__SqlConnection: "Server=db,1433;Database=ACHInterbank;User Id=sa;Password=Cooperativa1*;TrustServerCertificate=True"
       Database__ApplyMigrations: "true"
       Database__AllowSeed: "true"
@@ -29,6 +32,8 @@ services:
     ports:
       - "8080:8080"
       - "8081:8081"
+    volumes:
+      - ./certs:/https:ro
     depends_on:
       db:
         condition: service_healthy
