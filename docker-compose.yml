@@ -3,6 +3,7 @@ version: "3.9"
 services:
   db:
     image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: ACHinterbank
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "Cooperativa1*"
@@ -18,6 +19,7 @@ services:
     build:
       context: .
       dockerfile: src/Cfa.ACHInterbank.Api/Dockerfile
+    container_name: Cfa.ACHInterbank.Api
     environment:
       ConnectionStrings__SqlConnection: "Server=db,1433;Database=ACHInterbank;User Id=sa;Password=Cooperativa1*;TrustServerCertificate=True"
       Database__ApplyMigrations: "true"
