@@ -1,18 +1,28 @@
-﻿using Cfa.ACHInterbank.Domain.Entities.Navigation;
+﻿using Cfa.ACHInterbank.Domain.Entities.Audit;
+using Cfa.ACHInterbank.Domain.Entities.Navigation;
 using Cfa.ACHInterbank.Domain.Entities.Branding;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Services;
 using Cfa.ACHInterbank.Domain.Entities.User;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using System.Text.Json;
 
 namespace Cfa.ACHInterbank.Persistence.DataBase;
 
 public class AchDbContext : DbContext
 {
-    public AchDbContext(DbContextOptions<AchDbContext> options) : base(options) { }
+    private static readonly string[] AuditIgnoredProperties = ["CreatedAt", "UpdatedAt"];
+    private readonly IHttpContextAccessor? _httpContextAccessor;
+
+    public AchDbContext(DbContextOptions<AchDbContext> options, IHttpContextAccessor? httpContextAccessor = null) : base(options)
+    {
+        _httpContextAccessor = httpContextAccessor;
+    }
 
 
     public DbSet<ClearingHouse> ClearingHouses { get; set; }
@@ -59,6 +69,7 @@ public class AchDbContext : DbContext
 
     public DbSet<DigitalEnvelopeCertificate> DigitalEnvelopeCertificates => Set<DigitalEnvelopeCertificate>();
     public DbSet<BrandingSetting> BrandingSettings => Set<BrandingSetting>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
 
 
@@ -254,6 +265,10 @@ public class AchDbContext : DbContext
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        var now = DateTimeOffset.UtcNow;
+        var changedBy = ResolveChangedBy();
+        var auditEntries = BuildAuditEntries(now, changedBy);
+
         var entries = ChangeTracker
             .Entries<IAuditableEntity>()
             .ToList();
@@ -262,16 +277,120 @@ public class AchDbContext : DbContext
         {
             if (entry.State == EntityState.Added)
             {
-                entry.Entity.CreatedAt = DateTimeOffset.UtcNow;
-                entry.Entity.UpdatedAt = DateTimeOffset.UtcNow;
+                entry.Entity.CreatedAt = now;
+                entry.Entity.UpdatedAt = now;
             }
             else if (entry.State == EntityState.Modified)
             {
-                entry.Entity.UpdatedAt = DateTimeOffset.UtcNow;
+                entry.Entity.UpdatedAt = now;
             }
         }
 
+        if (auditEntries.Count > 0)
+        {
+            AuditLogs.AddRange(auditEntries);
+        }
+
         return await base.SaveChangesAsync(cancellationToken);
+    }
+
+    private List<AuditLog> BuildAuditEntries(DateTimeOffset now, string changedBy)
+    {
+        var auditEntries = new List<AuditLog>();
+
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.Entity is AuditLog)
+            {
+                if (entry.State != EntityState.Added)
+                {
+                    throw new InvalidOperationException("Audit logs are immutable and cannot be modified.");
+                }
+
+                continue;
+            }
+
+            if (entry.State is EntityState.Detached or EntityState.Unchanged)
+            {
+                continue;
+            }
+
+            var isModified = entry.State == EntityState.Modified;
+            var beforeJson = entry.State == EntityState.Added ? null : SerializeValues(entry, useOriginalValues: true, onlyModified: isModified);
+            var afterJson = entry.State == EntityState.Deleted ? null : SerializeValues(entry, useOriginalValues: false, onlyModified: isModified);
+
+            if (beforeJson is null && afterJson is null)
+            {
+                continue;
+            }
+
+            auditEntries.Add(new AuditLog
+            {
+                Id = Guid.NewGuid(),
+                EntityName = entry.Metadata.ClrType.Name,
+                EntityId = GetPrimaryKey(entry),
+                Action = entry.State.ToString(),
+                ChangedBy = changedBy,
+                ChangedAt = now,
+                BeforeJson = beforeJson,
+                AfterJson = afterJson
+            });
+        }
+
+        return auditEntries;
+    }
+
+    private static string? SerializeValues(EntityEntry entry, bool useOriginalValues, bool onlyModified)
+    {
+        var properties = entry.Properties
+            .Where(property => !property.Metadata.IsShadowProperty())
+            .Where(property => !AuditIgnoredProperties.Contains(property.Metadata.Name, StringComparer.OrdinalIgnoreCase))
+            .Where(property => !property.IsTemporary);
+
+        if (onlyModified)
+        {
+            properties = properties.Where(property => property.IsModified);
+        }
+
+        var values = new Dictionary<string, object?>();
+        foreach (var property in properties)
+        {
+            var value = useOriginalValues ? property.OriginalValue : property.CurrentValue;
+            values[property.Metadata.Name] = value;
+        }
+
+        if (values.Count == 0)
+        {
+            return null;
+        }
+
+        return JsonSerializer.Serialize(values);
+    }
+
+    private static string GetPrimaryKey(EntityEntry entry)
+    {
+        var keyValues = entry.Properties
+            .Where(property => property.Metadata.IsPrimaryKey())
+            .Select(property =>
+            {
+                var value = property.CurrentValue ?? property.OriginalValue;
+                return $"{property.Metadata.Name}={value}";
+            });
+
+        return string.Join(",", keyValues);
+    }
+
+    private string ResolveChangedBy()
+    {
+        var user = _httpContextAccessor?.HttpContext?.User;
+        var userId = user?.FindFirst("uid")?.Value;
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            return userId;
+        }
+
+        var name = user?.Identity?.Name;
+        return string.IsNullOrWhiteSpace(name) ? "system" : name;
     }
 
 
