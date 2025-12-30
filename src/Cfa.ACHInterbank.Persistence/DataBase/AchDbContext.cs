@@ -318,6 +318,11 @@ public class AchDbContext : DbContext
                 continue;
             }
 
+            if (entry.Entity is TaskExecutionLog)
+            {
+                continue;
+            }
+
             if (entry.State is EntityState.Detached or EntityState.Unchanged)
             {
                 continue;
