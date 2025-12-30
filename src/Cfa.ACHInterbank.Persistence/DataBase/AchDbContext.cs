@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using System.Security.Claims;
 using System.Text.Json;
 
 namespace Cfa.ACHInterbank.Persistence.DataBase;
@@ -263,6 +264,11 @@ public class AchDbContext : DbContext
 
     }
 
+    public override int SaveChanges()
+    {
+        return SaveChangesAsync().GetAwaiter().GetResult();
+    }
+
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
@@ -316,10 +322,11 @@ public class AchDbContext : DbContext
             }
 
             var isModified = entry.State == EntityState.Modified;
-            var beforeJson = entry.State == EntityState.Added ? null : SerializeValues(entry, useOriginalValues: true, onlyModified: isModified);
-            var afterJson = entry.State == EntityState.Deleted ? null : SerializeValues(entry, useOriginalValues: false, onlyModified: isModified);
+            var beforeJson = entry.State == EntityState.Added ? null : SerializeValues(entry, useOriginalValues: true, onlyModified: false);
+            var afterJson = entry.State == EntityState.Deleted ? null : SerializeValues(entry, useOriginalValues: false, onlyModified: false);
+            var changedFields = SerializeChangedFields(entry, isModified);
 
-            if (beforeJson is null && afterJson is null)
+            if (beforeJson is null && afterJson is null && changedFields is null)
             {
                 continue;
             }
@@ -332,6 +339,7 @@ public class AchDbContext : DbContext
                 Action = entry.State.ToString(),
                 ChangedBy = changedBy,
                 ChangedAt = now,
+                ChangedFields = changedFields,
                 BeforeJson = beforeJson,
                 AfterJson = afterJson
             });
@@ -367,6 +375,27 @@ public class AchDbContext : DbContext
         return JsonSerializer.Serialize(values);
     }
 
+    private static string? SerializeChangedFields(EntityEntry entry, bool onlyModified)
+    {
+        var properties = entry.Properties
+            .Where(property => !property.Metadata.IsShadowProperty())
+            .Where(property => !AuditIgnoredProperties.Contains(property.Metadata.Name, StringComparer.OrdinalIgnoreCase))
+            .Where(property => !property.IsTemporary);
+
+        if (onlyModified)
+        {
+            properties = properties.Where(property => property.IsModified);
+        }
+
+        var names = properties.Select(property => property.Metadata.Name).Distinct().ToList();
+        if (names.Count == 0)
+        {
+            return null;
+        }
+
+        return JsonSerializer.Serialize(names);
+    }
+
     private static string GetPrimaryKey(EntityEntry entry)
     {
         var keyValues = entry.Properties
@@ -383,7 +412,9 @@ public class AchDbContext : DbContext
     private string ResolveChangedBy()
     {
         var user = _httpContextAccessor?.HttpContext?.User;
-        var userId = user?.FindFirst("uid")?.Value;
+        var userId = user?.FindFirst("uid")?.Value
+            ?? user?.FindFirst("sub")?.Value
+            ?? user?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (!string.IsNullOrWhiteSpace(userId))
         {
             return userId;

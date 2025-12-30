@@ -30,6 +30,8 @@ public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
         builder.Property(x => x.ChangedAt)
             .IsRequired();
 
+        builder.Property(x => x.ChangedFields);
+
         builder.Property(x => x.BeforeJson);
 
         builder.Property(x => x.AfterJson);
