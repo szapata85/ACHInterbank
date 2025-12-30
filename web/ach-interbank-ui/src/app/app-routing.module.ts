@@ -66,6 +66,10 @@ const routes: Routes = [
         loadChildren: () => import('./features/catalogs/catalogs.module').then((m) => m.CatalogsModule)
       },
       {
+        path: 'audit-logs',
+        loadChildren: () => import('./features/audit/audit.module').then((m) => m.AuditModule)
+      },
+      {
         path: 'unauthorized',
         data: { title: 'No autorizado', breadcrumb: 'Error 403' },
         loadComponent: () =>

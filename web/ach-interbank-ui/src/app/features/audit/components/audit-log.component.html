@@ -1,0 +1,46 @@
+<app-page-header title="Audit log" subtitle="Consulta y monitoreo de auditoría"></app-page-header>
+
+<section class="audit-log">
+  <form class="form-grid" [formGroup]="filterForm" (ngSubmit)="search()">
+    <label>
+      Fecha inicio
+      <input type="date" formControlName="startDate" />
+    </label>
+
+    <label>
+      Fecha fin
+      <input type="date" formControlName="endDate" />
+    </label>
+
+    <label>
+      Usuario
+      <input type="text" formControlName="changedBy" placeholder="Buscar por usuario" />
+    </label>
+
+    <label>
+      Acción
+      <select formControlName="action">
+        <option *ngFor="let option of actions" [value]="option.value">{{ option.label }}</option>
+      </select>
+    </label>
+
+    <div class="form-actions">
+      <button type="submit" class="primary" [disabled]="loading">Buscar</button>
+      <button type="button" class="ghost" (click)="clear()" [disabled]="loading">Limpiar</button>
+    </div>
+  </form>
+
+  <app-table
+    [columns]="columns"
+    [data]="rows"
+    [loading]="loading"
+    [page]="page"
+    [pageSize]="pageSize"
+    [total]="total"
+    (pageChange)="onPageChange($event)"
+  ></app-table>
+
+  <div class="empty-state" *ngIf="!loading && !hasSearched">
+    Usa los filtros y presiona buscar para cargar resultados.
+  </div>
+</section>
