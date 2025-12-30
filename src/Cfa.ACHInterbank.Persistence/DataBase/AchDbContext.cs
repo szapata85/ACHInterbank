@@ -310,7 +310,7 @@ public class AchDbContext : DbContext
         {
             if (entry.Entity is AuditLog)
             {
-                if (entry.State != EntityState.Added)
+                if (entry.State is EntityState.Modified or EntityState.Deleted)
                 {
                     throw new InvalidOperationException("Audit logs are immutable and cannot be modified.");
                 }
