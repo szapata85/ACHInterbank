@@ -20,6 +20,8 @@ public class AchDbContext : DbContext
     private static readonly string[] AuditIgnoredProperties = ["CreatedAt", "UpdatedAt"];
     private readonly IHttpContextAccessor? _httpContextAccessor;
 
+    public bool AuditEnabled { get; set; } = true;
+
     public AchDbContext(DbContextOptions<AchDbContext> options, IHttpContextAccessor? httpContextAccessor = null) : base(options)
     {
         _httpContextAccessor = httpContextAccessor;
@@ -273,7 +275,7 @@ public class AchDbContext : DbContext
     {
         var now = DateTimeOffset.UtcNow;
         var changedBy = ResolveChangedBy();
-        var auditEntries = BuildAuditEntries(now, changedBy);
+        var auditEntries = AuditEnabled ? BuildAuditEntries(now, changedBy) : [];
 
         var entries = ChangeTracker
             .Entries<IAuditableEntity>()

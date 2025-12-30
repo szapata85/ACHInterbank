@@ -11,16 +11,31 @@ public static class DbInitializer
         var serviceProvider = scope.ServiceProvider;
 
         
+        var dbContext = scope.ServiceProvider.GetService<AchDbContext>();
+        if (dbContext is not null)
+        {
+            dbContext.AuditEnabled = false;
+        }
+
         var seeders = scope.ServiceProvider
                            .GetServices<IDbSeeder>()
                            .OrderBy(s => s.Order);
 
-        foreach (var seeder in seeders)
+        try
         {
-            await seeder.SeedAsync();
+            foreach (var seeder in seeders)
+            {
+                await seeder.SeedAsync();
+            }
+        }
+        finally
+        {
+            if (dbContext is not null)
+            {
+                dbContext.AuditEnabled = true;
+            }
         }
 
         //await Task.WhenAll(seeders.Select(s => s.SeedAsync()));
     }
 }
-
