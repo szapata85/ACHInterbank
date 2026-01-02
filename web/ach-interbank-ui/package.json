@@ -4,6 +4,7 @@
   "scripts": {
     "start": "ng serve --host 0.0.0.0 --port 4200",
     "build": "ng build",
+    "build:obfuscate": "ng build && node scripts/obfuscate-dist.mjs",
     "test": "ng test"
   },
   "private": true,
@@ -28,6 +29,7 @@
     "@angular/compiler-cli": "^21.0.5",
     "@types/jasmine": "^5.1.6",
     "jasmine-core": "^5.2.0",
+    "javascript-obfuscator": "^5.1.0",
     "karma": "^6.4.4",
     "karma-chrome-launcher": "^3.2.0",
     "karma-coverage": "^2.2.1",
