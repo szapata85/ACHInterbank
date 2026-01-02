@@ -1,4 +1,5 @@
-import { Injectable, inject } from '@angular/core';
+import { Inject, Injectable, PLATFORM_ID, inject } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { NavigationEnd, Router } from '@angular/router';
 import { BehaviorSubject, EMPTY, Observable, catchError, filter, map, switchMap, tap } from 'rxjs';
 import { TokenStorageService } from '../../security/token-storage.service';
@@ -14,6 +15,7 @@ export class AuthService {
   private readonly api = inject(ApiService);
   private readonly tokenStorage = inject(TokenStorageService);
   private readonly router = inject(Router);
+  private readonly platformId = inject(PLATFORM_ID);
 
   private readonly authEndpoint = environment.authEndpoint ?? 'auth';
   private readonly userSubject = new BehaviorSubject<UserSession | null>(null);
@@ -90,6 +92,7 @@ export class AuthService {
   logout(): void {
     this.tokenStorage.clear();
     this.userSubject.next(null);
+    this.clearClientCaches();
     this.router.navigate(['/auth/login']);
   }
 
@@ -181,5 +184,22 @@ export class AuthService {
     if (!value) return [];
     if (Array.isArray(value)) return value.map((item) => String(item));
     return [String(value)];
+  }
+
+  private clearClientCaches(): void {
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
+
+    try {
+      window.sessionStorage.clear();
+      window.localStorage.clear();
+    } catch {
+      // ignored
+    }
+
+    if ('caches' in window) {
+      void window.caches.keys().then((keys) => Promise.all(keys.map((key) => window.caches.delete(key))));
+    }
   }
 }

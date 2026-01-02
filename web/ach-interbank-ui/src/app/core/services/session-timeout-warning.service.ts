@@ -110,6 +110,7 @@ export class SessionTimeoutWarningService implements OnDestroy {
       if (remainingSeconds <= 0) {
         this.countdownSubscription?.unsubscribe();
         this.countdownSubscription = undefined;
+        this.logout();
       }
     });
   }
