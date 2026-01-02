@@ -21,9 +21,12 @@ import { SessionTimeoutWarningService } from './core/services/session-timeout-wa
 })
 export class AppComponent {
   title = 'ACH Interbank SPA';
-  readonly sessionWarning$ = this.sessionTimeoutWarningService.warning$;
 
-  constructor(private readonly sessionTimeoutWarningService: SessionTimeoutWarningService) {}
+  readonly sessionWarning$;
+
+  constructor(private readonly sessionTimeoutWarningService: SessionTimeoutWarningService) {
+    this.sessionWarning$ = this.sessionTimeoutWarningService.warning$;
+  }
 
   extendSession(): void {
     this.sessionTimeoutWarningService.extendSession();
