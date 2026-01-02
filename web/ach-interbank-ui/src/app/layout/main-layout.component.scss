@@ -30,6 +30,7 @@
   position: sticky;
   top: 0;
   height: 100vh;
+  max-height: 100vh;
   z-index: 30;
   transition: transform 0.25s ease;
   overflow: hidden;
@@ -411,6 +412,9 @@ button:hover {
     top: 0;
     width: 240px;
     height: 100vh;
+    max-height: 100vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     transform: translateX(-100%);
   }
 
