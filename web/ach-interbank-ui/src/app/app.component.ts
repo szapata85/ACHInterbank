@@ -1,3 +1,4 @@
+import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
@@ -10,6 +11,7 @@ import { SessionTimeoutWarningService } from './core/services/session-timeout-wa
   selector: 'app-root',
   standalone: true,
   imports: [
+    CommonModule,
     RouterOutlet,
     NotificationContainerComponent,
     LoadingOverlayComponent
@@ -19,6 +21,15 @@ import { SessionTimeoutWarningService } from './core/services/session-timeout-wa
 })
 export class AppComponent {
   title = 'ACH Interbank SPA';
+  readonly sessionWarning$ = this.sessionTimeoutWarningService.warning$;
 
   constructor(private readonly sessionTimeoutWarningService: SessionTimeoutWarningService) {}
+
+  extendSession(): void {
+    this.sessionTimeoutWarningService.extendSession();
+  }
+
+  logout(): void {
+    this.sessionTimeoutWarningService.logout();
+  }
 }

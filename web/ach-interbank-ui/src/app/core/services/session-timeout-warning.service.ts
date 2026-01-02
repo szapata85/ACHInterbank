@@ -1,5 +1,5 @@
 import { Injectable, OnDestroy, inject } from '@angular/core';
-import { Subscription, timer } from 'rxjs';
+import { BehaviorSubject, Subscription, timer } from 'rxjs';
 import { AuthService } from './auth.service';
 import { NotificationService } from './notification.service';
 
@@ -10,6 +10,9 @@ export class SessionTimeoutWarningService implements OnDestroy {
   private readonly authService = inject(AuthService);
   private readonly notifications = inject(NotificationService);
 
+  private readonly warningSubject = new BehaviorSubject<boolean>(false);
+  readonly warning$ = this.warningSubject.asObservable();
+
   private sessionSubscription?: Subscription;
   private timerSubscription?: Subscription;
   private lastNotifiedExpiry?: number;
@@ -18,6 +21,7 @@ export class SessionTimeoutWarningService implements OnDestroy {
     this.sessionSubscription = this.authService.user$.subscribe((session) => {
       this.timerSubscription?.unsubscribe();
       this.timerSubscription = undefined;
+      this.warningSubject.next(false);
 
       if (!session?.expiresAt) {
         this.lastNotifiedExpiry = undefined;
@@ -54,6 +58,19 @@ export class SessionTimeoutWarningService implements OnDestroy {
     }
 
     this.lastNotifiedExpiry = expiryTimestamp;
+    this.warningSubject.next(true);
     this.notifications.warning('Tu sesión expirará pronto. Guarda tu trabajo o inicia sesión nuevamente.');
+  }
+
+  extendSession(): void {
+    this.warningSubject.next(false);
+    this.authService.refreshSession().subscribe({
+      error: () => this.authService.logout()
+    });
+  }
+
+  logout(): void {
+    this.warningSubject.next(false);
+    this.authService.logout();
   }
 }

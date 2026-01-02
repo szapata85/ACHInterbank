@@ -2,3 +2,63 @@
   display: block;
   min-height: 100vh;
 }
+
+.session-timeout {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.session-timeout__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.session-timeout__dialog {
+  position: relative;
+  z-index: 1;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: min(420px, 90vw);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.3);
+}
+
+.session-timeout__dialog h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  color: #111827;
+}
+
+.session-timeout__dialog p {
+  margin: 0 0 1.25rem;
+  color: #4b5563;
+}
+
+.session-timeout__actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.session-timeout__actions .primary {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  padding: 0.55rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.session-timeout__actions .ghost {
+  background: transparent;
+  color: #111827;
+  border: 1px solid #d1d5db;
+  padding: 0.55rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
