@@ -58,6 +58,7 @@ export interface TransactionListItem {
 
 export interface TransactionListFilter {
   achCycleId?: string | null;
+  achCycleName?: string | null;
   effectiveDate?: string;
   clearingHouseId?: number | null;
 }

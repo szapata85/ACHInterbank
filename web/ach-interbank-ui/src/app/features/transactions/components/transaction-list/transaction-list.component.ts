@@ -26,6 +26,7 @@ interface TransactionGroup {
 interface AchCycleOption {
   id: string;
   label: string;
+  name: string;
 }
 
 @Component({
@@ -135,7 +136,10 @@ export class TransactionListComponent implements OnInit {
       .subscribe({
         next: (response) => {
           const mapped = (response?.items ?? []).map((cycle) => this.mapCycleOption(cycle));
-          this.cycles = this.distinctCycles(mapped);
+          const distinct = this.distinctCycles(mapped);
+          this.cycles = this.selectedClearingHouseId == null
+            ? distinct.map((option) => ({ ...option, id: option.name }))
+            : distinct;
 
           if (!this.selectedCycleId && this.cycles.length > 0) {
             this.selectedCycleId = this.cycles[0].id;
@@ -161,9 +165,11 @@ export class TransactionListComponent implements OnInit {
   private loadTransactions(): void {
     this.loading = true;
     this.cdr.markForCheck();
+    const useCycleName = this.selectedClearingHouseId == null;
     this.api
       .getAll({
-        achCycleId: this.selectedCycleId,
+        achCycleId: useCycleName ? null : this.selectedCycleId,
+        achCycleName: useCycleName ? this.selectedCycleId : null,
         effectiveDate: this.selectedDate || undefined,
         clearingHouseId: this.selectedClearingHouseId ?? undefined
       })
@@ -205,14 +211,14 @@ export class TransactionListComponent implements OnInit {
     const id = cycle.id?.trim();
     const name = cycle.cycleName?.trim() || `Ciclo ${id}`;
 
-    return { id, label: name };
+    return { id, label: name, name };
   }
 
   private distinctCycles(options: AchCycleOption[]): AchCycleOption[] {
     const seen = new Set<string>();
 
     return options.filter((option) => {
-      const key = option.label.toLocaleLowerCase();
+      const key = option.name.toLocaleLowerCase();
       if (seen.has(key)) {
         return false;
       }

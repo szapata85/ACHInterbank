@@ -249,6 +249,7 @@ public class AchTransactionService : IAchTransactionService
 
     public async Task<IReadOnlyList<AchTransactionListDto>> GetAllAsync(
         string? achCycleId = default,
+        string? achCycleName = default,
         DateTime? effectiveDate = default,
         int? clearingHouseId = default,
         CancellationToken ct = default)
@@ -265,6 +266,12 @@ public class AchTransactionService : IAchTransactionService
         if (!string.IsNullOrWhiteSpace(achCycleId))
         {
             query = query.Where(t => t.AchCycleId == achCycleId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(achCycleName))
+        {
+            var normalizedName = achCycleName.Trim();
+            query = query.Where(t => t.AchCycle.CycleName == normalizedName);
         }
 
         if (effectiveDate.HasValue)

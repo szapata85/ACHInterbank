@@ -27,6 +27,7 @@ public interface IAchTransactionService
 
     Task<IReadOnlyList<AchTransactionListDto>> GetAllAsync(
         string? achCycleId = default,
+        string? achCycleName = default,
         DateTime? effectiveDate = default,
         int? clearingHouseId = default,
         CancellationToken ct = default);

@@ -36,6 +36,10 @@ export class TransactionsApiService {
       params.achCycleId = filter.achCycleId;
     }
 
+    if (filter?.achCycleName !== undefined && filter?.achCycleName !== null) {
+      params.achCycleName = filter.achCycleName;
+    }
+
     if (filter?.effectiveDate) {
       params.effectiveDate = filter.effectiveDate;
     }
