@@ -102,11 +102,8 @@ public class AchCycleAppService : IAchCycleAppService
         DateTime? endDate = null,
         CancellationToken ct = default)
     {
-        var today = DateTime.UtcNow.Date;
-
         var query = _context.AchCycles
             .AsNoTracking()
-            .Where(cycle => cycle.ProcessingDate <= today)
             .Where(cycle => cycle.Transactions.Any())
             .AsQueryable();
 
@@ -117,13 +114,14 @@ public class AchCycleAppService : IAchCycleAppService
 
         if (startDate.HasValue)
         {
-            query = query.Where(cycle => cycle.ProcessingDate >= startDate.Value.Date);
+            var start = startDate.Value.Date;
+            query = query.Where(cycle => cycle.Transactions.Any(t => t.EffectiveEntryDate >= start));
         }
 
         if (endDate.HasValue)
         {
-            var end = endDate.Value.Date > today ? today : endDate.Value.Date;
-            query = query.Where(cycle => cycle.ProcessingDate <= end);
+            var end = endDate.Value.Date;
+            query = query.Where(cycle => cycle.Transactions.Any(t => t.EffectiveEntryDate <= end));
         }
 
         return await query
@@ -131,7 +129,7 @@ public class AchCycleAppService : IAchCycleAppService
             {
                 Id = cycle.Id,
                 CycleName = cycle.CycleName,
-                ProcessingDate = cycle.ProcessingDate,
+                ProcessingDate = cycle.Transactions.Min(t => t.EffectiveEntryDate),
                 ClearingHouseName = cycle.ClearingHouse != null ? cycle.ClearingHouse.Name : null,
                 TransactionCount = cycle.Transactions.Count
             })
