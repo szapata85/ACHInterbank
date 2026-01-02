@@ -142,8 +142,11 @@ export class AuthService {
   private hydrateFromToken(token: string, payload?: AuthPayload): UserSession {
     const parsed = this.parseJwt(token);
     const rawExp = parsed['exp'];
+    const rawIat = parsed['iat'];
     const exp = typeof rawExp === 'number' ? rawExp : typeof rawExp === 'string' ? Number(rawExp) : undefined;
     const expiresAt = exp ? new Date(exp * 1000) : undefined;
+    const iat = typeof rawIat === 'number' ? rawIat : typeof rawIat === 'string' ? Number(rawIat) : undefined;
+    const issuedAt = iat ? new Date(iat * 1000) : undefined;
     const roles = this.toStringArray(
       parsed['role'] ?? parsed['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] ?? payload?.roles
     );
@@ -156,6 +159,7 @@ export class AuthService {
       userId: (parsed['uid'] as string) ?? (parsed['sub'] as string),
       roles,
       permissions,
+      issuedAt,
       expiresAt
     };
 

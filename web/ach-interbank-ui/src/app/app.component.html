@@ -7,6 +7,7 @@
   <div class="session-timeout__dialog" role="dialog" aria-modal="true" aria-labelledby="session-timeout-title">
     <h2 id="session-timeout-title">Tu sesión está por expirar</h2>
     <p>Por seguridad, tu sesión expirará pronto. Guarda tu trabajo o continúa la sesión.</p>
+    <p class="session-timeout__countdown">Tiempo restante: {{ formatRemaining(remainingSeconds$ | async) }}</p>
     <div class="session-timeout__actions">
       <button type="button" class="primary" (click)="extendSession()">Continuar sesión</button>
       <button type="button" class="ghost" (click)="logout()">Cerrar sesión</button>

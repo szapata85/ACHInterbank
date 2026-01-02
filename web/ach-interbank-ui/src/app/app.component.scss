@@ -39,6 +39,12 @@
   color: #4b5563;
 }
 
+.session-timeout__countdown {
+  margin-top: -0.5rem;
+  font-weight: 600;
+  color: #111827;
+}
+
 .session-timeout__actions {
   display: flex;
   gap: 0.75rem;

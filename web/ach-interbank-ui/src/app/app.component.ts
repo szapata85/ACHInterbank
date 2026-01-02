@@ -23,9 +23,22 @@ export class AppComponent {
   title = 'ACH Interbank SPA';
 
   readonly sessionWarning$;
+  readonly remainingSeconds$;
 
   constructor(private readonly sessionTimeoutWarningService: SessionTimeoutWarningService) {
     this.sessionWarning$ = this.sessionTimeoutWarningService.warning$;
+    this.remainingSeconds$ = this.sessionTimeoutWarningService.remainingSeconds$;
+  }
+
+  formatRemaining(seconds: number | null): string {
+    if (seconds === null) {
+      return '';
+    }
+
+    const safe = Math.max(0, seconds);
+    const minutes = Math.floor(safe / 60);
+    const remaining = safe % 60;
+    return `${minutes.toString().padStart(2, '0')}:${remaining.toString().padStart(2, '0')}`;
   }
 
   extendSession(): void {

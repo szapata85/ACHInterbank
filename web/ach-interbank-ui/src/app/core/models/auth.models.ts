@@ -18,6 +18,7 @@ export interface UserSession {
   fullName: string;
   roles: string[];
   permissions: string[];
+  issuedAt?: Date;
   expiresAt?: Date;
   userId?: string;
 }
