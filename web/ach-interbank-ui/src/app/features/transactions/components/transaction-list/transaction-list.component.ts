@@ -178,7 +178,7 @@ export class TransactionListComponent implements OnInit {
               grouped.set(item.achBatchId, {
                 batchId: item.achBatchId,
                 batchLabel: this.buildBatchLabel(item),
-                batchDate: this.formatDate(item.batchEffectiveEntryDate),
+                batchDate: this.formatDate(item.effectiveEntryDate),
                 items: [item]
               });
             } else {
