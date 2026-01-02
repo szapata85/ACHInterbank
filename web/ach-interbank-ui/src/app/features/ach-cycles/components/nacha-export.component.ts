@@ -64,7 +64,7 @@ export class NachaExportComponent implements OnInit {
     this.api.getExportableCycles(filter).subscribe({
       next: (items) => {
         const formatter = new Intl.DateTimeFormat('es-CO', {
-          timeZone: 'America/Bogota',
+          timeZone: 'UTC',
           year: 'numeric',
           month: '2-digit',
           day: '2-digit'
