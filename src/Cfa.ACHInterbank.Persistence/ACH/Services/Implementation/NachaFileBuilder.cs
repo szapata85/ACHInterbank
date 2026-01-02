@@ -197,9 +197,18 @@ public class NachaFileBuilder : INachaFileBuilder
 
         int totalRecords = recordCount + 1; // incluye el control de archivo
         int blockCount = (int)Math.Ceiling(totalRecords / 10m);
+        int paddingNeeded = (blockCount * 10) - totalRecords;
         var fileControl = FileControlRecord.From(cycle, batchCount, blockCount, entryAddendaCount, totalDebit, totalCredit);
 
         sb.Append(await BuildRecordInternalAsync("9", fileControl, layoutCache["9"]));
+        if (paddingNeeded > 0)
+        {
+            var paddingRecord = new string('9', layoutCache["9"].TotalLength);
+            for (int i = 0; i < paddingNeeded; i++)
+            {
+                sb.Append(paddingRecord);
+            }
+        }
 
         return sb.ToString();
     }
