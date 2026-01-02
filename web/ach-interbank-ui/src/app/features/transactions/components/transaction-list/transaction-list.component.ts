@@ -48,7 +48,7 @@ export class TransactionListComponent implements OnInit {
     currency: 'COP'
   });
   private readonly dateFormatter = new Intl.DateTimeFormat('es-CO', {
-    timeZone: 'America/Bogota',
+    timeZone: 'UTC',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit'
