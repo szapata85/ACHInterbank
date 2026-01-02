@@ -430,3 +430,10 @@ button:hover {
     display: inline-flex;
   }
 }
+
+@media (max-width: 350px) {
+  .sidebar {
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+}
