@@ -184,7 +184,7 @@ export class NachaLayoutsComponent implements OnInit {
       recordCode: raw.recordCode,
       totalLength: raw.totalLength,
       description: raw.description || null,
-      fields: (raw.fields ?? []).map((field) => ({
+      fields: (raw.fields as NachaRecordFieldDto[] ?? []).map((field) => ({
         id: field.id,
         fieldName: field.fieldName,
         startPosition: field.startPosition,
