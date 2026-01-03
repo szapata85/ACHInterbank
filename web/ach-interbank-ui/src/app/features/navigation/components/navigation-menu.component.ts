@@ -141,6 +141,7 @@ export class NavigationMenuComponent implements OnInit {
       next: (items) => {
         this.menuItems = items;
         this.flatItems = this.flatten(items);
+        this.gridApi?.setRowData(this.tableData);
         this.loading = false;
         if (!items.length) {
           this.gridApi?.showNoRowsOverlay();
@@ -212,6 +213,10 @@ export class NavigationMenuComponent implements OnInit {
 
   onGridReady(event: GridReadyEvent): void {
     this.gridApi = event.api;
+    this.gridApi.setRowData(this.tableData);
+    if (!this.loading && this.flatItems.length === 0) {
+      this.loadMenuItems();
+    }
   }
 
   editItem(item: NavigationMenuItem): void {
