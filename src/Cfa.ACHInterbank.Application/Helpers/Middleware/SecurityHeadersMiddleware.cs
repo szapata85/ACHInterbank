@@ -22,7 +22,16 @@ public class SecurityHeadersMiddleware
 
             // Añade los headers de seguridad
             context.Response.Headers.Add("Strict-Transport-Security", "max-age=63072000");
-            context.Response.Headers.Add("Content-Security-Policy", "default-src 'self', frame-src 'self', script-src 'self';");
+            context.Response.Headers.Add("Content-Security-Policy",
+                "default-src 'self'; " +
+                "base-uri 'self'; " +
+                "frame-ancestors 'self'; " +
+                "form-action 'self'; " +
+                "img-src 'self' data:; " +
+                "font-src 'self' data:; " +
+                "style-src 'self' 'unsafe-inline'; " +
+                "script-src 'self' 'unsafe-inline'; " +
+                "connect-src 'self';");
             context.Response.Headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
             context.Response.Headers.Add("X-Content-Type-Options", "nosniff");
             context.Response.Headers.Add("Referrer-Policy", "no-referrer-when-downgrade");
@@ -35,5 +44,4 @@ public class SecurityHeadersMiddleware
     }
 
 }
-
 
