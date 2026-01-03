@@ -25,6 +25,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int NachaUploadId = 17;
     public const int SchedulerId = 18;
     public const int TaskDefinitionsId = 19;
+    public const int NachaLayoutsId = 20;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -110,6 +111,18 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Route = "/ach-cycles/nacha/export",
                 Icon = "download", 
                 Order = 1,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = NachaLayoutsId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = AchCyclesId,
+                Label = "Layouts NACHA",
+                Route = "/ach-cycles/nacha/layouts",
+                Icon = "view_column",
+                Order = 2,
                 Exact = true,
                 IsActive = true
             },

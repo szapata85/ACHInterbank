@@ -1,0 +1,68 @@
+<app-page-header title="Layouts NACHA" subtitle="Administra campos y posiciones del archivo NACHA-M"></app-page-header>
+
+<div class="actions">
+  <button type="button" (click)="startCreate()">Nuevo layout</button>
+  <button type="button" class="ghost" (click)="load()" [disabled]="loading">Refrescar</button>
+</div>
+
+<app-table
+  [columns]="columns"
+  [data]="layouts"
+  [loading]="loading"
+  [pageSize]="layouts.length || 10"
+  [total]="layouts.length"
+  [rowActions]="rowActions"
+></app-table>
+
+<ng-template #rowActions let-layout>
+  <div class="row-actions">
+    <button type="button" class="link" (click)="startEdit(layout)">Editar</button>
+    <button type="button" class="link danger" (click)="remove(layout)">Eliminar</button>
+  </div>
+</ng-template>
+
+<section class="editor" *ngIf="form.get('recordCode')?.value">
+  <h3>{{ editing ? 'Editar layout' : 'Nuevo layout' }}</h3>
+
+  <form [formGroup]="form" class="form-grid">
+    <label>
+      Tipo
+      <input type="text" formControlName="recordType" />
+    </label>
+    <label>
+      Código
+      <input type="text" formControlName="recordCode" />
+    </label>
+    <label>
+      Longitud
+      <input type="number" formControlName="totalLength" />
+    </label>
+    <label>
+      Descripción
+      <input type="text" formControlName="description" />
+    </label>
+  </form>
+
+  <div class="fields">
+    <div class="fields-header">
+      <h4>Campos</h4>
+      <button type="button" class="ghost" (click)="addField()">Agregar campo</button>
+    </div>
+
+    <div class="field" *ngFor="let field of fields.controls; let i = index" [formGroup]="field">
+      <input type="text" formControlName="fieldName" placeholder="Nombre" />
+      <input type="number" formControlName="startPosition" placeholder="Inicio" />
+      <input type="number" formControlName="length" placeholder="Longitud" />
+      <input type="text" formControlName="padChar" placeholder="Pad" />
+      <input type="text" formControlName="justification" placeholder="Justificación" />
+      <input type="text" formControlName="dbColumn" placeholder="Columna DB" />
+      <input type="text" formControlName="format" placeholder="Formato" />
+      <button type="button" class="link danger" (click)="removeField(i)">Quitar</button>
+    </div>
+  </div>
+
+  <div class="editor-actions">
+    <button type="button" class="primary" (click)="save()" [disabled]="saving">Guardar</button>
+    <button type="button" class="ghost" (click)="cancel()">Cancelar</button>
+  </div>
+</section>
