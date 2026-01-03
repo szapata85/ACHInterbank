@@ -1,4 +1,4 @@
-<app-page-header title="Tareas programadas" subtitle="Administra TaskDefinitions y parámetros"></app-page-header>
+<app-page-header title="Tareas programadas" subtitle="Administra tareas programadas y parámetros"></app-page-header>
 
 <div class="actions">
   <button type="button" (click)="startCreate()">Nueva tarea</button>
@@ -67,7 +67,7 @@
       <input type="number" formControlName="maxRetries" />
     </label>
     <label>
-      Backoff (seg)
+      Espera entre reintentos (seg)
       <input type="number" formControlName="retryBackoffSeconds" />
     </label>
     <label>
@@ -97,8 +97,9 @@
       <input type="number" min="1" max="31" formControlName="monthDay" />
     </label>
     <label>
-      Cron
+      Expresión cron
       <input type="text" formControlName="cronExpression" />
+      <small class="helper">Orden: minuto hora díaMes mes díaSemana (ej: */5 * * * *)</small>
     </label>
     <label>
       Inicio
