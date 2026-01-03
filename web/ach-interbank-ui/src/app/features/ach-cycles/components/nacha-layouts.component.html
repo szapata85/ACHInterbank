@@ -48,6 +48,16 @@
       <h4>Campos</h4>
       <button type="button" class="ghost" (click)="addField()">Agregar campo</button>
     </div>
+    <div class="field field-headings">
+      <span>Nombre</span>
+      <span>Inicio</span>
+      <span>Longitud</span>
+      <span>Pad</span>
+      <span>Justificación</span>
+      <span>Columna DB</span>
+      <span>Formato</span>
+      <span class="actions-label">Acciones</span>
+    </div>
 
     <div class="field" *ngFor="let field of fields.controls; let i = index" [formGroup]="field">
       <input type="text" formControlName="fieldName" placeholder="Nombre" />

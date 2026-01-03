@@ -54,6 +54,19 @@
   border-bottom: 1px solid #e5e7eb;
 }
 
+.field-headings {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding-bottom: 0.5rem;
+}
+
+.actions-label {
+  text-align: right;
+}
+
 .field:last-child {
   border-bottom: none;
 }
