@@ -6,7 +6,14 @@
       <option [ngValue]="null">Todas las cámaras</option>
       <option *ngFor="let ch of clearingHouses" [ngValue]="ch.id">{{ ch.name }}</option>
     </select>
-    <input type="date" formControlName="date" />
+    <label>
+      Desde
+      <input type="date" formControlName="startDate" />
+    </label>
+    <label>
+      Hasta
+      <input type="date" formControlName="endDate" />
+    </label>
     <button type="submit">Filtrar</button>
   </form>
 </div>

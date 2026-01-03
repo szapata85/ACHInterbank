@@ -19,9 +19,17 @@ public class AchCyclesController : ControllerBase
 
     [HttpGet]
     [Authorize(Policy = "CanReadAch")]
-    public async Task<IActionResult> Get([FromQuery] int? clearingHouseId, [FromQuery] DateTime? processingDate, CancellationToken ct)
+    public async Task<IActionResult> Get(
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate,
+        [FromQuery] DateTime? processingDate,
+        CancellationToken ct)
     {
-        var cycles = await _service.GetAsync(clearingHouseId, processingDate, ct);
+        var effectiveStart = startDate ?? processingDate;
+        var effectiveEnd = endDate ?? processingDate;
+
+        var cycles = await _service.GetAsync(clearingHouseId, effectiveStart, effectiveEnd, ct);
         return Ok(cycles);
     }
 

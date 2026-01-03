@@ -21,7 +21,11 @@ public class AchCycleAppService : IAchCycleAppService
         _mapper = mapper;
     }
 
-    public async Task<IEnumerable<AchCycleDto>> GetAsync(int? clearingHouseId = null, DateTime? processingDate = null, CancellationToken ct = default)
+    public async Task<IEnumerable<AchCycleDto>> GetAsync(
+        int? clearingHouseId = null,
+        DateTime? startDate = null,
+        DateTime? endDate = null,
+        CancellationToken ct = default)
     {
         var query = _context.AchCycles
             .AsNoTracking()
@@ -33,10 +37,25 @@ public class AchCycleAppService : IAchCycleAppService
             query = query.Where(cycle => cycle.ClearingHouseId == clearingHouseId.Value);
         }
 
-        if (processingDate.HasValue)
+        if (startDate.HasValue || endDate.HasValue)
         {
-            var dateOnly = processingDate.Value.Date;
-            query = query.Where(cycle => cycle.ProcessingDate.Date == dateOnly);
+            var start = startDate?.Date;
+            var end = endDate?.Date;
+
+            if (start.HasValue && end.HasValue && start > end)
+            {
+                (start, end) = (end, start);
+            }
+
+            if (start.HasValue)
+            {
+                query = query.Where(cycle => cycle.ProcessingDate.Date >= start.Value);
+            }
+
+            if (end.HasValue)
+            {
+                query = query.Where(cycle => cycle.ProcessingDate.Date <= end.Value);
+            }
         }
 
         var cycles = await query

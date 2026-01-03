@@ -20,8 +20,12 @@ export class AchCyclesApiService {
       pageSize: filter.pageSize ?? 10
     };
 
-    if (filter.date) {
-      params.processingDate = filter.date;
+    if (filter.startDate) {
+      params.startDate = filter.startDate;
+    }
+
+    if (filter.endDate) {
+      params.endDate = filter.endDate;
     }
 
     if (filter.clearingHouseId !== undefined && filter.clearingHouseId !== null) {

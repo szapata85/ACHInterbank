@@ -16,7 +16,8 @@ export interface AchCycleSummary {
 
 export interface AchCycleFilter {
   clearingHouseId?: number;
-  date?: string;
+  startDate?: string;
+  endDate?: string;
   page?: number;
   pageSize?: number;
 }

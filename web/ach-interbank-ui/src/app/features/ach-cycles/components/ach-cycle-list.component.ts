@@ -33,7 +33,8 @@ export class AchCycleListComponent implements OnInit, OnDestroy {
 
   readonly filterForm = this.fb.group({
     clearingHouseId: [null as number | null],
-    date: [''],
+    startDate: [''],
+    endDate: [''],
     page: [1],
     pageSize: [10]
   });
