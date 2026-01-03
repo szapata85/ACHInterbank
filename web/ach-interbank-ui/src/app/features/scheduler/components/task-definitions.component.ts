@@ -278,7 +278,7 @@ export class TaskDefinitionsComponent implements OnInit, OnDestroy {
       cronExpression: raw.cronExpression || null,
       startAt: raw.startAt || null,
       endAt: raw.endAt || null,
-      parameters: (raw.parameters ?? []).map((param) => ({
+      parameters: (raw.parameters as TaskParameterDto[] ?? []).map((param) => ({
         id: param.id,
         key: param.key,
         value: param.value
