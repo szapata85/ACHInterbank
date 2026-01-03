@@ -222,7 +222,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
             {
                 Id = SchedulerId,
                 MenuId = MenuConfiguration.MainMenuId,
-                Label = "Scheduler",
+                Label = "Programador",
                 Route = "/scheduler",
                 Icon = "timer",
                 Order = 9,
