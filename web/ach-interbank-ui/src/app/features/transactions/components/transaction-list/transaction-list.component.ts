@@ -131,7 +131,8 @@ export class TransactionListComponent implements OnInit {
         page: 1,
         pageSize: 100,
         clearingHouseId: this.selectedClearingHouseId ?? undefined,
-        date: this.selectedDate || undefined
+        startDate: this.selectedDate || undefined,
+        endDate: this.selectedDate || undefined
       })
       .subscribe({
         next: (response) => {
