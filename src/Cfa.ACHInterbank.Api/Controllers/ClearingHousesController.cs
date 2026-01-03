@@ -39,7 +39,7 @@ public class ClearingHousesController : ControllerBase
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetCyclesForClearingHouse(int id, [FromQuery] DateTime? processingDate, CancellationToken ct)
     {
-        var cycles = await _cycleService.GetAsync(id, processingDate, ct);
+        var cycles = await _cycleService.GetAsync(id, processingDate, processingDate, ct);
         return Ok(cycles);
     }
 }
