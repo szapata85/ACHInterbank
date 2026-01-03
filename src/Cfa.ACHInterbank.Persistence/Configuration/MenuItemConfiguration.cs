@@ -23,6 +23,8 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int BankHolidaysId = 15;
     public const int ClearingHouseSpecialDatesId = 16;
     public const int NachaUploadId = 17;
+    public const int SchedulerId = 18;
+    public const int TaskDefinitionsId = 19;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -200,6 +202,29 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Route = "/nacha-security/certificates",
                 Icon = "security",
                 Order = 8,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = SchedulerId,
+                MenuId = MenuConfiguration.MainMenuId,
+                Label = "Scheduler",
+                Route = "/scheduler",
+                Icon = "timer",
+                Order = 9,
+                Exact = false,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = TaskDefinitionsId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = SchedulerId,
+                Label = "Tareas programadas",
+                Route = "/scheduler/tasks",
+                Icon = "schedule",
+                Order = 1,
                 Exact = true,
                 IsActive = true
             },

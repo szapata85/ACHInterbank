@@ -1,65 +1,61 @@
-﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
-using Cfa.ACHInterbank.Persistence.DataBase;
+﻿using Cfa.ACHInterbank.Application.Scheduler.Interfaces;
+using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Dtos;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
 [Route("[controller]")]
-public class TaskDefinitionsController : Controller
+[Authorize]
+public class TaskDefinitionsController : ControllerBase
 {
-    private readonly AchDbContext _context;
+    private readonly ITaskDefinitionAppService _service;
 
-    public TaskDefinitionsController(AchDbContext context)
+    public TaskDefinitionsController(ITaskDefinitionAppService service)
     {
-        _context = context;
+        _service = service;
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<TaskDefinition>>> Get()
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<ActionResult<IEnumerable<TaskDefinitionDto>>> Get(CancellationToken ct)
     {
-        return await _context.TaskDefinitions
-            .Include(t => t.Parameters)
-            .ToListAsync();
+        var items = await _service.GetAllAsync(ct);
+        return Ok(items);
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<TaskDefinition>> Get(int id)
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<ActionResult<TaskDefinitionDto>> Get(int id, CancellationToken ct)
     {
-        var task = await _context.TaskDefinitions
-            .Include(t => t.Parameters)
-            .FirstOrDefaultAsync(t => t.Id == id);
-
-        if (task == null) return NotFound();
-        return task;
+        var task = await _service.GetByIdAsync(id, ct);
+        if (task is null) return NotFound();
+        return Ok(task);
     }
 
     [HttpPost]
-    public async Task<ActionResult<TaskDefinition>> Post(TaskDefinition task)
+    [Authorize(Policy = "CanManageAch")]
+    public async Task<ActionResult<TaskDefinitionDto>> Post([FromBody] TaskDefinitionDto task, CancellationToken ct)
     {
-        _context.TaskDefinitions.Add(task);
-        await _context.SaveChangesAsync();
-        return CreatedAtAction(nameof(Get), new { id = task.Id }, task);
+        var created = await _service.CreateAsync(task, ct);
+        return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Put(int id, TaskDefinition task)
+    [Authorize(Policy = "CanManageAch")]
+    public async Task<IActionResult> Put(int id, [FromBody] TaskDefinitionDto task, CancellationToken ct)
     {
         if (id != task.Id) return BadRequest();
-        _context.Entry(task).State = EntityState.Modified;
-        await _context.SaveChangesAsync();
-        return NoContent();
+        var updated = await _service.UpdateAsync(id, task, ct);
+        return updated is null ? NotFound() : Ok(updated);
     }
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(int id)
+    [Authorize(Policy = "CanManageAch")]
+    public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
-        var task = await _context.TaskDefinitions.FindAsync(id);
-        if (task == null) return NotFound();
-
-        _context.TaskDefinitions.Remove(task);
-        await _context.SaveChangesAsync();
-        return NoContent();
+        var deleted = await _service.DeleteAsync(id, ct);
+        return deleted ? NoContent() : NotFound();
     }
 }

@@ -1,0 +1,130 @@
+<app-page-header title="Tareas programadas" subtitle="Administra TaskDefinitions y parámetros"></app-page-header>
+
+<div class="actions">
+  <button type="button" (click)="startCreate()">Nueva tarea</button>
+  <button type="button" class="ghost" (click)="load()" [disabled]="loading">Refrescar</button>
+</div>
+
+<app-table
+  [columns]="columns"
+  [data]="tasks"
+  [loading]="loading"
+  [pageSize]="tasks.length || 10"
+  [total]="tasks.length"
+  [rowActions]="rowActions"
+></app-table>
+
+<ng-template #rowActions let-task>
+  <div class="row-actions">
+    <button type="button" class="link" (click)="startEdit(task)">Editar</button>
+    <button type="button" class="link danger" (click)="remove(task)">Eliminar</button>
+  </div>
+</ng-template>
+
+<section class="editor" *ngIf="form.get('code')?.value">
+  <h3>{{ editing ? 'Editar tarea' : 'Nueva tarea' }}</h3>
+
+  <form [formGroup]="form" class="form-grid">
+    <label>
+      Código
+      <input type="text" formControlName="code" />
+    </label>
+    <label>
+      Nombre
+      <input type="text" formControlName="name" />
+    </label>
+    <label>
+      Estado
+      <select formControlName="status">
+        <option *ngFor="let opt of statusOptions" [value]="opt.value">{{ opt.label }}</option>
+      </select>
+    </label>
+    <label>
+      Política calendario
+      <select formControlName="calendarPolicy">
+        <option *ngFor="let opt of calendarPolicyOptions" [value]="opt.value">{{ opt.label }}</option>
+      </select>
+    </label>
+    <label>
+      Zona horaria
+      <input type="text" formControlName="timeZoneId" />
+    </label>
+    <label>
+      Concurrencia
+      <select formControlName="concurrencyPolicy">
+        <option *ngFor="let opt of concurrencyOptions" [value]="opt.value">{{ opt.label }}</option>
+      </select>
+    </label>
+    <label>
+      Reintentar en fallos
+      <select formControlName="retryOnFailure">
+        <option [ngValue]="true">Sí</option>
+        <option [ngValue]="false">No</option>
+      </select>
+    </label>
+    <label>
+      Máx. reintentos
+      <input type="number" formControlName="maxRetries" />
+    </label>
+    <label>
+      Backoff (seg)
+      <input type="number" formControlName="retryBackoffSeconds" />
+    </label>
+    <label>
+      Periodicidad
+      <select formControlName="periodicityType">
+        <option *ngFor="let opt of periodicityOptions" [value]="opt.value">{{ opt.label }}</option>
+      </select>
+    </label>
+    <label>
+      N
+      <input type="number" formControlName="n" />
+    </label>
+    <label>
+      Minuto
+      <input type="number" formControlName="minute" />
+    </label>
+    <label>
+      Hora del día
+      <input type="time" formControlName="timeOfDay" />
+    </label>
+    <label>
+      Día semanal
+      <input type="number" min="0" max="6" formControlName="weeklyDay" />
+    </label>
+    <label>
+      Día del mes
+      <input type="number" min="1" max="31" formControlName="monthDay" />
+    </label>
+    <label>
+      Cron
+      <input type="text" formControlName="cronExpression" />
+    </label>
+    <label>
+      Inicio
+      <input type="datetime-local" formControlName="startAt" />
+    </label>
+    <label>
+      Fin
+      <input type="datetime-local" formControlName="endAt" />
+    </label>
+  </form>
+
+  <div class="parameters">
+    <div class="parameters-header">
+      <h4>Parámetros</h4>
+      <button type="button" class="ghost" (click)="addParameter()">Agregar</button>
+    </div>
+
+    <div class="parameter" *ngFor="let param of parameters.controls; let i = index" [formGroup]="param">
+      <input type="text" formControlName="key" placeholder="Clave" />
+      <input type="text" formControlName="value" placeholder="Valor" />
+      <button type="button" class="link danger" (click)="removeParameter(i)">Quitar</button>
+    </div>
+  </div>
+
+  <div class="editor-actions">
+    <button type="button" class="primary" (click)="save()" [disabled]="saving">Guardar</button>
+    <button type="button" class="ghost" (click)="cancel()">Cancelar</button>
+  </div>
+</section>

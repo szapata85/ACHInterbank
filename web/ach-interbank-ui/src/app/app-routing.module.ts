@@ -66,6 +66,10 @@ const routes: Routes = [
         loadChildren: () => import('./features/catalogs/catalogs.module').then((m) => m.CatalogsModule)
       },
       {
+        path: 'scheduler',
+        loadChildren: () => import('./features/scheduler/scheduler.module').then((m) => m.SchedulerModule)
+      },
+      {
         path: 'audit-logs',
         loadChildren: () => import('./features/audit/audit.module').then((m) => m.AuditModule)
       },

@@ -100,6 +100,16 @@ public class MenuItemPermissionConfiguration : IEntityTypeConfiguration<MenuItem
             {
                 MenuItemId = MenuItemConfiguration.TransactionsCreateId,
                 PermissionId = PermissionConfiguration.ReadAchPermissionId
+            },
+            new MenuItemPermission
+            {
+                MenuItemId = MenuItemConfiguration.SchedulerId,
+                PermissionId = PermissionConfiguration.ManageAchPermissionId
+            },
+            new MenuItemPermission
+            {
+                MenuItemId = MenuItemConfiguration.TaskDefinitionsId,
+                PermissionId = PermissionConfiguration.ManageAchPermissionId
             });
     }
 }
