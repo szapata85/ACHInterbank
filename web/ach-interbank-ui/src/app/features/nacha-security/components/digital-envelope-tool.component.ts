@@ -4,7 +4,7 @@ import { CommonModule } from '@angular/common';
 import { finalize } from 'rxjs';
 import { SharedModule } from '../../../shared/shared.module';
 import { NotificationService } from '../../../core/services/notification.service';
-import { DigitalEnvelopeService } from '../services/digital-envelope.service';
+import { SobreDigitalService } from '../services/sobre-digital.service';
 
 @Component({
   selector: 'app-digital-envelope-tool',
@@ -16,7 +16,7 @@ import { DigitalEnvelopeService } from '../services/digital-envelope.service';
 })
 export class DigitalEnvelopeToolComponent {
   private readonly fb = inject(FormBuilder);
-  private readonly service = inject(DigitalEnvelopeService);
+  private readonly service = inject(SobreDigitalService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
 

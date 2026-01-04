@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
-export class DigitalEnvelopeService {
+export class SobreDigitalService {
   private readonly http = inject(HttpClient);
   private readonly apiBaseUrl = environment.apiBaseUrl.replace(/\/+$/, '');
 
