@@ -1,0 +1,48 @@
+<div class="page-header">
+  <h1>Herramienta de Sobre Digital</h1>
+  <p class="subtitle">Cifra y descifra archivos con los certificados digitales cargados en la plataforma.</p>
+</div>
+
+<section class="cards">
+  <div class="card">
+    <div class="card__header">
+      <div>
+        <h2>Cifrar archivo</h2>
+        <p>Genera un sobre digital (.ENV) a partir de un archivo NACHA-M.</p>
+      </div>
+      <span class="chip">Cifrado</span>
+    </div>
+
+    <form class="upload" [formGroup]="encryptForm" (ngSubmit)="submitEncrypt()">
+      <label class="file-input">
+        <input type="file" (change)="onFileSelected('encrypt', $event)" />
+        <span>{{ encryptForm.value.file?.name || 'Seleccionar archivo' }}</span>
+      </label>
+
+      <button appButton type="submit" [disabled]="encrypting">
+        {{ encrypting ? 'Cifrando...' : 'Cifrar archivo' }}
+      </button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card__header">
+      <div>
+        <h2>Descifrar archivo</h2>
+        <p>Recupera el contenido original desde un sobre digital (.ENV).</p>
+      </div>
+      <span class="chip chip--accent">Descifrado</span>
+    </div>
+
+    <form class="upload" [formGroup]="decryptForm" (ngSubmit)="submitDecrypt()">
+      <label class="file-input">
+        <input type="file" (change)="onFileSelected('decrypt', $event)" />
+        <span>{{ decryptForm.value.file?.name || 'Seleccionar archivo' }}</span>
+      </label>
+
+      <button appButton type="submit" [disabled]="decrypting">
+        {{ decrypting ? 'Descifrando...' : 'Descifrar archivo' }}
+      </button>
+    </form>
+  </div>
+</section>
