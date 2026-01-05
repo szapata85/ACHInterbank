@@ -41,17 +41,19 @@ public class AuditLogsController : ControllerBase
 
         if (startDate.HasValue)
         {
-            var startUtc = startDate.Value.ToUniversalTime();
+            var startValue = startDate.Value;
+            var startUtc = startValue.TimeOfDay == TimeSpan.Zero
+                ? new DateTimeOffset(startValue.Date, startValue.Offset).ToUniversalTime()
+                : startValue.ToUniversalTime();
             query = query.Where(a => a.ChangedAt >= startUtc);
         }
 
         if (endDate.HasValue)
         {
-            var upperBound = endDate.Value.ToUniversalTime();
-            if (upperBound.TimeOfDay == TimeSpan.Zero)
-            {
-                upperBound = upperBound.AddDays(1).AddTicks(-1);
-            }
+            var endValue = endDate.Value;
+            var upperBound = endValue.TimeOfDay == TimeSpan.Zero
+                ? new DateTimeOffset(endValue.Date.AddDays(1).AddTicks(-1), endValue.Offset).ToUniversalTime()
+                : endValue.ToUniversalTime();
 
             query = query.Where(a => a.ChangedAt <= upperBound);
         }
