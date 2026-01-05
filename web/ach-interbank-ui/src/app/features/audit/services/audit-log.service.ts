@@ -7,7 +7,7 @@ import { AuditLogEntry, AuditLogFilters, PagedResponse } from '../models/audit-l
 @Injectable({ providedIn: 'root' })
 export class AuditLogService {
   private readonly api = inject(ApiService);
-  private readonly basePath = 'audit-logs';
+  private readonly basePath = 'api/audit-logs';
 
   search(filters: AuditLogFilters): Observable<PagedResponse<AuditLogEntry>> {
     let params = new HttpParams()
