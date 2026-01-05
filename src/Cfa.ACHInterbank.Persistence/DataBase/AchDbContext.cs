@@ -405,13 +405,21 @@ public class AchDbContext : DbContext
 
     private static string GetPrimaryKey(EntityEntry entry)
     {
-        var keyValues = entry.Properties
+        var keyProperties = entry.Properties
             .Where(property => property.Metadata.IsPrimaryKey())
-            .Select(property =>
-            {
-                var value = property.CurrentValue ?? property.OriginalValue;
-                return $"{property.Metadata.Name}={value}";
-            });
+            .ToList();
+
+        if (keyProperties.Count == 1)
+        {
+            var value = keyProperties[0].CurrentValue ?? keyProperties[0].OriginalValue;
+            return value?.ToString() ?? string.Empty;
+        }
+
+        var keyValues = keyProperties.Select(property =>
+        {
+            var value = property.CurrentValue ?? property.OriginalValue;
+            return $"{property.Metadata.Name}={value}";
+        });
 
         return string.Join(",", keyValues);
     }
