@@ -41,12 +41,13 @@ public class AuditLogsController : ControllerBase
 
         if (startDate.HasValue)
         {
-            query = query.Where(a => a.ChangedAt >= startDate.Value);
+            var startUtc = startDate.Value.ToUniversalTime();
+            query = query.Where(a => a.ChangedAt >= startUtc);
         }
 
         if (endDate.HasValue)
         {
-            var upperBound = endDate.Value;
+            var upperBound = endDate.Value.ToUniversalTime();
             if (upperBound.TimeOfDay == TimeSpan.Zero)
             {
                 upperBound = upperBound.AddDays(1).AddTicks(-1);
