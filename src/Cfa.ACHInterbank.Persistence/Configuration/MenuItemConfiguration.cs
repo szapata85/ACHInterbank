@@ -26,6 +26,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int SchedulerId = 18;
     public const int TaskDefinitionsId = 19;
     public const int NachaLayoutsId = 20;
+    public const int DigitalEnvelopeId = 21;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -274,6 +275,18 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Route = "/transactions/nacha-upload",
                 Icon = "upload_file",
                 Order = 3,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = DigitalEnvelopeId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = NachaSecurityId,
+                Label = "Sobre digital",
+                Route = "/nacha-security/sobre-digital",
+                Icon = "lock",
+                Order = 1,
                 Exact = true,
                 IsActive = true
             });

@@ -408,6 +408,18 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                             Order = 3,
                             ParentId = 6,
                             Route = "/transactions/nacha-upload"
+                        },
+                        new
+                        {
+                            Id = 21,
+                            Exact = true,
+                            Icon = "lock",
+                            IsActive = true,
+                            Label = "Sobre digital",
+                            MenuId = 1,
+                            Order = 1,
+                            ParentId = 10,
+                            Route = "/nacha-security/sobre-digital"
                         });
                 });
 

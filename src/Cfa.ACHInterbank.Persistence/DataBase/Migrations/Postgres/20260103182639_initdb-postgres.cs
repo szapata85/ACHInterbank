@@ -1077,7 +1077,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     { 16, true, "event_busy", true, "Fechas especiales cámaras", 1, 4, 5, "/catalogs/clearing-house-special-dates" },
                     { 17, true, "upload_file", true, "Cargar NACHA-M", 1, 3, 6, "/transactions/nacha-upload" },
                     { 19, true, "schedule", true, "Tareas programadas", 1, 1, 18, "/scheduler/tasks" },
-                    { 20, true, "view_column", true, "Layouts NACHA", 1, 2, 4, "/ach-cycles/nacha/layouts" }
+                    { 20, true, "view_column", true, "Layouts NACHA", 1, 2, 4, "/ach-cycles/nacha/layouts" },
+                    { 21, true, "lock", true, "Sobre digital", 1, 1, 10, "/nacha-security/sobre-digital" }
                 });
 
             migrationBuilder.InsertData(
