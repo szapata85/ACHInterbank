@@ -366,6 +366,17 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
+                            Id = 22,
+                            Exact = true,
+                            Icon = "history",
+                            IsActive = true,
+                            Label = "Auditoría",
+                            MenuId = 1,
+                            Order = 10,
+                            Route = "/audit-logs"
+                        },
+                        new
+                        {
                             Id = 19,
                             Exact = true,
                             Icon = "schedule",
@@ -530,6 +541,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         {
                             MenuItemId = 18,
                             PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
+                        },
+                        new
+                        {
+                            MenuItemId = 22,
+                            PermissionId = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf")
                         },
                         new
                         {

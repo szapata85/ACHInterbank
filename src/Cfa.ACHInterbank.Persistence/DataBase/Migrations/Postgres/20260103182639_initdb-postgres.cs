@@ -1013,7 +1013,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     { 6, false, "swap_horiz", true, "Transacciones", 1, 6, null, "/transactions" },
                     { 9, true, "category", true, "Navegación", 1, 7, null, "/navigation/menu-items" },
                     { 10, true, "security", true, "Seguridad NACHA", 1, 8, null, "/nacha-security/certificates" },
-                    { 18, false, "timer", true, "Programador", 1, 9, null, "/scheduler" }
+                    { 18, false, "timer", true, "Programador", 1, 9, null, "/scheduler" },
+                    { 22, true, "history", true, "Auditoría", 1, 10, null, "/audit-logs" }
                 });
 
             migrationBuilder.InsertData(
@@ -1048,7 +1049,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     { 6, new Guid("4f0cbde9-1b2e-4ad8-b8e6-62f0a1cd6cf7") },
                     { 6, new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a") },
                     { 9, new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf") },
-                    { 18, new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a") }
+                    { 18, new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a") },
+                    { 22, new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf") }
                 });
 
             migrationBuilder.InsertData(

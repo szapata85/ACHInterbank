@@ -27,6 +27,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int TaskDefinitionsId = 19;
     public const int NachaLayoutsId = 20;
     public const int DigitalEnvelopeId = 21;
+    public const int AuditLogId = 22;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -228,6 +229,17 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Icon = "timer",
                 Order = 9,
                 Exact = false,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = AuditLogId,
+                MenuId = MenuConfiguration.MainMenuId,
+                Label = "Auditoría",
+                Route = "/audit-logs",
+                Icon = "history",
+                Order = 10,
+                Exact = true,
                 IsActive = true
             },
             new MenuItem

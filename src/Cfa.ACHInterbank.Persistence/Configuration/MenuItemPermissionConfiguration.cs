@@ -115,6 +115,11 @@ public class MenuItemPermissionConfiguration : IEntityTypeConfiguration<MenuItem
             {
                 MenuItemId = MenuItemConfiguration.TaskDefinitionsId,
                 PermissionId = PermissionConfiguration.ManageAchPermissionId
+            },
+            new MenuItemPermission
+            {
+                MenuItemId = MenuItemConfiguration.AuditLogId,
+                PermissionId = PermissionConfiguration.ManageUsersPermissionId
             });
     }
 }
