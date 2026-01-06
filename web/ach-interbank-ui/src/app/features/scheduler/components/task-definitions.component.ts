@@ -179,8 +179,8 @@ export class TaskDefinitionsComponent implements OnInit, OnDestroy {
       weeklyDay: task.weeklyDay ?? null,
       monthDay: task.monthDay ?? null,
       cronExpression: task.cronExpression ?? '',
-      startAt: task.startAt ?? '',
-      endAt: task.endAt ?? ''
+      startAt: this.toDateTimeLocal(task.startAt),
+      endAt: this.toDateTimeLocal(task.endAt)
     });
     this.parameters.clear();
     (task.parameters ?? []).forEach((param) => this.addParameter(param));
@@ -272,13 +272,40 @@ export class TaskDefinitionsComponent implements OnInit, OnDestroy {
       weeklyDay: raw.weeklyDay ?? null,
       monthDay: raw.monthDay ?? null,
       cronExpression: raw.cronExpression || null,
-      startAt: raw.startAt || null,
-      endAt: raw.endAt || null,
+      startAt: this.toIsoOrNull(raw.startAt),
+      endAt: this.toIsoOrNull(raw.endAt),
       parameters: (raw.parameters as TaskParameterDto[] ?? []).map((param) => ({
         id: param.id,
         key: param.key,
         value: param.value
       }))
     };
+  }
+
+  private toDateTimeLocal(value?: string | null): string {
+    if (!value) {
+      return '';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+
+    const offsetMs = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+  }
+
+  private toIsoOrNull(value?: string | null): string | null {
+    if (!value) {
+      return null;
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    return date.toISOString();
   }
 }
