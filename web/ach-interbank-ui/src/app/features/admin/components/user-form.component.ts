@@ -77,6 +77,7 @@ export class UserFormComponent implements OnInit {
   save(): void {
     if (this.form.invalid || this.form.pending) {
       this.form.markAllAsTouched();
+      this.form.updateValueAndValidity();
       return;
     }
 
@@ -92,6 +93,7 @@ export class UserFormComponent implements OnInit {
   onEmailBlur(): void {
     const emailControl = this.form.get('email');
     emailControl?.markAsTouched();
+    emailControl?.markAsDirty();
     emailControl?.updateValueAndValidity();
   }
 
