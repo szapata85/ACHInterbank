@@ -27,6 +27,15 @@
     <label>
       Contraseña
       <input type="password" formControlName="password" [required]="!isEdit" />
+      <small class="hint" *ngIf="!isEdit">
+        Mínimo 6 caracteres, una mayúscula, un número y un caracter especial.
+      </small>
+      <div class="strength" *ngIf="!isEdit">
+        <div class="strength__bar" [style.width.%]="passwordStrength * 25"></div>
+        <span class="strength__label">{{ passwordStrengthLabel }}</span>
+      </div>
+      <app-error-message *ngIf="form.get('password')?.hasError('weakPassword')" [control]="form.get('password')">
+      </app-error-message>
     </label>
 
     <label>
