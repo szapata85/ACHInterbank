@@ -1202,6 +1202,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<int?>("CustomerId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("DiscretionaryData")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
                     b.Property<string>("DestinationAccountNumber")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1211,6 +1216,9 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     b.Property<DateTime>("EffectiveEntryDate")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsPrenotification")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("OriginatingDFI")
                         .IsRequired()
@@ -1223,6 +1231,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<string>("Reference")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("RecipientIdNumber")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("ServiceClassCode")
                         .IsRequired()

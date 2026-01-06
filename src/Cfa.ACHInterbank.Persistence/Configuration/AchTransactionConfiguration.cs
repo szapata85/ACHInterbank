@@ -17,6 +17,12 @@ public class AchTransactionConfiguration : IEntityTypeConfiguration<AchTransacti
             .HasConversion<string>()
             .IsRequired();
 
+        builder.Property(t => t.DiscretionaryData)
+            .HasMaxLength(2);
+
+        builder.Property(t => t.RecipientIdNumber)
+            .HasMaxLength(20);
+
         builder.HasOne(t => t.AchBatch)
             .WithMany(b => b.Transactions)
             .HasForeignKey(t => t.AchBatchId)
@@ -24,4 +30,3 @@ public class AchTransactionConfiguration : IEntityTypeConfiguration<AchTransacti
 
     }
 }
-

@@ -25,6 +25,9 @@ public class AchTransaction : AuditableEntity
 
     public DateTime EffectiveEntryDate { get; set; }
     public bool AddendaRecordIndicator { get; set; }
+    public bool IsPrenotification { get; set; }
+    public string RecipientIdNumber { get; set; } = string.Empty;
+    public string DiscretionaryData { get; set; } = string.Empty;
 
     public string SourceAccountNumber { get; set; } = null!;
     public string DestinationAccountNumber { get; set; } = null!;
@@ -43,6 +46,5 @@ public class AchTransaction : AuditableEntity
 
     public ICollection<AchTransactionAddenda> Addendas { get; set; } = new List<AchTransactionAddenda>();
 }
-
 
 

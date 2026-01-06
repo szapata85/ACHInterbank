@@ -191,7 +191,10 @@ public class AchTransactionService : IAchTransactionService
             TraceSequenceNumber = nextSeq,
 
             EffectiveEntryDate = effectiveEntryDate,
-            AddendaRecordIndicator = (addendas != null && addendas.Any()),
+            AddendaRecordIndicator = true,
+            IsPrenotification = isPrenotification,
+            RecipientIdNumber = recipientIdNumber?.Trim() ?? string.Empty,
+            DiscretionaryData = type == TransactionTypeEnum.Credit && requiresIdentityValidation ? "V" : string.Empty,
 
             SourceAccountNumber = sourceAccountNumber,
             DestinationAccountNumber = destinationAccountNumber,

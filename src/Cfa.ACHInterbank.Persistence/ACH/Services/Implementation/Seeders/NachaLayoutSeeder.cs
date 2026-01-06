@@ -79,8 +79,10 @@ public class NachaLayoutSeeder : IDbSeeder
                         new NachaRecordField { FieldName="AccountNumber", StartPosition=13, Length=17, PadChar=' ', Justification='L', DbColumn="DestinationAccountNumber" },
                         new NachaRecordField { FieldName="Amount", StartPosition=30, Length=12, PadChar='0', Justification='R', DbColumn="Amount", Format="000000000000" },
                         new NachaRecordField { FieldName="Reference", StartPosition=42, Length=20, PadChar=' ', Justification='L', DbColumn="Reference" },
-                        new NachaRecordField { FieldName="TraceNumber", StartPosition=74, Length=15, PadChar='0', Justification='R', DbColumn="TraceNumber" },
-                        new NachaRecordField { FieldName="CompanyIdentification", StartPosition=95, Length=10, PadChar=' ', Justification='L', DbColumn="CompanyIdentification" }
+                        new NachaRecordField { FieldName="RecipientIdNumber", StartPosition=62, Length=15, PadChar=' ', Justification='L', DbColumn="RecipientIdNumber" },
+                        new NachaRecordField { FieldName="DiscretionaryData", StartPosition=85, Length=2, PadChar=' ', Justification='L', DbColumn="DiscretionaryData" },
+                        new NachaRecordField { FieldName="AddendumIndicator", StartPosition=87, Length=1, PadChar='0', Justification='R', DbColumn="AddendumIndicator" },
+                        new NachaRecordField { FieldName="TraceNumber", StartPosition=88, Length=15, PadChar='0', Justification='R', DbColumn="TraceNumber" }
                     }
                 },
 

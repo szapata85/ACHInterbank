@@ -12,10 +12,12 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class NachaFileBuilder : INachaFileBuilder
 {
     private readonly AchDbContext _context;
+    private readonly IBankHoliday _holidayService;
 
-    public NachaFileBuilder(AchDbContext context)
+    public NachaFileBuilder(AchDbContext context, IBankHoliday holidayService)
     {
         _context = context;
+        _holidayService = holidayService;
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -43,6 +45,7 @@ public class NachaFileBuilder : INachaFileBuilder
             .Include(l => l.Fields)
             .ToDictionaryAsync(l => l.RecordCode!, ct);
 
+        await ValidateTransactionsForSendAsync(batches.SelectMany(b => b.Transactions), ct);
         return await BuildFileAsync(cycle, batches, layoutCache, nachaHeader, ct);
     }
 
@@ -65,6 +68,7 @@ public class NachaFileBuilder : INachaFileBuilder
             .Include(l => l.Fields)
             .ToDictionaryAsync(l => l.RecordCode!, ct);
 
+        await ValidateTransactionsForSendAsync(cycle.Batches.SelectMany(b => b.Transactions), ct);
         return await BuildFileAsync(cycle, cycle.Batches, layoutCache, nachaHeader, ct);
     }
 
@@ -173,11 +177,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 else
                     batchCredit += (long)(tx.Amount * 100);
 
-                var addendasOrdered = tx.Addendas?
-                    .OrderBy(a => a.SequenceNumber)
-                    ?? Enumerable.Empty<AchTransactionAddenda>();
-
-                foreach (var addenda in addendasOrdered)
+                foreach (var addenda in BuildAddendasForTransaction(tx))
                 {
                     var addendaRecord = AddendaRecord.From(addenda, tx.TraceSequenceNumber);
                     sb.Append(await BuildRecordInternalAsync("7", addendaRecord, layoutCache["7"]));
@@ -211,6 +211,24 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return sb.ToString();
+    }
+
+    private static IEnumerable<AchTransactionAddenda> BuildAddendasForTransaction(AchTransaction tx)
+    {
+        if (tx.Addendas != null && tx.Addendas.Any())
+        {
+            return tx.Addendas.OrderBy(a => a.SequenceNumber);
+        }
+
+        return new[]
+        {
+            new AchTransactionAddenda
+            {
+                AddendaType = "05",
+                Information = string.IsNullOrWhiteSpace(tx.Reference) ? "PAGO" : tx.Reference,
+                SequenceNumber = 1
+            }
+        };
     }
 
     private async Task<NachaHeader?> LoadHeaderAsync(string cycleId, CancellationToken ct)
@@ -291,6 +309,9 @@ public class NachaFileBuilder : INachaFileBuilder
         public string DestinationAccountNumber { get; init; } = string.Empty;
         public decimal Amount { get; init; }
         public string Reference { get; init; } = string.Empty;
+        public string RecipientIdNumber { get; init; } = string.Empty;
+        public string DiscretionaryData { get; init; } = string.Empty;
+        public string AddendumIndicator { get; init; } = "1";
         public string TraceNumber { get; init; } = string.Empty;
         public string CompanyIdentification { get; init; } = string.Empty;
 
@@ -303,6 +324,9 @@ public class NachaFileBuilder : INachaFileBuilder
                 DestinationAccountNumber = tx.DestinationAccountNumber,
                 Amount = tx.Amount,
                 Reference = tx.Reference,
+                RecipientIdNumber = tx.RecipientIdNumber,
+                DiscretionaryData = tx.DiscretionaryData,
+                AddendumIndicator = "1",
                 TraceNumber = tx.TraceNumber,
                 CompanyIdentification = tx.CompanyIdentification
             };
@@ -326,6 +350,97 @@ public class NachaFileBuilder : INachaFileBuilder
                 EntryDetailSequenceNumber = entrySequence
             };
         }
+    }
+
+    private async Task ValidateTransactionsForSendAsync(IEnumerable<AchTransaction> transactions, CancellationToken ct)
+    {
+        foreach (var tx in transactions)
+        {
+            if (tx.IsPrenotification && tx.Amount != 0)
+            {
+                throw new InvalidOperationException($"La prenotificación {tx.Id} debe tener valor 0.");
+            }
+
+            if (!tx.IsPrenotification)
+            {
+                var prenoteDate = await GetPrenoteDateAsync(tx, ct);
+                if (prenoteDate is null)
+                {
+                    throw new InvalidOperationException($"La transacción {tx.Id} no tiene prenotificación previa.");
+                }
+
+                var minDate = AddBusinessDays(prenoteDate.Value.Date, 3);
+                if (tx.EffectiveEntryDate.Date < minDate)
+                {
+                    throw new InvalidOperationException($"La transacción {tx.Id} no cumple los 3 días hábiles desde la prenotificación.");
+                }
+            }
+        }
+    }
+
+    private async Task<DateTime?> GetPrenoteDateAsync(AchTransaction tx, CancellationToken ct)
+    {
+        var prenoteCode = ResolvePrenoteCode(tx.TransactionCode);
+        if (string.IsNullOrWhiteSpace(prenoteCode))
+        {
+            return null;
+        }
+
+        return await _context.AchTransactions
+            .AsNoTracking()
+            .Where(t => t.IsPrenotification
+                        && t.DestinationInstitutionId == tx.DestinationInstitutionId
+                        && t.DestinationAccountNumber == tx.DestinationAccountNumber
+                        && t.TransactionCode == prenoteCode)
+            .OrderByDescending(t => t.EffectiveEntryDate)
+            .Select(t => (DateTime?)t.EffectiveEntryDate.Date)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    private static string? ResolvePrenoteCode(string transactionCode)
+    {
+        return transactionCode switch
+        {
+            "22" => "23",
+            "27" => "28",
+            "32" => "33",
+            "37" => "38",
+            "52" => "53",
+            "55" => "57",
+            _ => null
+        };
+    }
+
+    private DateTime AddBusinessDays(DateTime start, int days)
+    {
+        var date = start;
+        var remaining = days;
+        var currentYear = date.Year;
+        var holidays = _holidayService.GetHolidays(currentYear)
+            .Select(h => h.Date)
+            .ToHashSet();
+
+        while (remaining > 0)
+        {
+            date = date.AddDays(1);
+
+            if (date.Year != currentYear)
+            {
+                currentYear = date.Year;
+                holidays = _holidayService.GetHolidays(currentYear)
+                    .Select(h => h.Date)
+                    .ToHashSet();
+            }
+
+            var isWeekend = date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+            var isHoliday = holidays.Contains(DateOnly.FromDateTime(date));
+            if (!isWeekend && !isHoliday)
+            {
+                remaining--;
+            }
+        }
+
+        return date;
     }
 
     private sealed record BatchControlRecord
