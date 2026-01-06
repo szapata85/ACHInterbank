@@ -206,11 +206,11 @@ public class AchTransactionNachaTests
         }
 
         using var executionContext = CreateContext(connection);
-        var holiday = new Mock<IBankHoliday>();
-        holiday
+        var holidayService = new Mock<IBankHoliday>();
+        holidayService
             .Setup(h => h.GetHolidays(It.IsAny<int>()))
             .Returns(new List<BankHolidayModel>());
-        var builder = new NachaFileBuilder(executionContext, holiday.Object);
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object);
         var nachaContent = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
 
         // 6 registros esperados: 1,5,6,7,8,9
