@@ -72,20 +72,26 @@ public class AuditLogsController : ControllerBase
 
         var total = await query.CountAsync(cancellationToken);
 
-        var items = await query
-            .OrderByDescending(a => a.ChangedAt)
+        var items = await (
+                from audit in query
+                join user in _dbContext.Users.AsNoTracking()
+                    on audit.ChangedBy equals user.Id.ToString() into users
+                from user in users.DefaultIfEmpty()
+                orderby audit.ChangedAt descending
+                select new AuditLogDto
+                {
+                    Id = audit.Id,
+                    EntityName = audit.EntityName,
+                    EntityId = audit.EntityId,
+                    Action = audit.Action,
+                    ChangedBy = user != null && !string.IsNullOrWhiteSpace(user.Username)
+                        ? user.Username
+                        : audit.ChangedBy,
+                    ChangedAt = audit.ChangedAt,
+                    ChangedFields = audit.ChangedFields
+                })
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(a => new AuditLogDto
-            {
-                Id = a.Id,
-                EntityName = a.EntityName,
-                EntityId = a.EntityId,
-                Action = a.Action,
-                ChangedBy = a.ChangedBy,
-                ChangedAt = a.ChangedAt,
-                ChangedFields = a.ChangedFields
-            })
             .ToListAsync(cancellationToken);
 
         return Ok(new PagedResponse<AuditLogDto>
