@@ -15,7 +15,7 @@
 
     <label>
       Email
-      <input type="email" formControlName="email" />
+      <input type="email" formControlName="email" (blur)="onEmailBlur()" />
       <app-error-message [control]="form.get('email')"></app-error-message>
     </label>
 

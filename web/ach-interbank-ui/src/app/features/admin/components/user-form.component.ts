@@ -89,6 +89,10 @@ export class UserFormComponent implements OnInit {
     request$.subscribe(() => this.router.navigate(['/users']));
   }
 
+  onEmailBlur(): void {
+    this.form.get('email')?.updateValueAndValidity();
+  }
+
   get passwordStrength(): number {
     const value = this.form.get('password')?.value ?? '';
     return this.calculatePasswordStrength(value);
