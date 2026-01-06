@@ -27,6 +27,8 @@ export interface TransactionDraft {
   addendas: Array<{
     addendaType: string;
     information: string;
+    returnReasonCode?: string;
+    originalTraceSequence?: string;
   }>;
 }
 

@@ -129,14 +129,25 @@
           [formGroup]="addenda"
         >
           <label>
-            <span>Tipo *</span>
-            <input type="text" formControlName="addendaType" required maxlength="80" />
+            <span>Código tipo registro adenda *</span>
+            <select formControlName="addendaType" required>
+              <option value="05">05 - Información adicional</option>
+              <option value="99">99 - Causal de devolución</option>
+            </select>
             <app-error-message [control]="addenda.get('addendaType')"></app-error-message>
           </label>
           <label>
             <span>Información *</span>
             <input type="text" formControlName="information" required maxlength="80" />
             <app-error-message [control]="addenda.get('information')"></app-error-message>
+          </label>
+          <label *ngIf="addenda.get('addendaType')?.value === '99'">
+            <span>Causal de devolución *</span>
+            <input type="text" formControlName="returnReasonCode" maxlength="10" />
+          </label>
+          <label *ngIf="addenda.get('addendaType')?.value === '99'">
+            <span>Secuencia original *</span>
+            <input type="text" formControlName="originalTraceSequence" maxlength="20" />
           </label>
           <button type="button" class="danger" (click)="removeAddenda(i)" aria-label="Eliminar addenda">
             Eliminar
@@ -147,6 +158,7 @@
         <p class="muted">Se requiere al menos una addenda por transacción.</p>
       </ng-template>
       <p class="error" *ngIf="form.errors?.missingAddenda">Debes registrar al menos una addenda.</p>
+      <p class="error" *ngIf="form.errors?.invalidAddenda">Las addendas deben ser 05 o 99 y completar causal/seq.</p>
     </div>
 
     <div class="actions">

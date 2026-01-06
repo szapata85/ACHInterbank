@@ -99,8 +99,10 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   addAddenda(): void {
     this.addendas.push(
       this.fb.group({
-        addendaType: ['', [Validators.required, Validators.maxLength(80)]],
-        information: ['', [Validators.required, Validators.maxLength(80)]]
+        addendaType: ['05', [Validators.required]],
+        information: ['', [Validators.required, Validators.maxLength(80)]],
+        returnReasonCode: [''],
+        originalTraceSequence: ['']
       })
     );
   }
@@ -132,10 +134,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       companyIdentification: payload.companyIdentification.trim().toUpperCase(),
       companyEntryDescription: payload.companyEntryDescription.trim().toUpperCase(),
       addendas: payload.addendas
-        .map((item) => ({
-          addendaType: item.addendaType.trim().toUpperCase(),
-          information: item.information.trim()
-        }))
+        .map((item) => this.buildAddendaPayload(item))
         .filter((item) => item.addendaType && item.information)
     };
 
@@ -214,6 +213,45 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       errors.missingAddenda = true;
     }
 
+    if (addendas && addendas.length > 0) {
+      const invalidAddenda = addendas.controls.some((control) => {
+        const type = control.get('addendaType')?.value;
+        if (type !== '05' && type !== '99') {
+          return true;
+        }
+
+        if (type === '99') {
+          const reason = control.get('returnReasonCode')?.value;
+          const seq = control.get('originalTraceSequence')?.value;
+          return !reason || !seq;
+        }
+
+        return false;
+      });
+
+      if (invalidAddenda) {
+        errors.invalidAddenda = true;
+      }
+    }
+
     return Object.keys(errors).length > 0 ? errors : null;
   };
+
+  private buildAddendaPayload(item: TransactionDraft['addendas'][number]) {
+    const addendaType = item.addendaType?.trim().toUpperCase();
+    if (addendaType === '99') {
+      const reason = item.returnReasonCode?.trim().toUpperCase();
+      const sequence = item.originalTraceSequence?.trim();
+      const details = item.information.trim();
+      return {
+        addendaType,
+        information: `CAUSAL:${reason} SEQ:${sequence} ${details}`.trim()
+      };
+    }
+
+    return {
+      addendaType,
+      information: item.information.trim()
+    };
+  }
 }

@@ -210,7 +210,7 @@ public class AchTransactionService : IAchTransactionService
         {
             tx.Addendas = addendas.Select((a, idx) => new AchTransactionAddenda
             {
-                AddendaType = a.AddendaType,
+                AddendaType = ValidateAddendaType(a.AddendaType),
                 Information = a.Information,
                 SequenceNumber = idx + 1
             }).ToList();
@@ -225,6 +225,17 @@ public class AchTransactionService : IAchTransactionService
 
 
         return tx;
+    }
+
+    private static string ValidateAddendaType(string addendaType)
+    {
+        var normalized = addendaType.Trim();
+        if (normalized is "05" or "99")
+        {
+            return normalized;
+        }
+
+        throw new ArgumentException("D12: El código de tipo de registro adenda es incorrecto.", nameof(addendaType));
     }
 
     private static string ResolveTransactionCode(
