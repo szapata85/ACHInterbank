@@ -156,7 +156,6 @@ export class TaskDefinitionsComponent implements OnInit, OnDestroy {
       endAt: ''
     });
     this.parameters.clear();
-    this.addParameter();
     this.cdr.markForCheck();
   }
 
@@ -185,9 +184,6 @@ export class TaskDefinitionsComponent implements OnInit, OnDestroy {
     });
     this.parameters.clear();
     (task.parameters ?? []).forEach((param) => this.addParameter(param));
-    if (this.parameters.length === 0) {
-      this.addParameter();
-    }
     this.cdr.markForCheck();
   }
 
