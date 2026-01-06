@@ -103,6 +103,40 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.ToTable("BrandingSettings", (string)null);
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.PasswordRuleSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("MaxSpecial")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MinLength")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MinNumbers")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MinSpecial")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MinUppercase")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PasswordRuleSettings", (string)null);
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.Navigation.Menu", b =>
                 {
                     b.Property<int>("Id")

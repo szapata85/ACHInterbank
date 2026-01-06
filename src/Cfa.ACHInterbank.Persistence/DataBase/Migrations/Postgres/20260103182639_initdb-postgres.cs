@@ -69,6 +69,25 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                 });
 
             migrationBuilder.CreateTable(
+                name: "PasswordRuleSettings",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    MinLength = table.Column<int>(type: "integer", nullable: false),
+                    MinUppercase = table.Column<int>(type: "integer", nullable: false),
+                    MinNumbers = table.Column<int>(type: "integer", nullable: false),
+                    MinSpecial = table.Column<int>(type: "integer", nullable: false),
+                    MaxSpecial = table.Column<int>(type: "integer", nullable: true),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PasswordRuleSettings", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "ClearingHouseConfigs",
                 columns: table => new
                 {
@@ -1380,6 +1399,9 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
             migrationBuilder.DropTable(
                 name: "BrandingSettings");
+
+            migrationBuilder.DropTable(
+                name: "PasswordRuleSettings");
 
             migrationBuilder.DropTable(
                 name: "ClearingHouseCycleConfigs");

@@ -4,6 +4,7 @@ import { SharedModule } from '../../../shared/shared.module';
 import { NotificationService } from '../../../core/services/notification.service';
 import { PasswordRulesService } from '../../../core/services/password-rules.service';
 import { RouterModule } from '@angular/router';
+import { take } from 'rxjs';
 
 @Component({
   selector: 'app-password-rules-settings',
@@ -27,8 +28,9 @@ export class PasswordRulesSettingsComponent {
   });
 
   constructor() {
-    const rules = this.service.getRulesSnapshot();
-    this.form.patchValue(rules, { emitEvent: false });
+    this.service.rules$.pipe(take(1)).subscribe((rules) => {
+      this.form.patchValue(rules, { emitEvent: false });
+    });
   }
 
   save(): void {
@@ -39,14 +41,17 @@ export class PasswordRulesSettingsComponent {
     }
 
     const value = this.form.getRawValue();
-    this.service.updateRules({
-      minLength: value.minLength ?? 6,
-      minUppercase: value.minUppercase ?? 0,
-      minNumbers: value.minNumbers ?? 0,
-      minSpecial: value.minSpecial ?? 0,
-      maxSpecial: value.maxSpecial ?? 0
-    });
-    this.form.markAsPristine();
-    this.notifications.success('Reglas de contraseña guardadas.');
+    this.service
+      .updateRules({
+        minLength: value.minLength ?? 6,
+        minUppercase: value.minUppercase ?? 0,
+        minNumbers: value.minNumbers ?? 0,
+        minSpecial: value.minSpecial ?? 0,
+        maxSpecial: value.maxSpecial ?? 0
+      })
+      .subscribe(() => {
+        this.form.markAsPristine();
+        this.notifications.success('Reglas de contraseña guardadas.');
+      });
   }
 }

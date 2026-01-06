@@ -1,5 +1,6 @@
-import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { Injectable, inject } from '@angular/core';
+import { BehaviorSubject, Observable, catchError, map, of, tap } from 'rxjs';
+import { ApiService } from './api.service';
 
 export interface PasswordRules {
   minLength: number;
@@ -9,7 +10,6 @@ export interface PasswordRules {
   maxSpecial: number | null;
 }
 
-const STORAGE_KEY = 'passwordRules';
 const DEFAULT_RULES: PasswordRules = {
   minLength: 6,
   minUppercase: 1,
@@ -20,36 +20,49 @@ const DEFAULT_RULES: PasswordRules = {
 
 @Injectable({ providedIn: 'root' })
 export class PasswordRulesService {
-  private readonly rulesSubject = new BehaviorSubject<PasswordRules>(this.loadRules());
+  private readonly api = inject(ApiService);
+  private readonly rulesSubject = new BehaviorSubject<PasswordRules>(DEFAULT_RULES);
   readonly rules$ = this.rulesSubject.asObservable();
+
+  constructor() {
+    this.refreshFromServer().subscribe();
+  }
 
   getRulesSnapshot(): PasswordRules {
     return this.rulesSubject.value;
   }
 
-  updateRules(rules: PasswordRules): void {
+  updateRules(rules: PasswordRules): Observable<PasswordRules> {
     const normalized = this.normalizeRules(rules);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
-    this.rulesSubject.next(normalized);
+    return this.api.put<PasswordRules>('api/users/password-rules', normalized).pipe(
+      map((response) => this.normalizeRules(response ?? normalized)),
+      tap((saved) => this.rulesSubject.next(saved)),
+      catchError(() => {
+        const fallback = this.rulesSubject.value;
+        this.rulesSubject.next(fallback);
+        return of(fallback);
+      })
+    );
   }
 
-  private loadRules(): PasswordRules {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return DEFAULT_RULES;
-    }
-
-    try {
-      const parsed = JSON.parse(raw) as PasswordRules;
-      return this.normalizeRules(parsed);
-    } catch {
-      return DEFAULT_RULES;
-    }
+  refreshFromServer(): Observable<PasswordRules> {
+    return this.api.get<PasswordRules>('api/users/password-rules').pipe(
+      map((rules) => this.normalizeRules(rules ?? DEFAULT_RULES)),
+      tap((rules) => this.rulesSubject.next(rules)),
+      catchError(() => {
+        const fallback = this.rulesSubject.value;
+        this.rulesSubject.next(fallback);
+        return of(fallback);
+      })
+    );
   }
 
   private normalizeRules(rules: PasswordRules): PasswordRules {
+    const parsedMinLength = Number(rules.minLength);
+    const minLength = Number.isFinite(parsedMinLength) ? parsedMinLength : DEFAULT_RULES.minLength;
+
     return {
-      minLength: Math.max(1, Number(rules.minLength) || DEFAULT_RULES.minLength),
+      minLength: Math.max(1, minLength),
       minUppercase: Math.max(0, Number(rules.minUppercase) || 0),
       minNumbers: Math.max(0, Number(rules.minNumbers) || 0),
       minSpecial: Math.max(0, Number(rules.minSpecial) || 0),
