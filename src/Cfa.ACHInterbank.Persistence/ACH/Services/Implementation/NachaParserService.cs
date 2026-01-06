@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Helpers.Hash;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -17,8 +18,10 @@ public class NachaParserService : INachaParserService
         _context = context;
     }
 
-    public async Task ParseAndSaveAsync(Stream nachaStream, string FileName)
+    public async Task<IReadOnlyList<NachaValidationFailure>> ParseAndSaveAsync(Stream nachaStream, string FileName)
     {
+        var failures = new List<NachaValidationFailure>();
+
         try
         {
             _context.ChangeTracker.AutoDetectChangesEnabled = false;
@@ -27,60 +30,126 @@ public class NachaParserService : INachaParserService
             string? linefull = await reader.ReadLineAsync();
             int LenghtLine = int.Parse(linefull!.Substring(36, 3));
 
-
             List<string> lines = Enumerable.Range(0, (int)Math.Ceiling((double)linefull.Length / LenghtLine))
-                          .Select(i => linefull.Substring(i * LenghtLine, Math.Min(LenghtLine, linefull.Length - i * LenghtLine)))
-                          .ToList();
+                .Select(i => linefull.Substring(i * LenghtLine, Math.Min(LenghtLine, linefull.Length - i * LenghtLine)))
+                .ToList();
 
-            IEnumerable<char> recordsTypes = lines.Select(a => a[0]).Distinct();
+            var clearingHouseMap = await _context.ClearingHouses
+                .AsNoTracking()
+                .ToDictionaryAsync(ch => ch.OriginCode.Trim(), ch => ch.Id);
 
-            List<NachaHeader> LstNachaHeader = new();
+            List<NachaHeader> headers = new();
+            NachaHeader? currentHeader = null;
+            BatchHeader? currentBatch = null;
+            EntryDetail? lastEntry = null;
+            var entryDetails = new List<EntryDetail>();
+            var addendaRecords = new List<AddendaRecord>();
+            var batchControls = new List<BatchControl>();
+            var fileControls = new List<FileControl>();
 
-            foreach (char recordType in recordsTypes)
+            foreach (var line in lines)
             {
-                List<string> resultLine = lines.Where(a => a[0] == recordType).ToList();
-
-
+                var recordType = line[0];
                 switch (recordType)
                 {
                     case '1':
-                        // Precargar mapeo de códigos desde la BD
-                        Dictionary<string, int> clearingHouseMap = await _context.ClearingHouses
-                            .AsNoTracking()
-                            .ToDictionaryAsync(ch => ch.OriginCode.Trim(), ch => ch.Id);
+                        currentHeader = ParseFileHeaderLinq([line], clearingHouseMap, FileName).FirstOrDefault();
+                        if (currentHeader is null)
+                        {
+                            break;
+                        }
+                        currentHeader.Batches = new List<BatchHeader>();
+                        currentHeader.EntryDetails = new List<EntryDetail>();
+                        currentHeader.AddendaRecords = new List<AddendaRecord>();
+                        currentHeader.BatchControls = new List<BatchControl>();
+                        currentHeader.FileControls = new List<FileControl>();
 
-                        LstNachaHeader = ParseFileHeaderLinq(resultLine, clearingHouseMap, FileName);
-
-                        //Validación de existencia
                         bool NachaHeadersExists = await _context.NachaHeaders
-                            .AnyAsync(p => p.FileCreationDate == LstNachaHeader[0].FileCreationDate
-                                        && p.FileCreationTime == LstNachaHeader[0].FileCreationTime
-                                        && p.FileIdModifier == LstNachaHeader[0].FileIdModifier
-                                        && p.ImmediateOrigin == LstNachaHeader[0].ImmediateOrigin);
+                            .AnyAsync(p => p.FileCreationDate == currentHeader.FileCreationDate
+                                        && p.FileCreationTime == currentHeader.FileCreationTime
+                                        && p.FileIdModifier == currentHeader.FileIdModifier
+                                        && p.ImmediateOrigin == currentHeader.ImmediateOrigin);
 
                         if (NachaHeadersExists)
+                        {
                             throw new ArgumentException("El Archivo NACHA ya existe!");
+                        }
 
+                        headers.Add(currentHeader);
                         break;
                     case '5':
-                        LstNachaHeader[0].Batches = ParseBatchHeaderLinq(resultLine);
+                        currentBatch = ParseBatchHeaderLinq([line]).FirstOrDefault();
+                        if (currentBatch is not null)
+                        {
+                            currentBatch.NachaID = currentHeader?.NachaID;
+                            currentHeader?.Batches?.Add(currentBatch);
+                        }
                         break;
                     case '6':
-                        LstNachaHeader[0].EntryDetails = ParseEntryDetailLinq(resultLine);
+                        var entry = ParseEntryDetailLinq([line]).FirstOrDefault();
+                        if (entry is null)
+                        {
+                            break;
+                        }
+
+                        entry.NachaID = currentHeader?.NachaID;
+
+                        if (ValidateEntry(entry, currentBatch, failures))
+                        {
+                            entryDetails.Add(entry);
+                            lastEntry = entry;
+                        }
+                        else
+                        {
+                            lastEntry = null;
+                        }
                         break;
                     case '7':
-                        LstNachaHeader[0].AddendaRecords = ParseAddendaLinq(resultLine);
+                        var addenda = ParseAddendaLinq([line]).FirstOrDefault();
+                        if (addenda is not null)
+                        {
+                            addenda.NachaID = currentHeader?.NachaID;
+                            if (lastEntry is null)
+                            {
+                                failures.Add(new NachaValidationFailure("7", currentBatch?.BatchNumber.ToString(), null, null,
+                                    "Registro Addenda sin detalle asociado."));
+                            }
+                            else
+                            {
+                                addenda.EntryDetailSequenceNumber ??= GetEntrySequenceSuffix(lastEntry.SequenceNumber);
+                                addendaRecords.Add(addenda);
+                            }
+                        }
                         break;
                     case '8':
-                        LstNachaHeader[0].BatchControls = ParseBatchControlLinq(resultLine);
+                        var batchControl = ParseBatchControlLinq([line]).FirstOrDefault();
+                        if (batchControl is not null)
+                        {
+                            batchControls.Add(batchControl);
+                        }
                         break;
                     case '9':
-                        LstNachaHeader[0].FileControls = ParseFileControlLinq(resultLine);
+                        var fileControl = ParseFileControlLinq([line]).FirstOrDefault();
+                        if (fileControl is not null)
+                        {
+                            fileControls.Add(fileControl);
+                        }
                         break;
                 }
             }
 
-            _context.NachaHeaders.AddRange(LstNachaHeader);
+            var validEntries = EnforceAddendaRequirements(entryDetails, addendaRecords, failures);
+            if (currentHeader is not null)
+            {
+                currentHeader.EntryDetails = validEntries;
+                currentHeader.AddendaRecords = addendaRecords
+                    .Where(addenda => validEntries.Any(entry => IsAddendaForEntry(entry, addenda)))
+                    .ToList();
+                currentHeader.BatchControls = batchControls;
+                currentHeader.FileControls = fileControls;
+            }
+
+            _context.NachaHeaders.AddRange(headers);
 
             await _context.SaveChangesAsync();
             _context.ChangeTracker.AutoDetectChangesEnabled = true;
@@ -89,6 +158,8 @@ public class NachaParserService : INachaParserService
         {
             var mensaje = ex.GetBaseException().ToString();
         }
+
+        return failures;
     }
 
     private List<NachaHeader> ParseFileHeaderLinq(List<string> line, Dictionary<string, int> clearingHouseMap, string FileName)
@@ -211,5 +282,119 @@ public class NachaParserService : INachaParserService
             TotalDebitAmount = Convert.ToDecimal(a.Substring(31, 18)) / 100,
             TotalCreditAmount = Convert.ToDecimal(a.Substring(49, 18)) / 100
         }).ToList();
+    }
+
+    private static readonly HashSet<string> CreditCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "22", "23", "32", "33", "52", "53"
+    };
+
+    private static readonly HashSet<string> DebitCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "27", "28", "37", "38", "55", "57"
+    };
+
+    private static readonly HashSet<string> PrenoteCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "23", "33", "53", "28", "38", "57"
+    };
+
+    private static bool ValidateEntry(EntryDetail entry, BatchHeader? batch, List<NachaValidationFailure> failures)
+    {
+        var code = entry.TransactionCode ?? string.Empty;
+        if (!CreditCodes.Contains(code) && !DebitCodes.Contains(code))
+        {
+            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code,
+                "Código de transacción inválido."));
+            return false;
+        }
+
+        var isCredit = CreditCodes.Contains(code);
+        var isDebit = DebitCodes.Contains(code);
+        var serviceClassCode = batch?.ServiceClassCode?.Trim();
+
+        if (serviceClassCode == "220" && !isCredit)
+        {
+            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code,
+                "Lote exclusivo de crédito (220) no permite débitos."));
+            return false;
+        }
+
+        if (serviceClassCode == "225" && !isDebit)
+        {
+            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code,
+                "Lote exclusivo de débito (225) no permite créditos."));
+            return false;
+        }
+
+        if (PrenoteCodes.Contains(code) && entry.Amount.GetValueOrDefault() != 0m)
+        {
+            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code,
+                "Prenotificación debe tener valor 0."));
+            return false;
+        }
+
+        if (!string.Equals(entry.AddendumIndicator, "1", StringComparison.OrdinalIgnoreCase))
+        {
+            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code,
+                "El registro 7 es obligatorio para todas las transacciones."));
+            return false;
+        }
+
+        if (isDebit && string.IsNullOrWhiteSpace(entry.RecipIdNumber))
+        {
+            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code,
+                "Identificación del receptor obligatoria para débitos."));
+            return false;
+        }
+
+        if (isCredit && !string.IsNullOrWhiteSpace(entry.DiscreData) &&
+            entry.DiscreData.Contains('V', StringComparison.OrdinalIgnoreCase) &&
+            string.IsNullOrWhiteSpace(entry.RecipIdNumber))
+        {
+            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code,
+                "Validación de identidad requerida por marca V."));
+            return false;
+        }
+
+        return true;
+    }
+
+    private static List<EntryDetail> EnforceAddendaRequirements(
+        List<EntryDetail> entries,
+        List<AddendaRecord> addendaRecords,
+        List<NachaValidationFailure> failures)
+    {
+        var validEntries = new List<EntryDetail>();
+        foreach (var entry in entries)
+        {
+            if (!addendaRecords.Any(addenda => IsAddendaForEntry(entry, addenda)))
+            {
+                failures.Add(new NachaValidationFailure("6", null, entry.SequenceNumber, entry.TransactionCode,
+                    "No se encontró registro 7 asociado al detalle."));
+                continue;
+            }
+
+            validEntries.Add(entry);
+        }
+
+        return validEntries;
+    }
+
+    private static bool IsAddendaForEntry(EntryDetail entry, AddendaRecord addenda)
+    {
+        var entrySequence = GetEntrySequenceSuffix(entry.SequenceNumber);
+        return !string.IsNullOrWhiteSpace(entrySequence) &&
+               string.Equals(addenda.EntryDetailSequenceNumber, entrySequence, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? GetEntrySequenceSuffix(string? sequence)
+    {
+        if (string.IsNullOrWhiteSpace(sequence))
+        {
+            return null;
+        }
+
+        return sequence.Length <= 7 ? sequence : sequence[^7..];
     }
 }

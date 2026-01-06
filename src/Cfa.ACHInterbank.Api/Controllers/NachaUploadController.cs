@@ -29,7 +29,16 @@ namespace Cfa.ACHInterbank.Api.Controllers
             try
             {
                 using var stream = file.OpenReadStream();
-                await _parserService.ParseAndSaveAsync(stream, file.FileName);
+                var failures = await _parserService.ParseAndSaveAsync(stream, file.FileName);
+
+                if (failures.Count > 0)
+                {
+                    return Ok(new
+                    {
+                        message = "Archivo procesado con devoluciones por operador.",
+                        operatorReturns = failures
+                    });
+                }
 
                 return Ok("Archivo procesado y guardado.");
             }

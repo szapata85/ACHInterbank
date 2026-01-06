@@ -1,7 +1,8 @@
-﻿namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
+﻿using Cfa.ACHInterbank.Application.ACH.Models;
+
+namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
 
 public interface INachaParserService
 {
-    Task ParseAndSaveAsync(Stream nachaStream, string FileName);
+    Task<IReadOnlyList<NachaValidationFailure>> ParseAndSaveAsync(Stream nachaStream, string FileName);
 }
-
