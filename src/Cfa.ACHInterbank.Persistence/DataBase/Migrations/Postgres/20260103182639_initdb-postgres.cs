@@ -1083,6 +1083,7 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     { 17, true, "upload_file", true, "Cargar NACHA-M", 1, 3, 6, "/transactions/nacha-upload" },
                     { 19, true, "schedule", true, "Tareas programadas", 1, 1, 18, "/scheduler/tasks" },
                     { 20, true, "view_column", true, "Layouts NACHA", 1, 2, 4, "/ach-cycles/nacha/layouts" },
+                    { 23, true, "policy", true, "Reglas de contraseña", 1, 3, 2, "/users/password-rules" },
                     { 21, true, "lock", true, "Sobre digital", 1, 1, 10, "/nacha-security/sobre-digital" }
                 });
 
@@ -1102,7 +1103,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     { 15, new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a") },
                     { 16, new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a") },
                     { 19, new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a") },
-                    { 20, new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a") }
+                    { 20, new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a") },
+                    { 23, new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf") }
                 });
 
             migrationBuilder.InsertData(
@@ -1118,7 +1120,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     { 13, new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1") },
                     { 13, new Guid("a51746c2-0710-4d79-97b1-5b4368326f56") },
                     { 14, new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1") },
-                    { 14, new Guid("a51746c2-0710-4d79-97b1-5b4368326f56") }
+                    { 14, new Guid("a51746c2-0710-4d79-97b1-5b4368326f56") },
+                    { 23, new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1") }
                 });
 
             migrationBuilder.CreateIndex(

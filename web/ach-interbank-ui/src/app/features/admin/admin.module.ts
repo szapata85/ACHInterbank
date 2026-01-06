@@ -5,6 +5,7 @@ import { UsersListComponent } from './components/users-list.component';
 import { UserFormComponent } from './components/user-form.component';
 import { UserRolesComponent } from './components/user-roles.component';
 import { BrandingSettingsComponent } from './components/branding-settings.component';
+import { PasswordRulesSettingsComponent } from './components/password-rules-settings.component';
 
 @NgModule({
   imports: [
@@ -13,7 +14,8 @@ import { BrandingSettingsComponent } from './components/branding-settings.compon
     UsersListComponent,
     UserFormComponent,
     UserRolesComponent,
-    BrandingSettingsComponent
+    BrandingSettingsComponent,
+    PasswordRulesSettingsComponent
   ]
 })
 export class AdminModule {}

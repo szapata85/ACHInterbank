@@ -225,6 +225,18 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
+                            Id = 23,
+                            Exact = true,
+                            Icon = "policy",
+                            IsActive = true,
+                            Label = "Reglas de contraseña",
+                            MenuId = 1,
+                            Order = 3,
+                            ParentId = 2,
+                            Route = "/users/password-rules"
+                        },
+                        new
+                        {
                             Id = 4,
                             Exact = true,
                             Icon = "schedule",
@@ -548,6 +560,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         {
                             MenuItemId = 19,
                             PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
+                        },
+                        new
+                        {
+                            MenuItemId = 23,
+                            PermissionId = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf")
                         });
                 });
 
@@ -630,6 +647,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         {
                             MenuItemId = 14,
                             RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56")
+                        },
+                        new
+                        {
+                            MenuItemId = 23,
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
                         });
                 });
 

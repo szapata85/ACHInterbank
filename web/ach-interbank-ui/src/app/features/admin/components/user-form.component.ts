@@ -5,6 +5,7 @@ import { UsersApiService, RolesApiService } from '../services/users-api.service'
 import { RoleSummary, SaveUserRequest, UserSummary } from '../models/user.model';
 import { SharedModule } from '../../../shared/shared.module';
 import { RouterModule } from '@angular/router';
+import { PasswordRulesService, PasswordRules } from '../../../core/services/password-rules.service';
 
 @Component({
   selector: 'app-user-form',
@@ -20,18 +21,13 @@ export class UserFormComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly usersApi = inject(UsersApiService);
   private readonly rolesApi = inject(RolesApiService);
+  private readonly passwordRulesService = inject(PasswordRulesService);
 
   roles: RoleSummary[] = [];
   isEdit = false;
   userId: string | null = null;
 
-  readonly passwordRules = {
-    minLength: 6,
-    minUppercase: 1,
-    minNumbers: 1,
-    minSpecial: 1,
-    maxSpecial: 4
-  };
+  passwordRules: PasswordRules = this.passwordRulesService.getRulesSnapshot();
 
   readonly form = this.fb.group({
     userName: ['', Validators.required],
@@ -54,6 +50,11 @@ export class UserFormComponent implements OnInit {
       passwordControl?.setValidators([Validators.required, this.passwordStrengthValidator]);
       passwordControl?.updateValueAndValidity({ emitEvent: false });
     }
+
+    this.passwordRulesService.rules$.subscribe((rules) => {
+      this.passwordRules = rules;
+      this.form.get('password')?.updateValueAndValidity({ emitEvent: false });
+    });
   }
 
   private patchForm(user: UserSummary): void {
@@ -100,9 +101,9 @@ export class UserFormComponent implements OnInit {
     return 'Muy débil';
   }
 
-  private passwordStrengthValidator(control: AbstractControl) {
+  private passwordStrengthValidator = (control: AbstractControl) => {
     const value = String(control.value ?? '');
-    const { minLength, minUppercase, minNumbers, minSpecial, maxSpecial } = (this as UserFormComponent).passwordRules;
+    const { minLength, minUppercase, minNumbers, minSpecial, maxSpecial } = this.passwordRules;
     const uppercaseCount = (value.match(/[A-Z]/g) ?? []).length;
     const numberCount = (value.match(/\d/g) ?? []).length;
     const specialCount = (value.match(/[^A-Za-z0-9]/g) ?? []).length;
@@ -120,12 +121,12 @@ export class UserFormComponent implements OnInit {
     if (specialCount < minSpecial) {
       errors.minSpecial = true;
     }
-    if (maxSpecial !== null && specialCount > maxSpecial) {
+    if (maxSpecial !== null && maxSpecial !== undefined && specialCount > maxSpecial) {
       errors.maxSpecial = true;
     }
 
     return Object.keys(errors).length > 0 ? { weakPassword: true, ...errors } : null;
-  }
+  };
 
   private calculatePasswordStrength(value: string): number {
     const { minLength, minUppercase, minNumbers, minSpecial, maxSpecial } = this.passwordRules;

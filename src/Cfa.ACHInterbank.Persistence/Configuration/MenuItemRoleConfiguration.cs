@@ -68,6 +68,11 @@ public class MenuItemRoleConfiguration : IEntityTypeConfiguration<MenuItemRole>
             },
             new MenuItemRole
             {
+                MenuItemId = MenuItemConfiguration.PasswordRulesId,
+                RoleId = RoleConfiguration.AdminRoleId
+            },
+            new MenuItemRole
+            {
                 MenuItemId = MenuItemConfiguration.FinancialInstitutionsId,
                 RoleId = RoleConfiguration.AdminRoleId
             },

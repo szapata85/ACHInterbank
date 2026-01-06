@@ -28,6 +28,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int NachaLayoutsId = 20;
     public const int DigitalEnvelopeId = 21;
     public const int AuditLogId = 22;
+    public const int PasswordRulesId = 23;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -90,6 +91,18 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Route = "/users/branding",
                 Icon = "palette",
                 Order = 2,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = PasswordRulesId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = UsersId,
+                Label = "Reglas de contraseña",
+                Route = "/users/password-rules",
+                Icon = "policy",
+                Order = 3,
                 Exact = true,
                 IsActive = true
             },

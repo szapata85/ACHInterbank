@@ -6,6 +6,7 @@ import { UserRolesComponent } from './components/user-roles.component';
 import { roleGuard } from '../../core/guards/role.guard';
 import { permissionGuard } from '../../core/guards/permission.guard';
 import { BrandingSettingsComponent } from './components/branding-settings.component';
+import { PasswordRulesSettingsComponent } from './components/password-rules-settings.component';
 
 const routes: Routes = [
   {
@@ -36,6 +37,11 @@ const routes: Routes = [
         path: 'branding',
         component: BrandingSettingsComponent,
         data: { breadcrumb: 'Identidad visual', title: 'Identidad y colores' }
+      },
+      {
+        path: 'password-rules',
+        component: PasswordRulesSettingsComponent,
+        data: { breadcrumb: 'Reglas de contraseña', title: 'Reglas de contraseña' }
       }
     ]
   }
