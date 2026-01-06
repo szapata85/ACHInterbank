@@ -8,6 +8,8 @@ import { RouterModule } from '@angular/router';
 import { PasswordRulesService, PasswordRules } from '../../../core/services/password-rules.service';
 import { catchError, map, of } from 'rxjs';
 
+const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+
 @Component({
   selector: 'app-user-form',
   templateUrl: './user-form.component.html',
@@ -34,8 +36,8 @@ export class UserFormComponent implements OnInit {
     userName: ['', Validators.required],
     fullName: [''],
     email: this.fb.control('', {
-      validators: [Validators.required, Validators.email, Validators.pattern(UserFormComponent.emailPattern)],
-      asyncValidators: [this.emailDomainValidator],
+      validators: [Validators.required, Validators.email, Validators.pattern(EMAIL_PATTERN)],
+      asyncValidators: [this.createEmailDomainValidator()],
       updateOn: 'blur'
     }),
     phoneNumber: [''],
@@ -106,19 +108,19 @@ export class UserFormComponent implements OnInit {
     return 'Muy débil';
   }
 
-  private static readonly emailPattern = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+  private createEmailDomainValidator(): AsyncValidatorFn {
+    return (control: AbstractControl) => {
+      const value = String(control.value ?? '').trim();
+      if (!value || !value.includes('@')) {
+        return of(null);
+      }
 
-  private readonly emailDomainValidator: AsyncValidatorFn = (control: AbstractControl) => {
-    const value = String(control.value ?? '').trim();
-    if (!value || !value.includes('@')) {
-      return of(null);
-    }
-
-    return this.usersApi.validateEmailDomain(value).pipe(
-      map((isValid) => (isValid ? null : { invalidEmailDomain: true })),
-      catchError(() => of({ invalidEmailDomain: true }))
-    );
-  };
+      return this.usersApi.validateEmailDomain(value).pipe(
+        map((isValid) => (isValid ? null : { invalidEmailDomain: true })),
+        catchError(() => of({ invalidEmailDomain: true }))
+      );
+    };
+  }
 
   private passwordStrengthValidator = (control: AbstractControl) => {
     const value = String(control.value ?? '');
