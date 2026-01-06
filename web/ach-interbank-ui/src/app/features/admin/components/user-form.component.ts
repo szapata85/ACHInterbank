@@ -25,6 +25,14 @@ export class UserFormComponent implements OnInit {
   isEdit = false;
   userId: string | null = null;
 
+  readonly passwordRules = {
+    minLength: 6,
+    minUppercase: 1,
+    minNumbers: 1,
+    minSpecial: 1,
+    maxSpecial: 4
+  };
+
   readonly form = this.fb.group({
     userName: ['', Validators.required],
     fullName: [''],
@@ -80,7 +88,7 @@ export class UserFormComponent implements OnInit {
 
   get passwordStrengthLabel(): string {
     const score = this.passwordStrength;
-    if (score >= 4) {
+    if (score >= 5) {
       return 'Fuerte';
     }
     if (score >= 3) {
@@ -94,32 +102,44 @@ export class UserFormComponent implements OnInit {
 
   private passwordStrengthValidator(control: AbstractControl) {
     const value = String(control.value ?? '');
-    const hasUpper = /[A-Z]/.test(value);
-    const hasNumber = /\d/.test(value);
-    const hasSpecial = /[^A-Za-z0-9]/.test(value);
-    const minLength = value.length >= 6;
+    const { minLength, minUppercase, minNumbers, minSpecial, maxSpecial } = (this as UserFormComponent).passwordRules;
+    const uppercaseCount = (value.match(/[A-Z]/g) ?? []).length;
+    const numberCount = (value.match(/\d/g) ?? []).length;
+    const specialCount = (value.match(/[^A-Za-z0-9]/g) ?? []).length;
+    const errors: Record<string, boolean> = {};
 
-    if (hasUpper && hasNumber && hasSpecial && minLength) {
-      return null;
+    if (value.length < minLength) {
+      errors.minLength = true;
+    }
+    if (uppercaseCount < minUppercase) {
+      errors.minUppercase = true;
+    }
+    if (numberCount < minNumbers) {
+      errors.minNumbers = true;
+    }
+    if (specialCount < minSpecial) {
+      errors.minSpecial = true;
+    }
+    if (maxSpecial !== null && specialCount > maxSpecial) {
+      errors.maxSpecial = true;
     }
 
-    return { weakPassword: true };
+    return Object.keys(errors).length > 0 ? { weakPassword: true, ...errors } : null;
   }
 
   private calculatePasswordStrength(value: string): number {
-    let score = 0;
-    if (value.length >= 6) {
-      score += 1;
-    }
-    if (/[A-Z]/.test(value)) {
-      score += 1;
-    }
-    if (/\d/.test(value)) {
-      score += 1;
-    }
-    if (/[^A-Za-z0-9]/.test(value)) {
-      score += 1;
-    }
-    return score;
+    const { minLength, minUppercase, minNumbers, minSpecial, maxSpecial } = this.passwordRules;
+    const uppercaseCount = (value.match(/[A-Z]/g) ?? []).length;
+    const numberCount = (value.match(/\d/g) ?? []).length;
+    const specialCount = (value.match(/[^A-Za-z0-9]/g) ?? []).length;
+    const rules = [
+      value.length >= minLength,
+      uppercaseCount >= minUppercase,
+      numberCount >= minNumbers,
+      specialCount >= minSpecial,
+      maxSpecial === null || specialCount <= maxSpecial
+    ];
+
+    return rules.filter(Boolean).length;
   }
 }
