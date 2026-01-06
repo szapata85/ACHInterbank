@@ -94,7 +94,7 @@ public class NachaParserService : INachaParserService
 
                         entry.NachaID = currentHeader?.NachaID;
 
-                        if (ValidateEntry(entry, currentBatch, failures))
+                        if (await ValidateEntryAsync(entry, currentBatch, failures))
                         {
                             entryDetails.Add(entry);
                             lastEntry = entry;
@@ -230,11 +230,11 @@ public class NachaParserService : INachaParserService
             TransactionCode = a.Substring(1, 2).Trim(),
             ReceivingParticipantEntityCode = a.Substring(3, 8).Trim(),
             CheckDigit = a.Substring(11, 1).Trim(),
-            AccountNumber = a.Substring(12, 17).Trim(),
+            AccountNumber = a.Substring(12, 17).TrimEnd(),
             Amount = Convert.ToDecimal(a.Substring(29, 18)) / 100,
-            RecipIdNumber = a.Substring(47, 15).Trim(),
+            RecipIdNumber = a.Substring(47, 15).TrimEnd(),
             RecipUserName = a.Substring(62, 22).Trim(),
-            DiscreData = a.Substring(84, 2).Trim(),
+            DiscreData = a.Substring(84, 2),
             AddendumIndicator = a.Substring(86, 1).Trim(),
             SequenceNumber = a.Substring(87, 15).Trim()
         }).ToList();
@@ -299,7 +299,7 @@ public class NachaParserService : INachaParserService
         "23", "33", "53", "28", "38", "57"
     };
 
-    private static bool ValidateEntry(EntryDetail entry, BatchHeader? batch, List<NachaValidationFailure> failures)
+    private async Task<bool> ValidateEntryAsync(EntryDetail entry, BatchHeader? batch, List<NachaValidationFailure> failures)
     {
         var code = entry.TransactionCode ?? string.Empty;
         if (!CreditCodes.Contains(code) && !DebitCodes.Contains(code))
@@ -341,20 +341,28 @@ public class NachaParserService : INachaParserService
             return false;
         }
 
-        if (isDebit && string.IsNullOrWhiteSpace(entry.RecipIdNumber))
+        var requiresIdentityValidation = isDebit || ShouldValidateCreditIdentity(entry.DiscreData);
+        if (requiresIdentityValidation)
         {
-            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code,
-                "Identificación del receptor obligatoria para débitos."));
-            return false;
-        }
+            if (string.IsNullOrWhiteSpace(entry.RecipIdNumber))
+            {
+                failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code,
+                    "R17: La identificación no coincide con cuenta del usuario receptor."));
+                return false;
+            }
 
-        if (isCredit && !string.IsNullOrWhiteSpace(entry.DiscreData) &&
-            entry.DiscreData.Contains('V', StringComparison.OrdinalIgnoreCase) &&
-            string.IsNullOrWhiteSpace(entry.RecipIdNumber))
-        {
-            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code,
-                "Validación de identidad requerida por marca V."));
-            return false;
+            var accountNumber = entry.AccountNumber ?? string.Empty;
+            var recipientId = entry.RecipIdNumber ?? string.Empty;
+            var matches = await _context.Customers
+                .AsNoTracking()
+                .AnyAsync(c => c.AccountNumber == accountNumber && c.DocumentNumber == recipientId);
+
+            if (!matches)
+            {
+                failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code,
+                    "R17: La identificación no coincide con cuenta del usuario receptor."));
+                return false;
+            }
         }
 
         return true;
@@ -396,5 +404,15 @@ public class NachaParserService : INachaParserService
         }
 
         return sequence.Length <= 7 ? sequence : sequence[^7..];
+    }
+
+    private static bool ShouldValidateCreditIdentity(string? discretionaryData)
+    {
+        if (string.IsNullOrWhiteSpace(discretionaryData))
+        {
+            return false;
+        }
+
+        return discretionaryData.StartsWith("V", StringComparison.OrdinalIgnoreCase);
     }
 }
