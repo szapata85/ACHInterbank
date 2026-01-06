@@ -5,7 +5,7 @@ import { Subject } from 'rxjs';
 import { Router } from '@angular/router';
 import { TransactionsApiService } from '../../services/transactions-api.service';
 import { TransactionDraft, TransactionResponse } from '../../transactions.models';
-import { FinancialInstitutionStatusEnum, TransactionTypeEnum } from '../../transactions.types';
+import { AccountTypeEnum, FinancialInstitutionStatusEnum, TransactionTypeEnum } from '../../transactions.types';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SharedModule } from '../../../../shared/shared.module';
 import { FinancialInstitutionsApiService } from '../../services/financial-institutions-api.service';
@@ -28,6 +28,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
 
   readonly TransactionType = TransactionTypeEnum;
+  readonly AccountType = AccountTypeEnum;
   readonly institutions$ = this.financialInstitutionsApi.getAll().pipe(
     map((list) =>
       (list ?? [])
@@ -40,9 +41,13 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     amount: [null, [Validators.required, Validators.min(0.01)]],
     reference: ['', [Validators.required, Validators.maxLength(30)]],
     type: [TransactionTypeEnum.Credit, Validators.required],
+    accountType: [AccountTypeEnum.Checking, Validators.required],
+    isPrenotification: [false],
     destinationInstitutionId: [null, [Validators.required, Validators.min(1)]],
     sourceAccountNumber: ['', [Validators.required, Validators.pattern(/^[0-9]{6,18}$/)]],
     destinationAccountNumber: ['', [Validators.required, Validators.pattern(/^[0-9]{6,18}$/)]],
+    recipientIdNumber: [''],
+    requiresIdentityValidation: [false],
     companyName: ['', [Validators.required, Validators.maxLength(16)]],
     companyIdentification: ['', [Validators.required, Validators.pattern(/^[A-Z0-9]{4,10}$/)]],
     companyEntryDescription: ['PAGOS', [Validators.required, Validators.maxLength(10)]],
@@ -55,11 +60,31 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   readonly createdResponse = new FormControl<TransactionResponse | null>(null);
 
   ngOnInit(): void {
-    this.form.setValidators(this.validateAccountDifference);
+    this.form.setValidators([this.validateAccountDifference, this.validateBusinessRules]);
     this.form.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(() => {
       this.errorMessage.setValue(null);
       this.successMessage.setValue(null);
     });
+
+    this.form
+      .get('isPrenotification')
+      ?.valueChanges.pipe(takeUntil(this.destroy$))
+      .subscribe((isPrenotification) => {
+        const amountControl = this.form.get('amount');
+        if (!amountControl) {
+          return;
+        }
+
+        const validators = isPrenotification
+          ? [Validators.required, Validators.min(0), Validators.max(0)]
+          : [Validators.required, Validators.min(0.01)];
+
+        amountControl.setValidators(validators);
+        if (isPrenotification) {
+          amountControl.setValue(0, { emitEvent: false });
+        }
+        amountControl.updateValueAndValidity({ emitEvent: false });
+      });
   }
 
   ngOnDestroy(): void {
@@ -94,11 +119,15 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     const sanitized: TransactionDraft = {
       ...payload,
       type: Number(payload.type) as TransactionTypeEnum,
+      accountType: Number(payload.accountType) as AccountTypeEnum,
+      isPrenotification: Boolean(payload.isPrenotification),
       amount: Number(payload.amount),
       destinationInstitutionId: Number(payload.destinationInstitutionId),
       reference: payload.reference.trim(),
       sourceAccountNumber: payload.sourceAccountNumber.trim(),
       destinationAccountNumber: payload.destinationAccountNumber.trim(),
+      recipientIdNumber: payload.recipientIdNumber?.trim() || undefined,
+      requiresIdentityValidation: Boolean(payload.requiresIdentityValidation),
       companyName: payload.companyName.trim(),
       companyIdentification: payload.companyIdentification.trim().toUpperCase(),
       companyEntryDescription: payload.companyEntryDescription.trim().toUpperCase(),
@@ -126,6 +155,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
             this.isSubmitting.setValue(false);
             this.form.reset({
               type: TransactionTypeEnum.Credit,
+              accountType: AccountTypeEnum.Checking,
+              isPrenotification: false,
               companyEntryDescription: 'PAGOS'
             });
             this.addendas.clear();
@@ -155,5 +186,34 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       return { sameAccount: true };
     }
     return null;
+  };
+
+  private validateBusinessRules = (group: FormGroup) => {
+    const isPrenotification = Boolean(group.get('isPrenotification')?.value);
+    const amount = Number(group.get('amount')?.value ?? 0);
+    const type = Number(group.get('type')?.value) as TransactionTypeEnum;
+    const recipientId = group.get('recipientIdNumber')?.value;
+    const requiresIdentityValidation = Boolean(group.get('requiresIdentityValidation')?.value);
+    const addendas = group.get('addendas') as FormArray<FormGroup>;
+
+    const errors: Record<string, boolean> = {};
+
+    if (isPrenotification && amount !== 0) {
+      errors.prenoteAmount = true;
+    }
+
+    if (type === TransactionTypeEnum.Debit && !recipientId) {
+      errors.missingRecipientId = true;
+    }
+
+    if (type === TransactionTypeEnum.Credit && requiresIdentityValidation && !recipientId) {
+      errors.missingRecipientId = true;
+    }
+
+    if (!addendas || addendas.length === 0) {
+      errors.missingAddenda = true;
+    }
+
+    return Object.keys(errors).length > 0 ? errors : null;
   };
 }

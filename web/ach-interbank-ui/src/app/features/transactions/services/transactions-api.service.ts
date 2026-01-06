@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { catchError, map, throwError } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
-import { TransactionTypeEnum } from '../transactions.types';
+import { AccountTypeEnum, TransactionTypeEnum } from '../transactions.types';
 import { TransactionDraft, TransactionListFilter, TransactionListItem, TransactionResponse } from '../transactions.models';
 
 @Injectable({ providedIn: 'root' })
@@ -13,7 +13,11 @@ export class TransactionsApiService {
       ...payload,
       amount: Number(payload.amount),
       destinationInstitutionId: Number(payload.destinationInstitutionId),
-      type: Number(payload.type) as TransactionTypeEnum
+      type: Number(payload.type) as TransactionTypeEnum,
+      accountType: Number(payload.accountType) as AccountTypeEnum,
+      isPrenotification: Boolean(payload.isPrenotification),
+      requiresIdentityValidation: Boolean(payload.requiresIdentityValidation),
+      recipientIdNumber: payload.recipientIdNumber?.trim() || undefined
     };
 
     return this.api.post<TransactionResponse>('transactions', sanitized).pipe(

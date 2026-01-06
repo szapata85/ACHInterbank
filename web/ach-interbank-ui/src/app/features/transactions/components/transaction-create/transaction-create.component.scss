@@ -62,6 +62,20 @@
   }
 }
 
+.toggle {
+  align-items: flex-start;
+
+  input[type='checkbox'] {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+.error {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
 .addenda-section {
   border-top: 1px solid #f3f4f6;
   padding-top: 1rem;

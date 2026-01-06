@@ -12,12 +12,13 @@
           type="number"
           formControlName="amount"
           inputmode="decimal"
-          min="0.01"
+          [min]="form.get('isPrenotification')?.value ? 0 : 0.01"
           step="0.01"
           required
           aria-describedby="amount-help"
         />
         <small id="amount-help">Ingrese el monto en pesos colombianos.</small>
+        <small class="muted" *ngIf="form.get('isPrenotification')?.value">Las prenotificaciones deben ser $0.</small>
         <small class="muted">Valor a enviar: {{ form.get('amount')?.value | currencyCol }}</small>
         <app-error-message [control]="form.get('amount')"></app-error-message>
       </label>
@@ -35,6 +36,22 @@
           <option [ngValue]="TransactionType.Debit">Débito</option>
         </select>
         <app-error-message [control]="form.get('type')"></app-error-message>
+      </label>
+
+      <label>
+        <span>Tipo de cuenta *</span>
+        <select formControlName="accountType" required>
+          <option [ngValue]="AccountType.Checking">Cuenta corriente</option>
+          <option [ngValue]="AccountType.Savings">Cuenta de ahorros</option>
+          <option [ngValue]="AccountType.ElectronicDeposits">Depósitos electrónicos</option>
+        </select>
+        <app-error-message [control]="form.get('accountType')"></app-error-message>
+      </label>
+
+      <label class="toggle">
+        <span>Prenotificación</span>
+        <input type="checkbox" formControlName="isPrenotification" />
+        <small class="muted">Se enviará con monto cero.</small>
       </label>
 
       <label>
@@ -59,6 +76,26 @@
         <span>Cuenta destino *</span>
         <input type="text" formControlName="destinationAccountNumber" required inputmode="numeric" />
         <app-error-message [control]="form.get('destinationAccountNumber')"></app-error-message>
+      </label>
+
+      <label>
+        <span>Identificación del receptor</span>
+        <input type="text" formControlName="recipientIdNumber" maxlength="20" />
+        <small class="muted" *ngIf="form.get('type')?.value === TransactionType.Debit">
+          Obligatoria para transacciones débito.
+        </small>
+        <small class="muted" *ngIf="form.get('type')?.value === TransactionType.Credit">
+          Obligatoria si se solicita validación de identidad.
+        </small>
+        <small class="error" *ngIf="form.errors?.missingRecipientId">
+          Debes diligenciar la identificación del receptor.
+        </small>
+      </label>
+
+      <label class="toggle" *ngIf="form.get('type')?.value === TransactionType.Credit">
+        <span>Validar identidad</span>
+        <input type="checkbox" formControlName="requiresIdentityValidation" />
+        <small class="muted">Marca V para validar identidad.</small>
       </label>
 
       <label>
@@ -107,8 +144,9 @@
         </div>
       </ng-container>
       <ng-template #noAddendas>
-        <p class="muted">No se han agregado addendas.</p>
+        <p class="muted">Se requiere al menos una addenda por transacción.</p>
       </ng-template>
+      <p class="error" *ngIf="form.errors?.missingAddenda">Debes registrar al menos una addenda.</p>
     </div>
 
     <div class="actions">

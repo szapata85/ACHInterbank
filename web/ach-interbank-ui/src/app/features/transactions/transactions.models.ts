@@ -1,4 +1,4 @@
-import { FinancialInstitutionStatusEnum, TransactionTypeEnum } from './transactions.types';
+import { AccountTypeEnum, FinancialInstitutionStatusEnum, TransactionTypeEnum } from './transactions.types';
 
 export interface DestinationInstitution {
   id: number;
@@ -14,9 +14,13 @@ export interface TransactionDraft {
   amount: number;
   reference: string;
   type: TransactionTypeEnum;
+  accountType: AccountTypeEnum;
+  isPrenotification: boolean;
   destinationInstitutionId: number;
   sourceAccountNumber: string;
   destinationAccountNumber: string;
+  recipientIdNumber?: string;
+  requiresIdentityValidation?: boolean;
   companyName: string;
   companyIdentification: string;
   companyEntryDescription: string;
