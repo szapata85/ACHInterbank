@@ -50,9 +50,13 @@ public class AchTransactionNachaTests
                 amount: 1500m,
                 reference: "PAGO-REF-001",
                 type: TransactionTypeEnum.Credit,
+                accountType: AccountTypeEnum.Checking,
+                isPrenotification: false,
                 destinationInstitutionId: 2,
                 sourceAccountNumber: "111122223333",
                 destinationAccountNumber: "999988887777",
+                recipientIdNumber: null,
+                requiresIdentityValidation: false,
                 addendas: new List<AddendaDto>
                 {
                     new() { AddendaType = "05", Information = "Factura #123" },
@@ -134,9 +138,13 @@ public class AchTransactionNachaTests
             amount: 1500m,
             reference: "PAGO-REF-003",
             type: TransactionTypeEnum.Credit,
+            accountType: AccountTypeEnum.Checking,
+            isPrenotification: false,
             destinationInstitutionId: 2,
             sourceAccountNumber: "111122223333",
             destinationAccountNumber: "999988887777",
+            recipientIdNumber: null,
+            requiresIdentityValidation: false,
             addendas: null,
             ct: CancellationToken.None));
     }
@@ -169,22 +177,44 @@ public class AchTransactionNachaTests
             var transactionService = new AchTransactionService(arrangeContext, routing.Object, holiday.Object);
 
             await transactionService.RegisterTransactionAsync(
-                amount: 1500m,
-                reference: "PAGO-REF-002",
+                amount: 0m,
+                reference: "PAGOPRE-002",
                 type: TransactionTypeEnum.Credit,
+                accountType: AccountTypeEnum.Checking,
+                isPrenotification: true,
                 destinationInstitutionId: 2,
                 sourceAccountNumber: "111122223333",
                 destinationAccountNumber: "999988887777",
+                recipientIdNumber: null,
+                requiresIdentityValidation: false,
+                addendas: null,
+                ct: CancellationToken.None);
+
+            await transactionService.RegisterTransactionAsync(
+                amount: 1500m,
+                reference: "PAGO-REF-002",
+                type: TransactionTypeEnum.Credit,
+                accountType: AccountTypeEnum.Checking,
+                isPrenotification: false,
+                destinationInstitutionId: 2,
+                sourceAccountNumber: "111122223333",
+                destinationAccountNumber: "999988887777",
+                recipientIdNumber: null,
+                requiresIdentityValidation: false,
                 addendas: null,
                 ct: CancellationToken.None);
         }
 
         using var executionContext = CreateContext(connection);
-        var builder = new NachaFileBuilder(executionContext);
+        var holiday = new Mock<IBankHoliday>();
+        holiday
+            .Setup(h => h.GetHolidays(It.IsAny<int>()))
+            .Returns(new List<BankHolidayModel>());
+        var builder = new NachaFileBuilder(executionContext, holiday.Object);
         var nachaContent = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
 
-        // 5 registros esperados: 1,5,6,8,9
-        Assert.Equal(130, nachaContent.Length);
+        // 6 registros esperados: 1,5,6,7,8,9
+        Assert.Equal(150, nachaContent.Length);
 
         var segments = new List<string>
         {
@@ -192,14 +222,16 @@ public class AchTransactionNachaTests
             nachaContent.Substring(20, 30),
             nachaContent.Substring(50, 40),
             nachaContent.Substring(90, 20),
-            nachaContent.Substring(110, 20)
+            nachaContent.Substring(110, 20),
+            nachaContent.Substring(130, 20)
         };
 
         Assert.StartsWith("1", segments[0]);
         Assert.StartsWith("5", segments[1]);
         Assert.StartsWith("6", segments[2]);
-        Assert.StartsWith("8", segments[3]);
-        Assert.StartsWith("9", segments[4]);
+        Assert.StartsWith("7", segments[3]);
+        Assert.StartsWith("8", segments[4]);
+        Assert.StartsWith("9", segments[5]);
 
         Assert.Contains("PAGO-REF-002", segments[2]);
         Assert.Contains("0000150000", segments[2]);
