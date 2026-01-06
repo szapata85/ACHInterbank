@@ -255,27 +255,27 @@ export class TaskDefinitionsComponent implements OnInit, OnDestroy {
   private toPayload(): TaskDefinitionDto {
     const raw = this.form.getRawValue();
     return {
-      id: raw.id,
+      id: this.toNumber(raw.id, 0),
       code: raw.code,
       name: raw.name,
-      status: raw.status,
-      calendarPolicy: raw.calendarPolicy,
+      status: this.toNumber(raw.status, 1),
+      calendarPolicy: this.toNumber(raw.calendarPolicy, 1),
       timeZoneId: raw.timeZoneId || null,
-      concurrencyPolicy: raw.concurrencyPolicy,
+      concurrencyPolicy: this.toNumber(raw.concurrencyPolicy, 1),
       retryOnFailure: raw.retryOnFailure,
-      maxRetries: raw.maxRetries ?? null,
-      retryBackoffSeconds: raw.retryBackoffSeconds ?? 60,
-      periodicityType: raw.periodicityType,
-      n: raw.n ?? null,
-      minute: raw.minute ?? null,
+      maxRetries: this.toNumberOrNull(raw.maxRetries),
+      retryBackoffSeconds: this.toNumber(raw.retryBackoffSeconds, 60),
+      periodicityType: this.toNumber(raw.periodicityType, 0),
+      n: this.toNumberOrNull(raw.n),
+      minute: this.toNumberOrNull(raw.minute),
       timeOfDay: raw.timeOfDay || null,
-      weeklyDay: raw.weeklyDay ?? null,
-      monthDay: raw.monthDay ?? null,
+      weeklyDay: this.toNumberOrNull(raw.weeklyDay),
+      monthDay: this.toNumberOrNull(raw.monthDay),
       cronExpression: raw.cronExpression || null,
       startAt: this.toIsoOrNull(raw.startAt),
       endAt: this.toIsoOrNull(raw.endAt),
       parameters: (raw.parameters as TaskParameterDto[] ?? []).map((param) => ({
-        id: param.id,
+        id: this.toNumber(param.id, 0),
         key: param.key,
         value: param.value
       }))
@@ -307,5 +307,19 @@ export class TaskDefinitionsComponent implements OnInit, OnDestroy {
     }
 
     return date.toISOString();
+  }
+
+  private toNumber(value: unknown, fallback: number): number {
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? fallback : parsed;
+  }
+
+  private toNumberOrNull(value: unknown): number | null {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? null : parsed;
   }
 }
