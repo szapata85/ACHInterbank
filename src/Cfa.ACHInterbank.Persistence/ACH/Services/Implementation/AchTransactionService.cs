@@ -30,13 +30,27 @@ public class AchTransactionService : IAchTransactionService
         decimal amount,
         string reference,
         TransactionTypeEnum type,
+        AccountTypeEnum accountType,
+        bool isPrenotification,
         int destinationInstitutionId,
         string sourceAccountNumber,
         string destinationAccountNumber,
+        string? recipientIdNumber = null,
+        bool requiresIdentityValidation = false,
         IEnumerable<AddendaDto>? addendas = null,
         CancellationToken ct = default)
     {
-        if (amount <= 0) throw new ArgumentException("El monto debe ser mayor a cero.", nameof(amount));
+        if (isPrenotification)
+        {
+            if (amount != 0)
+            {
+                throw new ArgumentException("Las prenotificaciones deben tener monto cero.", nameof(amount));
+            }
+        }
+        else if (amount <= 0)
+        {
+            throw new ArgumentException("El monto debe ser mayor a cero.", nameof(amount));
+        }
         if (string.IsNullOrWhiteSpace(reference)) throw new ArgumentException("La referencia es obligatoria.", nameof(reference));
 
         // 1) Institución origen por defecto (activa)
@@ -130,11 +144,21 @@ public class AchTransactionService : IAchTransactionService
 
         // 5) Calcular campos NACHA-m por defecto:
         // ServiceClassCode: “200” mixed (débitos+créditos) o “220” (créditos) / “225” (débitos)
-        // TransactionCode: ejemplo “22” (credit to checking) ó “27” (debit to checking)
+        // TransactionCode: según tipo de cuenta + operación + prenotificación
         // OriginatingDFI: 8 dígitos del ODFI (sin check digit)
         // ReceivingDFI : 8 dígitos del RDFI (sin check digit)
         string serviceClass = "200"; // Mixed por defecto (puedes variarlo por lote/empresa)
-        string transactionCode = type == TransactionTypeEnum.Credit ? "22" : "27";
+        string transactionCode = ResolveTransactionCode(type, accountType, isPrenotification);
+
+        if (type == TransactionTypeEnum.Debit && string.IsNullOrWhiteSpace(recipientIdNumber))
+        {
+            throw new ArgumentException("La identificación del receptor es obligatoria para débitos.", nameof(recipientIdNumber));
+        }
+
+        if (type == TransactionTypeEnum.Credit && requiresIdentityValidation && string.IsNullOrWhiteSpace(recipientIdNumber))
+        {
+            throw new ArgumentException("La identificación del receptor es obligatoria cuando se solicita validación.", nameof(recipientIdNumber));
+        }
 
         string originatingDfi = originBase;
         string receivingDfi = destinationBase;
@@ -198,6 +222,29 @@ public class AchTransactionService : IAchTransactionService
 
 
         return tx;
+    }
+
+    private static string ResolveTransactionCode(
+        TransactionTypeEnum type,
+        AccountTypeEnum accountType,
+        bool isPrenotification)
+    {
+        return (type, accountType, isPrenotification) switch
+        {
+            (TransactionTypeEnum.Credit, AccountTypeEnum.Checking, false) => "22",
+            (TransactionTypeEnum.Credit, AccountTypeEnum.Checking, true) => "23",
+            (TransactionTypeEnum.Debit, AccountTypeEnum.Checking, false) => "27",
+            (TransactionTypeEnum.Debit, AccountTypeEnum.Checking, true) => "28",
+            (TransactionTypeEnum.Credit, AccountTypeEnum.Savings, false) => "32",
+            (TransactionTypeEnum.Credit, AccountTypeEnum.Savings, true) => "33",
+            (TransactionTypeEnum.Debit, AccountTypeEnum.Savings, false) => "37",
+            (TransactionTypeEnum.Debit, AccountTypeEnum.Savings, true) => "38",
+            (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, false) => "52",
+            (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, true) => "53",
+            (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, false) => "55",
+            (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, true) => "57",
+            _ => throw new ArgumentOutOfRangeException(nameof(accountType), "Tipo de cuenta no soportado.")
+        };
     }
 
     public Task<DateTime> GetNextBusinessDayAsync(DateTime baseDate, CancellationToken ct = default)

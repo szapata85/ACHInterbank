@@ -54,9 +54,13 @@ public class TransactionsController : ControllerBase
                 amount: request.Amount,
                 reference: request.Reference,
                 type: request.Type,
+                accountType: request.AccountType,
+                isPrenotification: request.IsPrenotification,
                 destinationInstitutionId: request.DestinationInstitutionId,
                 sourceAccountNumber: request.SourceAccountNumber,
                 destinationAccountNumber: request.DestinationAccountNumber,
+                recipientIdNumber: request.RecipientIdNumber,
+                requiresIdentityValidation: request.RequiresIdentityValidation,
                 addendas: request.Addendas,
                 ct: ct
             );
@@ -98,9 +102,13 @@ public class AchTransactionRequest
     public decimal Amount { get; set; }
     public string Reference { get; set; } = string.Empty;
     public TransactionTypeEnum Type { get; set; }
+    public AccountTypeEnum AccountType { get; set; } = AccountTypeEnum.Checking;
+    public bool IsPrenotification { get; set; }
     public int DestinationInstitutionId { get; set; }
     public string SourceAccountNumber { get; set; } = string.Empty;
     public string DestinationAccountNumber { get; set; } = string.Empty;
+    public string? RecipientIdNumber { get; set; }
+    public bool RequiresIdentityValidation { get; set; }
 
     public string CompanyName { get; set; } = string.Empty;
     public string CompanyIdentification { get; set; } = string.Empty;

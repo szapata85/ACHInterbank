@@ -10,9 +10,13 @@ public interface IAchTransactionService
         decimal amount,
         string reference,
         TransactionTypeEnum type,
+        AccountTypeEnum accountType,
+        bool isPrenotification,
         int destinationInstitutionId,
         string sourceAccountNumber,
         string destinationAccountNumber,
+        string? recipientIdNumber = null,
+        bool requiresIdentityValidation = false,
         IEnumerable<AddendaDto>? addendas = null,
         CancellationToken ct = default);
 
