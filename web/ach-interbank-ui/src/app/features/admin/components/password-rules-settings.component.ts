@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { SharedModule } from '../../../shared/shared.module';
+import { NotificationService } from '../../../core/services/notification.service';
 import { PasswordRulesService } from '../../../core/services/password-rules.service';
 import { RouterModule } from '@angular/router';
 
@@ -15,6 +16,7 @@ import { RouterModule } from '@angular/router';
 export class PasswordRulesSettingsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly service = inject(PasswordRulesService);
+  private readonly notifications = inject(NotificationService);
 
   readonly form = this.fb.group({
     minLength: [6, [Validators.required, Validators.min(1)]],
@@ -32,6 +34,7 @@ export class PasswordRulesSettingsComponent {
   save(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
+      this.notifications.error('Revisa los valores de las reglas.');
       return;
     }
 
@@ -43,5 +46,7 @@ export class PasswordRulesSettingsComponent {
       minSpecial: value.minSpecial ?? 0,
       maxSpecial: value.maxSpecial ?? 0
     });
+    this.form.markAsPristine();
+    this.notifications.success('Reglas de contraseña guardadas.');
   }
 }
