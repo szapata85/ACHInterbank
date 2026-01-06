@@ -90,6 +90,48 @@ export class UserFormComponent implements OnInit {
     request$.subscribe(() => this.router.navigate(['/users']));
   }
 
+  get userNameError(): string | null {
+    const control = this.form.get('userName');
+    if (!control || !control.invalid || (!control.touched && !control.dirty)) {
+      return null;
+    }
+    if (control.hasError('required')) {
+      return 'Campo obligatorio';
+    }
+    return 'Dato inválido';
+  }
+
+  get emailError(): string | null {
+    const control = this.form.get('email');
+    if (!control || !control.invalid || (!control.touched && !control.dirty)) {
+      return null;
+    }
+    if (control.hasError('required')) {
+      return 'Campo obligatorio';
+    }
+    if (control.hasError('email') || control.hasError('pattern')) {
+      return 'Formato de correo inválido';
+    }
+    if (control.hasError('invalidEmailDomain')) {
+      return 'El dominio del correo no es válido';
+    }
+    return 'Dato inválido';
+  }
+
+  get passwordError(): string | null {
+    const control = this.form.get('password');
+    if (!control || !control.invalid || (!control.touched && !control.dirty)) {
+      return null;
+    }
+    if (control.hasError('required')) {
+      return 'Campo obligatorio';
+    }
+    if (control.hasError('weakPassword')) {
+      return 'La contraseña no cumple las reglas';
+    }
+    return 'Dato inválido';
+  }
+
   onEmailBlur(): void {
     const emailControl = this.form.get('email');
     emailControl?.markAsTouched();

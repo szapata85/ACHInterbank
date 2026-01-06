@@ -5,7 +5,7 @@
     <label>
       Usuario
       <input type="text" formControlName="userName" />
-      <app-error-message [control]="form.get('userName')"></app-error-message>
+      <small class="error-message" *ngIf="userNameError">{{ userNameError }}</small>
     </label>
 
     <label>
@@ -16,7 +16,7 @@
     <label>
       Email
       <input type="email" formControlName="email" (blur)="onEmailBlur()" />
-      <app-error-message [control]="form.get('email')"></app-error-message>
+      <small class="error-message" *ngIf="emailError">{{ emailError }}</small>
     </label>
 
     <label>
@@ -38,8 +38,7 @@
         <div class="strength__bar" [style.width.%]="(passwordStrength / 5) * 100"></div>
         <span class="strength__label">{{ passwordStrengthLabel }}</span>
       </div>
-      <app-error-message *ngIf="form.get('password')?.hasError('weakPassword')" [control]="form.get('password')">
-      </app-error-message>
+      <small class="error-message" *ngIf="passwordError">{{ passwordError }}</small>
     </label>
 
     <label>
