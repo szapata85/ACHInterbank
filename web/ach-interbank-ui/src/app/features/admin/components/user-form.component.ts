@@ -75,7 +75,7 @@ export class UserFormComponent implements OnInit {
   }
 
   save(): void {
-    if (this.form.invalid) {
+    if (this.form.invalid || this.form.pending) {
       this.form.markAllAsTouched();
       return;
     }
@@ -90,7 +90,9 @@ export class UserFormComponent implements OnInit {
   }
 
   onEmailBlur(): void {
-    this.form.get('email')?.updateValueAndValidity();
+    const emailControl = this.form.get('email');
+    emailControl?.markAsTouched();
+    emailControl?.updateValueAndValidity();
   }
 
   get passwordStrength(): number {
