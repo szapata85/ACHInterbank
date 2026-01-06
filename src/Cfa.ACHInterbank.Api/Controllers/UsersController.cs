@@ -3,8 +3,11 @@ using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
@@ -94,6 +97,40 @@ public class UsersController : ControllerBase
         };
 
         return Ok(response);
+    }
+
+    [HttpGet("validate-email-domain")]
+    public async Task<ActionResult<bool>> ValidateEmailDomainAsync(
+        [FromQuery] string email,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return Ok(false);
+        }
+
+        var atIndex = email.LastIndexOf('@');
+        if (atIndex <= 0 || atIndex >= email.Length - 1)
+        {
+            return Ok(false);
+        }
+
+        var domain = email[(atIndex + 1)..].Trim();
+        if (string.IsNullOrWhiteSpace(domain))
+        {
+            return Ok(false);
+        }
+
+        try
+        {
+            var asciiDomain = new IdnMapping().GetAscii(domain);
+            var hostEntry = await Dns.GetHostEntryAsync(asciiDomain).WaitAsync(cancellationToken);
+            return Ok(hostEntry.AddressList.Length > 0);
+        }
+        catch
+        {
+            return Ok(false);
+        }
     }
 
     [HttpGet("{id:guid}")]

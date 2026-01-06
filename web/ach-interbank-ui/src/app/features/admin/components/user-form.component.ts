@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
-import { AbstractControl, FormBuilder, Validators } from '@angular/forms';
+import { AbstractControl, AsyncValidatorFn, FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { UsersApiService, RolesApiService } from '../services/users-api.service';
 import { RoleSummary, SaveUserRequest, UserSummary } from '../models/user.model';
 import { SharedModule } from '../../../shared/shared.module';
 import { RouterModule } from '@angular/router';
 import { PasswordRulesService, PasswordRules } from '../../../core/services/password-rules.service';
+import { catchError, map, of } from 'rxjs';
 
 @Component({
   selector: 'app-user-form',
@@ -32,7 +33,11 @@ export class UserFormComponent implements OnInit {
   readonly form = this.fb.group({
     userName: ['', Validators.required],
     fullName: [''],
-    email: ['', [Validators.required, Validators.email]],
+    email: this.fb.control('', {
+      validators: [Validators.required, Validators.email, Validators.pattern(UserFormComponent.emailPattern)],
+      asyncValidators: [this.emailDomainValidator],
+      updateOn: 'blur'
+    }),
     phoneNumber: [''],
     password: [''],
     roleIds: this.fb.control<string[]>([])
@@ -100,6 +105,20 @@ export class UserFormComponent implements OnInit {
     }
     return 'Muy débil';
   }
+
+  private static readonly emailPattern = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+
+  private readonly emailDomainValidator: AsyncValidatorFn = (control: AbstractControl) => {
+    const value = String(control.value ?? '').trim();
+    if (!value || !value.includes('@')) {
+      return of(null);
+    }
+
+    return this.usersApi.validateEmailDomain(value).pipe(
+      map((isValid) => (isValid ? null : { invalidEmailDomain: true })),
+      catchError(() => of({ invalidEmailDomain: true }))
+    );
+  };
 
   private passwordStrengthValidator = (control: AbstractControl) => {
     const value = String(control.value ?? '');

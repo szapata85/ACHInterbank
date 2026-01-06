@@ -34,6 +34,10 @@ export class UsersApiService {
     return this.api.post<void>(`${this.basePath}/${id}/roles`, { roleIds });
   }
 
+  validateEmailDomain(email: string): Observable<boolean> {
+    return this.api.get<boolean>(`${this.basePath}/validate-email-domain`, { params: { email } });
+  }
+
   deactivateUser(id: string): Observable<void> {
     return this.api.delete<void>(`${this.basePath}/${id}`);
   }

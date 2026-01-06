@@ -42,6 +42,12 @@ export class ErrorMessageComponent {
     if (this.control.hasError('pattern')) {
       return 'Formato inválido';
     }
+    if (this.control.hasError('email')) {
+      return 'Formato de correo inválido';
+    }
+    if (this.control.hasError('invalidEmailDomain')) {
+      return 'El dominio del correo no es válido';
+    }
     if (this.control.hasError('maxlength')) {
       return 'Se superó la longitud máxima permitida';
     }
