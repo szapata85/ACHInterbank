@@ -1,6 +1,8 @@
 export interface LoginRequestModel {
   username: string;
   password: string;
+  maxFailedAttempts?: number;
+  lockoutMinutes?: number;
 }
 
 export interface AuthPayload {

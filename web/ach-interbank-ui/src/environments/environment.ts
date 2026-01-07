@@ -10,5 +10,9 @@ export const environment = {
   /** Tiempo máximo de espera para peticiones HTTP (en milisegundos) */
   requestTimeoutMs: 15000,
   /** Versión visible de la aplicación */
-  appVersion: '0.1.0'
+  appVersion: '0.1.0',
+  /** Intentos fallidos permitidos antes del bloqueo */
+  loginMaxFailedAttempts: 5,
+  /** Minutos de bloqueo automático */
+  loginLockoutMinutes: 5
 };

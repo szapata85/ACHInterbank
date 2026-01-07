@@ -15,8 +15,10 @@ namespace Cfa.ACHInterbank.Application.Services.Authentication.Implementations;
 [Scoped]
 public class AuthService : IAuthService
 {
-    private const int MaxFailedAttempts = 5;
-    private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(5);
+    private const int DefaultMaxFailedAttempts = 5;
+    private const int DefaultLockoutMinutes = 5;
+    private const int MaxAllowedFailedAttempts = 20;
+    private const int MaxAllowedLockoutMinutes = 60;
     private const string LoginErrorMessage = "Usuario no válido o la contraseña o la cuenta está bloqueada debido a múltiples intentos de inicio de sesión fallidos. Si es así, se desbloquea automáticamente en poco tiempo.";
     private readonly IUserAuthRepository _userRepository;
     private readonly IPasswordResetTokenRepository _passwordResetTokenRepository;
@@ -40,6 +42,14 @@ public class AuthService : IAuthService
         {
             return new AuthResult { Success = false, Message = LoginErrorMessage };
         }
+
+        var maxFailedAttempts = request.MaxFailedAttempts is > 0
+            ? Math.Clamp(request.MaxFailedAttempts.Value, 1, MaxAllowedFailedAttempts)
+            : DefaultMaxFailedAttempts;
+        var lockoutMinutes = request.LockoutMinutes is > 0
+            ? Math.Clamp(request.LockoutMinutes.Value, 1, MaxAllowedLockoutMinutes)
+            : DefaultLockoutMinutes;
+        var lockoutDuration = TimeSpan.FromMinutes(lockoutMinutes);
 
         var user = await _userRepository.GetByUsernameAsync(request.Username, cancellationToken);
 
@@ -66,9 +76,9 @@ public class AuthService : IAuthService
             var failedAttempts = user.FailedLoginAttempts + 1;
             DateTimeOffset? lockoutEnd = null;
 
-            if (failedAttempts >= MaxFailedAttempts)
+            if (failedAttempts >= maxFailedAttempts)
             {
-                lockoutEnd = DateTimeOffset.UtcNow.Add(LockoutDuration);
+                lockoutEnd = DateTimeOffset.UtcNow.Add(lockoutDuration);
             }
 
             await _userRepository.UpdateLoginStateAsync(user.Id, failedAttempts, lockoutEnd, cancellationToken);

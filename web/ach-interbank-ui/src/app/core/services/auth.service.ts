@@ -44,8 +44,14 @@ export class AuthService {
   }
 
   login(credentials: LoginRequestModel): Observable<UserSession> {
+    const payload: LoginRequestModel = {
+      ...credentials,
+      maxFailedAttempts: environment.loginMaxFailedAttempts,
+      lockoutMinutes: environment.loginLockoutMinutes
+    };
+
     return this.api
-      .post<AuthResponse>(`${this.authEndpoint}/login`, credentials)
+      .post<AuthResponse>(`${this.authEndpoint}/login`, payload)
       .pipe(
         map((response) => {
           if (!response.sucess || !response.data?.token) {
