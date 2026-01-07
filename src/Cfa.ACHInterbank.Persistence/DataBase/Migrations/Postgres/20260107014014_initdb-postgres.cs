@@ -23,7 +23,7 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     EntityId = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
                     Action = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     ChangedBy = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    ChangedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    ChangedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                     ChangedFields = table.Column<string>(type: "text", nullable: true),
                     BeforeJson = table.Column<string>(type: "text", nullable: true),
                     AfterJson = table.Column<string>(type: "text", nullable: true)

@@ -39,8 +39,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<string>("BeforeJson")
                         .HasColumnType("text");
 
-                    b.Property<DateTimeOffset>("ChangedAt")
-                        .HasColumnType("timestamp with time zone");
+                b.Property<DateTime>("ChangedAt")
+                    .HasColumnType("timestamp without time zone");
 
                     b.Property<string>("ChangedBy")
                         .IsRequired()

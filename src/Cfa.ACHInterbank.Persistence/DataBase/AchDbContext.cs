@@ -277,7 +277,7 @@ public class AchDbContext : DbContext
     {
         var now = DateTimeOffset.UtcNow;
         var changedBy = ResolveChangedBy();
-        var auditNow = now.ToOffset(ColombiaOffset);
+        var auditNow = now.ToOffset(ColombiaOffset).DateTime;
         var auditEntries = AuditEnabled ? BuildAuditEntries(auditNow, changedBy) : [];
 
         var entries = ChangeTracker
@@ -305,7 +305,7 @@ public class AchDbContext : DbContext
         return await base.SaveChangesAsync(cancellationToken);
     }
 
-    private List<AuditLog> BuildAuditEntries(DateTimeOffset now, string changedBy)
+    private List<AuditLog> BuildAuditEntries(DateTime now, string changedBy)
     {
         var auditEntries = new List<AuditLog>();
 
