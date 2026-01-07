@@ -125,6 +125,11 @@ public class MenuItemPermissionConfiguration : IEntityTypeConfiguration<MenuItem
             {
                 MenuItemId = MenuItemConfiguration.PasswordRulesId,
                 PermissionId = PermissionConfiguration.ManageUsersPermissionId
+            },
+            new MenuItemPermission
+            {
+                MenuItemId = MenuItemConfiguration.LoginLockoutSettingsId,
+                PermissionId = PermissionConfiguration.ManageUsersPermissionId
             });
     }
 }

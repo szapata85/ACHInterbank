@@ -21,16 +21,19 @@ public class AuthService : IAuthService
     private const int MaxAllowedLockoutMinutes = 60;
     private const string LoginErrorMessage = "Usuario no válido o la contraseña o la cuenta está bloqueada debido a múltiples intentos de inicio de sesión fallidos. Si es así, se desbloquea automáticamente en poco tiempo.";
     private readonly IUserAuthRepository _userRepository;
+    private readonly ILoginLockoutSettingsRepository _lockoutSettingsRepository;
     private readonly IPasswordResetTokenRepository _passwordResetTokenRepository;
     private readonly IEmailSender _emailSender;
     private readonly Token _tokenSettings;
 
     public AuthService(
         IUserAuthRepository userRepository,
+        ILoginLockoutSettingsRepository lockoutSettingsRepository,
         IPasswordResetTokenRepository passwordResetTokenRepository,
         IEmailSender emailSender)
     {
         _userRepository = userRepository;
+        _lockoutSettingsRepository = lockoutSettingsRepository;
         _passwordResetTokenRepository = passwordResetTokenRepository;
         _emailSender = emailSender;
         _tokenSettings = AppSettings.Settings.TokenManager!;
@@ -43,11 +46,12 @@ public class AuthService : IAuthService
             return new AuthResult { Success = false, Message = LoginErrorMessage };
         }
 
-        var maxFailedAttempts = request.MaxFailedAttempts is > 0
-            ? Math.Clamp(request.MaxFailedAttempts.Value, 1, MaxAllowedFailedAttempts)
+        var lockoutSettings = await _lockoutSettingsRepository.GetSettingsAsync(cancellationToken);
+        var maxFailedAttempts = lockoutSettings?.MaxFailedAttempts > 0
+            ? Math.Clamp(lockoutSettings.MaxFailedAttempts, 1, MaxAllowedFailedAttempts)
             : DefaultMaxFailedAttempts;
-        var lockoutMinutes = request.LockoutMinutes is > 0
-            ? Math.Clamp(request.LockoutMinutes.Value, 1, MaxAllowedLockoutMinutes)
+        var lockoutMinutes = lockoutSettings?.LockoutMinutes > 0
+            ? Math.Clamp(lockoutSettings.LockoutMinutes, 1, MaxAllowedLockoutMinutes)
             : DefaultLockoutMinutes;
         var lockoutDuration = TimeSpan.FromMinutes(lockoutMinutes);
 

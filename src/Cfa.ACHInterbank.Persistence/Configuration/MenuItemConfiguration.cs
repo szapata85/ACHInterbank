@@ -29,6 +29,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int DigitalEnvelopeId = 21;
     public const int AuditLogId = 22;
     public const int PasswordRulesId = 23;
+    public const int LoginLockoutSettingsId = 24;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -103,6 +104,18 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Route = "/users/password-rules",
                 Icon = "policy",
                 Order = 3,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = LoginLockoutSettingsId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = UsersId,
+                Label = "Bloqueo de acceso",
+                Route = "/users/login-lockout",
+                Icon = "lock_clock",
+                Order = 4,
                 Exact = true,
                 IsActive = true
             },

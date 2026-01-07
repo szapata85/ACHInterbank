@@ -75,6 +75,7 @@ public class AchDbContext : DbContext
     public DbSet<DigitalEnvelopeCertificate> DigitalEnvelopeCertificates => Set<DigitalEnvelopeCertificate>();
     public DbSet<BrandingSetting> BrandingSettings => Set<BrandingSetting>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<LoginLockoutSetting> LoginLockoutSettings => Set<LoginLockoutSetting>();
 
 
 

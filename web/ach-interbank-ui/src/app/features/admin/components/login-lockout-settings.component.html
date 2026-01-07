@@ -1,0 +1,23 @@
+<div class="card">
+  <h2>Bloqueo por intentos fallidos</h2>
+  <p class="subtitle">Define la cantidad de intentos fallidos y el tiempo de bloqueo automático.</p>
+
+  <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
+    <label>
+      Intentos fallidos permitidos
+      <input type="number" formControlName="maxFailedAttempts" min="1" max="20" />
+      <app-error-message [control]="form.get('maxFailedAttempts')"></app-error-message>
+    </label>
+
+    <label>
+      Minutos de bloqueo automático
+      <input type="number" formControlName="lockoutMinutes" min="1" max="60" />
+      <app-error-message [control]="form.get('lockoutMinutes')"></app-error-message>
+    </label>
+
+    <div class="actions">
+      <button type="button" routerLink="/users">Cancelar</button>
+      <button type="submit" class="primary" (click)="save()">Guardar</button>
+    </div>
+  </form>
+</div>

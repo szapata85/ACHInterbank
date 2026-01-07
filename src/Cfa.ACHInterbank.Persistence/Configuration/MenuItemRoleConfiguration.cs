@@ -73,6 +73,11 @@ public class MenuItemRoleConfiguration : IEntityTypeConfiguration<MenuItemRole>
             },
             new MenuItemRole
             {
+                MenuItemId = MenuItemConfiguration.LoginLockoutSettingsId,
+                RoleId = RoleConfiguration.AdminRoleId
+            },
+            new MenuItemRole
+            {
                 MenuItemId = MenuItemConfiguration.FinancialInstitutionsId,
                 RoleId = RoleConfiguration.AdminRoleId
             },

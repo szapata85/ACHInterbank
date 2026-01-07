@@ -237,6 +237,18 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
+                            Id = 24,
+                            Exact = true,
+                            Icon = "lock_clock",
+                            IsActive = true,
+                            Label = "Bloqueo de acceso",
+                            MenuId = 1,
+                            Order = 4,
+                            ParentId = 2,
+                            Route = "/users/login-lockout"
+                        },
+                        new
+                        {
                             Id = 4,
                             Exact = true,
                             Icon = "schedule",
@@ -565,6 +577,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         {
                             MenuItemId = 23,
                             PermissionId = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf")
+                        },
+                        new
+                        {
+                            MenuItemId = 24,
+                            PermissionId = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf")
                         });
                 });
 
@@ -631,6 +648,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         new
                         {
                             MenuItemId = 23,
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
+                        },
+                        new
+                        {
+                            MenuItemId = 24,
                             RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
                         },
                         new
@@ -874,6 +896,31 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasKey("Id");
 
                     b.ToTable("PasswordRuleSettings", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.LoginLockoutSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LockoutMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MaxFailedAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LoginLockoutSettings", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.Permission", b =>
