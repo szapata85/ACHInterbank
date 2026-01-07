@@ -40,6 +40,9 @@
     "typescript": "~5.9.2"
   },
   "overrides": {
-    "@modelcontextprotocol/sdk": "1.25.1"
+    "@modelcontextprotocol/sdk": "1.25.1",
+    "@angular/cli": {
+      "@modelcontextprotocol/sdk": "1.25.1"
+    }
   }
 }
