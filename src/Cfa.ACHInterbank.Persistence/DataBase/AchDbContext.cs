@@ -18,6 +18,7 @@ namespace Cfa.ACHInterbank.Persistence.DataBase;
 public class AchDbContext : DbContext
 {
     private static readonly string[] AuditIgnoredProperties = ["CreatedAt", "UpdatedAt"];
+    private static readonly TimeZoneInfo ColombiaTimeZone = ResolveColombiaTimeZone();
     private readonly IHttpContextAccessor? _httpContextAccessor;
 
     public bool AuditEnabled { get; set; } = true;
@@ -276,7 +277,8 @@ public class AchDbContext : DbContext
     {
         var now = DateTimeOffset.UtcNow;
         var changedBy = ResolveChangedBy();
-        var auditEntries = AuditEnabled ? BuildAuditEntries(now, changedBy) : [];
+        var auditNow = TimeZoneInfo.ConvertTime(now, ColombiaTimeZone);
+        var auditEntries = AuditEnabled ? BuildAuditEntries(auditNow, changedBy) : [];
 
         var entries = ChangeTracker
             .Entries<IAuditableEntity>()
@@ -354,6 +356,22 @@ public class AchDbContext : DbContext
         }
 
         return auditEntries;
+    }
+
+    private static TimeZoneInfo ResolveColombiaTimeZone()
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("America/Bogota");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("SA Pacific Standard Time");
+        }
+        catch (InvalidTimeZoneException)
+        {
+            return TimeZoneInfo.Utc;
+        }
     }
 
     private static string? SerializeValues(EntityEntry entry, bool useOriginalValues, bool onlyModified)
