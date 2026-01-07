@@ -1,0 +1,57 @@
+<section class="page">
+  <header class="page__header">
+    <div>
+      <p class="eyebrow">Administración · Catálogos</p>
+      <h2>Causales de devolución ACH</h2>
+      <p class="subtitle">Catálogo de códigos de devolución según ACH Colombia.</p>
+    </div>
+  </header>
+
+  <div class="filters">
+    <mat-form-field appearance="outline">
+      <mat-label>Buscar</mat-label>
+      <input matInput [formControl]="searchControl" placeholder="Código o descripción" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Categoría</mat-label>
+      <mat-select [formControl]="categoryControl">
+        <mat-option *ngFor="let category of categories" [value]="category">
+          {{ category }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
+
+  <div class="table-wrapper">
+    <table mat-table [dataSource]="dataSource" class="mat-elevation-z1">
+      <ng-container matColumnDef="returnCode">
+        <th mat-header-cell *matHeaderCellDef>Código</th>
+        <td mat-cell *matCellDef="let row">{{ row.returnCode }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="category">
+        <th mat-header-cell *matHeaderCellDef>Categoría</th>
+        <td mat-cell *matCellDef="let row">{{ row.category }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="standardDescription">
+        <th mat-header-cell *matHeaderCellDef>Descripción normativa</th>
+        <td mat-cell *matCellDef="let row">{{ row.standardDescription }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="additionalDetail">
+        <th mat-header-cell *matHeaderCellDef>Detalle técnico</th>
+        <td mat-cell *matCellDef="let row">{{ row.additionalDetail }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="applicability">
+        <th mat-header-cell *matHeaderCellDef>Aplicabilidad</th>
+        <td mat-cell *matCellDef="let row">{{ row.applicability }}</td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+    </table>
+  </div>
+</section>

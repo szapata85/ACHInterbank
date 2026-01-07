@@ -52,6 +52,17 @@ const routes: Routes = [
       breadcrumb: 'Fechas especiales cámaras',
       title: 'Fechas especiales cámaras'
     }
+  },
+  {
+    path: 'error-codes',
+    loadComponent: () =>
+      import('./components/ach-error-codes.component').then((m) => m.AchErrorCodesComponent),
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['CanReadCatalogs'],
+      breadcrumb: 'Causales de devolución',
+      title: 'Causales de devolución ACH'
+    }
   }
 ];
 

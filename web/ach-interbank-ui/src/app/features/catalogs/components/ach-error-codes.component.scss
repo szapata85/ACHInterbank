@@ -1,0 +1,38 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+
+  .eyebrow {
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin: 0 0 0.25rem;
+  }
+
+  .subtitle {
+    margin: 0.25rem 0 0;
+    color: #6b7280;
+  }
+}
+
+.filters {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(240px, 1fr) minmax(200px, 280px);
+}
+
+.table-wrapper {
+  overflow: auto;
+}
+
+table {
+  width: 100%;
+  min-width: 720px;
+}
