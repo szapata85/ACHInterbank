@@ -69,25 +69,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                 });
 
             migrationBuilder.CreateTable(
-                name: "PasswordRuleSettings",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    MinLength = table.Column<int>(type: "integer", nullable: false),
-                    MinUppercase = table.Column<int>(type: "integer", nullable: false),
-                    MinNumbers = table.Column<int>(type: "integer", nullable: false),
-                    MinSpecial = table.Column<int>(type: "integer", nullable: false),
-                    MaxSpecial = table.Column<int>(type: "integer", nullable: true),
-                    CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_PasswordRuleSettings", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "ClearingHouseConfigs",
                 columns: table => new
                 {
@@ -174,6 +155,25 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_NachaRecordLayouts", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "PasswordRuleSettings",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    MinLength = table.Column<int>(type: "integer", nullable: false),
+                    MinUppercase = table.Column<int>(type: "integer", nullable: false),
+                    MinNumbers = table.Column<int>(type: "integer", nullable: false),
+                    MinSpecial = table.Column<int>(type: "integer", nullable: false),
+                    MaxSpecial = table.Column<int>(type: "integer", nullable: true),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PasswordRuleSettings", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -1102,8 +1102,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     { 17, true, "upload_file", true, "Cargar NACHA-M", 1, 3, 6, "/transactions/nacha-upload" },
                     { 19, true, "schedule", true, "Tareas programadas", 1, 1, 18, "/scheduler/tasks" },
                     { 20, true, "view_column", true, "Layouts NACHA", 1, 2, 4, "/ach-cycles/nacha/layouts" },
-                    { 23, true, "policy", true, "Reglas de contraseña", 1, 3, 2, "/users/password-rules" },
-                    { 21, true, "lock", true, "Sobre digital", 1, 1, 10, "/nacha-security/sobre-digital" }
+                    { 21, true, "lock", true, "Sobre digital", 1, 1, 10, "/nacha-security/sobre-digital" },
+                    { 23, true, "policy", true, "Reglas de contraseña", 1, 3, 2, "/users/password-rules" }
                 });
 
             migrationBuilder.InsertData(
@@ -1401,9 +1401,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                 name: "BrandingSettings");
 
             migrationBuilder.DropTable(
-                name: "PasswordRuleSettings");
-
-            migrationBuilder.DropTable(
                 name: "ClearingHouseCycleConfigs");
 
             migrationBuilder.DropTable(
@@ -1441,6 +1438,9 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
             migrationBuilder.DropTable(
                 name: "PasswordResetTokens");
+
+            migrationBuilder.DropTable(
+                name: "PasswordRuleSettings");
 
             migrationBuilder.DropTable(
                 name: "RolePermissions");

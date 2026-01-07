@@ -103,40 +103,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.ToTable("BrandingSettings", (string)null);
                 });
 
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.PasswordRuleSetting", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("MaxSpecial")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("MinLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("MinNumbers")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("MinSpecial")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("MinUppercase")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("PasswordRuleSettings", (string)null);
-                });
-
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.Navigation.Menu", b =>
                 {
                     b.Property<int>("Id")
@@ -587,13 +553,13 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
-                            MenuItemId = 22,
-                            PermissionId = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf")
+                            MenuItemId = 19,
+                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
                         },
                         new
                         {
-                            MenuItemId = 19,
-                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
+                            MenuItemId = 22,
+                            PermissionId = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf")
                         },
                         new
                         {
@@ -664,28 +630,28 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
-                            MenuItemId = 13,
-                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
-                        },
-                        new
-                        {
-                            MenuItemId = 13,
-                            RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56")
-                        },
-                        new
-                        {
-                            MenuItemId = 14,
-                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
-                        },
-                        new
-                        {
-                            MenuItemId = 14,
-                            RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56")
-                        },
-                        new
-                        {
                             MenuItemId = 23,
                             RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
+                        },
+                        new
+                        {
+                            MenuItemId = 13,
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
+                        },
+                        new
+                        {
+                            MenuItemId = 13,
+                            RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56")
+                        },
+                        new
+                        {
+                            MenuItemId = 14,
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
+                        },
+                        new
+                        {
+                            MenuItemId = 14,
+                            RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56")
                         });
                 });
 
@@ -874,6 +840,40 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasIndex("UserId");
 
                     b.ToTable("PasswordResetTokens", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.PasswordRuleSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("MaxSpecial")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MinLength")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MinNumbers")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MinSpecial")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MinUppercase")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PasswordRuleSettings", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.Permission", b =>
@@ -1258,17 +1258,17 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<int?>("CustomerId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("DiscretionaryData")
-                        .IsRequired()
-                        .HasMaxLength(2)
-                        .HasColumnType("character varying(2)");
-
                     b.Property<string>("DestinationAccountNumber")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("DestinationInstitutionId")
                         .HasColumnType("integer");
+
+                    b.Property<string>("DiscretionaryData")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
 
                     b.Property<DateTime>("EffectiveEntryDate")
                         .HasColumnType("timestamp with time zone");
@@ -1284,14 +1284,14 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("Reference")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<string>("RecipientIdNumber")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<string>("ServiceClassCode")
                         .IsRequired()
