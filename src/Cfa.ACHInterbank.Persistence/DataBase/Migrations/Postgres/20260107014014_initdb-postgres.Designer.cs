@@ -252,6 +252,18 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
+                            Id = 25,
+                            Exact = true,
+                            Icon = "playlist_add_check",
+                            IsActive = true,
+                            Label = "Definiciones NACHA",
+                            MenuId = 1,
+                            Order = 3,
+                            ParentId = 4,
+                            Route = "/ach-cycles/nacha/definitions"
+                        },
+                        new
+                        {
                             Id = 4,
                             Exact = true,
                             Icon = "schedule",
@@ -585,6 +597,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         {
                             MenuItemId = 24,
                             PermissionId = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf")
+                        },
+                        new
+                        {
+                            MenuItemId = 25,
+                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
                         });
                 });
 
@@ -656,6 +673,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         new
                         {
                             MenuItemId = 24,
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
+                        },
+                        new
+                        {
+                            MenuItemId = 25,
                             RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
                         },
                         new

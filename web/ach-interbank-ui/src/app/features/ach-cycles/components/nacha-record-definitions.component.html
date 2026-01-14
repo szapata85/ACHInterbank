@@ -1,0 +1,66 @@
+<div class="page">
+  <div class="header">
+    <div>
+      <h2>Definiciones de registros NACHA</h2>
+      <p>Configura el orden y la fuente de datos para cada registro.</p>
+    </div>
+    <button type="button" class="primary" (click)="startCreate()">Nuevo</button>
+  </div>
+
+  <app-table [columns]="columns" [data]="definitions" [loading]="loading">
+    <ng-template #rowActions let-item>
+      <div class="actions">
+        <button type="button" (click)="startEdit(item)">Editar</button>
+        <button type="button" class="danger" (click)="remove(item)">Eliminar</button>
+      </div>
+    </ng-template>
+  </app-table>
+
+  <div class="card" *ngIf="editing !== null || form.get('recordCode')?.value">
+    <h3>{{ editing ? 'Editar definición' : 'Nueva definición' }}</h3>
+
+    <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
+      <label>
+        Código de registro
+        <input type="text" formControlName="recordCode" maxlength="5" />
+        <app-error-message [control]="form.get('recordCode')"></app-error-message>
+      </label>
+
+      <label>
+        Orden
+        <input type="number" formControlName="sequence" min="1" />
+        <app-error-message [control]="form.get('sequence')"></app-error-message>
+      </label>
+
+      <label>
+        Tipo de fuente
+        <select formControlName="sourceType">
+          <option *ngFor="let option of sourceTypes" [value]="option.value">{{ option.label }}</option>
+        </select>
+        <app-error-message [control]="form.get('sourceType')"></app-error-message>
+      </label>
+
+      <label>
+        Origen (tabla/vista/SP)
+        <input type="text" formControlName="sourceName" />
+      </label>
+
+      <label>
+        Filtro
+        <input type="text" formControlName="filterKey" />
+      </label>
+
+      <label class="checkbox">
+        <input type="checkbox" formControlName="isEnabled" />
+        Activo
+      </label>
+
+      <div class="form-actions">
+        <button type="button" (click)="cancel()">Cancelar</button>
+        <button type="submit" class="primary" [disabled]="saving">
+          {{ saving ? 'Guardando...' : 'Guardar' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

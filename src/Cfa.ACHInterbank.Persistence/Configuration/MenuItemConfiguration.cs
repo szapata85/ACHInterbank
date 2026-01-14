@@ -30,6 +30,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int AuditLogId = 22;
     public const int PasswordRulesId = 23;
     public const int LoginLockoutSettingsId = 24;
+    public const int NachaDefinitionsId = 25;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -151,6 +152,18 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Route = "/ach-cycles/nacha/layouts",
                 Icon = "view_column",
                 Order = 2,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = NachaDefinitionsId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = AchCyclesId,
+                Label = "Definiciones NACHA",
+                Route = "/ach-cycles/nacha/definitions",
+                Icon = "playlist_add_check",
+                Order = 3,
                 Exact = true,
                 IsActive = true
             },
