@@ -58,6 +58,7 @@ public class AchDbContext : DbContext
 
     public DbSet<NachaRecordLayout> NachaRecordLayouts => Set<NachaRecordLayout>();
     public DbSet<NachaRecordField> NachaRecordFields => Set<NachaRecordField>();
+    public DbSet<NachaRecordDefinition> NachaRecordDefinitions => Set<NachaRecordDefinition>();
     public DbSet<AchBatch> AchBatches => Set<AchBatch>();
 
     public DbSet<User> Users => Set<User>();
@@ -426,6 +427,44 @@ public class AchDbContext : DbContext
         });
 
         return string.Join(",", keyValues);
+    }
+
+    public async Task<IReadOnlyList<object>> ExecuteDynamicSqlAsync(
+        string sql,
+        IReadOnlyDictionary<string, object?> parameters,
+        CancellationToken cancellationToken = default)
+    {
+        var results = new List<object>();
+        await using var connection = Database.GetDbConnection();
+        if (connection.State != System.Data.ConnectionState.Open)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+
+        foreach (var (key, value) in parameters)
+        {
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = $"@{key}";
+            parameter.Value = value ?? DBNull.Value;
+            command.Parameters.Add(parameter);
+        }
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < reader.FieldCount; i++)
+            {
+                row[reader.GetName(i)] = await reader.IsDBNullAsync(i, cancellationToken) ? null : reader.GetValue(i);
+            }
+
+            results.Add(row);
+        }
+
+        return results;
     }
 
     private string ResolveChangedBy()

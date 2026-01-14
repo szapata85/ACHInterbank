@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -13,11 +14,16 @@ public class NachaFileBuilder : INachaFileBuilder
 {
     private readonly AchDbContext _context;
     private readonly IBankHoliday _holidayService;
+    private readonly INachaRecordDataProvider _recordDataProvider;
 
-    public NachaFileBuilder(AchDbContext context, IBankHoliday holidayService)
+    public NachaFileBuilder(
+        AchDbContext context,
+        IBankHoliday holidayService,
+        INachaRecordDataProvider recordDataProvider)
     {
         _context = context;
         _holidayService = holidayService;
+        _recordDataProvider = recordDataProvider;
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -45,8 +51,16 @@ public class NachaFileBuilder : INachaFileBuilder
             .Include(l => l.Fields)
             .ToDictionaryAsync(l => l.RecordCode!, ct);
 
-        await ValidateTransactionsForSendAsync(batches.SelectMany(b => b.Transactions), ct);
-        return await BuildFileAsync(cycle, batches, layoutCache, nachaHeader, ct);
+        var transactions = batches.SelectMany(b => b.Transactions).ToList();
+        await ValidateTransactionsForSendAsync(transactions, ct);
+        var definitions = await LoadDefinitionsAsync(ct);
+        var context = new NachaBuildContext
+        {
+            Cycle = cycle,
+            Batches = batches,
+            Transactions = transactions
+        };
+        return await BuildFileAsync(context, definitions, layoutCache, nachaHeader, ct);
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -68,8 +82,16 @@ public class NachaFileBuilder : INachaFileBuilder
             .Include(l => l.Fields)
             .ToDictionaryAsync(l => l.RecordCode!, ct);
 
-        await ValidateTransactionsForSendAsync(cycle.Batches.SelectMany(b => b.Transactions), ct);
-        return await BuildFileAsync(cycle, cycle.Batches, layoutCache, nachaHeader, ct);
+        var transactions = cycle.Batches.SelectMany(b => b.Transactions).ToList();
+        await ValidateTransactionsForSendAsync(transactions, ct);
+        var definitions = await LoadDefinitionsAsync(ct);
+        var context = new NachaBuildContext
+        {
+            Cycle = cycle,
+            Batches = cycle.Batches.ToList(),
+            Transactions = transactions
+        };
+        return await BuildFileAsync(context, definitions, layoutCache, nachaHeader, ct);
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -120,6 +142,41 @@ public class NachaFileBuilder : INachaFileBuilder
         return Task.FromResult(new string(buffer));
     }
 
+    private static Task<string> BuildRecordInternalAsync(
+        string recordType,
+        IReadOnlyDictionary<string, object?> values,
+        NachaRecordLayout layout)
+    {
+        var fields = layout.Fields.OrderBy(f => f.StartPosition).ToList();
+        var buffer = new char[layout.TotalLength];
+        Array.Fill(buffer, ' ');
+
+        if (!string.IsNullOrEmpty(layout.RecordCode))
+            buffer[0] = layout.RecordCode[0];
+
+        foreach (var field in fields)
+        {
+            if (!values.TryGetValue(field.DbColumn, out var raw))
+            {
+                continue;
+            }
+
+            var value = FormatValue(raw, field);
+
+            if (value.Length > field.Length)
+                value = value.Substring(0, field.Length);
+
+            value = field.Justification == 'R'
+                ? value.PadLeft(field.Length, field.PadChar)
+                : value.PadRight(field.Length, field.PadChar);
+
+            int start = field.StartPosition - 1;
+            value.CopyTo(0, buffer, start, value.Length);
+        }
+
+        return Task.FromResult(new string(buffer));
+    }
+
     // ─────────────────────────────────────────────────────────────────────────────
     // AUXILIAR: Formateo de valores
     // ─────────────────────────────────────────────────────────────────────────────
@@ -137,80 +194,180 @@ public class NachaFileBuilder : INachaFileBuilder
     }
 
     private async Task<string> BuildFileAsync(
-        AchCycle cycle,
-        IEnumerable<AchBatch> batches,
+        NachaBuildContext context,
+        IReadOnlyList<NachaRecordDefinition> definitions,
         IReadOnlyDictionary<string, NachaRecordLayout> layoutCache,
         NachaHeader? header,
         CancellationToken ct)
     {
         var sb = new StringBuilder(capacity: 10240);
-        var orderedBatches = batches.OrderBy(b => b.Id).ToList();
+        var orderedBatches = context.Batches.OrderBy(b => b.Id).ToList();
 
         if (!orderedBatches.Any())
             throw new InvalidOperationException("No se encontraron lotes para exportar.");
 
-        var fileHeader = FileHeaderRecord.From(cycle, header);
-        sb.Append(await BuildRecordInternalAsync("1", fileHeader, layoutCache["1"]));
-
         long totalDebit = 0, totalCredit = 0;
-        int recordCount = 1, batchCount = 0, entryAddendaCount = 0;
+        int recordCount = 0, batchCount = orderedBatches.Count, entryAddendaCount = 0;
 
-        foreach (var batch in orderedBatches)
+        foreach (var definition in definitions)
         {
-            batchCount++;
-            var batchHeader = BatchHeaderRecord.From(batch);
-            sb.Append(await BuildRecordInternalAsync("5", batchHeader, layoutCache["5"]));
-            recordCount++;
-
-            long batchDebit = 0, batchCredit = 0;
-            int batchEntries = 0;
-
-            foreach (var tx in batch.Transactions.OrderBy(t => t.Id))
+            if (!definition.IsEnabled)
             {
-                var entry = EntryDetailRecord.From(tx);
-                sb.Append(await BuildRecordInternalAsync("6", entry, layoutCache["6"]));
-                recordCount++;
-                batchEntries++;
-
-                if (tx.Type == TransactionTypeEnum.Debit)
-                    batchDebit += (long)(tx.Amount * 100);
-                else
-                    batchCredit += (long)(tx.Amount * 100);
-
-                foreach (var addenda in BuildAddendasForTransaction(tx))
-                {
-                    var addendaRecord = AddendaRecord.From(addenda, tx.TraceSequenceNumber);
-                    sb.Append(await BuildRecordInternalAsync("7", addendaRecord, layoutCache["7"]));
-                    recordCount++;
-                    batchEntries++;
-                }
+                continue;
             }
 
-            var batchControl = BatchControlRecord.From(batch, batchEntries, batchDebit, batchCredit);
-            sb.Append(await BuildRecordInternalAsync("8", batchControl, layoutCache["8"]));
-            recordCount++;
-
-            totalDebit += batchDebit;
-            totalCredit += batchCredit;
-            entryAddendaCount += batchEntries;
-        }
-
-        int totalRecords = recordCount + 1; // incluye el control de archivo
-        int blockCount = (int)Math.Ceiling(totalRecords / 10m);
-        int paddingNeeded = (blockCount * 10) - totalRecords;
-        var fileControl = FileControlRecord.From(cycle, batchCount, blockCount, entryAddendaCount, totalDebit, totalCredit);
-
-        sb.Append(await BuildRecordInternalAsync("9", fileControl, layoutCache["9"]));
-        if (paddingNeeded > 0)
-        {
-            var paddingRecord = new string('9', layoutCache["9"].TotalLength);
-            for (int i = 0; i < paddingNeeded; i++)
+            switch (definition.RecordCode)
             {
-                sb.Append(paddingRecord);
+                case "1":
+                    recordCount += await AppendCustomOrConfiguredAsync(
+                        sb,
+                        definition,
+                        layoutCache,
+                        new[] { FileHeaderRecord.From(context.Cycle, header) },
+                        context,
+                        ct);
+                    break;
+                case "5":
+                    recordCount += await AppendCustomOrConfiguredAsync(
+                        sb,
+                        definition,
+                        layoutCache,
+                        orderedBatches.Select(BatchHeaderRecord.From),
+                        context,
+                        ct);
+                    break;
+                case "6":
+                    recordCount += await AppendCustomOrConfiguredAsync(
+                        sb,
+                        definition,
+                        layoutCache,
+                        context.Transactions.OrderBy(t => t.Id).Select(EntryDetailRecord.From),
+                        context,
+                        ct);
+                    entryAddendaCount += context.Transactions.Count;
+                    foreach (var tx in context.Transactions)
+                    {
+                        if (tx.Type == TransactionTypeEnum.Debit)
+                            totalDebit += (long)(tx.Amount * 100);
+                        else
+                            totalCredit += (long)(tx.Amount * 100);
+                    }
+                    break;
+                case "7":
+                    recordCount += await AppendCustomOrConfiguredAsync(
+                        sb,
+                        definition,
+                        layoutCache,
+                        BuildAddendaRecords(context.Transactions),
+                        context,
+                        ct);
+                    entryAddendaCount += context.Transactions.Sum(tx => BuildAddendasForTransaction(tx).Count());
+                    break;
+                case "8":
+                    recordCount += await AppendCustomOrConfiguredAsync(
+                        sb,
+                        definition,
+                        layoutCache,
+                        orderedBatches.Select(batch =>
+                            BatchControlRecord.From(
+                                batch,
+                                batch.Transactions.Count + batch.Transactions.Sum(t => BuildAddendasForTransaction(t).Count()),
+                                SumBatchDebit(batch),
+                                SumBatchCredit(batch))),
+                        context,
+                        ct);
+                    break;
+                case "9":
+                    var totalRecords = recordCount + 1;
+                    var blockCount = (int)Math.Ceiling(totalRecords / 10m);
+                    var paddingNeeded = (blockCount * 10) - totalRecords;
+                    var fileControl = FileControlRecord.From(context.Cycle, batchCount, blockCount, entryAddendaCount, totalDebit, totalCredit);
+
+                    recordCount += await AppendCustomOrConfiguredAsync(
+                        sb,
+                        definition,
+                        layoutCache,
+                        new[] { fileControl },
+                        context,
+                        ct);
+
+                    if (paddingNeeded > 0)
+                    {
+                        var paddingRecord = new string('9', layoutCache["9"].TotalLength);
+                        for (int i = 0; i < paddingNeeded; i++)
+                        {
+                            sb.Append(paddingRecord);
+                        }
+                    }
+                    break;
             }
         }
 
         return sb.ToString();
+    }
+
+    private async Task<int> AppendCustomOrConfiguredAsync(
+        StringBuilder sb,
+        NachaRecordDefinition definition,
+        IReadOnlyDictionary<string, NachaRecordLayout> layoutCache,
+        IEnumerable<object> fallbackRecords,
+        NachaBuildContext context,
+        CancellationToken ct)
+    {
+        var layout = layoutCache[definition.RecordCode];
+        IReadOnlyList<object> records = definition.SourceType == NachaRecordSourceType.Custom
+            ? fallbackRecords.ToList()
+            : await _recordDataProvider.GetRecordsAsync(definition, context, ct);
+
+        var count = 0;
+        foreach (var record in records)
+        {
+            count++;
+            if (record is IReadOnlyDictionary<string, object?> dict)
+            {
+                sb.Append(await BuildRecordInternalAsync(definition.RecordCode, dict, layout));
+            }
+            else
+            {
+                sb.Append(await BuildRecordInternalAsync(definition.RecordCode, record, layout));
+            }
+        }
+
+        return count;
+    }
+
+    private static IEnumerable<AddendaRecord> BuildAddendaRecords(IEnumerable<AchTransaction> transactions)
+    {
+        foreach (var tx in transactions)
+        {
+            foreach (var addenda in BuildAddendasForTransaction(tx))
+            {
+                yield return AddendaRecord.From(addenda, tx.TraceSequenceNumber);
+            }
+        }
+    }
+
+    private static long SumBatchDebit(AchBatch batch)
+    {
+        return batch.Transactions
+            .Where(tx => tx.Type == TransactionTypeEnum.Debit)
+            .Sum(tx => (long)(tx.Amount * 100));
+    }
+
+    private static long SumBatchCredit(AchBatch batch)
+    {
+        return batch.Transactions
+            .Where(tx => tx.Type != TransactionTypeEnum.Debit)
+            .Sum(tx => (long)(tx.Amount * 100));
+    }
+
+    private async Task<IReadOnlyList<NachaRecordDefinition>> LoadDefinitionsAsync(CancellationToken ct)
+    {
+        return await _context.NachaRecordDefinitions
+            .AsNoTracking()
+            .Where(d => d.IsEnabled)
+            .OrderBy(d => d.Sequence)
+            .ToListAsync(ct);
     }
 
     private static IEnumerable<AchTransactionAddenda> BuildAddendasForTransaction(AchTransaction tx)

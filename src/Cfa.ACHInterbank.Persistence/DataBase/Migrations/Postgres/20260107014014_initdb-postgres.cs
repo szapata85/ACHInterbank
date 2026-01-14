@@ -158,6 +158,26 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                 });
 
             migrationBuilder.CreateTable(
+                name: "NachaRecordDefinitions",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    RecordCode = table.Column<string>(type: "character varying(5)", maxLength: 5, nullable: false),
+                    Sequence = table.Column<int>(type: "integer", nullable: false),
+                    SourceType = table.Column<int>(type: "integer", nullable: false),
+                    SourceName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    FilterKey = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
+                    IsEnabled = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_NachaRecordDefinitions", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "PasswordRuleSettings",
                 columns: table => new
                 {
@@ -1037,6 +1057,19 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                 });
 
             migrationBuilder.InsertData(
+                table: "NachaRecordDefinitions",
+                columns: new[] { "Id", "CreatedAt", "FilterKey", "IsEnabled", "RecordCode", "Sequence", "SourceName", "SourceType", "UpdatedAt" },
+                values: new object[,]
+                {
+                    { 1, new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "1", 10, null, 0, new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)) },
+                    { 2, new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "5", 20, null, 0, new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)) },
+                    { 3, new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "BatchId", true, "6", 30, "AchTransaction", 0, new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)) },
+                    { 4, new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "BatchId", true, "7", 40, "AchTransactionAddenda", 0, new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)) },
+                    { 5, new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "8", 50, null, 0, new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)) },
+                    { 6, new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "9", 60, null, 0, new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)) }
+                });
+
+            migrationBuilder.InsertData(
                 table: "Users",
                 columns: new[] { "Id", "CreatedAt", "Email", "FailedLoginAttempts", "FullName", "IsActive", "LockoutEnd", "PasswordHash", "UpdatedAt", "Username" },
                 values: new object[] { new Guid("0f7d6a26-df0e-4b14-8734-3280c1da6e3d"), new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "admin@achinterbank.local", 0, "Administrador ACH", true, null, "3eb3fe66b31e3b4d10fa70b5cad49c7112294af6ae4e476a1c405155d45aa121", new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "admin" });
@@ -1456,6 +1489,9 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
             migrationBuilder.DropTable(
                 name: "NachaRecordFields");
+
+            migrationBuilder.DropTable(
+                name: "NachaRecordDefinitions");
 
             migrationBuilder.DropTable(
                 name: "PasswordResetTokens");
