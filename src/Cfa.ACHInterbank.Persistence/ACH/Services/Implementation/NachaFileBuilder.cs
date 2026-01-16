@@ -363,11 +363,66 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private async Task<IReadOnlyList<NachaRecordDefinition>> LoadDefinitionsAsync(CancellationToken ct)
     {
-        return await _context.NachaRecordDefinitions
+        var definitions = await _context.NachaRecordDefinitions
             .AsNoTracking()
             .Where(d => d.IsEnabled)
             .OrderBy(d => d.Sequence)
             .ToListAsync(ct);
+
+        return definitions.Count > 0 ? definitions : BuildDefaultDefinitions();
+    }
+
+    private static IReadOnlyList<NachaRecordDefinition> BuildDefaultDefinitions()
+    {
+        return new List<NachaRecordDefinition>
+        {
+            new()
+            {
+                RecordCode = "1",
+                Sequence = 10,
+                SourceType = NachaRecordSourceType.Custom,
+                IsEnabled = true
+            },
+            new()
+            {
+                RecordCode = "5",
+                Sequence = 20,
+                SourceType = NachaRecordSourceType.Custom,
+                IsEnabled = true
+            },
+            new()
+            {
+                RecordCode = "6",
+                Sequence = 30,
+                SourceType = NachaRecordSourceType.Custom,
+                SourceName = nameof(AchTransaction),
+                FilterKey = "BatchId",
+                IsEnabled = true
+            },
+            new()
+            {
+                RecordCode = "7",
+                Sequence = 40,
+                SourceType = NachaRecordSourceType.Custom,
+                SourceName = nameof(AchTransactionAddenda),
+                FilterKey = "BatchId",
+                IsEnabled = true
+            },
+            new()
+            {
+                RecordCode = "8",
+                Sequence = 50,
+                SourceType = NachaRecordSourceType.Custom,
+                IsEnabled = true
+            },
+            new()
+            {
+                RecordCode = "9",
+                Sequence = 60,
+                SourceType = NachaRecordSourceType.Custom,
+                IsEnabled = true
+            }
+        };
     }
 
     private static IEnumerable<AchTransactionAddenda> BuildAddendasForTransaction(AchTransaction tx)
