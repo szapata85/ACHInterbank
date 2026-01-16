@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 {
     [DbContext(typeof(AchDbContext))]
-    [Migration("20260107014014_initdb-postgres")]
+    [Migration("20260116194634_initdb-postgres")]
     partial class initdbpostgres
     {
         /// <inheritdoc />
@@ -43,7 +43,7 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .HasColumnType("text");
 
                     b.Property<DateTime>("ChangedAt")
-                        .HasColumnType("timestamp without time zone");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ChangedBy")
                         .IsRequired()
@@ -252,18 +252,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
-                            Id = 25,
-                            Exact = true,
-                            Icon = "playlist_add_check",
-                            IsActive = true,
-                            Label = "Definiciones NACHA",
-                            MenuId = 1,
-                            Order = 3,
-                            ParentId = 4,
-                            Route = "/ach-cycles/nacha/definitions"
-                        },
-                        new
-                        {
                             Id = 4,
                             Exact = true,
                             Icon = "schedule",
@@ -296,6 +284,18 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                             Order = 2,
                             ParentId = 4,
                             Route = "/ach-cycles/nacha/layouts"
+                        },
+                        new
+                        {
+                            Id = 25,
+                            Exact = true,
+                            Icon = "playlist_add_check",
+                            IsActive = true,
+                            Label = "Definiciones NACHA",
+                            MenuId = 1,
+                            Order = 3,
+                            ParentId = 4,
+                            Route = "/ach-cycles/nacha/definitions"
                         },
                         new
                         {
@@ -540,6 +540,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
+                            MenuItemId = 25,
+                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
+                        },
+                        new
+                        {
                             MenuItemId = 5,
                             PermissionId = new Guid("dd0e54be-b6df-4ab3-8783-0f72b6e774a2")
                         },
@@ -597,11 +602,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         {
                             MenuItemId = 24,
                             PermissionId = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf")
-                        },
-                        new
-                        {
-                            MenuItemId = 25,
-                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
                         });
                 });
 
@@ -657,6 +657,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
+                            MenuItemId = 25,
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
+                        },
+                        new
+                        {
                             MenuItemId = 9,
                             RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
                         },
@@ -673,11 +678,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         new
                         {
                             MenuItemId = 24,
-                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
-                        },
-                        new
-                        {
-                            MenuItemId = 25,
                             RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
                         },
                         new
@@ -853,6 +853,31 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.ToTable("TaskParameters", (string)null);
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.LoginLockoutSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LockoutMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MaxFailedAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LoginLockoutSettings", (string)null);
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.PasswordResetToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -921,31 +946,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasKey("Id");
 
                     b.ToTable("PasswordRuleSettings", (string)null);
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.LoginLockoutSetting", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("LockoutMinutes")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("MaxFailedAttempts")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("LoginLockoutSettings", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.Permission", b =>
@@ -1117,13 +1117,14 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)");
 
+                    b.Property<int>("FailedLoginAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("FullName")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
-
-                    b.Property<int>("FailedLoginAttempts")
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -1165,7 +1166,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                             FailedLoginAttempts = 0,
                             FullName = "Administrador ACH",
                             IsActive = true,
-                            LockoutEnd = null,
                             PasswordHash = "3eb3fe66b31e3b4d10fa70b5cad49c7112294af6ae4e476a1c405155d45aa121",
                             UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             Username = "admin"
@@ -2179,74 +2179,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.ToTable("NachaHeaders", (string)null);
                 });
 
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordField", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("DbColumn")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("FieldName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Format")
-                        .HasColumnType("text");
-
-                    b.Property<char>("Justification")
-                        .HasColumnType("character(1)");
-
-                    b.Property<int>("Length")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("NachaRecordLayoutId")
-                        .HasColumnType("integer");
-
-                    b.Property<char>("PadChar")
-                        .HasColumnType("character(1)");
-
-                    b.Property<int>("StartPosition")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("NachaRecordLayoutId");
-
-                    b.ToTable("NachaRecordFields");
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordLayout", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<string>("RecordCode")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("RecordType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("TotalLength")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("NachaRecordLayouts");
-                });
-
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordDefinition", b =>
                 {
                     b.Property<int>("Id")
@@ -2287,7 +2219,7 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     b.HasKey("Id");
 
-                    b.ToTable("NachaRecordDefinitions");
+                    b.ToTable("NachaRecordDefinitions", (string)null);
 
                     b.HasData(
                         new
@@ -2354,6 +2286,74 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                             SourceType = 0,
                             UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
                         });
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordField", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("DbColumn")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("FieldName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Format")
+                        .HasColumnType("text");
+
+                    b.Property<char>("Justification")
+                        .HasColumnType("character(1)");
+
+                    b.Property<int>("Length")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("NachaRecordLayoutId")
+                        .HasColumnType("integer");
+
+                    b.Property<char>("PadChar")
+                        .HasColumnType("character(1)");
+
+                    b.Property<int>("StartPosition")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NachaRecordLayoutId");
+
+                    b.ToTable("NachaRecordFields");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordLayout", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RecordCode")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RecordType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("TotalLength")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("NachaRecordLayouts");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalEnvelopeCertificate", b =>

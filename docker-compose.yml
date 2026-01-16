@@ -32,6 +32,7 @@ services:
 
   api-sqlserver:
     profiles: ["sqlserver"]
+    image: achinterbank-api:sqlserver
     build:
       context: .
       dockerfile: src/Cfa.ACHInterbank.Api/Dockerfile
@@ -58,6 +59,7 @@ services:
 
   api-postgres:
     profiles: ["postgres"]
+    image: achinterbank-api:postgres
     build:
       context: .
       dockerfile: src/Cfa.ACHInterbank.Api/Dockerfile
@@ -83,6 +85,7 @@ services:
         condition: service_healthy
 
   web:
+    image: achinterbank-web:latest
     build:
       context: ./web/ach-interbank-ui
       dockerfile: Dockerfile

@@ -1,6 +1,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.12.35527.113
+# Visual Studio Version 18
+VisualStudioVersion = 18.1.11312.151 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{171E0084-4D44-4DC5-BDE5-5A6EA1B5AFE2}"
 EndProject
@@ -21,8 +21,6 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cfa.ACHInterbank.Persistence", "src\Cfa.ACHInterbank.Persistence\Cfa.ACHInterbank.Persistence.csproj", "{AED1CBF3-95F6-4DA4-B67A-E315AB610A47}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cfa.ACHInterbank.External", "src\Cfa.ACHInterbank.External\Cfa.ACHInterbank.External.csproj", "{0E5EBA8F-ABBF-4245-99F5-6C18F358B5D4}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cfa.ACHInterbank.Tests", "tests\Cfa.ACHInterbank.Tests\Cfa.ACHInterbank.Tests.csproj", "{2F11C36D-1D53-4D0F-A64E-57C66C0836C3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -50,10 +48,6 @@ Global
 		{0E5EBA8F-ABBF-4245-99F5-6C18F358B5D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0E5EBA8F-ABBF-4245-99F5-6C18F358B5D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0E5EBA8F-ABBF-4245-99F5-6C18F358B5D4}.Release|Any CPU.Build.0 = Release|Any CPU
-		{2F11C36D-1D53-4D0F-A64E-57C66C0836C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{2F11C36D-1D53-4D0F-A64E-57C66C0836C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{2F11C36D-1D53-4D0F-A64E-57C66C0836C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{2F11C36D-1D53-4D0F-A64E-57C66C0836C3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -68,6 +62,5 @@ Global
 		{714EE7A6-6124-41E2-942A-F23C22D43C3F} = {79BF366C-996C-4899-A777-CE1ED13AAE63}
 		{AED1CBF3-95F6-4DA4-B67A-E315AB610A47} = {CDE8FF76-F86C-4C35-9068-E53E8C4A6F34}
 		{0E5EBA8F-ABBF-4245-99F5-6C18F358B5D4} = {CDE8FF76-F86C-4C35-9068-E53E8C4A6F34}
-		{2F11C36D-1D53-4D0F-A64E-57C66C0836C3} = {F4D92F4E-20D5-4A70-AB30-6E2BE3EF720C}
 	EndGlobalSection
 EndGlobal
