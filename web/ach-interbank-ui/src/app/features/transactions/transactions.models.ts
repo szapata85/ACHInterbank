@@ -68,3 +68,10 @@ export interface TransactionListFilter {
   effectiveDate?: string;
   clearingHouseId?: number | null;
 }
+
+export interface ReturnReason {
+  id: number;
+  code: string;
+  description: string;
+  category: string;
+}

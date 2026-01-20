@@ -60,6 +60,7 @@ public class AchDbContext : DbContext
     public DbSet<NachaRecordField> NachaRecordFields => Set<NachaRecordField>();
     public DbSet<NachaRecordDefinition> NachaRecordDefinitions => Set<NachaRecordDefinition>();
     public DbSet<AchBatch> AchBatches => Set<AchBatch>();
+    public DbSet<ReturnReason> ReturnReasons => Set<ReturnReason>();
 
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();

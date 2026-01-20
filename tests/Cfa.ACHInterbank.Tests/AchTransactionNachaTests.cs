@@ -42,7 +42,7 @@ public class AchTransactionNachaTests
             var holiday = new Mock<IBankHoliday>();
             holiday
                 .Setup(h => h.GetHolidays(It.IsAny<int>()))
-                .Returns(new List<BankHolidayModel>());
+                .Returns([]);
 
             var service = new AchTransactionService(arrangeContext, routing.Object, holiday.Object);
 
@@ -57,11 +57,11 @@ public class AchTransactionNachaTests
                 destinationAccountNumber: "999988887777",
                 recipientIdNumber: null,
                 requiresIdentityValidation: false,
-                addendas: new List<AddendaDto>
-                {
+                addendas:
+                [
                     new() { AddendaType = "05", Information = "Factura #123" },
                     new() { AddendaType = "99", Information = "Pago complementario" }
-                },
+                ],
                 ct: CancellationToken.None);
 
             Assert.NotEqual(0, tx.Id);
@@ -130,7 +130,7 @@ public class AchTransactionNachaTests
         var holiday = new Mock<IBankHoliday>();
         holiday
             .Setup(h => h.GetHolidays(It.IsAny<int>()))
-            .Returns(new List<BankHolidayModel>());
+            .Returns([]);
 
         var service = new AchTransactionService(arrangeContext, routing.Object, holiday.Object);
 
@@ -172,7 +172,7 @@ public class AchTransactionNachaTests
             var holiday = new Mock<IBankHoliday>();
             holiday
                 .Setup(h => h.GetHolidays(It.IsAny<int>()))
-                .Returns(new List<BankHolidayModel>());
+                .Returns([]);
 
             var transactionService = new AchTransactionService(arrangeContext, routing.Object, holiday.Object);
 
@@ -209,8 +209,9 @@ public class AchTransactionNachaTests
         var holidayService = new Mock<IBankHoliday>();
         holidayService
             .Setup(h => h.GetHolidays(It.IsAny<int>()))
-            .Returns(new List<BankHolidayModel>());
-        var builder = new NachaFileBuilder(executionContext, holidayService.Object);
+            .Returns([]);
+        var recordDataProvider = new Mock<INachaRecordDataProvider>();
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object);
         var nachaContent = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
 
         // 6 registros esperados: 1,5,6,7,8,9

@@ -8,14 +8,9 @@ using Microsoft.EntityFrameworkCore;
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
-public class NachaRecordDefinitionAppService : INachaRecordDefinitionAppService
+public class NachaRecordDefinitionAppService(AchDbContext context) : INachaRecordDefinitionAppService
 {
-    private readonly AchDbContext _context;
-
-    public NachaRecordDefinitionAppService(AchDbContext context)
-    {
-        _context = context;
-    }
+    private readonly AchDbContext _context = context;
 
     public async Task<IReadOnlyList<NachaRecordDefinitionDto>> GetAllAsync(CancellationToken ct = default)
     {
@@ -24,7 +19,7 @@ public class NachaRecordDefinitionAppService : INachaRecordDefinitionAppService
             .OrderBy(d => d.Sequence)
             .ToListAsync(ct);
 
-        return items.Select(ToDto).ToList();
+        return items.Select(ToDto).ToArray();
     }
 
     public async Task<NachaRecordDefinitionDto?> GetByIdAsync(int id, CancellationToken ct = default)
