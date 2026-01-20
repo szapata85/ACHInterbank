@@ -39,8 +39,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<string>("BeforeJson")
                         .HasColumnType("text");
 
-                b.Property<DateTime>("ChangedAt")
-                    .HasColumnType("timestamp without time zone");
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ChangedBy")
                         .IsRequired()
@@ -249,18 +249,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
-                            Id = 25,
-                            Exact = true,
-                            Icon = "playlist_add_check",
-                            IsActive = true,
-                            Label = "Definiciones NACHA",
-                            MenuId = 1,
-                            Order = 3,
-                            ParentId = 4,
-                            Route = "/ach-cycles/nacha/definitions"
-                        },
-                        new
-                        {
                             Id = 4,
                             Exact = true,
                             Icon = "schedule",
@@ -293,6 +281,18 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                             Order = 2,
                             ParentId = 4,
                             Route = "/ach-cycles/nacha/layouts"
+                        },
+                        new
+                        {
+                            Id = 25,
+                            Exact = true,
+                            Icon = "playlist_add_check",
+                            IsActive = true,
+                            Label = "Definiciones NACHA",
+                            MenuId = 1,
+                            Order = 3,
+                            ParentId = 4,
+                            Route = "/ach-cycles/nacha/definitions"
                         },
                         new
                         {
@@ -537,6 +537,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
+                            MenuItemId = 25,
+                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
+                        },
+                        new
+                        {
                             MenuItemId = 5,
                             PermissionId = new Guid("dd0e54be-b6df-4ab3-8783-0f72b6e774a2")
                         },
@@ -594,11 +599,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         {
                             MenuItemId = 24,
                             PermissionId = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf")
-                        },
-                        new
-                        {
-                            MenuItemId = 25,
-                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
                         });
                 });
 
@@ -654,6 +654,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
+                            MenuItemId = 25,
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
+                        },
+                        new
+                        {
                             MenuItemId = 9,
                             RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
                         },
@@ -670,11 +675,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         new
                         {
                             MenuItemId = 24,
-                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
-                        },
-                        new
-                        {
-                            MenuItemId = 25,
                             RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
                         },
                         new
@@ -850,6 +850,31 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.ToTable("TaskParameters", (string)null);
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.LoginLockoutSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LockoutMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MaxFailedAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LoginLockoutSettings", (string)null);
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.PasswordResetToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -918,31 +943,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasKey("Id");
 
                     b.ToTable("PasswordRuleSettings", (string)null);
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.LoginLockoutSetting", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("LockoutMinutes")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("MaxFailedAttempts")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("LoginLockoutSettings", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.Permission", b =>
@@ -1114,13 +1114,14 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)");
 
+                    b.Property<int>("FailedLoginAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("FullName")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
-
-                    b.Property<int>("FailedLoginAttempts")
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -1162,7 +1163,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                             FailedLoginAttempts = 0,
                             FullName = "Administrador ACH",
                             IsActive = true,
-                            LockoutEnd = null,
                             PasswordHash = "3eb3fe66b31e3b4d10fa70b5cad49c7112294af6ae4e476a1c405155d45aa121",
                             UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             Username = "admin"
@@ -1450,424 +1450,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasIndex("AchTransactionId");
 
                     b.ToTable("AchTransactionAddenda", (string)null);
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ReturnReason", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(1)
-                        .HasColumnType("character varying(1)");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(4)
-                        .HasColumnType("character varying(4)");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.ToTable("ReturnReasons", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Category = "R",
-                            Code = "R01",
-                            Description = "Fondos Insuficientes."
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Category = "R",
-                            Code = "R02",
-                            Description = "Cuenta o Depósito Electrónico Cerrado (Saldado o Cancelado)."
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Category = "R",
-                            Code = "R03",
-                            Description = "Cuenta o Depósito Electrónico No Abierto."
-                        },
-                        new
-                        {
-                            Id = 4,
-                            Category = "R",
-                            Code = "R04",
-                            Description = "Número Cuenta o Depósito Electrónico Inválido."
-                        },
-                        new
-                        {
-                            Id = 5,
-                            Category = "R",
-                            Code = "R06",
-                            Description = "Devolución Solicitada por el participante originador (por error o listas restrictivas)."
-                        },
-                        new
-                        {
-                            Id = 6,
-                            Category = "R",
-                            Code = "R07",
-                            Description = "Autorización de Recaudo Revocada por el usuario Receptor."
-                        },
-                        new
-                        {
-                            Id = 7,
-                            Category = "R",
-                            Code = "R08",
-                            Description = "Orden de No Pago (instrucción específica del usuario)."
-                        },
-                        new
-                        {
-                            Id = 8,
-                            Category = "R",
-                            Code = "R09",
-                            Description = "Fondos no Disponibles (saldo total suficiente, pero no el disponible)."
-                        },
-                        new
-                        {
-                            Id = 9,
-                            Category = "R",
-                            Code = "R10",
-                            Description = "No existe prenotificación (para débitos)."
-                        },
-                        new
-                        {
-                            Id = 10,
-                            Category = "R",
-                            Code = "R12",
-                            Description = "Usuario Originador no autorizado o Sucursal Vendida."
-                        },
-                        new
-                        {
-                            Id = 11,
-                            Category = "R",
-                            Code = "R13",
-                            Description = "Devolución por solicitud del usuario Receptor (Persona Natural: fecha/monto errado o duplicidad)."
-                        },
-                        new
-                        {
-                            Id = 12,
-                            Category = "R",
-                            Code = "R14",
-                            Description = "Muerte del delegado o Representante."
-                        },
-                        new
-                        {
-                            Id = 13,
-                            Category = "R",
-                            Code = "R15",
-                            Description = "Muerte del Beneficiario o Titular de la Cuenta."
-                        },
-                        new
-                        {
-                            Id = 14,
-                            Category = "R",
-                            Code = "R16",
-                            Description = "Cuenta o Depósito Electrónico Inactivo / Bloqueado."
-                        },
-                        new
-                        {
-                            Id = 15,
-                            Category = "R",
-                            Code = "R17",
-                            Description = "La Identificación no coincide con Cuenta."
-                        },
-                        new
-                        {
-                            Id = 16,
-                            Category = "R",
-                            Code = "R20",
-                            Description = "Cuenta No Habilitada (listas restrictivas OFAC/ONU o fines políticos)."
-                        },
-                        new
-                        {
-                            Id = 17,
-                            Category = "R",
-                            Code = "R23",
-                            Description = "Devolución crédito por solicitud del usuario (sobrepago, litigio, etc.)."
-                        },
-                        new
-                        {
-                            Id = 18,
-                            Category = "R",
-                            Code = "R29",
-                            Description = "Devolución débito por solicitud del usuario (Persona Jurídica)."
-                        },
-                        new
-                        {
-                            Id = 19,
-                            Category = "R",
-                            Code = "R30",
-                            Description = "Cliente Receptor no habilitado para depósitos electrónicos."
-                        },
-                        new
-                        {
-                            Id = 20,
-                            Category = "R",
-                            Code = "R31",
-                            Description = "Prenotificación no procesada por falta de información en adenda."
-                        },
-                        new
-                        {
-                            Id = 21,
-                            Category = "R",
-                            Code = "R32",
-                            Description = "Transacción crédito no procesada por falta de información en adenda."
-                        },
-                        new
-                        {
-                            Id = 22,
-                            Category = "R",
-                            Code = "R33",
-                            Description = "Excede los límites establecidos para Depósitos Electrónicos."
-                        },
-                        new
-                        {
-                            Id = 23,
-                            Category = "R",
-                            Code = "R35",
-                            Description = "Tipo de Cuenta Errada."
-                        },
-                        new
-                        {
-                            Id = 24,
-                            Category = "D",
-                            Code = "D01",
-                            Description = "Fecha efectiva menor a la fecha de proceso."
-                        },
-                        new
-                        {
-                            Id = 25,
-                            Category = "D",
-                            Code = "D02",
-                            Description = "Fecha efectiva no es válida."
-                        },
-                        new
-                        {
-                            Id = 26,
-                            Category = "D",
-                            Code = "D03",
-                            Description = "Valor de la transacción no es numérico."
-                        },
-                        new
-                        {
-                            Id = 27,
-                            Category = "D",
-                            Code = "D04",
-                            Description = "Valor de prenotificación es diferente de cero."
-                        },
-                        new
-                        {
-                            Id = 28,
-                            Category = "D",
-                            Code = "D05",
-                            Description = "Valor de transacción monetaria es igual a cero."
-                        },
-                        new
-                        {
-                            Id = 29,
-                            Category = "D",
-                            Code = "D06",
-                            Description = "Excede el monto diario permitido por usuario/cuenta."
-                        },
-                        new
-                        {
-                            Id = 30,
-                            Category = "D",
-                            Code = "D07",
-                            Description = "Transacción excede el límite y no fue autorizada."
-                        },
-                        new
-                        {
-                            Id = 31,
-                            Category = "D",
-                            Code = "D08",
-                            Description = "Número de secuencia del registro adenda incorrecto."
-                        },
-                        new
-                        {
-                            Id = 32,
-                            Category = "D",
-                            Code = "D09",
-                            Description = "Indicador de adenda no concuerda con el registro."
-                        },
-                        new
-                        {
-                            Id = 33,
-                            Category = "D",
-                            Code = "D10",
-                            Description = "Causal de devolución en adenda es incorrecta."
-                        },
-                        new
-                        {
-                            Id = 34,
-                            Category = "D",
-                            Code = "D11",
-                            Description = "Número mínimo de registros adenda diferente de 1."
-                        },
-                        new
-                        {
-                            Id = 35,
-                            Category = "D",
-                            Code = "D12",
-                            Description = "Código de tipo de registro adenda es incorrecto (debe ser 05 o 99)."
-                        },
-                        new
-                        {
-                            Id = 36,
-                            Category = "D",
-                            Code = "D13",
-                            Description = "Datos obligatorios en débito (referencia/servicio) vacíos o en cero."
-                        },
-                        new
-                        {
-                            Id = 37,
-                            Category = "D",
-                            Code = "D14",
-                            Description = "Código de cliente originador por servicio no numérico."
-                        },
-                        new
-                        {
-                            Id = 38,
-                            Category = "D",
-                            Code = "D15",
-                            Description = "Nombre del usuario originador vacío."
-                        },
-                        new
-                        {
-                            Id = 39,
-                            Category = "D",
-                            Code = "D16",
-                            Description = "ID del originador en control de lote no coincide con encabezado."
-                        },
-                        new
-                        {
-                            Id = 40,
-                            Category = "D",
-                            Code = "D17",
-                            Description = "Número de cuenta receptora no válida."
-                        },
-                        new
-                        {
-                            Id = 41,
-                            Category = "D",
-                            Code = "D18",
-                            Description = "Número de lote en control no coincide con encabezado."
-                        },
-                        new
-                        {
-                            Id = 42,
-                            Category = "D",
-                            Code = "D19",
-                            Description = "Código de participante originador vacío o en ceros."
-                        },
-                        new
-                        {
-                            Id = 43,
-                            Category = "D",
-                            Code = "D20",
-                            Description = "Código clase de transacción en control de lote inválido."
-                        },
-                        new
-                        {
-                            Id = 44,
-                            Category = "D",
-                            Code = "D21",
-                            Description = "Código de participante receptor no válido o no está en producción."
-                        },
-                        new
-                        {
-                            Id = 45,
-                            Category = "D",
-                            Code = "D22",
-                            Description = "Nombre del cliente receptor vacío."
-                        },
-                        new
-                        {
-                            Id = 46,
-                            Category = "D",
-                            Code = "D23",
-                            Description = "ID del usuario receptor vacío."
-                        },
-                        new
-                        {
-                            Id = 47,
-                            Category = "D",
-                            Code = "D24",
-                            Description = "Descripción del lote vacía."
-                        },
-                        new
-                        {
-                            Id = 48,
-                            Category = "D",
-                            Code = "D25",
-                            Description = "Descripción de lote de Cuentas de Préstamo no válida."
-                        },
-                        new
-                        {
-                            Id = 49,
-                            Category = "D",
-                            Code = "D26",
-                            Description = "Campo alfanumérico no alineado a la izquierda."
-                        },
-                        new
-                        {
-                            Id = 50,
-                            Category = "D",
-                            Code = "D27",
-                            Description = "Caracteres especiales inválidos en la línea."
-                        },
-                        new
-                        {
-                            Id = 51,
-                            Category = "D",
-                            Code = "D28",
-                            Description = "Devolución de una devolución."
-                        },
-                        new
-                        {
-                            Id = 52,
-                            Category = "D",
-                            Code = "D29",
-                            Description = "Devolución débito tardía."
-                        },
-                        new
-                        {
-                            Id = 53,
-                            Category = "D",
-                            Code = "D30",
-                            Description = "Entidad Participante no puede procesar débitos."
-                        },
-                        new
-                        {
-                            Id = 54,
-                            Category = "D",
-                            Code = "D31",
-                            Description = "Lote duplicado en el mismo día sin autorización."
-                        },
-                        new
-                        {
-                            Id = 55,
-                            Category = "D",
-                            Code = "D32",
-                            Description = "Transacción no permitida en este ciclo."
-                        });
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AddendaRecord", b =>
@@ -2594,6 +2176,115 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.ToTable("NachaHeaders", (string)null);
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordDefinition", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FilterKey")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<bool>("IsEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("RecordCode")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("character varying(5)");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourceName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("SourceType")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("NachaRecordDefinitions", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsEnabled = true,
+                            RecordCode = "1",
+                            Sequence = 10,
+                            SourceType = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = 2,
+                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsEnabled = true,
+                            RecordCode = "5",
+                            Sequence = 20,
+                            SourceType = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = 3,
+                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            FilterKey = "BatchId",
+                            IsEnabled = true,
+                            RecordCode = "6",
+                            Sequence = 30,
+                            SourceName = "AchTransaction",
+                            SourceType = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = 4,
+                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            FilterKey = "BatchId",
+                            IsEnabled = true,
+                            RecordCode = "7",
+                            Sequence = 40,
+                            SourceName = "AchTransactionAddenda",
+                            SourceType = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = 5,
+                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsEnabled = true,
+                            RecordCode = "8",
+                            Sequence = 50,
+                            SourceType = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = 6,
+                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsEnabled = true,
+                            RecordCode = "9",
+                            Sequence = 60,
+                            SourceType = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        });
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordField", b =>
                 {
                     b.Property<int>("Id")
@@ -2662,7 +2353,7 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.ToTable("NachaRecordLayouts");
                 });
 
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordDefinition", b =>
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ReturnReason", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -2670,104 +2361,413 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("FilterKey")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<bool>("IsEnabled")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<string>("RecordCode")
+                    b.Property<string>("Category")
                         .IsRequired()
-                        .HasMaxLength(5)
-                        .HasColumnType("character varying(5)");
+                        .HasMaxLength(1)
+                        .HasColumnType("character varying(1)");
 
-                    b.Property<int>("Sequence")
-                        .HasColumnType("integer");
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)");
 
-                    b.Property<string>("SourceName")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<int>("SourceType")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
 
                     b.HasKey("Id");
 
-                    b.ToTable("NachaRecordDefinitions");
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("ReturnReasons", (string)null);
 
                     b.HasData(
                         new
                         {
                             Id = 1,
-                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsEnabled = true,
-                            RecordCode = "1",
-                            Sequence = 10,
-                            SourceType = 0,
-                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                            Category = "R",
+                            Code = "R01",
+                            Description = "Fondos Insuficientes."
                         },
                         new
                         {
                             Id = 2,
-                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsEnabled = true,
-                            RecordCode = "5",
-                            Sequence = 20,
-                            SourceType = 0,
-                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                            Category = "R",
+                            Code = "R02",
+                            Description = "Cuenta o Depósito Electrónico Cerrado (Saldado o Cancelado)."
                         },
                         new
                         {
                             Id = 3,
-                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            FilterKey = "BatchId",
-                            IsEnabled = true,
-                            RecordCode = "6",
-                            Sequence = 30,
-                            SourceName = "AchTransaction",
-                            SourceType = 0,
-                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                            Category = "R",
+                            Code = "R03",
+                            Description = "Cuenta o Depósito Electrónico No Abierto."
                         },
                         new
                         {
                             Id = 4,
-                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            FilterKey = "BatchId",
-                            IsEnabled = true,
-                            RecordCode = "7",
-                            Sequence = 40,
-                            SourceName = "AchTransactionAddenda",
-                            SourceType = 0,
-                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                            Category = "R",
+                            Code = "R04",
+                            Description = "Número Cuenta o Depósito Electrónico Inválido."
                         },
                         new
                         {
                             Id = 5,
-                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsEnabled = true,
-                            RecordCode = "8",
-                            Sequence = 50,
-                            SourceType = 0,
-                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                            Category = "R",
+                            Code = "R06",
+                            Description = "Devolución Solicitada por el participante originador (por error o listas restrictivas)."
                         },
                         new
                         {
                             Id = 6,
-                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsEnabled = true,
-                            RecordCode = "9",
-                            Sequence = 60,
-                            SourceType = 0,
-                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                            Category = "R",
+                            Code = "R07",
+                            Description = "Autorización de Recaudo Revocada por el usuario Receptor."
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Category = "R",
+                            Code = "R08",
+                            Description = "Orden de No Pago (instrucción específica del usuario)."
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Category = "R",
+                            Code = "R09",
+                            Description = "Fondos no Disponibles (saldo total suficiente, pero no el disponible)."
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Category = "R",
+                            Code = "R10",
+                            Description = "No existe prenotificación (para débitos)."
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Category = "R",
+                            Code = "R12",
+                            Description = "Usuario Originador no autorizado o Sucursal Vendida."
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Category = "R",
+                            Code = "R13",
+                            Description = "Devolución por solicitud del usuario Receptor (Persona Natural: fecha/monto errado o duplicidad)."
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Category = "R",
+                            Code = "R14",
+                            Description = "Muerte del delegado o Representante."
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Category = "R",
+                            Code = "R15",
+                            Description = "Muerte del Beneficiario o Titular de la Cuenta."
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Category = "R",
+                            Code = "R16",
+                            Description = "Cuenta o Depósito Electrónico Inactivo / Bloqueado."
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Category = "R",
+                            Code = "R17",
+                            Description = "La Identificación no coincide con Cuenta."
+                        },
+                        new
+                        {
+                            Id = 16,
+                            Category = "R",
+                            Code = "R20",
+                            Description = "Cuenta No Habilitada (listas restrictivas OFAC/ONU o fines políticos)."
+                        },
+                        new
+                        {
+                            Id = 17,
+                            Category = "R",
+                            Code = "R23",
+                            Description = "Devolución crédito por solicitud del usuario (sobrepago, litigio, etc.)."
+                        },
+                        new
+                        {
+                            Id = 18,
+                            Category = "R",
+                            Code = "R29",
+                            Description = "Devolución débito por solicitud del usuario (Persona Jurídica)."
+                        },
+                        new
+                        {
+                            Id = 19,
+                            Category = "R",
+                            Code = "R30",
+                            Description = "Cliente Receptor no habilitado para depósitos electrónicos."
+                        },
+                        new
+                        {
+                            Id = 20,
+                            Category = "R",
+                            Code = "R31",
+                            Description = "Prenotificación no procesada por falta de información en adenda."
+                        },
+                        new
+                        {
+                            Id = 21,
+                            Category = "R",
+                            Code = "R32",
+                            Description = "Transacción crédito no procesada por falta de información en adenda."
+                        },
+                        new
+                        {
+                            Id = 22,
+                            Category = "R",
+                            Code = "R33",
+                            Description = "Excede los límites establecidos para Depósitos Electrónicos."
+                        },
+                        new
+                        {
+                            Id = 23,
+                            Category = "R",
+                            Code = "R35",
+                            Description = "Tipo de Cuenta Errada."
+                        },
+                        new
+                        {
+                            Id = 24,
+                            Category = "D",
+                            Code = "D01",
+                            Description = "Fecha efectiva menor a la fecha de proceso."
+                        },
+                        new
+                        {
+                            Id = 25,
+                            Category = "D",
+                            Code = "D02",
+                            Description = "Fecha efectiva no es válida."
+                        },
+                        new
+                        {
+                            Id = 26,
+                            Category = "D",
+                            Code = "D03",
+                            Description = "Valor de la transacción no es numérico."
+                        },
+                        new
+                        {
+                            Id = 27,
+                            Category = "D",
+                            Code = "D04",
+                            Description = "Valor de prenotificación es diferente de cero."
+                        },
+                        new
+                        {
+                            Id = 28,
+                            Category = "D",
+                            Code = "D05",
+                            Description = "Valor de transacción monetaria es igual a cero."
+                        },
+                        new
+                        {
+                            Id = 29,
+                            Category = "D",
+                            Code = "D06",
+                            Description = "Excede el monto diario permitido por usuario/cuenta."
+                        },
+                        new
+                        {
+                            Id = 30,
+                            Category = "D",
+                            Code = "D07",
+                            Description = "Transacción excede el límite y no fue autorizada."
+                        },
+                        new
+                        {
+                            Id = 31,
+                            Category = "D",
+                            Code = "D08",
+                            Description = "Número de secuencia del registro adenda incorrecto."
+                        },
+                        new
+                        {
+                            Id = 32,
+                            Category = "D",
+                            Code = "D09",
+                            Description = "Indicador de adenda no concuerda con el registro."
+                        },
+                        new
+                        {
+                            Id = 33,
+                            Category = "D",
+                            Code = "D10",
+                            Description = "Causal de devolución en adenda es incorrecta."
+                        },
+                        new
+                        {
+                            Id = 34,
+                            Category = "D",
+                            Code = "D11",
+                            Description = "Número mínimo de registros adenda diferente de 1."
+                        },
+                        new
+                        {
+                            Id = 35,
+                            Category = "D",
+                            Code = "D12",
+                            Description = "Código de tipo de registro adenda es incorrecto (debe ser 05 o 99)."
+                        },
+                        new
+                        {
+                            Id = 36,
+                            Category = "D",
+                            Code = "D13",
+                            Description = "Datos obligatorios en débito (referencia/servicio) vacíos o en cero."
+                        },
+                        new
+                        {
+                            Id = 37,
+                            Category = "D",
+                            Code = "D14",
+                            Description = "Código de cliente originador por servicio no numérico."
+                        },
+                        new
+                        {
+                            Id = 38,
+                            Category = "D",
+                            Code = "D15",
+                            Description = "Nombre del usuario originador vacío."
+                        },
+                        new
+                        {
+                            Id = 39,
+                            Category = "D",
+                            Code = "D16",
+                            Description = "ID del originador en control de lote no coincide con encabezado."
+                        },
+                        new
+                        {
+                            Id = 40,
+                            Category = "D",
+                            Code = "D17",
+                            Description = "Número de cuenta receptora no válida."
+                        },
+                        new
+                        {
+                            Id = 41,
+                            Category = "D",
+                            Code = "D18",
+                            Description = "Número de lote en control no coincide con encabezado."
+                        },
+                        new
+                        {
+                            Id = 42,
+                            Category = "D",
+                            Code = "D19",
+                            Description = "Código de participante originador vacío o en ceros."
+                        },
+                        new
+                        {
+                            Id = 43,
+                            Category = "D",
+                            Code = "D20",
+                            Description = "Código clase de transacción en control de lote inválido."
+                        },
+                        new
+                        {
+                            Id = 44,
+                            Category = "D",
+                            Code = "D21",
+                            Description = "Código de participante receptor no válido o no está en producción."
+                        },
+                        new
+                        {
+                            Id = 45,
+                            Category = "D",
+                            Code = "D22",
+                            Description = "Nombre del cliente receptor vacío."
+                        },
+                        new
+                        {
+                            Id = 46,
+                            Category = "D",
+                            Code = "D23",
+                            Description = "ID del usuario receptor vacío."
+                        },
+                        new
+                        {
+                            Id = 47,
+                            Category = "D",
+                            Code = "D24",
+                            Description = "Descripción del lote vacía."
+                        },
+                        new
+                        {
+                            Id = 48,
+                            Category = "D",
+                            Code = "D25",
+                            Description = "Descripción de lote de Cuentas de Préstamo no válida."
+                        },
+                        new
+                        {
+                            Id = 49,
+                            Category = "D",
+                            Code = "D26",
+                            Description = "Campo alfanumérico no alineado a la izquierda."
+                        },
+                        new
+                        {
+                            Id = 50,
+                            Category = "D",
+                            Code = "D27",
+                            Description = "Caracteres especiales inválidos en la línea."
+                        },
+                        new
+                        {
+                            Id = 51,
+                            Category = "D",
+                            Code = "D28",
+                            Description = "Devolución de una devolución."
+                        },
+                        new
+                        {
+                            Id = 52,
+                            Category = "D",
+                            Code = "D29",
+                            Description = "Devolución débito tardía."
+                        },
+                        new
+                        {
+                            Id = 53,
+                            Category = "D",
+                            Code = "D30",
+                            Description = "Entidad Participante no puede procesar débitos."
+                        },
+                        new
+                        {
+                            Id = 54,
+                            Category = "D",
+                            Code = "D31",
+                            Description = "Lote duplicado en el mismo día sin autorización."
+                        },
+                        new
+                        {
+                            Id = 55,
+                            Category = "D",
+                            Code = "D32",
+                            Description = "Transacción no permitida en este ciclo."
                         });
                 });
 
