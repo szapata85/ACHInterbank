@@ -37,10 +37,10 @@ public class NachaRecordDataProvider(AchDbContext context) : INachaRecordDataPro
 
         return definition.SourceName switch
         {
-            nameof(AchBatch) => Task.FromResult<IReadOnlyList<object>>(context.Batches.Cast<object>().ToList()),
-            nameof(AchTransaction) => Task.FromResult<IReadOnlyList<object>>(context.Transactions.Cast<object>().ToList()),
+            nameof(AchBatch) => Task.FromResult<IReadOnlyList<object>>(context.Batches.Cast<object>().ToArray()),
+            nameof(AchTransaction) => Task.FromResult<IReadOnlyList<object>>(context.Transactions.Cast<object>().ToArray()),
             nameof(AchTransactionAddenda) => Task.FromResult<IReadOnlyList<object>>(
-                context.Transactions.SelectMany(t => t.Addendas ?? []).Cast<object>().ToList()),
+                context.Transactions.SelectMany(t => t.Addendas ?? []).Cast<object>().ToArray()),
             _ => Task.FromResult<IReadOnlyList<object>>([])
         };
     }

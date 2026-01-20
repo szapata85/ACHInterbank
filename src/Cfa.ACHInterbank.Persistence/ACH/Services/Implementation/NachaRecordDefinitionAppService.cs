@@ -18,7 +18,7 @@ public class NachaRecordDefinitionAppService(AchDbContext context) : INachaRecor
             .OrderBy(d => d.Sequence)
             .ToListAsync(ct);
 
-        return items.Select(ToDto).ToList();
+        return items.Select(ToDto).ToArray();
     }
 
     public async Task<NachaRecordDefinitionDto?> GetByIdAsync(int id, CancellationToken ct = default)
