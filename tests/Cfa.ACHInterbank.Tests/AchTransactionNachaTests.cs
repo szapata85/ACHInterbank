@@ -210,7 +210,8 @@ public class AchTransactionNachaTests
         holidayService
             .Setup(h => h.GetHolidays(It.IsAny<int>()))
             .Returns(new List<BankHolidayModel>());
-        var builder = new NachaFileBuilder(executionContext, holidayService.Object);
+        var recordDataProvider = new Mock<INachaRecordDataProvider>();
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object);
         var nachaContent = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
 
         // 6 registros esperados: 1,5,6,7,8,9
