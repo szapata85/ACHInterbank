@@ -5,14 +5,9 @@ using Microsoft.EntityFrameworkCore;
 namespace Cfa.ACHInterbank.Persistence.DataBase.Repositories.Security;
 
 [Scoped]
-public class LoginLockoutSettingsRepository : ILoginLockoutSettingsRepository
+public class LoginLockoutSettingsRepository(AchDbContext context) : ILoginLockoutSettingsRepository
 {
-    private readonly AchDbContext _context;
-
-    public LoginLockoutSettingsRepository(AchDbContext context)
-    {
-        _context = context;
-    }
+    private readonly AchDbContext _context = context;
 
     public async Task<LoginLockoutSetting?> GetSettingsAsync(CancellationToken cancellationToken = default)
     {

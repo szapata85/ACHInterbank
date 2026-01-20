@@ -7,14 +7,9 @@ using Microsoft.EntityFrameworkCore;
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
-public class NachaRecordDataProvider : INachaRecordDataProvider
+public class NachaRecordDataProvider(AchDbContext context) : INachaRecordDataProvider
 {
-    private readonly AchDbContext _context;
-
-    public NachaRecordDataProvider(AchDbContext context)
-    {
-        _context = context;
-    }
+    private readonly AchDbContext _context = context;
 
     public async Task<IReadOnlyList<object>> GetRecordsAsync(
         NachaRecordDefinition definition,
@@ -26,7 +21,7 @@ public class NachaRecordDataProvider : INachaRecordDataProvider
             NachaRecordSourceType.Entity => await GetEntityRecordsAsync(definition, context, ct),
             NachaRecordSourceType.View => await GetSqlRecordsAsync(definition, context, isProcedure: false, ct),
             NachaRecordSourceType.Procedure => await GetSqlRecordsAsync(definition, context, isProcedure: true, ct),
-            _ => Array.Empty<object>()
+            _ => []
         };
     }
 
@@ -37,7 +32,7 @@ public class NachaRecordDataProvider : INachaRecordDataProvider
     {
         if (string.IsNullOrWhiteSpace(definition.SourceName))
         {
-            return Task.FromResult<IReadOnlyList<object>>(Array.Empty<object>());
+            return Task.FromResult<IReadOnlyList<object>>([]);
         }
 
         return definition.SourceName switch
@@ -46,7 +41,7 @@ public class NachaRecordDataProvider : INachaRecordDataProvider
             nameof(AchTransaction) => Task.FromResult<IReadOnlyList<object>>(context.Transactions.Cast<object>().ToList()),
             nameof(AchTransactionAddenda) => Task.FromResult<IReadOnlyList<object>>(
                 context.Transactions.SelectMany(t => t.Addendas ?? []).Cast<object>().ToList()),
-            _ => Task.FromResult<IReadOnlyList<object>>(Array.Empty<object>())
+            _ => Task.FromResult<IReadOnlyList<object>>([])
         };
     }
 
@@ -58,14 +53,14 @@ public class NachaRecordDataProvider : INachaRecordDataProvider
     {
         if (string.IsNullOrWhiteSpace(definition.SourceName))
         {
-            return Array.Empty<object>();
+            return [];
         }
 
         var sql = isProcedure
             ? definition.SourceName
             : $"SELECT * FROM {definition.SourceName}";
 
-        var parameters = new Dictionary<string, object?>();
+        Dictionary<string, object?> parameters = [];
         if (string.Equals(definition.FilterKey, "CycleId", StringComparison.OrdinalIgnoreCase))
         {
             parameters["CycleId"] = context.Cycle.Id;

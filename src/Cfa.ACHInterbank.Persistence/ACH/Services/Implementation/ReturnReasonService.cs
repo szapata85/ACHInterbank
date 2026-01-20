@@ -6,14 +6,9 @@ using Microsoft.EntityFrameworkCore;
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
-public class ReturnReasonService : IReturnReasonService
+public class ReturnReasonService(AchDbContext context) : IReturnReasonService
 {
-    private readonly AchDbContext _context;
-
-    public ReturnReasonService(AchDbContext context)
-    {
-        _context = context;
-    }
+    private readonly AchDbContext _context = context;
 
     public async Task<IEnumerable<ReturnReasonDto>> GetAllAsync(CancellationToken ct = default)
     {
