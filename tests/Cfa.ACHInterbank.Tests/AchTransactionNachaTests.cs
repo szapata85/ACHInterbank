@@ -218,14 +218,14 @@ public class AchTransactionNachaTests
         Assert.Equal(150, nachaContent.Length);
 
         var segments = new List<string>
-        [
+        {
             nachaContent[..20],
             nachaContent.Substring(20, 30),
             nachaContent.Substring(50, 40),
             nachaContent.Substring(90, 20),
             nachaContent.Substring(110, 20),
             nachaContent.Substring(130, 20)
-        ];
+        };
 
         Assert.StartsWith("1", segments[0]);
         Assert.StartsWith("5", segments[1]);

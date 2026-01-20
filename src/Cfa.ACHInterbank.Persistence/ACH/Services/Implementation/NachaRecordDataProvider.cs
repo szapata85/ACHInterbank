@@ -28,7 +28,7 @@ public class NachaRecordDataProvider(AchDbContext context) : INachaRecordDataPro
     private Task<IReadOnlyList<object>> GetEntityRecordsAsync(
         NachaRecordDefinition definition,
         NachaBuildContext context,
-        CancellationToken ct)
+        CancellationToken _)
     {
         if (string.IsNullOrWhiteSpace(definition.SourceName))
         {
