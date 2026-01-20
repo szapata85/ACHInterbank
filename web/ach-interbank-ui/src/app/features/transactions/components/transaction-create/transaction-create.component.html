@@ -162,73 +162,22 @@
         causales generadas por la Entidad Participante Receptora (códigos “R”) y causales generadas por el Operador ACH
         (códigos “D”).
       </p>
-      <div class="info info-list">
-        <h4>Causales de Devolución (Códigos "R" - Entre Entidades)</h4>
-        <p>Son los motivos por los cuales el banco de destino rechaza la operación:</p>
-        <ul>
-          <li>R01: Fondos Insuficientes.</li>
-          <li>R02: Cuenta o Depósito Electrónico Cerrado (Saldado o Cancelado).</li>
-          <li>R03: Cuenta o Depósito Electrónico No Abierto.</li>
-          <li>R04: Número Cuenta o Depósito Electrónico Inválido.</li>
-          <li>R06: Devolución Solicitada por el participante originador (por error o listas restrictivas).</li>
-          <li>R07: Autorización de Recaudo Revocada por el usuario Receptor.</li>
-          <li>R08: Orden de No Pago (instrucción específica del usuario).</li>
-          <li>R09: Fondos no Disponibles (saldo total suficiente, pero no el disponible).</li>
-          <li>R10: No existe prenotificación (para débitos).</li>
-          <li>R12: Usuario Originador no autorizado o Sucursal Vendida.</li>
-          <li>R13: Devolución por solicitud del usuario Receptor (Persona Natural: fecha/monto errado o duplicidad).</li>
-          <li>R14: Muerte del delegado o Representante.</li>
-          <li>R15: Muerte del Beneficiario o Titular de la Cuenta.</li>
-          <li>R16: Cuenta o Depósito Electrónico Inactivo / Bloqueado.</li>
-          <li>R17: La Identificación no coincide con Cuenta.</li>
-          <li>R20: Cuenta No Habilitada (listas restrictivas OFAC/ONU o fines políticos).</li>
-          <li>R23: Devolución crédito por solicitud del usuario (sobrepago, litigio, etc.).</li>
-          <li>R29: Devolución débito por solicitud del usuario (Persona Jurídica).</li>
-          <li>R30: Cliente Receptor no habilitado para depósitos electrónicos.</li>
-          <li>R31: Prenotificación no procesada por falta de información en adenda.</li>
-          <li>R32: Transacción crédito no procesada por falta de información en adenda.</li>
-          <li>R33: Excede los límites establecidos para Depósitos Electrónicos.</li>
-          <li>R35: Tipo de Cuenta Errada.</li>
-        </ul>
-      </div>
-      <div class="info info-list">
-        <h4>Causales de Devolución por Operador (Códigos "D")</h4>
-        <p>Son errores técnicos detectados por el sistema ACH antes de enviar el dinero a otra entidad:</p>
-        <ul>
-          <li>D01: Fecha efectiva menor a la fecha de proceso.</li>
-          <li>D02: Fecha efectiva no es válida.</li>
-          <li>D03: Valor de la transacción no es numérico.</li>
-          <li>D04: Valor de prenotificación es diferente de cero.</li>
-          <li>D05: Valor de transacción monetaria es igual a cero.</li>
-          <li>D06: Excede el monto diario permitido por usuario/cuenta.</li>
-          <li>D07: Transacción excede el límite y no fue autorizada.</li>
-          <li>D08: Número de secuencia del registro adenda incorrecto.</li>
-          <li>D09: Indicador de adenda no concuerda con el registro.</li>
-          <li>D10: Causal de devolución en adenda es incorrecta.</li>
-          <li>D11: Número mínimo de registros adenda diferente de 1.</li>
-          <li>D12: Código de tipo de registro adenda es incorrecto (debe ser 05 o 99).</li>
-          <li>D13: Datos obligatorios en débito (referencia/servicio) vacíos o en cero.</li>
-          <li>D14: Código de cliente originador por servicio no numérico.</li>
-          <li>D15: Nombre del usuario originador vacío.</li>
-          <li>D16: ID del originador en control de lote no coincide con encabezado.</li>
-          <li>D17: Número de cuenta receptora no válida.</li>
-          <li>D18: Número de lote en control no coincide con encabezado.</li>
-          <li>D19: Código de participante originador vacío o en ceros.</li>
-          <li>D20: Código clase de transacción en control de lote inválido.</li>
-          <li>D21: Código de participante receptor no válido o no está en producción.</li>
-          <li>D22: Nombre del cliente receptor vacío.</li>
-          <li>D23: ID del usuario receptor vacío.</li>
-          <li>D24: Descripción del lote vacía.</li>
-          <li>D25: Descripción de lote de Cuentas de Préstamo no válida.</li>
-          <li>D26: Campo alfanumérico no alineado a la izquierda.</li>
-          <li>D27: Caracteres especiales inválidos en la línea.</li>
-          <li>D28: Devolución de una devolución.</li>
-          <li>D29: Devolución débito tardía.</li>
-          <li>D30: Entidad Participante no puede procesar débitos.</li>
-          <li>D31: Lote duplicado en el mismo día sin autorización.</li>
-          <li>D32: Transacción no permitida en este ciclo.</li>
-        </ul>
-      </div>
+      <ng-container *ngIf="returnReasons$ | async as returnReasons">
+        <div class="info info-list" *ngIf="returnReasons.receiver.length">
+          <h4>Causales de Devolución (Códigos "R" - Entre Entidades)</h4>
+          <p>Son los motivos por los cuales el banco de destino rechaza la operación:</p>
+          <ul>
+            <li *ngFor="let reason of returnReasons.receiver">{{ reason.code }}: {{ reason.description }}</li>
+          </ul>
+        </div>
+        <div class="info info-list" *ngIf="returnReasons.operator.length">
+          <h4>Causales de Devolución por Operador (Códigos "D")</h4>
+          <p>Son errores técnicos detectados por el sistema ACH antes de enviar el dinero a otra entidad:</p>
+          <ul>
+            <li *ngFor="let reason of returnReasons.operator">{{ reason.code }}: {{ reason.description }}</li>
+          </ul>
+        </div>
+      </ng-container>
       <p class="error" *ngIf="form.errors?.missingAddenda">Debes registrar al menos una addenda.</p>
       <p class="error" *ngIf="form.errors?.invalidAddenda">Las addendas deben ser 05 o 99 y completar causal/seq.</p>
     </div>

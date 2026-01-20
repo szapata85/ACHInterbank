@@ -1452,6 +1452,424 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.ToTable("AchTransactionAddenda", (string)null);
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ReturnReason", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .HasColumnType("character varying(1)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("ReturnReasons", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Category = "R",
+                            Code = "R01",
+                            Description = "Fondos Insuficientes."
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Category = "R",
+                            Code = "R02",
+                            Description = "Cuenta o Depósito Electrónico Cerrado (Saldado o Cancelado)."
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Category = "R",
+                            Code = "R03",
+                            Description = "Cuenta o Depósito Electrónico No Abierto."
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Category = "R",
+                            Code = "R04",
+                            Description = "Número Cuenta o Depósito Electrónico Inválido."
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Category = "R",
+                            Code = "R06",
+                            Description = "Devolución Solicitada por el participante originador (por error o listas restrictivas)."
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Category = "R",
+                            Code = "R07",
+                            Description = "Autorización de Recaudo Revocada por el usuario Receptor."
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Category = "R",
+                            Code = "R08",
+                            Description = "Orden de No Pago (instrucción específica del usuario)."
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Category = "R",
+                            Code = "R09",
+                            Description = "Fondos no Disponibles (saldo total suficiente, pero no el disponible)."
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Category = "R",
+                            Code = "R10",
+                            Description = "No existe prenotificación (para débitos)."
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Category = "R",
+                            Code = "R12",
+                            Description = "Usuario Originador no autorizado o Sucursal Vendida."
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Category = "R",
+                            Code = "R13",
+                            Description = "Devolución por solicitud del usuario Receptor (Persona Natural: fecha/monto errado o duplicidad)."
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Category = "R",
+                            Code = "R14",
+                            Description = "Muerte del delegado o Representante."
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Category = "R",
+                            Code = "R15",
+                            Description = "Muerte del Beneficiario o Titular de la Cuenta."
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Category = "R",
+                            Code = "R16",
+                            Description = "Cuenta o Depósito Electrónico Inactivo / Bloqueado."
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Category = "R",
+                            Code = "R17",
+                            Description = "La Identificación no coincide con Cuenta."
+                        },
+                        new
+                        {
+                            Id = 16,
+                            Category = "R",
+                            Code = "R20",
+                            Description = "Cuenta No Habilitada (listas restrictivas OFAC/ONU o fines políticos)."
+                        },
+                        new
+                        {
+                            Id = 17,
+                            Category = "R",
+                            Code = "R23",
+                            Description = "Devolución crédito por solicitud del usuario (sobrepago, litigio, etc.)."
+                        },
+                        new
+                        {
+                            Id = 18,
+                            Category = "R",
+                            Code = "R29",
+                            Description = "Devolución débito por solicitud del usuario (Persona Jurídica)."
+                        },
+                        new
+                        {
+                            Id = 19,
+                            Category = "R",
+                            Code = "R30",
+                            Description = "Cliente Receptor no habilitado para depósitos electrónicos."
+                        },
+                        new
+                        {
+                            Id = 20,
+                            Category = "R",
+                            Code = "R31",
+                            Description = "Prenotificación no procesada por falta de información en adenda."
+                        },
+                        new
+                        {
+                            Id = 21,
+                            Category = "R",
+                            Code = "R32",
+                            Description = "Transacción crédito no procesada por falta de información en adenda."
+                        },
+                        new
+                        {
+                            Id = 22,
+                            Category = "R",
+                            Code = "R33",
+                            Description = "Excede los límites establecidos para Depósitos Electrónicos."
+                        },
+                        new
+                        {
+                            Id = 23,
+                            Category = "R",
+                            Code = "R35",
+                            Description = "Tipo de Cuenta Errada."
+                        },
+                        new
+                        {
+                            Id = 24,
+                            Category = "D",
+                            Code = "D01",
+                            Description = "Fecha efectiva menor a la fecha de proceso."
+                        },
+                        new
+                        {
+                            Id = 25,
+                            Category = "D",
+                            Code = "D02",
+                            Description = "Fecha efectiva no es válida."
+                        },
+                        new
+                        {
+                            Id = 26,
+                            Category = "D",
+                            Code = "D03",
+                            Description = "Valor de la transacción no es numérico."
+                        },
+                        new
+                        {
+                            Id = 27,
+                            Category = "D",
+                            Code = "D04",
+                            Description = "Valor de prenotificación es diferente de cero."
+                        },
+                        new
+                        {
+                            Id = 28,
+                            Category = "D",
+                            Code = "D05",
+                            Description = "Valor de transacción monetaria es igual a cero."
+                        },
+                        new
+                        {
+                            Id = 29,
+                            Category = "D",
+                            Code = "D06",
+                            Description = "Excede el monto diario permitido por usuario/cuenta."
+                        },
+                        new
+                        {
+                            Id = 30,
+                            Category = "D",
+                            Code = "D07",
+                            Description = "Transacción excede el límite y no fue autorizada."
+                        },
+                        new
+                        {
+                            Id = 31,
+                            Category = "D",
+                            Code = "D08",
+                            Description = "Número de secuencia del registro adenda incorrecto."
+                        },
+                        new
+                        {
+                            Id = 32,
+                            Category = "D",
+                            Code = "D09",
+                            Description = "Indicador de adenda no concuerda con el registro."
+                        },
+                        new
+                        {
+                            Id = 33,
+                            Category = "D",
+                            Code = "D10",
+                            Description = "Causal de devolución en adenda es incorrecta."
+                        },
+                        new
+                        {
+                            Id = 34,
+                            Category = "D",
+                            Code = "D11",
+                            Description = "Número mínimo de registros adenda diferente de 1."
+                        },
+                        new
+                        {
+                            Id = 35,
+                            Category = "D",
+                            Code = "D12",
+                            Description = "Código de tipo de registro adenda es incorrecto (debe ser 05 o 99)."
+                        },
+                        new
+                        {
+                            Id = 36,
+                            Category = "D",
+                            Code = "D13",
+                            Description = "Datos obligatorios en débito (referencia/servicio) vacíos o en cero."
+                        },
+                        new
+                        {
+                            Id = 37,
+                            Category = "D",
+                            Code = "D14",
+                            Description = "Código de cliente originador por servicio no numérico."
+                        },
+                        new
+                        {
+                            Id = 38,
+                            Category = "D",
+                            Code = "D15",
+                            Description = "Nombre del usuario originador vacío."
+                        },
+                        new
+                        {
+                            Id = 39,
+                            Category = "D",
+                            Code = "D16",
+                            Description = "ID del originador en control de lote no coincide con encabezado."
+                        },
+                        new
+                        {
+                            Id = 40,
+                            Category = "D",
+                            Code = "D17",
+                            Description = "Número de cuenta receptora no válida."
+                        },
+                        new
+                        {
+                            Id = 41,
+                            Category = "D",
+                            Code = "D18",
+                            Description = "Número de lote en control no coincide con encabezado."
+                        },
+                        new
+                        {
+                            Id = 42,
+                            Category = "D",
+                            Code = "D19",
+                            Description = "Código de participante originador vacío o en ceros."
+                        },
+                        new
+                        {
+                            Id = 43,
+                            Category = "D",
+                            Code = "D20",
+                            Description = "Código clase de transacción en control de lote inválido."
+                        },
+                        new
+                        {
+                            Id = 44,
+                            Category = "D",
+                            Code = "D21",
+                            Description = "Código de participante receptor no válido o no está en producción."
+                        },
+                        new
+                        {
+                            Id = 45,
+                            Category = "D",
+                            Code = "D22",
+                            Description = "Nombre del cliente receptor vacío."
+                        },
+                        new
+                        {
+                            Id = 46,
+                            Category = "D",
+                            Code = "D23",
+                            Description = "ID del usuario receptor vacío."
+                        },
+                        new
+                        {
+                            Id = 47,
+                            Category = "D",
+                            Code = "D24",
+                            Description = "Descripción del lote vacía."
+                        },
+                        new
+                        {
+                            Id = 48,
+                            Category = "D",
+                            Code = "D25",
+                            Description = "Descripción de lote de Cuentas de Préstamo no válida."
+                        },
+                        new
+                        {
+                            Id = 49,
+                            Category = "D",
+                            Code = "D26",
+                            Description = "Campo alfanumérico no alineado a la izquierda."
+                        },
+                        new
+                        {
+                            Id = 50,
+                            Category = "D",
+                            Code = "D27",
+                            Description = "Caracteres especiales inválidos en la línea."
+                        },
+                        new
+                        {
+                            Id = 51,
+                            Category = "D",
+                            Code = "D28",
+                            Description = "Devolución de una devolución."
+                        },
+                        new
+                        {
+                            Id = 52,
+                            Category = "D",
+                            Code = "D29",
+                            Description = "Devolución débito tardía."
+                        },
+                        new
+                        {
+                            Id = 53,
+                            Category = "D",
+                            Code = "D30",
+                            Description = "Entidad Participante no puede procesar débitos."
+                        },
+                        new
+                        {
+                            Id = 54,
+                            Category = "D",
+                            Code = "D31",
+                            Description = "Lote duplicado en el mismo día sin autorización."
+                        },
+                        new
+                        {
+                            Id = 55,
+                            Category = "D",
+                            Code = "D32",
+                            Description = "Transacción no permitida en este ciclo."
+                        });
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AddendaRecord", b =>
                 {
                     b.Property<int>("AddendaID")
