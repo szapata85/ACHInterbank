@@ -15,17 +15,25 @@ namespace Cfa.ACHInterbank.Application.Services.Authentication.Implementations;
 [Scoped]
 public class AuthService : IAuthService
 {
+    private const int DefaultMaxFailedAttempts = 5;
+    private const int DefaultLockoutMinutes = 5;
+    private const int MaxAllowedFailedAttempts = 20;
+    private const int MaxAllowedLockoutMinutes = 60;
+    private const string LoginErrorMessage = "Usuario no válido o la contraseña o la cuenta está bloqueada debido a múltiples intentos de inicio de sesión fallidos. Si es así, se desbloquea automáticamente en poco tiempo.";
     private readonly IUserAuthRepository _userRepository;
+    private readonly ILoginLockoutSettingsRepository _lockoutSettingsRepository;
     private readonly IPasswordResetTokenRepository _passwordResetTokenRepository;
     private readonly IEmailSender _emailSender;
     private readonly Token _tokenSettings;
 
     public AuthService(
         IUserAuthRepository userRepository,
+        ILoginLockoutSettingsRepository lockoutSettingsRepository,
         IPasswordResetTokenRepository passwordResetTokenRepository,
         IEmailSender emailSender)
     {
         _userRepository = userRepository;
+        _lockoutSettingsRepository = lockoutSettingsRepository;
         _passwordResetTokenRepository = passwordResetTokenRepository;
         _emailSender = emailSender;
         _tokenSettings = AppSettings.Settings.TokenManager!;
@@ -35,20 +43,55 @@ public class AuthService : IAuthService
     {
         if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
         {
-            return new AuthResult { Success = false, Message = "Credenciales inválidas" };
+            return new AuthResult { Success = false, Message = LoginErrorMessage };
         }
+
+        var lockoutSettings = await _lockoutSettingsRepository.GetSettingsAsync(cancellationToken);
+        var maxFailedAttempts = lockoutSettings?.MaxFailedAttempts > 0
+            ? Math.Clamp(lockoutSettings.MaxFailedAttempts, 1, MaxAllowedFailedAttempts)
+            : DefaultMaxFailedAttempts;
+        var lockoutMinutes = lockoutSettings?.LockoutMinutes > 0
+            ? Math.Clamp(lockoutSettings.LockoutMinutes, 1, MaxAllowedLockoutMinutes)
+            : DefaultLockoutMinutes;
+        var lockoutDuration = TimeSpan.FromMinutes(lockoutMinutes);
 
         var user = await _userRepository.GetByUsernameAsync(request.Username, cancellationToken);
 
         if (user is null || !user.IsActive)
         {
-            return new AuthResult { Success = false, Message = "Usuario o contraseña incorrectos" };
+            return new AuthResult { Success = false, Message = LoginErrorMessage };
+        }
+
+        if (user.LockoutEnd.HasValue)
+        {
+            if (user.LockoutEnd.Value > DateTimeOffset.UtcNow)
+            {
+                return new AuthResult { Success = false, Message = LoginErrorMessage };
+            }
+
+            await _userRepository.UpdateLoginStateAsync(user.Id, 0, null, cancellationToken);
+            user.FailedLoginAttempts = 0;
+            user.LockoutEnd = null;
         }
 
         var incomingHash = HashHelper.GenerateHashSha256(request.Password);
         if (!string.Equals(user.PasswordHash, incomingHash, StringComparison.OrdinalIgnoreCase))
         {
-            return new AuthResult { Success = false, Message = "Usuario o contraseña incorrectos" };
+            var failedAttempts = user.FailedLoginAttempts + 1;
+            DateTimeOffset? lockoutEnd = null;
+
+            if (failedAttempts >= maxFailedAttempts)
+            {
+                lockoutEnd = DateTimeOffset.UtcNow.Add(lockoutDuration);
+            }
+
+            await _userRepository.UpdateLoginStateAsync(user.Id, failedAttempts, lockoutEnd, cancellationToken);
+            return new AuthResult { Success = false, Message = LoginErrorMessage };
+        }
+
+        if (user.FailedLoginAttempts > 0 || user.LockoutEnd.HasValue)
+        {
+            await _userRepository.UpdateLoginStateAsync(user.Id, 0, null, cancellationToken);
         }
 
         return BuildAuthResult(user);

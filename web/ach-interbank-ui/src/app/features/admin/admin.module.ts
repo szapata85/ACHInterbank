@@ -6,6 +6,7 @@ import { UserFormComponent } from './components/user-form.component';
 import { UserRolesComponent } from './components/user-roles.component';
 import { BrandingSettingsComponent } from './components/branding-settings.component';
 import { PasswordRulesSettingsComponent } from './components/password-rules-settings.component';
+import { LoginLockoutSettingsComponent } from './components/login-lockout-settings.component';
 
 @NgModule({
   imports: [
@@ -15,7 +16,8 @@ import { PasswordRulesSettingsComponent } from './components/password-rules-sett
     UserFormComponent,
     UserRolesComponent,
     BrandingSettingsComponent,
-    PasswordRulesSettingsComponent
+    PasswordRulesSettingsComponent,
+    LoginLockoutSettingsComponent
   ]
 })
 export class AdminModule {}

@@ -53,4 +53,19 @@ public class UserAuthRepository : IUserAuthRepository
         _context.Users.Update(user);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task UpdateLoginStateAsync(Guid userId, int failedLoginAttempts, DateTimeOffset? lockoutEnd, CancellationToken cancellationToken = default)
+    {
+        var user = new User
+        {
+            Id = userId,
+            FailedLoginAttempts = failedLoginAttempts,
+            LockoutEnd = lockoutEnd
+        };
+
+        _context.Users.Attach(user);
+        _context.Entry(user).Property(u => u.FailedLoginAttempts).IsModified = true;
+        _context.Entry(user).Property(u => u.LockoutEnd).IsModified = true;
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 }

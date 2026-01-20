@@ -19,8 +19,8 @@ public class AuditLogsController : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult<PagedResponse<AuditLogDto>>> GetAuditLogsAsync(
-        [FromQuery] DateTimeOffset? startDate,
-        [FromQuery] DateTimeOffset? endDate,
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate,
         [FromQuery] string? changedBy,
         [FromQuery] string? action,
         [FromQuery] int page = 1,
@@ -42,19 +42,18 @@ public class AuditLogsController : ControllerBase
         if (startDate.HasValue)
         {
             var startValue = startDate.Value;
-            var startUtc = startValue.TimeOfDay == TimeSpan.Zero
-                ? new DateTimeOffset(startValue.Date, startValue.Offset).ToUniversalTime()
-                : startValue.ToUniversalTime();
-            query = query.Where(a => a.ChangedAt >= startUtc);
+            var startLocal = startValue.TimeOfDay == TimeSpan.Zero
+                ? startValue.Date
+                : startValue;
+            query = query.Where(a => a.ChangedAt >= startLocal);
         }
 
         if (endDate.HasValue)
         {
             var endValue = endDate.Value;
             var upperBound = endValue.TimeOfDay == TimeSpan.Zero
-                ? new DateTimeOffset(endValue.Date.AddDays(1).AddTicks(-1), endValue.Offset).ToUniversalTime()
-                : endValue.ToUniversalTime();
-
+                ? endValue.Date.AddDays(1).AddTicks(-1)
+                : endValue;
             query = query.Where(a => a.ChangedAt <= upperBound);
         }
 
@@ -111,6 +110,6 @@ public record AuditLogDto
     public string EntityId { get; init; } = string.Empty;
     public string Action { get; init; } = string.Empty;
     public string ChangedBy { get; init; } = string.Empty;
-    public DateTimeOffset ChangedAt { get; init; }
+    public DateTime ChangedAt { get; init; }
     public string? ChangedFields { get; init; }
 }
