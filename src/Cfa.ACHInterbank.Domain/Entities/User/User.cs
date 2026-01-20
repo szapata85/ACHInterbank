@@ -11,6 +11,8 @@ public class User : AuditableEntity
     public string? Email { get; set; }
     public string? PasswordHash { get; set; }
     public bool IsActive { get; set; } = true;
+    public int FailedLoginAttempts { get; set; }
+    public DateTimeOffset? LockoutEnd { get; set; }
 
     public ICollection<UserRole> UserRoles { get; set; } = new Collection<UserRole>();
     public ICollection<PasswordResetToken> PasswordResetTokens { get; set; } = new Collection<PasswordResetToken>();

@@ -20,6 +20,10 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(x => x.FullName).HasMaxLength(200);
         builder.Property(x => x.Email).HasMaxLength(320);
         builder.Property(x => x.PasswordHash).IsRequired().HasMaxLength(256);
+        builder.Property(x => x.FailedLoginAttempts)
+            .IsRequired()
+            .HasDefaultValue(0);
+        builder.Property(x => x.LockoutEnd);
         builder.Property(x => x.CreatedAt)
             .IsRequired()
             .ValueGeneratedOnAdd();
@@ -39,6 +43,8 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             Email = "admin@achinterbank.local",
             PasswordHash = BuildHash("Admin123!"),
             IsActive = true,
+            FailedLoginAttempts = 0,
+            LockoutEnd = null,
             CreatedAt = SeedAuditTimestamp,
             UpdatedAt = SeedAuditTimestamp
         });

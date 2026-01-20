@@ -88,7 +88,7 @@ export class AuditLogComponent implements OnDestroy {
       .subscribe((response) => {
         this.rows = response.items.map((item) => ({
           ...item,
-          changedAtDisplay: new Date(item.changedAt).toLocaleString(),
+          changedAtDisplay: item.changedAt,
           changedFieldsDisplay: this.formatChangedFields(item.changedFields)
         }));
         this.total = response.total;
