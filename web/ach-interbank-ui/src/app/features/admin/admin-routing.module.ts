@@ -7,6 +7,7 @@ import { roleGuard } from '../../core/guards/role.guard';
 import { permissionGuard } from '../../core/guards/permission.guard';
 import { BrandingSettingsComponent } from './components/branding-settings.component';
 import { PasswordRulesSettingsComponent } from './components/password-rules-settings.component';
+import { LoginLockoutSettingsComponent } from './components/login-lockout-settings.component';
 
 const routes: Routes = [
   {
@@ -42,6 +43,11 @@ const routes: Routes = [
         path: 'password-rules',
         component: PasswordRulesSettingsComponent,
         data: { breadcrumb: 'Reglas de contraseña', title: 'Reglas de contraseña' }
+      },
+      {
+        path: 'login-lockout',
+        component: LoginLockoutSettingsComponent,
+        data: { breadcrumb: 'Bloqueo de acceso', title: 'Bloqueo por intentos fallidos' }
       }
     ]
   }

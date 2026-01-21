@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { map, take, takeUntil, tap } from 'rxjs';
+import { map, shareReplay, take, takeUntil, tap } from 'rxjs';
 import { Subject } from 'rxjs';
 import { Router } from '@angular/router';
 import { TransactionsApiService } from '../../services/transactions-api.service';
@@ -9,6 +9,7 @@ import { AccountTypeEnum, FinancialInstitutionStatusEnum, TransactionTypeEnum } 
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SharedModule } from '../../../../shared/shared.module';
 import { FinancialInstitutionsApiService } from '../../services/financial-institutions-api.service';
+import { ReturnReasonsApiService } from '../../services/return-reasons-api.service';
 
 @Component({
   selector: 'app-transaction-create',
@@ -25,6 +26,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly notifications = inject(NotificationService);
   private readonly financialInstitutionsApi = inject(FinancialInstitutionsApiService);
+  private readonly returnReasonsApi = inject(ReturnReasonsApiService);
   private readonly destroy$ = new Subject<void>();
 
   readonly TransactionType = TransactionTypeEnum;
@@ -35,6 +37,14 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
         .filter((item) => item.status === FinancialInstitutionStatusEnum.Active)
         .sort((a, b) => a.name.localeCompare(b.name))
     )
+  );
+  readonly returnReasons$ = this.returnReasonsApi.getAll().pipe(
+    map((list) => list ?? []),
+    map((list) => ({
+      receiver: list.filter((item) => item.category === 'R'),
+      operator: list.filter((item) => item.category === 'D')
+    })),
+    shareReplay({ bufferSize: 1, refCount: true })
   );
 
   readonly form: FormGroup = this.fb.group({

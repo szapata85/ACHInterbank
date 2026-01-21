@@ -5,6 +5,7 @@ import { AchCycleListComponent } from './components/ach-cycle-list.component';
 import { AchCycleFormComponent } from './components/ach-cycle-form.component';
 import { NachaExportComponent } from './components/nacha-export.component';
 import { NachaLayoutsComponent } from './components/nacha-layouts.component';
+import { NachaRecordDefinitionsComponent } from './components/nacha-record-definitions.component';
 
 @NgModule({
   imports: [
@@ -13,7 +14,8 @@ import { NachaLayoutsComponent } from './components/nacha-layouts.component';
     AchCycleListComponent,
     AchCycleFormComponent,
     NachaExportComponent,
-    NachaLayoutsComponent
+    NachaLayoutsComponent,
+    NachaRecordDefinitionsComponent
   ]
 })
 export class AchCyclesModule {}
