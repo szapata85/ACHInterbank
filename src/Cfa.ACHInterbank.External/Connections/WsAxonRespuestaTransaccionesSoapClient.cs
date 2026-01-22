@@ -38,7 +38,7 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
                 .WithDegreeOfParallelism(degreeOfParallelism)
                 .WithCancellation(ct)
                 .Select(xml => RegistrarRespuestaTransaccionAsync(xml, ct).GetAwaiter().GetResult())
-                .ToList(),
+                .ToArray(),
             ct);
     }
 
