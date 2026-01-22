@@ -38,8 +38,8 @@ public class WscfaachSoapClient : IWscfaachSoapClient
             return Task.FromResult<IReadOnlyList<string>>([]);
         }
 
-        return Task.Run<IReadOnlyList<string>>(
-            () => requestXmls
+        return Task.Run(
+            () => (IReadOnlyList<string>)requestXmls
                 .AsParallel()
                 .WithDegreeOfParallelism(degreeOfParallelism)
                 .WithCancellation(ct)

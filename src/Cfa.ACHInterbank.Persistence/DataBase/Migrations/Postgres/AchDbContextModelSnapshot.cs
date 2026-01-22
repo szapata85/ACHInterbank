@@ -1162,7 +1162,7 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                             FailedLoginAttempts = 0,
                             FullName = "Administrador ACH",
                             IsActive = true,
-                            LockoutEnd = null,
+                            LockoutEnd = (DateTimeOffset?)null,
                             PasswordHash = "3eb3fe66b31e3b4d10fa70b5cad49c7112294af6ae4e476a1c405155d45aa121",
                             UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             Username = "admin"
