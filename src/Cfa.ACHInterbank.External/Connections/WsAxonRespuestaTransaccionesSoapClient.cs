@@ -22,24 +22,42 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
     public Task<string> RegistrarRespuestaTransaccionAsync(string requestXml, CancellationToken ct = default)
         => SendAsync(requestXml, ct);
 
-    public Task<IReadOnlyList<string>> RegistrarRespuestaTransaccionParallelAsync(
-        IEnumerable<string> requestXmls,
-        int degreeOfParallelism = 4,
-        CancellationToken ct = default)
+    public async Task<IReadOnlyList<string>> RegistrarRespuestaTransaccionParallelAsync(
+    IEnumerable<string> requestXmls,
+    int degreeOfParallelism = 4,
+    CancellationToken ct = default)
     {
         if (requestXmls is null)
-        {
-            return Task.FromResult<IReadOnlyList<string>>([]);
-        }
+            return [];
 
-        return Task.Run(
-            () => (IReadOnlyList<string>)requestXmls
-                .AsParallel()
-                .WithDegreeOfParallelism(degreeOfParallelism)
-                .WithCancellation(ct)
-                .Select(xml => RegistrarRespuestaTransaccionAsync(xml, ct).GetAwaiter().GetResult())
-                .ToArray(),
-            ct);
+        // Materializamos para poder indexar y preservar el orden de entrada
+        var xmlArray = requestXmls as string[] ?? requestXmls.ToArray();
+
+        // El resultado mantiene el mismo orden que xmlArray
+        var results = new string[xmlArray.Length];
+
+        var options = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = degreeOfParallelism,
+            CancellationToken = ct
+        };
+
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, xmlArray.Length),
+            options,
+            async (index, token) =>
+            {
+                // Aquí va tu llamada async real
+                var xml = xmlArray[index];
+
+                var respuesta = await RegistrarRespuestaTransaccionAsync(xml, token)
+                    .ConfigureAwait(false);
+
+                // Guardamos en la misma posición para mantener el orden
+                results[index] = respuesta;
+            });
+
+        return results;
     }
 
     private async Task<string> SendAsync(string requestXml, CancellationToken ct)
