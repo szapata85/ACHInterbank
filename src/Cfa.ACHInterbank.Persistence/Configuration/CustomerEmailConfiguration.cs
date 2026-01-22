@@ -11,7 +11,7 @@ public class CustomerEmailConfiguration : IEntityTypeConfiguration<CustomerEmail
         builder.ToTable("CustomerEmails");
         builder.HasKey(m => m.Id);
 
-        builder.Property(m => m.EmailType).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(m => m.EmailType).HasMaxLength(20).IsRequired();
         builder.Property(m => m.Address).HasMaxLength(160).IsRequired();
         builder.Property(m => m.IsPrimary).HasDefaultValue(false);
 
@@ -19,6 +19,12 @@ public class CustomerEmailConfiguration : IEntityTypeConfiguration<CustomerEmail
          .WithMany(c => c.Emails)
          .HasForeignKey(m => m.CustomerId)
          .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(m => m.EmailTypeCatalog)
+         .WithMany(e => e.CustomerEmails)
+         .HasForeignKey(m => m.EmailType)
+         .HasPrincipalKey(e => e.Code)
+         .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(m => new { m.CustomerId, m.IsPrimary })
          .IsUnique();

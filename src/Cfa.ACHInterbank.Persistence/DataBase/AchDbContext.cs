@@ -50,6 +50,7 @@ public class AchDbContext : DbContext
     public DbSet<GenderCatalog> GenderTypes { get; set; }
     public DbSet<PersonTypeCatalog> PersonTypes { get; set; }
     public DbSet<PhoneTypeCatalog> PhoneTypes { get; set; }
+    public DbSet<EmailTypeCatalog> EmailTypes { get; set; }
     public DbSet<CustomerAddress> CustomerAddress { get; set; }
     public DbSet<CustomerPhone> CustomerPhones { get; set; }
     public DbSet<CustomerEmail> CustomerEmails { get; set; }
