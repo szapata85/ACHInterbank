@@ -17,14 +17,19 @@ internal class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(c => c.SecondLastName).HasMaxLength(100);
         builder.Property(c => c.Gender).HasConversion<string>().HasMaxLength(20);
 
-        // Guardar enum como string (opcional, útil para lectura)
-        builder.Property(c => c.DocumentType).HasConversion<string>().HasMaxLength(10).IsRequired();
+        builder.Property(c => c.DocumentType).HasMaxLength(10).IsRequired();
 
         builder.Property(c => c.DocumentNumber).HasMaxLength(50).IsRequired();
         builder.Property(c => c.AccountNumber).HasMaxLength(50).IsRequired();
 
         // Unicidad por tipo de documento + número
         builder.HasIndex(c => new { c.DocumentType, c.DocumentNumber }).IsUnique();
+
+        builder.HasOne(c => c.DocumentTypeCatalog)
+            .WithMany(d => d.Customers)
+            .HasForeignKey(c => c.DocumentType)
+            .HasPrincipalKey(d => d.Code)
+            .OnDelete(DeleteBehavior.Restrict);
 
 
 

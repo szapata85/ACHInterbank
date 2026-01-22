@@ -1,5 +1,4 @@
 ﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
-using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 
 namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
@@ -15,13 +14,14 @@ public class Customer : AuditableEntity
     public GenderTypeEnum? Gender { get; set; }
 
     // Documento
-    public DocumentTypeEnum DocumentType { get; set; }
+    public string DocumentType { get; set; } = null!;
     public string DocumentNumber { get; set; } = null!;
 
     // Cuenta origen
     public string AccountNumber { get; set; } = null!;
 
     // Relaciones
+    public DocumentTypeCatalog DocumentTypeCatalog { get; set; } = null!;
     public ICollection<CustomerAddress> Addresses { get; set; } = new List<CustomerAddress>();
     public ICollection<CustomerPhone> Phones { get; set; } = new List<CustomerPhone>();
     public ICollection<CustomerEmail> Emails { get; set; } = new List<CustomerEmail>();
