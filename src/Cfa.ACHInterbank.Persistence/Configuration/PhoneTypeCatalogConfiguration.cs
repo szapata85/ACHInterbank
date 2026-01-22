@@ -16,7 +16,6 @@ internal class PhoneTypeCatalogConfiguration : IEntityTypeConfiguration<PhoneTyp
         builder.Property(p => p.Description).HasMaxLength(200);
 
         builder.HasData(
-            new PhoneTypeCatalog { Code = "CELULAR", Name = "Celular" },
             new PhoneTypeCatalog { Code = "FIJO", Name = "Fijo" },
             new PhoneTypeCatalog { Code = "TRABAJO", Name = "Trabajo" },
             new PhoneTypeCatalog { Code = "MOVIL", Name = "Móvil" }
