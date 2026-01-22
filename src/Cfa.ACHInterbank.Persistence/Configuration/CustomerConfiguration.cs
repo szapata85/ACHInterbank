@@ -15,6 +15,7 @@ internal class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(c => c.MiddleName).HasMaxLength(100);
         builder.Property(c => c.LastName).HasMaxLength(100).IsRequired();
         builder.Property(c => c.SecondLastName).HasMaxLength(100);
+        builder.Property(c => c.Gender).HasConversion<string>().HasMaxLength(20);
 
         // Guardar enum como string (opcional, útil para lectura)
         builder.Property(c => c.DocumentType).HasConversion<string>().HasMaxLength(10).IsRequired();

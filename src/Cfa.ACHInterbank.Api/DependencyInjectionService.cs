@@ -112,7 +112,9 @@ public static class DependencyInjectionService
                     "http://localhost:4200",
                     "https://localhost:4200",
                     "http://localhost:7269",
-                    "https://localhost:7269"
+                    "https://localhost:7269",
+                    "http://cfaach.ddns.net:743",
+                    "http://cfaach.ddns.net:744"
                 )
                 .AllowAnyMethod()
                 .AllowAnyHeader()
