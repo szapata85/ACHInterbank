@@ -44,7 +44,7 @@ public class WscfaachSoapClient : IWscfaachSoapClient
                 .WithDegreeOfParallelism(degreeOfParallelism)
                 .WithCancellation(ct)
                 .Select(xml => ProcTransaccionesAsync(xml, ct).GetAwaiter().GetResult())
-                .ToList(),
+                .ToArray(),
             ct);
     }
 
