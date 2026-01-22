@@ -32,7 +32,7 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
             return Task.FromResult<IReadOnlyList<string>>([]);
         }
 
-        return Task.Run(
+        return Task.Run<IReadOnlyList<string>>(
             () => requestXmls
                 .AsParallel()
                 .WithDegreeOfParallelism(degreeOfParallelism)
