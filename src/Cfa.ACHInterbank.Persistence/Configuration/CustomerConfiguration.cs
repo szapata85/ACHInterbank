@@ -15,7 +15,7 @@ internal class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(c => c.MiddleName).HasMaxLength(100);
         builder.Property(c => c.LastName).HasMaxLength(100).IsRequired();
         builder.Property(c => c.SecondLastName).HasMaxLength(100);
-        builder.Property(c => c.Gender).HasConversion<string>().HasMaxLength(20);
+        builder.Property(c => c.Gender).HasMaxLength(20);
 
         builder.Property(c => c.DocumentType).HasMaxLength(10).IsRequired();
 
@@ -29,6 +29,12 @@ internal class CustomerConfiguration : IEntityTypeConfiguration<Customer>
             .WithMany(d => d.Customers)
             .HasForeignKey(c => c.DocumentType)
             .HasPrincipalKey(d => d.Code)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(c => c.GenderCatalog)
+            .WithMany(g => g.Customers)
+            .HasForeignKey(c => c.Gender)
+            .HasPrincipalKey(g => g.Code)
             .OnDelete(DeleteBehavior.Restrict);
 
 
