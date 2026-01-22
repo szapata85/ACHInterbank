@@ -12,6 +12,7 @@ public class Customer : AuditableEntity
     public string? MiddleName { get; set; }
     public string LastName { get; set; } = null!;
     public string? SecondLastName { get; set; }
+    public GenderTypeEnum? Gender { get; set; }
 
     // Documento
     public DocumentTypeEnum DocumentType { get; set; }
