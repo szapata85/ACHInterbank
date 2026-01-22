@@ -12,6 +12,8 @@ public class Customer : AuditableEntity
     public string LastName { get; set; } = null!;
     public string? SecondLastName { get; set; }
     public string? Gender { get; set; }
+    public string PersonType { get; set; } = null!;
+    public string? CompanyName { get; set; }
 
     // Documento
     public string DocumentType { get; set; } = null!;
@@ -22,6 +24,7 @@ public class Customer : AuditableEntity
 
     // Relaciones
     public GenderCatalog? GenderCatalog { get; set; }
+    public PersonTypeCatalog PersonTypeCatalog { get; set; } = null!;
     public DocumentTypeCatalog DocumentTypeCatalog { get; set; } = null!;
     public ICollection<CustomerAddress> Addresses { get; set; } = new List<CustomerAddress>();
     public ICollection<CustomerPhone> Phones { get; set; } = new List<CustomerPhone>();
