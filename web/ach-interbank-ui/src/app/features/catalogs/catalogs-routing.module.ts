@@ -52,6 +52,68 @@ const routes: Routes = [
       breadcrumb: 'Fechas especiales cámaras',
       title: 'Fechas especiales cámaras'
     }
+  },
+  {
+    path: 'document-types',
+    loadComponent: () =>
+      import('./components/document-types-admin.component').then((m) => m.DocumentTypesAdminComponent),
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['CanReadCatalogs'],
+      breadcrumb: 'Tipos de documento',
+      title: 'Tipos de documento'
+    }
+  },
+  {
+    path: 'gender-types',
+    loadComponent: () => import('./components/gender-types-admin.component').then((m) => m.GenderTypesAdminComponent),
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['CanReadCatalogs'],
+      breadcrumb: 'Tipos de género',
+      title: 'Tipos de género'
+    }
+  },
+  {
+    path: 'person-types',
+    loadComponent: () => import('./components/person-types-admin.component').then((m) => m.PersonTypesAdminComponent),
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['CanReadCatalogs'],
+      breadcrumb: 'Tipos de persona',
+      title: 'Tipos de persona'
+    }
+  },
+  {
+    path: 'phone-types',
+    loadComponent: () => import('./components/phone-types-admin.component').then((m) => m.PhoneTypesAdminComponent),
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['CanReadCatalogs'],
+      breadcrumb: 'Tipos de teléfono',
+      title: 'Tipos de teléfono'
+    }
+  },
+  {
+    path: 'email-types',
+    loadComponent: () => import('./components/email-types-admin.component').then((m) => m.EmailTypesAdminComponent),
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['CanReadCatalogs'],
+      breadcrumb: 'Tipos de correo',
+      title: 'Tipos de correo'
+    }
+  },
+  {
+    path: 'address-types',
+    loadComponent: () =>
+      import('./components/address-types-admin.component').then((m) => m.AddressTypesAdminComponent),
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['CanReadCatalogs'],
+      breadcrumb: 'Tipos de dirección',
+      title: 'Tipos de dirección'
+    }
   }
 ];
 
