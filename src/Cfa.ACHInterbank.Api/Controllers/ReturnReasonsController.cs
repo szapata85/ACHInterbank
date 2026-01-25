@@ -15,6 +15,9 @@ public class ReturnReasonsController : ControllerBase
     {
         _service = service;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet]
     [Authorize(Policy = "CanReadAch")]

@@ -20,8 +20,10 @@ public class TransactionsController : ControllerBase
         _transactionService = transactionService;
         _logger = logger;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
-    /// <summary>Obtiene todas las transacciones ACH.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<AchTransactionListDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll(
@@ -34,8 +36,10 @@ public class TransactionsController : ControllerBase
         var transactions = await _transactionService.GetAllAsync(achCycleId, achCycleName, effectiveDate, clearingHouseId, ct);
         return Ok(transactions);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
-    /// <summary>Registra una nueva transacción ACH.</summary>
     [HttpPost]
     [ProducesResponseType(typeof(AchTransaction), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -79,10 +83,10 @@ public class TransactionsController : ControllerBase
             return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Error interno del servidor" });
         }
     }
-
     /// <summary>
-    /// Consulta una transacción por ID.
+    /// Pendiente de documentación.
     /// </summary>
+
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(AchTransaction), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

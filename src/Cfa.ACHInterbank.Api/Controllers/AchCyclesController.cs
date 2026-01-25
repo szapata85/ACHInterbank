@@ -16,6 +16,9 @@ public class AchCyclesController : ControllerBase
     {
         _service = service;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet]
     [Authorize(Policy = "CanReadAch")]
@@ -32,6 +35,9 @@ public class AchCyclesController : ControllerBase
         var cycles = await _service.GetAsync(clearingHouseId, effectiveStart, effectiveEnd, ct);
         return Ok(cycles);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet("exportable")]
     [Authorize(Policy = "CanReadAch")]
@@ -44,6 +50,9 @@ public class AchCyclesController : ControllerBase
         var cycles = await _service.GetExecutedWithTransactionsAsync(clearingHouseId, startDate, endDate, ct);
         return Ok(cycles);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet("{id}")]
     [Authorize(Policy = "CanReadAch")]
@@ -52,6 +61,9 @@ public class AchCyclesController : ControllerBase
         var cycle = await _service.GetByIdAsync(id, ct);
         return cycle is null ? NotFound() : Ok(cycle);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPost]
     [Authorize(Policy = "CanManageAch")]
@@ -60,6 +72,9 @@ public class AchCyclesController : ControllerBase
         var cycle = await _service.CreateAsync(request, ct);
         return CreatedAtAction(nameof(GetById), new { id = cycle.Id }, cycle);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPut("{id}")]
     [Authorize(Policy = "CanManageAch")]
@@ -68,6 +83,9 @@ public class AchCyclesController : ControllerBase
         var cycle = await _service.UpdateAsync(id, request, ct);
         return Ok(cycle);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpDelete("{id}")]
     [Authorize(Policy = "CanManageAch")]

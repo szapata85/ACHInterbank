@@ -23,6 +23,9 @@ public class LoginLockoutSettingsController : ControllerBase
     {
         _dbContext = dbContext;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet]
     public async Task<ActionResult<LoginLockoutSettingsDto>> GetAsync(CancellationToken cancellationToken)
@@ -39,6 +42,9 @@ public class LoginLockoutSettingsController : ControllerBase
 
         return Ok(MapToDto(settings));
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPut]
     public async Task<ActionResult<LoginLockoutSettingsDto>> SaveAsync(

@@ -14,12 +14,18 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 [AllowAnonymous]
 public class JwksController : ControllerBase
 {
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
     [HttpGet("jwks")]
     public async Task<IActionResult> GetJwks([FromServices] IJwksServiceScoped jwksService)
     {
         var data = jwksService.GetPublicJwks();
         return data.Success ? Ok(data.Result) : StatusCode(StatusCodes.Status500InternalServerError, ResponseApiService.Response(StatusCodes.Status500InternalServerError));
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet("TokenClientAssertions")]
     public async Task<IActionResult> TokenClientAssertions([FromServices] IGetTokenWithClientAssertionScoped getToken)
@@ -27,6 +33,9 @@ public class JwksController : ControllerBase
         var data = getToken.GenerateClientAssertion();
         return StatusCode(StatusCodes.Status201Created, ResponseApiService.Response(StatusCodes.Status201Created, data));
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPost("client-assertion")]
     public async Task<IActionResult> Authenticate([FromBody] string request, [FromServices] IClientAssertionValidatorScoped getToken)
@@ -38,6 +47,9 @@ public class JwksController : ControllerBase
 
         return Unauthorized(new { message = "Invalid client assertion" });
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPost("Genearte-client-assertion")]
     public async Task<IActionResult> GenerateClientAssertion([FromServices] IGetTokenWithClientAssertionScoped getToken)

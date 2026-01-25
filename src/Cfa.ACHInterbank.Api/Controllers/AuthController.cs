@@ -14,6 +14,9 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 [TypeFilter(typeof(ExceptionManager))]
 public class AuthController : ControllerBase
 {
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
     [HttpPost("login")]
     [AllowAnonymous]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, [FromServices] IAuthService authService, CancellationToken cancellationToken)
@@ -27,6 +30,9 @@ public class AuthController : ControllerBase
 
         return Ok(ResponseApiService.Response(StatusCodes.Status200OK, result));
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPost("forgot-password")]
     [AllowAnonymous]
@@ -36,6 +42,9 @@ public class AuthController : ControllerBase
         var statusCode = result.Success ? StatusCodes.Status200OK : StatusCodes.Status400BadRequest;
         return StatusCode(statusCode, ResponseApiService.Response(statusCode, result.Message, result.Message));
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPost("reset-password")]
     [AllowAnonymous]
@@ -45,6 +54,9 @@ public class AuthController : ControllerBase
         var statusCode = result.Success ? StatusCodes.Status200OK : StatusCodes.Status400BadRequest;
         return StatusCode(statusCode, ResponseApiService.Response(statusCode, result.Message, result.Message));
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPost("refresh")]
     [Authorize]

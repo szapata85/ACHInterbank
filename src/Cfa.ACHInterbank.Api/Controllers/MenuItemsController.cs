@@ -18,6 +18,9 @@ public class MenuItemsController : ControllerBase
     {
         _dbContext = dbContext;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<MenuItemAdminDto>>> GetMenuItemsAsync(CancellationToken cancellationToken)
@@ -48,6 +51,9 @@ public class MenuItemsController : ControllerBase
         SortChildren(roots);
         return Ok(roots);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPost]
     public async Task<ActionResult<MenuItemAdminDto>> CreateMenuItemAsync([FromBody] SaveMenuItemRequest request, CancellationToken cancellationToken)
@@ -82,6 +88,9 @@ public class MenuItemsController : ControllerBase
         var created = await GetMenuItemAsync(menuItem.Id, cancellationToken);
         return CreatedAtAction(nameof(GetMenuItemsAsync), created);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPut("{id:int}")]
     public async Task<ActionResult<MenuItemAdminDto>> UpdateMenuItemAsync(int id, [FromBody] SaveMenuItemRequest request, CancellationToken cancellationToken)
@@ -124,6 +133,9 @@ public class MenuItemsController : ControllerBase
         var updated = await GetMenuItemAsync(menuItem.Id, cancellationToken);
         return Ok(updated);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteMenuItemAsync(int id, CancellationToken cancellationToken)

@@ -14,6 +14,9 @@ public class MaintenanceController : Controller
         _services = services;
         _configuration = configuration;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPost("seed")]
     public async Task<IActionResult> RunDbInitializer()

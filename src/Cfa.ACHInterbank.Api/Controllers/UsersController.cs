@@ -22,6 +22,9 @@ public class UsersController : ControllerBase
     {
         _dbContext = dbContext;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet]
     public async Task<ActionResult<PagedResponse<UserSummaryDto>>> GetUsersAsync(
@@ -98,6 +101,9 @@ public class UsersController : ControllerBase
 
         return Ok(response);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet("validate-email-domain")]
     public async Task<ActionResult<bool>> ValidateEmailDomainAsync(
@@ -132,6 +138,9 @@ public class UsersController : ControllerBase
             return Ok(false);
         }
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<UserSummaryDto>> GetUserAsync(Guid id, CancellationToken cancellationToken)
@@ -146,6 +155,9 @@ public class UsersController : ControllerBase
 
         return Ok(user);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPost]
     public async Task<ActionResult<UserSummaryDto>> CreateUserAsync([FromBody] SaveUserRequest request, CancellationToken cancellationToken)
@@ -183,6 +195,9 @@ public class UsersController : ControllerBase
 
         return CreatedAtAction(nameof(GetUserAsync), new { id = created.Id }, created);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<UserSummaryDto>> UpdateUserAsync(Guid id, [FromBody] SaveUserRequest request, CancellationToken cancellationToken)
@@ -226,6 +241,9 @@ public class UsersController : ControllerBase
 
         return Ok(updated);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPost("{id:guid}/roles")]
     public async Task<IActionResult> AssignRolesAsync(Guid id, [FromBody] AssignRolesRequest request, CancellationToken cancellationToken)
@@ -244,6 +262,9 @@ public class UsersController : ControllerBase
 
         return NoContent();
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeactivateUserAsync(Guid id, CancellationToken cancellationToken)

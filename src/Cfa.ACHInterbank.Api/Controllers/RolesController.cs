@@ -16,6 +16,9 @@ public class RolesController : ControllerBase
     {
         _dbContext = dbContext;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<RoleSummaryDto>>> GetRolesAsync(CancellationToken cancellationToken)

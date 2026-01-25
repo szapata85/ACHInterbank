@@ -16,6 +16,9 @@ public class BrandingController : ControllerBase
     {
         _dbContext = dbContext;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet]
     [AllowAnonymous]
@@ -37,6 +40,9 @@ public class BrandingController : ControllerBase
     [HttpPut]
     // El sitio público también consume la identidad visual y esta instancia no usa JWT,
     // por lo que el endpoint debe estar disponible sin autenticación.
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
     [AllowAnonymous]
     public async Task<ActionResult<BrandingSettingsDto>> SaveBrandingAsync(
         [FromBody] BrandingSettingsDto request,

@@ -13,10 +13,22 @@ namespace Cfa.ACHInterbank.Api.Controllers
         private readonly ICryptoServiceScoped _crypto;
 
         public SobreDigitalController(ICryptoServiceScoped crypto) => _crypto = crypto;
+        /// <summary>
+        /// Pendiente de documentación.
+        /// </summary>
 
         public record EncryptResponse(DigitalEnvelopeModel Envelope);
+        /// <summary>
+        /// Pendiente de documentación.
+        /// </summary>
         public record DecryptRequest(DigitalEnvelopeModel Envelope);
+        /// <summary>
+        /// Pendiente de documentación.
+        /// </summary>
         public record DecryptResponse(string Base64Plaintext);
+        /// <summary>
+        /// Pendiente de documentación.
+        /// </summary>
 
         [HttpPost("encrypt")]
         public async Task<IActionResult> Encrypt(IFormFile file)
@@ -43,6 +55,9 @@ namespace Cfa.ACHInterbank.Api.Controllers
             // Devuelve el archivo como respuesta
             return File(fileBytes, contentType, fileName);
         }
+        /// <summary>
+        /// Pendiente de documentación.
+        /// </summary>
 
         [HttpPost("decrypt")]
         public async Task<ActionResult<DecryptResponse>> Decrypt(IFormFile file)
@@ -72,6 +87,9 @@ namespace Cfa.ACHInterbank.Api.Controllers
             // Devuelve el archivo como respuesta
             return File(fileBytes, contentType, fileName);
         }
+        /// <summary>
+        /// Pendiente de documentación.
+        /// </summary>
 
         [HttpPost("testRSA")]
         public void testRSA([FromServices] IRsaKeyProvider _rsaKeyService)

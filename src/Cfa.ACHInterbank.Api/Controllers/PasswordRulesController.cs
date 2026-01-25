@@ -27,6 +27,9 @@ public class PasswordRulesController : ControllerBase
     {
         _dbContext = dbContext;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet]
     public async Task<ActionResult<PasswordRulesDto>> GetRulesAsync(CancellationToken cancellationToken)
@@ -43,6 +46,9 @@ public class PasswordRulesController : ControllerBase
 
         return Ok(MapToDto(rules));
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPut]
     public async Task<ActionResult<PasswordRulesDto>> SaveRulesAsync(

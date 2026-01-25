@@ -16,6 +16,9 @@ public class PermissionsController : ControllerBase
     {
         _dbContext = dbContext;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<PermissionSummaryDto>>> GetPermissionsAsync(CancellationToken cancellationToken)

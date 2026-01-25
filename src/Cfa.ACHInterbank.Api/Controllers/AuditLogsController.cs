@@ -16,6 +16,9 @@ public class AuditLogsController : ControllerBase
     {
         _dbContext = dbContext;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet]
     public async Task<ActionResult<PagedResponse<AuditLogDto>>> GetAuditLogsAsync(
