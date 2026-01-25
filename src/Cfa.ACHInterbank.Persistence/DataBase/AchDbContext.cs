@@ -55,6 +55,7 @@ public class AchDbContext : DbContext
     public DbSet<CustomerAddress> CustomerAddress { get; set; }
     public DbSet<CustomerPhone> CustomerPhones { get; set; }
     public DbSet<CustomerEmail> CustomerEmails { get; set; }
+    public DbSet<CustomerThirdParty> CustomerThirdParties { get; set; }
 
     public DbSet<TaskDefinition> TaskDefinitions => Set<TaskDefinition>();
     public DbSet<TaskParameter> TaskParameters => Set<TaskParameter>();

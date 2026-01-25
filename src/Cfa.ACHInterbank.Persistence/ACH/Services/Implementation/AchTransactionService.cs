@@ -219,6 +219,44 @@ public class AchTransactionService : IAchTransactionService
         _context.AchTransactions.Add(tx);
         await _context.SaveChangesAsync(ct);
 
+        if (isPrenotification)
+        {
+            var customer = await _context.Customers
+                .FirstOrDefaultAsync(c => c.AccountNumber == sourceAccountNumber, ct)
+                ?? throw new InvalidOperationException("No se encontró el cliente asociado a la cuenta de origen.");
+
+            var existingThirdParty = await _context.CustomerThirdParties
+                .FirstOrDefaultAsync(t =>
+                    t.CustomerId == customer.Id &&
+                    t.DestinationInstitutionId == destinationInstitutionId &&
+                    t.DestinationAccountNumber == destinationAccountNumber &&
+                    t.RecipientIdNumber == (recipientIdNumber ?? string.Empty), ct);
+
+            if (existingThirdParty is not null)
+            {
+                existingThirdParty.Status = CustomerThirdPartyStatusEnum.Pending;
+                existingThirdParty.PrenotificationTransactionId = tx.Id;
+                existingThirdParty.ValidationCycleId = null;
+                existingThirdParty.ValidationReceivedAt = null;
+                existingThirdParty.ValidationMessage = null;
+            }
+            else
+            {
+                var thirdParty = new CustomerThirdParty
+                {
+                    CustomerId = customer.Id,
+                    DestinationInstitutionId = destinationInstitutionId,
+                    DestinationAccountNumber = destinationAccountNumber,
+                    RecipientIdNumber = recipientIdNumber?.Trim() ?? string.Empty,
+                    Status = CustomerThirdPartyStatusEnum.Pending,
+                    PrenotificationTransactionId = tx.Id
+                };
+                _context.CustomerThirdParties.Add(thirdParty);
+            }
+
+            await _context.SaveChangesAsync(ct);
+        }
+
         await UpdateBatchTotalsAsync(batch, ct);
         // 🔁 Recalcular el ServiceClassCode del lote si aplica
         await UpdateBatchServiceClassCodeAsync(batch, ct);

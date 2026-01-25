@@ -43,7 +43,7 @@ public class TransactionsController : ControllerBase
     public async Task<IActionResult> CreateTransaction([FromBody] AchTransactionRequest request, CancellationToken ct)
     {
         if (request is null) return BadRequest("El cuerpo de la solicitud no puede estar vacío.");
-        if (request.Amount <= 0) return BadRequest("El monto debe ser mayor a cero.");
+        if (!request.IsPrenotification && request.Amount <= 0) return BadRequest("El monto debe ser mayor a cero.");
         if (string.IsNullOrWhiteSpace(request.Reference)) return BadRequest("La referencia es obligatoria.");
         if (string.IsNullOrWhiteSpace(request.SourceAccountNumber)) return BadRequest("La cuenta de origen es obligatoria.");
         if (string.IsNullOrWhiteSpace(request.DestinationAccountNumber)) return BadRequest("La cuenta de destino es obligatoria.");
