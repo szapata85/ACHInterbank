@@ -30,9 +30,15 @@ export class NavigationService {
       icon: 'list_alt',
       children: catalogChildren
     };
+    const customerItem: MenuItem = {
+      id: -220,
+      label: 'Clientes',
+      route: '/customers',
+      icon: 'group'
+    };
 
     if (!items.length) {
-      return [catalogGroup];
+      return [customerItem, catalogGroup];
     }
 
     const hasRoute = (menu: MenuItem[], route: string): boolean =>
@@ -45,10 +51,14 @@ export class NavigationService {
       if (missingChildren.length) {
         existingCatalogGroup.children = [...existingChildren, ...missingChildren];
       }
+      if (!hasRoute(items, customerItem.route)) {
+        return [...items, customerItem];
+      }
       return items;
     }
 
-    return [...items, catalogGroup];
+    const nextItems = hasRoute(items, customerItem.route) ? items : [...items, customerItem];
+    return [...nextItems, catalogGroup];
   }
 
   private sortMenu(items: MenuItem[]): MenuItem[] {
