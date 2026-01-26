@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.Audit.Dtos;
 using Cfa.ACHInterbank.Application.Audit.Interfaces;
 using Cfa.ACHInterbank.Application.Common;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 
