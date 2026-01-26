@@ -7,6 +7,23 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public class TransactionValidator : ITransactionValidator
 {
+    private static readonly IReadOnlyDictionary<(TransactionTypeEnum Type, AccountTypeEnum Account, bool IsPrenotification), string> TransactionCodeMap
+        = new Dictionary<(TransactionTypeEnum, AccountTypeEnum, bool), string>
+        {
+            { (TransactionTypeEnum.Credit, AccountTypeEnum.Checking, false), "22" },
+            { (TransactionTypeEnum.Credit, AccountTypeEnum.Checking, true), "23" },
+            { (TransactionTypeEnum.Debit, AccountTypeEnum.Checking, false), "27" },
+            { (TransactionTypeEnum.Debit, AccountTypeEnum.Checking, true), "28" },
+            { (TransactionTypeEnum.Credit, AccountTypeEnum.Savings, false), "32" },
+            { (TransactionTypeEnum.Credit, AccountTypeEnum.Savings, true), "33" },
+            { (TransactionTypeEnum.Debit, AccountTypeEnum.Savings, false), "37" },
+            { (TransactionTypeEnum.Debit, AccountTypeEnum.Savings, true), "38" },
+            { (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, false), "52" },
+            { (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, true), "53" },
+            { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, false), "55" },
+            { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, true), "57" }
+        };
+
     public void ValidateRequest(AchTransactionRequestData request)
     {
         if (request.IsPrenotification)
@@ -39,22 +56,12 @@ public class TransactionValidator : ITransactionValidator
 
     public string ResolveTransactionCode(TransactionTypeEnum type, AccountTypeEnum accountType, bool isPrenotification)
     {
-        return (type, accountType, isPrenotification) switch
+        if (TransactionCodeMap.TryGetValue((type, accountType, isPrenotification), out var code))
         {
-            (TransactionTypeEnum.Credit, AccountTypeEnum.Checking, false) => "22",
-            (TransactionTypeEnum.Credit, AccountTypeEnum.Checking, true) => "23",
-            (TransactionTypeEnum.Debit, AccountTypeEnum.Checking, false) => "27",
-            (TransactionTypeEnum.Debit, AccountTypeEnum.Checking, true) => "28",
-            (TransactionTypeEnum.Credit, AccountTypeEnum.Savings, false) => "32",
-            (TransactionTypeEnum.Credit, AccountTypeEnum.Savings, true) => "33",
-            (TransactionTypeEnum.Debit, AccountTypeEnum.Savings, false) => "37",
-            (TransactionTypeEnum.Debit, AccountTypeEnum.Savings, true) => "38",
-            (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, false) => "52",
-            (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, true) => "53",
-            (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, false) => "55",
-            (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, true) => "57",
-            _ => throw new ArgumentOutOfRangeException(nameof(accountType), "Tipo de cuenta no soportado.")
-        };
+            return code;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(accountType), "Tipo de cuenta no soportado.");
     }
 
     public string ValidateAddendaType(string addendaType)
