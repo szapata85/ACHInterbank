@@ -1,10 +1,12 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Helpers.Hash;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -12,10 +14,12 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class NachaParserService : INachaParserService
 {
     private readonly AchDbContext _context;
+    private readonly ILogger<NachaParserService> _logger;
 
-    public NachaParserService(AchDbContext context)
+    public NachaParserService(AchDbContext context, ILogger<NachaParserService> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     public async Task<IReadOnlyList<NachaValidationFailure>> ParseAndSaveAsync(Stream nachaStream, string FileName)
@@ -94,7 +98,8 @@ public class NachaParserService : INachaParserService
 
                         entry.NachaID = currentHeader?.NachaID;
 
-                        if (await ValidateEntryAsync(entry, currentBatch, failures))
+                        var (isValid, failureReason) = await ValidateEntryAsync(entry, currentBatch, failures);
+                        if (isValid)
                         {
                             entryDetails.Add(entry);
                             lastEntry = entry;
@@ -102,6 +107,11 @@ public class NachaParserService : INachaParserService
                         else
                         {
                             lastEntry = null;
+                        }
+
+                        if (PrenoteCodes.Contains(entry.TransactionCode ?? string.Empty))
+                        {
+                            await UpdateThirdPartyStatusAsync(entry, currentHeader?.AchCycleId, isValid, failureReason);
                         }
                         break;
                     case '7':
@@ -156,7 +166,8 @@ public class NachaParserService : INachaParserService
         }
         catch (Exception ex)
         {
-            var mensaje = ex.GetBaseException().ToString();
+            _logger.LogError(ex, "Error procesando archivo NACHA: {FileName}", FileName);
+            throw;
         }
 
         return failures;
@@ -299,14 +310,17 @@ public class NachaParserService : INachaParserService
         "23", "33", "53", "28", "38", "57"
     };
 
-    private async Task<bool> ValidateEntryAsync(EntryDetail entry, BatchHeader? batch, List<NachaValidationFailure> failures)
+    private async Task<(bool IsValid, string? FailureReason)> ValidateEntryAsync(
+        EntryDetail entry,
+        BatchHeader? batch,
+        List<NachaValidationFailure> failures)
     {
         var code = entry.TransactionCode ?? string.Empty;
         if (!CreditCodes.Contains(code) && !DebitCodes.Contains(code))
         {
-            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code,
-                "Código de transacción inválido."));
-            return false;
+            const string reason = "Código de transacción inválido.";
+            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
+            return (false, reason);
         }
 
         var isCredit = CreditCodes.Contains(code);
@@ -315,30 +329,30 @@ public class NachaParserService : INachaParserService
 
         if (serviceClassCode == "220" && !isCredit)
         {
-            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code,
-                "Lote exclusivo de crédito (220) no permite débitos."));
-            return false;
+            const string reason = "Lote exclusivo de crédito (220) no permite débitos.";
+            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
+            return (false, reason);
         }
 
         if (serviceClassCode == "225" && !isDebit)
         {
-            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code,
-                "Lote exclusivo de débito (225) no permite créditos."));
-            return false;
+            const string reason = "Lote exclusivo de débito (225) no permite créditos.";
+            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
+            return (false, reason);
         }
 
         if (PrenoteCodes.Contains(code) && entry.Amount.GetValueOrDefault() != 0m)
         {
-            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code,
-                "Prenotificación debe tener valor 0."));
-            return false;
+            const string reason = "Prenotificación debe tener valor 0.";
+            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
+            return (false, reason);
         }
 
         if (!string.Equals(entry.AddendumIndicator, "1", StringComparison.OrdinalIgnoreCase))
         {
-            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code,
-                "El registro 7 es obligatorio para todas las transacciones."));
-            return false;
+            const string reason = "El registro 7 es obligatorio para todas las transacciones.";
+            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
+            return (false, reason);
         }
 
         var requiresIdentityValidation = isDebit || ShouldValidateCreditIdentity(entry.DiscreData);
@@ -346,9 +360,9 @@ public class NachaParserService : INachaParserService
         {
             if (string.IsNullOrWhiteSpace(entry.RecipIdNumber))
             {
-                failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code,
-                    "R17: La identificación no coincide con cuenta del usuario receptor."));
-                return false;
+                const string reason = "R17: La identificación no coincide con cuenta del usuario receptor.";
+                failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
+                return (false, reason);
             }
 
             var accountNumber = entry.AccountNumber ?? string.Empty;
@@ -359,13 +373,42 @@ public class NachaParserService : INachaParserService
 
             if (!matches)
             {
-                failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code,
-                    "R17: La identificación no coincide con cuenta del usuario receptor."));
-                return false;
+                const string reason = "R17: La identificación no coincide con cuenta del usuario receptor.";
+                failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
+                return (false, reason);
             }
         }
 
-        return true;
+        return (true, null);
+    }
+
+    private async Task UpdateThirdPartyStatusAsync(
+        EntryDetail entry,
+        string? validationCycleId,
+        bool isValid,
+        string? failureReason)
+    {
+        if (string.IsNullOrWhiteSpace(entry.AccountNumber) || string.IsNullOrWhiteSpace(entry.RecipIdNumber))
+        {
+            return;
+        }
+
+        var thirdParty = await _context.CustomerThirdParties
+            .FirstOrDefaultAsync(t =>
+                t.DestinationAccountNumber == entry.AccountNumber &&
+                t.RecipientIdNumber == entry.RecipIdNumber &&
+                t.Status == CustomerThirdPartyStatusEnum.Pending);
+
+        if (thirdParty is null)
+        {
+            return;
+        }
+
+        thirdParty.Status = isValid ? CustomerThirdPartyStatusEnum.Active : CustomerThirdPartyStatusEnum.Rejected;
+        thirdParty.ValidationCycleId = validationCycleId;
+        thirdParty.ValidationReceivedAt = DateTime.UtcNow;
+        thirdParty.ValidationMessage = isValid ? null : failureReason;
+        _context.Entry(thirdParty).State = EntityState.Modified;
     }
 
     private static List<EntryDetail> EnforceAddendaRequirements(

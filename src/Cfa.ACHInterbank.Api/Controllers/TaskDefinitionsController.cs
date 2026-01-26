@@ -16,6 +16,9 @@ public class TaskDefinitionsController : ControllerBase
     {
         _service = service;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet]
     [Authorize(Policy = "CanReadAch")]
@@ -24,6 +27,9 @@ public class TaskDefinitionsController : ControllerBase
         var items = await _service.GetAllAsync(ct);
         return Ok(items);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet("{id}")]
     [Authorize(Policy = "CanReadAch")]
@@ -33,6 +39,9 @@ public class TaskDefinitionsController : ControllerBase
         if (task is null) return NotFound();
         return Ok(task);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPost]
     [Authorize(Policy = "CanManageAch")]
@@ -41,6 +50,9 @@ public class TaskDefinitionsController : ControllerBase
         var created = await _service.CreateAsync(task, ct);
         return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPut("{id}")]
     [Authorize(Policy = "CanManageAch")]
@@ -50,6 +62,9 @@ public class TaskDefinitionsController : ControllerBase
         var updated = await _service.UpdateAsync(id, task, ct);
         return updated is null ? NotFound() : Ok(updated);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpDelete("{id}")]
     [Authorize(Policy = "CanManageAch")]

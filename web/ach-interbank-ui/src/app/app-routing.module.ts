@@ -32,6 +32,10 @@ const routes: Routes = [
         loadChildren: () => import('./features/aliases/aliases.module').then((m) => m.AliasesModule)
       },
       {
+        path: 'customers',
+        loadChildren: () => import('./features/customers/customers.module').then((m) => m.CustomersModule)
+      },
+      {
       path: 'ach-cycles',
       loadChildren: () => import('./features/ach-cycles/ach-cycles.module').then((m) => m.AchCyclesModule)
     },

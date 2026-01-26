@@ -1,0 +1,36 @@
+<app-page-header title="Clientes" subtitle="Administra los clientes registrados" [actionsTemplate]="headerActions">
+</app-page-header>
+
+<ng-template #headerActions>
+  <button type="button" class="button primary" (click)="create()">Nuevo cliente</button>
+</ng-template>
+
+<section class="card">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Documento</th>
+        <th>Nombre</th>
+        <th>Cuenta</th>
+        <th>Tipo persona</th>
+        <th>Razón social</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let customer of customers">
+        <td>{{ customer.documentType }} {{ customer.documentNumber }}</td>
+        <td>{{ customer.fullName }}</td>
+        <td>{{ customer.accountNumber }}</td>
+        <td>{{ customer.personType }}</td>
+        <td>{{ customer.companyName || '-' }}</td>
+        <td>
+          <button type="button" class="link" (click)="edit(customer)">Editar</button>
+        </td>
+      </tr>
+      <tr *ngIf="!customers.length && !loading">
+        <td colspan="6">No hay clientes registrados.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>

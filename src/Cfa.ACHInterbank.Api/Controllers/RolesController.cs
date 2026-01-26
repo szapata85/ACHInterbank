@@ -1,7 +1,7 @@
-using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Application.Security.Dtos;
+using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
@@ -10,40 +10,21 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 [Authorize]
 public class RolesController : ControllerBase
 {
-    private readonly AchDbContext _dbContext;
+    private readonly IRolesService _service;
 
-    public RolesController(AchDbContext dbContext)
+    public RolesController(IRolesService service)
     {
-        _dbContext = dbContext;
+        _service = service;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<RoleSummaryDto>>> GetRolesAsync(CancellationToken cancellationToken)
     {
-        var roles = await _dbContext.Roles
-            .Include(r => r.RolePermissions)
-                .ThenInclude(rp => rp.Permission)
-            .OrderBy(r => r.Name)
-            .Select(r => new RoleSummaryDto
-            {
-                Id = r.Id,
-                Name = r.Name ?? string.Empty,
-                Description = r.Description,
-                Permissions = r.RolePermissions
-                    .Select(rp => rp.Permission!.Name ?? string.Empty)
-                    .Where(name => !string.IsNullOrWhiteSpace(name))
-                    .ToList()
-            })
-            .ToListAsync(cancellationToken);
+        var roles = await _service.GetAllAsync(cancellationToken);
 
         return Ok(roles);
     }
-}
-
-public record RoleSummaryDto
-{
-    public Guid Id { get; init; }
-    public string Name { get; init; } = string.Empty;
-    public string? Description { get; init; }
-    public IEnumerable<string> Permissions { get; init; } = Enumerable.Empty<string>();
 }

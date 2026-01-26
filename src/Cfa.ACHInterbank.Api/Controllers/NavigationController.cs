@@ -17,6 +17,9 @@ public class NavigationController : ControllerBase
     {
         _mediator = mediator;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet("menu")]
     public async Task<ActionResult<IList<MenuItemDto>>> GetMenuAsync(CancellationToken cancellationToken)

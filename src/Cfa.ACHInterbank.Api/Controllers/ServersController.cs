@@ -12,6 +12,9 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 [AllowAnonymous]
 public class ServersController : ControllerBase
 {
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet]
     public async Task<IActionResult> HandleRequest([FromServices] ILoadBalancerSingleton loadBalancer, [FromServices] HttpClient httpClient)

@@ -16,6 +16,9 @@ public class NachaRecordLayoutsController : ControllerBase
     {
         _service = service;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet]
     [Authorize(Policy = "CanReadAch")]
@@ -24,6 +27,9 @@ public class NachaRecordLayoutsController : ControllerBase
         var items = await _service.GetAllAsync(ct);
         return Ok(items);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet("{id:int}")]
     [Authorize(Policy = "CanReadAch")]
@@ -32,6 +38,9 @@ public class NachaRecordLayoutsController : ControllerBase
         var item = await _service.GetByIdAsync(id, ct);
         return item is null ? NotFound() : Ok(item);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPost]
     [Authorize(Policy = "CanManageAch")]
@@ -40,6 +49,9 @@ public class NachaRecordLayoutsController : ControllerBase
         var created = await _service.CreateAsync(request, ct);
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPut("{id:int}")]
     [Authorize(Policy = "CanManageAch")]
@@ -53,6 +65,9 @@ public class NachaRecordLayoutsController : ControllerBase
         var updated = await _service.UpdateAsync(id, request, ct);
         return updated is null ? NotFound() : Ok(updated);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpDelete("{id:int}")]
     [Authorize(Policy = "CanManageAch")]

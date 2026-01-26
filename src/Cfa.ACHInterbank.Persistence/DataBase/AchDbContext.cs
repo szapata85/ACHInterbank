@@ -46,9 +46,16 @@ public class AchDbContext : DbContext
     public DbSet<BatchControl> BatchControls { get; set; }
     public DbSet<FileControl> FileControls { get; set; }
     public DbSet<Customer> Customers { get; set; }
+    public DbSet<DocumentTypeCatalog> DocumentTypes { get; set; }
+    public DbSet<GenderCatalog> GenderTypes { get; set; }
+    public DbSet<PersonTypeCatalog> PersonTypes { get; set; }
+    public DbSet<PhoneTypeCatalog> PhoneTypes { get; set; }
+    public DbSet<EmailTypeCatalog> EmailTypes { get; set; }
+    public DbSet<AddressTypeCatalog> AddressTypes { get; set; }
     public DbSet<CustomerAddress> CustomerAddress { get; set; }
     public DbSet<CustomerPhone> CustomerPhones { get; set; }
     public DbSet<CustomerEmail> CustomerEmails { get; set; }
+    public DbSet<CustomerThirdParty> CustomerThirdParties { get; set; }
 
     public DbSet<TaskDefinition> TaskDefinitions => Set<TaskDefinition>();
     public DbSet<TaskParameter> TaskParameters => Set<TaskParameter>();

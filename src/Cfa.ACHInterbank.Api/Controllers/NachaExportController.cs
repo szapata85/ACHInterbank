@@ -29,6 +29,9 @@ public class NachaExportController : ControllerBase
         _cycleService = cycleService;
         _envelopePolicy = envelopePolicy;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet("{cycleId}")]
     [Authorize(Policy = "CanReadAch")]
@@ -39,6 +42,9 @@ public class NachaExportController : ControllerBase
 
         return File(Encoding.ASCII.GetBytes(nachaContent), "text/plain", fileName);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet("{cycleId}/sobre-digital")]
     [Authorize(Policy = "CanReadAch")]

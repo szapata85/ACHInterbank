@@ -1,0 +1,72 @@
+<app-page-header
+  [title]="isEdit ? 'Editar cliente' : 'Nuevo cliente'"
+  subtitle="Completa la información general del cliente."
+></app-page-header>
+
+<form class="card form" [formGroup]="form" (ngSubmit)="save()">
+  <div class="form-grid">
+    <label>
+      Tipo de persona
+      <select formControlName="personType">
+        <option value="">Selecciona</option>
+        <option *ngFor="let option of personTypeOptions" [value]="option.value">{{ option.label }}</option>
+      </select>
+    </label>
+
+    <label>
+      Tipo de documento
+      <select formControlName="documentType">
+        <option value="">Selecciona</option>
+        <option *ngFor="let option of documentTypeOptions" [value]="option.value">{{ option.label }}</option>
+      </select>
+    </label>
+
+    <label>
+      Número de documento
+      <input type="text" formControlName="documentNumber" />
+    </label>
+
+    <label>
+      Número de cuenta
+      <input type="text" formControlName="accountNumber" />
+    </label>
+
+    <label *ngIf="isCompany">
+      Razón social
+      <input type="text" formControlName="companyName" />
+    </label>
+
+    <label *ngIf="!isCompany">
+      Nombre
+      <input type="text" formControlName="firstName" />
+    </label>
+
+    <label *ngIf="!isCompany">
+      Segundo nombre
+      <input type="text" formControlName="middleName" />
+    </label>
+
+    <label *ngIf="!isCompany">
+      Apellido
+      <input type="text" formControlName="lastName" />
+    </label>
+
+    <label *ngIf="!isCompany">
+      Segundo apellido
+      <input type="text" formControlName="secondLastName" />
+    </label>
+
+    <label *ngIf="!isCompany">
+      Género
+      <select formControlName="gender">
+        <option value="">Selecciona</option>
+        <option *ngFor="let option of genderOptions" [value]="option.value">{{ option.label }}</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="button primary">Guardar</button>
+    <a class="button ghost" [routerLink]="['/customers']">Cancelar</a>
+  </div>
+</form>

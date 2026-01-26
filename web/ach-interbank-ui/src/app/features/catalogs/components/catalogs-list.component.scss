@@ -17,3 +17,22 @@
   border-bottom: 1px solid #e5e7eb;
   text-align: left;
 }
+
+.catalog-links ul {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+}
+
+.catalog-links li {
+  margin-bottom: 0.5rem;
+}
+
+.catalog-links a {
+  color: #1d4ed8;
+  text-decoration: none;
+}
+
+.catalog-links a:hover {
+  text-decoration: underline;
+}

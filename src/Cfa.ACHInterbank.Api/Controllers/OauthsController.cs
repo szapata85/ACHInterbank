@@ -14,6 +14,9 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 [AllowAnonymous]
 public class OauthsController : ControllerBase
 {
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPost("GenerateToken")]
     public async Task<IActionResult> GenerateToken([FromBody] TokenModelClient model, [FromServices] IGenerateToken generateToken, [FromServices] IValidator<TokenModelClient> validator)
@@ -27,6 +30,9 @@ public class OauthsController : ControllerBase
 
         return StatusCode(StatusCodes.Status201Created, ResponseApiService.Response(StatusCodes.Status201Created, data));
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPost("GenerateTokenAsync")]
     public async Task<IActionResult> GenerateTokenAsync([FromBody] string Assertion, [FromServices] IGenerateToken generateToken, [FromServices] IValidator<TokenModelClient> validator)
