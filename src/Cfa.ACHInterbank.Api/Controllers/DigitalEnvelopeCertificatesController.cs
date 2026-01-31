@@ -21,6 +21,9 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
     {
         _repository = repository;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<DigitalEnvelopeCertificateResponse>>> GetAsync(CancellationToken cancellationToken)
@@ -29,6 +32,9 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
         var response = certificates.Select(MapToResponse);
         return Ok(response);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPost]
     [RequestSizeLimit(15 * 1024 * 1024)]
@@ -72,6 +78,9 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
         var saved = await _repository.SaveAsync(entity, cancellationToken);
         return Ok(MapToResponse(saved));
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteAsync(int id, CancellationToken cancellationToken)

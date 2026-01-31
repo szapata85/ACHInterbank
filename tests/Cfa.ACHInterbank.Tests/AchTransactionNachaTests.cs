@@ -30,21 +30,7 @@ public class AchTransactionNachaTests
             SeedCoreEntities(arrangeContext);
 
             string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
-
-            var routing = new Mock<IRoutingStrategyService>();
-            routing
-                .Setup(r => r.ResolveClearingHouseForTransactionAsync(
-                    It.IsAny<int>(),
-                    It.IsAny<DateTime>(),
-                    It.IsAny<CancellationToken>()))
-                .ReturnsAsync(cycleId);
-
-            var holiday = new Mock<IBankHoliday>();
-            holiday
-                .Setup(h => h.GetHolidays(It.IsAny<int>()))
-                .Returns([]);
-
-            var service = new AchTransactionService(arrangeContext, routing.Object, holiday.Object);
+            var service = BuildTransactionService(arrangeContext, cycleId);
 
             tx = await service.RegisterTransactionAsync(
                 amount: 1500m,
@@ -118,21 +104,8 @@ public class AchTransactionNachaTests
         arrangeContext.FinancialInstitutions.Update(defaultSource);
         await arrangeContext.SaveChangesAsync();
 
-        var routing = new Mock<IRoutingStrategyService>();
         string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
-        routing
-            .Setup(r => r.ResolveClearingHouseForTransactionAsync(
-                It.IsAny<int>(),
-                It.IsAny<DateTime>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(cycleId);
-
-        var holiday = new Mock<IBankHoliday>();
-        holiday
-            .Setup(h => h.GetHolidays(It.IsAny<int>()))
-            .Returns([]);
-
-        var service = new AchTransactionService(arrangeContext, routing.Object, holiday.Object);
+        var service = BuildTransactionService(arrangeContext, cycleId);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterTransactionAsync(
             amount: 1500m,
@@ -161,20 +134,7 @@ public class AchTransactionNachaTests
             SeedCoreEntities(arrangeContext);
             SeedNachaLayouts(arrangeContext);
 
-            var routing = new Mock<IRoutingStrategyService>();
-            routing
-                .Setup(r => r.ResolveClearingHouseForTransactionAsync(
-                    It.IsAny<int>(),
-                    It.IsAny<DateTime>(),
-                    It.IsAny<CancellationToken>()))
-                .ReturnsAsync(cycleId);
-
-            var holiday = new Mock<IBankHoliday>();
-            holiday
-                .Setup(h => h.GetHolidays(It.IsAny<int>()))
-                .Returns([]);
-
-            var transactionService = new AchTransactionService(arrangeContext, routing.Object, holiday.Object);
+            var transactionService = BuildTransactionService(arrangeContext, cycleId);
 
             await transactionService.RegisterTransactionAsync(
                 amount: 0m,
@@ -238,6 +198,76 @@ public class AchTransactionNachaTests
         Assert.Contains("0000150000", segments[2]);
     }
 
+    [Fact]
+    public async Task RegisterTransactions_WithSavingsCheckingAndPrenote_BuildsNachaFile()
+    {
+        using var connection = CreateOpenConnection();
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+
+        using (var arrangeContext = CreateContext(connection))
+        {
+            SeedCoreEntities(arrangeContext);
+            SeedNachaLayouts(arrangeContext);
+
+            var transactionService = BuildTransactionService(arrangeContext, cycleId);
+
+            await transactionService.RegisterTransactionAsync(
+                amount: 125m,
+                reference: "PAGO-SAV-001",
+                type: TransactionTypeEnum.Credit,
+                accountType: AccountTypeEnum.Savings,
+                isPrenotification: false,
+                destinationInstitutionId: 2,
+                sourceAccountNumber: "111122223333",
+                destinationAccountNumber: "222233334444",
+                recipientIdNumber: null,
+                requiresIdentityValidation: false,
+                addendas: null,
+                ct: CancellationToken.None);
+
+            await transactionService.RegisterTransactionAsync(
+                amount: 350m,
+                reference: "PAGO-CHK-001",
+                type: TransactionTypeEnum.Credit,
+                accountType: AccountTypeEnum.Checking,
+                isPrenotification: false,
+                destinationInstitutionId: 2,
+                sourceAccountNumber: "111122223333",
+                destinationAccountNumber: "555566667777",
+                recipientIdNumber: null,
+                requiresIdentityValidation: false,
+                addendas: null,
+                ct: CancellationToken.None);
+
+            await transactionService.RegisterTransactionAsync(
+                amount: 0m,
+                reference: "PAGOPRE-003",
+                type: TransactionTypeEnum.Credit,
+                accountType: AccountTypeEnum.Checking,
+                isPrenotification: true,
+                destinationInstitutionId: 2,
+                sourceAccountNumber: "111122223333",
+                destinationAccountNumber: "888899990000",
+                recipientIdNumber: null,
+                requiresIdentityValidation: false,
+                addendas: null,
+                ct: CancellationToken.None);
+        }
+
+        using var executionContext = CreateContext(connection);
+        var holidayService = new Mock<IBankHoliday>();
+        holidayService
+            .Setup(h => h.GetHolidays(It.IsAny<int>()))
+            .Returns([]);
+        var recordDataProvider = new Mock<INachaRecordDataProvider>();
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object);
+        var nachaContent = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
+
+        Assert.NotEmpty(nachaContent);
+        Assert.Contains("PAGO-SAV-001", nachaContent);
+        Assert.Contains("PAGO-CHK-001", nachaContent);
+    }
+
     private static SqliteConnection CreateOpenConnection()
     {
         var connection = new SqliteConnection("DataSource=:memory:");
@@ -258,6 +288,24 @@ public class AchTransactionNachaTests
 
     private static void SeedCoreEntities(AchDbContext context)
     {
+        var documentType = new DocumentTypeCatalog
+        {
+            Code = "DNI",
+            Name = "Documento"
+        };
+
+        var personType = new PersonTypeCatalog
+        {
+            Code = "NAT",
+            Name = "Natural"
+        };
+
+        var gender = new GenderCatalog
+        {
+            Code = "M",
+            Name = "Masculino"
+        };
+
         var config = new ClearingHouseConfig
         {
             Id = 1,
@@ -309,6 +357,9 @@ public class AchTransactionNachaTests
         destinationInstitution.CalculateCheckDigit();
 
         context.ClearingHouseConfigs.Add(config);
+        context.DocumentTypeCatalogs.Add(documentType);
+        context.PersonTypeCatalogs.Add(personType);
+        context.GenderCatalogs.Add(gender);
         context.ClearingHouses.Add(clearingHouse);
         context.AchCycles.Add(cycle);
         var alternativeSource = new FinancialInstitution
@@ -323,7 +374,40 @@ public class AchTransactionNachaTests
         alternativeSource.CalculateCheckDigit();
 
         context.FinancialInstitutions.AddRange(sourceInstitution, destinationInstitution, alternativeSource);
+        context.Customers.Add(new Customer
+        {
+            FirstName = "Test",
+            LastName = "Customer",
+            Gender = gender.Code,
+            PersonType = personType.Code,
+            DocumentType = documentType.Code,
+            DocumentNumber = "123456789",
+            AccountNumber = "111122223333"
+        });
         context.SaveChanges();
+    }
+
+    private static AchTransactionService BuildTransactionService(AchDbContext context, string cycleId)
+    {
+        var routing = new Mock<IRoutingStrategyService>();
+        routing
+            .Setup(r => r.ResolveClearingHouseForTransactionAsync(
+                It.IsAny<int>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(cycleId);
+
+        var holiday = new Mock<IBankHoliday>();
+        holiday
+            .Setup(h => h.GetHolidays(It.IsAny<int>()))
+            .Returns([]);
+
+        var validator = new TransactionValidator();
+        var batchResolver = new BatchResolver(context, routing.Object);
+        var persister = new TransactionPersister(context, validator);
+        var prenotificationHandler = new PrenotificationHandler(context);
+
+        return new AchTransactionService(context, holiday.Object, validator, batchResolver, persister, prenotificationHandler);
     }
 
     private static void SeedNachaLayouts(AchDbContext context)

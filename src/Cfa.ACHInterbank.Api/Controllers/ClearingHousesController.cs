@@ -18,6 +18,9 @@ public class ClearingHousesController : ControllerBase
         _service = service;
         _cycleService = cycleService;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet]
     [Authorize(Policy = "CanReadAch")]
@@ -26,6 +29,9 @@ public class ClearingHousesController : ControllerBase
         var result = await _service.GetAsync(request, ct);
         return Ok(result);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet("{id:int}")]
     [Authorize(Policy = "CanReadAch")]
@@ -34,6 +40,9 @@ public class ClearingHousesController : ControllerBase
         var result = await _service.GetByIdAsync(id, ct);
         return result is null ? NotFound() : Ok(result);
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet("{id:int}/cycles")]
     [Authorize(Policy = "CanReadAch")]

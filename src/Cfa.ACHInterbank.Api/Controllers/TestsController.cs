@@ -22,6 +22,9 @@ public class TestsController : ControllerBase
     [HttpGet]
     //[PostFilter]
     //[SwaggerRequestExample]
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
     public IActionResult Get(string data, [FromServices] ITestTransient test, [FromServices] IHttpContextAccessor httpContextAccessor)
     {
         int i = 1;
@@ -40,6 +43,9 @@ public class TestsController : ControllerBase
 
         return NoContent();
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet("Prueba")]
     [AllowAnonymous]

@@ -1,7 +1,7 @@
-using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Application.Security.Dtos;
+using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
@@ -10,33 +10,21 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 [Authorize]
 public class PermissionsController : ControllerBase
 {
-    private readonly AchDbContext _dbContext;
+    private readonly IPermissionsService _service;
 
-    public PermissionsController(AchDbContext dbContext)
+    public PermissionsController(IPermissionsService service)
     {
-        _dbContext = dbContext;
+        _service = service;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<PermissionSummaryDto>>> GetPermissionsAsync(CancellationToken cancellationToken)
     {
-        var permissions = await _dbContext.Permissions
-            .OrderBy(p => p.Name)
-            .Select(p => new PermissionSummaryDto
-            {
-                Id = p.Id,
-                Name = p.Name ?? string.Empty,
-                Description = p.Description
-            })
-            .ToListAsync(cancellationToken);
+        var permissions = await _service.GetAllAsync(cancellationToken);
 
         return Ok(permissions);
     }
-}
-
-public record PermissionSummaryDto
-{
-    public Guid Id { get; init; }
-    public string Name { get; init; } = string.Empty;
-    public string? Description { get; init; }
 }

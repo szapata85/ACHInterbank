@@ -1,5 +1,4 @@
 ﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
-using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 
 namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
@@ -9,8 +8,9 @@ public class CustomerEmail : AuditableEntity
     public int CustomerId { get; set; }
     public Customer Customer { get; set; } = null!;
 
-    public EmailTypeEnum EmailType { get; set; } // Personal, Trabajo, etc.
+    public string EmailType { get; set; } = null!; // Personal, Trabajo, etc.
     public string Address { get; set; } = null!;
     public bool IsPrimary { get; set; } = false;
-}
 
+    public EmailTypeCatalog EmailTypeCatalog { get; set; } = null!;
+}

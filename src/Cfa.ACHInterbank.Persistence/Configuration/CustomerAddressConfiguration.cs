@@ -11,7 +11,7 @@ public class CustomerAddressConfiguration : IEntityTypeConfiguration<CustomerAdd
         builder.ToTable("CustomerAddresses");
         builder.HasKey(a => a.Id);
 
-        builder.Property(a => a.AddressType).HasConversion<string>().HasMaxLength(30).IsRequired();
+        builder.Property(a => a.AddressType).HasMaxLength(30).IsRequired();
         builder.Property(a => a.Line1).HasMaxLength(200).IsRequired();
         builder.Property(a => a.Line2).HasMaxLength(200);
         builder.Property(a => a.City).HasMaxLength(100).IsRequired();
@@ -23,6 +23,12 @@ public class CustomerAddressConfiguration : IEntityTypeConfiguration<CustomerAdd
          .WithMany(c => c.Addresses)
          .HasForeignKey(a => a.CustomerId)
          .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(a => a.AddressTypeCatalog)
+         .WithMany(c => c.CustomerAddresses)
+         .HasForeignKey(a => a.AddressType)
+         .HasPrincipalKey(c => c.Code)
+         .OnDelete(DeleteBehavior.Restrict);
 
         // Índice filtrado opcional si quieres solo UNA dirección primaria:
         //builder.HasIndex(a => new { a.CustomerId, a.IsPrimary })

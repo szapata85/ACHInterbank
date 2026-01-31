@@ -15,6 +15,14 @@ import { RouterModule } from '@angular/router';
 export class CatalogsListComponent implements OnInit {
   private readonly api = inject(CatalogsApiService);
   banks: CatalogItem[] = [];
+  readonly adminCatalogs = [
+    { label: 'Tipos de documento', route: '/catalogs/document-types' },
+    { label: 'Tipos de género', route: '/catalogs/gender-types' },
+    { label: 'Tipos de persona', route: '/catalogs/person-types' },
+    { label: 'Tipos de teléfono', route: '/catalogs/phone-types' },
+    { label: 'Tipos de correo', route: '/catalogs/email-types' },
+    { label: 'Tipos de dirección', route: '/catalogs/address-types' }
+  ];
 
   ngOnInit(): void {
     this.api.listBanks().subscribe((banks) => (this.banks = banks));

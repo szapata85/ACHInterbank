@@ -17,21 +17,33 @@ public class FinancialInstitutionsController : ControllerBase
     {
         _service = service;
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetAll(bool includeInactive = false, CancellationToken ct = default)
         => Ok(await _service.GetAllAsync(includeInactive, ct));
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpGet("{id}")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetById(int id, CancellationToken ct = default)
         => Ok(await _service.GetByIdAsync(id, ct));
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPost]
     [Authorize(Policy = "CanManageAch")]
     public async Task<IActionResult> Create([FromBody] FinancialInstitutionDto dto, CancellationToken ct = default)
         => Ok(await _service.CreateAsync(dto, ct));
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPut("{id}")]
     [Authorize(Policy = "CanManageAch")]
@@ -40,6 +52,9 @@ public class FinancialInstitutionsController : ControllerBase
         if (id != dto.Id) return BadRequest();
         return Ok(await _service.UpdateAsync(dto, ct));
     }
+    /// <summary>
+    /// Pendiente de documentación.
+    /// </summary>
 
     [HttpPatch("{id}/status")]
     [Authorize(Policy = "CanManageAch")]

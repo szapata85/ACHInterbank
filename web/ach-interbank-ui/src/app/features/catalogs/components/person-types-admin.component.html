@@ -1,0 +1,20 @@
+<app-page-header title="Tipos de persona" subtitle="Administra los tipos de persona disponibles."></app-page-header>
+
+<section class="card">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Código</th>
+        <th>Nombre</th>
+        <th>Descripción</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let row of rows">
+        <td>{{ row.code }}</td>
+        <td>{{ row.name }}</td>
+        <td>{{ row.description }}</td>
+      </tr>
+    </tbody>
+  </table>
+</section>

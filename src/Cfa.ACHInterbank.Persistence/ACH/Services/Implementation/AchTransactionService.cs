@@ -1,7 +1,7 @@
-﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
-using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -13,17 +13,26 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class AchTransactionService : IAchTransactionService
 {
     private readonly AchDbContext _context;
-    private readonly IRoutingStrategyService _routing;
     private readonly IBankHoliday _holidayService;
+    private readonly ITransactionValidator _transactionValidator;
+    private readonly IBatchResolver _batchResolver;
+    private readonly ITransactionPersister _transactionPersister;
+    private readonly IPrenotificationHandler _prenotificationHandler;
 
     public AchTransactionService(
         AchDbContext context,
-        IRoutingStrategyService routing,
-        IBankHoliday holidayService)
+        IBankHoliday holidayService,
+        ITransactionValidator transactionValidator,
+        IBatchResolver batchResolver,
+        ITransactionPersister transactionPersister,
+        IPrenotificationHandler prenotificationHandler)
     {
         _context = context;
-        _routing = routing;
         _holidayService = holidayService;
+        _transactionValidator = transactionValidator;
+        _batchResolver = batchResolver;
+        _transactionPersister = transactionPersister;
+        _prenotificationHandler = prenotificationHandler;
     }
 
     public async Task<AchTransaction> RegisterTransactionAsync(
@@ -40,225 +49,35 @@ public class AchTransactionService : IAchTransactionService
         IEnumerable<AddendaDto>? addendas = null,
         CancellationToken ct = default)
     {
-        if (isPrenotification)
-        {
-            if (amount != 0)
-            {
-                throw new ArgumentException("Las prenotificaciones deben tener monto cero.", nameof(amount));
-            }
-        }
-        else if (amount <= 0)
-        {
-            throw new ArgumentException("El monto debe ser mayor a cero.", nameof(amount));
-        }
-        if (string.IsNullOrWhiteSpace(reference)) throw new ArgumentException("La referencia es obligatoria.", nameof(reference));
-
-        // 1) Institución origen por defecto (activa)
-        var source = await _context.FinancialInstitutions
-            .AsNoTracking()
-            .Where(fi => fi.IsDefaultSource && fi.Status == FinancialInstitutionStatus.Active)
-            .Select(fi => new
-            {
-                fi.Id,
-                fi.Name,
-                fi.RoutingNumber,
-                fi.TransitCode,
-                fi.CheckDigit
-            })
-            .FirstOrDefaultAsync(ct)
-            ?? throw new InvalidOperationException("No existe institución de origen por defecto y activa.");
-
-        string sourceRouting = source.RoutingNumber?.Trim() ?? string.Empty;
-        string sourceTransit = source.TransitCode?.Trim() ?? string.Empty;
-
-        if (string.IsNullOrWhiteSpace(sourceRouting) || string.IsNullOrWhiteSpace(sourceTransit))
-            throw new InvalidOperationException("La institución de origen no tiene configurado el código de ruteo/transito.");
-
-        string originBase = $"{sourceRouting}{sourceTransit}";
-        if (originBase.Length != 8)
-            throw new InvalidOperationException($"La institución de origen tiene una longitud inválida para el ruteo: {originBase}.");
-
-        string sourceCheckDigit = string.IsNullOrWhiteSpace(source.CheckDigit)
-            ? DigitoChequeoHelper.CalcularDigitoChequeo(originBase)
-            : source.CheckDigit.Trim();
-
-        // 2) Institución destino (activa)
-        var dest = await _context.FinancialInstitutions
-            .AsNoTracking()
-            .Where(fi => fi.Id == destinationInstitutionId && fi.Status == FinancialInstitutionStatus.Active)
-            .Select(fi => new
-            {
-                fi.Id,
-                fi.RoutingNumber,
-                fi.TransitCode,
-                fi.CheckDigit
-            })
-            .FirstOrDefaultAsync(ct)
-            ?? throw new InvalidOperationException("Institución destino no encontrada o inactiva.");
-
-        string destRouting = dest.RoutingNumber?.Trim() ?? string.Empty;
-        string destTransit = dest.TransitCode?.Trim() ?? string.Empty;
-
-        if (string.IsNullOrWhiteSpace(destRouting) || string.IsNullOrWhiteSpace(destTransit))
-            throw new InvalidOperationException("La institución destino no tiene configurado el código de ruteo/transito.");
-
-        string destinationBase = $"{destRouting}{destTransit}";
-        if (destinationBase.Length != 8)
-            throw new InvalidOperationException($"La institución destino tiene una longitud inválida para el ruteo: {destinationBase}.");
-
-        // 3) Ruteo + fecha efectiva alineada al ciclo ACH
-        var now = DateTime.Now;
-        string achCycleId = await _routing.ResolveClearingHouseForTransactionAsync(destinationInstitutionId, now, ct);
-        var cycle = await _context.AchCycles
-            .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == achCycleId, ct)
-            ?? throw new InvalidOperationException("No se encontró el ciclo ACH para la transacción.");
-        DateTime effectiveEntryDate = cycle.ProcessingDate.Date;
-
-        // 4) Determinar/crear el lote (para este ciclo + compañía/identificación)
-        string companyName = source.Name;
-        string companyIdentification = $"{originBase}{sourceCheckDigit}";
-        string companyEntryDescription = "PAGOS"; // puedes parametrizar por tipo si lo deseas
-
-        // Intentamos reutilizar un lote del mismo ciclo/compañía/fecha
-        var batch = await _context.AchBatches
-            .FirstOrDefaultAsync(b =>
-                b.AchCycleId == achCycleId &&
-                b.CompanyName == companyName &&
-                b.CompanyIdentification == companyIdentification &&
-                b.EffectiveEntryDate == effectiveEntryDate, ct);
-
-        if (batch is null)
-        {
-            batch = new AchBatch
-            {
-                AchCycleId = achCycleId,
-                CompanyName = companyName,
-                CompanyIdentification = companyIdentification,
-                EffectiveEntryDate = effectiveEntryDate,
-                OriginOrOdfi = originBase
-            };
-            _context.AchBatches.Add(batch);
-            await _context.SaveChangesAsync(ct);
-        }
-
-        // 5) Calcular campos NACHA-m por defecto:
-        // ServiceClassCode: “200” mixed (débitos+créditos) o “220” (créditos) / “225” (débitos)
-        // TransactionCode: según tipo de cuenta + operación + prenotificación
-        // OriginatingDFI: 8 dígitos del ODFI (sin check digit)
-        // ReceivingDFI : 8 dígitos del RDFI (sin check digit)
-        string serviceClass = "200"; // Mixed por defecto (puedes variarlo por lote/empresa)
-        string transactionCode = ResolveTransactionCode(type, accountType, isPrenotification);
-
-        if (type == TransactionTypeEnum.Debit && string.IsNullOrWhiteSpace(recipientIdNumber))
-        {
-            throw new ArgumentException("La identificación del receptor es obligatoria para débitos.", nameof(recipientIdNumber));
-        }
-
-        if (type == TransactionTypeEnum.Credit && requiresIdentityValidation && string.IsNullOrWhiteSpace(recipientIdNumber))
-        {
-            throw new ArgumentException("La identificación del receptor es obligatoria cuando se solicita validación.", nameof(recipientIdNumber));
-        }
-
-        string originatingDfi = originBase;
-        string receivingDfi = destinationBase;
-
-        // Trace: suele ser ODFI(8) + 7 secuencia; aquí generamos una secuencia simple por lote.
-        int nextSeq = await _context.AchTransactions
-            .Where(t => t.AchBatchId == batch.Id)
-            .Select(t => (int?)t.TraceSequenceNumber)
-            .MaxAsync(ct) ?? 0;
-        nextSeq++;
-        string traceNumber = $"{originatingDfi}{nextSeq.ToString().PadLeft(7, '0')}";
-
-        // 6) Crear la transacción completa alineada a tu modelo extendido
-        var tx = new AchTransaction
+        var request = new AchTransactionRequestData
         {
             Amount = amount,
             Reference = reference,
             Type = type,
-
-            TransactionCode = transactionCode,
-            ServiceClassCode = serviceClass,
-            CompanyEntryDescription = companyEntryDescription,
-            CompanyName = companyName,
-            CompanyIdentification = companyIdentification,
-
-            OriginatingDFI = originatingDfi,
-            ReceivingDFI = receivingDfi,
-
-            TraceNumber = traceNumber,
-            TraceSequenceNumber = nextSeq,
-
-            EffectiveEntryDate = effectiveEntryDate,
-            AddendaRecordIndicator = true,
+            AccountType = accountType,
             IsPrenotification = isPrenotification,
-            RecipientIdNumber = recipientIdNumber?.Trim() ?? string.Empty,
-            DiscretionaryData = type == TransactionTypeEnum.Credit && requiresIdentityValidation ? "V" : string.Empty,
-
+            DestinationInstitutionId = destinationInstitutionId,
             SourceAccountNumber = sourceAccountNumber,
             DestinationAccountNumber = destinationAccountNumber,
-
-            SourceInstitutionId = source.Id,
-            DestinationInstitutionId = dest.Id,
-
-            AchCycleId = achCycleId,
-            AchBatchId = batch.Id
+            RecipientIdNumber = recipientIdNumber,
+            RequiresIdentityValidation = requiresIdentityValidation,
+            Addendas = addendas
         };
 
-        if (addendas != null)
+        _transactionValidator.ValidateRequest(request);
+
+        var batchContext = await _batchResolver.ResolveAsync(request, ct);
+        var persisted = await _transactionPersister.PersistAsync(request, batchContext, ct);
+
+        if (isPrenotification)
         {
-            tx.Addendas = addendas.Select((a, idx) => new AchTransactionAddenda
-            {
-                AddendaType = ValidateAddendaType(a.AddendaType),
-                Information = a.Information,
-                SequenceNumber = idx + 1
-            }).ToList();
+            await _prenotificationHandler.HandleAsync(request, persisted.Transaction, ct);
         }
 
-        _context.AchTransactions.Add(tx);
-        await _context.SaveChangesAsync(ct);
+        await _transactionPersister.UpdateBatchTotalsAsync(persisted.Batch, ct);
+        await _transactionPersister.UpdateBatchServiceClassCodeAsync(persisted.Batch, ct);
 
-        await UpdateBatchTotalsAsync(batch, ct);
-        // 🔁 Recalcular el ServiceClassCode del lote si aplica
-        await UpdateBatchServiceClassCodeAsync(batch, ct);
-
-
-        return tx;
-    }
-
-    private static string ValidateAddendaType(string addendaType)
-    {
-        var normalized = addendaType.Trim();
-        if (normalized is "05" or "99")
-        {
-            return normalized;
-        }
-
-        throw new ArgumentException("D12: El código de tipo de registro adenda es incorrecto.", nameof(addendaType));
-    }
-
-    private static string ResolveTransactionCode(
-        TransactionTypeEnum type,
-        AccountTypeEnum accountType,
-        bool isPrenotification)
-    {
-        return (type, accountType, isPrenotification) switch
-        {
-            (TransactionTypeEnum.Credit, AccountTypeEnum.Checking, false) => "22",
-            (TransactionTypeEnum.Credit, AccountTypeEnum.Checking, true) => "23",
-            (TransactionTypeEnum.Debit, AccountTypeEnum.Checking, false) => "27",
-            (TransactionTypeEnum.Debit, AccountTypeEnum.Checking, true) => "28",
-            (TransactionTypeEnum.Credit, AccountTypeEnum.Savings, false) => "32",
-            (TransactionTypeEnum.Credit, AccountTypeEnum.Savings, true) => "33",
-            (TransactionTypeEnum.Debit, AccountTypeEnum.Savings, false) => "37",
-            (TransactionTypeEnum.Debit, AccountTypeEnum.Savings, true) => "38",
-            (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, false) => "52",
-            (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, true) => "53",
-            (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, false) => "55",
-            (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, true) => "57",
-            _ => throw new ArgumentOutOfRangeException(nameof(accountType), "Tipo de cuenta no soportado.")
-        };
+        return persisted.Transaction;
     }
 
     public Task<DateTime> GetNextBusinessDayAsync(DateTime baseDate, CancellationToken ct = default)
@@ -302,7 +121,7 @@ public class AchTransactionService : IAchTransactionService
                 .Include(t => t.SourceInstitution)
                 .Include(t => t.DestinationInstitution)
                 .Include(t => t.Addendas)
-                .Include(t => t.AchBatch); // ← importante: el nombre correcto es AchBatch
+                .Include(t => t.AchBatch);
         }
 
         return await q.OrderBy(t => t.Id).ToListAsync(ct);
@@ -372,60 +191,6 @@ public class AchTransactionService : IAchTransactionService
             .ToListAsync(ct);
     }
 
-    private async Task UpdateBatchTotalsAsync(AchBatch batch, CancellationToken ct)
-    {
-        var totals = await _context.AchTransactions
-            .Where(t => t.AchBatchId == batch.Id)
-            .GroupBy(t => t.Type)
-            .Select(g => new
-            {
-                Type = g.Key,
-                Sum = g.Sum(t => t.Amount)
-            })
-            .ToListAsync(ct);
-
-        decimal debit = totals
-            .Where(t => t.Type == TransactionTypeEnum.Debit)
-            .Select(t => t.Sum)
-            .FirstOrDefault();
-
-        decimal credit = totals
-            .Where(t => t.Type == TransactionTypeEnum.Credit)
-            .Select(t => t.Sum)
-            .FirstOrDefault();
-
-        if (batch.TotalDebitAmount != debit || batch.TotalCreditAmount != credit)
-        {
-            batch.TotalDebitAmount = debit;
-            batch.TotalCreditAmount = credit;
-            _context.AchBatches.Update(batch);
-            await _context.SaveChangesAsync(ct);
-        }
-    }
-
-    private async Task UpdateBatchServiceClassCodeAsync(AchBatch batch, CancellationToken ct)
-    {
-        var transactions = await _context.AchTransactions
-            .Where(t => t.AchBatchId == batch.Id)
-            .Select(t => t.Type)
-            .ToListAsync(ct);
-
-        if (!transactions.Any())
-            return;
-
-        bool allCredits = transactions.All(t => t == TransactionTypeEnum.Credit);
-        bool allDebits = transactions.All(t => t == TransactionTypeEnum.Debit);
-
-        string newCode = allCredits ? "220" : allDebits ? "225" : "200";
-
-        if (batch.ServiceClassCode != newCode)
-        {
-            batch.ServiceClassCode = newCode;
-            _context.AchBatches.Update(batch);
-            await _context.SaveChangesAsync(ct);
-        }
-    }
-
     public async Task<AchTransaction?> GetTransactionByIdAsync(int transactionId, CancellationToken ct = default)
     {
         return await _context.AchTransactions
@@ -436,5 +201,4 @@ public class AchTransactionService : IAchTransactionService
             .Include(t => t.AchCycle)
             .FirstOrDefaultAsync(t => t.Id == transactionId, ct);
     }
-
 }
