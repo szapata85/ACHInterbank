@@ -1,18 +1,18 @@
 import { HttpClient, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { environment } from '../../../../environments/environment';
+import { ApiService } from '../../../core/services/api.service';
 
 @Injectable({ providedIn: 'root' })
 export class SobreDigitalService {
   private readonly http = inject(HttpClient);
-  private readonly apiBaseUrl = environment.apiBaseUrl.replace(/\/+$/, '');
+  private readonly api = inject(ApiService);
 
   encrypt(file: File): Observable<HttpResponse<Blob>> {
     const form = new FormData();
     form.append('file', file);
 
-    return this.http.post(`${this.apiBaseUrl}/SobreDigital/encrypt`, form, {
+    return this.http.post(this.api.resolveUrl('SobreDigital/encrypt'), form, {
       observe: 'response',
       responseType: 'blob'
     });
@@ -22,7 +22,7 @@ export class SobreDigitalService {
     const form = new FormData();
     form.append('file', file);
 
-    return this.http.post(`${this.apiBaseUrl}/SobreDigital/decrypt`, form, {
+    return this.http.post(this.api.resolveUrl('SobreDigital/decrypt'), form, {
       observe: 'response',
       responseType: 'blob'
     });

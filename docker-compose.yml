@@ -38,8 +38,8 @@ services:
       dockerfile: src/Cfa.ACHInterbank.Api/Dockerfile
     container_name: Cfa.ACHInterbank.Api
     environment:
-      ASPNETCORE_URLS: "https://+:8081;http://+:8080"
-      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "${ASPNETCORE_URLS:-https://+:8081;http://+:8080}"
+      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
       ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/aspnetapp.pfx"
       ASPNETCORE_Kestrel__Certificates__Default__Password: "changeit"
       Database__Provider: "SqlServer"
@@ -49,8 +49,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "8081:8081"
-      - "8080:8080"
+      - "744:8080"
     volumes:
       - ./certs:/https:rw
     depends_on:
@@ -65,8 +64,8 @@ services:
       dockerfile: src/Cfa.ACHInterbank.Api/Dockerfile
     container_name: Cfa.ACHInterbank.Api
     environment:
-      ASPNETCORE_URLS: "https://+:8081;http://+:8080"
-      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "${ASPNETCORE_URLS:-https://+:8081;http://+:8080}"
+      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
       ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/aspnetapp.pfx"
       ASPNETCORE_Kestrel__Certificates__Default__Password: "changeit"
       Database__Provider: "Postgres"
@@ -76,8 +75,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "8081:8081"
-      - "8080:8080"
+      - "744:8080"
     volumes:
       - ./certs:/https:rw
     depends_on:
@@ -93,4 +91,4 @@ services:
     volumes:
       - ./certs:/https:rw
     ports:
-      - "4200:80"
+      - "743:80"
