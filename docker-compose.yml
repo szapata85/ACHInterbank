@@ -38,8 +38,9 @@ services:
       dockerfile: src/Cfa.ACHInterbank.Api/Dockerfile
     container_name: Cfa.ACHInterbank.Api
     environment:
-      ASPNETCORE_URLS: "${ASPNETCORE_URLS:-https://+:8081;http://+:8080}"
+      ASPNETCORE_URLS: "${ASPNETCORE_URLS:-http://+:8080}"
       ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
+      EnableHttpsRedirection: "${ENABLE_HTTPS_REDIRECTION:-false}"
       ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/aspnetapp.pfx"
       ASPNETCORE_Kestrel__Certificates__Default__Password: "changeit"
       Database__Provider: "SqlServer"
@@ -64,8 +65,9 @@ services:
       dockerfile: src/Cfa.ACHInterbank.Api/Dockerfile
     container_name: Cfa.ACHInterbank.Api
     environment:
-      ASPNETCORE_URLS: "${ASPNETCORE_URLS:-https://+:8081;http://+:8080}"
+      ASPNETCORE_URLS: "${ASPNETCORE_URLS:-http://+:8080}"
       ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
+      EnableHttpsRedirection: "${ENABLE_HTTPS_REDIRECTION:-false}"
       ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/aspnetapp.pfx"
       ASPNETCORE_Kestrel__Certificates__Default__Password: "changeit"
       Database__Provider: "Postgres"

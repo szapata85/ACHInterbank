@@ -212,7 +212,10 @@ public static class DependencyInjectionService
         app.UseMiddleware<TokenJwtMiddleware>();
         // Middleware Security Headers
         app.UseMiddleware<SecurityHeadersMiddleware>();
-        app.UseHttpsRedirection();
+        if (app.Configuration.GetValue<bool>("EnableHttpsRedirection", true))
+        {
+            app.UseHttpsRedirection();
+        }
         app.UseRateLimiter();
         //app.UseCsrfTokenMiddleware();
         app.UseAuthentication();
