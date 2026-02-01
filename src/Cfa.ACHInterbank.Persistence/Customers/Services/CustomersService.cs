@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.Customers.Dtos;
 using Cfa.ACHInterbank.Application.Customers.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 

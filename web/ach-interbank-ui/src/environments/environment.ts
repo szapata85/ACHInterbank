@@ -4,7 +4,7 @@ export const environment = {
    * URL base para los endpoints REST del backend ACH Interbank.
    * No incluye el prefijo /api porque ApiService lo añade según las rutas solicitadas.
    */
-  apiBaseUrl: 'http://cfaach.ddns.net:744',
+  apiBaseUrl: 'http://localhost:8080',
   /** Endpoint relativo para las operaciones de autenticación */
   authEndpoint: 'auth',
   /** Tiempo máximo de espera para peticiones HTTP (en milisegundos) */

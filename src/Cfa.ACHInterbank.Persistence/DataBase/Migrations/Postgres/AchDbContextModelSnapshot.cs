@@ -39,8 +39,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<string>("BeforeJson")
                         .HasColumnType("text");
 
-                b.Property<DateTime>("ChangedAt")
-                    .HasColumnType("timestamp without time zone");
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ChangedBy")
                         .IsRequired()
@@ -249,18 +249,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
-                            Id = 25,
-                            Exact = true,
-                            Icon = "playlist_add_check",
-                            IsActive = true,
-                            Label = "Definiciones NACHA",
-                            MenuId = 1,
-                            Order = 3,
-                            ParentId = 4,
-                            Route = "/ach-cycles/nacha/definitions"
-                        },
-                        new
-                        {
                             Id = 4,
                             Exact = true,
                             Icon = "schedule",
@@ -293,6 +281,18 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                             Order = 2,
                             ParentId = 4,
                             Route = "/ach-cycles/nacha/layouts"
+                        },
+                        new
+                        {
+                            Id = 25,
+                            Exact = true,
+                            Icon = "playlist_add_check",
+                            IsActive = true,
+                            Label = "Definiciones NACHA",
+                            MenuId = 1,
+                            Order = 3,
+                            ParentId = 4,
+                            Route = "/ach-cycles/nacha/definitions"
                         },
                         new
                         {
@@ -537,6 +537,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
+                            MenuItemId = 25,
+                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
+                        },
+                        new
+                        {
                             MenuItemId = 5,
                             PermissionId = new Guid("dd0e54be-b6df-4ab3-8783-0f72b6e774a2")
                         },
@@ -594,11 +599,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         {
                             MenuItemId = 24,
                             PermissionId = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf")
-                        },
-                        new
-                        {
-                            MenuItemId = 25,
-                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
                         });
                 });
 
@@ -654,6 +654,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
+                            MenuItemId = 25,
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
+                        },
+                        new
+                        {
                             MenuItemId = 9,
                             RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
                         },
@@ -670,11 +675,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         new
                         {
                             MenuItemId = 24,
-                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
-                        },
-                        new
-                        {
-                            MenuItemId = 25,
                             RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
                         },
                         new
@@ -850,6 +850,31 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.ToTable("TaskParameters", (string)null);
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.LoginLockoutSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LockoutMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MaxFailedAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LoginLockoutSettings", (string)null);
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.PasswordResetToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -918,31 +943,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasKey("Id");
 
                     b.ToTable("PasswordRuleSettings", (string)null);
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.LoginLockoutSetting", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("LockoutMinutes")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("MaxFailedAttempts")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("LoginLockoutSettings", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.Permission", b =>
@@ -1114,13 +1114,14 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)");
 
+                    b.Property<int>("FailedLoginAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("FullName")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
-
-                    b.Property<int>("FailedLoginAttempts")
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -1162,7 +1163,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                             FailedLoginAttempts = 0,
                             FullName = "Administrador ACH",
                             IsActive = true,
-                            LockoutEnd = (DateTimeOffset?)null,
                             PasswordHash = "3eb3fe66b31e3b4d10fa70b5cad49c7112294af6ae4e476a1c405155d45aa121",
                             UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             Username = "admin"
@@ -1450,6 +1450,1242 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasIndex("AchTransactionId");
 
                     b.ToTable("AchTransactionAddenda", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AddendaRecord", b =>
+                {
+                    b.Property<int>("AddendaID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("AddendaID"));
+
+                    b.Property<string>("AddendumSequence")
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)");
+
+                    b.Property<string>("CodeTypeAddendumRecord")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EntryDetailSequenceNumber")
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)");
+
+                    b.Property<string>("IdUserOrig")
+                        .HasColumnType("text");
+
+                    b.Property<string>("InfofromOriginator")
+                        .HasColumnType("text");
+
+                    b.Property<string>("InvoiceOrAccountNumber")
+                        .HasColumnType("text");
+
+                    b.Property<string>("NachaID")
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("PurposeOfTransaction")
+                        .HasColumnType("text");
+
+                    b.HasKey("AddendaID");
+
+                    b.HasIndex("NachaID");
+
+                    b.ToTable("AddendaRecords", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AddressTypeCatalog", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Code");
+
+                    b.ToTable("AddressTypes", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Code = "CASA",
+                            Name = "Casa"
+                        },
+                        new
+                        {
+                            Code = "TRABAJO",
+                            Name = "Trabajo"
+                        },
+                        new
+                        {
+                            Code = "FINCA",
+                            Name = "Finca"
+                        },
+                        new
+                        {
+                            Code = "CORRESPONDENCIA",
+                            Name = "Correspondencia"
+                        },
+                        new
+                        {
+                            Code = "PERSONAL",
+                            Name = "Personal"
+                        });
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.BankHolidayModel", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CountryCode")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("BankHolidays");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.BatchControl", b =>
+                {
+                    b.Property<int>("BatchControlID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("BatchControlID"));
+
+                    b.Property<string>("BatchNumber")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BatchTranClassCode")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CodAutMessage")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<int?>("EntryAddendaCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("IdOrigEntity")
+                        .HasColumnType("text");
+
+                    b.Property<string>("IdUserOrig")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("NachaID")
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<decimal>("TotalCreditAmount")
+                        .HasColumnType("money");
+
+                    b.Property<decimal>("TotalDebitAmount")
+                        .HasColumnType("money");
+
+                    b.Property<int?>("TotalEntry")
+                        .HasColumnType("integer");
+
+                    b.HasKey("BatchControlID");
+
+                    b.HasIndex("NachaID");
+
+                    b.ToTable("BatchControls", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.BatchHeader", b =>
+                {
+                    b.Property<int>("BatchID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("BatchID"));
+
+                    b.Property<int>("BatchNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CompanyEntryDescription")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyId")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("CompanyName")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("CompensationDate")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DescriptiveDate")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DiscretionaryData")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EffectiveEntryDate")
+                        .HasColumnType("text");
+
+                    b.Property<string>("NachaID")
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("OriginParticipantEntityCode")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OriginUserStatusCode")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ServiceClassCode")
+                        .HasColumnType("text");
+
+                    b.Property<string>("StandardEntryClassCode")
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.HasKey("BatchID");
+
+                    b.HasIndex("NachaID");
+
+                    b.ToTable("BatchHeaders", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClearingHouseId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("OriginCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClearingHouseId");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("ClearingHouses");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouseConfig", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClearingHouseId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("HolidayStrategy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClearingHouseId")
+                        .IsUnique();
+
+                    b.ToTable("ClearingHouseConfigs");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouseCycleConfig", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClearingHouseId")
+                        .HasColumnType("integer");
+
+                    b.Property<TimeSpan>("CutoffTime")
+                        .HasColumnType("interval");
+
+                    b.Property<string>("CycleName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("EffectiveFrom")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EffectiveTo")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClearingHouseId");
+
+                    b.ToTable("ClearingHouseCycleConfigs");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouseSpecialDate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClearingHouseId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClearingHouseId", "Date")
+                        .IsUnique();
+
+                    b.ToTable("ClearingHouseSpecialDates", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.Customer", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AccountNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("CompanyName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DocumentNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Gender")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("MiddleName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("PersonType")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("character varying(5)");
+
+                    b.Property<string>("SecondLastName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Gender");
+
+                    b.HasIndex("PersonType");
+
+                    b.HasIndex("DocumentType", "DocumentNumber")
+                        .IsUnique();
+
+                    b.ToTable("Customers", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerAddress", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AddressType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Country")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasDefaultValue("Colombia");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Line1")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Line2")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("PostalCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AddressType");
+
+                    b.HasIndex("CustomerId");
+
+                    b.ToTable("CustomerAddresses", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerEmail", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EmailType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<bool>("IsPrimary")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmailType");
+
+                    b.HasIndex("CustomerId", "IsPrimary")
+                        .IsUnique()
+                        .HasFilter("\"IsPrimary\" = true");
+
+                    b.ToTable("CustomerEmails", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerPhone", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsPrimary")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("PhoneType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PhoneType");
+
+                    b.HasIndex("CustomerId", "IsPrimary")
+                        .IsUnique()
+                        .HasFilter("\"IsPrimary\" = true");
+
+                    b.ToTable("CustomerPhones", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerThirdParty", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DestinationAccountNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("DestinationInstitutionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("PrenotificationTransactionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RecipientIdNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ValidationCycleId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ValidationMessage")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("ValidationReceivedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DestinationInstitutionId");
+
+                    b.HasIndex("PrenotificationTransactionId");
+
+                    b.HasIndex("CustomerId", "DestinationInstitutionId", "DestinationAccountNumber", "RecipientIdNumber")
+                        .IsUnique();
+
+                    b.ToTable("CustomerThirdParties", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.DocumentTypeCatalog", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Code");
+
+                    b.ToTable("DocumentTypes", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Code = "CC",
+                            Name = "Cédula de Ciudadanía"
+                        },
+                        new
+                        {
+                            Code = "CE",
+                            Name = "Cédula de Extranjería"
+                        },
+                        new
+                        {
+                            Code = "NIT",
+                            Name = "Número de Identificación Tributaria"
+                        },
+                        new
+                        {
+                            Code = "PAS",
+                            Name = "Pasaporte"
+                        },
+                        new
+                        {
+                            Code = "TI",
+                            Name = "Tarjeta de Identidad"
+                        },
+                        new
+                        {
+                            Code = "OTRO",
+                            Name = "Otro"
+                        });
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.EmailTypeCatalog", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Code");
+
+                    b.ToTable("EmailTypes", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Code = "PERSONAL",
+                            Name = "Personal"
+                        },
+                        new
+                        {
+                            Code = "TRABAJO",
+                            Name = "Trabajo"
+                        },
+                        new
+                        {
+                            Code = "OTRO",
+                            Name = "Otro"
+                        });
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.EntryDetail", b =>
+                {
+                    b.Property<int>("EntryDetailID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("EntryDetailID"));
+
+                    b.Property<string>("AccountNumber")
+                        .HasMaxLength(17)
+                        .HasColumnType("character varying(17)");
+
+                    b.Property<string>("AddendumIndicator")
+                        .HasColumnType("text");
+
+                    b.Property<decimal?>("Amount")
+                        .HasColumnType("money");
+
+                    b.Property<string>("CheckDigit")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DiscreData")
+                        .HasColumnType("text");
+
+                    b.Property<string>("NachaID")
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ReceivingParticipantEntityCode")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RecipIdNumber")
+                        .HasMaxLength(15)
+                        .HasColumnType("character varying(15)");
+
+                    b.Property<string>("RecipUserName")
+                        .HasMaxLength(22)
+                        .HasColumnType("character varying(22)");
+
+                    b.Property<string>("SequenceNumber")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TransactionCode")
+                        .HasColumnType("text");
+
+                    b.HasKey("EntryDetailID");
+
+                    b.HasIndex("NachaID");
+
+                    b.ToTable("EntryDetails", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.FileControl", b =>
+                {
+                    b.Property<int>("FileControlID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("FileControlID"));
+
+                    b.Property<int>("BatchCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BlockCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EntryAddendaCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("NachaID")
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<decimal>("TotalControl")
+                        .HasColumnType("money");
+
+                    b.Property<decimal>("TotalCreditAmount")
+                        .HasColumnType("money");
+
+                    b.Property<decimal>("TotalDebitAmount")
+                        .HasColumnType("money");
+
+                    b.HasKey("FileControlID");
+
+                    b.HasIndex("NachaID");
+
+                    b.ToTable("FileControls", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.FinancialInstitution", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CheckDigit")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("ClearingHouseId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDefaultSource")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("RoutingNumber")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
+                    b.Property<string>("TransitCode")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClearingHouseId");
+
+                    b.ToTable("FinancialInstitutions", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.GenderCatalog", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Code");
+
+                    b.ToTable("GenderTypes", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Code = "MASCULINO",
+                            Name = "Masculino"
+                        },
+                        new
+                        {
+                            Code = "FEMENINO",
+                            Name = "Femenino"
+                        },
+                        new
+                        {
+                            Code = "NO_BINARIO",
+                            Name = "No binario"
+                        },
+                        new
+                        {
+                            Code = "OTRO",
+                            Name = "Otro"
+                        },
+                        new
+                        {
+                            Code = "NO_ESPECIFICA",
+                            Name = "No especifica"
+                        });
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.InstitutionClearingHousePreference", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClearingHouseId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("FinancialInstitutionId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsDefault")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("Priority")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClearingHouseId");
+
+                    b.HasIndex("FinancialInstitutionId", "ClearingHouseId")
+                        .IsUnique();
+
+                    b.ToTable("InstitutionClearingHousePreferences", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaHeader", b =>
+                {
+                    b.Property<string>("NachaID")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("AchCycleId")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("BlockingFactor")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("ClearingHouseId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CycleNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("FileCreationDate")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FileCreationTime")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FileIdModifier")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FormatCode")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ImmediateDestination")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("ImmediateDestinationName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ImmediateOrigin")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("ImmediateOriginName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PriorityCode")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RecordSize")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ReferenceCode")
+                        .HasColumnType("text");
+
+                    b.HasKey("NachaID");
+
+                    b.HasIndex("AchCycleId");
+
+                    b.HasIndex("ClearingHouseId");
+
+                    b.ToTable("NachaHeaders", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordDefinition", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FilterKey")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<bool>("IsEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("RecordCode")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("character varying(5)");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourceName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("SourceType")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("NachaRecordDefinitions", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsEnabled = true,
+                            RecordCode = "1",
+                            Sequence = 10,
+                            SourceType = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = 2,
+                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsEnabled = true,
+                            RecordCode = "5",
+                            Sequence = 20,
+                            SourceType = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = 3,
+                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            FilterKey = "BatchId",
+                            IsEnabled = true,
+                            RecordCode = "6",
+                            Sequence = 30,
+                            SourceName = "AchTransaction",
+                            SourceType = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = 4,
+                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            FilterKey = "BatchId",
+                            IsEnabled = true,
+                            RecordCode = "7",
+                            Sequence = 40,
+                            SourceName = "AchTransactionAddenda",
+                            SourceType = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = 5,
+                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsEnabled = true,
+                            RecordCode = "8",
+                            Sequence = 50,
+                            SourceType = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = 6,
+                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsEnabled = true,
+                            RecordCode = "9",
+                            Sequence = 60,
+                            SourceType = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        });
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordField", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("DbColumn")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("FieldName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Format")
+                        .HasColumnType("text");
+
+                    b.Property<char>("Justification")
+                        .HasColumnType("character(1)");
+
+                    b.Property<int>("Length")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("NachaRecordLayoutId")
+                        .HasColumnType("integer");
+
+                    b.Property<char>("PadChar")
+                        .HasColumnType("character(1)");
+
+                    b.Property<int>("StartPosition")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NachaRecordLayoutId");
+
+                    b.ToTable("NachaRecordFields");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordLayout", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RecordCode")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RecordType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("TotalLength")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("NachaRecordLayouts");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.PersonTypeCatalog", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(5)
+                        .HasColumnType("character varying(5)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Code");
+
+                    b.ToTable("PersonTypes", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Code = "PN",
+                            Name = "Persona natural"
+                        },
+                        new
+                        {
+                            Code = "PJ",
+                            Name = "Persona jurídica"
+                        });
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.PhoneTypeCatalog", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Code");
+
+                    b.ToTable("PhoneTypes", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Code = "FIJO",
+                            Name = "Fijo"
+                        },
+                        new
+                        {
+                            Code = "TRABAJO",
+                            Name = "Trabajo"
+                        },
+                        new
+                        {
+                            Code = "MOVIL",
+                            Name = "Móvil"
+                        });
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ReturnReason", b =>
@@ -1870,911 +3106,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         });
                 });
 
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AddendaRecord", b =>
-                {
-                    b.Property<int>("AddendaID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("AddendaID"));
-
-                    b.Property<string>("AddendumSequence")
-                        .HasMaxLength(4)
-                        .HasColumnType("character varying(4)");
-
-                    b.Property<string>("CodeTypeAddendumRecord")
-                        .HasColumnType("text");
-
-                    b.Property<string>("EntryDetailSequenceNumber")
-                        .HasMaxLength(7)
-                        .HasColumnType("character varying(7)");
-
-                    b.Property<string>("IdUserOrig")
-                        .HasColumnType("text");
-
-                    b.Property<string>("InfofromOriginator")
-                        .HasColumnType("text");
-
-                    b.Property<string>("InvoiceOrAccountNumber")
-                        .HasColumnType("text");
-
-                    b.Property<string>("NachaID")
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("PurposeOfTransaction")
-                        .HasColumnType("text");
-
-                    b.HasKey("AddendaID");
-
-                    b.HasIndex("NachaID");
-
-                    b.ToTable("AddendaRecords", (string)null);
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.BankHolidayModel", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("CountryCode")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("BankHolidays");
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.BatchControl", b =>
-                {
-                    b.Property<int>("BatchControlID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("BatchControlID"));
-
-                    b.Property<string>("BatchNumber")
-                        .HasColumnType("text");
-
-                    b.Property<string>("BatchTranClassCode")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CodAutMessage")
-                        .HasMaxLength(8)
-                        .HasColumnType("character varying(8)");
-
-                    b.Property<int?>("EntryAddendaCount")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("IdOrigEntity")
-                        .HasColumnType("text");
-
-                    b.Property<string>("IdUserOrig")
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
-
-                    b.Property<string>("NachaID")
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<decimal>("TotalCreditAmount")
-                        .HasColumnType("money");
-
-                    b.Property<decimal>("TotalDebitAmount")
-                        .HasColumnType("money");
-
-                    b.Property<int?>("TotalEntry")
-                        .HasColumnType("integer");
-
-                    b.HasKey("BatchControlID");
-
-                    b.HasIndex("NachaID");
-
-                    b.ToTable("BatchControls", (string)null);
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.BatchHeader", b =>
-                {
-                    b.Property<int>("BatchID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("BatchID"));
-
-                    b.Property<int>("BatchNumber")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("CompanyEntryDescription")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CompanyId")
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
-
-                    b.Property<string>("CompanyName")
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<string>("CompensationDate")
-                        .HasColumnType("text");
-
-                    b.Property<string>("DescriptiveDate")
-                        .HasColumnType("text");
-
-                    b.Property<string>("DiscretionaryData")
-                        .HasColumnType("text");
-
-                    b.Property<string>("EffectiveEntryDate")
-                        .HasColumnType("text");
-
-                    b.Property<string>("NachaID")
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("OriginParticipantEntityCode")
-                        .HasColumnType("text");
-
-                    b.Property<string>("OriginUserStatusCode")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ServiceClassCode")
-                        .HasColumnType("text");
-
-                    b.Property<string>("StandardEntryClassCode")
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
-                    b.HasKey("BatchID");
-
-                    b.HasIndex("NachaID");
-
-                    b.ToTable("BatchHeaders", (string)null);
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ClearingHouseId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("OriginCode")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClearingHouseId");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.ToTable("ClearingHouses");
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouseConfig", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ClearingHouseId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("HolidayStrategy")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClearingHouseId")
-                        .IsUnique();
-
-                    b.ToTable("ClearingHouseConfigs");
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouseCycleConfig", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ClearingHouseId")
-                        .HasColumnType("integer");
-
-                    b.Property<TimeSpan>("CutoffTime")
-                        .HasColumnType("interval");
-
-                    b.Property<string>("CycleName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("EffectiveFrom")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("EffectiveTo")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClearingHouseId");
-
-                    b.ToTable("ClearingHouseCycleConfigs");
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouseSpecialDate", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ClearingHouseId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClearingHouseId", "Date")
-                        .IsUnique();
-
-                    b.ToTable("ClearingHouseSpecialDates", (string)null);
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.Customer", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AccountNumber")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DocumentNumber")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("DocumentType")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
-
-                    b.Property<string>("FirstName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("Gender")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("LastName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("MiddleName")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("SecondLastName")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DocumentType", "DocumentNumber")
-                        .IsUnique();
-
-                    b.ToTable("Customers", (string)null);
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerAddress", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AddressType")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<string>("City")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("Country")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasDefaultValue("Colombia");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("CustomerId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Line1")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("Line2")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("PostalCode")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("State")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CustomerId");
-
-                    b.ToTable("CustomerAddresses", (string)null);
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerEmail", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Address")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("CustomerId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("EmailType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<bool>("IsPrimary")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CustomerId", "IsPrimary")
-                        .IsUnique()
-                        .HasFilter("\"IsPrimary\" = true");
-
-                    b.ToTable("CustomerEmails", (string)null);
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerPhone", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("CustomerId")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsPrimary")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<string>("Number")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<string>("PhoneType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CustomerId", "IsPrimary")
-                        .IsUnique()
-                        .HasFilter("\"IsPrimary\" = true");
-
-                    b.ToTable("CustomerPhones", (string)null);
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.EntryDetail", b =>
-                {
-                    b.Property<int>("EntryDetailID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("EntryDetailID"));
-
-                    b.Property<string>("AccountNumber")
-                        .HasMaxLength(17)
-                        .HasColumnType("character varying(17)");
-
-                    b.Property<string>("AddendumIndicator")
-                        .HasColumnType("text");
-
-                    b.Property<decimal?>("Amount")
-                        .HasColumnType("money");
-
-                    b.Property<string>("CheckDigit")
-                        .HasColumnType("text");
-
-                    b.Property<string>("DiscreData")
-                        .HasColumnType("text");
-
-                    b.Property<string>("NachaID")
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("ReceivingParticipantEntityCode")
-                        .HasColumnType("text");
-
-                    b.Property<string>("RecipIdNumber")
-                        .HasMaxLength(15)
-                        .HasColumnType("character varying(15)");
-
-                    b.Property<string>("RecipUserName")
-                        .HasMaxLength(22)
-                        .HasColumnType("character varying(22)");
-
-                    b.Property<string>("SequenceNumber")
-                        .HasColumnType("text");
-
-                    b.Property<string>("TransactionCode")
-                        .HasColumnType("text");
-
-                    b.HasKey("EntryDetailID");
-
-                    b.HasIndex("NachaID");
-
-                    b.ToTable("EntryDetails", (string)null);
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.FileControl", b =>
-                {
-                    b.Property<int>("FileControlID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("FileControlID"));
-
-                    b.Property<int>("BatchCount")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("BlockCount")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("EntryAddendaCount")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("NachaID")
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<decimal>("TotalControl")
-                        .HasColumnType("money");
-
-                    b.Property<decimal>("TotalCreditAmount")
-                        .HasColumnType("money");
-
-                    b.Property<decimal>("TotalDebitAmount")
-                        .HasColumnType("money");
-
-                    b.HasKey("FileControlID");
-
-                    b.HasIndex("NachaID");
-
-                    b.ToTable("FileControls", (string)null);
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.FinancialInstitution", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("CheckDigit")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int?>("ClearingHouseId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsDefaultSource")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("RoutingNumber")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("Status")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(1);
-
-                    b.Property<string>("TransitCode")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClearingHouseId");
-
-                    b.ToTable("FinancialInstitutions", (string)null);
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.InstitutionClearingHousePreference", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ClearingHouseId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("FinancialInstitutionId")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<bool>("IsDefault")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<int>("Priority")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(1);
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClearingHouseId");
-
-                    b.HasIndex("FinancialInstitutionId", "ClearingHouseId")
-                        .IsUnique();
-
-                    b.ToTable("InstitutionClearingHousePreferences", (string)null);
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaHeader", b =>
-                {
-                    b.Property<string>("NachaID")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("AchCycleId")
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<string>("BlockingFactor")
-                        .HasColumnType("text");
-
-                    b.Property<int?>("ClearingHouseId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("CycleNumber")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("FileCreationDate")
-                        .HasColumnType("text");
-
-                    b.Property<string>("FileCreationTime")
-                        .HasColumnType("text");
-
-                    b.Property<string>("FileIdModifier")
-                        .HasColumnType("text");
-
-                    b.Property<string>("FormatCode")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ImmediateDestination")
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
-
-                    b.Property<string>("ImmediateDestinationName")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ImmediateOrigin")
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
-
-                    b.Property<string>("ImmediateOriginName")
-                        .HasColumnType("text");
-
-                    b.Property<string>("PriorityCode")
-                        .HasColumnType("text");
-
-                    b.Property<string>("RecordSize")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ReferenceCode")
-                        .HasColumnType("text");
-
-                    b.HasKey("NachaID");
-
-                    b.HasIndex("AchCycleId");
-
-                    b.HasIndex("ClearingHouseId");
-
-                    b.ToTable("NachaHeaders", (string)null);
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordField", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("DbColumn")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("FieldName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Format")
-                        .HasColumnType("text");
-
-                    b.Property<char>("Justification")
-                        .HasColumnType("character(1)");
-
-                    b.Property<int>("Length")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("NachaRecordLayoutId")
-                        .HasColumnType("integer");
-
-                    b.Property<char>("PadChar")
-                        .HasColumnType("character(1)");
-
-                    b.Property<int>("StartPosition")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("NachaRecordLayoutId");
-
-                    b.ToTable("NachaRecordFields");
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordLayout", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<string>("RecordCode")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("RecordType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("TotalLength")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("NachaRecordLayouts");
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordDefinition", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("FilterKey")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<bool>("IsEnabled")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<string>("RecordCode")
-                        .IsRequired()
-                        .HasMaxLength(5)
-                        .HasColumnType("character varying(5)");
-
-                    b.Property<int>("Sequence")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("SourceName")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<int>("SourceType")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("NachaRecordDefinitions");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsEnabled = true,
-                            RecordCode = "1",
-                            Sequence = 10,
-                            SourceType = 0,
-                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
-                        },
-                        new
-                        {
-                            Id = 2,
-                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsEnabled = true,
-                            RecordCode = "5",
-                            Sequence = 20,
-                            SourceType = 0,
-                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
-                        },
-                        new
-                        {
-                            Id = 3,
-                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            FilterKey = "BatchId",
-                            IsEnabled = true,
-                            RecordCode = "6",
-                            Sequence = 30,
-                            SourceName = "AchTransaction",
-                            SourceType = 0,
-                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
-                        },
-                        new
-                        {
-                            Id = 4,
-                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            FilterKey = "BatchId",
-                            IsEnabled = true,
-                            RecordCode = "7",
-                            Sequence = 40,
-                            SourceName = "AchTransactionAddenda",
-                            SourceType = 0,
-                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
-                        },
-                        new
-                        {
-                            Id = 5,
-                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsEnabled = true,
-                            RecordCode = "8",
-                            Sequence = 50,
-                            SourceType = 0,
-                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
-                        },
-                        new
-                        {
-                            Id = 6,
-                            CreatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsEnabled = true,
-                            RecordCode = "9",
-                            Sequence = 60,
-                            SourceType = 0,
-                            UpdatedAt = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
-                        });
-                });
-
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalEnvelopeCertificate", b =>
                 {
                     b.Property<int>("Id")
@@ -3087,13 +3418,47 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Navigation("ClearingHouse");
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.Customer", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.DocumentTypeCatalog", "DocumentTypeCatalog")
+                        .WithMany("Customers")
+                        .HasForeignKey("DocumentType")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.GenderCatalog", "GenderCatalog")
+                        .WithMany("Customers")
+                        .HasForeignKey("Gender")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.PersonTypeCatalog", "PersonTypeCatalog")
+                        .WithMany("Customers")
+                        .HasForeignKey("PersonType")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DocumentTypeCatalog");
+
+                    b.Navigation("GenderCatalog");
+
+                    b.Navigation("PersonTypeCatalog");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerAddress", b =>
                 {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AddressTypeCatalog", "AddressTypeCatalog")
+                        .WithMany("CustomerAddresses")
+                        .HasForeignKey("AddressType")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.Customer", "Customer")
                         .WithMany("Addresses")
                         .HasForeignKey("CustomerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("AddressTypeCatalog");
 
                     b.Navigation("Customer");
                 });
@@ -3106,7 +3471,15 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.EmailTypeCatalog", "EmailTypeCatalog")
+                        .WithMany("CustomerEmails")
+                        .HasForeignKey("EmailType")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("Customer");
+
+                    b.Navigation("EmailTypeCatalog");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerPhone", b =>
@@ -3117,7 +3490,41 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.PhoneTypeCatalog", "PhoneTypeCatalog")
+                        .WithMany("CustomerPhones")
+                        .HasForeignKey("PhoneType")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("Customer");
+
+                    b.Navigation("PhoneTypeCatalog");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerThirdParty", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.Customer", "Customer")
+                        .WithMany("ThirdParties")
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.FinancialInstitution", "DestinationInstitution")
+                        .WithMany()
+                        .HasForeignKey("DestinationInstitutionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", "PrenotificationTransaction")
+                        .WithMany()
+                        .HasForeignKey("PrenotificationTransactionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Customer");
+
+                    b.Navigation("DestinationInstitution");
+
+                    b.Navigation("PrenotificationTransaction");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.EntryDetail", b =>
@@ -3250,6 +3657,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Navigation("Addendas");
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AddressTypeCatalog", b =>
+                {
+                    b.Navigation("CustomerAddresses");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", b =>
                 {
                     b.Navigation("AchCycles");
@@ -3272,7 +3684,19 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     b.Navigation("Phones");
 
+                    b.Navigation("ThirdParties");
+
                     b.Navigation("Transactions");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.DocumentTypeCatalog", b =>
+                {
+                    b.Navigation("Customers");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.EmailTypeCatalog", b =>
+                {
+                    b.Navigation("CustomerEmails");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.FinancialInstitution", b =>
@@ -3282,6 +3706,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Navigation("DestinationTransactions");
 
                     b.Navigation("SourceTransactions");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.GenderCatalog", b =>
+                {
+                    b.Navigation("Customers");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaHeader", b =>
@@ -3300,6 +3729,16 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordLayout", b =>
                 {
                     b.Navigation("Fields");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.PersonTypeCatalog", b =>
+                {
+                    b.Navigation("Customers");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.PhoneTypeCatalog", b =>
+                {
+                    b.Navigation("CustomerPhones");
                 });
 #pragma warning restore 612, 618
         }
