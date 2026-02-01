@@ -16,6 +16,10 @@ export class ApiService {
   private readonly http: HttpClient = inject(HttpClient);
   private readonly apiBaseUrl = environment.apiBaseUrl.replace(/\/+$/, '');
 
+  resolveUrl(path: string): string {
+    return this.buildUrl(path);
+  }
+
   get<T>(path: string, options?: RequestOptions): Observable<T> {
     return this.http.get<T>(this.buildUrl(path), options);
   }
