@@ -18,7 +18,7 @@ public static class DependencyInjectionService
 {
     private const string CorsPolicyName = "CorsPolicy";
 
-    public static IServiceCollection AddWebApi(this IServiceCollection services)
+    public static IServiceCollection AddWebApi(this IServiceCollection services, IConfiguration configuration)
     {
         // Configuración del Swagger
         services.AddSwaggerGen(option =>
@@ -107,15 +107,21 @@ public static class DependencyInjectionService
 
         services.AddCors(options => options.AddPolicy(CorsPolicyName, builder =>
         {
-            builder
-                .WithOrigins(
+            var configuredOrigins = configuration.GetSection("Cors:Origins").Get<string[]>();
+            var origins = configuredOrigins?.Length > 0
+                ? configuredOrigins
+                : new[]
+                {
                     "http://localhost:4200",
                     "https://localhost:4200",
                     "http://localhost:7269",
                     "https://localhost:7269",
                     "http://cfaach.ddns.net:743",
                     "http://cfaach.ddns.net:744"
-                )
+                };
+
+            builder
+                .WithOrigins(origins)
                 .AllowAnyMethod()
                 .AllowAnyHeader()
                 .AllowCredentials();

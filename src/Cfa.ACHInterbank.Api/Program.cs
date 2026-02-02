@@ -20,7 +20,7 @@ builder.Host.UseNLog();
 //});
 builder.Services.Configure<DigitalEnvelopeOptions>(builder.Configuration.GetSection("DigitalEnvelope"));
 builder.Services.AddSingleton<IDigitalEnvelopePolicy, DigitalEnvelopePolicy>();
-builder.Services.AddWebApi()
+builder.Services.AddWebApi(builder.Configuration)
                 .AddApplication()
                 .AddPersistence(builder.Configuration)
                 .AddExternal(builder.Configuration);
