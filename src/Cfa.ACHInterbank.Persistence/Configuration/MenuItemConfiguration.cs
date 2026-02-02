@@ -32,6 +32,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int PasswordRulesId = 23;
     public const int LoginLockoutSettingsId = 24;
     public const int NachaDefinitionsId = 25;
+    public const int LogsId = 27;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -273,12 +274,24 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
             },
             new MenuItem
             {
+                Id = LogsId,
+                MenuId = MenuConfiguration.MainMenuId,
+                Label = "Logs",
+                Route = "/logs",
+                Icon = "summarize",
+                Order = 10,
+                Exact = false,
+                IsActive = true
+            },
+            new MenuItem
+            {
                 Id = AuditLogId,
                 MenuId = MenuConfiguration.MainMenuId,
+                ParentId = LogsId,
                 Label = "Auditoría",
                 Route = "/audit-logs",
                 Icon = "history",
-                Order = 10,
+                Order = 1,
                 Exact = true,
                 IsActive = true
             },
@@ -286,10 +299,11 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
             {
                 Id = AuthLogId,
                 MenuId = MenuConfiguration.MainMenuId,
+                ParentId = LogsId,
                 Label = "Autenticaciones",
                 Route = "/auth-logs",
                 Icon = "login",
-                Order = 11,
+                Order = 2,
                 Exact = true,
                 IsActive = true
             },

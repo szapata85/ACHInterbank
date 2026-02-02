@@ -133,6 +133,11 @@ public class MenuItemPermissionConfiguration : IEntityTypeConfiguration<MenuItem
             },
             new MenuItemPermission
             {
+                MenuItemId = MenuItemConfiguration.LogsId,
+                PermissionId = PermissionConfiguration.ManageUsersPermissionId
+            },
+            new MenuItemPermission
+            {
                 MenuItemId = MenuItemConfiguration.PasswordRulesId,
                 PermissionId = PermissionConfiguration.ManageUsersPermissionId
             },
