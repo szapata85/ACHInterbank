@@ -28,6 +28,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int NachaLayoutsId = 20;
     public const int DigitalEnvelopeId = 21;
     public const int AuditLogId = 22;
+    public const int AuthLogId = 26;
     public const int PasswordRulesId = 23;
     public const int LoginLockoutSettingsId = 24;
     public const int NachaDefinitionsId = 25;
@@ -278,6 +279,17 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Route = "/audit-logs",
                 Icon = "history",
                 Order = 10,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = AuthLogId,
+                MenuId = MenuConfiguration.MainMenuId,
+                Label = "Autenticaciones",
+                Route = "/auth-logs",
+                Icon = "login",
+                Order = 11,
                 Exact = true,
                 IsActive = true
             },

@@ -1,4 +1,6 @@
 using Cfa.ACHInterbank.Application.Exceptions;
+using Cfa.ACHInterbank.Application.AuthLogs.Dtos;
+using Cfa.ACHInterbank.Application.AuthLogs.Interfaces;
 using Cfa.ACHInterbank.Application.Features;
 using Cfa.ACHInterbank.Application.Services.Authentication.Interfaces;
 using Cfa.ACHInterbank.Application.Services.Authentication.Models;
@@ -19,9 +21,22 @@ public class AuthController : ControllerBase
     /// </summary>
     [HttpPost("login")]
     [AllowAnonymous]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request, [FromServices] IAuthService authService, CancellationToken cancellationToken)
+    public async Task<IActionResult> Login(
+        [FromBody] LoginRequest request,
+        [FromServices] IAuthService authService,
+        [FromServices] IAuthLogsService authLogsService,
+        CancellationToken cancellationToken)
     {
         var result = await authService.LoginAsync(request, cancellationToken);
+
+        await authLogsService.AddAsync(new AuthLogCreate
+        {
+            Username = result.Username ?? request.Username ?? string.Empty,
+            Success = result.Success,
+            FailureReason = result.Success ? null : result.Message,
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+            UserAgent = Request.Headers.UserAgent.ToString()
+        }, cancellationToken);
 
         if (!result.Success)
         {
