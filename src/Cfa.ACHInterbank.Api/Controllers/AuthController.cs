@@ -7,6 +7,7 @@ using Cfa.ACHInterbank.Application.Services.Authentication.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.IdentityModel.Tokens.Jwt;
+using System.Net;
 using System.Security.Claims;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
@@ -34,7 +35,7 @@ public class AuthController : ControllerBase
             Username = result.Username ?? request.Username ?? string.Empty,
             Success = result.Success,
             FailureReason = result.Success ? null : result.Message,
-            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+            IpAddress = GetClientIpAddress(),
             UserAgent = Request.Headers.UserAgent.ToString()
         }, cancellationToken);
 
@@ -44,6 +45,32 @@ public class AuthController : ControllerBase
         }
 
         return Ok(ResponseApiService.Response(StatusCodes.Status200OK, result));
+    }
+
+    private string? GetClientIpAddress()
+    {
+        var forwardedFor = Request.Headers["X-Forwarded-For"].ToString();
+        if (!string.IsNullOrWhiteSpace(forwardedFor))
+        {
+            var first = forwardedFor.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(first))
+            {
+                return NormalizeIp(first);
+            }
+        }
+
+        var remoteIp = HttpContext.Connection.RemoteIpAddress;
+        return remoteIp is null ? null : NormalizeIp(remoteIp.ToString());
+    }
+
+    private static string NormalizeIp(string value)
+    {
+        if (IPAddress.TryParse(value, out var parsed) && parsed.IsIPv4MappedToIPv6)
+        {
+            return parsed.MapToIPv4().ToString();
+        }
+
+        return value;
     }
     /// <summary>
     /// Pendiente de documentación.

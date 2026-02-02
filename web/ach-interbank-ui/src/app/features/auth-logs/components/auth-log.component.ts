@@ -7,7 +7,8 @@ import { AuthLogEntry, AuthLogFilters } from '../models/auth-log.model';
 import { AuthLogService } from '../services/auth-log.service';
 
 interface AuthLogRow extends AuthLogEntry {
-  loggedAtDisplay: string;
+  loggedDateDisplay: string;
+  loggedTimeDisplay: string;
   successDisplay: string;
   failureReasonDisplay: string;
 }
@@ -34,7 +35,8 @@ export class AuthLogComponent implements OnDestroy {
   hasSearched = false;
 
   readonly columns = [
-    { key: 'loggedAtDisplay', label: 'Fecha' },
+    { key: 'loggedDateDisplay', label: 'Fecha' },
+    { key: 'loggedTimeDisplay', label: 'Hora' },
     { key: 'username', label: 'Usuario' },
     { key: 'successDisplay', label: 'Resultado' },
     { key: 'failureReasonDisplay', label: 'Detalle' },
@@ -89,7 +91,8 @@ export class AuthLogComponent implements OnDestroy {
       .subscribe((response) => {
         this.rows = response.items.map((item) => ({
           ...item,
-          loggedAtDisplay: item.loggedAt,
+          loggedDateDisplay: this.formatDate(item.loggedAt),
+          loggedTimeDisplay: this.formatTime(item.loggedAt),
           successDisplay: item.success ? 'Exitoso' : 'Fallido',
           failureReasonDisplay: item.success ? '-' : item.failureReason || 'Sin detalle'
         }));
@@ -114,5 +117,15 @@ export class AuthLogComponent implements OnDestroy {
 
   onPageChange(page: number): void {
     this.search(page);
+  }
+
+  private formatDate(value: string): string {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString();
+  }
+
+  private formatTime(value: string): string {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleTimeString();
   }
 }
