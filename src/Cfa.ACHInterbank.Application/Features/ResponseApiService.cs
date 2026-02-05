@@ -37,7 +37,7 @@ public static class ResponseApiService
     public static BaseResponseModel Response<T>(int statusCode, Result<T> result)
     {
         var message = result.Errors.FirstOrDefault()?.Message;
-        var data = result.IsSuccess
+        object? data = result.IsSuccess
             ? result.Value
             : result.Errors.Select(x => new { x.Code, x.Message, Type = x.Type.ToString() });
 
