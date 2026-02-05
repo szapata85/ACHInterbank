@@ -1,9 +1,9 @@
 using Cfa.ACHInterbank.Application.Common;
+using Cfa.ACHInterbank.Application.Features;
 using Cfa.ACHInterbank.Application.Security.Dtos;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Threading.Tasks;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
@@ -63,10 +63,11 @@ public class UsersController : ControllerBase
 
         if (user is null)
         {
-            return NotFound();
+            var failure = Result<UserSummaryDto>.Failure("USER_NOT_FOUND", "Usuario no encontrado", ErrorType.NotFound);
+            return NotFound(ResponseApiService.Response(StatusCodes.Status404NotFound, failure));
         }
 
-        return Ok(user);
+        return Ok(ResponseApiService.Response(StatusCodes.Status200OK, Result<UserSummaryDto>.Success(user)));
     }
     /// <summary>
     /// Pendiente de documentación.
@@ -75,14 +76,15 @@ public class UsersController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<UserSummaryDto>> CreateUserAsync([FromBody] SaveUserRequest request, CancellationToken cancellationToken)
     {
-        var result = await _service.CreateAsync(request, cancellationToken);
+        var operation = await _service.CreateAsync(request, cancellationToken);
+        var result = operation.ToResult();
 
-        return result.Status switch
+        return operation.Status switch
         {
-            UserOperationStatus.ValidationError => BadRequest(result.Message),
-            UserOperationStatus.Conflict => Conflict(result.Message),
-            UserOperationStatus.Success => CreatedAtAction(nameof(GetUserAsync), new { id = result.User!.Id }, result.User),
-            _ => StatusCode(StatusCodes.Status500InternalServerError)
+            UserOperationStatus.ValidationError => BadRequest(ResponseApiService.Response(StatusCodes.Status400BadRequest, result)),
+            UserOperationStatus.Conflict => Conflict(ResponseApiService.Response(StatusCodes.Status409Conflict, result)),
+            UserOperationStatus.Success => CreatedAtAction(nameof(GetUserAsync), new { id = operation.User!.Id }, ResponseApiService.Response(StatusCodes.Status201Created, result)),
+            _ => StatusCode(StatusCodes.Status500InternalServerError, ResponseApiService.Response(StatusCodes.Status500InternalServerError, Result.Failure("USER_UNEXPECTED", "Error inesperado", ErrorType.Unexpected)))
         };
     }
     /// <summary>
@@ -92,15 +94,16 @@ public class UsersController : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<UserSummaryDto>> UpdateUserAsync(Guid id, [FromBody] SaveUserRequest request, CancellationToken cancellationToken)
     {
-        var result = await _service.UpdateAsync(id, request, cancellationToken);
+        var operation = await _service.UpdateAsync(id, request, cancellationToken);
+        var result = operation.ToResult();
 
-        return result.Status switch
+        return operation.Status switch
         {
-            UserOperationStatus.ValidationError => BadRequest(result.Message),
-            UserOperationStatus.Conflict => Conflict(result.Message),
-            UserOperationStatus.NotFound => NotFound(),
-            UserOperationStatus.Success => Ok(result.User),
-            _ => StatusCode(StatusCodes.Status500InternalServerError)
+            UserOperationStatus.ValidationError => BadRequest(ResponseApiService.Response(StatusCodes.Status400BadRequest, result)),
+            UserOperationStatus.Conflict => Conflict(ResponseApiService.Response(StatusCodes.Status409Conflict, result)),
+            UserOperationStatus.NotFound => NotFound(ResponseApiService.Response(StatusCodes.Status404NotFound, result)),
+            UserOperationStatus.Success => Ok(ResponseApiService.Response(StatusCodes.Status200OK, result)),
+            _ => StatusCode(StatusCodes.Status500InternalServerError, ResponseApiService.Response(StatusCodes.Status500InternalServerError, Result.Failure("USER_UNEXPECTED", "Error inesperado", ErrorType.Unexpected)))
         };
     }
     /// <summary>
@@ -110,14 +113,15 @@ public class UsersController : ControllerBase
     [HttpPost("{id:guid}/roles")]
     public async Task<IActionResult> AssignRolesAsync(Guid id, [FromBody] AssignRolesRequest request, CancellationToken cancellationToken)
     {
-        var result = await _service.AssignRolesAsync(id, request, cancellationToken);
+        var operation = await _service.AssignRolesAsync(id, request, cancellationToken);
+        var result = operation.ToResult();
 
-        return result.Status switch
+        return operation.Status switch
         {
-            UserOperationStatus.ValidationError => BadRequest(result.Message),
-            UserOperationStatus.NotFound => NotFound(),
+            UserOperationStatus.ValidationError => BadRequest(ResponseApiService.Response(StatusCodes.Status400BadRequest, result)),
+            UserOperationStatus.NotFound => NotFound(ResponseApiService.Response(StatusCodes.Status404NotFound, result)),
             UserOperationStatus.Success => NoContent(),
-            _ => StatusCode(StatusCodes.Status500InternalServerError)
+            _ => StatusCode(StatusCodes.Status500InternalServerError, ResponseApiService.Response(StatusCodes.Status500InternalServerError, Result.Failure("USER_UNEXPECTED", "Error inesperado", ErrorType.Unexpected)))
         };
     }
     /// <summary>
@@ -127,13 +131,14 @@ public class UsersController : ControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeactivateUserAsync(Guid id, CancellationToken cancellationToken)
     {
-        var result = await _service.DeactivateAsync(id, cancellationToken);
+        var operation = await _service.DeactivateAsync(id, cancellationToken);
+        var result = operation.ToResult();
 
-        return result switch
+        return operation switch
         {
-            UserOperationStatus.NotFound => NotFound(),
+            UserOperationStatus.NotFound => NotFound(ResponseApiService.Response(StatusCodes.Status404NotFound, result)),
             UserOperationStatus.Success => NoContent(),
-            _ => StatusCode(StatusCodes.Status500InternalServerError)
+            _ => StatusCode(StatusCodes.Status500InternalServerError, ResponseApiService.Response(StatusCodes.Status500InternalServerError, Result.Failure("USER_UNEXPECTED", "Error inesperado", ErrorType.Unexpected)))
         };
     }
 }

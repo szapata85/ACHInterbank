@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.Exceptions;
 using Cfa.ACHInterbank.Application.AuthLogs.Dtos;
 using Cfa.ACHInterbank.Application.AuthLogs.Interfaces;
+using Cfa.ACHInterbank.Application.Common;
 using Cfa.ACHInterbank.Application.Features;
 using Cfa.ACHInterbank.Application.Services.Authentication.Interfaces;
 using Cfa.ACHInterbank.Application.Services.Authentication.Models;
@@ -41,10 +42,11 @@ public class AuthController : ControllerBase
 
         if (!result.Success)
         {
-            return StatusCode(StatusCodes.Status401Unauthorized, ResponseApiService.Response(StatusCodes.Status401Unauthorized, result.Message));
+            var failure = Result.Failure("AUTH_LOGIN_FAILED", result.Message ?? "No autorizado", ErrorType.Unauthorized);
+            return StatusCode(StatusCodes.Status401Unauthorized, ResponseApiService.Response(StatusCodes.Status401Unauthorized, failure));
         }
 
-        return Ok(ResponseApiService.Response(StatusCodes.Status200OK, result));
+        return Ok(ResponseApiService.Response(StatusCodes.Status200OK, Result<AuthResult>.Success(result)));
     }
 
     private string? GetClientIpAddress()
@@ -82,7 +84,10 @@ public class AuthController : ControllerBase
     {
         var result = await authService.RequestPasswordResetAsync(request, cancellationToken);
         var statusCode = result.Success ? StatusCodes.Status200OK : StatusCodes.Status400BadRequest;
-        return StatusCode(statusCode, ResponseApiService.Response(statusCode, result.Message, result.Message));
+        var response = result.Success
+            ? Result<string>.Success(result.Message)
+            : Result<string>.Failure("AUTH_FORGOT_PASSWORD_FAILED", result.Message, ErrorType.Validation);
+        return StatusCode(statusCode, ResponseApiService.Response(statusCode, response));
     }
     /// <summary>
     /// Pendiente de documentación.
@@ -94,7 +99,10 @@ public class AuthController : ControllerBase
     {
         var result = await authService.ResetPasswordAsync(request, cancellationToken);
         var statusCode = result.Success ? StatusCodes.Status200OK : StatusCodes.Status400BadRequest;
-        return StatusCode(statusCode, ResponseApiService.Response(statusCode, result.Message, result.Message));
+        var response = result.Success
+            ? Result<string>.Success(result.Message)
+            : Result<string>.Failure("AUTH_RESET_PASSWORD_FAILED", result.Message, ErrorType.Validation);
+        return StatusCode(statusCode, ResponseApiService.Response(statusCode, response));
     }
     /// <summary>
     /// Pendiente de documentación.
@@ -108,16 +116,18 @@ public class AuthController : ControllerBase
 
         if (!Guid.TryParse(userIdClaim, out var userId))
         {
-            return StatusCode(StatusCodes.Status401Unauthorized, ResponseApiService.Response(StatusCodes.Status401Unauthorized, "Sesión inválida"));
+            var failure = Result.Failure("AUTH_INVALID_SESSION", "Sesión inválida", ErrorType.Unauthorized);
+            return StatusCode(StatusCodes.Status401Unauthorized, ResponseApiService.Response(StatusCodes.Status401Unauthorized, failure));
         }
 
         var result = await authService.RefreshSessionAsync(userId, cancellationToken);
 
         if (!result.Success)
         {
-            return StatusCode(StatusCodes.Status401Unauthorized, ResponseApiService.Response(StatusCodes.Status401Unauthorized, result.Message));
+            var failure = Result.Failure("AUTH_REFRESH_FAILED", result.Message ?? "Sesión inválida", ErrorType.Unauthorized);
+            return StatusCode(StatusCodes.Status401Unauthorized, ResponseApiService.Response(StatusCodes.Status401Unauthorized, failure));
         }
 
-        return Ok(ResponseApiService.Response(StatusCodes.Status200OK, result));
+        return Ok(ResponseApiService.Response(StatusCodes.Status200OK, Result<AuthResult>.Success(result)));
     }
 }
