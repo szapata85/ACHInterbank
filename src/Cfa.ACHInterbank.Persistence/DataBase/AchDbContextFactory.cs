@@ -15,9 +15,8 @@ public sealed class AchDbContextFactory : IDesignTimeDbContextFactory<AchDbConte
             ?? "Development";
 
         var configuration = new ConfigurationBuilder()
-            .SetBasePath(basePath)
-            .AddJsonFile("appsettings.json", optional: true)
-            .AddJsonFile($"appsettings.{environment}.json", optional: true)
+            .AddJsonFile(Path.Combine(basePath, "appsettings.json"), optional: true)
+            .AddJsonFile(Path.Combine(basePath, $"appsettings.{environment}.json"), optional: true)
             .AddEnvironmentVariables()
             .Build();
 
