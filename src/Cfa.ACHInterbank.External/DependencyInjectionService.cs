@@ -57,7 +57,7 @@ public static class DependencyInjectionService
         foreach (var implementationType in types)
         {
             Type? interfaceType = implementationType.GetInterfaces()
-                .FirstOrDefault(i => i.Name.Contains(implementationType.Name) || i == typeof(ITaskHandler));
+                .FirstOrDefault(i => i.Name == $"I{implementationType.Name}" || i == typeof(ITaskHandler));
 
             if (interfaceType == null) continue;
 
