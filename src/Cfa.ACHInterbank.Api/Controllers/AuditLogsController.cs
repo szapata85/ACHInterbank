@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.Audit.Dtos;
 using Cfa.ACHInterbank.Application.Audit.Interfaces;
 using Cfa.ACHInterbank.Application.Common;
+using Cfa.ACHInterbank.Application.Features;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -22,7 +23,7 @@ public class AuditLogsController : ControllerBase
     /// </summary>
 
     [HttpGet]
-    public async Task<ActionResult<PagedResponse<AuditLogDto>>> GetAuditLogsAsync(
+    public async Task<IActionResult> GetAuditLogsAsync(
         [FromQuery] DateTime? startDate,
         [FromQuery] DateTime? endDate,
         [FromQuery] string? changedBy,
@@ -31,7 +32,7 @@ public class AuditLogsController : ControllerBase
         [FromQuery] int pageSize = 50,
         CancellationToken cancellationToken = default)
     {
-        var response = await _service.GetAsync(new AuditLogQuery
+        var result = await _service.GetAsync(new AuditLogQuery
         {
             StartDate = startDate,
             EndDate = endDate,
@@ -41,6 +42,6 @@ public class AuditLogsController : ControllerBase
             PageSize = pageSize
         }, cancellationToken);
 
-        return Ok(response);
+        return Ok(ResponseApiService.Response(StatusCodes.Status200OK, result));
     }
 }

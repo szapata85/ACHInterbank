@@ -31,7 +31,7 @@ public class AuthController : ControllerBase
     {
         var result = await authService.LoginAsync(request, cancellationToken);
 
-        await authLogsService.AddAsync(new AuthLogCreate
+        var authLogResult = await authLogsService.AddAsync(new AuthLogCreate
         {
             Username = result.Username ?? request.Username ?? string.Empty,
             Success = result.Success,
@@ -39,6 +39,11 @@ public class AuthController : ControllerBase
             IpAddress = GetClientIpAddress(),
             UserAgent = Request.Headers.UserAgent.ToString()
         }, cancellationToken);
+
+        if (!authLogResult.IsSuccess)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, ResponseApiService.Response(StatusCodes.Status500InternalServerError, authLogResult));
+        }
 
         if (!result.Success)
         {

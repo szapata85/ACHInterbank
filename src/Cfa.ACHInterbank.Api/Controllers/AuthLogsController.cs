@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.AuthLogs.Dtos;
 using Cfa.ACHInterbank.Application.AuthLogs.Interfaces;
 using Cfa.ACHInterbank.Application.Common;
+using Cfa.ACHInterbank.Application.Features;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -22,7 +23,7 @@ public class AuthLogsController : ControllerBase
     /// Pendiente de documentación.
     /// </summary>
     [HttpGet]
-    public async Task<ActionResult<PagedResponse<AuthLogDto>>> GetAuthLogsAsync(
+    public async Task<IActionResult> GetAuthLogsAsync(
         [FromQuery] DateTime? startDate,
         [FromQuery] DateTime? endDate,
         [FromQuery] string? username,
@@ -31,7 +32,7 @@ public class AuthLogsController : ControllerBase
         [FromQuery] int pageSize = 50,
         CancellationToken cancellationToken = default)
     {
-        var response = await _service.GetAsync(new AuthLogQuery
+        var result = await _service.GetAsync(new AuthLogQuery
         {
             StartDate = startDate,
             EndDate = endDate,
@@ -41,6 +42,6 @@ public class AuthLogsController : ControllerBase
             PageSize = pageSize
         }, cancellationToken);
 
-        return Ok(response);
+        return Ok(ResponseApiService.Response(StatusCodes.Status200OK, result));
     }
 }

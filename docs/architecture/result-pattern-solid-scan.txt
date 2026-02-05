@@ -1,0 +1,57 @@
+=== Result Pattern Interface Scan ===
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/IFinancialInstitutionService.cs:12 -> Task<FinancialInstitutionDto?> GetByIdAsync(int id, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/IFinancialInstitutionService.cs:14 -> Task<FinancialInstitutionDto> CreateAsync(FinancialInstitutionDto dto, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/IFinancialInstitutionService.cs:16 -> Task<FinancialInstitutionDto> UpdateAsync(FinancialInstitutionDto dto, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/IAchBatchService.cs:7 -> Task<AchBatch> CreateBatchAsync(
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/IAchTransactionService.cs:9 -> Task<AchTransaction> RegisterTransactionAsync(
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/IAchTransactionService.cs:23 -> Task<DateTime> GetNextBusinessDayAsync(DateTime baseDate, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/IAchTransactionService.cs:30 -> Task<AchTransaction?> GetTransactionByIdAsync(int transactionId, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/IClearingHouseService.cs:9 -> Task<ClearingHouseDto?> GetByIdAsync(int id, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/IRoutingStrategyService.cs:5 -> Task<string> ResolveClearingHouseForTransactionAsync(
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaRecordDefinitionAppService.cs:8 -> Task<NachaRecordDefinitionDto?> GetByIdAsync(int id, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaRecordDefinitionAppService.cs:9 -> Task<NachaRecordDefinitionDto> CreateAsync(NachaRecordDefinitionDto request, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaRecordDefinitionAppService.cs:10 -> Task<NachaRecordDefinitionDto?> UpdateAsync(int id, NachaRecordDefinitionDto request, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaRecordDefinitionAppService.cs:11 -> Task<bool> DeleteAsync(int id, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaRecordLayoutAppService.cs:8 -> Task<NachaRecordLayoutDto?> GetByIdAsync(int id, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaRecordLayoutAppService.cs:9 -> Task<NachaRecordLayoutDto> CreateAsync(NachaRecordLayoutDto request, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaRecordLayoutAppService.cs:10 -> Task<NachaRecordLayoutDto?> UpdateAsync(int id, NachaRecordLayoutDto request, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaRecordLayoutAppService.cs:11 -> Task<bool> DeleteAsync(int id, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/IClearingHouseSpecialDateService.cs:8 -> Task<ClearingHouseSpecialDateDto> CreateAsync(ClearingHouseSpecialDateDto dto, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/IClearingHouseSpecialDateService.cs:9 -> Task<ClearingHouseSpecialDateDto> UpdateAsync(ClearingHouseSpecialDateDto dto, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/IInstitutionClearingHousePreferenceService.cs:9 -> Task<InstitutionClearingHousePreferenceDto> UpdateAsync(InstitutionClearingHousePreferenceDto dto, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/IInstitutionClearingHousePreferenceService.cs:11 -> Task<InstitutionClearingHousePreferenceDto> CreateAsync(InstitutionClearingHousePreferenceDto dto, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/IBankHolidayAdminService.cs:8 -> Task<BankHolidayDto> CreateAsync(BankHolidayDto dto, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/IBankHolidayAdminService.cs:9 -> Task<BankHolidayDto> UpdateAsync(BankHolidayDto dto, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/IAchCycleAppService.cs:12 -> Task<AchCycleDto?> GetByIdAsync(string id, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/IAchCycleAppService.cs:13 -> Task<AchCycleDto> CreateAsync(AchCycleRequest request, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/ACH/Interfaces/IAchCycleAppService.cs:14 -> Task<AchCycleDto> UpdateAsync(string id, AchCycleRequest request, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Navigation/Interfaces/IMenuItemsService.cs:8 -> Task<MenuItemAdminDto> CreateAsync(SaveMenuItemRequest request, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Navigation/Interfaces/IMenuItemsService.cs:9 -> Task<MenuItemAdminDto?> UpdateAsync(int id, SaveMenuItemRequest request, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Navigation/Interfaces/IMenuItemsService.cs:10 -> Task<bool> DeleteAsync(int id, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Branding/Interfaces/IBrandingSettingsService.cs:7 -> Task<BrandingSettingsDto> GetAsync(CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Branding/Interfaces/IBrandingSettingsService.cs:8 -> Task<BrandingSettingsDto> SaveAsync(BrandingSettingsDto request, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Services/Authentication/Interfaces/IAuthService.cs:7 -> Task<AuthResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default);
+src/Cfa.ACHInterbank.Application/Services/Authentication/Interfaces/IAuthService.cs:8 -> Task<OperationResult> RequestPasswordResetAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default);
+src/Cfa.ACHInterbank.Application/Services/Authentication/Interfaces/IAuthService.cs:9 -> Task<OperationResult> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default);
+src/Cfa.ACHInterbank.Application/Services/Authentication/Interfaces/IAuthService.cs:10 -> Task<AuthResult> RefreshSessionAsync(Guid userId, CancellationToken cancellationToken = default);
+src/Cfa.ACHInterbank.Application/Customers/Interfaces/ICustomersService.cs:8 -> Task<CustomerDetailDto?> GetByIdAsync(int id, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Customers/Interfaces/ICustomersService.cs:9 -> Task<CustomerDetailDto> CreateAsync(SaveCustomerRequest request, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Customers/Interfaces/ICustomersService.cs:10 -> Task<CustomerDetailDto?> UpdateAsync(int id, SaveCustomerRequest request, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Customers/Interfaces/ICustomersService.cs:11 -> Task<bool> DeleteAsync(int id, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Security/Interfaces/ILoginLockoutSettingsService.cs:7 -> Task<LoginLockoutSettingsDto> GetAsync(CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Security/Interfaces/ILoginLockoutSettingsService.cs:8 -> Task<LoginLockoutSettingsDto> SaveAsync(LoginLockoutSettingsDto request, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Security/Interfaces/IPasswordRulesService.cs:7 -> Task<PasswordRulesDto> GetAsync(CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Security/Interfaces/IPasswordRulesService.cs:8 -> Task<PasswordRulesDto> SaveAsync(PasswordRulesDto request, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Security/Interfaces/IUsersService.cs:9 -> Task<bool> ValidateEmailDomainAsync(string email, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Security/Interfaces/IUsersService.cs:10 -> Task<UserSummaryDto?> GetUserAsync(Guid id, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Security/Interfaces/IUsersService.cs:11 -> Task<UserOperationResult> CreateAsync(SaveUserRequest? request, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Security/Interfaces/IUsersService.cs:12 -> Task<UserOperationResult> UpdateAsync(Guid id, SaveUserRequest? request, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Security/Interfaces/IUsersService.cs:13 -> Task<UserOperationResult> AssignRolesAsync(Guid id, AssignRolesRequest? request, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Security/Interfaces/IUsersService.cs:14 -> Task<UserOperationStatus> DeactivateAsync(Guid id, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Scheduler/Interfaces/ITaskDefinitionAppService.cs:8 -> Task<TaskDefinitionDto?> GetByIdAsync(int id, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Scheduler/Interfaces/ITaskDefinitionAppService.cs:9 -> Task<TaskDefinitionDto> CreateAsync(TaskDefinitionDto request, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Scheduler/Interfaces/ITaskDefinitionAppService.cs:10 -> Task<TaskDefinitionDto?> UpdateAsync(int id, TaskDefinitionDto request, CancellationToken ct = default);
+src/Cfa.ACHInterbank.Application/Scheduler/Interfaces/ITaskDefinitionAppService.cs:11 -> Task<bool> DeleteAsync(int id, CancellationToken ct = default);
+
+=== SOLID SRP Heuristic (large services) ===
+src/Cfa.ACHInterbank.Persistence/Security/Services/UsersService.cs -> 298 lines (review SRP)

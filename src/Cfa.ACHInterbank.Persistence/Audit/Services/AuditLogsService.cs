@@ -17,7 +17,7 @@ public class AuditLogsService : IAuditLogsService
         _dbContext = dbContext;
     }
 
-    public async Task<PagedResponse<AuditLogDto>> GetAsync(AuditLogQuery query, CancellationToken ct = default)
+    public async Task<Result<PagedResponse<AuditLogDto>>> GetAsync(AuditLogQuery query, CancellationToken ct = default)
     {
         var page = query.Page <= 0 ? 1 : query.Page;
         var pageSize = query.PageSize <= 0 ? 50 : query.PageSize;
@@ -78,12 +78,12 @@ public class AuditLogsService : IAuditLogsService
             .Take(pageSize)
             .ToListAsync(ct);
 
-        return new PagedResponse<AuditLogDto>
+        return Result<PagedResponse<AuditLogDto>>.Success(new PagedResponse<AuditLogDto>
         {
             Items = items,
             Total = total,
             Page = page,
             PageSize = pageSize
-        };
+        });
     }
 }

@@ -18,7 +18,7 @@ public class AuthLogsService : IAuthLogsService
         _dbContext = dbContext;
     }
 
-    public async Task<PagedResponse<AuthLogDto>> GetAsync(AuthLogQuery query, CancellationToken ct = default)
+    public async Task<Result<PagedResponse<AuthLogDto>>> GetAsync(AuthLogQuery query, CancellationToken ct = default)
     {
         var page = query.Page <= 0 ? 1 : query.Page;
         var pageSize = query.PageSize <= 0 ? 50 : query.PageSize;
@@ -72,16 +72,16 @@ public class AuthLogsService : IAuthLogsService
             })
             .ToListAsync(ct);
 
-        return new PagedResponse<AuthLogDto>
+        return Result<PagedResponse<AuthLogDto>>.Success(new PagedResponse<AuthLogDto>
         {
             Items = items,
             Total = total,
             Page = page,
             PageSize = pageSize
-        };
+        });
     }
 
-    public async Task AddAsync(AuthLogCreate request, CancellationToken ct = default)
+    public async Task<Result> AddAsync(AuthLogCreate request, CancellationToken ct = default)
     {
         var log = new AuthLog
         {
@@ -96,5 +96,6 @@ public class AuthLogsService : IAuthLogsService
 
         _dbContext.AuthLogs.Add(log);
         await _dbContext.SaveChangesAsync(ct);
+        return Result.Success();
     }
 }
