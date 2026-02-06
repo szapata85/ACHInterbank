@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
+import { ApiResponse } from '../../../core/models/api-response.model';
 import { ApiService } from '../../../core/services/api.service';
 import { AuditLogEntry, AuditLogFilters, PagedResponse } from '../models/audit-log.model';
 
@@ -30,6 +31,27 @@ export class AuditLogService {
       params = params.set('action', filters.action);
     }
 
-    return this.api.get<PagedResponse<AuditLogEntry>>(this.basePath, { params });
+    return this.api
+      .get<PagedResponse<AuditLogEntry> | ApiResponse<PagedResponse<AuditLogEntry>>>(this.basePath, { params })
+      .pipe(map((response) => this.unwrapPagedResponse(response)));
+  }
+
+  private unwrapPagedResponse(
+    response: PagedResponse<AuditLogEntry> | ApiResponse<PagedResponse<AuditLogEntry>>
+  ): PagedResponse<AuditLogEntry> {
+    const normalized = this.isApiResponse(response) ? response.data : response;
+
+    return {
+      items: normalized?.items ?? [],
+      total: normalized?.total ?? 0,
+      page: normalized?.page ?? 1,
+      pageSize: normalized?.pageSize ?? 0
+    };
+  }
+
+  private isApiResponse(
+    response: PagedResponse<AuditLogEntry> | ApiResponse<PagedResponse<AuditLogEntry>>
+  ): response is ApiResponse<PagedResponse<AuditLogEntry>> {
+    return !!response && typeof response === 'object' && 'statusCode' in response && 'sucess' in response && 'data' in response;
   }
 }
