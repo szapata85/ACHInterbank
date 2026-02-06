@@ -37,7 +37,13 @@ public static class DependencyInjectionService
 
         // Injection Dependency Dynamic
         List<Type> types = Assembly.GetExecutingAssembly().GetTypes()
-            .Where(t => t.IsClass && !t.IsAbstract).ToList();
+            .Where(t => t.IsClass
+            && !t.IsAbstract
+            && !t.IsGenericTypeDefinition
+            && !t.ContainsGenericParameters
+            && !t.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), inherit: false)
+            && (t.IsPublic || t.IsNestedPublic))
+            .ToList();
 
         foreach (var implementationType in types)
         {
