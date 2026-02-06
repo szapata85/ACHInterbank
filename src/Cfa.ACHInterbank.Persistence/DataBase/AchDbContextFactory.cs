@@ -70,20 +70,31 @@ public sealed class AchDbContextFactory : IDesignTimeDbContextFactory<AchDbConte
             return null;
         }
 
-        using var stream = File.OpenRead(filePath);
-        using var document = JsonDocument.Parse(stream);
+        try
+        {
+            using var stream = File.OpenRead(filePath);
+            using var document = JsonDocument.Parse(stream, new JsonDocumentOptions
+            {
+                CommentHandling = JsonCommentHandling.Skip,
+                AllowTrailingCommas = true
+            });
 
-        if (!document.RootElement.TryGetProperty(section, out var sectionNode))
+            if (!document.RootElement.TryGetProperty(section, out var sectionNode))
+            {
+                return null;
+            }
+
+            if (!sectionNode.TryGetProperty(key, out var valueNode))
+            {
+                return null;
+            }
+
+            return valueNode.GetString();
+        }
+        catch (JsonException)
         {
             return null;
         }
-
-        if (!sectionNode.TryGetProperty(key, out var valueNode))
-        {
-            return null;
-        }
-
-        return valueNode.GetString();
     }
 
     private static string ResolveBasePath()
