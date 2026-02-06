@@ -65,6 +65,42 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.ToTable("AuditLog", (string)null);
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.Audit.AuthLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("LoggedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("Success")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LoggedAt");
+
+                    b.ToTable("AuthLog", (string)null);
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.Branding.BrandingSetting", b =>
                 {
                     b.Property<int>("Id")
@@ -399,14 +435,38 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
+                            Id = 27,
+                            Exact = false,
+                            Icon = "summarize",
+                            IsActive = true,
+                            Label = "Logs",
+                            MenuId = 1,
+                            Order = 10,
+                            Route = "/logs"
+                        },
+                        new
+                        {
                             Id = 22,
                             Exact = true,
                             Icon = "history",
                             IsActive = true,
                             Label = "Auditoría",
                             MenuId = 1,
-                            Order = 10,
+                            Order = 1,
+                            ParentId = 27,
                             Route = "/audit-logs"
+                        },
+                        new
+                        {
+                            Id = 26,
+                            Exact = true,
+                            Icon = "login",
+                            IsActive = true,
+                            Label = "Autenticaciones",
+                            MenuId = 1,
+                            Order = 2,
+                            ParentId = 27,
+                            Route = "/auth-logs"
                         },
                         new
                         {
@@ -588,6 +648,16 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         new
                         {
                             MenuItemId = 22,
+                            PermissionId = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf")
+                        },
+                        new
+                        {
+                            MenuItemId = 26,
+                            PermissionId = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf")
+                        },
+                        new
+                        {
+                            MenuItemId = 27,
                             PermissionId = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf")
                         },
                         new
