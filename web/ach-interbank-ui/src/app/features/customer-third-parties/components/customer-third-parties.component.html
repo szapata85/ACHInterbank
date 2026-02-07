@@ -1,0 +1,58 @@
+<app-page-header
+  title="Customer Third Parties"
+  subtitle="Gestión y consulta de prenotificaciones por tercero"
+></app-page-header>
+
+<section class="screen">
+  <form class="form-grid" [formGroup]="filterForm" (ngSubmit)="search()">
+    <label>
+      Búsqueda general
+      <input type="text" formControlName="search" placeholder="Cliente, documento o cuenta" />
+    </label>
+
+    <label>
+      Cuenta destino
+      <input type="text" formControlName="destinationAccountNumber" placeholder="Cuenta destino" />
+    </label>
+
+    <label>
+      Documento receptor
+      <input type="text" formControlName="recipientIdNumber" placeholder="Documento receptor" />
+    </label>
+
+    <label>
+      Estado
+      <select formControlName="status">
+        <option *ngFor="let option of statusOptions" [value]="option.value">{{ option.label }}</option>
+      </select>
+    </label>
+
+    <div class="form-actions">
+      <button type="submit" class="primary" [disabled]="loading">Buscar</button>
+      <button type="button" class="ghost" (click)="clear()" [disabled]="loading">Limpiar</button>
+    </div>
+  </form>
+
+  <app-table
+    [columns]="columns"
+    [data]="rows"
+    [loading]="loading"
+    [page]="page"
+    [pageSize]="pageSize"
+    [total]="total"
+    [rowActions]="rowActionsTpl"
+    (pageChange)="onPageChange($event)"
+  ></app-table>
+
+  <ng-template #rowActionsTpl let-row>
+    <div class="row-actions">
+      <button type="button" class="pill pending" (click)="updateStatus(row, 'Pending')">Pendiente</button>
+      <button type="button" class="pill active" (click)="updateStatus(row, 'Active')">Aprobar</button>
+      <button type="button" class="pill rejected" (click)="updateStatus(row, 'Rejected')">Rechazar</button>
+    </div>
+  </ng-template>
+
+  <div class="empty-state" *ngIf="!loading && !hasSearched">
+    Usa los filtros y presiona buscar para cargar resultados.
+  </div>
+</section>

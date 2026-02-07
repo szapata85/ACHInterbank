@@ -82,6 +82,11 @@ const routes: Routes = [
         loadChildren: () => import('./features/auth-logs/auth-logs.module').then((m) => m.AuthLogsModule)
       },
       {
+        path: 'customer-third-parties',
+        loadChildren: () =>
+          import('./features/customer-third-parties/customer-third-parties.module').then((m) => m.CustomerThirdPartiesModule)
+      },
+      {
         path: 'unauthorized',
         data: { title: 'No autorizado', breadcrumb: 'Error 403' },
         loadComponent: () =>
