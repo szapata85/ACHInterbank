@@ -30,6 +30,11 @@ interface AchCycleOption {
   name: string;
 }
 
+interface ColumnOption {
+  field: keyof TransactionListRow;
+  label: string;
+}
+
 @Component({
   selector: 'app-transaction-list',
   standalone: true,
@@ -56,7 +61,7 @@ export class TransactionListComponent implements OnInit {
     day: '2-digit'
   });
 
-  readonly columnDefs: ColDef<TransactionListRow>[] = [
+  private readonly allColumnDefs: ColDef<TransactionListRow>[] = [
     { field: 'id', headerName: 'ID', width: 90, maxWidth: 120, sortable: true },
     { field: 'reference', headerName: 'Referencia', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
     { field: 'typeLabel', headerName: 'Tipo', width: 160, filter: 'agSetColumnFilter' },
@@ -69,6 +74,38 @@ export class TransactionListComponent implements OnInit {
     { field: 'destinationInstitutionName', headerName: 'Institución destino', filter: 'agTextColumnFilter', flex: 1 },
     { field: 'effectiveEntryDateText', headerName: 'Fecha efectiva', width: 160 }
   ];
+
+  readonly columnOptions: ColumnOption[] = [
+    { field: 'reference', label: 'Referencia' },
+    { field: 'typeLabel', label: 'Tipo' },
+    { field: 'transactionNatureLabel', label: 'Naturaleza' },
+    { field: 'achCycleName', label: 'Ciclo' },
+    { field: 'clearingHouseName', label: 'Cámara' },
+    { field: 'amountText', label: 'Monto' },
+    { field: 'sourceAccountNumber', label: 'Cuenta origen' },
+    { field: 'destinationAccountNumber', label: 'Cuenta destino' },
+    { field: 'destinationInstitutionName', label: 'Institución destino' },
+    { field: 'effectiveEntryDateText', label: 'Fecha efectiva' }
+  ];
+
+  readonly mandatoryColumnFields = new Set<keyof TransactionListRow>(['id']);
+  visibleColumnFields = new Set<keyof TransactionListRow>([
+    'id',
+    'reference',
+    'transactionNatureLabel',
+    'typeLabel',
+    'amountText',
+    'sourceAccountNumber',
+    'destinationAccountNumber',
+    'effectiveEntryDateText'
+  ]);
+
+  get columnDefs(): ColDef<TransactionListRow>[] {
+    return this.allColumnDefs.filter((column) => {
+      const field = column.field as keyof TransactionListRow | undefined;
+      return !field || this.visibleColumnFields.has(field);
+    });
+  }
 
   readonly defaultColDef: ColDef<TransactionListRow> = {
     resizable: true,
@@ -113,6 +150,37 @@ export class TransactionListComponent implements OnInit {
   onDateChange(): void {
     this.selectedCycleId = null;
     this.loadCycles(false);
+  }
+
+  isColumnVisible(field: keyof TransactionListRow): boolean {
+    return this.visibleColumnFields.has(field);
+  }
+
+  canToggleColumn(field: keyof TransactionListRow): boolean {
+    return !this.mandatoryColumnFields.has(field);
+  }
+
+  toggleColumn(field: keyof TransactionListRow, checked: boolean): void {
+    if (!this.canToggleColumn(field)) {
+      return;
+    }
+
+    if (checked) {
+      this.visibleColumnFields.add(field);
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const optionalVisibleCount = Array.from(this.visibleColumnFields)
+      .filter((visibleField) => !this.mandatoryColumnFields.has(visibleField)).length;
+
+    if (optionalVisibleCount <= 1) {
+      this.notifications.warning('Debe quedar al menos una columna visible además del ID.');
+      return;
+    }
+
+    this.visibleColumnFields.delete(field);
+    this.cdr.markForCheck();
   }
 
   private loadClearingHouses(): void {

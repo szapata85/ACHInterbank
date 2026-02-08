@@ -115,3 +115,66 @@
   border-radius: 10px;
   background: #fff;
 }
+
+.column-manager {
+  margin-bottom: 1rem;
+
+  details {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fff;
+    padding: 0.75rem 0.9rem;
+  }
+
+  summary {
+    font-weight: 600;
+    cursor: pointer;
+    color: #111827;
+  }
+
+  &__options {
+    margin-top: 0.75rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.5rem 0.75rem;
+
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      color: #1f2937;
+    }
+
+    .disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+
+    > button {
+      width: 100%;
+    }
+  }
+
+  .filters {
+    width: 100%;
+
+    .filter-field,
+    select,
+    input[type='date'],
+    .ghost {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+
+  .transactions-grid {
+    overflow-x: auto;
+  }
+}

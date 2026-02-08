@@ -29,6 +29,24 @@
   <button type="button" (click)="createNew()">Crear transacción</button>
 </div>
 
+
+<div class="column-manager" aria-label="Selector de columnas para la grilla">
+  <details>
+    <summary>Columnas visibles (útil en móvil)</summary>
+    <div class="column-manager__options">
+      <label *ngFor="let option of columnOptions" [class.disabled]="!canToggleColumn(option.field)">
+        <input
+          type="checkbox"
+          [checked]="isColumnVisible(option.field)"
+          [disabled]="!canToggleColumn(option.field)"
+          (change)="toggleColumn(option.field, $any($event.target).checked)"
+        />
+        <span>{{ option.label }}</span>
+      </label>
+    </div>
+  </details>
+</div>
+
 <div class="group-list" *ngIf="groups.length > 0; else emptyState">
   <section class="batch" *ngFor="let group of groups">
     <header class="batch__header">
