@@ -31,26 +31,40 @@ public class CustomerThirdPartiesController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var result = await _service.GetAsync(new CustomerThirdPartyQuery
+        try
         {
-            Search = search,
-            DestinationAccountNumber = destinationAccountNumber,
-            RecipientIdNumber = recipientIdNumber,
-            DestinationInstitutionId = destinationInstitutionId,
-            SourceAccountNumber = sourceAccountNumber,
-            Status = status,
-            Page = page,
-            PageSize = pageSize
-        }, ct);
+            var result = await _service.GetAsync(new CustomerThirdPartyQuery
+            {
+                Search = search,
+                DestinationAccountNumber = destinationAccountNumber,
+                RecipientIdNumber = recipientIdNumber,
+                DestinationInstitutionId = destinationInstitutionId,
+                SourceAccountNumber = sourceAccountNumber,
+                Status = status,
+                Page = page,
+                PageSize = pageSize
+            }, ct);
 
-        return Ok(result);
+            return Ok(result);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            return StatusCode(StatusCodes.Status408RequestTimeout, new { Message = "La consulta fue cancelada." });
+        }
     }
 
     [HttpPatch("{id:int}/status")]
     [Authorize(Policy = "CanManageAch")]
     public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateCustomerThirdPartyStatusRequest request, CancellationToken ct = default)
     {
-        var updated = await _service.UpdateStatusAsync(id, request.Status, request.ValidationMessage, ct);
-        return Ok(updated);
+        try
+        {
+            var updated = await _service.UpdateStatusAsync(id, request.Status, request.ValidationMessage, ct);
+            return Ok(updated);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            return StatusCode(StatusCodes.Status408RequestTimeout, new { Message = "La actualización fue cancelada." });
+        }
     }
 }
