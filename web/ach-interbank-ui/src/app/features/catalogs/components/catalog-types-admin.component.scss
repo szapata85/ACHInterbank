@@ -52,19 +52,32 @@ button.ghost {
   border-color: #d1d5db;
 }
 
-button.link,
-button.danger {
-  border: none;
-  background: transparent;
-  padding: 0;
+.row-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 button.link {
+  border: 1px solid transparent;
+  background: transparent;
   color: #1d4ed8;
+  padding: 0.3rem 0.55rem;
+  border-radius: 6px;
+  font-weight: 500;
 }
 
-button.danger {
+button.link:hover {
+  background: #eff6ff;
+}
+
+button.link.danger {
   color: #b91c1c;
+}
+
+button.link.danger:hover {
+  background: #fef2f2;
 }
 
 .table {

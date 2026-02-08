@@ -44,8 +44,10 @@
         <td>{{ row.name }}</td>
         <td>{{ row.description || '-' }}</td>
         <td class="actions-col">
-          <button type="button" class="link" (click)="edit(row)">Editar</button>
-          <button type="button" class="danger" (click)="remove(row)">Eliminar</button>
+          <div class="row-actions">
+            <button type="button" class="link" (click)="edit(row)">Editar</button>
+            <button type="button" class="link danger" (click)="remove(row)">Eliminar</button>
+          </div>
         </td>
       </tr>
     </tbody>
