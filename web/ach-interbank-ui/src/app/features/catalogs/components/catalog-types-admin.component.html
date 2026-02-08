@@ -1,0 +1,58 @@
+<app-page-header [title]="title" [subtitle]="subtitle"></app-page-header>
+
+<section class="card form-card">
+  <h3>{{ editingCode ? 'Editar registro' : 'Nuevo registro' }}</h3>
+  <form [formGroup]="form" (ngSubmit)="submit()" class="form-grid" novalidate>
+    <label>
+      <span>Código *</span>
+      <input type="text" formControlName="code" maxlength="30" />
+      <app-error-message [control]="form.get('code')"></app-error-message>
+    </label>
+
+    <label>
+      <span>Nombre *</span>
+      <input type="text" formControlName="name" maxlength="100" />
+      <app-error-message [control]="form.get('name')"></app-error-message>
+    </label>
+
+    <label class="full-width">
+      <span>Descripción</span>
+      <input type="text" formControlName="description" maxlength="200" />
+      <app-error-message [control]="form.get('description')"></app-error-message>
+    </label>
+
+    <div class="actions full-width">
+      <button type="submit" [disabled]="saving || loading">{{ editingCode ? 'Actualizar' : 'Crear' }}</button>
+      <button type="button" class="ghost" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <table class="table" *ngIf="rows.length > 0; else emptyState">
+    <thead>
+      <tr>
+        <th>Código</th>
+        <th>Nombre</th>
+        <th>Descripción</th>
+        <th class="actions-col">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let row of rows">
+        <td>{{ row.code }}</td>
+        <td>{{ row.name }}</td>
+        <td>{{ row.description || '-' }}</td>
+        <td class="actions-col">
+          <button type="button" class="link" (click)="edit(row)">Editar</button>
+          <button type="button" class="danger" (click)="remove(row)">Eliminar</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <ng-template #emptyState>
+    <p class="muted" *ngIf="loading">Cargando...</p>
+    <p class="muted" *ngIf="!loading">No hay registros.</p>
+  </ng-template>
+</section>

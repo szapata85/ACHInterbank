@@ -56,63 +56,75 @@ const routes: Routes = [
   {
     path: 'document-types',
     loadComponent: () =>
-      import('./components/document-types-admin.component').then((m) => m.DocumentTypesAdminComponent),
+      import('./components/catalog-types-admin.component').then((m) => m.CatalogTypesAdminComponent),
     canActivate: [permissionGuard],
     data: {
-      permissions: ['CanReadCatalogs'],
+      permissions: ['CanManageAch'],
       breadcrumb: 'Tipos de documento',
-      title: 'Tipos de documento'
+      title: 'Tipos de documento',
+      subtitle: 'Administra el catálogo de tipos de documento.',
+      catalogType: 'document-types'
     }
   },
   {
     path: 'gender-types',
-    loadComponent: () => import('./components/gender-types-admin.component').then((m) => m.GenderTypesAdminComponent),
+    loadComponent: () => import('./components/catalog-types-admin.component').then((m) => m.CatalogTypesAdminComponent),
     canActivate: [permissionGuard],
     data: {
-      permissions: ['CanReadCatalogs'],
+      permissions: ['CanManageAch'],
       breadcrumb: 'Tipos de género',
-      title: 'Tipos de género'
+      title: 'Tipos de género',
+      subtitle: 'Administra el catálogo de tipos de género.',
+      catalogType: 'gender-types'
     }
   },
   {
     path: 'person-types',
-    loadComponent: () => import('./components/person-types-admin.component').then((m) => m.PersonTypesAdminComponent),
+    loadComponent: () => import('./components/catalog-types-admin.component').then((m) => m.CatalogTypesAdminComponent),
     canActivate: [permissionGuard],
     data: {
-      permissions: ['CanReadCatalogs'],
+      permissions: ['CanManageAch'],
       breadcrumb: 'Tipos de persona',
-      title: 'Tipos de persona'
+      title: 'Tipos de persona',
+      subtitle: 'Administra el catálogo de tipos de persona.',
+      catalogType: 'person-types'
     }
   },
   {
     path: 'phone-types',
-    loadComponent: () => import('./components/phone-types-admin.component').then((m) => m.PhoneTypesAdminComponent),
+    loadComponent: () => import('./components/catalog-types-admin.component').then((m) => m.CatalogTypesAdminComponent),
     canActivate: [permissionGuard],
     data: {
-      permissions: ['CanReadCatalogs'],
+      permissions: ['CanManageAch'],
       breadcrumb: 'Tipos de teléfono',
-      title: 'Tipos de teléfono'
+      title: 'Tipos de teléfono',
+      subtitle: 'Administra el catálogo de tipos de teléfono.',
+      catalogType: 'phone-types'
     }
   },
   {
     path: 'email-types',
-    loadComponent: () => import('./components/email-types-admin.component').then((m) => m.EmailTypesAdminComponent),
+    loadComponent: () => import('./components/catalog-types-admin.component').then((m) => m.CatalogTypesAdminComponent),
     canActivate: [permissionGuard],
     data: {
-      permissions: ['CanReadCatalogs'],
+      permissions: ['CanManageAch'],
       breadcrumb: 'Tipos de correo',
-      title: 'Tipos de correo'
+      title: 'Tipos de correo',
+      subtitle: 'Administra el catálogo de tipos de correo.',
+      catalogType: 'email-types'
     }
   },
   {
     path: 'address-types',
     loadComponent: () =>
-      import('./components/address-types-admin.component').then((m) => m.AddressTypesAdminComponent),
+      import('./components/catalog-types-admin.component').then((m) => m.CatalogTypesAdminComponent),
     canActivate: [permissionGuard],
     data: {
-      permissions: ['CanReadCatalogs'],
+      permissions: ['CanManageAch'],
       breadcrumb: 'Tipos de dirección',
-      title: 'Tipos de dirección'
+      title: 'Tipos de dirección',
+      subtitle: 'Administra el catálogo de tipos de dirección.',
+      catalogType: 'address-types'
     }
   }
 ];
