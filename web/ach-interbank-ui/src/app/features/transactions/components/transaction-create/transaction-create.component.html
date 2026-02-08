@@ -74,7 +74,26 @@
 
       <label>
         <span>Cuenta destino *</span>
-        <input type="text" formControlName="destinationAccountNumber" required inputmode="numeric" />
+        <ng-container *ngIf="!form.get('isPrenotification')?.value; else manualDestinationAccount">
+          <select
+            formControlName="destinationAccountNumber"
+            (change)="onDestinationAccountSelected($any($event.target).value)"
+            required
+          >
+            <option value="" disabled>Seleccione una cuenta con prenotificación exitosa</option>
+            <option *ngFor="let account of filteredDestinationAccounts" [value]="account.destinationAccountNumber">
+              {{ account.destinationAccountNumber }} · {{ account.recipientIdNumber }} · {{ account.destinationInstitutionName }}
+            </option>
+          </select>
+          <small class="muted">Solo se muestran cuentas con prenotificación aprobada (Active).</small>
+          <small class="muted" *ngIf="filteredDestinationAccounts.length === 0">
+            No hay cuentas activas para la institución seleccionada.
+          </small>
+        </ng-container>
+        <ng-template #manualDestinationAccount>
+          <input type="text" formControlName="destinationAccountNumber" required inputmode="numeric" />
+          <small class="muted">Para prenotificación puedes registrar una cuenta destino nueva.</small>
+        </ng-template>
         <app-error-message [control]="form.get('destinationAccountNumber')"></app-error-message>
       </label>
 

@@ -75,3 +75,12 @@ export interface ReturnReason {
   description: string;
   category: string;
 }
+
+
+export interface ActiveThirdPartyAccount {
+  id: number;
+  destinationInstitutionId: number;
+  destinationInstitutionName: string;
+  destinationAccountNumber: string;
+  recipientIdNumber: string;
+}

@@ -51,6 +51,11 @@ public class CustomerThirdPartyAppService : ICustomerThirdPartyAppService
             dataQuery = dataQuery.Where(t => t.RecipientIdNumber.Contains(recipientIdNumber));
         }
 
+        if (query.DestinationInstitutionId.HasValue)
+        {
+            dataQuery = dataQuery.Where(t => t.DestinationInstitutionId == query.DestinationInstitutionId.Value);
+        }
+
         if (query.Status.HasValue)
         {
             dataQuery = dataQuery.Where(t => t.Status == query.Status.Value);
@@ -70,6 +75,7 @@ public class CustomerThirdPartyAppService : ICustomerThirdPartyAppService
                 CustomerName = string.IsNullOrWhiteSpace(t.Customer.CompanyName)
                     ? string.Join(" ", new[] { t.Customer.FirstName, t.Customer.LastName, t.Customer.SecondLastName }.Where(x => !string.IsNullOrWhiteSpace(x)))
                     : t.Customer.CompanyName!,
+                DestinationInstitutionId = t.DestinationInstitutionId,
                 DestinationInstitutionName = t.DestinationInstitution.Name,
                 DestinationAccountNumber = t.DestinationAccountNumber,
                 RecipientIdNumber = t.RecipientIdNumber,
@@ -115,6 +121,7 @@ public class CustomerThirdPartyAppService : ICustomerThirdPartyAppService
             CustomerName = string.IsNullOrWhiteSpace(entity.Customer.CompanyName)
                 ? string.Join(" ", new[] { entity.Customer.FirstName, entity.Customer.LastName, entity.Customer.SecondLastName }.Where(x => !string.IsNullOrWhiteSpace(x)))
                 : entity.Customer.CompanyName!,
+            DestinationInstitutionId = entity.DestinationInstitutionId,
             DestinationInstitutionName = entity.DestinationInstitution.Name,
             DestinationAccountNumber = entity.DestinationAccountNumber,
             RecipientIdNumber = entity.RecipientIdNumber,

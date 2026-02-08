@@ -4,7 +4,7 @@ import { map, shareReplay, take, takeUntil, tap } from 'rxjs';
 import { Subject } from 'rxjs';
 import { Router } from '@angular/router';
 import { TransactionsApiService } from '../../services/transactions-api.service';
-import { TransactionDraft, TransactionResponse } from '../../transactions.models';
+import { ActiveThirdPartyAccount, TransactionDraft, TransactionResponse } from '../../transactions.models';
 import { AccountTypeEnum, FinancialInstitutionStatusEnum, TransactionTypeEnum } from '../../transactions.types';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SharedModule } from '../../../../shared/shared.module';
@@ -69,12 +69,22 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   readonly successMessage = new FormControl<string | null>(null);
   readonly createdResponse = new FormControl<TransactionResponse | null>(null);
 
+  activeDestinationAccounts: ActiveThirdPartyAccount[] = [];
+  filteredDestinationAccounts: ActiveThirdPartyAccount[] = [];
+
   ngOnInit(): void {
     this.form.setValidators([this.validateAccountDifference, this.validateBusinessRules]);
     this.form.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(() => {
       this.errorMessage.setValue(null);
       this.successMessage.setValue(null);
     });
+
+    this.loadActiveDestinationAccounts();
+
+    this.form
+      .get('destinationInstitutionId')
+      ?.valueChanges.pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.filterActiveDestinationAccounts());
 
     this.form
       .get('isPrenotification')
@@ -93,6 +103,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
         if (isPrenotification) {
           amountControl.setValue(0, { emitEvent: false });
         }
+
+        this.filterActiveDestinationAccounts();
         amountControl.updateValueAndValidity({ emitEvent: false });
       });
   }
@@ -196,6 +208,47 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     }
     return null;
   };
+
+
+
+  onDestinationAccountSelected(accountNumber: string): void {
+    const selected = this.filteredDestinationAccounts.find((item) => item.destinationAccountNumber === accountNumber);
+    if (!selected) {
+      return;
+    }
+
+    this.form.patchValue({ recipientIdNumber: selected.recipientIdNumber }, { emitEvent: false });
+  }
+
+  private loadActiveDestinationAccounts(): void {
+    this.api
+      .getActiveThirdParties()
+      .pipe(take(1), takeUntil(this.destroy$))
+      .subscribe((items) => {
+        this.activeDestinationAccounts = items;
+        this.filterActiveDestinationAccounts();
+        this.cdr.markForCheck();
+      });
+  }
+
+  private filterActiveDestinationAccounts(): void {
+    const institutionId = Number(this.form.get('destinationInstitutionId')?.value);
+    const selectedIsPrenotification = Boolean(this.form.get('isPrenotification')?.value);
+
+    this.filteredDestinationAccounts = institutionId > 0
+      ? this.activeDestinationAccounts.filter((item) => item.destinationInstitutionId === institutionId)
+      : this.activeDestinationAccounts;
+
+    if (!selectedIsPrenotification) {
+      const currentDestination = this.form.get('destinationAccountNumber')?.value;
+      const exists = this.filteredDestinationAccounts.some((item) => item.destinationAccountNumber === currentDestination);
+      if (!exists) {
+        this.form.patchValue({ destinationAccountNumber: '' }, { emitEvent: false });
+      }
+    }
+
+    this.cdr.markForCheck();
+  }
 
   private validateBusinessRules = (group: FormGroup) => {
     const isPrenotification = Boolean(group.get('isPrenotification')?.value);

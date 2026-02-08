@@ -24,6 +24,7 @@ public class CustomerThirdPartiesController : ControllerBase
         [FromQuery] string? search,
         [FromQuery] string? destinationAccountNumber,
         [FromQuery] string? recipientIdNumber,
+        [FromQuery] int? destinationInstitutionId,
         [FromQuery] CustomerThirdPartyStatusEnum? status,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
@@ -34,6 +35,7 @@ public class CustomerThirdPartiesController : ControllerBase
             Search = search,
             DestinationAccountNumber = destinationAccountNumber,
             RecipientIdNumber = recipientIdNumber,
+            DestinationInstitutionId = destinationInstitutionId,
             Status = status,
             Page = page,
             PageSize = pageSize
