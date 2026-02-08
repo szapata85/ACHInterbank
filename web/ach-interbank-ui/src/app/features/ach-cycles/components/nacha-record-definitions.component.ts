@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -31,6 +31,7 @@ export class NachaRecordDefinitionsComponent implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   definitions: NachaDefinitionRow[] = [];
   layoutsByCode: Record<string, NachaRecordLayoutDto> = {};
@@ -78,7 +79,7 @@ export class NachaRecordDefinitionsComponent implements OnInit {
 
   ngOnInit(): void {
     this.form.controls.sourceType.valueChanges
-      .pipe(takeUntilDestroyed())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((sourceType) => {
         if (sourceType === 0) {
           this.form.patchValue({ sourceName: '' }, { emitEvent: false });
