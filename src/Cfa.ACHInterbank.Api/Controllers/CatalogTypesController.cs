@@ -150,6 +150,7 @@ public class CatalogTypesController : ControllerBase
             "phone-types" => CatalogTypeKey.PhoneTypes,
             "email-types" => CatalogTypeKey.EmailTypes,
             "address-types" => CatalogTypeKey.AddressTypes,
+            "transaction-codes" => CatalogTypeKey.TransactionCodes,
             _ => null
         };
 
@@ -169,6 +170,8 @@ public class CatalogTypesController : ControllerBase
                 .Select(x => new CatalogTypeItemDto { Code = x.Code, Name = x.Name, Description = x.Description }).ToListAsync(ct),
             CatalogTypeKey.AddressTypes => await _context.AddressTypes.AsNoTracking().OrderBy(x => x.Code)
                 .Select(x => new CatalogTypeItemDto { Code = x.Code, Name = x.Name, Description = x.Description }).ToListAsync(ct),
+            CatalogTypeKey.TransactionCodes => await _context.TransactionCodes.AsNoTracking().OrderBy(x => x.Code)
+                .Select(x => new CatalogTypeItemDto { Code = x.Code, Name = x.Name, Description = x.Description }).ToListAsync(ct),
             _ => []
         };
     }
@@ -182,6 +185,7 @@ public class CatalogTypesController : ControllerBase
             CatalogTypeKey.PhoneTypes => await _context.PhoneTypes.AnyAsync(x => x.Code == code, ct),
             CatalogTypeKey.EmailTypes => await _context.EmailTypes.AnyAsync(x => x.Code == code, ct),
             CatalogTypeKey.AddressTypes => await _context.AddressTypes.AnyAsync(x => x.Code == code, ct),
+            CatalogTypeKey.TransactionCodes => await _context.TransactionCodes.AnyAsync(x => x.Code == code, ct),
             _ => false
         };
 
@@ -206,6 +210,9 @@ public class CatalogTypesController : ControllerBase
                 return;
             case CatalogTypeKey.AddressTypes:
                 _context.AddressTypes.Add(new AddressTypeCatalog { Code = code, Name = name, Description = description });
+                return;
+            case CatalogTypeKey.TransactionCodes:
+                _context.TransactionCodes.Add(new TransactionCodeCatalog { Code = code, Name = name, Description = description });
                 return;
         }
     }
@@ -250,6 +257,12 @@ public class CatalogTypesController : ControllerBase
                 address.Name = name;
                 address.Description = description;
                 return true;
+            case CatalogTypeKey.TransactionCodes:
+                var transactionCode = await _context.TransactionCodes.FirstOrDefaultAsync(x => x.Code == code, ct);
+                if (transactionCode is null) return false;
+                transactionCode.Name = name;
+                transactionCode.Description = description;
+                return true;
             default:
                 return false;
         }
@@ -289,6 +302,11 @@ public class CatalogTypesController : ControllerBase
                 if (address is null) return false;
                 _context.AddressTypes.Remove(address);
                 return true;
+            case CatalogTypeKey.TransactionCodes:
+                var transactionCode = await _context.TransactionCodes.FirstOrDefaultAsync(x => x.Code == code, ct);
+                if (transactionCode is null) return false;
+                _context.TransactionCodes.Remove(transactionCode);
+                return true;
             default:
                 return false;
         }
@@ -301,7 +319,8 @@ public class CatalogTypesController : ControllerBase
         PersonTypes,
         PhoneTypes,
         EmailTypes,
-        AddressTypes
+        AddressTypes,
+        TransactionCodes
     }
 }
 

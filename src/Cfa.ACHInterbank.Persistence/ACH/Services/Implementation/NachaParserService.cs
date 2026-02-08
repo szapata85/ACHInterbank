@@ -15,6 +15,7 @@ public class NachaParserService : INachaParserService
 {
     private readonly AchDbContext _context;
     private readonly ILogger<NachaParserService> _logger;
+    private HashSet<string>? _configuredTransactionCodes;
 
     public NachaParserService(AchDbContext context, ILogger<NachaParserService> logger)
     {
@@ -295,14 +296,21 @@ public class NachaParserService : INachaParserService
         }).ToList();
     }
 
+    private static readonly HashSet<string> FallbackTransactionCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "21", "22", "23", "26", "27", "28",
+        "31", "32", "33", "36", "37", "38",
+        "42", "51", "52", "53", "55", "56", "57"
+    };
+
     private static readonly HashSet<string> CreditCodes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "22", "23", "32", "33", "52", "53"
+        "21", "22", "23", "31", "32", "33", "42", "51", "52", "53"
     };
 
     private static readonly HashSet<string> DebitCodes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "27", "28", "37", "38", "55", "57"
+        "26", "27", "28", "36", "37", "38", "55", "56", "57"
     };
 
     private static readonly HashSet<string> PrenoteCodes = new(StringComparer.OrdinalIgnoreCase)
@@ -316,7 +324,8 @@ public class NachaParserService : INachaParserService
         List<NachaValidationFailure> failures)
     {
         var code = entry.TransactionCode ?? string.Empty;
-        if (!CreditCodes.Contains(code) && !DebitCodes.Contains(code))
+        var configuredCodes = await GetConfiguredTransactionCodesAsync();
+        if (!configuredCodes.Contains(code))
         {
             const string reason = "Código de transacción inválido.";
             failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
@@ -447,6 +456,26 @@ public class NachaParserService : INachaParserService
         }
 
         return sequence.Length <= 7 ? sequence : sequence[^7..];
+    }
+
+
+    private async Task<HashSet<string>> GetConfiguredTransactionCodesAsync()
+    {
+        if (_configuredTransactionCodes is not null)
+        {
+            return _configuredTransactionCodes;
+        }
+
+        var configuredCodes = await _context.TransactionCodes
+            .AsNoTracking()
+            .Select(x => x.Code)
+            .ToListAsync();
+
+        _configuredTransactionCodes = configuredCodes.Count == 0
+            ? new HashSet<string>(FallbackTransactionCodes, StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(configuredCodes, StringComparer.OrdinalIgnoreCase);
+
+        return _configuredTransactionCodes;
     }
 
     private static bool ShouldValidateCreditIdentity(string? discretionaryData)

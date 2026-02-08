@@ -21,7 +21,8 @@ export class CatalogsListComponent implements OnInit {
     { label: 'Tipos de persona', route: '/catalogs/person-types' },
     { label: 'Tipos de teléfono', route: '/catalogs/phone-types' },
     { label: 'Tipos de correo', route: '/catalogs/email-types' },
-    { label: 'Tipos de dirección', route: '/catalogs/address-types' }
+    { label: 'Tipos de dirección', route: '/catalogs/address-types' },
+    { label: 'Códigos de transacción ACH', route: '/catalogs/transaction-codes' }
   ];
 
   ngOnInit(): void {

@@ -20,7 +20,8 @@ export class NavigationService {
       { id: -213, label: 'Tipos de persona', route: '/catalogs/person-types', icon: 'apartment' },
       { id: -214, label: 'Tipos de teléfono', route: '/catalogs/phone-types', icon: 'call' },
       { id: -215, label: 'Tipos de correo', route: '/catalogs/email-types', icon: 'mail' },
-      { id: -216, label: 'Tipos de dirección', route: '/catalogs/address-types', icon: 'location_on' }
+      { id: -216, label: 'Tipos de dirección', route: '/catalogs/address-types', icon: 'location_on' },
+      { id: -217, label: 'Códigos de transacción ACH', route: '/catalogs/transaction-codes', icon: 'numbers' }
     ];
 
     const catalogGroup: MenuItem = {

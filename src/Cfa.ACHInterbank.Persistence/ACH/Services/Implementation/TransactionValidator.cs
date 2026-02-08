@@ -2,13 +2,16 @@ using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.Persistence.DataBase;
+using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
 public class TransactionValidator : ITransactionValidator
 {
-    private static readonly IReadOnlyDictionary<(TransactionTypeEnum Type, AccountTypeEnum Account, bool IsPrenotification), string> TransactionCodeMap
+    private readonly AchDbContext _context;
+    private static readonly IReadOnlyDictionary<(TransactionTypeEnum Type, AccountTypeEnum Account, bool IsPrenotification), string> FallbackTransactionCodeMap
         = new Dictionary<(TransactionTypeEnum, AccountTypeEnum, bool), string>
         {
             { (TransactionTypeEnum.Credit, AccountTypeEnum.Checking, false), "22" },
@@ -24,6 +27,11 @@ public class TransactionValidator : ITransactionValidator
             { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, false), "55" },
             { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, true), "57" }
         };
+
+    public TransactionValidator(AchDbContext context)
+    {
+        _context = context;
+    }
 
     public void ValidateRequest(AchTransactionRequestData request)
     {
@@ -88,12 +96,25 @@ public class TransactionValidator : ITransactionValidator
 
     public string ResolveTransactionCode(TransactionTypeEnum type, AccountTypeEnum accountType, bool isPrenotification)
     {
-        if (TransactionCodeMap.TryGetValue((type, accountType, isPrenotification), out var code))
+        if (!FallbackTransactionCodeMap.TryGetValue((type, accountType, isPrenotification), out var fallbackCode))
         {
-            return code;
+            throw new ArgumentOutOfRangeException(nameof(accountType), "Tipo de cuenta no soportado.");
         }
 
-        throw new ArgumentOutOfRangeException(nameof(accountType), "Tipo de cuenta no soportado.");
+        var normalizedCode = fallbackCode.Trim();
+        var configuredCodes = _context.TransactionCodes
+            .AsNoTracking()
+            .Select(x => x.Code)
+            .ToList();
+
+        if (configuredCodes.Count == 0)
+        {
+            return normalizedCode;
+        }
+
+        return configuredCodes.Contains(normalizedCode)
+            ? normalizedCode
+            : fallbackCode;
     }
 
     public string ValidateAddendaType(string addendaType)

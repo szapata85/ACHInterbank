@@ -126,6 +126,19 @@ const routes: Routes = [
       subtitle: 'Administra el catálogo de tipos de dirección.',
       catalogType: 'address-types'
     }
+  },
+  {
+    path: 'transaction-codes',
+    loadComponent: () =>
+      import('./components/catalog-types-admin.component').then((m) => m.CatalogTypesAdminComponent),
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['CanManageAch'],
+      breadcrumb: 'Códigos de transacción ACH',
+      title: 'Códigos de transacción ACH',
+      subtitle: 'Administra el catálogo de códigos de transacción ACH.',
+      catalogType: 'transaction-codes'
+    }
   }
 ];
 
