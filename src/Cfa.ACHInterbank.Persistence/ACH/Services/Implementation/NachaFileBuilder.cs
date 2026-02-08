@@ -281,7 +281,7 @@ public class NachaFileBuilder : INachaFileBuilder
                     var totalRecords = recordCount + 1;
                     var blockCount = (int)Math.Ceiling(totalRecords / 10m);
                     var paddingNeeded = (blockCount * 10) - totalRecords;
-                    var fileControl = FileControlRecord.From(context.Cycle, batchCount, blockCount, entryAddendaCount, totalDebit, totalCredit);
+                    var fileControl = FileControlRecord.From(context.Cycle, orderedBatches, batchCount, blockCount, entryAddendaCount, totalDebit, totalCredit);
 
                     recordCount += await AppendCustomOrConfiguredAsync(
                         sb,
@@ -458,6 +458,11 @@ public class NachaFileBuilder : INachaFileBuilder
         public DateTime FileCreationDate { get; init; }
         public DateTime FileCreationTime { get; init; }
         public string? FileIdModifier { get; init; }
+        public string? RecordSize { get; init; }
+        public string? BlockingFactor { get; init; }
+        public string? FormatCode { get; init; }
+        public string? ImmediateDestinationName { get; init; }
+        public string? ImmediateOriginName { get; init; }
         public string? ReferenceCode { get; init; }
         public string? CycleName { get; init; }
         public DateTime ProcessingDate { get; init; }
@@ -474,6 +479,11 @@ public class NachaFileBuilder : INachaFileBuilder
                 FileCreationDate = ParseDate(header?.FileCreationDate) ?? now,
                 FileCreationTime = ParseTime(header?.FileCreationTime) ?? now,
                 FileIdModifier = header?.FileIdModifier,
+                RecordSize = string.IsNullOrWhiteSpace(header?.RecordSize) ? "106" : header!.RecordSize,
+                BlockingFactor = string.IsNullOrWhiteSpace(header?.BlockingFactor) ? "10" : header!.BlockingFactor,
+                FormatCode = string.IsNullOrWhiteSpace(header?.FormatCode) ? "1" : header!.FormatCode,
+                ImmediateDestinationName = header?.ImmediateDestinationName,
+                ImmediateOriginName = header?.ImmediateOriginName,
                 ReferenceCode = header?.ReferenceCode,
                 CycleName = cycle.CycleName,
                 ProcessingDate = cycle.ProcessingDate
@@ -495,10 +505,16 @@ public class NachaFileBuilder : INachaFileBuilder
     {
         public string ServiceClassCode { get; init; } = string.Empty;
         public string CompanyName { get; init; } = string.Empty;
+        public string CompanyDiscretionaryData { get; init; } = string.Empty;
         public string CompanyIdentification { get; init; } = string.Empty;
+        public string StandardEntryClassCode { get; init; } = "PPD";
         public string CompanyEntryDescription { get; init; } = string.Empty;
+        public DateTime CompanyDescriptiveDate { get; init; }
         public DateTime EffectiveEntryDate { get; init; }
+        public string SettlementDate { get; init; } = string.Empty;
+        public string OriginatorStatusCode { get; init; } = "1";
         public string OriginatingDFI { get; init; } = string.Empty;
+        public int BatchNumber { get; init; }
 
         public static BatchHeaderRecord From(AchBatch batch)
         {
@@ -506,10 +522,16 @@ public class NachaFileBuilder : INachaFileBuilder
             {
                 ServiceClassCode = batch.ServiceClassCode,
                 CompanyName = batch.CompanyName,
+                CompanyDiscretionaryData = string.Empty,
                 CompanyIdentification = batch.CompanyIdentification,
+                StandardEntryClassCode = "PPD",
                 CompanyEntryDescription = batch.CompanyEntryDescription,
+                CompanyDescriptiveDate = batch.EffectiveEntryDate,
                 EffectiveEntryDate = batch.EffectiveEntryDate,
-                OriginatingDFI = batch.OriginOrOdfi
+                SettlementDate = string.Empty,
+                OriginatorStatusCode = "1",
+                OriginatingDFI = batch.OriginOrOdfi,
+                BatchNumber = batch.BatchSequenceNumber
             };
         }
     }
@@ -518,10 +540,11 @@ public class NachaFileBuilder : INachaFileBuilder
     {
         public string TransactionCode { get; init; } = string.Empty;
         public string ReceivingDFI { get; init; } = string.Empty;
+        public string CheckDigit { get; init; } = string.Empty;
         public string DestinationAccountNumber { get; init; } = string.Empty;
         public decimal Amount { get; init; }
-        public string Reference { get; init; } = string.Empty;
         public string RecipientIdNumber { get; init; } = string.Empty;
+        public string ReceiverName { get; init; } = string.Empty;
         public string DiscretionaryData { get; init; } = string.Empty;
         public string AddendumIndicator { get; init; } = "1";
         public string TraceNumber { get; init; } = string.Empty;
@@ -533,10 +556,11 @@ public class NachaFileBuilder : INachaFileBuilder
             {
                 TransactionCode = tx.TransactionCode,
                 ReceivingDFI = tx.ReceivingDFI,
+                CheckDigit = string.Empty,
                 DestinationAccountNumber = tx.DestinationAccountNumber,
                 Amount = tx.Amount,
-                Reference = tx.Reference,
                 RecipientIdNumber = tx.RecipientIdNumber,
+                ReceiverName = tx.Reference,
                 DiscretionaryData = tx.DiscretionaryData,
                 AddendumIndicator = "1",
                 TraceNumber = tx.TraceNumber,
@@ -659,10 +683,13 @@ public class NachaFileBuilder : INachaFileBuilder
     {
         public string ServiceClassCode { get; init; } = string.Empty;
         public int EntryAddendaCount { get; init; }
-        public string CompanyIdentification { get; init; } = string.Empty;
+        public long EntryHash { get; init; }
         public long TotalDebitAmount { get; init; }
         public long TotalCreditAmount { get; init; }
-        public string CompanyName { get; init; } = string.Empty;
+        public string CompanyIdentification { get; init; } = string.Empty;
+        public string MessageAuthenticationCode { get; init; } = string.Empty;
+        public string OriginatingDFI { get; init; } = string.Empty;
+        public int BatchNumber { get; init; }
 
         public static BatchControlRecord From(AchBatch batch, int entryAddendaCount, long batchDebit, long batchCredit)
         {
@@ -670,10 +697,13 @@ public class NachaFileBuilder : INachaFileBuilder
             {
                 ServiceClassCode = batch.ServiceClassCode,
                 EntryAddendaCount = entryAddendaCount,
-                CompanyIdentification = batch.CompanyIdentification,
+                EntryHash = ComputeEntryHash(batch.Transactions),
                 TotalDebitAmount = batchDebit,
                 TotalCreditAmount = batchCredit,
-                CompanyName = batch.CompanyName
+                CompanyIdentification = batch.CompanyIdentification,
+                MessageAuthenticationCode = string.Empty,
+                OriginatingDFI = batch.OriginOrOdfi,
+                BatchNumber = batch.BatchSequenceNumber
             };
         }
     }
@@ -683,21 +713,46 @@ public class NachaFileBuilder : INachaFileBuilder
         public int BatchCount { get; init; }
         public int BlockCount { get; init; }
         public int EntryAddendaCount { get; init; }
+        public long EntryHash { get; init; }
         public long TotalDebitAmount { get; init; }
         public long TotalCreditAmount { get; init; }
         public string CycleName { get; init; } = string.Empty;
 
-        public static FileControlRecord From(AchCycle cycle, int batchCount, int blockCount, int entryAddendaCount, long totalDebit, long totalCredit)
+        public static FileControlRecord From(AchCycle cycle, IEnumerable<AchBatch> batches, int batchCount, int blockCount, int entryAddendaCount, long totalDebit, long totalCredit)
         {
             return new FileControlRecord
             {
                 BatchCount = batchCount,
                 BlockCount = blockCount,
                 EntryAddendaCount = entryAddendaCount,
+                EntryHash = ComputeEntryHash(batches.SelectMany(b => b.Transactions)),
                 TotalDebitAmount = totalDebit,
                 TotalCreditAmount = totalCredit,
                 CycleName = cycle.CycleName
             };
         }
+    }
+
+    private static long ComputeEntryHash(IEnumerable<AchTransaction> transactions)
+    {
+        const long maxHash = 9999999999;
+        long hash = 0;
+
+        foreach (var tx in transactions)
+        {
+            var dfi = new string((tx.ReceivingDFI ?? string.Empty).Where(char.IsDigit).ToArray());
+            if (dfi.Length == 0)
+            {
+                continue;
+            }
+
+            var first8 = dfi.Length >= 8 ? dfi[..8] : dfi;
+            if (long.TryParse(first8, out var value))
+            {
+                hash = (hash + value) % maxHash;
+            }
+        }
+
+        return hash;
     }
 }

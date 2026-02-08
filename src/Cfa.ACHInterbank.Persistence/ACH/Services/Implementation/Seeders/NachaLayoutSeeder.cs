@@ -39,7 +39,12 @@ public class NachaLayoutSeeder : IDbSeeder
                         new NachaRecordField { FieldName="FileCreationDate", StartPosition=24, Length=8, PadChar='0', Justification='R', DbColumn="FileCreationDate", Format="yyyyMMdd" },
                         new NachaRecordField { FieldName="FileCreationTime", StartPosition=32, Length=4, PadChar='0', Justification='R', DbColumn="FileCreationTime", Format="HHmm" },
                         new NachaRecordField { FieldName="FileIdModifier", StartPosition=36, Length=1, PadChar='A', Justification='L', DbColumn="FileIdModifier" },
-                        new NachaRecordField { FieldName="ReferenceCode", StartPosition=99, Length=8, PadChar=' ', Justification='L', DbColumn="ReferenceCode" }
+                        new NachaRecordField { FieldName="RecordSize", StartPosition=37, Length=3, PadChar='0', Justification='R', DbColumn="RecordSize" },
+                        new NachaRecordField { FieldName="BlockingFactor", StartPosition=40, Length=2, PadChar='0', Justification='R', DbColumn="BlockingFactor" },
+                        new NachaRecordField { FieldName="FormatCode", StartPosition=42, Length=1, PadChar='0', Justification='R', DbColumn="FormatCode" },
+                        new NachaRecordField { FieldName="ImmediateDestinationName", StartPosition=43, Length=23, PadChar=' ', Justification='L', DbColumn="ImmediateDestinationName" },
+                        new NachaRecordField { FieldName="ImmediateOriginName", StartPosition=66, Length=23, PadChar=' ', Justification='L', DbColumn="ImmediateOriginName" },
+                        new NachaRecordField { FieldName="ReferenceCode", StartPosition=89, Length=8, PadChar=' ', Justification='L', DbColumn="ReferenceCode" }
                     }
                 },
 
@@ -56,10 +61,16 @@ public class NachaLayoutSeeder : IDbSeeder
                     {
                         new NachaRecordField { FieldName="ServiceClassCode", StartPosition=2, Length=3, PadChar='0', Justification='R', DbColumn="ServiceClassCode" },
                         new NachaRecordField { FieldName="CompanyName", StartPosition=5, Length=16, PadChar=' ', Justification='L', DbColumn="CompanyName" },
-                        new NachaRecordField { FieldName="CompanyIdentification", StartPosition=21, Length=10, PadChar=' ', Justification='L', DbColumn="CompanyIdentification" },
-                        new NachaRecordField { FieldName="CompanyEntryDescription", StartPosition=31, Length=10, PadChar=' ', Justification='L', DbColumn="CompanyEntryDescription" },
-                        new NachaRecordField { FieldName="EffectiveEntryDate", StartPosition=69, Length=6, PadChar='0', Justification='R', DbColumn="EffectiveEntryDate", Format="yyMMdd" },
-                        new NachaRecordField { FieldName="OriginOrOdfi", StartPosition=80, Length=8, PadChar='0', Justification='R', DbColumn="OriginatingDFI" }
+                        new NachaRecordField { FieldName="CompanyDiscretionaryData", StartPosition=21, Length=20, PadChar=' ', Justification='L', DbColumn="CompanyDiscretionaryData" },
+                        new NachaRecordField { FieldName="CompanyIdentification", StartPosition=41, Length=10, PadChar=' ', Justification='L', DbColumn="CompanyIdentification" },
+                        new NachaRecordField { FieldName="StandardEntryClassCode", StartPosition=51, Length=3, PadChar=' ', Justification='L', DbColumn="StandardEntryClassCode" },
+                        new NachaRecordField { FieldName="CompanyEntryDescription", StartPosition=54, Length=10, PadChar=' ', Justification='L', DbColumn="CompanyEntryDescription" },
+                        new NachaRecordField { FieldName="CompanyDescriptiveDate", StartPosition=64, Length=8, PadChar=' ', Justification='L', DbColumn="CompanyDescriptiveDate", Format="yyyyMMdd" },
+                        new NachaRecordField { FieldName="EffectiveEntryDate", StartPosition=72, Length=8, PadChar='0', Justification='R', DbColumn="EffectiveEntryDate", Format="yyyyMMdd" },
+                        new NachaRecordField { FieldName="SettlementDate", StartPosition=80, Length=3, PadChar='0', Justification='R', DbColumn="SettlementDate" },
+                        new NachaRecordField { FieldName="OriginatorStatusCode", StartPosition=83, Length=1, PadChar='0', Justification='R', DbColumn="OriginatorStatusCode" },
+                        new NachaRecordField { FieldName="OriginatingDFI", StartPosition=84, Length=8, PadChar='0', Justification='R', DbColumn="OriginatingDFI" },
+                        new NachaRecordField { FieldName="BatchNumber", StartPosition=92, Length=7, PadChar='0', Justification='R', DbColumn="BatchNumber" }
                     }
                 },
 
@@ -75,11 +86,12 @@ public class NachaLayoutSeeder : IDbSeeder
                     Fields = new List<NachaRecordField>
                     {
                         new NachaRecordField { FieldName="TransactionCode", StartPosition=2, Length=2, PadChar='0', Justification='R', DbColumn="TransactionCode" },
-                        new NachaRecordField { FieldName="ReceivingDFI", StartPosition=4, Length=9, PadChar='0', Justification='R', DbColumn="ReceivingDFI" },
+                        new NachaRecordField { FieldName="ReceivingDFI", StartPosition=4, Length=8, PadChar='0', Justification='R', DbColumn="ReceivingDFI" },
+                        new NachaRecordField { FieldName="CheckDigit", StartPosition=12, Length=1, PadChar='0', Justification='R', DbColumn="CheckDigit" },
                         new NachaRecordField { FieldName="AccountNumber", StartPosition=13, Length=17, PadChar=' ', Justification='L', DbColumn="DestinationAccountNumber" },
-                        new NachaRecordField { FieldName="Amount", StartPosition=30, Length=12, PadChar='0', Justification='R', DbColumn="Amount", Format="000000000000" },
-                        new NachaRecordField { FieldName="Reference", StartPosition=42, Length=20, PadChar=' ', Justification='L', DbColumn="Reference" },
-                        new NachaRecordField { FieldName="RecipientIdNumber", StartPosition=62, Length=15, PadChar=' ', Justification='L', DbColumn="RecipientIdNumber" },
+                        new NachaRecordField { FieldName="Amount", StartPosition=30, Length=18, PadChar='0', Justification='R', DbColumn="Amount" },
+                        new NachaRecordField { FieldName="RecipientIdNumber", StartPosition=48, Length=15, PadChar=' ', Justification='L', DbColumn="RecipientIdNumber" },
+                        new NachaRecordField { FieldName="ReceiverName", StartPosition=63, Length=22, PadChar=' ', Justification='L', DbColumn="ReceiverName" },
                         new NachaRecordField { FieldName="DiscretionaryData", StartPosition=85, Length=2, PadChar=' ', Justification='L', DbColumn="DiscretionaryData" },
                         new NachaRecordField { FieldName="AddendumIndicator", StartPosition=87, Length=1, PadChar='0', Justification='R', DbColumn="AddendumIndicator" },
                         new NachaRecordField { FieldName="TraceNumber", StartPosition=88, Length=15, PadChar='0', Justification='R', DbColumn="TraceNumber" }
@@ -99,8 +111,8 @@ public class NachaLayoutSeeder : IDbSeeder
                     {
                         new NachaRecordField { FieldName="AddendaType", StartPosition=2, Length=2, PadChar='0', Justification='R', DbColumn="AddendaType" },
                         new NachaRecordField { FieldName="Information", StartPosition=4, Length=80, PadChar=' ', Justification='L', DbColumn="Information" },
-                        new NachaRecordField { FieldName="SequenceNumber", StartPosition=85, Length=5, PadChar='0', Justification='R', DbColumn="SequenceNumber" },
-                        new NachaRecordField { FieldName="EntryDetailSequenceNumber", StartPosition=90, Length=7, PadChar='0', Justification='R', DbColumn="EntryDetailSequenceNumber" }
+                        new NachaRecordField { FieldName="SequenceNumber", StartPosition=84, Length=4, PadChar='0', Justification='R', DbColumn="SequenceNumber" },
+                        new NachaRecordField { FieldName="EntryDetailSequenceNumber", StartPosition=88, Length=7, PadChar='0', Justification='R', DbColumn="EntryDetailSequenceNumber" }
                     }
                 },
 
@@ -117,9 +129,13 @@ public class NachaLayoutSeeder : IDbSeeder
                     {
                         new NachaRecordField { FieldName="ServiceClassCode", StartPosition=2, Length=3, PadChar='0', Justification='R', DbColumn="ServiceClassCode" },
                         new NachaRecordField { FieldName="EntryAddendaCount", StartPosition=5, Length=6, PadChar='0', Justification='R', DbColumn="EntryAddendaCount" },
-                        new NachaRecordField { FieldName="CompanyIdentification", StartPosition=11, Length=10, PadChar=' ', Justification='L', DbColumn="CompanyIdentification" },
-                        new NachaRecordField { FieldName="TotalDebitAmount", StartPosition=21, Length=12, PadChar='0', Justification='R', DbColumn="TotalDebitAmount", Format="000000000000" },
-                        new NachaRecordField { FieldName="TotalCreditAmount", StartPosition=33, Length=12, PadChar='0', Justification='R', DbColumn="TotalCreditAmount", Format="000000000000" }
+                        new NachaRecordField { FieldName="EntryHash", StartPosition=11, Length=10, PadChar='0', Justification='R', DbColumn="EntryHash" },
+                        new NachaRecordField { FieldName="TotalDebitAmount", StartPosition=21, Length=18, PadChar='0', Justification='R', DbColumn="TotalDebitAmount" },
+                        new NachaRecordField { FieldName="TotalCreditAmount", StartPosition=39, Length=18, PadChar='0', Justification='R', DbColumn="TotalCreditAmount" },
+                        new NachaRecordField { FieldName="CompanyIdentification", StartPosition=57, Length=10, PadChar=' ', Justification='L', DbColumn="CompanyIdentification" },
+                        new NachaRecordField { FieldName="MessageAuthenticationCode", StartPosition=67, Length=19, PadChar=' ', Justification='L', DbColumn="MessageAuthenticationCode" },
+                        new NachaRecordField { FieldName="OriginatingDFI", StartPosition=92, Length=8, PadChar='0', Justification='R', DbColumn="OriginatingDFI" },
+                        new NachaRecordField { FieldName="BatchNumber", StartPosition=100, Length=7, PadChar='0', Justification='R', DbColumn="BatchNumber" }
                     }
                 },
 
@@ -137,8 +153,9 @@ public class NachaLayoutSeeder : IDbSeeder
                         new NachaRecordField { FieldName="BatchCount", StartPosition=2, Length=6, PadChar='0', Justification='R', DbColumn="BatchCount" },
                         new NachaRecordField { FieldName="BlockCount", StartPosition=8, Length=6, PadChar='0', Justification='R', DbColumn="BlockCount" },
                         new NachaRecordField { FieldName="EntryAddendaCount", StartPosition=14, Length=8, PadChar='0', Justification='R', DbColumn="EntryAddendaCount" },
-                        new NachaRecordField { FieldName="TotalDebitAmount", StartPosition=22, Length=12, PadChar='0', Justification='R', DbColumn="TotalDebitAmount", Format="000000000000" },
-                        new NachaRecordField { FieldName="TotalCreditAmount", StartPosition=34, Length=12, PadChar='0', Justification='R', DbColumn="TotalCreditAmount", Format="000000000000" }
+                        new NachaRecordField { FieldName="EntryHash", StartPosition=22, Length=10, PadChar='0', Justification='R', DbColumn="EntryHash" },
+                        new NachaRecordField { FieldName="TotalDebitAmount", StartPosition=32, Length=18, PadChar='0', Justification='R', DbColumn="TotalDebitAmount" },
+                        new NachaRecordField { FieldName="TotalCreditAmount", StartPosition=50, Length=18, PadChar='0', Justification='R', DbColumn="TotalCreditAmount" }
                     }
                 }
             };
