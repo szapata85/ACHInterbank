@@ -56,6 +56,12 @@ public class CustomerThirdPartyAppService : ICustomerThirdPartyAppService
             dataQuery = dataQuery.Where(t => t.DestinationInstitutionId == query.DestinationInstitutionId.Value);
         }
 
+        if (!string.IsNullOrWhiteSpace(query.SourceAccountNumber))
+        {
+            var sourceAccountNumber = query.SourceAccountNumber.Trim();
+            dataQuery = dataQuery.Where(t => t.Customer.AccountNumber == sourceAccountNumber);
+        }
+
         if (query.Status.HasValue)
         {
             dataQuery = dataQuery.Where(t => t.Status == query.Status.Value);

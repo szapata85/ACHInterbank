@@ -8,6 +8,7 @@ public record CustomerThirdPartyQuery
     public string? DestinationAccountNumber { get; init; }
     public string? RecipientIdNumber { get; init; }
     public int? DestinationInstitutionId { get; init; }
+    public string? SourceAccountNumber { get; init; }
     public CustomerThirdPartyStatusEnum? Status { get; init; }
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { map, shareReplay, take, takeUntil, tap } from 'rxjs';
+import { debounceTime, distinctUntilChanged, map, shareReplay, take, takeUntil, tap } from 'rxjs';
 import { Subject } from 'rxjs';
 import { Router } from '@angular/router';
 import { TransactionsApiService } from '../../services/transactions-api.service';
@@ -79,7 +79,10 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       this.successMessage.setValue(null);
     });
 
-    this.loadActiveDestinationAccounts();
+    this.form
+      .get('sourceAccountNumber')
+      ?.valueChanges.pipe(debounceTime(250), distinctUntilChanged(), takeUntil(this.destroy$))
+      .subscribe(() => this.loadActiveDestinationAccounts());
 
     this.form
       .get('destinationInstitutionId')
@@ -104,7 +107,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
           amountControl.setValue(0, { emitEvent: false });
         }
 
-        this.filterActiveDestinationAccounts();
+        this.loadActiveDestinationAccounts();
         amountControl.updateValueAndValidity({ emitEvent: false });
       });
   }
@@ -181,6 +184,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
               companyEntryDescription: 'PAGOS'
             });
             this.addendas.clear();
+            this.activeDestinationAccounts = [];
+            this.filteredDestinationAccounts = [];
             this.cdr.markForCheck();
             this.router.navigate(['/transactions']);
           },
@@ -194,6 +199,15 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
         })
       )
       .subscribe();
+  }
+
+
+  get sourceAccountRequiredForDestinationSelection(): boolean {
+    if (Boolean(this.form.get('isPrenotification')?.value)) {
+      return false;
+    }
+
+    return !String(this.form.get('sourceAccountNumber')?.value ?? '').trim();
   }
 
   trackAddenda(index: number): number {
@@ -221,8 +235,19 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   }
 
   private loadActiveDestinationAccounts(): void {
+    const selectedIsPrenotification = Boolean(this.form.get('isPrenotification')?.value);
+    const sourceAccountNumber = String(this.form.get('sourceAccountNumber')?.value ?? '').trim();
+
+    if (selectedIsPrenotification || !sourceAccountNumber) {
+      this.activeDestinationAccounts = [];
+      this.filteredDestinationAccounts = [];
+      this.form.patchValue({ destinationAccountNumber: '' }, { emitEvent: false });
+      this.cdr.markForCheck();
+      return;
+    }
+
     this.api
-      .getActiveThirdParties()
+      .getActiveThirdParties(sourceAccountNumber)
       .pipe(take(1), takeUntil(this.destroy$))
       .subscribe((items) => {
         this.activeDestinationAccounts = items;
@@ -235,16 +260,21 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     const institutionId = Number(this.form.get('destinationInstitutionId')?.value);
     const selectedIsPrenotification = Boolean(this.form.get('isPrenotification')?.value);
 
+    if (selectedIsPrenotification || this.sourceAccountRequiredForDestinationSelection) {
+      this.filteredDestinationAccounts = [];
+      this.form.patchValue({ destinationAccountNumber: '' }, { emitEvent: false });
+      this.cdr.markForCheck();
+      return;
+    }
+
     this.filteredDestinationAccounts = institutionId > 0
       ? this.activeDestinationAccounts.filter((item) => item.destinationInstitutionId === institutionId)
       : this.activeDestinationAccounts;
 
-    if (!selectedIsPrenotification) {
-      const currentDestination = this.form.get('destinationAccountNumber')?.value;
-      const exists = this.filteredDestinationAccounts.some((item) => item.destinationAccountNumber === currentDestination);
-      if (!exists) {
-        this.form.patchValue({ destinationAccountNumber: '' }, { emitEvent: false });
-      }
+    const currentDestination = this.form.get('destinationAccountNumber')?.value;
+    const exists = this.filteredDestinationAccounts.some((item) => item.destinationAccountNumber === currentDestination);
+    if (!exists) {
+      this.form.patchValue({ destinationAccountNumber: '' }, { emitEvent: false });
     }
 
     this.cdr.markForCheck();

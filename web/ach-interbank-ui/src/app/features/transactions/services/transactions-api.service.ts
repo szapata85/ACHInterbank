@@ -50,12 +50,14 @@ export class TransactionsApiService {
 
 
 
-  getActiveThirdParties(destinationInstitutionId?: number | null) {
+  getActiveThirdParties(sourceAccountNumber: string, destinationInstitutionId?: number | null) {
     const params: Record<string, string | number> = {
       status: 'Active',
       page: 1,
       pageSize: 500
     };
+
+    params.sourceAccountNumber = sourceAccountNumber;
 
     if (destinationInstitutionId && destinationInstitutionId > 0) {
       params.destinationInstitutionId = destinationInstitutionId;

@@ -78,6 +78,7 @@
           <select
             formControlName="destinationAccountNumber"
             (change)="onDestinationAccountSelected($any($event.target).value)"
+            [disabled]="sourceAccountRequiredForDestinationSelection"
             required
           >
             <option value="" disabled>Seleccione una cuenta con prenotificación exitosa</option>
@@ -86,6 +87,9 @@
             </option>
           </select>
           <small class="muted">Solo se muestran cuentas con prenotificación aprobada (Active).</small>
+          <small class="muted" *ngIf="sourceAccountRequiredForDestinationSelection">
+            Primero selecciona/digita la cuenta origen para cargar las cuentas destino permitidas.
+          </small>
           <small class="muted" *ngIf="filteredDestinationAccounts.length === 0">
             No hay cuentas activas para la institución seleccionada.
           </small>

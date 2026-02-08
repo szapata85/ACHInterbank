@@ -25,6 +25,7 @@ public class CustomerThirdPartiesController : ControllerBase
         [FromQuery] string? destinationAccountNumber,
         [FromQuery] string? recipientIdNumber,
         [FromQuery] int? destinationInstitutionId,
+        [FromQuery] string? sourceAccountNumber,
         [FromQuery] CustomerThirdPartyStatusEnum? status,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
@@ -36,6 +37,7 @@ public class CustomerThirdPartiesController : ControllerBase
             DestinationAccountNumber = destinationAccountNumber,
             RecipientIdNumber = recipientIdNumber,
             DestinationInstitutionId = destinationInstitutionId,
+            SourceAccountNumber = sourceAccountNumber,
             Status = status,
             Page = page,
             PageSize = pageSize
