@@ -31,7 +31,6 @@ export class TransactionsApiService {
       type: Number(payload.type) as TransactionTypeEnum,
       accountType: Number(payload.accountType) as AccountTypeEnum,
       isPrenotification: Boolean(payload.isPrenotification),
-      isReturn: Boolean(payload.isReturn),
       requiresIdentityValidation: Boolean(payload.requiresIdentityValidation),
       recipientIdNumber: payload.recipientIdNumber?.trim() || undefined
     };

@@ -6,6 +6,6 @@ namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
 public interface ITransactionValidator
 {
     void ValidateRequest(AchTransactionRequestData request);
-    string ResolveTransactionCode(TransactionTypeEnum type, AccountTypeEnum accountType, bool isPrenotification, bool isReturn);
+    string ResolveTransactionCode(TransactionTypeEnum type, AccountTypeEnum accountType, bool isPrenotification);
     string ValidateAddendaType(string addendaType);
 }

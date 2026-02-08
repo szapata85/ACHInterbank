@@ -53,7 +53,6 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     type: [TransactionTypeEnum.Credit, Validators.required],
     accountType: [AccountTypeEnum.Checking, Validators.required],
     isPrenotification: [false],
-    isReturn: [false],
     destinationInstitutionId: [null, [Validators.required, Validators.min(1)]],
     sourceAccountNumber: ['', [Validators.required, Validators.pattern(/^[0-9]{6,18}$/)]],
     destinationAccountNumber: ['', [Validators.required, Validators.pattern(/^[0-9]{6,18}$/)]],
@@ -106,23 +105,10 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
         amountControl.setValidators(validators);
         if (isPrenotification) {
           amountControl.setValue(0, { emitEvent: false });
-          this.form.patchValue({ isReturn: false }, { emitEvent: false });
         }
 
         this.loadActiveDestinationAccounts();
         amountControl.updateValueAndValidity({ emitEvent: false });
-      });
-
-    this.form
-      .get('isReturn')
-      ?.valueChanges.pipe(takeUntil(this.destroy$))
-      .subscribe((isReturn) => {
-        if (isReturn) {
-          this.form.patchValue({ isPrenotification: false }, { emitEvent: true });
-        }
-
-        this.normalizeAddendasForMode(Boolean(isReturn));
-        this.cdr.markForCheck();
       });
   }
 
@@ -162,7 +148,6 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       type: Number(payload.type) as TransactionTypeEnum,
       accountType: Number(payload.accountType) as AccountTypeEnum,
       isPrenotification: Boolean(payload.isPrenotification),
-      isReturn: Boolean(payload.isReturn),
       amount: Number(payload.amount),
       destinationInstitutionId: Number(payload.destinationInstitutionId),
       reference: payload.reference.trim(),
@@ -196,7 +181,6 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
               type: TransactionTypeEnum.Credit,
               accountType: AccountTypeEnum.Checking,
               isPrenotification: false,
-              isReturn: false,
               companyEntryDescription: 'PAGOS'
             });
             this.addendas.clear();
@@ -219,7 +203,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
 
   get sourceAccountRequiredForDestinationSelection(): boolean {
-    if (Boolean(this.form.get('isPrenotification')?.value) || Boolean(this.form.get('isReturn')?.value)) {
+    if (Boolean(this.form.get('isPrenotification')?.value)) {
       return false;
     }
 
@@ -252,10 +236,9 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
   private loadActiveDestinationAccounts(): void {
     const selectedIsPrenotification = Boolean(this.form.get('isPrenotification')?.value);
-    const selectedIsReturn = Boolean(this.form.get('isReturn')?.value);
     const sourceAccountNumber = String(this.form.get('sourceAccountNumber')?.value ?? '').trim();
 
-    if (selectedIsPrenotification || selectedIsReturn || !sourceAccountNumber) {
+    if (selectedIsPrenotification || !sourceAccountNumber) {
       this.activeDestinationAccounts = [];
       this.filteredDestinationAccounts = [];
       this.form.patchValue({ destinationAccountNumber: '' }, { emitEvent: false });
@@ -276,9 +259,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   private filterActiveDestinationAccounts(): void {
     const institutionId = Number(this.form.get('destinationInstitutionId')?.value);
     const selectedIsPrenotification = Boolean(this.form.get('isPrenotification')?.value);
-    const selectedIsReturn = Boolean(this.form.get('isReturn')?.value);
 
-    if (selectedIsPrenotification || selectedIsReturn || this.sourceAccountRequiredForDestinationSelection) {
+    if (selectedIsPrenotification || this.sourceAccountRequiredForDestinationSelection) {
       this.filteredDestinationAccounts = [];
       this.form.patchValue({ destinationAccountNumber: '' }, { emitEvent: false });
       this.cdr.markForCheck();
@@ -301,7 +283,6 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   private validateBusinessRules = (group: FormGroup) => {
     const isPrenotification = Boolean(group.get('isPrenotification')?.value);
     const amount = Number(group.get('amount')?.value ?? 0);
-    const isReturn = Boolean(group.get('isReturn')?.value);
     const type = Number(group.get('type')?.value) as TransactionTypeEnum;
     const recipientId = group.get('recipientIdNumber')?.value;
     const requiresIdentityValidation = Boolean(group.get('requiresIdentityValidation')?.value);
@@ -311,10 +292,6 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
     if (isPrenotification && amount !== 0) {
       errors.prenoteAmount = true;
-    }
-
-    if (isPrenotification && isReturn) {
-      errors.invalidMode = true;
     }
 
     if (type === TransactionTypeEnum.Debit && !recipientId) {
@@ -330,12 +307,6 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     }
 
     if (addendas && addendas.length > 0) {
-      if (isReturn) {
-        const invalidReturnAddenda = addendas.controls.some((control) => control.get('addendaType')?.value !== '99');
-        if (invalidReturnAddenda) {
-          errors.invalidReturnAddendaType = true;
-        }
-      }
       const invalidAddenda = addendas.controls.some((control) => {
         const type = control.get('addendaType')?.value;
         if (type !== '05' && type !== '99') {
@@ -358,18 +329,6 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
     return Object.keys(errors).length > 0 ? errors : null;
   };
-
-  private normalizeAddendasForMode(isReturn: boolean): void {
-    if (!this.addendas.length) {
-      return;
-    }
-
-    this.addendas.controls.forEach((addenda) => {
-      if (isReturn) {
-        addenda.get('addendaType')?.setValue('99', { emitEvent: false });
-      }
-    });
-  }
 
   private buildAddendaPayload(item: TransactionDraft['addendas'][number]) {
     const addendaType = item.addendaType?.trim().toUpperCase();

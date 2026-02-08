@@ -47,7 +47,6 @@ public class TransactionsController : ControllerBase
     public async Task<IActionResult> CreateTransaction([FromBody] AchTransactionRequest request, CancellationToken ct)
     {
         if (request is null) return BadRequest("El cuerpo de la solicitud no puede estar vacío.");
-        if (request.IsPrenotification && request.IsReturn) return BadRequest("Una transacción no puede ser prenotificación y devolución al mismo tiempo.");
         if (!request.IsPrenotification && request.Amount <= 0) return BadRequest("El monto debe ser mayor a cero.");
         if (string.IsNullOrWhiteSpace(request.Reference)) return BadRequest("La referencia es obligatoria.");
         if (string.IsNullOrWhiteSpace(request.SourceAccountNumber)) return BadRequest("La cuenta de origen es obligatoria.");
@@ -63,7 +62,6 @@ public class TransactionsController : ControllerBase
                 type: request.Type,
                 accountType: request.AccountType,
                 isPrenotification: request.IsPrenotification,
-                isReturn: request.IsReturn,
                 destinationInstitutionId: request.DestinationInstitutionId,
                 sourceAccountNumber: request.SourceAccountNumber,
                 destinationAccountNumber: request.DestinationAccountNumber,
@@ -120,7 +118,6 @@ public class AchTransactionRequest
     public TransactionTypeEnum Type { get; set; }
     public AccountTypeEnum AccountType { get; set; } = AccountTypeEnum.Checking;
     public bool IsPrenotification { get; set; }
-    public bool IsReturn { get; set; }
     public int DestinationInstitutionId { get; set; }
     public string SourceAccountNumber { get; set; } = string.Empty;
     public string DestinationAccountNumber { get; set; } = string.Empty;

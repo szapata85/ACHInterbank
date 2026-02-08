@@ -10,7 +10,6 @@ public record AchTransactionRequestData
     public TransactionTypeEnum Type { get; init; }
     public AccountTypeEnum AccountType { get; init; }
     public bool IsPrenotification { get; init; }
-    public bool IsReturn { get; init; }
     public int DestinationInstitutionId { get; init; }
     public string SourceAccountNumber { get; init; } = string.Empty;
     public string DestinationAccountNumber { get; init; } = string.Empty;
