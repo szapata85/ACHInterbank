@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormArray, FormBuilder, Validators } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { SharedModule } from '../../../shared/shared.module';
 import { NachaRecordFieldDto, NachaRecordLayoutDto } from '../models/nacha-layout.model';
@@ -23,6 +24,7 @@ export class NachaLayoutsComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly route = inject(ActivatedRoute);
 
   layouts: NachaLayoutRow[] = [];
   loading = false;
@@ -54,6 +56,7 @@ export class NachaLayoutsComponent implements OnInit {
   }
 
   load(): void {
+    const targetRecordCode = this.route.snapshot.queryParamMap.get('recordCode')?.trim();
     this.loading = true;
     this.service
       .getAll()
@@ -67,6 +70,14 @@ export class NachaLayoutsComponent implements OnInit {
             ...layout,
             fieldsCount: layout.fields?.length ?? 0
           }));
+
+          if (targetRecordCode) {
+            const selected = this.layouts.find((layout) => layout.recordCode === targetRecordCode);
+            if (selected) {
+              this.startEdit(selected);
+            }
+          }
+
           this.cdr.markForCheck();
         },
         error: () => {

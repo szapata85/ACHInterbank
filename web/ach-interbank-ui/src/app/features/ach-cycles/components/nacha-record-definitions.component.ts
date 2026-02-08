@@ -1,13 +1,18 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
+import { forkJoin } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 import { SharedModule } from '../../../shared/shared.module';
 import { NotificationService } from '../../../core/services/notification.service';
 import { NachaRecordDefinitionsService } from '../services/nacha-record-definitions.service';
 import { NachaRecordDefinitionDto } from '../models/nacha-record-definition.model';
+import { NachaLayoutsService } from '../services/nacha-layouts.service';
+import { NachaRecordLayoutDto } from '../models/nacha-layout.model';
 
 interface NachaDefinitionRow extends NachaRecordDefinitionDto {
   sourceTypeLabel: string;
+  layoutSummary?: string;
 }
 
 @Component({
@@ -20,11 +25,14 @@ interface NachaDefinitionRow extends NachaRecordDefinitionDto {
 })
 export class NachaRecordDefinitionsComponent implements OnInit {
   private readonly service = inject(NachaRecordDefinitionsService);
+  private readonly layoutsService = inject(NachaLayoutsService);
   private readonly fb = inject(FormBuilder);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly router = inject(Router);
 
   definitions: NachaDefinitionRow[] = [];
+  layoutsByCode: Record<string, NachaRecordLayoutDto> = {};
   loading = false;
   saving = false;
   editing: NachaRecordDefinitionDto | null = null;
@@ -35,6 +43,7 @@ export class NachaRecordDefinitionsComponent implements OnInit {
     { key: 'sourceTypeLabel', label: 'Fuente' },
     { key: 'sourceName', label: 'Origen' },
     { key: 'filterKey', label: 'Filtro' },
+    { key: 'layoutSummary', label: 'Layout (campos)' },
     { key: 'isEnabled', label: 'Activo' }
   ];
 
@@ -61,17 +70,25 @@ export class NachaRecordDefinitionsComponent implements OnInit {
 
   load(): void {
     this.loading = true;
-    this.service
-      .getAll()
+    forkJoin({
+      definitions: this.service.getAll(),
+      layouts: this.layoutsService.getAll()
+    })
       .pipe(finalize(() => {
         this.loading = false;
         this.cdr.markForCheck();
       }))
       .subscribe({
-        next: (items) => {
-          this.definitions = (items ?? []).map((item) => ({
+        next: ({ definitions, layouts }) => {
+          this.layoutsByCode = (layouts ?? []).reduce<Record<string, NachaRecordLayoutDto>>((acc, layout) => {
+            acc[layout.recordCode] = layout;
+            return acc;
+          }, {});
+
+          this.definitions = (definitions ?? []).map((item) => ({
             ...item,
-            sourceTypeLabel: this.resolveSourceType(item.sourceType)
+            sourceTypeLabel: this.resolveSourceType(item.sourceType),
+            layoutSummary: this.resolveLayoutSummary(item.recordCode)
           }));
           this.cdr.markForCheck();
         },
@@ -161,8 +178,24 @@ export class NachaRecordDefinitionsComponent implements OnInit {
     });
   }
 
+  manageLayout(): void {
+    const recordCode = this.form.getRawValue().recordCode?.trim();
+    void this.router.navigate(['/ach-cycles/nacha/layouts'], {
+      queryParams: recordCode ? { recordCode } : undefined
+    });
+  }
+
   private resolveSourceType(value: number): string {
     return this.sourceTypes.find((item) => item.value === value)?.label ?? 'Custom';
+  }
+
+  private resolveLayoutSummary(recordCode: string): string {
+    const layout = this.layoutsByCode[recordCode];
+    if (!layout) {
+      return 'Sin layout';
+    }
+
+    return `${layout.recordType} (${layout.fields?.length ?? 0})`;
   }
 
   private toPayload(): NachaRecordDefinitionDto {

@@ -2,7 +2,7 @@
   <div class="header">
     <div>
       <h2>Definiciones de registros NACHA</h2>
-      <p>Configura el orden y la fuente de datos para cada registro.</p>
+      <p>Configura el orden y la fuente de datos para cada registro, con resumen del layout asociado.</p>
     </div>
     <button type="button" class="primary" (click)="startCreate()">Nuevo</button>
   </div>
@@ -49,6 +49,12 @@
         Filtro
         <input type="text" formControlName="filterKey" />
       </label>
+
+      <div class="layout-hint" *ngIf="form.get('recordCode')?.value as code">
+        <strong>Layout asociado:</strong> {{ layoutsByCode[code]?.recordType || 'No configurado' }}
+        <span *ngIf="layoutsByCode[code]">({{ layoutsByCode[code].fields?.length || 0 }} campos)</span>
+        <button type="button" class="ghost" (click)="manageLayout()">Administrar campos del layout</button>
+      </div>
 
       <label class="checkbox">
         <input type="checkbox" formControlName="isEnabled" />

@@ -56,6 +56,17 @@ select {
   gap: 0.75rem;
 }
 
+.layout-hint {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px dashed #d1d5db;
+  border-radius: 0.5rem;
+  background: #f9fafb;
+}
+
 button.primary {
   background: var(--button-color, #2563eb);
   color: white;
