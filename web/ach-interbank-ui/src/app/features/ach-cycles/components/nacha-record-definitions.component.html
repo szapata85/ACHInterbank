@@ -42,7 +42,23 @@
 
       <label>
         Origen (tabla/vista/SP)
-        <input type="text" formControlName="sourceName" />
+        <ng-container *ngIf="showSourceNameSelect; else sourceNameTextInput">
+          <select formControlName="sourceName">
+            <option value="">Seleccione origen</option>
+            <option *ngFor="let option of sourceNameOptions" [value]="option.value">{{ option.label }}</option>
+          </select>
+        </ng-container>
+        <ng-template #sourceNameTextInput>
+          <input
+            type="text"
+            formControlName="sourceName"
+            [readonly]="form.get('sourceType')?.value === 0"
+            [placeholder]="form.get('sourceType')?.value === 0 ? 'No aplica para Custom' : 'Nombre de vista o procedimiento'"
+          />
+        </ng-template>
+        <small class="source-help" *ngIf="sourceNameOptions.length > 0">
+          Orígenes disponibles para tipo {{ sourceTypeLabel }}.
+        </small>
       </label>
 
       <label>

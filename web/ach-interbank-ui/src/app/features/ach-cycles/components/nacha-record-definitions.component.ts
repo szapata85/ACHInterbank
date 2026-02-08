@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { forkJoin } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 import { SharedModule } from '../../../shared/shared.module';
@@ -54,6 +55,17 @@ export class NachaRecordDefinitionsComponent implements OnInit {
     { value: 3, label: 'Procedure' }
   ];
 
+  readonly sourceOptionsByType: Record<number, Array<{ value: string; label: string }>> = {
+    0: [],
+    1: [
+      { value: 'AchBatch', label: 'AchBatch (tabla: AchBatches)' },
+      { value: 'AchTransaction', label: 'AchTransaction (tabla: AchTransactions)' },
+      { value: 'AchTransactionAddenda', label: 'AchTransactionAddenda (tabla: AchTransactionAddendas)' }
+    ],
+    2: [],
+    3: []
+  };
+
   form = this.fb.nonNullable.group({
     id: [0],
     recordCode: ['', [Validators.required, Validators.maxLength(5)]],
@@ -65,7 +77,29 @@ export class NachaRecordDefinitionsComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.form.controls.sourceType.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((sourceType) => {
+        if (sourceType === 0) {
+          this.form.patchValue({ sourceName: '' }, { emitEvent: false });
+        }
+        this.cdr.markForCheck();
+      });
+
     this.load();
+  }
+
+  get sourceNameOptions(): Array<{ value: string; label: string }> {
+    return this.sourceOptionsByType[this.form.getRawValue().sourceType] ?? [];
+  }
+
+  get showSourceNameSelect(): boolean {
+    const sourceType = this.form.getRawValue().sourceType;
+    return sourceType !== 0 && this.sourceNameOptions.length > 0;
+  }
+
+  get sourceTypeLabel(): string {
+    return this.resolveSourceType(this.form.getRawValue().sourceType);
   }
 
   load(): void {
