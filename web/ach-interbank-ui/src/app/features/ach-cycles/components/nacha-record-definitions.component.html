@@ -7,7 +7,7 @@
     <button type="button" class="primary" (click)="startCreate()">Nuevo</button>
   </div>
 
-  <app-table [columns]="columns" [data]="definitions" [loading]="loading">
+  <app-table [columns]="columns" [data]="definitions" [loading]="loading" [rowActions]="rowActions">
     <ng-template #rowActions let-item>
       <div class="actions">
         <button type="button" (click)="startEdit(item)">Editar</button>
