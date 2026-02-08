@@ -19,7 +19,7 @@ public class CatalogTypesController : ControllerBase
     }
 
     [HttpGet("{catalogType}")]
-    [Authorize(Policy = "CanReadCatalogs")]
+    [Authorize(Policy = "CanManageAch")]
     public async Task<IActionResult> GetAll(string catalogType, CancellationToken ct = default)
     {
         var type = ParseCatalogType(catalogType);
