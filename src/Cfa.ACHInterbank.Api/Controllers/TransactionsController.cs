@@ -51,6 +51,8 @@ public class TransactionsController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Reference)) return BadRequest("La referencia es obligatoria.");
         if (string.IsNullOrWhiteSpace(request.SourceAccountNumber)) return BadRequest("La cuenta de origen es obligatoria.");
         if (string.IsNullOrWhiteSpace(request.DestinationAccountNumber)) return BadRequest("La cuenta de destino es obligatoria.");
+        if (string.IsNullOrWhiteSpace(request.CompanyName)) return BadRequest("El nombre del usuario originador es obligatorio.");
+        if (string.IsNullOrWhiteSpace(request.CompanyIdentification)) return BadRequest("La identificación del usuario originador es obligatoria.");
 
         try
         {
@@ -63,6 +65,9 @@ public class TransactionsController : ControllerBase
                 destinationInstitutionId: request.DestinationInstitutionId,
                 sourceAccountNumber: request.SourceAccountNumber,
                 destinationAccountNumber: request.DestinationAccountNumber,
+                companyName: request.CompanyName,
+                companyIdentification: request.CompanyIdentification,
+                companyEntryDescription: request.CompanyEntryDescription,
                 recipientIdNumber: request.RecipientIdNumber,
                 requiresIdentityValidation: request.RequiresIdentityValidation,
                 addendas: request.Addendas,

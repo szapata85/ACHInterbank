@@ -48,6 +48,37 @@ public class TransactionValidator : ITransactionValidator
         {
             throw new ArgumentException("La identificación del receptor es obligatoria para débitos.", nameof(request.RecipientIdNumber));
         }
+        if (string.IsNullOrWhiteSpace(request.CompanyName))
+        {
+            throw new ArgumentException("El nombre del usuario originador es obligatorio.", nameof(request.CompanyName));
+        }
+
+        if (request.CompanyName.Trim().Length > 16)
+        {
+            throw new ArgumentException("El nombre del usuario originador no puede superar 16 caracteres.", nameof(request.CompanyName));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.CompanyIdentification))
+        {
+            throw new ArgumentException("La identificación del usuario originador es obligatoria.", nameof(request.CompanyIdentification));
+        }
+
+        var originatorId = request.CompanyIdentification.Trim();
+        if (originatorId.Length is < 4 or > 10)
+        {
+            throw new ArgumentException("La identificación del usuario originador debe tener entre 4 y 10 caracteres.", nameof(request.CompanyIdentification));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.CompanyEntryDescription))
+        {
+            throw new ArgumentException("La descripción de la entrada es obligatoria.", nameof(request.CompanyEntryDescription));
+        }
+
+        if (request.CompanyEntryDescription.Trim().Length > 10)
+        {
+            throw new ArgumentException("La descripción de la entrada no puede superar 10 caracteres.", nameof(request.CompanyEntryDescription));
+        }
+
 
         if (request.Type == TransactionTypeEnum.Credit && request.RequiresIdentityValidation && string.IsNullOrWhiteSpace(request.RecipientIdNumber))
         {

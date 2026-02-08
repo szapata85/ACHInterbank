@@ -13,6 +13,9 @@ public record AchTransactionRequestData
     public int DestinationInstitutionId { get; init; }
     public string SourceAccountNumber { get; init; } = string.Empty;
     public string DestinationAccountNumber { get; init; } = string.Empty;
+    public string CompanyName { get; init; } = string.Empty;
+    public string CompanyIdentification { get; init; } = string.Empty;
+    public string CompanyEntryDescription { get; init; } = "PAGOS";
     public string? RecipientIdNumber { get; init; }
     public bool RequiresIdentityValidation { get; init; }
     public IEnumerable<AddendaDto>? Addendas { get; init; }

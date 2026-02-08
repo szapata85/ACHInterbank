@@ -1,7 +1,6 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
-using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -51,10 +50,6 @@ public class BatchResolver : IBatchResolver
             throw new InvalidOperationException($"La institución de origen tiene una longitud inválida para el ruteo: {originBase}.");
         }
 
-        string sourceCheckDigit = string.IsNullOrWhiteSpace(source.CheckDigit)
-            ? DigitoChequeoHelper.CalcularDigitoChequeo(originBase)
-            : source.CheckDigit.Trim();
-
         var dest = await _context.FinancialInstitutions
             .AsNoTracking()
             .Where(fi => fi.Id == request.DestinationInstitutionId && fi.Status == FinancialInstitutionStatus.Active)
@@ -90,15 +85,16 @@ public class BatchResolver : IBatchResolver
             ?? throw new InvalidOperationException("No se encontró el ciclo ACH para la transacción.");
         DateTime effectiveEntryDate = cycle.ProcessingDate.Date;
 
-        string companyName = source.Name;
-        string companyIdentification = $"{originBase}{sourceCheckDigit}";
-        string companyEntryDescription = "PAGOS";
+        string companyName = request.CompanyName.Trim();
+        string companyIdentification = request.CompanyIdentification.Trim().ToUpperInvariant();
+        string companyEntryDescription = request.CompanyEntryDescription.Trim().ToUpperInvariant();
 
         var batch = await _context.AchBatches
             .FirstOrDefaultAsync(b =>
                 b.AchCycleId == achCycleId &&
                 b.CompanyName == companyName &&
                 b.CompanyIdentification == companyIdentification &&
+                b.CompanyEntryDescription == companyEntryDescription &&
                 b.EffectiveEntryDate == effectiveEntryDate, ct);
 
         if (batch is null)
@@ -108,6 +104,7 @@ public class BatchResolver : IBatchResolver
                 AchCycleId = achCycleId,
                 CompanyName = companyName,
                 CompanyIdentification = companyIdentification,
+                CompanyEntryDescription = companyEntryDescription,
                 EffectiveEntryDate = effectiveEntryDate,
                 OriginOrOdfi = originBase
             };
