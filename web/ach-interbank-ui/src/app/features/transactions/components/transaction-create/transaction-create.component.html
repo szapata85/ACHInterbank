@@ -7,6 +7,19 @@
   <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
     <div class="form-grid">
       <label>
+        <span>Cliente originador *</span>
+        <select formControlName="customerId" required>
+          <option [ngValue]="null" disabled>Seleccione un cliente registrado</option>
+          <option *ngFor="let customer of customers$ | async" [ngValue]="customer.id">
+            {{ customer.fullName }} · {{ customer.documentType }} {{ customer.documentNumber }} · {{ customer.accountNumber }}
+          </option>
+        </select>
+        <small class="muted">Debe existir y estar registrado para construir el lote NACHA (registro 5).</small>
+        <small class="muted">¿No existe? Regístralo en <a routerLink="/customers">Clientes</a>.</small>
+        <app-error-message [control]="form.get('customerId')"></app-error-message>
+      </label>
+
+      <label>
         <span>Monto *</span>
         <input
           type="number"
@@ -68,7 +81,7 @@
 
       <label>
         <span>Cuenta origen *</span>
-        <input type="text" formControlName="sourceAccountNumber" required inputmode="numeric" />
+        <input type="text" formControlName="sourceAccountNumber" required inputmode="numeric" readonly />
         <app-error-message [control]="form.get('sourceAccountNumber')"></app-error-message>
       </label>
 
@@ -93,6 +106,7 @@
           <small class="muted" *ngIf="filteredDestinationAccounts.length === 0">
             No hay cuentas activas para la institución seleccionada.
           </small>
+          <small class="muted">Para registrar receptores usa <a routerLink="/customer-third-parties">Terceros</a>.</small>
         </ng-container>
         <ng-template #manualDestinationAccount>
           <input type="text" formControlName="destinationAccountNumber" required inputmode="numeric" />
@@ -123,13 +137,13 @@
 
       <label>
         <span>Nombre usuario originador *</span>
-        <input type="text" formControlName="companyName" required maxlength="16" />
+        <input type="text" formControlName="companyName" required maxlength="16" readonly />
         <app-error-message [control]="form.get('companyName')"></app-error-message>
       </label>
 
       <label>
         <span>Identificación usuario originador *</span>
-        <input type="text" formControlName="companyIdentification" required maxlength="10" />
+        <input type="text" formControlName="companyIdentification" required maxlength="10" readonly />
         <app-error-message [control]="form.get('companyIdentification')"></app-error-message>
       </label>
 

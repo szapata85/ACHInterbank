@@ -10,6 +10,8 @@ import { NotificationService } from '../../../../core/services/notification.serv
 import { SharedModule } from '../../../../shared/shared.module';
 import { FinancialInstitutionsApiService } from '../../services/financial-institutions-api.service';
 import { ReturnReasonsApiService } from '../../services/return-reasons-api.service';
+import { CustomersApiService } from '../../../customers/services/customers-api.service';
+import { CustomerSummary } from '../../../customers/models/customer.model';
 
 @Component({
   selector: 'app-transaction-create',
@@ -27,10 +29,19 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   private readonly notifications = inject(NotificationService);
   private readonly financialInstitutionsApi = inject(FinancialInstitutionsApiService);
   private readonly returnReasonsApi = inject(ReturnReasonsApiService);
+  private readonly customersApi = inject(CustomersApiService);
   private readonly destroy$ = new Subject<void>();
 
   readonly TransactionType = TransactionTypeEnum;
   readonly AccountType = AccountTypeEnum;
+  readonly customers$ = this.customersApi.getAll().pipe(
+    map((list) =>
+      (list ?? [])
+        .filter((item) => !!item.accountNumber)
+        .sort((a, b) => a.fullName.localeCompare(b.fullName))
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
   readonly institutions$ = this.financialInstitutionsApi.getAll().pipe(
     map((list) =>
       (list ?? [])
@@ -48,6 +59,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   );
 
   readonly form: FormGroup = this.fb.group({
+    customerId: [null, [Validators.required]],
     amount: [null, [Validators.required, Validators.min(0.01)]],
     reference: ['', [Validators.required, Validators.maxLength(30)]],
     type: [TransactionTypeEnum.Credit, Validators.required],
@@ -78,6 +90,39 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       this.errorMessage.setValue(null);
       this.successMessage.setValue(null);
     });
+
+
+    this.form
+      .get('customerId')
+      ?.valueChanges.pipe(takeUntil(this.destroy$))
+      .subscribe((customerId) => {
+        if (!customerId) {
+          this.form.patchValue({
+            sourceAccountNumber: '',
+            companyName: '',
+            companyIdentification: ''
+          }, { emitEvent: false });
+          this.loadActiveDestinationAccounts();
+          this.cdr.markForCheck();
+          return;
+        }
+
+        this.customers$.pipe(take(1), takeUntil(this.destroy$)).subscribe((customers) => {
+          const selected = (customers ?? []).find((item) => item.id === Number(customerId));
+          if (!selected) {
+            return;
+          }
+
+          this.form.patchValue({
+            sourceAccountNumber: selected.accountNumber,
+            companyName: this.normalizeCompanyName(selected),
+            companyIdentification: selected.documentNumber
+          }, { emitEvent: false });
+
+          this.loadActiveDestinationAccounts();
+          this.cdr.markForCheck();
+        });
+      });
 
     this.form
       .get('sourceAccountNumber')
@@ -178,6 +223,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
             this.notifications.success('Transacción creada correctamente');
             this.isSubmitting.setValue(false);
             this.form.reset({
+              customerId: null,
               type: TransactionTypeEnum.Credit,
               accountType: AccountTypeEnum.Checking,
               isPrenotification: false,
@@ -212,6 +258,12 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
   trackAddenda(index: number): number {
     return index;
+  }
+
+
+  private normalizeCompanyName(customer: CustomerSummary): string {
+    const raw = (customer.companyName?.trim() || customer.fullName.trim()).toUpperCase();
+    return raw.length > 16 ? raw.slice(0, 16) : raw;
   }
 
   private validateAccountDifference = (group: FormGroup) => {
