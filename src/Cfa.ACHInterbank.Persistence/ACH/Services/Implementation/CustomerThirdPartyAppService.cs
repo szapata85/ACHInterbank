@@ -59,7 +59,27 @@ public class CustomerThirdPartyAppService : ICustomerThirdPartyAppService
         if (!string.IsNullOrWhiteSpace(query.SourceAccountNumber))
         {
             var sourceAccountNumber = query.SourceAccountNumber.Trim();
-            dataQuery = dataQuery.Where(t => t.Customer.AccountNumber == sourceAccountNumber);
+
+            var sourceIdentity = await _context.Customers
+                .AsNoTracking()
+                .Where(c => c.AccountNumber == sourceAccountNumber)
+                .Select(c => new { c.DocumentType, c.DocumentNumber })
+                .FirstOrDefaultAsync(ct);
+
+            if (sourceIdentity is null)
+            {
+                return new PagedResponse<CustomerThirdPartyListDto>
+                {
+                    Items = [],
+                    Total = 0,
+                    Page = page,
+                    PageSize = pageSize
+                };
+            }
+
+            dataQuery = dataQuery.Where(t =>
+                t.Customer.DocumentType == sourceIdentity.DocumentType &&
+                t.Customer.DocumentNumber == sourceIdentity.DocumentNumber);
         }
 
         if (query.Status.HasValue)
