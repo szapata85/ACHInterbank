@@ -43,8 +43,8 @@ public sealed class Result<T> : Result
 
     public static Result<T> Success(T value) => new(true, value);
 
-    public static Result<T> Failure(params ErrorDetail[] errors) => new(false, default, errors);
+    public static new Result<T> Failure(params ErrorDetail[] errors) => new(false, default, errors);
 
-    public static Result<T> Failure(string code, string message, ErrorType type = ErrorType.Unexpected)
+    public static new Result<T> Failure(string code, string message, ErrorType type = ErrorType.Unexpected)
         => new(false, default, [new ErrorDetail(code, message, type)]);
 }
