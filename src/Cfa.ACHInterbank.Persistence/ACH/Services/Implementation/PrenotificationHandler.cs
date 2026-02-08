@@ -26,8 +26,14 @@ public class PrenotificationHandler : IPrenotificationHandler
         }
 
         var customer = await _context.Customers
-            .FirstOrDefaultAsync(c => c.AccountNumber == request.SourceAccountNumber, ct)
-            ?? throw new ArgumentException("No se encontró el cliente asociado a la cuenta de origen.", nameof(request.SourceAccountNumber));
+            .FirstOrDefaultAsync(c => c.AccountNumber == request.SourceAccountNumber, ct);
+
+        if (customer is null)
+        {
+            // La prenotificación puede registrarse aunque la cuenta origen no esté mapeada a un Customer interno.
+            // En este caso no se crea/actualiza CustomerThirdParty, pero la transacción ACH queda registrada.
+            return;
+        }
 
         var existingThirdParty = await _context.CustomerThirdParties
             .FirstOrDefaultAsync(t =>
