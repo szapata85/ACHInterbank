@@ -12,6 +12,7 @@ import { AchCycleSummary, ClearingHouseOption } from '../../../ach-cycles/models
 
 type TransactionListRow = TransactionListItem & {
   typeLabel: string;
+  transactionNatureLabel: string;
   amountText: string;
   effectiveEntryDateText: string;
 };
@@ -59,6 +60,7 @@ export class TransactionListComponent implements OnInit {
     { field: 'id', headerName: 'ID', width: 90, maxWidth: 120, sortable: true },
     { field: 'reference', headerName: 'Referencia', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
     { field: 'typeLabel', headerName: 'Tipo', width: 160, filter: 'agSetColumnFilter' },
+    { field: 'transactionNatureLabel', headerName: 'Naturaleza', width: 170, filter: 'agSetColumnFilter' },
     { field: 'achCycleName', headerName: 'Ciclo', width: 200, filter: 'agTextColumnFilter' },
     { field: 'clearingHouseName', headerName: 'Cámara', width: 200, filter: 'agTextColumnFilter' },
     { field: 'amountText', headerName: 'Monto', width: 140, maxWidth: 180, cellClass: 'text-end' },
@@ -233,6 +235,7 @@ export class TransactionListComponent implements OnInit {
     return {
       ...item,
       typeLabel: this.formatType(item.type),
+      transactionNatureLabel: this.formatTransactionNature(item.isPrenotification),
       amountText: this.currencyFormatter.format(item.amount ?? 0),
       effectiveEntryDateText: this.formatDate(item.effectiveEntryDate)
     };
@@ -257,6 +260,10 @@ export class TransactionListComponent implements OnInit {
     }
 
     return 'Desconocido';
+  }
+
+  private formatTransactionNature(isPrenotification: boolean): string {
+    return isPrenotification ? 'Prenotificación' : 'Transacción';
   }
 
   private buildBatchLabel(item: TransactionListItem): string {

@@ -53,6 +53,7 @@ export interface TransactionListItem {
   destinationAccountNumber: string;
   sourceInstitutionName: string;
   destinationInstitutionName: string;
+  isPrenotification: boolean;
   achBatchId: number;
   batchSequenceNumber: number;
   batchCompanyName: string;
