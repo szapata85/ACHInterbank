@@ -105,7 +105,7 @@ public class TransactionValidator : ITransactionValidator
         var configuredCodes = _context.TransactionCodes
             .AsNoTracking()
             .Select(x => x.Code)
-            .ToList();
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         if (configuredCodes.Count == 0)
         {

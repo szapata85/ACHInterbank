@@ -318,6 +318,11 @@ public class NachaParserService : INachaParserService
         "23", "33", "53", "28", "38", "57"
     };
 
+    private static readonly HashSet<string> ReturnCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "21", "26", "31", "36", "51", "56"
+    };
+
     private async Task<(bool IsValid, string? FailureReason)> ValidateEntryAsync(
         EntryDetail entry,
         BatchHeader? batch,
@@ -428,11 +433,47 @@ public class NachaParserService : INachaParserService
         var validEntries = new List<EntryDetail>();
         foreach (var entry in entries)
         {
-            if (!addendaRecords.Any(addenda => IsAddendaForEntry(entry, addenda)))
+            var relatedAddendas = addendaRecords
+                .Where(addenda => IsAddendaForEntry(entry, addenda))
+                .ToList();
+
+            if (!relatedAddendas.Any())
             {
                 failures.Add(new NachaValidationFailure("6", null, entry.SequenceNumber, entry.TransactionCode,
                     "No se encontró registro 7 asociado al detalle."));
                 continue;
+            }
+
+            if (ReturnCodes.Contains(entry.TransactionCode ?? string.Empty))
+            {
+                var hasReturnAddenda = relatedAddendas.Any(addenda =>
+                    string.Equals(addenda.CodeTypeAddendumRecord?.Trim(), "99", StringComparison.OrdinalIgnoreCase));
+
+                if (!hasReturnAddenda)
+                {
+                    failures.Add(new NachaValidationFailure("7", null, entry.SequenceNumber, entry.TransactionCode,
+                        "Las devoluciones (21/26/31/36/51/56) deben incluir adenda tipo 99."));
+                    continue;
+                }
+
+                var hasReturnReason = relatedAddendas.Any(addenda => HasReturnReason(addenda));
+                if (!hasReturnReason)
+                {
+                    failures.Add(new NachaValidationFailure("7", null, entry.SequenceNumber, entry.TransactionCode,
+                        "La adenda de devolución debe incluir causal (Rxx o DEV14)."));
+                    continue;
+                }
+
+                var hasOriginalTraceReference = relatedAddendas.Any(addenda =>
+                    !string.IsNullOrWhiteSpace(addenda.EntryDetailSequenceNumber) &&
+                    addenda.EntryDetailSequenceNumber.Trim().Length == 7);
+
+                if (!hasOriginalTraceReference)
+                {
+                    failures.Add(new NachaValidationFailure("7", null, entry.SequenceNumber, entry.TransactionCode,
+                        "La devolución debe incluir referencia de secuencia original en la adenda."));
+                    continue;
+                }
             }
 
             validEntries.Add(entry);
@@ -446,6 +487,22 @@ public class NachaParserService : INachaParserService
         var entrySequence = GetEntrySequenceSuffix(entry.SequenceNumber);
         return !string.IsNullOrWhiteSpace(entrySequence) &&
                string.Equals(addenda.EntryDetailSequenceNumber, entrySequence, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasReturnReason(AddendaRecord addenda)
+    {
+        var payload = string.Join(' ', new[]
+        {
+            addenda.IdUserOrig,
+            addenda.PurposeOfTransaction,
+            addenda.InvoiceOrAccountNumber,
+            addenda.InfofromOriginator
+        }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+        return System.Text.RegularExpressions.Regex.IsMatch(
+            payload,
+            @"\bR\d{2}\b|\bDEV14\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
     }
 
     private static string? GetEntrySequenceSuffix(string? sequence)
