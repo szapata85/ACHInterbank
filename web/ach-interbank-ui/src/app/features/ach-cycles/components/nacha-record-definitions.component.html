@@ -59,6 +59,9 @@
         <small class="source-help" *ngIf="sourceNameOptions.length > 0">
           Orígenes disponibles para tipo {{ sourceTypeLabel }}.
         </small>
+        <small class="source-help" *ngIf="form.get('sourceType')?.value === 0">
+          Origen: Calculado (Custom).
+        </small>
       </label>
 
       <label>

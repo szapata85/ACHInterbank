@@ -13,6 +13,7 @@ import { NachaRecordLayoutDto } from '../models/nacha-layout.model';
 
 interface NachaDefinitionRow extends NachaRecordDefinitionDto {
   sourceTypeLabel: string;
+  sourceDisplay: string;
   layoutSummary?: string;
 }
 
@@ -43,7 +44,7 @@ export class NachaRecordDefinitionsComponent implements OnInit {
     { key: 'recordCode', label: 'Código', width: '90px' },
     { key: 'sequence', label: 'Orden', width: '90px' },
     { key: 'sourceTypeLabel', label: 'Fuente' },
-    { key: 'sourceName', label: 'Origen' },
+    { key: 'sourceDisplay', label: 'Origen' },
     { key: 'filterKey', label: 'Filtro' },
     { key: 'layoutSummary', label: 'Layout (campos)' },
     { key: 'isEnabled', label: 'Activo' }
@@ -123,6 +124,7 @@ export class NachaRecordDefinitionsComponent implements OnInit {
           this.definitions = (definitions ?? []).map((item) => ({
             ...item,
             sourceTypeLabel: this.resolveSourceType(item.sourceType),
+            sourceDisplay: this.resolveSourceDisplay(item),
             layoutSummary: this.resolveLayoutSummary(item.recordCode)
           }));
           this.cdr.markForCheck();
@@ -231,6 +233,14 @@ export class NachaRecordDefinitionsComponent implements OnInit {
     }
 
     return `${layout.recordType} (${layout.fields?.length ?? 0})`;
+  }
+
+  private resolveSourceDisplay(definition: NachaRecordDefinitionDto): string {
+    if (definition.sourceType === 0) {
+      return 'Calculado (Custom)';
+    }
+
+    return definition.sourceName?.trim() || '-';
   }
 
   private toPayload(): NachaRecordDefinitionDto {
