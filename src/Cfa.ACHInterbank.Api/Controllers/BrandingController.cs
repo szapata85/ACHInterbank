@@ -27,12 +27,12 @@ public class BrandingController : ControllerBase
         return Ok(branding);
     }
 
-    [HttpPut]
-    // El sitio público también consume la identidad visual y esta instancia no usa JWT,
-    // por lo que el endpoint debe estar disponible sin autenticación.
     /// <summary>
     /// Pendiente de documentación.
     /// </summary>
+    [HttpPut]
+    // El sitio público también consume la identidad visual y esta instancia no usa JWT,
+    // por lo que el endpoint debe estar disponible sin autenticación.
     [AllowAnonymous]
     public async Task<ActionResult<BrandingSettingsDto>> SaveBrandingAsync(
         [FromBody] BrandingSettingsDto request,
