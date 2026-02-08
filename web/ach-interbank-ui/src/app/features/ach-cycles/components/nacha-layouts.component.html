@@ -48,6 +48,10 @@
       <h4>Campos</h4>
       <button type="button" class="ghost" (click)="addField()">Agregar campo</button>
     </div>
+    <p class="db-help" *ngIf="currentSourceName">
+      Origen detectado para este código: <strong>{{ currentSourceName }}</strong>
+      <span *ngIf="useDbColumnSelect">(selección de columnas habilitada)</span>
+    </p>
     <div class="field field-headings">
       <span>Nombre</span>
       <span>Inicio</span>
@@ -65,7 +69,15 @@
       <input type="number" formControlName="length" placeholder="Longitud" />
       <input type="text" formControlName="padChar" placeholder="Pad" />
       <input type="text" formControlName="justification" placeholder="Justificación" />
-      <input type="text" formControlName="dbColumn" placeholder="Columna DB" />
+      <ng-container *ngIf="useDbColumnSelect; else dbColumnTextInput">
+        <select formControlName="dbColumn">
+          <option value="">Seleccione columna</option>
+          <option *ngFor="let option of dbColumnOptions" [value]="option">{{ option }}</option>
+        </select>
+      </ng-container>
+      <ng-template #dbColumnTextInput>
+        <input type="text" formControlName="dbColumn" placeholder="Columna DB" />
+      </ng-template>
       <input type="text" formControlName="format" placeholder="Formato" />
       <button type="button" class="link danger" (click)="removeField(i)">Quitar</button>
     </div>

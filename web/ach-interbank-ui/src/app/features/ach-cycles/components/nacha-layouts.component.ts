@@ -1,11 +1,14 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormArray, FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+import { forkJoin } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 import { SharedModule } from '../../../shared/shared.module';
 import { NachaRecordFieldDto, NachaRecordLayoutDto } from '../models/nacha-layout.model';
 import { NachaLayoutsService } from '../services/nacha-layouts.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { NachaRecordDefinitionsService } from '../services/nacha-record-definitions.service';
+import { NachaRecordDefinitionDto } from '../models/nacha-record-definition.model';
 
 interface NachaLayoutRow extends NachaRecordLayoutDto {
   fieldsCount: number;
@@ -21,15 +24,55 @@ interface NachaLayoutRow extends NachaRecordLayoutDto {
 })
 export class NachaLayoutsComponent implements OnInit {
   private readonly service = inject(NachaLayoutsService);
+  private readonly definitionsService = inject(NachaRecordDefinitionsService);
   private readonly fb = inject(FormBuilder);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly route = inject(ActivatedRoute);
 
   layouts: NachaLayoutRow[] = [];
+  definitionsByRecordCode: Record<string, NachaRecordDefinitionDto> = {};
   loading = false;
   saving = false;
   editing: NachaRecordLayoutDto | null = null;
+
+  readonly sourceColumnsBySourceName: Record<string, string[]> = {
+    AchBatch: [
+      'ServiceClassCode',
+      'CompanyName',
+      'CompanyIdentification',
+      'CompanyEntryDescription',
+      'OriginOrOdfi',
+      'EffectiveEntryDate',
+      'BatchSequenceNumber',
+      'TotalDebitAmount',
+      'TotalCreditAmount'
+    ],
+    AchTransaction: [
+      'TransactionCode',
+      'ReceivingDFI',
+      'DestinationAccountNumber',
+      'Amount',
+      'Reference',
+      'RecipientIdNumber',
+      'DiscretionaryData',
+      'AddendumIndicator',
+      'TraceNumber',
+      'CompanyIdentification',
+      'EffectiveEntryDate',
+      'IsPrenotification',
+      'ServiceClassCode',
+      'CompanyEntryDescription',
+      'CompanyName',
+      'OriginatingDFI'
+    ],
+    AchTransactionAddenda: [
+      'AddendaType',
+      'Information',
+      'SequenceNumber',
+      'EntryDetailSequenceNumber'
+    ]
+  };
 
   readonly columns = [
     { key: 'recordCode', label: 'Código', width: '90px' },
@@ -58,18 +101,25 @@ export class NachaLayoutsComponent implements OnInit {
   load(): void {
     const targetRecordCode = this.route.snapshot.queryParamMap.get('recordCode')?.trim();
     this.loading = true;
-    this.service
-      .getAll()
+    forkJoin({
+      layouts: this.service.getAll(),
+      definitions: this.definitionsService.getAll()
+    })
       .pipe(finalize(() => {
         this.loading = false;
         this.cdr.markForCheck();
       }))
       .subscribe({
-        next: (items) => {
-          this.layouts = (items ?? []).map((layout) => ({
+        next: ({ layouts, definitions }) => {
+          this.layouts = (layouts ?? []).map((layout) => ({
             ...layout,
             fieldsCount: layout.fields?.length ?? 0
           }));
+
+          this.definitionsByRecordCode = (definitions ?? []).reduce<Record<string, NachaRecordDefinitionDto>>((acc, item) => {
+            acc[item.recordCode] = item;
+            return acc;
+          }, {});
 
           if (targetRecordCode) {
             const selected = this.layouts.find((layout) => layout.recordCode === targetRecordCode);
@@ -84,6 +134,28 @@ export class NachaLayoutsComponent implements OnInit {
           this.notifications.error('No fue posible cargar los layouts NACHA');
         }
       });
+  }
+
+  get currentSourceName(): string | null {
+    const recordCode = this.form.getRawValue().recordCode?.trim();
+    if (!recordCode) {
+      return null;
+    }
+
+    return this.definitionsByRecordCode[recordCode]?.sourceName ?? null;
+  }
+
+  get dbColumnOptions(): string[] {
+    const sourceName = this.currentSourceName;
+    if (!sourceName) {
+      return [];
+    }
+
+    return this.sourceColumnsBySourceName[sourceName] ?? [];
+  }
+
+  get useDbColumnSelect(): boolean {
+    return this.dbColumnOptions.length > 0;
   }
 
   startCreate(): void {
