@@ -69,29 +69,48 @@ public class CustomerThirdPartyAppService : ICustomerThirdPartyAppService
 
         var total = await dataQuery.CountAsync(ct);
 
-        var items = await dataQuery
+        var rows = await dataQuery
             .OrderByDescending(t => t.ValidationReceivedAt)
             .ThenByDescending(t => t.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(t => new CustomerThirdPartyListDto
+            .Select(t => new
             {
-                Id = t.Id,
-                CustomerId = t.CustomerId,
-                CustomerName = string.IsNullOrWhiteSpace(t.Customer.CompanyName)
-                    ? string.Join(" ", new[] { t.Customer.FirstName, t.Customer.LastName, t.Customer.SecondLastName }.Where(x => !string.IsNullOrWhiteSpace(x)))
-                    : t.Customer.CompanyName!,
-                DestinationInstitutionId = t.DestinationInstitutionId,
+                t.Id,
+                t.CustomerId,
+                t.Customer.CompanyName,
+                t.Customer.FirstName,
+                t.Customer.LastName,
+                t.Customer.SecondLastName,
+                t.DestinationInstitutionId,
                 DestinationInstitutionName = t.DestinationInstitution.Name,
-                DestinationAccountNumber = t.DestinationAccountNumber,
-                RecipientIdNumber = t.RecipientIdNumber,
-                Status = t.Status,
-                PrenotificationTransactionId = t.PrenotificationTransactionId,
-                ValidationCycleId = t.ValidationCycleId,
-                ValidationReceivedAt = t.ValidationReceivedAt,
-                ValidationMessage = t.ValidationMessage
+                t.DestinationAccountNumber,
+                t.RecipientIdNumber,
+                t.Status,
+                t.PrenotificationTransactionId,
+                t.ValidationCycleId,
+                t.ValidationReceivedAt,
+                t.ValidationMessage
             })
             .ToListAsync(ct);
+
+        var items = rows.Select(t => new CustomerThirdPartyListDto
+        {
+            Id = t.Id,
+            CustomerId = t.CustomerId,
+            CustomerName = string.IsNullOrWhiteSpace(t.CompanyName)
+                ? string.Join(" ", new[] { t.FirstName, t.LastName, t.SecondLastName }.Where(x => !string.IsNullOrWhiteSpace(x)))
+                : t.CompanyName!,
+            DestinationInstitutionId = t.DestinationInstitutionId,
+            DestinationInstitutionName = t.DestinationInstitutionName,
+            DestinationAccountNumber = t.DestinationAccountNumber,
+            RecipientIdNumber = t.RecipientIdNumber,
+            Status = t.Status,
+            PrenotificationTransactionId = t.PrenotificationTransactionId,
+            ValidationCycleId = t.ValidationCycleId,
+            ValidationReceivedAt = t.ValidationReceivedAt,
+            ValidationMessage = t.ValidationMessage
+        }).ToList();
 
         return new PagedResponse<CustomerThirdPartyListDto>
         {
