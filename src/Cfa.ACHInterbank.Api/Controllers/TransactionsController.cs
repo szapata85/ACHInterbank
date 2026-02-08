@@ -77,6 +77,11 @@ public class TransactionsController : ControllerBase
             _logger.LogWarning(ex, "Validación fallida al registrar transacción");
             return BadRequest(new { message = ex.Message });
         }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Regla de negocio incumplida al registrar transacción");
+            return BadRequest(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error interno al registrar transacción");

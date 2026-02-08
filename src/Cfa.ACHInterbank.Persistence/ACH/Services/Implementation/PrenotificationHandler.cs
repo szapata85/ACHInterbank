@@ -27,7 +27,7 @@ public class PrenotificationHandler : IPrenotificationHandler
 
         var customer = await _context.Customers
             .FirstOrDefaultAsync(c => c.AccountNumber == request.SourceAccountNumber, ct)
-            ?? throw new InvalidOperationException("No se encontró el cliente asociado a la cuenta de origen.");
+            ?? throw new ArgumentException("No se encontró el cliente asociado a la cuenta de origen.", nameof(request.SourceAccountNumber));
 
         var existingThirdParty = await _context.CustomerThirdParties
             .FirstOrDefaultAsync(t =>

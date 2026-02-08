@@ -43,7 +43,7 @@ export class TransactionsApiService {
         if (error.status === 401) {
           return throwError(() => new Error('Sesión expirada. Inicie sesión nuevamente.'));
         }
-        return throwError(() => new Error('No fue posible crear la transacción.'));
+        return throwError(() => new Error(error.error?.message ?? 'No fue posible crear la transacción.'));
       })
     );
   }
