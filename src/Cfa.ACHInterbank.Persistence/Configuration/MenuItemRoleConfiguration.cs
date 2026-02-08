@@ -58,6 +58,16 @@ public class MenuItemRoleConfiguration : IEntityTypeConfiguration<MenuItemRole>
             },
             new MenuItemRole
             {
+                MenuItemId = MenuItemConfiguration.CustomerThirdPartiesId,
+                RoleId = RoleConfiguration.AdminRoleId
+            },
+            new MenuItemRole
+            {
+                MenuItemId = MenuItemConfiguration.CustomerThirdPartiesId,
+                RoleId = RoleConfiguration.OperatorRoleId
+            },
+            new MenuItemRole
+            {
                 MenuItemId = MenuItemConfiguration.NachaDefinitionsId,
                 RoleId = RoleConfiguration.AdminRoleId
             },

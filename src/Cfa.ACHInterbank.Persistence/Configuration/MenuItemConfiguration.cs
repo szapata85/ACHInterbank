@@ -33,6 +33,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int LoginLockoutSettingsId = 24;
     public const int NachaDefinitionsId = 25;
     public const int LogsId = 27;
+    public const int CustomerThirdPartiesId = 28;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -352,6 +353,18 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Route = "/transactions/nacha-upload",
                 Icon = "upload_file",
                 Order = 3,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = CustomerThirdPartiesId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = TransactionsId,
+                Label = "Terceros prenotificación",
+                Route = "/customer-third-parties",
+                Icon = "groups",
+                Order = 4,
                 Exact = true,
                 IsActive = true
             },
