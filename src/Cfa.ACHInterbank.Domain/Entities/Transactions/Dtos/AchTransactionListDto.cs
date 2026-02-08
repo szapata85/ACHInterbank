@@ -16,6 +16,7 @@ public class AchTransactionListDto
     public string SourceInstitutionName { get; set; } = string.Empty;
     public string DestinationInstitutionName { get; set; } = string.Empty;
     public bool IsPrenotification { get; set; }
+    public string TransactionCode { get; set; } = string.Empty;
 
     public int AchBatchId { get; set; }
     public int BatchSequenceNumber { get; set; }

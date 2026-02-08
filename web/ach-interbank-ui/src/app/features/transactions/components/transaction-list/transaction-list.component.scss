@@ -152,6 +152,19 @@
   }
 }
 
+.return-filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+
+  .ghost {
+    background: transparent;
+    color: var(--button-color, #2563eb);
+    border: 1px solid #bfdbfe;
+  }
+}
+
 @media (max-width: 768px) {
   .actions {
     flex-direction: column;

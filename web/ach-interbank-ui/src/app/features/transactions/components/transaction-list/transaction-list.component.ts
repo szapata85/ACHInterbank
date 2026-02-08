@@ -13,6 +13,7 @@ import { AchCycleSummary, ClearingHouseOption } from '../../../ach-cycles/models
 type TransactionListRow = TransactionListItem & {
   typeLabel: string;
   transactionNatureLabel: string;
+  returnManagementLabel: string;
   amountText: string;
   effectiveEntryDateText: string;
 };
@@ -66,6 +67,7 @@ export class TransactionListComponent implements OnInit {
     { field: 'reference', headerName: 'Referencia', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
     { field: 'typeLabel', headerName: 'Tipo', width: 160, filter: 'agSetColumnFilter' },
     { field: 'transactionNatureLabel', headerName: 'Naturaleza', width: 170, filter: 'agSetColumnFilter' },
+    { field: 'returnManagementLabel', headerName: 'Gestión devolución', width: 220, filter: 'agSetColumnFilter' },
     { field: 'achCycleName', headerName: 'Ciclo', width: 200, filter: 'agTextColumnFilter' },
     { field: 'clearingHouseName', headerName: 'Cámara', width: 200, filter: 'agTextColumnFilter' },
     { field: 'amountText', headerName: 'Monto', width: 140, maxWidth: 180, cellClass: 'text-end' },
@@ -79,6 +81,7 @@ export class TransactionListComponent implements OnInit {
     { field: 'reference', label: 'Referencia' },
     { field: 'typeLabel', label: 'Tipo' },
     { field: 'transactionNatureLabel', label: 'Naturaleza' },
+    { field: 'returnManagementLabel', label: 'Gestión devolución' },
     { field: 'achCycleName', label: 'Ciclo' },
     { field: 'clearingHouseName', label: 'Cámara' },
     { field: 'amountText', label: 'Monto' },
@@ -94,6 +97,7 @@ export class TransactionListComponent implements OnInit {
     'reference',
     'transactionNatureLabel',
     'typeLabel',
+    'returnManagementLabel',
     'amountText',
     'sourceAccountNumber',
     'destinationAccountNumber',
@@ -122,6 +126,7 @@ export class TransactionListComponent implements OnInit {
   readonly loadingTemplate = 'Cargando transacciones...';
 
   loading = false;
+  returnView: 'all' | 'received' | 'sent' = 'all';
   groups: TransactionGroup[] = [];
   cycles: AchCycleOption[] = [];
   clearingHouses: ClearingHouseOption[] = [];
@@ -247,9 +252,10 @@ export class TransactionListComponent implements OnInit {
       .subscribe({
         next: (items) => {
           const normalized = (items ?? []).map((item) => this.mapRow(item));
+          const filtered = normalized.filter((item) => this.matchesReturnView(item));
           const grouped = new Map<number, TransactionGroup>();
 
-          normalized.forEach((item) => {
+          filtered.forEach((item) => {
             const current = grouped.get(item.achBatchId);
             if (!current) {
               grouped.set(item.achBatchId, {
@@ -304,9 +310,40 @@ export class TransactionListComponent implements OnInit {
       ...item,
       typeLabel: this.formatType(item.type),
       transactionNatureLabel: this.formatTransactionNature(item.isPrenotification),
+      returnManagementLabel: this.formatReturnManagement(item.transactionCode),
       amountText: this.currencyFormatter.format(item.amount ?? 0),
       effectiveEntryDateText: this.formatDate(item.effectiveEntryDate)
     };
+  }
+
+  setReturnView(view: 'all' | 'received' | 'sent'): void {
+    this.returnView = view;
+    this.loadTransactions();
+  }
+
+  private matchesReturnView(item: TransactionListRow): boolean {
+    if (this.returnView === 'all') {
+      return true;
+    }
+
+    const code = (item.transactionCode ?? '').trim();
+    const receivedCodes = new Set(['21', '31', '51']);
+    const sentCodes = new Set(['26', '36', '56']);
+
+    return this.returnView === 'received' ? receivedCodes.has(code) : sentCodes.has(code);
+  }
+
+  private formatReturnManagement(code: string | null | undefined): string {
+    const normalized = (code ?? '').trim();
+    if (['21', '31', '51'].includes(normalized)) {
+      return 'Devolución recibida';
+    }
+
+    if (['26', '36', '56'].includes(normalized)) {
+      return 'Devolución enviada';
+    }
+
+    return 'No devolución';
   }
 
   private formatDate(value: string | null | undefined): string {

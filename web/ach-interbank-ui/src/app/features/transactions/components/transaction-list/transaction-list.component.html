@@ -29,6 +29,11 @@
   <button type="button" (click)="createNew()">Crear transacción</button>
 </div>
 
+  <div class="return-filters">
+    <button type="button" class="ghost" (click)="setReturnView('all')" [disabled]="loading || returnView === 'all'">Todas</button>
+    <button type="button" class="ghost" (click)="setReturnView('received')" [disabled]="loading || returnView === 'received'">Devoluciones recibidas</button>
+    <button type="button" class="ghost" (click)="setReturnView('sent')" [disabled]="loading || returnView === 'sent'">Devoluciones enviadas</button>
+  </div>
 
 <div class="column-manager" aria-label="Selector de columnas para la grilla">
   <details>

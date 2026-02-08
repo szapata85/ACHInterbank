@@ -187,6 +187,7 @@ public class AchTransactionService : IAchTransactionService
                 SourceInstitutionName = t.SourceInstitution.Name,
                 DestinationInstitutionName = t.DestinationInstitution.Name,
                 IsPrenotification = t.IsPrenotification,
+                TransactionCode = t.TransactionCode,
                 AchBatchId = t.AchBatchId,
                 BatchSequenceNumber = t.AchBatch.BatchSequenceNumber,
                 BatchCompanyName = t.AchBatch.CompanyName,

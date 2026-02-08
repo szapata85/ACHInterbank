@@ -16,6 +16,7 @@ export interface TransactionDraft {
   type: TransactionTypeEnum;
   accountType: AccountTypeEnum;
   isPrenotification: boolean;
+  transactionCode: string;
   destinationInstitutionId: number;
   sourceAccountNumber: string;
   destinationAccountNumber: string;
@@ -54,6 +55,7 @@ export interface TransactionListItem {
   sourceInstitutionName: string;
   destinationInstitutionName: string;
   isPrenotification: boolean;
+  transactionCode: string;
   achBatchId: number;
   batchSequenceNumber: number;
   batchCompanyName: string;
