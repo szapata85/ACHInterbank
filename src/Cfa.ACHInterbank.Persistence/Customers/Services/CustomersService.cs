@@ -21,26 +21,41 @@ public class CustomersService : ICustomersService
     {
         var customers = await _context.Customers
             .AsNoTracking()
-            .Select(c => new CustomerSummaryDto
+            .OrderBy(c => c.FirstName)
+            .ThenBy(c => c.MiddleName)
+            .ThenBy(c => c.LastName)
+            .ThenBy(c => c.SecondLastName)
+            .Select(c => new
             {
-                Id = c.Id,
-                DocumentType = c.DocumentType,
-                DocumentNumber = c.DocumentNumber,
-                AccountNumber = c.AccountNumber,
-                PersonType = c.PersonType,
-                CompanyName = c.CompanyName,
-                FullName = string.Join(" ", new[]
-                {
-                    c.FirstName,
-                    c.MiddleName,
-                    c.LastName,
-                    c.SecondLastName
-                }.Where(part => !string.IsNullOrWhiteSpace(part)))
+                c.Id,
+                c.DocumentType,
+                c.DocumentNumber,
+                c.AccountNumber,
+                c.PersonType,
+                c.CompanyName,
+                c.FirstName,
+                c.MiddleName,
+                c.LastName,
+                c.SecondLastName
             })
-            .OrderBy(c => c.FullName)
             .ToListAsync(ct);
 
-        return customers;
+        return customers.Select(c => new CustomerSummaryDto
+        {
+            Id = c.Id,
+            DocumentType = c.DocumentType,
+            DocumentNumber = c.DocumentNumber,
+            AccountNumber = c.AccountNumber,
+            PersonType = c.PersonType,
+            CompanyName = c.CompanyName,
+            FullName = string.Join(" ", new[]
+            {
+                c.FirstName,
+                c.MiddleName,
+                c.LastName,
+                c.SecondLastName
+            }.Where(part => !string.IsNullOrWhiteSpace(part)))
+        });
     }
 
     public async Task<CustomerDetailDto?> GetByIdAsync(int id, CancellationToken ct = default)
