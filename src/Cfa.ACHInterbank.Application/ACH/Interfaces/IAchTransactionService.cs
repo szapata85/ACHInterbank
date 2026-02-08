@@ -12,6 +12,7 @@ public interface IAchTransactionService
         TransactionTypeEnum type,
         AccountTypeEnum accountType,
         bool isPrenotification,
+        bool isReturn,
         int destinationInstitutionId,
         string sourceAccountNumber,
         string destinationAccountNumber,

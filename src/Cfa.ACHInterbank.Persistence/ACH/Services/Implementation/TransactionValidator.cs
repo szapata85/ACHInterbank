@@ -11,22 +11,27 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class TransactionValidator : ITransactionValidator
 {
     private readonly AchDbContext _context;
-    private static readonly IReadOnlyDictionary<(TransactionTypeEnum Type, AccountTypeEnum Account, bool IsPrenotification), string> FallbackTransactionCodeMap
-        = new Dictionary<(TransactionTypeEnum, AccountTypeEnum, bool), string>
+    private static readonly IReadOnlyDictionary<(TransactionTypeEnum Type, AccountTypeEnum Account, bool IsPrenotification, bool IsReturn), string> FallbackTransactionCodeMap
+        = new Dictionary<(TransactionTypeEnum, AccountTypeEnum, bool, bool), string>
         {
-            { (TransactionTypeEnum.Credit, AccountTypeEnum.Checking, false), "22" },
-            { (TransactionTypeEnum.Credit, AccountTypeEnum.Checking, true), "23" },
-            { (TransactionTypeEnum.Debit, AccountTypeEnum.Checking, false), "27" },
-            { (TransactionTypeEnum.Debit, AccountTypeEnum.Checking, true), "28" },
-            { (TransactionTypeEnum.Credit, AccountTypeEnum.Savings, false), "32" },
-            { (TransactionTypeEnum.Credit, AccountTypeEnum.Savings, true), "33" },
-            { (TransactionTypeEnum.Debit, AccountTypeEnum.Savings, false), "37" },
-            { (TransactionTypeEnum.Debit, AccountTypeEnum.Savings, true), "38" },
-            { (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, false), "52" },
-            { (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, true), "53" },
-            { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, false), "55" },
-            { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, true), "57" }
-        };
+            { (TransactionTypeEnum.Credit, AccountTypeEnum.Checking, false, false), "22" },
+            { (TransactionTypeEnum.Credit, AccountTypeEnum.Checking, true, false), "23" },
+            { (TransactionTypeEnum.Credit, AccountTypeEnum.Checking, false, true), "21" },
+            { (TransactionTypeEnum.Debit, AccountTypeEnum.Checking, false, false), "27" },
+            { (TransactionTypeEnum.Debit, AccountTypeEnum.Checking, true, false), "28" },
+            { (TransactionTypeEnum.Debit, AccountTypeEnum.Checking, false, true), "26" },
+            { (TransactionTypeEnum.Credit, AccountTypeEnum.Savings, false, false), "32" },
+            { (TransactionTypeEnum.Credit, AccountTypeEnum.Savings, true, false), "33" },
+            { (TransactionTypeEnum.Credit, AccountTypeEnum.Savings, false, true), "31" },
+            { (TransactionTypeEnum.Debit, AccountTypeEnum.Savings, false, false), "37" },
+            { (TransactionTypeEnum.Debit, AccountTypeEnum.Savings, true, false), "38" },
+            { (TransactionTypeEnum.Debit, AccountTypeEnum.Savings, false, true), "36" },
+            { (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, false, false), "52" },
+            { (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, true, false), "53" },
+            { (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, false, true), "51" },
+            { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, false, false), "55" },
+            { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, true, false), "57" },
+            { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, false, true), "56" }        };
 
     public TransactionValidator(AchDbContext context)
     {
@@ -35,6 +40,11 @@ public class TransactionValidator : ITransactionValidator
 
     public void ValidateRequest(AchTransactionRequestData request)
     {
+        if (request.IsPrenotification && request.IsReturn)
+        {
+            throw new ArgumentException("Una transacción no puede ser prenotificación y devolución al mismo tiempo.");
+        }
+
         if (request.IsPrenotification)
         {
             if (request.Amount != 0)
@@ -94,9 +104,14 @@ public class TransactionValidator : ITransactionValidator
         }
     }
 
-    public string ResolveTransactionCode(TransactionTypeEnum type, AccountTypeEnum accountType, bool isPrenotification)
+    public string ResolveTransactionCode(TransactionTypeEnum type, AccountTypeEnum accountType, bool isPrenotification, bool isReturn)
     {
-        if (!FallbackTransactionCodeMap.TryGetValue((type, accountType, isPrenotification), out var fallbackCode))
+        if (isPrenotification && isReturn)
+        {
+            throw new ArgumentException("Una transacción no puede ser prenotificación y devolución al mismo tiempo.");
+        }
+
+        if (!FallbackTransactionCodeMap.TryGetValue((type, accountType, isPrenotification, isReturn), out var fallbackCode))
         {
             throw new ArgumentOutOfRangeException(nameof(accountType), "Tipo de cuenta no soportado.");
         }

@@ -54,6 +54,12 @@
         <small class="muted">Se enviará con monto cero.</small>
       </label>
 
+      <label class="toggle">
+        <span>Devolución</span>
+        <input type="checkbox" formControlName="isReturn" />
+        <small class="muted">Usa códigos de devolución (21/26/31/36/51/56) y requiere addenda 99.</small>
+      </label>
+
       <label>
         <span>Institución destino *</span>
         <select formControlName="destinationInstitutionId" required>
@@ -74,7 +80,7 @@
 
       <label>
         <span>Cuenta destino *</span>
-        <ng-container *ngIf="!form.get('isPrenotification')?.value; else manualDestinationAccount">
+        <ng-container *ngIf="!form.get('isPrenotification')?.value && !form.get('isReturn')?.value; else manualDestinationAccount">
           <select
             formControlName="destinationAccountNumber"
             (change)="onDestinationAccountSelected($any($event.target).value)"
@@ -96,7 +102,8 @@
         </ng-container>
         <ng-template #manualDestinationAccount>
           <input type="text" formControlName="destinationAccountNumber" required inputmode="numeric" />
-          <small class="muted">Para prenotificación puedes registrar una cuenta destino nueva.</small>
+          <small class="muted" *ngIf="form.get('isPrenotification')?.value">Para prenotificación puedes registrar una cuenta destino nueva.</small>
+          <small class="muted" *ngIf="form.get('isReturn')?.value">Para devolución puedes registrar manualmente la cuenta destino de reverso.</small>
         </ng-template>
         <app-error-message [control]="form.get('destinationAccountNumber')"></app-error-message>
       </label>
@@ -143,6 +150,7 @@
     <div class="addenda-section">
       <div class="section-header">
         <h3>Addendas</h3>
+        <small class="muted" *ngIf="form.get('isReturn')?.value">Modo devolución activo: las addendas deben ser tipo 99.</small>
         <button type="button" class="link" (click)="addAddenda()">Agregar addenda</button>
       </div>
       <ng-container *ngIf="addendas.controls.length; else noAddendas">
@@ -210,6 +218,8 @@
       </div>
       <p class="error" *ngIf="form.errors?.missingAddenda">Debes registrar al menos una addenda.</p>
       <p class="error" *ngIf="form.errors?.invalidAddenda">Las addendas deben ser 05 o 99 y completar causal/seq.</p>
+      <p class="error" *ngIf="form.errors?.invalidMode">No puedes marcar prenotificación y devolución al mismo tiempo.</p>
+      <p class="error" *ngIf="form.errors?.invalidReturnAddendaType">Para devoluciones todas las addendas deben ser tipo 99.</p>
     </div>
 
     <div class="actions">

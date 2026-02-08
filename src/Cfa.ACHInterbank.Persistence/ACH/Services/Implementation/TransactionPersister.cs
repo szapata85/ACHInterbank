@@ -22,7 +22,7 @@ public class TransactionPersister : ITransactionPersister
 
     public async Task<TransactionPersistResult> PersistAsync(AchTransactionRequestData request, TransactionBatchContext context, CancellationToken ct = default)
     {
-        var transactionCode = _validator.ResolveTransactionCode(request.Type, request.AccountType, request.IsPrenotification);
+        var transactionCode = _validator.ResolveTransactionCode(request.Type, request.AccountType, request.IsPrenotification, request.IsReturn);
 
         int nextSeq = await _context.AchTransactions
             .Where(t => t.AchBatchId == context.Batch.Id)

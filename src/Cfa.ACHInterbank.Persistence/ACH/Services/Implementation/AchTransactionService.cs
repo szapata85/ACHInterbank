@@ -41,6 +41,7 @@ public class AchTransactionService : IAchTransactionService
         TransactionTypeEnum type,
         AccountTypeEnum accountType,
         bool isPrenotification,
+        bool isReturn,
         int destinationInstitutionId,
         string sourceAccountNumber,
         string destinationAccountNumber,
@@ -59,6 +60,7 @@ public class AchTransactionService : IAchTransactionService
             Type = type,
             AccountType = accountType,
             IsPrenotification = isPrenotification,
+            IsReturn = isReturn,
             DestinationInstitutionId = destinationInstitutionId,
             SourceAccountNumber = sourceAccountNumber,
             DestinationAccountNumber = destinationAccountNumber,
@@ -75,7 +77,7 @@ public class AchTransactionService : IAchTransactionService
         var batchContext = await _batchResolver.ResolveAsync(request, ct);
         var persisted = await _transactionPersister.PersistAsync(request, batchContext, ct);
 
-        if (isPrenotification)
+        if (isPrenotification && !isReturn)
         {
             await _prenotificationHandler.HandleAsync(request, persisted.Transaction, ct);
         }
