@@ -72,6 +72,10 @@ public class AchTransactionService : IAchTransactionService
 
         _transactionValidator.ValidateRequest(request);
 
+        await using var dbTransaction = await _context.Database.BeginTransactionAsync(ct);
+
+        await EnsureCustomerAndAccountsAsync(request, ct);
+
         var batchContext = await _batchResolver.ResolveAsync(request, ct);
         var persisted = await _transactionPersister.PersistAsync(request, batchContext, ct);
 
@@ -83,7 +87,116 @@ public class AchTransactionService : IAchTransactionService
         await _transactionPersister.UpdateBatchTotalsAsync(persisted.Batch, ct);
         await _transactionPersister.UpdateBatchServiceClassCodeAsync(persisted.Batch, ct);
 
+        await dbTransaction.CommitAsync(ct);
+
         return persisted.Transaction;
+    }
+
+
+    private async Task EnsureCustomerAndAccountsAsync(AchTransactionRequestData request, CancellationToken ct)
+    {
+        await EnsureCustomerWithAccountAsync(
+            documentNumber: request.CompanyIdentification,
+            preferredName: request.CompanyName,
+            accountNumber: request.SourceAccountNumber,
+            defaultPersonType: "PJ",
+            ct: ct);
+
+        if (!string.IsNullOrWhiteSpace(request.RecipientIdNumber))
+        {
+            await EnsureCustomerWithAccountAsync(
+                documentNumber: request.RecipientIdNumber,
+                preferredName: request.RecipientIdNumber,
+                accountNumber: request.DestinationAccountNumber,
+                defaultPersonType: "PN",
+                ct: ct);
+        }
+    }
+
+    private async Task EnsureCustomerWithAccountAsync(
+        string? documentNumber,
+        string? preferredName,
+        string? accountNumber,
+        string defaultPersonType,
+        CancellationToken ct)
+    {
+        var normalizedDocument = (documentNumber ?? string.Empty).Trim();
+        var normalizedAccount = (accountNumber ?? string.Empty).Trim();
+
+        if (string.IsNullOrWhiteSpace(normalizedDocument) || string.IsNullOrWhiteSpace(normalizedAccount))
+        {
+            return;
+        }
+
+        var customer = await _context.Customers
+            .Include(c => c.Accounts)
+            .FirstOrDefaultAsync(c => c.DocumentNumber == normalizedDocument, ct);
+
+        if (customer is null)
+        {
+            customer = new Customer
+            {
+                PersonType = await ResolveCatalogCodeAsync(_context.PersonTypes, defaultPersonType, ct),
+                DocumentType = await ResolveCatalogCodeAsync(_context.DocumentTypes, "OTRO", ct),
+                DocumentNumber = normalizedDocument,
+                CompanyName = NormalizeText(preferredName, 200),
+                FirstName = NormalizeText(preferredName, 100, "N/A"),
+                LastName = "N/A"
+            };
+
+            customer.Accounts.Add(new CustomerAccount { AccountNumber = normalizedAccount });
+            _context.Customers.Add(customer);
+            await _context.SaveChangesAsync(ct);
+            return;
+        }
+
+        if (!customer.Accounts.Any(a => a.AccountNumber == normalizedAccount))
+        {
+            customer.Accounts.Add(new CustomerAccount { AccountNumber = normalizedAccount });
+            await _context.SaveChangesAsync(ct);
+        }
+    }
+
+    private static string NormalizeText(string? value, int maxLength, string fallback = "")
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            normalized = fallback;
+        }
+
+        return normalized.Length <= maxLength ? normalized : normalized[..maxLength];
+    }
+
+    private static async Task<string> ResolveCatalogCodeAsync<TCatalog>(
+        DbSet<TCatalog> dbSet,
+        string preferredCode,
+        CancellationToken ct)
+        where TCatalog : class
+    {
+        var codeProperty = typeof(TCatalog).GetProperty("Code")
+            ?? throw new InvalidOperationException($"La entidad {typeof(TCatalog).Name} no define la propiedad Code.");
+
+        var preferred = await dbSet
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => EF.Property<string>(x, "Code") == preferredCode, ct);
+
+        if (preferred is not null)
+        {
+            return (string)(codeProperty.GetValue(preferred) ?? preferredCode);
+        }
+
+        var fallback = await dbSet
+            .AsNoTracking()
+            .Select(x => EF.Property<string>(x, "Code"))
+            .FirstOrDefaultAsync(ct);
+
+        if (string.IsNullOrWhiteSpace(fallback))
+        {
+            throw new InvalidOperationException($"No existen registros en el catálogo {typeof(TCatalog).Name}.");
+        }
+
+        return fallback;
     }
 
     public Task<DateTime> GetNextBusinessDayAsync(DateTime baseDate, CancellationToken ct = default)
