@@ -169,7 +169,6 @@
             <span>Código tipo registro adenda *</span>
             <select formControlName="addendaType" required>
               <option value="05">05 - Información adicional</option>
-              <option value="99">99 - Causal de devolución</option>
             </select>
             <app-error-message [control]="addenda.get('addendaType')"></app-error-message>
           </label>
@@ -177,14 +176,6 @@
             <span>Información *</span>
             <input type="text" formControlName="information" required maxlength="80" />
             <app-error-message [control]="addenda.get('information')"></app-error-message>
-          </label>
-          <label *ngIf="addenda.get('addendaType')?.value === '99'">
-            <span>Causal de devolución *</span>
-            <input type="text" formControlName="returnReasonCode" maxlength="10" />
-          </label>
-          <label *ngIf="addenda.get('addendaType')?.value === '99'">
-            <span>Secuencia original *</span>
-            <input type="text" formControlName="originalTraceSequence" maxlength="20" />
           </label>
           <button type="button" class="danger" (click)="removeAddenda(i)" aria-label="Eliminar addenda">
             Eliminar
@@ -194,36 +185,8 @@
       <ng-template #noAddendas>
         <p class="muted">Se requiere al menos una addenda por transacción.</p>
       </ng-template>
-      <div class="info-tooltip">
-        <button type="button" class="info-trigger" aria-label="Ver información sobre causales de devolución">
-          Ver información
-        </button>
-        <div class="info-tooltip__content" role="tooltip">
-          <p class="info">
-            El sistema de transferencias interbancarias clasifica los errores y rechazos en dos categorías principales:
-            causales generadas por la Entidad Participante Receptora (códigos “R”) y causales generadas por el Operador ACH
-            (códigos “D”).
-          </p>
-          <ng-container *ngIf="returnReasons$ | async as returnReasons">
-            <div class="info info-list" *ngIf="returnReasons.receiver.length">
-              <h4>Causales de Devolución (Códigos "R" - Entre Entidades)</h4>
-              <p>Son los motivos por los cuales el banco de destino rechaza la operación:</p>
-              <ul>
-                <li *ngFor="let reason of returnReasons.receiver">{{ reason.code }}: {{ reason.description }}</li>
-              </ul>
-            </div>
-            <div class="info info-list" *ngIf="returnReasons.operator.length">
-              <h4>Causales de Devolución por Operador (Códigos "D")</h4>
-              <p>Son errores técnicos detectados por el sistema ACH antes de enviar el dinero a otra entidad:</p>
-              <ul>
-                <li *ngFor="let reason of returnReasons.operator">{{ reason.code }}: {{ reason.description }}</li>
-              </ul>
-            </div>
-          </ng-container>
-        </div>
-      </div>
       <p class="error" *ngIf="form.errors?.missingAddenda">Debes registrar al menos una addenda.</p>
-      <p class="error" *ngIf="form.errors?.invalidAddenda">Las addendas deben ser 05 o 99 y completar causal/seq.</p>
+      <p class="error" *ngIf="form.errors?.invalidAddenda">En esta pantalla solo se permite addenda tipo 05.</p>
     </div>
 
     <div class="actions">

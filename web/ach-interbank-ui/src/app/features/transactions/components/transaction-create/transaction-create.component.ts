@@ -9,7 +9,6 @@ import { AccountTypeEnum, FinancialInstitutionStatusEnum, TransactionTypeEnum } 
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SharedModule } from '../../../../shared/shared.module';
 import { FinancialInstitutionsApiService } from '../../services/financial-institutions-api.service';
-import { ReturnReasonsApiService } from '../../services/return-reasons-api.service';
 import { CustomersApiService } from '../../../customers/services/customers-api.service';
 import { CustomerSummary } from '../../../customers/models/customer.model';
 
@@ -28,7 +27,6 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly notifications = inject(NotificationService);
   private readonly financialInstitutionsApi = inject(FinancialInstitutionsApiService);
-  private readonly returnReasonsApi = inject(ReturnReasonsApiService);
   private readonly customersApi = inject(CustomersApiService);
   private readonly destroy$ = new Subject<void>();
 
@@ -49,15 +47,6 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
         .sort((a, b) => a.name.localeCompare(b.name))
     )
   );
-  readonly returnReasons$ = this.returnReasonsApi.getAll().pipe(
-    map((list) => list ?? []),
-    map((list) => ({
-      receiver: list.filter((item) => item.category === 'R'),
-      operator: list.filter((item) => item.category === 'D')
-    })),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
   readonly form: FormGroup = this.fb.group({
     customerId: [null, [Validators.required]],
     amount: [null, [Validators.required, Validators.min(0.01)]],
@@ -170,9 +159,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     this.addendas.push(
       this.fb.group({
         addendaType: ['05', [Validators.required]],
-        information: ['', [Validators.required, Validators.maxLength(80)]],
-        returnReasonCode: [''],
-        originalTraceSequence: ['']
+        information: ['', [Validators.required, Validators.maxLength(80)]]
       })
     );
   }
@@ -361,17 +348,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     if (addendas && addendas.length > 0) {
       const invalidAddenda = addendas.controls.some((control) => {
         const type = control.get('addendaType')?.value;
-        if (type !== '05' && type !== '99') {
-          return true;
-        }
-
-        if (type === '99') {
-          const reason = control.get('returnReasonCode')?.value;
-          const seq = control.get('originalTraceSequence')?.value;
-          return !reason || !seq;
-        }
-
-        return false;
+        return type !== '05';
       });
 
       if (invalidAddenda) {
@@ -383,19 +360,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   };
 
   private buildAddendaPayload(item: TransactionDraft['addendas'][number]) {
-    const addendaType = item.addendaType?.trim().toUpperCase();
-    if (addendaType === '99') {
-      const reason = item.returnReasonCode?.trim().toUpperCase();
-      const sequence = item.originalTraceSequence?.trim();
-      const details = item.information.trim();
-      return {
-        addendaType,
-        information: `CAUSAL:${reason} SEQ:${sequence} ${details}`.trim()
-      };
-    }
-
     return {
-      addendaType,
+      addendaType: item.addendaType?.trim().toUpperCase(),
       information: item.information.trim()
     };
   }
