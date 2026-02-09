@@ -35,7 +35,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   readonly customers$ = this.customersApi.getAll().pipe(
     map((list) =>
       (list ?? [])
-                .filter((item) => (item.accountNumbers?.length ?? 0) > 0)
+        .filter((item) => (item.accountNumbers?.length ?? 0) > 0 || !!item.accountNumber)
         .sort((a, b) => a.fullName.localeCompare(b.fullName))
     ),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -104,7 +104,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
             return;
           }
 
-          const accounts = (selected.accountNumbers ?? []).filter((item) => !!item);
+          const accounts = ((selected.accountNumbers?.length ? selected.accountNumbers : [selected.accountNumber]) ?? [])
+            .filter((item) => !!item);
           this.selectedCustomerAccounts = accounts;
 
           this.form.patchValue({

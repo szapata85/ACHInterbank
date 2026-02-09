@@ -99,7 +99,9 @@ export class CustomerFormComponent implements OnInit {
       gender: customer.gender ?? ''
     });
 
-    this.accountNumbers = [...(customer.accountNumbers ?? [])];
+    const accounts = (customer.accountNumbers?.length ? customer.accountNumbers : [customer.accountNumber])
+      .filter((item) => !!item);
+    this.accountNumbers = [...accounts];
   }
 
   addAccountNumber(): void {
