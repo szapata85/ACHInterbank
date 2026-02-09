@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { forkJoin } from 'rxjs';
 import { FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { SharedModule } from '../../../shared/shared.module';
@@ -56,7 +57,7 @@ export class CustomerFormComponent implements OnInit {
     personType: ['', Validators.required],
     documentType: ['', Validators.required],
     documentNumber: ['', Validators.required],
-    accountNumber: ['', Validators.required],
+    accountNumber: [''],
     companyName: [''],
     firstName: [''],
     middleName: [''],
@@ -67,6 +68,14 @@ export class CustomerFormComponent implements OnInit {
 
   get isCompany(): boolean {
     return this.form.get('personType')?.value === 'PJ';
+  }
+
+
+  readonly accountNumberInput = this.fb.control('');
+  accountNumbers: string[] = [];
+
+  get hasAccountNumbers(): boolean {
+    return this.accountNumbers.length > 0;
   }
 
   ngOnInit(): void {
@@ -95,20 +104,46 @@ export class CustomerFormComponent implements OnInit {
     });
   }
 
+  addAccountNumber(): void {
+    const accountNumber = (this.accountNumberInput.value ?? '').trim();
+    if (!accountNumber || this.accountNumbers.includes(accountNumber)) {
+      return;
+    }
+
+    this.accountNumbers = [...this.accountNumbers, accountNumber];
+    this.accountNumberInput.setValue('');
+  }
+
+  removeAccountNumber(accountNumber: string): void {
+    this.accountNumbers = this.accountNumbers.filter((item) => item !== accountNumber);
+  }
+
   save(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
     }
 
-    const payload = this.form.getRawValue() as SaveCustomerRequest;
-    const request$ = this.isEdit && this.customerId
-      ? this.api.update(this.customerId, payload)
-      : this.api.create(payload);
+    if (!this.isEdit && !this.hasAccountNumbers) {
+      this.notifications.error('Debe agregar al menos un número de cuenta.');
+      return;
+    }
 
-    request$.subscribe({
+    const payload = this.form.getRawValue() as SaveCustomerRequest;
+
+    if (this.isEdit && this.customerId) {
+      this.api.update(this.customerId, { ...payload, accountNumber: (payload.accountNumber ?? '').trim() }).subscribe({
+        next: () => this.router.navigate(['/customers']),
+        error: () => this.notifications.error('No fue posible guardar el cliente')
+      });
+      return;
+    }
+
+    const requests = this.accountNumbers.map((accountNumber) => this.api.create({ ...payload, accountNumber }));
+    forkJoin(requests).subscribe({
       next: () => this.router.navigate(['/customers']),
       error: () => this.notifications.error('No fue posible guardar el cliente')
     });
   }
 }
+

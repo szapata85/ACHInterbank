@@ -31,3 +31,44 @@ select {
   display: flex;
   gap: 0.75rem;
 }
+
+.accounts-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.accounts-label {
+  font-size: 0.9rem;
+}
+
+.accounts-input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.accounts-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a8a;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+}
+
+.chip button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
