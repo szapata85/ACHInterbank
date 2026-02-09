@@ -5,6 +5,32 @@
   <button type="button" class="button primary" (click)="create()">Nuevo cliente</button>
 </ng-template>
 
+<section class="card filters" [formGroup]="filtersForm">
+  <label>
+    Documento
+    <input type="text" formControlName="document" placeholder="CC 123456" />
+  </label>
+  <label>
+    Nombre
+    <input type="text" formControlName="name" placeholder="Nombre del cliente" />
+  </label>
+  <label>
+    Cuenta
+    <input type="text" formControlName="account" placeholder="Número de cuenta" />
+  </label>
+  <label>
+    Tipo persona
+    <select formControlName="personType">
+      <option value="">Todos</option>
+      <option value="PN">Persona natural</option>
+      <option value="PJ">Persona jurídica</option>
+    </select>
+  </label>
+  <div class="filter-actions">
+    <button type="button" class="button ghost" (click)="resetFilters()">Limpiar filtros</button>
+  </div>
+</section>
+
 <section class="card">
   <table class="table">
     <thead>
@@ -18,7 +44,7 @@
       </tr>
     </thead>
     <tbody>
-      <tr *ngFor="let customer of customers">
+      <tr *ngFor="let customer of filteredCustomers">
         <td>{{ customer.documentType }} {{ customer.documentNumber }}</td>
         <td>{{ customer.fullName }}</td>
         <td>{{ (customer.accountNumbers?.length ? customer.accountNumbers.join(", ") : customer.accountNumber) || "-" }}</td>
@@ -28,8 +54,8 @@
           <button type="button" class="link" (click)="edit(customer)">Editar</button>
         </td>
       </tr>
-      <tr *ngIf="!customers.length && !loading">
-        <td colspan="6">No hay clientes registrados.</td>
+      <tr *ngIf="!filteredCustomers.length && !loading">
+        <td colspan="6">No hay clientes registrados para los filtros seleccionados.</td>
       </tr>
     </tbody>
   </table>
