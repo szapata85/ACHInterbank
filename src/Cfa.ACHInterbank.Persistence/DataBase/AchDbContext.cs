@@ -46,6 +46,7 @@ public class AchDbContext : DbContext
     public DbSet<BatchControl> BatchControls { get; set; }
     public DbSet<FileControl> FileControls { get; set; }
     public DbSet<Customer> Customers { get; set; }
+    public DbSet<CustomerAccount> CustomerAccounts { get; set; }
     public DbSet<DocumentTypeCatalog> DocumentTypes { get; set; }
     public DbSet<GenderCatalog> GenderTypes { get; set; }
     public DbSet<PersonTypeCatalog> PersonTypes { get; set; }

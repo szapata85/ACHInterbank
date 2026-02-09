@@ -6,6 +6,7 @@ public record CustomerSummaryDto
     public string DocumentType { get; init; } = string.Empty;
     public string DocumentNumber { get; init; } = string.Empty;
     public string AccountNumber { get; init; } = string.Empty;
+    public IReadOnlyList<string> AccountNumbers { get; init; } = [];
     public string PersonType { get; init; } = string.Empty;
     public string? CompanyName { get; init; }
     public string FullName { get; init; } = string.Empty;
@@ -24,6 +25,7 @@ public record CustomerDetailDto
     public string DocumentType { get; init; } = string.Empty;
     public string DocumentNumber { get; init; } = string.Empty;
     public string AccountNumber { get; init; } = string.Empty;
+    public IReadOnlyList<string> AccountNumbers { get; init; } = [];
 }
 
 public record SaveCustomerRequest
@@ -37,5 +39,6 @@ public record SaveCustomerRequest
     public string? CompanyName { get; init; }
     public string DocumentType { get; init; } = string.Empty;
     public string DocumentNumber { get; init; } = string.Empty;
-    public string AccountNumber { get; init; } = string.Empty;
+    public string? AccountNumber { get; init; }
+    public IReadOnlyList<string>? AccountNumbers { get; init; }
 }

@@ -62,7 +62,7 @@ public class CustomerThirdPartyAppService : ICustomerThirdPartyAppService
 
             var sourceIdentity = await _context.Customers
                 .AsNoTracking()
-                .Where(c => c.AccountNumber == sourceAccountNumber)
+                .Where(c => c.Accounts.Any(a => a.AccountNumber == sourceAccountNumber))
                 .Select(c => new { c.DocumentType, c.DocumentNumber })
                 .FirstOrDefaultAsync(ct);
 

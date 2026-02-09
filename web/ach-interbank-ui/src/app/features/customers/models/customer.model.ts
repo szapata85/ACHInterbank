@@ -3,6 +3,7 @@ export interface CustomerSummary {
   documentType: string;
   documentNumber: string;
   accountNumber: string;
+  accountNumbers: string[];
   personType: string;
   companyName?: string | null;
   fullName: string;
@@ -20,6 +21,7 @@ export interface CustomerDetail {
   documentType: string;
   documentNumber: string;
   accountNumber: string;
+  accountNumbers: string[];
 }
 
 export interface SaveCustomerRequest {
@@ -32,5 +34,5 @@ export interface SaveCustomerRequest {
   companyName?: string | null;
   documentType: string;
   documentNumber: string;
-  accountNumber: string;
+  accountNumbers: string[];
 }

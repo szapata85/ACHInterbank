@@ -35,7 +35,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   readonly customers$ = this.customersApi.getAll().pipe(
     map((list) =>
       (list ?? [])
-        .filter((item) => !!item.accountNumber)
+                .filter((item) => (item.accountNumbers?.length ?? 0) > 0)
         .sort((a, b) => a.fullName.localeCompare(b.fullName))
     ),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -72,6 +72,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
   activeDestinationAccounts: ActiveThirdPartyAccount[] = [];
   filteredDestinationAccounts: ActiveThirdPartyAccount[] = [];
+  selectedCustomerAccounts: string[] = [];
 
   ngOnInit(): void {
     this.form.setValidators([this.validateAccountDifference, this.validateBusinessRules]);
@@ -86,6 +87,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       ?.valueChanges.pipe(takeUntil(this.destroy$))
       .subscribe((customerId) => {
         if (!customerId) {
+          this.selectedCustomerAccounts = [];
           this.form.patchValue({
             sourceAccountNumber: '',
             companyName: '',
@@ -102,8 +104,11 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
             return;
           }
 
+          const accounts = (selected.accountNumbers ?? []).filter((item) => !!item);
+          this.selectedCustomerAccounts = accounts;
+
           this.form.patchValue({
-            sourceAccountNumber: selected.accountNumber,
+            sourceAccountNumber: accounts[0] ?? '',
             companyName: this.normalizeCompanyName(selected),
             companyIdentification: selected.documentNumber
           }, { emitEvent: false });
@@ -219,6 +224,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
             this.addendas.clear();
             this.activeDestinationAccounts = [];
             this.filteredDestinationAccounts = [];
+            this.selectedCustomerAccounts = [];
             this.cdr.markForCheck();
             this.router.navigate(['/transactions']);
           },

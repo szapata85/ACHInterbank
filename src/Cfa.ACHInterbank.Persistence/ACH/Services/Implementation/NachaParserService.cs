@@ -383,7 +383,7 @@ public class NachaParserService : INachaParserService
             var recipientId = entry.RecipIdNumber ?? string.Empty;
             var matches = await _context.Customers
                 .AsNoTracking()
-                .AnyAsync(c => c.AccountNumber == accountNumber && c.DocumentNumber == recipientId);
+                .AnyAsync(c => c.DocumentNumber == recipientId && c.Accounts.Any(a => a.AccountNumber == accountNumber));
 
             if (!matches)
             {

@@ -22,10 +22,9 @@ internal class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(c => c.DocumentType).HasMaxLength(10).IsRequired();
 
         builder.Property(c => c.DocumentNumber).HasMaxLength(50).IsRequired();
-        builder.Property(c => c.AccountNumber).HasMaxLength(50).IsRequired();
 
-        // Unicidad por tipo de documento + número + cuenta
-        builder.HasIndex(c => new { c.DocumentType, c.DocumentNumber, c.AccountNumber }).IsUnique();
+        // Unicidad por tipo de documento + número
+        builder.HasIndex(c => new { c.DocumentType, c.DocumentNumber }).IsUnique();
 
         builder.HasOne(c => c.DocumentTypeCatalog)
             .WithMany(d => d.Customers)

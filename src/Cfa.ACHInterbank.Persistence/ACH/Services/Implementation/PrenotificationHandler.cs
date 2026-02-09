@@ -26,7 +26,7 @@ public class PrenotificationHandler : IPrenotificationHandler
         }
 
         var customer = await _context.Customers
-            .FirstOrDefaultAsync(c => c.AccountNumber == request.SourceAccountNumber, ct);
+            .FirstOrDefaultAsync(c => c.Accounts.Any(a => a.AccountNumber == request.SourceAccountNumber), ct);
 
         if (customer is null)
         {

@@ -19,8 +19,6 @@ public class Customer : AuditableEntity
     public string DocumentType { get; set; } = null!;
     public string DocumentNumber { get; set; } = null!;
 
-    // Cuenta origen
-    public string AccountNumber { get; set; } = null!;
 
     // Relaciones
     public GenderCatalog? GenderCatalog { get; set; }
@@ -30,6 +28,7 @@ public class Customer : AuditableEntity
     public ICollection<CustomerAddress> Addresses { get; set; } = new List<CustomerAddress>();
     public ICollection<CustomerPhone> Phones { get; set; } = new List<CustomerPhone>();
     public ICollection<CustomerEmail> Emails { get; set; } = new List<CustomerEmail>();
+    public ICollection<CustomerAccount> Accounts { get; set; } = new List<CustomerAccount>();
 
     public ICollection<AchTransaction> Transactions { get; set; } = new List<AchTransaction>();
 }

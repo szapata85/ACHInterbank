@@ -21,68 +21,55 @@ public class CustomersService : ICustomersService
     {
         var customers = await _context.Customers
             .AsNoTracking()
+            .Include(c => c.Accounts)
             .OrderBy(c => c.FirstName)
             .ThenBy(c => c.MiddleName)
             .ThenBy(c => c.LastName)
             .ThenBy(c => c.SecondLastName)
-            .Select(c => new
-            {
-                c.Id,
-                c.DocumentType,
-                c.DocumentNumber,
-                c.AccountNumber,
-                c.PersonType,
-                c.CompanyName,
-                c.FirstName,
-                c.MiddleName,
-                c.LastName,
-                c.SecondLastName
-            })
             .ToListAsync(ct);
 
-        return customers.Select(c => new CustomerSummaryDto
+        return customers.Select(c =>
         {
-            Id = c.Id,
-            DocumentType = c.DocumentType,
-            DocumentNumber = c.DocumentNumber,
-            AccountNumber = c.AccountNumber,
-            PersonType = c.PersonType,
-            CompanyName = c.CompanyName,
-            FullName = string.Join(" ", new[]
+            var accountNumbers = c.Accounts
+                .Select(a => a.AccountNumber)
+                .Where(a => !string.IsNullOrWhiteSpace(a))
+                .OrderBy(a => a)
+                .ToList();
+
+            return new CustomerSummaryDto
             {
-                c.FirstName,
-                c.MiddleName,
-                c.LastName,
-                c.SecondLastName
-            }.Where(part => !string.IsNullOrWhiteSpace(part)))
+                Id = c.Id,
+                DocumentType = c.DocumentType,
+                DocumentNumber = c.DocumentNumber,
+                AccountNumber = accountNumbers.FirstOrDefault() ?? string.Empty,
+                AccountNumbers = accountNumbers,
+                PersonType = c.PersonType,
+                CompanyName = c.CompanyName,
+                FullName = string.Join(" ", new[]
+                {
+                    c.FirstName,
+                    c.MiddleName,
+                    c.LastName,
+                    c.SecondLastName
+                }.Where(part => !string.IsNullOrWhiteSpace(part)))
+            };
         });
     }
 
     public async Task<CustomerDetailDto?> GetByIdAsync(int id, CancellationToken ct = default)
     {
-        return await _context.Customers
+        var customer = await _context.Customers
             .AsNoTracking()
-            .Where(c => c.Id == id)
-            .Select(c => new CustomerDetailDto
-            {
-                Id = c.Id,
-                FirstName = c.FirstName,
-                MiddleName = c.MiddleName,
-                LastName = c.LastName,
-                SecondLastName = c.SecondLastName,
-                Gender = c.Gender,
-                PersonType = c.PersonType,
-                CompanyName = c.CompanyName,
-                DocumentType = c.DocumentType,
-                DocumentNumber = c.DocumentNumber,
-                AccountNumber = c.AccountNumber
-            })
-            .FirstOrDefaultAsync(ct);
+            .Include(c => c.Accounts)
+            .FirstOrDefaultAsync(c => c.Id == id, ct);
+
+        return customer is null ? null : Map(customer);
     }
 
     public async Task<CustomerDetailDto> CreateAsync(SaveCustomerRequest request, CancellationToken ct = default)
     {
-        var validation = ValidateRequest(request);
+        var accountNumbers = NormalizeAccountNumbers(request);
+        var validation = ValidateRequest(request, accountNumbers);
         if (!string.IsNullOrWhiteSpace(validation))
         {
             throw new ArgumentException(validation);
@@ -99,7 +86,10 @@ public class CustomersService : ICustomersService
             CompanyName = request.CompanyName?.Trim(),
             DocumentType = request.DocumentType.Trim(),
             DocumentNumber = request.DocumentNumber.Trim(),
-            AccountNumber = request.AccountNumber.Trim()
+            Accounts = accountNumbers.Select(accountNumber => new CustomerAccount
+            {
+                AccountNumber = accountNumber
+            }).ToList()
         };
 
         _context.Customers.Add(customer);
@@ -110,13 +100,17 @@ public class CustomersService : ICustomersService
 
     public async Task<CustomerDetailDto?> UpdateAsync(int id, SaveCustomerRequest request, CancellationToken ct = default)
     {
-        var validation = ValidateRequest(request);
+        var accountNumbers = NormalizeAccountNumbers(request);
+        var validation = ValidateRequest(request, accountNumbers);
         if (!string.IsNullOrWhiteSpace(validation))
         {
             throw new ArgumentException(validation);
         }
 
-        var customer = await _context.Customers.FirstOrDefaultAsync(c => c.Id == id, ct);
+        var customer = await _context.Customers
+            .Include(c => c.Accounts)
+            .FirstOrDefaultAsync(c => c.Id == id, ct);
+
         if (customer is null)
         {
             return null;
@@ -131,7 +125,12 @@ public class CustomersService : ICustomersService
         customer.CompanyName = request.CompanyName?.Trim();
         customer.DocumentType = request.DocumentType.Trim();
         customer.DocumentNumber = request.DocumentNumber.Trim();
-        customer.AccountNumber = request.AccountNumber.Trim();
+
+        customer.Accounts.Clear();
+        foreach (var accountNumber in accountNumbers)
+        {
+            customer.Accounts.Add(new CustomerAccount { AccountNumber = accountNumber });
+        }
 
         await _context.SaveChangesAsync(ct);
 
@@ -151,22 +150,49 @@ public class CustomersService : ICustomersService
         return true;
     }
 
-    private static CustomerDetailDto Map(Customer customer) => new()
+    private static CustomerDetailDto Map(Customer customer)
     {
-        Id = customer.Id,
-        FirstName = customer.FirstName,
-        MiddleName = customer.MiddleName,
-        LastName = customer.LastName,
-        SecondLastName = customer.SecondLastName,
-        Gender = customer.Gender,
-        PersonType = customer.PersonType,
-        CompanyName = customer.CompanyName,
-        DocumentType = customer.DocumentType,
-        DocumentNumber = customer.DocumentNumber,
-        AccountNumber = customer.AccountNumber
-    };
+        var accounts = customer.Accounts
+            .Select(a => a.AccountNumber)
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .OrderBy(a => a)
+            .ToList();
 
-    private static string? ValidateRequest(SaveCustomerRequest request)
+        return new CustomerDetailDto
+        {
+            Id = customer.Id,
+            FirstName = customer.FirstName,
+            MiddleName = customer.MiddleName,
+            LastName = customer.LastName,
+            SecondLastName = customer.SecondLastName,
+            Gender = customer.Gender,
+            PersonType = customer.PersonType,
+            CompanyName = customer.CompanyName,
+            DocumentType = customer.DocumentType,
+            DocumentNumber = customer.DocumentNumber,
+            AccountNumber = accounts.FirstOrDefault() ?? string.Empty,
+            AccountNumbers = accounts
+        };
+    }
+
+    private static List<string> NormalizeAccountNumbers(SaveCustomerRequest request)
+    {
+        var accounts = request.AccountNumbers ?? [];
+        var normalized = accounts
+            .Select(a => a?.Trim() ?? string.Empty)
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        if (normalized.Count == 0 && !string.IsNullOrWhiteSpace(request.AccountNumber))
+        {
+            normalized.Add(request.AccountNumber.Trim());
+        }
+
+        return normalized;
+    }
+
+    private static string? ValidateRequest(SaveCustomerRequest request, IReadOnlyCollection<string> accountNumbers)
     {
         if (string.IsNullOrWhiteSpace(request.DocumentType))
         {
@@ -178,9 +204,9 @@ public class CustomersService : ICustomersService
             return "El número de documento es obligatorio.";
         }
 
-        if (string.IsNullOrWhiteSpace(request.AccountNumber))
+        if (accountNumbers.Count == 0)
         {
-            return "La cuenta es obligatoria.";
+            return "Debe registrar al menos un número de cuenta.";
         }
 
         if (string.IsNullOrWhiteSpace(request.PersonType))

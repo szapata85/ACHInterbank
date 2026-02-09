@@ -21,7 +21,7 @@
       <tr *ngFor="let customer of customers">
         <td>{{ customer.documentType }} {{ customer.documentNumber }}</td>
         <td>{{ customer.fullName }}</td>
-        <td>{{ customer.accountNumber }}</td>
+        <td>{{ (customer.accountNumbers?.length ? customer.accountNumbers.join(", ") : customer.accountNumber) || "-" }}</td>
         <td>{{ customer.personType }}</td>
         <td>{{ customer.companyName || '-' }}</td>
         <td>

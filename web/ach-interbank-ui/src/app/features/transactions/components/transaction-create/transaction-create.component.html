@@ -11,7 +11,7 @@
         <select formControlName="customerId" required>
           <option [ngValue]="null" disabled>Seleccione un cliente registrado</option>
           <option *ngFor="let customer of customers$ | async" [ngValue]="customer.id">
-            {{ customer.fullName }} · {{ customer.documentType }} {{ customer.documentNumber }} · {{ customer.accountNumber }}
+            {{ customer.fullName }} · {{ customer.documentType }} {{ customer.documentNumber }} · {{ customer.accountNumbers.length }} cuenta(s)
           </option>
         </select>
         <small class="muted">Debe existir y estar registrado para construir el lote NACHA (registro 5).</small>
@@ -81,7 +81,10 @@
 
       <label>
         <span>Cuenta origen *</span>
-        <input type="text" formControlName="sourceAccountNumber" required inputmode="numeric" readonly />
+        <select formControlName="sourceAccountNumber" required>
+          <option value="" disabled>Seleccione una cuenta origen</option>
+          <option *ngFor="let accountNumber of selectedCustomerAccounts" [value]="accountNumber">{{ accountNumber }}</option>
+        </select>
         <app-error-message [control]="form.get('sourceAccountNumber')"></app-error-message>
       </label>
 
