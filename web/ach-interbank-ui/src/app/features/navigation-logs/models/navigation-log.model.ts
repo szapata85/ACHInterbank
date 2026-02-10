@@ -1,6 +1,7 @@
 export interface NavigationLogEntry {
   id: string;
   userId?: string | null;
+  username?: string | null;
   route: string;
   visitedAt: string;
   sessionId?: string | null;
@@ -20,6 +21,7 @@ export interface NavigationLogFilters {
   startDate?: string | null;
   endDate?: string | null;
   userId?: string | null;
+  username?: string | null;
   route?: string | null;
   page: number;
   pageSize: number;

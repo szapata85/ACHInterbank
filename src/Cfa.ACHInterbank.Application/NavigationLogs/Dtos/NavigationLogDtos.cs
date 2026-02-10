@@ -4,6 +4,7 @@ public record NavigationLogDto
 {
     public Guid Id { get; init; }
     public string? UserId { get; init; }
+    public string? Username { get; init; }
     public string Route { get; init; } = string.Empty;
     public DateTime VisitedAt { get; init; }
     public string? SessionId { get; init; }
@@ -25,6 +26,7 @@ public record NavigationLogQuery
     public DateTime? StartDate { get; init; }
     public DateTime? EndDate { get; init; }
     public string? UserId { get; init; }
+    public string? Username { get; init; }
     public string? Route { get; init; }
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 50;

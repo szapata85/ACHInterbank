@@ -43,10 +43,15 @@ public class NavigationLogsService : INavigationLogsService
             logsQuery = logsQuery.Where(a => a.VisitedAt <= upperBound);
         }
 
+
         if (!string.IsNullOrWhiteSpace(query.UserId))
         {
             var term = query.UserId.Trim();
-            logsQuery = logsQuery.Where(a => a.UserId != null && a.UserId.Contains(term));
+            logsQuery = logsQuery.Where(a =>
+                (a.UserId != null && a.UserId.Contains(term)) ||
+                _dbContext.Users.Any(u => u.Id.ToString() == a.UserId &&
+                    ((u.Username != null && u.Username.Contains(term)) ||
+                     (u.FullName != null && u.FullName.Contains(term)))));
         }
 
         if (!string.IsNullOrWhiteSpace(query.Route))
@@ -57,21 +62,28 @@ public class NavigationLogsService : INavigationLogsService
 
         var total = await logsQuery.CountAsync(ct);
 
-        var items = await logsQuery
-            .OrderByDescending(a => a.VisitedAt)
+        var items = await (
+                from log in logsQuery
+                join user in _dbContext.Users.AsNoTracking()
+                    on log.UserId equals user.Id.ToString() into users
+                from user in users.DefaultIfEmpty()
+                orderby log.VisitedAt descending
+                select new NavigationLogDto
+                {
+                    Id = log.Id,
+                    UserId = log.UserId,
+                    Username = user != null
+                        ? (!string.IsNullOrWhiteSpace(user.Username) ? user.Username : user.FullName)
+                        : null,
+                    Route = log.Route,
+                    VisitedAt = log.VisitedAt,
+                    SessionId = log.SessionId,
+                    DurationMs = log.DurationMs,
+                    IpAddress = log.IpAddress,
+                    UserAgent = log.UserAgent
+                })
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(a => new NavigationLogDto
-            {
-                Id = a.Id,
-                UserId = a.UserId,
-                Route = a.Route,
-                VisitedAt = a.VisitedAt,
-                SessionId = a.SessionId,
-                DurationMs = a.DurationMs,
-                IpAddress = a.IpAddress,
-                UserAgent = a.UserAgent
-            })
             .ToListAsync(ct);
 
         return Result<PagedResponse<NavigationLogDto>>.Success(new PagedResponse<NavigationLogDto>

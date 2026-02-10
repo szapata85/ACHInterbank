@@ -10,6 +10,7 @@ interface NavigationLogRow extends NavigationLogEntry {
   visitedDateDisplay: string;
   visitedTimeDisplay: string;
   durationDisplay: string;
+  userDisplay: string;
 }
 
 @Component({
@@ -36,7 +37,7 @@ export class NavigationLogComponent implements OnDestroy {
   readonly columns = [
     { key: 'visitedDateDisplay', label: 'Fecha' },
     { key: 'visitedTimeDisplay', label: 'Hora' },
-    { key: 'userId', label: 'Usuario' },
+    { key: 'userDisplay', label: 'Usuario' },
     { key: 'route', label: 'Ruta' },
     { key: 'durationDisplay', label: 'Duración' },
     { key: 'sessionId', label: 'Sesión' },
@@ -86,7 +87,8 @@ export class NavigationLogComponent implements OnDestroy {
           ...item,
           visitedDateDisplay: this.formatDate(item.visitedAt),
           visitedTimeDisplay: this.formatTime(item.visitedAt),
-          durationDisplay: this.formatDuration(item.durationMs)
+          durationDisplay: this.formatDuration(item.durationMs),
+          userDisplay: this.formatUser(item)
         }));
         this.total = response.total;
         this.page = response.page;
@@ -119,6 +121,16 @@ export class NavigationLogComponent implements OnDestroy {
   private formatTime(value: string): string {
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? value : date.toLocaleTimeString();
+  }
+
+  private formatUser(item: NavigationLogEntry): string {
+    const username = (item.username ?? '').trim();
+    if (username) {
+      return username;
+    }
+
+    const userId = (item.userId ?? '').trim();
+    return userId || '-';
   }
 
   private formatDuration(durationMs?: number | null): string {
