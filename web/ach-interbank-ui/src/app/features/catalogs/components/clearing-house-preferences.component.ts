@@ -55,11 +55,9 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
   );
 
   readonly priorityOptions: { value: number; label: string }[] = [
-    { value: 1, label: '1 - Máxima prioridad' },
-    { value: 2, label: '2 - Alta prioridad' },
-    { value: 3, label: '3 - Prioridad media' },
-    { value: 4, label: '4 - Prioridad baja' },
-    { value: 5, label: '5 - Prioridad mínima' }
+    { value: 1, label: 'Alta' },
+    { value: 2, label: 'Normal' },
+    { value: 3, label: 'Baja' }
   ];
 
   readonly columnDefs: ColDef<InstitutionClearingHousePreference>[] = [
@@ -233,9 +231,8 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
   startEdit(preference: InstitutionClearingHousePreference, markForCheck = true): void {
     this.showCreateForm = false;
     this.editing = preference;
-    this.ensurePriorityOption(preference.priority);
     this.form.reset({
-      priority: preference.priority,
+      priority: this.normalizePriority(preference.priority),
       isDefault: preference.isDefault,
       isActive: preference.isActive
     });
@@ -381,16 +378,20 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
   }
 
   private mapPriorityLabel(value: number): string {
-    const option = this.priorityOptions.find((opt) => opt.value === value);
-    if (option) {
-      return option.label;
-    }
-    return `Prioridad ${value}`;
+    const normalized = this.normalizePriority(value);
+    const option = this.priorityOptions.find((opt) => opt.value === normalized);
+    return option?.label ?? "Normal";
   }
 
-  private ensurePriorityOption(value: number): void {
-    if (!this.priorityOptions.some((opt) => opt.value === value)) {
-      this.priorityOptions.push({ value, label: `Prioridad ${value}` });
+  private normalizePriority(value: number): number {
+    if (value <= 1) {
+      return 1;
     }
+
+    if (value >= 3) {
+      return 3;
+    }
+
+    return 2;
   }
 }

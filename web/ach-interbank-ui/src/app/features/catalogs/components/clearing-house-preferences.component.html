@@ -69,7 +69,7 @@
         <select formControlName="priority">
           <option *ngFor="let option of priorityOptions" [ngValue]="option.value">{{ option.label }}</option>
         </select>
-        <small class="hint">Selecciona la prioridad usando las descripciones del catálogo.</small>
+        <small class="hint">Solo disponible: Alta, Normal y Baja.</small>
         <app-error-message [control]="createForm.get('priority')"></app-error-message>
       </label>
 
@@ -105,7 +105,7 @@
         <select formControlName="priority">
           <option *ngFor="let option of priorityOptions" [ngValue]="option.value">{{ option.label }}</option>
         </select>
-        <small class="hint">Selecciona la prioridad usando las descripciones del catálogo.</small>
+        <small class="hint">Solo disponible: Alta, Normal y Baja.</small>
         <app-error-message [control]="form.get('priority')"></app-error-message>
       </label>
 
