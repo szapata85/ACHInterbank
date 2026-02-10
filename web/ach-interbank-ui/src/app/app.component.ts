@@ -6,6 +6,7 @@ import { RouterOutlet } from '@angular/router';
 import { NotificationContainerComponent } from './shared/components/notification-container.component';
 import { LoadingOverlayComponent } from './shared/components/loading-overlay.component';
 import { SessionTimeoutWarningService } from './core/services/session-timeout-warning.service';
+import { NavigationLogService } from './core/services/navigation-log.service';
 
 @Component({
   selector: 'app-root',
@@ -25,9 +26,13 @@ export class AppComponent {
   readonly sessionWarning$;
   readonly remainingSeconds$;
 
-  constructor(private readonly sessionTimeoutWarningService: SessionTimeoutWarningService) {
+  constructor(
+    private readonly sessionTimeoutWarningService: SessionTimeoutWarningService,
+    private readonly navigationLogService: NavigationLogService
+  ) {
     this.sessionWarning$ = this.sessionTimeoutWarningService.warning$;
     this.remainingSeconds$ = this.sessionTimeoutWarningService.remainingSeconds$;
+    this.navigationLogService.startTracking();
   }
 
   formatRemaining(seconds: number | null): string {

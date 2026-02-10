@@ -87,6 +87,7 @@ public class AchDbContext : DbContext
     public DbSet<BrandingSetting> BrandingSettings => Set<BrandingSetting>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<AuthLog> AuthLogs => Set<AuthLog>();
+    public DbSet<NavigationLog> NavigationLogs => Set<NavigationLog>();
     public DbSet<LoginLockoutSetting> LoginLockoutSettings => Set<LoginLockoutSetting>();
 
 
