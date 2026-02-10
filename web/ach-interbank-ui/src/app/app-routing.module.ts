@@ -81,6 +81,11 @@ const routes: Routes = [
         path: 'auth-logs',
         loadChildren: () => import('./features/auth-logs/auth-logs.module').then((m) => m.AuthLogsModule)
       },
+
+      {
+        path: 'navigation-logs',
+        loadChildren: () => import('./features/navigation-logs/navigation-logs.module').then((m) => m.NavigationLogsModule)
+      },
       {
         path: 'customer-third-parties',
         loadChildren: () =>

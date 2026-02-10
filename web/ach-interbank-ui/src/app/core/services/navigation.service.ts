@@ -38,8 +38,23 @@ export class NavigationService {
       icon: 'group'
     };
 
+
+    const logsChildren: MenuItem[] = [
+      { id: -231, label: 'Log de auditoría', route: '/audit-logs', icon: 'fact_check' },
+      { id: -232, label: 'Log de autenticaciones', route: '/auth-logs', icon: 'shield' },
+      { id: -233, label: 'Log de navegación', route: '/navigation-logs', icon: 'route' }
+    ];
+
+    const logsGroup: MenuItem = {
+      id: -230,
+      label: 'Logs',
+      route: '/audit-logs',
+      icon: 'receipt_long',
+      children: logsChildren
+    };
+
     if (!items.length) {
-      return [customerItem, catalogGroup];
+      return [customerItem, logsGroup, catalogGroup];
     }
 
     const hasRoute = (menu: MenuItem[], route: string): boolean =>
@@ -52,14 +67,30 @@ export class NavigationService {
       if (missingChildren.length) {
         existingCatalogGroup.children = [...existingChildren, ...missingChildren];
       }
-      if (!hasRoute(items, customerItem.route)) {
-        return [...items, customerItem];
+      let next = items;
+      if (!hasRoute(next, customerItem.route)) {
+        next = [...next, customerItem];
       }
-      return items;
+
+      const existingLogsGroup = next.find((item) => item.route === '/audit-logs' || item.label === 'Logs');
+      if (existingLogsGroup) {
+        const existingLogChildren = existingLogsGroup.children ?? [];
+        const missingLogChildren = logsChildren.filter((child) => !hasRoute(existingLogChildren, child.route));
+        if (missingLogChildren.length) {
+          existingLogsGroup.children = [...existingLogChildren, ...missingLogChildren];
+        }
+        return next;
+      }
+
+      return [...next, logsGroup];
     }
 
-    const nextItems = hasRoute(items, customerItem.route) ? items : [...items, customerItem];
-    return [...nextItems, catalogGroup];
+    const withCustomer = hasRoute(items, customerItem.route) ? items : [...items, customerItem];
+    const withLogs = hasRoute(withCustomer, '/navigation-logs') || hasRoute(withCustomer, '/auth-logs') || hasRoute(withCustomer, '/audit-logs')
+      ? withCustomer
+      : [...withCustomer, logsGroup];
+
+    return [...withLogs, catalogGroup];
   }
 
   private sortMenu(items: MenuItem[]): MenuItem[] {
