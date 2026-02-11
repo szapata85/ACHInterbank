@@ -49,7 +49,7 @@ public class InstitutionClearingHousePreferenceService : IInstitutionClearingHou
         {
             FinancialInstitutionId = dto.FinancialInstitutionId,
             ClearingHouseId = dto.ClearingHouseId,
-            Priority = dto.Priority,
+            Priority = NormalizePriority(dto.Priority),
             IsDefault = dto.IsDefault,
             IsActive = dto.IsActive
         };
@@ -75,7 +75,7 @@ public class InstitutionClearingHousePreferenceService : IInstitutionClearingHou
                          .FirstOrDefaultAsync(x => x.Id == dto.Id, ct)
                      ?? throw new KeyNotFoundException("Preferencia no encontrada");
 
-        entity.Priority = dto.Priority;
+        entity.Priority = NormalizePriority(dto.Priority);
         entity.IsDefault = dto.IsDefault;
         entity.IsActive = dto.IsActive;
 
@@ -92,5 +92,20 @@ public class InstitutionClearingHousePreferenceService : IInstitutionClearingHou
 
         _context.InstitutionClearingHousePreferences.Remove(entity);
         await _context.SaveChangesAsync(ct);
+    }
+
+    private static int NormalizePriority(int priority)
+    {
+        if (priority <= 1)
+        {
+            return 1;
+        }
+
+        if (priority >= 3)
+        {
+            return 3;
+        }
+
+        return 2;
     }
 }

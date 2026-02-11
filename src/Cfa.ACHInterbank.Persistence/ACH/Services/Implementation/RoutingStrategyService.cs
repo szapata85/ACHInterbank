@@ -39,7 +39,7 @@ public class RoutingStrategyService : IRoutingStrategyService
         List<InstitutionClearingHousePreference> preferences = fi.ClearingHousePreferences
             .Where(p => p.IsActive)
             .OrderByDescending(p => p.IsDefault)  // true primero
-            .ThenBy(p => p.Priority)
+            .ThenBy(p => NormalizePriority(p.Priority))
             .ThenBy(p => p.Id)
             .ToList();
 
@@ -114,5 +114,20 @@ public class RoutingStrategyService : IRoutingStrategyService
             }
         }
         return date;
+    }
+
+    private static int NormalizePriority(int priority)
+    {
+        if (priority <= 1)
+        {
+            return 1;
+        }
+
+        if (priority >= 3)
+        {
+            return 3;
+        }
+
+        return 2;
     }
 }
