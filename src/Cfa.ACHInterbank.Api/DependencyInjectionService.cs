@@ -142,12 +142,17 @@ public static class DependencyInjectionService
 
             await next();
         });
-        // Middleware Waf
-        app.UseMiddleware<WafMiddleware>();
-        // Middleware Log
-        app.UseMiddleware<RequestResponseLoggingMiddleware>();
-        // Middleware Token Expires
-        app.UseMiddleware<TokenJwtMiddleware>();
+        app.UseWhen(
+            context => !IsOpenApiOrScalarRequest(context.Request.Path),
+            branch =>
+            {
+                // Middleware Waf
+                branch.UseMiddleware<WafMiddleware>();
+                // Middleware Log
+                branch.UseMiddleware<RequestResponseLoggingMiddleware>();
+                // Middleware Token Expires
+                branch.UseMiddleware<TokenJwtMiddleware>();
+            });
         // Middleware Security Headers
         app.UseMiddleware<SecurityHeadersMiddleware>();
         if (app.Configuration.GetValue<bool>("EnableHttpsRedirection", true))
@@ -164,6 +169,13 @@ public static class DependencyInjectionService
     private static bool IsRunningInContainer()
     {
         return string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsOpenApiOrScalarRequest(PathString path)
+    {
+        return path.StartsWithSegments("/openapi", StringComparison.OrdinalIgnoreCase)
+               || path.StartsWithSegments("/scalar", StringComparison.OrdinalIgnoreCase)
+               || path.StartsWithSegments("/index.html", StringComparison.OrdinalIgnoreCase);
     }
 
 }
