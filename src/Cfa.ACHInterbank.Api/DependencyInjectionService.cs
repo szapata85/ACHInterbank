@@ -4,8 +4,10 @@ using Cfa.ACHInterbank.Persistence.ACH.Services;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
 using NLog.Extensions.Logging;
 using Scalar.AspNetCore;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
@@ -25,20 +27,57 @@ public static class DependencyInjectionService
             options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             options.JsonSerializerOptions.MaxDepth = 128; // Profundidad máxima de serialización
             options.JsonSerializerOptions.WriteIndented = true;
-
             options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-
         });
 
         services.AddEndpointsApiExplorer();
-        services.AddOpenApi("v1");
+        services.AddSwaggerGen(options =>
+        {
+            options.SwaggerDoc("v1", new OpenApiInfo
+            {
+                Version = "v1",
+                Title = "ACH Interbank API",
+                Description = "OpenAPI document"
+            });
+
+            options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+            {
+                Name = "Authorization",
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
+                BearerFormat = "JWT",
+                In = ParameterLocation.Header,
+                Description = "Ingrese un token válido"
+            });
+
+            options.AddSecurityRequirement(new OpenApiSecurityRequirement
+            {
+                {
+                    new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference
+                        {
+                            Type = ReferenceType.SecurityScheme,
+                            Id = "Bearer"
+                        }
+                    },
+                    Array.Empty<string>()
+                }
+            });
+
+            var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+            var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+            if (File.Exists(xmlPath))
+            {
+                options.IncludeXmlComments(xmlPath);
+            }
+        });
 
         services.AddLogging(loggingBuilder =>
         {
             loggingBuilder.SetMinimumLevel(LogLevel.Debug);
             loggingBuilder.AddNLog();
         });
-
 
         services.AddRateLimiter(options =>
         {
@@ -49,8 +88,8 @@ public static class DependencyInjectionService
                     AddressIp.GetAddressIp(context.Request),
                     partition => new FixedWindowRateLimiterOptions
                     {
-                        PermitLimit = 10, // Máximo de solicitudes
-                        Window = TimeSpan.FromSeconds(1), // Por segundo
+                        PermitLimit = 10,
+                        Window = TimeSpan.FromSeconds(1),
                         QueueLimit = 2,
                         QueueProcessingOrder = QueueProcessingOrder.OldestFirst
                     });
@@ -81,7 +120,6 @@ public static class DependencyInjectionService
 
         services.AddHttpClient();
         services.AddHttpContextAccessor();
-
         services.AddScoped<AchInitializationService>();
 
         return services;
@@ -89,13 +127,15 @@ public static class DependencyInjectionService
 
     public static void ConfigureHandler(this WebApplication app)
     {
-        app.MapOpenApi("/openapi/{documentName}.json").AllowAnonymous();
+        app.UseSwagger(c => c.RouteTemplate = "openapi/{documentName}.json");
         app.MapScalarApiReference().AllowAnonymous();
+
         app.MapGet("/", context =>
         {
             context.Response.Redirect("/scalar");
             return Task.CompletedTask;
         }).AllowAnonymous();
+
         app.MapGet("/index.html", context =>
         {
             context.Response.Redirect("/scalar");
@@ -116,7 +156,6 @@ public static class DependencyInjectionService
             app.Logger.LogInformation("Skipping database migrations. Set Database__ApplyMigrations=true to enable.");
         }
 
-        // Configure the HTTP request pipeline
         app.UseRouting();
         app.UseCors(CorsPolicyName);
 
@@ -142,25 +181,24 @@ public static class DependencyInjectionService
 
             await next();
         });
+
         app.UseWhen(
             context => !IsOpenApiOrScalarRequest(context.Request.Path),
             branch =>
             {
-                // Middleware Waf
                 branch.UseMiddleware<WafMiddleware>();
-                // Middleware Log
                 branch.UseMiddleware<RequestResponseLoggingMiddleware>();
-                // Middleware Token Expires
                 branch.UseMiddleware<TokenJwtMiddleware>();
             });
-        // Middleware Security Headers
+
         app.UseMiddleware<SecurityHeadersMiddleware>();
+
         if (app.Configuration.GetValue<bool>("EnableHttpsRedirection", true))
         {
             app.UseHttpsRedirection();
         }
+
         app.UseRateLimiter();
-        //app.UseCsrfTokenMiddleware();
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapControllers();
@@ -177,5 +215,4 @@ public static class DependencyInjectionService
                || path.StartsWithSegments("/scalar", StringComparison.OrdinalIgnoreCase)
                || path.StartsWithSegments("/index.html", StringComparison.OrdinalIgnoreCase);
     }
-
 }
