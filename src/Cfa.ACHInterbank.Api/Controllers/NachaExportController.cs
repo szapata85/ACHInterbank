@@ -30,7 +30,7 @@ public class NachaExportController : ControllerBase
         _envelopePolicy = envelopePolicy;
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet("{cycleId}")]
@@ -43,7 +43,7 @@ public class NachaExportController : ControllerBase
         return File(Encoding.ASCII.GetBytes(nachaContent), "text/plain", fileName);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet("{cycleId}/sobre-digital")]

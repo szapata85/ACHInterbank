@@ -19,7 +19,7 @@ public class AuditLogsController : ControllerBase
         _service = service;
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet]

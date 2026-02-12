@@ -19,7 +19,7 @@ public class ClearingHousesController : ControllerBase
         _cycleService = cycleService;
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet]
@@ -30,7 +30,7 @@ public class ClearingHousesController : ControllerBase
         return Ok(result);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet("{id:int}")]
@@ -41,7 +41,7 @@ public class ClearingHousesController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet("{id:int}/cycles")]

@@ -17,7 +17,7 @@ public class TaskDefinitionsController : ControllerBase
         _service = service;
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet]
@@ -28,7 +28,7 @@ public class TaskDefinitionsController : ControllerBase
         return Ok(items);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet("{id}")]
@@ -40,7 +40,7 @@ public class TaskDefinitionsController : ControllerBase
         return Ok(task);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost]
@@ -51,7 +51,7 @@ public class TaskDefinitionsController : ControllerBase
         return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPut("{id}")]
@@ -63,7 +63,7 @@ public class TaskDefinitionsController : ControllerBase
         return updated is null ? NotFound() : Ok(updated);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpDelete("{id}")]

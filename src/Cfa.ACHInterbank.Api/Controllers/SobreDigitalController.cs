@@ -14,20 +14,20 @@ namespace Cfa.ACHInterbank.Api.Controllers
 
         public SobreDigitalController(ICryptoServiceScoped crypto) => _crypto = crypto;
         /// <summary>
-        /// Pendiente de documentación.
+        /// Endpoint de la API ACH Interbank.
         /// </summary>
 
         public record EncryptResponse(DigitalEnvelopeModel Envelope);
         /// <summary>
-        /// Pendiente de documentación.
+        /// Endpoint de la API ACH Interbank.
         /// </summary>
         public record DecryptRequest(DigitalEnvelopeModel Envelope);
         /// <summary>
-        /// Pendiente de documentación.
+        /// Endpoint de la API ACH Interbank.
         /// </summary>
         public record DecryptResponse(string Base64Plaintext);
         /// <summary>
-        /// Pendiente de documentación.
+        /// Endpoint de la API ACH Interbank.
         /// </summary>
 
         [HttpPost("encrypt")]
@@ -56,7 +56,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
             return File(fileBytes, contentType, fileName);
         }
         /// <summary>
-        /// Pendiente de documentación.
+        /// Endpoint de la API ACH Interbank.
         /// </summary>
 
         [HttpPost("decrypt")]
@@ -88,7 +88,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
             return File(fileBytes, contentType, fileName);
         }
         /// <summary>
-        /// Pendiente de documentación.
+        /// Endpoint de la API ACH Interbank.
         /// </summary>
 
         [HttpPost("testRSA")]

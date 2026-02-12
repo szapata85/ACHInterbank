@@ -16,7 +16,7 @@ public class BrandingController : ControllerBase
         _service = service;
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet]
@@ -28,7 +28,7 @@ public class BrandingController : ControllerBase
     }
 
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
     [HttpPut]
     // El sitio público también consume la identidad visual y esta instancia no usa JWT,

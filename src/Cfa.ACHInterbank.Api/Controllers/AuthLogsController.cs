@@ -20,7 +20,7 @@ public class AuthLogsController : ControllerBase
     }
 
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetAuthLogsAsync(

@@ -22,7 +22,7 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
         _repository = repository;
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet]
@@ -33,7 +33,7 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
         return Ok(response);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost]
@@ -79,7 +79,7 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
         return Ok(MapToResponse(saved));
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpDelete("{id:int}")]

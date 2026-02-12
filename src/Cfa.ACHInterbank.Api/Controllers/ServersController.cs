@@ -13,7 +13,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 public class ServersController : ControllerBase
 {
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet]

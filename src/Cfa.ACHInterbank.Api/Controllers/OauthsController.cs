@@ -15,7 +15,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 public class OauthsController : ControllerBase
 {
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost("GenerateToken")]
@@ -31,7 +31,7 @@ public class OauthsController : ControllerBase
         return StatusCode(StatusCodes.Status201Created, ResponseApiService.Response(StatusCodes.Status201Created, data));
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost("GenerateTokenAsync")]

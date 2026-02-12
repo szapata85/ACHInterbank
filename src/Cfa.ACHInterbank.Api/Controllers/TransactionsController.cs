@@ -21,7 +21,7 @@ public class TransactionsController : ControllerBase
         _logger = logger;
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet]
@@ -37,7 +37,7 @@ public class TransactionsController : ControllerBase
         return Ok(transactions);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost]
@@ -94,7 +94,7 @@ public class TransactionsController : ControllerBase
         }
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet("{id:int}")]

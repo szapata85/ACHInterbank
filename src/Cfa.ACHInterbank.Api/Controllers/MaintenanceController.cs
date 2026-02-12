@@ -15,7 +15,7 @@ public class MaintenanceController : Controller
         _configuration = configuration;
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost("seed")]

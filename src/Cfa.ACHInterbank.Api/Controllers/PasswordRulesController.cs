@@ -17,7 +17,7 @@ public class PasswordRulesController : ControllerBase
         _service = service;
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet]
@@ -27,7 +27,7 @@ public class PasswordRulesController : ControllerBase
         return Ok(rules);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPut]

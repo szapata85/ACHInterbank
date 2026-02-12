@@ -17,7 +17,7 @@ public class AchCyclesController : ControllerBase
         _service = service;
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet]
@@ -36,7 +36,7 @@ public class AchCyclesController : ControllerBase
         return Ok(cycles);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet("exportable")]
@@ -51,7 +51,7 @@ public class AchCyclesController : ControllerBase
         return Ok(cycles);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet("{id}")]
@@ -62,7 +62,7 @@ public class AchCyclesController : ControllerBase
         return cycle is null ? NotFound() : Ok(cycle);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost]
@@ -73,7 +73,7 @@ public class AchCyclesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = cycle.Id }, cycle);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPut("{id}")]
@@ -84,7 +84,7 @@ public class AchCyclesController : ControllerBase
         return Ok(cycle);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpDelete("{id}")]

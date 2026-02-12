@@ -19,7 +19,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 public class AuthController : ControllerBase
 {
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
     [HttpPost("login")]
     [AllowAnonymous]
@@ -80,7 +80,7 @@ public class AuthController : ControllerBase
         return value;
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost("forgot-password")]
@@ -95,7 +95,7 @@ public class AuthController : ControllerBase
         return StatusCode(statusCode, ResponseApiService.Response(statusCode, response));
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost("reset-password")]
@@ -110,7 +110,7 @@ public class AuthController : ControllerBase
         return StatusCode(statusCode, ResponseApiService.Response(statusCode, response));
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost("refresh")]

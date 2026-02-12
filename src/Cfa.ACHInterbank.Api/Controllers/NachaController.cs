@@ -17,7 +17,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
             _nachaService = nachaService;
         }
         /// <summary>
-        /// Pendiente de documentación.
+        /// Endpoint de la API ACH Interbank.
         /// </summary>
 
         [HttpPost("header")]

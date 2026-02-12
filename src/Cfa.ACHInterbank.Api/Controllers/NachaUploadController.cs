@@ -24,7 +24,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
             _logger = logger;
         }
         /// <summary>
-        /// Pendiente de documentación.
+        /// Endpoint de la API ACH Interbank.
         /// </summary>
 
         [HttpPost("upload")]

@@ -17,7 +17,7 @@ public class NachaRecordLayoutsController : ControllerBase
         _service = service;
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet]
@@ -28,7 +28,7 @@ public class NachaRecordLayoutsController : ControllerBase
         return Ok(items);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet("{id:int}")]
@@ -39,7 +39,7 @@ public class NachaRecordLayoutsController : ControllerBase
         return item is null ? NotFound() : Ok(item);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost]
@@ -50,7 +50,7 @@ public class NachaRecordLayoutsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPut("{id:int}")]
@@ -66,7 +66,7 @@ public class NachaRecordLayoutsController : ControllerBase
         return updated is null ? NotFound() : Ok(updated);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpDelete("{id:int}")]

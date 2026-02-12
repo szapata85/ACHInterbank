@@ -19,7 +19,7 @@ public class UsersController : ControllerBase
         _service = service;
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet]
@@ -41,7 +41,7 @@ public class UsersController : ControllerBase
         return Ok(response);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet("validate-email-domain")]
@@ -53,7 +53,7 @@ public class UsersController : ControllerBase
         return Ok(isValid);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet("{id:guid}")]
@@ -70,7 +70,7 @@ public class UsersController : ControllerBase
         return Ok(ResponseApiService.Response(StatusCodes.Status200OK, Result<UserSummaryDto>.Success(user)));
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost]
@@ -88,7 +88,7 @@ public class UsersController : ControllerBase
         };
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPut("{id:guid}")]
@@ -107,7 +107,7 @@ public class UsersController : ControllerBase
         };
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost("{id:guid}/roles")]
@@ -125,7 +125,7 @@ public class UsersController : ControllerBase
         };
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpDelete("{id:guid}")]

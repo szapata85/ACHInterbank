@@ -17,7 +17,7 @@ public class MenuItemsController : ControllerBase
         _service = service;
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet]
@@ -27,7 +27,7 @@ public class MenuItemsController : ControllerBase
         return Ok(roots);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost]
@@ -44,7 +44,7 @@ public class MenuItemsController : ControllerBase
         }
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPut("{id:int}")]
@@ -66,7 +66,7 @@ public class MenuItemsController : ControllerBase
         }
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpDelete("{id:int}")]

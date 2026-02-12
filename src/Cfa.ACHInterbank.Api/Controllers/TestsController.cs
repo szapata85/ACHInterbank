@@ -23,7 +23,7 @@ public class TestsController : ControllerBase
     //[PostFilter]
     //[SwaggerRequestExample]
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
     public IActionResult Get(string data, [FromServices] ITestTransient test, [FromServices] IHttpContextAccessor httpContextAccessor)
     {
@@ -44,7 +44,7 @@ public class TestsController : ControllerBase
         return NoContent();
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet("Prueba")]

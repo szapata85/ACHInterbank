@@ -17,7 +17,7 @@ public class LoginLockoutSettingsController : ControllerBase
         _service = service;
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet]
@@ -27,7 +27,7 @@ public class LoginLockoutSettingsController : ControllerBase
         return Ok(settings);
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPut]

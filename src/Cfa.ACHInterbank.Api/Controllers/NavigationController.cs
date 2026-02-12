@@ -18,7 +18,7 @@ public class NavigationController : ControllerBase
         _mediator = mediator;
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet("menu")]

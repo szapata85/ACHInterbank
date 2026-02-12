@@ -17,7 +17,7 @@ public class InstitutionClearingHousePreferencesController : ControllerBase
         _service = service;
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet]
@@ -25,7 +25,7 @@ public class InstitutionClearingHousePreferencesController : ControllerBase
     public async Task<IActionResult> GetAll(CancellationToken ct = default)
         => Ok(await _service.GetAllAsync(ct));
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost]
@@ -33,7 +33,7 @@ public class InstitutionClearingHousePreferencesController : ControllerBase
     public async Task<IActionResult> Create([FromBody] InstitutionClearingHousePreferenceDto dto, CancellationToken ct = default)
         => Ok(await _service.CreateAsync(dto, ct));
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPut("{id}")]
@@ -44,7 +44,7 @@ public class InstitutionClearingHousePreferencesController : ControllerBase
         return Ok(await _service.UpdateAsync(dto, ct));
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpDelete("{id}")]

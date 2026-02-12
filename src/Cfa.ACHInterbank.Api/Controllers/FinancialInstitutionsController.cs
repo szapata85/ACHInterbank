@@ -18,7 +18,7 @@ public class FinancialInstitutionsController : ControllerBase
         _service = service;
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet]
@@ -26,7 +26,7 @@ public class FinancialInstitutionsController : ControllerBase
     public async Task<IActionResult> GetAll(bool includeInactive = false, CancellationToken ct = default)
         => Ok(await _service.GetAllAsync(includeInactive, ct));
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet("{id}")]
@@ -34,7 +34,7 @@ public class FinancialInstitutionsController : ControllerBase
     public async Task<IActionResult> GetById(int id, CancellationToken ct = default)
         => Ok(await _service.GetByIdAsync(id, ct));
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost]
@@ -42,7 +42,7 @@ public class FinancialInstitutionsController : ControllerBase
     public async Task<IActionResult> Create([FromBody] FinancialInstitutionDto dto, CancellationToken ct = default)
         => Ok(await _service.CreateAsync(dto, ct));
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPut("{id}")]
@@ -53,7 +53,7 @@ public class FinancialInstitutionsController : ControllerBase
         return Ok(await _service.UpdateAsync(dto, ct));
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPatch("{id}/status")]

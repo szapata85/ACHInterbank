@@ -15,7 +15,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 public class JwksController : ControllerBase
 {
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
     [HttpGet("jwks")]
     public async Task<IActionResult> GetJwks([FromServices] IJwksServiceScoped jwksService)
@@ -24,7 +24,7 @@ public class JwksController : ControllerBase
         return data.Success ? Ok(data.Result) : StatusCode(StatusCodes.Status500InternalServerError, ResponseApiService.Response(StatusCodes.Status500InternalServerError));
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpGet("TokenClientAssertions")]
@@ -34,7 +34,7 @@ public class JwksController : ControllerBase
         return StatusCode(StatusCodes.Status201Created, ResponseApiService.Response(StatusCodes.Status201Created, data));
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost("client-assertion")]
@@ -48,7 +48,7 @@ public class JwksController : ControllerBase
         return Unauthorized(new { message = "Invalid client assertion" });
     }
     /// <summary>
-    /// Pendiente de documentación.
+    /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost("Genearte-client-assertion")]
