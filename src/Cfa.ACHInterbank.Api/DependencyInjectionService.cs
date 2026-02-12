@@ -18,9 +18,6 @@ public static class DependencyInjectionService
 
     public static IServiceCollection AddWebApi(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddOpenApi("v1");
-        services.AddEndpointsApiExplorer();
-
         // Configuración del formato Json que reciben los controladores
         services.AddControllers().AddJsonOptions(options =>
         {
@@ -32,6 +29,9 @@ public static class DependencyInjectionService
             options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
 
         });
+
+        services.AddEndpointsApiExplorer();
+        services.AddOpenApi("v1");
 
         services.AddLogging(loggingBuilder =>
         {
