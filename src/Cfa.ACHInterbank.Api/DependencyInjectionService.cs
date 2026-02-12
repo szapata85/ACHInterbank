@@ -4,7 +4,6 @@ using Cfa.ACHInterbank.Persistence.ACH.Services;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
 using NLog.Extensions.Logging;
 using Scalar.AspNetCore;
 using System.Text.Json;
@@ -19,56 +18,7 @@ public static class DependencyInjectionService
 
     public static IServiceCollection AddWebApi(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddOpenApi("v1", options =>
-        {
-            options.AddDocumentTransformer((document, _, _) =>
-            {
-                document.Info = new OpenApiInfo
-                {
-                    Version = "v1",
-                    Title = "OpenAPI Architecture CFA",
-                    Description = "Documentación de APIs ACH Interbank"
-                };
-
-                document.Components ??= new OpenApiComponents();
-                document.Components.SecuritySchemes ??= new Dictionary<string, OpenApiSecurityScheme>();
-                document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
-                {
-                    Name = "Authorization",
-                    Type = SecuritySchemeType.Http,
-                    Scheme = "bearer",
-                    BearerFormat = "JWT",
-                    In = ParameterLocation.Header,
-                    Description = "Ingrese un token válido"
-                };
-
-                var securityRequirement = new OpenApiSecurityRequirement
-                {
-                    {
-                        new OpenApiSecurityScheme
-                        {
-                            Reference = new OpenApiReference
-                            {
-                                Id = "Bearer",
-                                Type = ReferenceType.SecurityScheme
-                            }
-                        },
-                        Array.Empty<string>()
-                    }
-                };
-
-                foreach (var path in document.Paths.Values)
-                {
-                    foreach (var operation in path.Operations.Values)
-                    {
-                        operation.Security ??= new List<OpenApiSecurityRequirement>();
-                        operation.Security.Add(securityRequirement);
-                    }
-                }
-
-                return Task.CompletedTask;
-            });
-        });
+        services.AddOpenApi("v1");
 
         // Configuración del formato Json que reciben los controladores
         services.AddControllers().AddJsonOptions(options =>
