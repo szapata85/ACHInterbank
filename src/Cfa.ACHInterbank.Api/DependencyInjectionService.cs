@@ -4,10 +4,8 @@ using Cfa.ACHInterbank.Persistence.ACH.Services;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
 using NLog.Extensions.Logging;
 using Scalar.AspNetCore;
-using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
@@ -31,47 +29,7 @@ public static class DependencyInjectionService
         });
 
         services.AddEndpointsApiExplorer();
-        services.AddSwaggerGen(options =>
-        {
-            options.SwaggerDoc("v1", new OpenApiInfo
-            {
-                Version = "v1",
-                Title = "ACH Interbank API",
-                Description = "OpenAPI document"
-            });
-
-            options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-            {
-                Name = "Authorization",
-                Type = SecuritySchemeType.Http,
-                Scheme = "bearer",
-                BearerFormat = "JWT",
-                In = ParameterLocation.Header,
-                Description = "Ingrese un token válido"
-            });
-
-            options.AddSecurityRequirement(new OpenApiSecurityRequirement
-            {
-                {
-                    new OpenApiSecurityScheme
-                    {
-                        Reference = new OpenApiReference
-                        {
-                            Type = ReferenceType.SecurityScheme,
-                            Id = "Bearer"
-                        }
-                    },
-                    Array.Empty<string>()
-                }
-            });
-
-            var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-            var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-            if (File.Exists(xmlPath))
-            {
-                options.IncludeXmlComments(xmlPath);
-            }
-        });
+        services.AddOpenApi("v1");
 
         services.AddLogging(loggingBuilder =>
         {
@@ -127,7 +85,7 @@ public static class DependencyInjectionService
 
     public static void ConfigureHandler(this WebApplication app)
     {
-        app.UseSwagger(c => c.RouteTemplate = "openapi/{documentName}.json");
+        app.MapOpenApi("/openapi/{documentName}.json").AllowAnonymous();
         app.MapScalarApiReference().AllowAnonymous();
 
         app.MapGet("/", context =>
