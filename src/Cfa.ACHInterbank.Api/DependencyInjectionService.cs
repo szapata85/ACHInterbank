@@ -4,10 +4,9 @@ using Cfa.ACHInterbank.Persistence.ACH.Services;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi;
+using Microsoft.OpenApi.Models;
 using NLog.Extensions.Logging;
-using System.Collections.Generic;
-using System.Reflection;
+using Scalar.AspNetCore;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
@@ -20,47 +19,55 @@ public static class DependencyInjectionService
 
     public static IServiceCollection AddWebApi(this IServiceCollection services, IConfiguration configuration)
     {
-        // Configuración del Swagger
-        services.AddSwaggerGen(option =>
+        services.AddOpenApi("v1", options =>
         {
-            option.SwaggerDoc("v1", new OpenApiInfo
+            options.AddDocumentTransformer((document, _, _) =>
             {
-                Version = "v1",
-                Title = "Swagger Document Architecture Cfa",
-                Description = "Creación de plantilla generica arquitectura limpia CFA"
+                document.Info = new OpenApiInfo
+                {
+                    Version = "v1",
+                    Title = "OpenAPI Architecture CFA",
+                    Description = "Documentación de APIs ACH Interbank"
+                };
+
+                document.Components ??= new OpenApiComponents();
+                document.Components.SecuritySchemes ??= new Dictionary<string, OpenApiSecurityScheme>();
+                document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+                {
+                    Name = "Authorization",
+                    Type = SecuritySchemeType.Http,
+                    Scheme = "bearer",
+                    BearerFormat = "JWT",
+                    In = ParameterLocation.Header,
+                    Description = "Ingrese un token válido"
+                };
+
+                var securityRequirement = new OpenApiSecurityRequirement
+                {
+                    {
+                        new OpenApiSecurityScheme
+                        {
+                            Reference = new OpenApiReference
+                            {
+                                Id = "Bearer",
+                                Type = ReferenceType.SecurityScheme
+                            }
+                        },
+                        Array.Empty<string>()
+                    }
+                };
+
+                foreach (var path in document.Paths.Values)
+                {
+                    foreach (var operation in path.Operations.Values)
+                    {
+                        operation.Security ??= new List<OpenApiSecurityRequirement>();
+                        operation.Security.Add(securityRequirement);
+                    }
+                }
+
+                return Task.CompletedTask;
             });
-
-            option.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-            {
-                Name = "Authorization",
-                Type = SecuritySchemeType.Http,
-                Scheme = "bearer",
-                BearerFormat = "JWT",
-                In = ParameterLocation.Header,
-                Description = "Ingrese un token válido",
-            });
-
-            var bearerReference = new OpenApiSecuritySchemeReference("Bearer", new OpenApiDocument(), null);
-
-            option.SwaggerGeneratorOptions.SecurityRequirements.Add(_ => new OpenApiSecurityRequirement
-            {
-                { bearerReference, new List<string>() }
-            });
-
-            string AssemblyName = Assembly.GetExecutingAssembly().GetName().Name!.Replace(".Api", ".Domain");
-
-            //Assembly.Load(AssemblyName)
-            //.GetTypes()
-            //.Where(c => c.Namespace!.Contains(AssemblyName) && c.Name.EndsWith("Model", StringComparison.OrdinalIgnoreCase))
-            //.ToList()
-            //.ForEach(c =>
-            //{
-            //    option.MapType(c, () => new OpenApiSchema { Type = "object", Title = c.Name });
-            //});
-
-
-            var fileName = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-            option.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, fileName));
         });
 
         // Configuración del formato Json que reciben los controladores
@@ -74,12 +81,6 @@ public static class DependencyInjectionService
             options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
 
         });
-
-        // Está línea de código sirve para 
-        //services.AddControllers(options =>
-        //{
-        //    options.Filters.Add<PostFilter>();
-        //});
 
         services.AddLogging(loggingBuilder =>
         {
@@ -137,52 +138,27 @@ public static class DependencyInjectionService
 
     public static void ConfigureHandler(this WebApplication app)
     {
-        app.UseSwagger();
-        app.UseSwaggerUI(c =>
+        app.MapOpenApi("/openapi/{documentName}.json");
+        app.MapScalarApiReference();
+        app.MapGet("/", context =>
         {
-            c.SwaggerEndpoint("/swagger/v1/swagger.json", "v1");
-            c.RoutePrefix = string.Empty;
+            context.Response.Redirect("/scalar/v1");
+            return Task.CompletedTask;
         });
 
         app.UseMiddleware<GlobalExceptionMiddleware>();
-
-        //// Configurar el middleware de autenticación MTLS
-        //app.Use(async (context, next) =>
-        //{
-        //    X509Certificate2 clientCertificate = context.Connection.ClientCertificate!;
-
-        //    if (clientCertificate == null || !clientCertificate.Verify())
-        //    {
-        //        context.Response.StatusCode = 401;
-        //        context.Response.ContentType = "application/json";
-        //        var response = ResponseApiService.Response(StatusCodes.Status401Unauthorized, "Debe enviar un certificado MTLS válido", "Unauthorized");
-        //        await context.Response.WriteAsync(JsonConvert.SerializeObject(response));
-        //        return;
-        //    }
-
-        //    // Realizar comprobaciones de validación adicionales si es necesario 
-
-        //    await next.Invoke();
-        //});
-
-
 
         var applyMigrations = app.Configuration.GetValue("Database:ApplyMigrations", !IsRunningInContainer());
         if (applyMigrations)
         {
             using var scope = app.Services.CreateScope();
             AchDbContext Context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
-            //var initializer = scope.ServiceProvider.GetRequiredService<AchInitializationService>();
             Context.Database.Migrate();
-
-            //_ = initializer.InitializeAsync(); // Aquí se ejecuta tu lógica en runtime
         }
         else
         {
             app.Logger.LogInformation("Skipping database migrations. Set Database__ApplyMigrations=true to enable.");
         }
-
-
 
         // Configure the HTTP request pipeline
         app.UseRouting();

@@ -45,7 +45,8 @@
     <PackageReference Include="NLog.Database" Version="6.0.3" />
     <PackageReference Include="NLog.Extensions.Logging" Version="6.1.1" />
     <PackageReference Include="NLog.Web.AspNetCore" Version="6.1.1" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.2" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.2" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.0.29" />
   </ItemGroup>
 
 </Project>
