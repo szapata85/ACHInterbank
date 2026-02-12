@@ -19,6 +19,7 @@ public static class DependencyInjectionService
     public static IServiceCollection AddWebApi(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOpenApi("v1");
+        services.AddEndpointsApiExplorer();
 
         // Configuración del formato Json que reciben los controladores
         services.AddControllers().AddJsonOptions(options =>
@@ -88,18 +89,18 @@ public static class DependencyInjectionService
 
     public static void ConfigureHandler(this WebApplication app)
     {
-        app.MapOpenApi("/openapi/{documentName}.json");
-        app.MapScalarApiReference();
+        app.MapOpenApi("/openapi/{documentName}.json").AllowAnonymous();
+        app.MapScalarApiReference().AllowAnonymous();
         app.MapGet("/", context =>
         {
             context.Response.Redirect("/scalar");
             return Task.CompletedTask;
-        });
+        }).AllowAnonymous();
         app.MapGet("/index.html", context =>
         {
             context.Response.Redirect("/scalar");
             return Task.CompletedTask;
-        });
+        }).AllowAnonymous();
 
         app.UseMiddleware<GlobalExceptionMiddleware>();
 
