@@ -92,7 +92,12 @@ public static class DependencyInjectionService
         app.MapScalarApiReference();
         app.MapGet("/", context =>
         {
-            context.Response.Redirect("/scalar/v1");
+            context.Response.Redirect("/scalar");
+            return Task.CompletedTask;
+        });
+        app.MapGet("/index.html", context =>
+        {
+            context.Response.Redirect("/scalar");
             return Task.CompletedTask;
         });
 
