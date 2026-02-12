@@ -1,6 +1,6 @@
 <app-page-header
   title="Cargar archivo NACHA-M"
-  description="Sube archivos NACHA-M enviados por cámaras compensadoras externas."
+  description="Sube archivos NACHA-M enviados por cámaras compensadoras externas y consulta el detalle cargado."
 ></app-page-header>
 
 <section class="upload-card">
@@ -20,4 +20,86 @@
       <button type="button" class="ghost" routerLink="/transactions">Cancelar</button>
     </div>
   </form>
+</section>
+
+<section class="upload-card records-card">
+  <div class="records-header">
+    <h3>Información cargada de archivos NACHA-M</h3>
+    <small class="muted">Filtra y visualiza los registros persistidos en base de datos.</small>
+  </div>
+
+  <form class="filters-grid" [formGroup]="filtersForm" (ngSubmit)="searchRecords()">
+    <label>
+      Originador (Immediate Origin)
+      <input type="text" formControlName="immediateOrigin" placeholder="Ej: 02100002" />
+    </label>
+
+    <label>
+      Receptor (Immediate Destination)
+      <input type="text" formControlName="immediateDestination" placeholder="Ej: 02100001" />
+    </label>
+
+    <label>
+      Referencia
+      <input type="text" formControlName="referenceCode" placeholder="Código de referencia" />
+    </label>
+
+    <label>
+      Ciclo ACH
+      <input type="text" formControlName="achCycleId" placeholder="Ej: CH01-20260108-C1" />
+    </label>
+
+    <label>
+      Fecha de creación archivo
+      <input type="date" formControlName="fileCreationDate" />
+    </label>
+
+    <div class="actions">
+      <button type="submit" [disabled]="loadingRecords">{{ loadingRecords ? 'Buscando...' : 'Buscar' }}</button>
+      <button type="button" class="ghost" (click)="clearFilters()">Limpiar</button>
+    </div>
+  </form>
+
+  <div class="table-wrapper" *ngIf="records.length; else emptyRecords">
+    <table>
+      <thead>
+        <tr>
+          <th>Nacha ID</th>
+          <th>Originador</th>
+          <th>Receptor</th>
+          <th>Cámara</th>
+          <th>Ciclo</th>
+          <th>Fecha Archivo</th>
+          <th>Hora</th>
+          <th>Batches</th>
+          <th>Entries</th>
+          <th>Addendas</th>
+          <th>Total Monto</th>
+          <th>Total Débito</th>
+          <th>Total Crédito</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of records">
+          <td>{{ row.nachaId || '-' }}</td>
+          <td>{{ row.immediateOriginName || row.immediateOrigin || '-' }}</td>
+          <td>{{ row.immediateDestinationName || row.immediateDestination || '-' }}</td>
+          <td>{{ row.clearingHouseName || '-' }}</td>
+          <td>{{ row.achCycleName || row.achCycleId || '-' }}</td>
+          <td>{{ row.fileCreationDate || '-' }}</td>
+          <td>{{ row.fileCreationTime || '-' }}</td>
+          <td>{{ row.totalBatches }}</td>
+          <td>{{ row.totalEntries }}</td>
+          <td>{{ row.totalAddendas }}</td>
+          <td>{{ row.totalAmount | number : '1.2-2' }}</td>
+          <td>{{ row.totalDebitAmount | number : '1.2-2' }}</td>
+          <td>{{ row.totalCreditAmount | number : '1.2-2' }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <ng-template #emptyRecords>
+    <p class="muted">{{ loadingRecords ? 'Cargando información...' : 'No se encontraron registros NACHA-M con los filtros seleccionados.' }}</p>
+  </ng-template>
 </section>
