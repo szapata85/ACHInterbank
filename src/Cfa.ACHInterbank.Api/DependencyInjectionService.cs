@@ -31,6 +31,13 @@ public static class DependencyInjectionService
         services.AddEndpointsApiExplorer();
         services.AddOpenApi("v1");
 
+        services.ConfigureHttpJsonOptions(options =>
+        {
+            options.SerializerOptions.MaxDepth = 256;
+            options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+            options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+        });
+
         services.AddLogging(loggingBuilder =>
         {
             loggingBuilder.SetMinimumLevel(LogLevel.Debug);
