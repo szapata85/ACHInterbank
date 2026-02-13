@@ -1,0 +1,2720 @@
+{
+  "format": "scalar-diagram-v1",
+  "title": "ACH Interbank Controllers/Endpoints Diagram",
+  "nodes": [
+    {
+      "id": "AchCyclesController",
+      "type": "controller",
+      "label": "AchCyclesController",
+      "baseRoute": "ach-cycles"
+    },
+    {
+      "id": "AchCyclesController.Get[GET]",
+      "type": "endpoint",
+      "label": "GET /ach-cycles",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "clearingHouseId",
+          "type": "int?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "startDate",
+          "type": "DateTime?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "endDate",
+          "type": "DateTime?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "processingDate",
+          "type": "DateTime?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "AchCyclesController.GetExportable[GET]",
+      "type": "endpoint",
+      "label": "GET /ach-cycles/exportable",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "clearingHouseId",
+          "type": "int?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "startDate",
+          "type": "DateTime?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "endDate",
+          "type": "DateTime?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "AchCyclesController.GetById[GET]",
+      "type": "endpoint",
+      "label": "GET /ach-cycles/{id}",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "string",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "AchCyclesController.Create[POST]",
+      "type": "endpoint",
+      "label": "POST /ach-cycles",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "AchCycleRequest",
+          "source": "FromBody"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "AchCyclesController.Update[PUT]",
+      "type": "endpoint",
+      "label": "PUT /ach-cycles/{id}",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "string",
+          "source": "inferred"
+        },
+        {
+          "name": "request",
+          "type": "AchCycleRequest",
+          "source": "FromBody"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "AchCyclesController.Delete[DELETE]",
+      "type": "endpoint",
+      "label": "DELETE /ach-cycles/{id}",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "string",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "AuditLogsController",
+      "type": "controller",
+      "label": "AuditLogsController",
+      "baseRoute": "api/audit-logs"
+    },
+    {
+      "id": "AuditLogsController.GetAuditLogsAsync[GET]",
+      "type": "endpoint",
+      "label": "GET /api/audit-logs",
+      "authorization": "Authorize",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "startDate",
+          "type": "DateTime?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "endDate",
+          "type": "DateTime?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "changedBy",
+          "type": "string?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "action",
+          "type": "string?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "page",
+          "type": "int",
+          "source": "FromQuery"
+        },
+        {
+          "name": "pageSize",
+          "type": "int",
+          "source": "FromQuery"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "AuthController",
+      "type": "controller",
+      "label": "AuthController",
+      "baseRoute": "[controller]"
+    },
+    {
+      "id": "AuthController.Login[POST]",
+      "type": "endpoint",
+      "label": "POST /[controller]/login",
+      "authorization": "AllowAnonymous",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "LoginRequest",
+          "source": "FromBody"
+        },
+        {
+          "name": "authService",
+          "type": "IAuthService",
+          "source": "FromServices"
+        },
+        {
+          "name": "authLogsService",
+          "type": "IAuthLogsService",
+          "source": "FromServices"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "AuthController.ForgotPassword[POST]",
+      "type": "endpoint",
+      "label": "POST /[controller]/forgot-password",
+      "authorization": "AllowAnonymous",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "ForgotPasswordRequest",
+          "source": "FromBody"
+        },
+        {
+          "name": "authService",
+          "type": "IAuthService",
+          "source": "FromServices"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "AuthController.ResetPassword[POST]",
+      "type": "endpoint",
+      "label": "POST /[controller]/reset-password",
+      "authorization": "AllowAnonymous",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "ResetPasswordRequest",
+          "source": "FromBody"
+        },
+        {
+          "name": "authService",
+          "type": "IAuthService",
+          "source": "FromServices"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "AuthController.RefreshSession[POST]",
+      "type": "endpoint",
+      "label": "POST /[controller]/refresh",
+      "authorization": "Authorize",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "authService",
+          "type": "IAuthService",
+          "source": "FromServices"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "AuthLogsController",
+      "type": "controller",
+      "label": "AuthLogsController",
+      "baseRoute": "api/auth-logs"
+    },
+    {
+      "id": "AuthLogsController.GetAuthLogsAsync[GET]",
+      "type": "endpoint",
+      "label": "GET /api/auth-logs",
+      "authorization": "Authorize",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "startDate",
+          "type": "DateTime?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "endDate",
+          "type": "DateTime?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "username",
+          "type": "string?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "success",
+          "type": "bool?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "page",
+          "type": "int",
+          "source": "FromQuery"
+        },
+        {
+          "name": "pageSize",
+          "type": "int",
+          "source": "FromQuery"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "BankHolidaysController",
+      "type": "controller",
+      "label": "BankHolidaysController",
+      "baseRoute": "bank-holidays"
+    },
+    {
+      "id": "BankHolidaysController.GetAll[GET]",
+      "type": "endpoint",
+      "label": "GET /bank-holidays",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "year",
+          "type": "int?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "BankHolidaysController.Delete[DELETE]",
+      "type": "endpoint",
+      "label": "DELETE /bank-holidays/{id}",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "BrandingController",
+      "type": "controller",
+      "label": "BrandingController",
+      "baseRoute": "api/users/branding"
+    },
+    {
+      "id": "BrandingController.GetBrandingAsync[GET]",
+      "type": "endpoint",
+      "label": "GET /api/users/branding",
+      "authorization": "AllowAnonymous",
+      "returnType": "Task<ActionResult<BrandingSettingsDto>>",
+      "parameters": [
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "BrandingController.SaveBrandingAsync[PUT]",
+      "type": "endpoint",
+      "label": "PUT /api/users/branding",
+      "authorization": "NotSpecified",
+      "returnType": "Task<ActionResult<BrandingSettingsDto>>",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "BrandingSettingsDto",
+          "source": "FromBody"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "CatalogTypesController",
+      "type": "controller",
+      "label": "CatalogTypesController",
+      "baseRoute": "catalog-types"
+    },
+    {
+      "id": "CatalogTypesController.GetAll[GET]",
+      "type": "endpoint",
+      "label": "GET /catalog-types/{catalogType}",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "catalogType",
+          "type": "string",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "CatalogTypesController.Create[POST]",
+      "type": "endpoint",
+      "label": "POST /catalog-types/{catalogType}",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "catalogType",
+          "type": "string",
+          "source": "inferred"
+        },
+        {
+          "name": "request",
+          "type": "CatalogTypeUpsertRequest",
+          "source": "FromBody"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "CatalogTypesController.Update[PUT]",
+      "type": "endpoint",
+      "label": "PUT /catalog-types/{catalogType}/{code}",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "catalogType",
+          "type": "string",
+          "source": "inferred"
+        },
+        {
+          "name": "code",
+          "type": "string",
+          "source": "inferred"
+        },
+        {
+          "name": "request",
+          "type": "CatalogTypeUpsertRequest",
+          "source": "FromBody"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "CatalogTypesController.Delete[DELETE]",
+      "type": "endpoint",
+      "label": "DELETE /catalog-types/{catalogType}/{code}",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "catalogType",
+          "type": "string",
+          "source": "inferred"
+        },
+        {
+          "name": "code",
+          "type": "string",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "ClearingHouseSpecialDatesController",
+      "type": "controller",
+      "label": "ClearingHouseSpecialDatesController",
+      "baseRoute": "clearing-house-special-dates"
+    },
+    {
+      "id": "ClearingHouseSpecialDatesController.GetAll[GET]",
+      "type": "endpoint",
+      "label": "GET /clearing-house-special-dates",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "year",
+          "type": "int?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "ClearingHouseSpecialDatesController.Delete[DELETE]",
+      "type": "endpoint",
+      "label": "DELETE /clearing-house-special-dates/{id}",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "ClearingHousesController",
+      "type": "controller",
+      "label": "ClearingHousesController",
+      "baseRoute": "clearing-houses"
+    },
+    {
+      "id": "ClearingHousesController.Get[GET]",
+      "type": "endpoint",
+      "label": "GET /clearing-houses",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "PaginationRequest",
+          "source": "FromQuery"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "ClearingHousesController.GetById[GET]",
+      "type": "endpoint",
+      "label": "GET /clearing-houses/{id:int}",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "ClearingHousesController.GetCyclesForClearingHouse[GET]",
+      "type": "endpoint",
+      "label": "GET /clearing-houses/{id:int}/cycles",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "processingDate",
+          "type": "DateTime?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "CustomerThirdPartiesController",
+      "type": "controller",
+      "label": "CustomerThirdPartiesController",
+      "baseRoute": "api/customer-third-parties"
+    },
+    {
+      "id": "CustomerThirdPartiesController.Get[GET]",
+      "type": "endpoint",
+      "label": "GET /api/customer-third-parties",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "search",
+          "type": "string?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "destinationAccountNumber",
+          "type": "string?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "recipientIdNumber",
+          "type": "string?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "destinationInstitutionId",
+          "type": "int?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "sourceAccountNumber",
+          "type": "string?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "status",
+          "type": "CustomerThirdPartyStatusEnum?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "page",
+          "type": "int",
+          "source": "FromQuery"
+        },
+        {
+          "name": "pageSize",
+          "type": "int",
+          "source": "FromQuery"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "CustomerThirdPartiesController.UpdateStatus[PATCH]",
+      "type": "endpoint",
+      "label": "PATCH /api/customer-third-parties/{id:int}/status",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "request",
+          "type": "UpdateCustomerThirdPartyStatusRequest",
+          "source": "FromBody"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "CustomersController",
+      "type": "controller",
+      "label": "CustomersController",
+      "baseRoute": "customers"
+    },
+    {
+      "id": "CustomersController.GetAll[GET]",
+      "type": "endpoint",
+      "label": "GET /customers",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "CustomersController.GetById[GET]",
+      "type": "endpoint",
+      "label": "GET /customers/{id:int}",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "CustomersController.Create[POST]",
+      "type": "endpoint",
+      "label": "POST /customers",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "SaveCustomerRequest",
+          "source": "FromBody"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "CustomersController.Update[PUT]",
+      "type": "endpoint",
+      "label": "PUT /customers/{id:int}",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "request",
+          "type": "SaveCustomerRequest",
+          "source": "FromBody"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "CustomersController.Delete[DELETE]",
+      "type": "endpoint",
+      "label": "DELETE /customers/{id:int}",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "DigitalEnvelopeCertificatesController",
+      "type": "controller",
+      "label": "DigitalEnvelopeCertificatesController",
+      "baseRoute": "nacha-security/certificates"
+    },
+    {
+      "id": "DigitalEnvelopeCertificatesController.GetAsync[GET]",
+      "type": "endpoint",
+      "label": "GET /nacha-security/certificates",
+      "authorization": "Authorize",
+      "returnType": "Task<ActionResult<IEnumerable<DigitalEnvelopeCertificateResponse>>>",
+      "parameters": [
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "DigitalEnvelopeCertificatesController.UploadAsync[POST]",
+      "type": "endpoint",
+      "label": "POST /nacha-security/certificates",
+      "authorization": "Authorize",
+      "returnType": "Task<ActionResult<DigitalEnvelopeCertificateResponse>>",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "UploadCertificateRequest",
+          "source": "FromForm"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "DigitalEnvelopeCertificatesController.DeleteAsync[DELETE]",
+      "type": "endpoint",
+      "label": "DELETE /nacha-security/certificates/{id:int}",
+      "authorization": "Authorize",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "FinancialInstitutionsController",
+      "type": "controller",
+      "label": "FinancialInstitutionsController",
+      "baseRoute": "financial-institutions"
+    },
+    {
+      "id": "FinancialInstitutionsController.GetAll[GET]",
+      "type": "endpoint",
+      "label": "GET /financial-institutions",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "includeInactive",
+          "type": "bool",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "FinancialInstitutionsController.Create[POST]",
+      "type": "endpoint",
+      "label": "POST /financial-institutions",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "dto",
+          "type": "FinancialInstitutionDto",
+          "source": "FromBody"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "FinancialInstitutionsController.SetStatus[PATCH]",
+      "type": "endpoint",
+      "label": "PATCH /financial-institutions/{id}/status",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "status",
+          "type": "FinancialInstitutionStatus",
+          "source": "FromBody"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "InstitutionClearingHousePreferencesController",
+      "type": "controller",
+      "label": "InstitutionClearingHousePreferencesController",
+      "baseRoute": "institution-clearing-house-preferences"
+    },
+    {
+      "id": "InstitutionClearingHousePreferencesController.GetAll[GET]",
+      "type": "endpoint",
+      "label": "GET /institution-clearing-house-preferences",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "InstitutionClearingHousePreferencesController.Delete[DELETE]",
+      "type": "endpoint",
+      "label": "DELETE /institution-clearing-house-preferences/{id}",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "JwksController",
+      "type": "controller",
+      "label": "JwksController",
+      "baseRoute": "/oauth2"
+    },
+    {
+      "id": "JwksController.GetJwks[GET]",
+      "type": "endpoint",
+      "label": "GET /oauth2/jwks",
+      "authorization": "AllowAnonymous",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "jwksService",
+          "type": "IJwksServiceScoped",
+          "source": "FromServices"
+        }
+      ]
+    },
+    {
+      "id": "JwksController.TokenClientAssertions[GET]",
+      "type": "endpoint",
+      "label": "GET /oauth2/TokenClientAssertions",
+      "authorization": "AllowAnonymous",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "getToken",
+          "type": "IGetTokenWithClientAssertionScoped",
+          "source": "FromServices"
+        }
+      ]
+    },
+    {
+      "id": "JwksController.Authenticate[POST]",
+      "type": "endpoint",
+      "label": "POST /oauth2/client-assertion",
+      "authorization": "AllowAnonymous",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "string",
+          "source": "FromBody"
+        },
+        {
+          "name": "getToken",
+          "type": "IClientAssertionValidatorScoped",
+          "source": "FromServices"
+        }
+      ]
+    },
+    {
+      "id": "JwksController.GenerateClientAssertion[POST]",
+      "type": "endpoint",
+      "label": "POST /oauth2/Genearte-client-assertion",
+      "authorization": "AllowAnonymous",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "getToken",
+          "type": "IGetTokenWithClientAssertionScoped",
+          "source": "FromServices"
+        }
+      ]
+    },
+    {
+      "id": "LoginLockoutSettingsController",
+      "type": "controller",
+      "label": "LoginLockoutSettingsController",
+      "baseRoute": "api/users/login-lockout"
+    },
+    {
+      "id": "LoginLockoutSettingsController.GetAsync[GET]",
+      "type": "endpoint",
+      "label": "GET /api/users/login-lockout",
+      "authorization": "Authorize",
+      "returnType": "Task<ActionResult<LoginLockoutSettingsDto>>",
+      "parameters": [
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "LoginLockoutSettingsController.SaveAsync[PUT]",
+      "type": "endpoint",
+      "label": "PUT /api/users/login-lockout",
+      "authorization": "Authorize",
+      "returnType": "Task<ActionResult<LoginLockoutSettingsDto>>",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "LoginLockoutSettingsDto",
+          "source": "FromBody"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "MaintenanceController",
+      "type": "controller",
+      "label": "MaintenanceController",
+      "baseRoute": ""
+    },
+    {
+      "id": "MaintenanceController.RunDbInitializer[POST]",
+      "type": "endpoint",
+      "label": "POST /seed",
+      "authorization": "NotSpecified",
+      "returnType": "IActionResult",
+      "parameters": []
+    },
+    {
+      "id": "MenuItemsController",
+      "type": "controller",
+      "label": "MenuItemsController",
+      "baseRoute": "navigation/menu-items"
+    },
+    {
+      "id": "MenuItemsController.GetMenuItemsAsync[GET]",
+      "type": "endpoint",
+      "label": "GET /navigation/menu-items",
+      "authorization": "Authorize(Roles = \"Admin\")",
+      "returnType": "Task<ActionResult<IEnumerable<MenuItemAdminDto>>>",
+      "parameters": [
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "MenuItemsController.CreateMenuItemAsync[POST]",
+      "type": "endpoint",
+      "label": "POST /navigation/menu-items",
+      "authorization": "Authorize(Roles = \"Admin\")",
+      "returnType": "Task<ActionResult<MenuItemAdminDto>>",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "SaveMenuItemRequest",
+          "source": "FromBody"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "MenuItemsController.UpdateMenuItemAsync[PUT]",
+      "type": "endpoint",
+      "label": "PUT /navigation/menu-items/{id:int}",
+      "authorization": "Authorize(Roles = \"Admin\")",
+      "returnType": "Task<ActionResult<MenuItemAdminDto>>",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "request",
+          "type": "SaveMenuItemRequest",
+          "source": "FromBody"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "MenuItemsController.DeleteMenuItemAsync[DELETE]",
+      "type": "endpoint",
+      "label": "DELETE /navigation/menu-items/{id:int}",
+      "authorization": "Authorize(Roles = \"Admin\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "NachaController",
+      "type": "controller",
+      "label": "NachaController",
+      "baseRoute": "[controller]"
+    },
+    {
+      "id": "NachaController.SaveHeader[POST]",
+      "type": "endpoint",
+      "label": "POST /[controller]/header",
+      "authorization": "AllowAnonymous",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "header",
+          "type": "NachaHeader",
+          "source": "FromBody"
+        }
+      ]
+    },
+    {
+      "id": "NachaExportController",
+      "type": "controller",
+      "label": "NachaExportController",
+      "baseRoute": "[controller]"
+    },
+    {
+      "id": "NachaExportController.Export[GET]",
+      "type": "endpoint",
+      "label": "GET /[controller]/{cycleId}",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "cycleId",
+          "type": "string",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "NachaExportController.ExportEncrypted[GET]",
+      "type": "endpoint",
+      "label": "GET /[controller]/{cycleId}/sobre-digital",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "cycleId",
+          "type": "string",
+          "source": "inferred"
+        },
+        {
+          "name": "forceEncryption",
+          "type": "bool",
+          "source": "FromQuery"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "NachaRecordDefinitionsController",
+      "type": "controller",
+      "label": "NachaRecordDefinitionsController",
+      "baseRoute": "nacha-record-definitions"
+    },
+    {
+      "id": "NachaRecordDefinitionsController.GetAll[GET]",
+      "type": "endpoint",
+      "label": "GET /nacha-record-definitions",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "Task<ActionResult<IEnumerable<NachaRecordDefinitionDto>>>",
+      "parameters": [
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "NachaRecordDefinitionsController.GetById[GET]",
+      "type": "endpoint",
+      "label": "GET /nacha-record-definitions/{id:int}",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "Task<ActionResult<NachaRecordDefinitionDto>>",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "NachaRecordDefinitionsController.Create[POST]",
+      "type": "endpoint",
+      "label": "POST /nacha-record-definitions",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "Task<ActionResult<NachaRecordDefinitionDto>>",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "NachaRecordDefinitionDto",
+          "source": "FromBody"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "NachaRecordDefinitionsController.Update[PUT]",
+      "type": "endpoint",
+      "label": "PUT /nacha-record-definitions/{id:int}",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "request",
+          "type": "NachaRecordDefinitionDto",
+          "source": "FromBody"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "NachaRecordDefinitionsController.Delete[DELETE]",
+      "type": "endpoint",
+      "label": "DELETE /nacha-record-definitions/{id:int}",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "NachaRecordLayoutsController",
+      "type": "controller",
+      "label": "NachaRecordLayoutsController",
+      "baseRoute": "nacha-layouts"
+    },
+    {
+      "id": "NachaRecordLayoutsController.GetAll[GET]",
+      "type": "endpoint",
+      "label": "GET /nacha-layouts",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "Task<ActionResult<IEnumerable<NachaRecordLayoutDto>>>",
+      "parameters": [
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "NachaRecordLayoutsController.GetById[GET]",
+      "type": "endpoint",
+      "label": "GET /nacha-layouts/{id:int}",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "Task<ActionResult<NachaRecordLayoutDto>>",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "NachaRecordLayoutsController.Create[POST]",
+      "type": "endpoint",
+      "label": "POST /nacha-layouts",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "Task<ActionResult<NachaRecordLayoutDto>>",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "NachaRecordLayoutDto",
+          "source": "FromBody"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "NachaRecordLayoutsController.Update[PUT]",
+      "type": "endpoint",
+      "label": "PUT /nacha-layouts/{id:int}",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "request",
+          "type": "NachaRecordLayoutDto",
+          "source": "FromBody"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "NachaRecordLayoutsController.Delete[DELETE]",
+      "type": "endpoint",
+      "label": "DELETE /nacha-layouts/{id:int}",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "NachaUploadController",
+      "type": "controller",
+      "label": "NachaUploadController",
+      "baseRoute": "[controller]"
+    },
+    {
+      "id": "NachaUploadController.UploadNachaFile[POST]",
+      "type": "endpoint",
+      "label": "POST /[controller]/upload",
+      "authorization": "NotSpecified",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "NachaUploadRequest",
+          "source": "FromForm"
+        }
+      ]
+    },
+    {
+      "id": "NachaUploadController.GetUploadedRecords[GET]",
+      "type": "endpoint",
+      "label": "GET /[controller]/records",
+      "authorization": "NotSpecified",
+      "returnType": "Task<ActionResult<IReadOnlyList<NachaUploadRecordResponse>>>",
+      "parameters": [
+        {
+          "name": "immediateOrigin",
+          "type": "string?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "immediateDestination",
+          "type": "string?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "referenceCode",
+          "type": "string?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "achCycleId",
+          "type": "string?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "fileCreationDate",
+          "type": "DateTime?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "NavigationController",
+      "type": "controller",
+      "label": "NavigationController",
+      "baseRoute": "navigation"
+    },
+    {
+      "id": "NavigationController.GetMenuAsync[GET]",
+      "type": "endpoint",
+      "label": "GET /navigation/menu",
+      "authorization": "Authorize",
+      "returnType": "Task<ActionResult<IList<MenuItemDto>>>",
+      "parameters": [
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "NavigationLogsController",
+      "type": "controller",
+      "label": "NavigationLogsController",
+      "baseRoute": "api/navigation-logs"
+    },
+    {
+      "id": "NavigationLogsController.GetNavigationLogsAsync[GET]",
+      "type": "endpoint",
+      "label": "GET /api/navigation-logs",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "startDate",
+          "type": "DateTime?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "endDate",
+          "type": "DateTime?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "userId",
+          "type": "string?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "route",
+          "type": "string?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "page",
+          "type": "int",
+          "source": "FromQuery"
+        },
+        {
+          "name": "pageSize",
+          "type": "int",
+          "source": "FromQuery"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "NavigationLogsController.AddNavigationLogAsync[POST]",
+      "type": "endpoint",
+      "label": "POST /api/navigation-logs",
+      "authorization": "Authorize",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "NavigationLogCreate",
+          "source": "FromBody"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "OauthsController",
+      "type": "controller",
+      "label": "OauthsController",
+      "baseRoute": "[controller]"
+    },
+    {
+      "id": "OauthsController.GenerateToken[POST]",
+      "type": "endpoint",
+      "label": "POST /[controller]/GenerateToken",
+      "authorization": "AllowAnonymous",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "model",
+          "type": "TokenModelClient",
+          "source": "FromBody"
+        },
+        {
+          "name": "generateToken",
+          "type": "IGenerateToken",
+          "source": "FromServices"
+        },
+        {
+          "name": "validator",
+          "type": "IValidator<TokenModelClient>",
+          "source": "FromServices"
+        }
+      ]
+    },
+    {
+      "id": "OauthsController.GenerateTokenAsync[POST]",
+      "type": "endpoint",
+      "label": "POST /[controller]/GenerateTokenAsync",
+      "authorization": "AllowAnonymous",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "Assertion",
+          "type": "string",
+          "source": "FromBody"
+        },
+        {
+          "name": "generateToken",
+          "type": "IGenerateToken",
+          "source": "FromServices"
+        },
+        {
+          "name": "validator",
+          "type": "IValidator<TokenModelClient>",
+          "source": "FromServices"
+        }
+      ]
+    },
+    {
+      "id": "PasswordRulesController",
+      "type": "controller",
+      "label": "PasswordRulesController",
+      "baseRoute": "api/users/password-rules"
+    },
+    {
+      "id": "PasswordRulesController.GetRulesAsync[GET]",
+      "type": "endpoint",
+      "label": "GET /api/users/password-rules",
+      "authorization": "Authorize",
+      "returnType": "Task<ActionResult<PasswordRulesDto>>",
+      "parameters": [
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "PasswordRulesController.SaveRulesAsync[PUT]",
+      "type": "endpoint",
+      "label": "PUT /api/users/password-rules",
+      "authorization": "Authorize",
+      "returnType": "Task<ActionResult<PasswordRulesDto>>",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "PasswordRulesDto",
+          "source": "FromBody"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "PermissionsController",
+      "type": "controller",
+      "label": "PermissionsController",
+      "baseRoute": "api/[controller]"
+    },
+    {
+      "id": "PermissionsController.GetPermissionsAsync[GET]",
+      "type": "endpoint",
+      "label": "GET /api/[controller]",
+      "authorization": "Authorize",
+      "returnType": "Task<ActionResult<IEnumerable<PermissionSummaryDto>>>",
+      "parameters": [
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "ReturnReasonsController",
+      "type": "controller",
+      "label": "ReturnReasonsController",
+      "baseRoute": "return-reasons"
+    },
+    {
+      "id": "ReturnReasonsController.GetAll[GET]",
+      "type": "endpoint",
+      "label": "GET /return-reasons",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "RolesController",
+      "type": "controller",
+      "label": "RolesController",
+      "baseRoute": "api/[controller]"
+    },
+    {
+      "id": "RolesController.GetRolesAsync[GET]",
+      "type": "endpoint",
+      "label": "GET /api/[controller]",
+      "authorization": "Authorize",
+      "returnType": "Task<ActionResult<IEnumerable<RoleSummaryDto>>>",
+      "parameters": [
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "ServersController",
+      "type": "controller",
+      "label": "ServersController",
+      "baseRoute": "/[controller]"
+    },
+    {
+      "id": "ServersController.HandleRequest[GET]",
+      "type": "endpoint",
+      "label": "GET /[controller]",
+      "authorization": "AllowAnonymous",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "loadBalancer",
+          "type": "ILoadBalancerSingleton",
+          "source": "FromServices"
+        },
+        {
+          "name": "httpClient",
+          "type": "HttpClient",
+          "source": "FromServices"
+        }
+      ]
+    },
+    {
+      "id": "SobreDigitalController",
+      "type": "controller",
+      "label": "SobreDigitalController",
+      "baseRoute": "[controller]"
+    },
+    {
+      "id": "SobreDigitalController.Encrypt[POST]",
+      "type": "endpoint",
+      "label": "POST /[controller]/encrypt",
+      "authorization": "NotSpecified",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "file",
+          "type": "IFormFile",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "SobreDigitalController.Decrypt[POST]",
+      "type": "endpoint",
+      "label": "POST /[controller]/decrypt",
+      "authorization": "NotSpecified",
+      "returnType": "Task<ActionResult<DecryptResponse>>",
+      "parameters": [
+        {
+          "name": "file",
+          "type": "IFormFile",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "SobreDigitalController.testRSA[POST]",
+      "type": "endpoint",
+      "label": "POST /[controller]/testRSA",
+      "authorization": "NotSpecified",
+      "returnType": "void",
+      "parameters": [
+        {
+          "name": "_rsaKeyService",
+          "type": "IRsaKeyProvider",
+          "source": "FromServices"
+        }
+      ]
+    },
+    {
+      "id": "TaskDefinitionsController",
+      "type": "controller",
+      "label": "TaskDefinitionsController",
+      "baseRoute": "[controller]"
+    },
+    {
+      "id": "TaskDefinitionsController.Get[GET]",
+      "type": "endpoint",
+      "label": "GET /[controller]",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "Task<ActionResult<IEnumerable<TaskDefinitionDto>>>",
+      "parameters": [
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "TaskDefinitionsController.Get[GET]",
+      "type": "endpoint",
+      "label": "GET /[controller]/{id}",
+      "authorization": "Authorize(Policy = \"CanReadAch\")",
+      "returnType": "Task<ActionResult<TaskDefinitionDto>>",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "TaskDefinitionsController.Post[POST]",
+      "type": "endpoint",
+      "label": "POST /[controller]",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "Task<ActionResult<TaskDefinitionDto>>",
+      "parameters": [
+        {
+          "name": "task",
+          "type": "TaskDefinitionDto",
+          "source": "FromBody"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "TaskDefinitionsController.Put[PUT]",
+      "type": "endpoint",
+      "label": "PUT /[controller]/{id}",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "task",
+          "type": "TaskDefinitionDto",
+          "source": "FromBody"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "TaskDefinitionsController.Delete[DELETE]",
+      "type": "endpoint",
+      "label": "DELETE /[controller]/{id}",
+      "authorization": "Authorize(Policy = \"CanManageAch\")",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "TestsController",
+      "type": "controller",
+      "label": "TestsController",
+      "baseRoute": "/[controller]"
+    },
+    {
+      "id": "TestsController.Get[GET]",
+      "type": "endpoint",
+      "label": "GET /[controller]",
+      "authorization": "Authorize",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "data",
+          "type": "string",
+          "source": "inferred"
+        },
+        {
+          "name": "test",
+          "type": "ITestTransient",
+          "source": "FromServices"
+        },
+        {
+          "name": "httpContextAccessor",
+          "type": "IHttpContextAccessor",
+          "source": "FromServices"
+        }
+      ]
+    },
+    {
+      "id": "TestsController.Get[GET]",
+      "type": "endpoint",
+      "label": "GET /[controller]/Prueba",
+      "authorization": "AllowAnonymous",
+      "returnType": "IActionResult",
+      "parameters": []
+    },
+    {
+      "id": "TransactionsController",
+      "type": "controller",
+      "label": "TransactionsController",
+      "baseRoute": "[controller]"
+    },
+    {
+      "id": "TransactionsController.GetAll[GET]",
+      "type": "endpoint",
+      "label": "GET /[controller]",
+      "authorization": "NotSpecified",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "achCycleId",
+          "type": "string?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "achCycleName",
+          "type": "string?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "effectiveDate",
+          "type": "DateTime?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "clearingHouseId",
+          "type": "int?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "TransactionsController.CreateTransaction[POST]",
+      "type": "endpoint",
+      "label": "POST /[controller]",
+      "authorization": "NotSpecified",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "AchTransactionRequest",
+          "source": "FromBody"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "TransactionsController.GetById[GET]",
+      "type": "endpoint",
+      "label": "GET /[controller]/{id:int}",
+      "authorization": "NotSpecified",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "int",
+          "source": "inferred"
+        },
+        {
+          "name": "ct",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "UsersController",
+      "type": "controller",
+      "label": "UsersController",
+      "baseRoute": "api/[controller]"
+    },
+    {
+      "id": "UsersController.GetUsersAsync[GET]",
+      "type": "endpoint",
+      "label": "GET /api/[controller]",
+      "authorization": "Authorize",
+      "returnType": "Task<ActionResult<PagedResponse<UserSummaryDto>>>",
+      "parameters": [
+        {
+          "name": "search",
+          "type": "string?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "roleId",
+          "type": "Guid?",
+          "source": "FromQuery"
+        },
+        {
+          "name": "page",
+          "type": "int",
+          "source": "FromQuery"
+        },
+        {
+          "name": "pageSize",
+          "type": "int",
+          "source": "FromQuery"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "UsersController.ValidateEmailDomainAsync[GET]",
+      "type": "endpoint",
+      "label": "GET /api/[controller]/validate-email-domain",
+      "authorization": "Authorize",
+      "returnType": "Task<ActionResult<bool>>",
+      "parameters": [
+        {
+          "name": "email",
+          "type": "string",
+          "source": "FromQuery"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "UsersController.GetUserAsync[GET]",
+      "type": "endpoint",
+      "label": "GET /api/[controller]/{id:guid}",
+      "authorization": "Authorize",
+      "returnType": "Task<ActionResult<UserSummaryDto>>",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "Guid",
+          "source": "inferred"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "UsersController.CreateUserAsync[POST]",
+      "type": "endpoint",
+      "label": "POST /api/[controller]",
+      "authorization": "Authorize",
+      "returnType": "Task<ActionResult<UserSummaryDto>>",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "SaveUserRequest",
+          "source": "FromBody"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "UsersController.UpdateUserAsync[PUT]",
+      "type": "endpoint",
+      "label": "PUT /api/[controller]/{id:guid}",
+      "authorization": "Authorize",
+      "returnType": "Task<ActionResult<UserSummaryDto>>",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "Guid",
+          "source": "inferred"
+        },
+        {
+          "name": "request",
+          "type": "SaveUserRequest",
+          "source": "FromBody"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "UsersController.AssignRolesAsync[POST]",
+      "type": "endpoint",
+      "label": "POST /api/[controller]/{id:guid}/roles",
+      "authorization": "Authorize",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "Guid",
+          "source": "inferred"
+        },
+        {
+          "name": "request",
+          "type": "AssignRolesRequest",
+          "source": "FromBody"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    },
+    {
+      "id": "UsersController.DeactivateUserAsync[DELETE]",
+      "type": "endpoint",
+      "label": "DELETE /api/[controller]/{id:guid}",
+      "authorization": "Authorize",
+      "returnType": "IActionResult",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "Guid",
+          "source": "inferred"
+        },
+        {
+          "name": "cancellationToken",
+          "type": "CancellationToken",
+          "source": "inferred"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "AchCyclesController",
+      "to": "AchCyclesController.Get[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "AchCyclesController",
+      "to": "AchCyclesController.GetExportable[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "AchCyclesController",
+      "to": "AchCyclesController.GetById[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "AchCyclesController",
+      "to": "AchCyclesController.Create[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "AchCyclesController",
+      "to": "AchCyclesController.Update[PUT]",
+      "type": "exposes"
+    },
+    {
+      "from": "AchCyclesController",
+      "to": "AchCyclesController.Delete[DELETE]",
+      "type": "exposes"
+    },
+    {
+      "from": "AuditLogsController",
+      "to": "AuditLogsController.GetAuditLogsAsync[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "AuthController",
+      "to": "AuthController.Login[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "AuthController",
+      "to": "AuthController.ForgotPassword[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "AuthController",
+      "to": "AuthController.ResetPassword[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "AuthController",
+      "to": "AuthController.RefreshSession[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "AuthLogsController",
+      "to": "AuthLogsController.GetAuthLogsAsync[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "BankHolidaysController",
+      "to": "BankHolidaysController.GetAll[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "BankHolidaysController",
+      "to": "BankHolidaysController.Delete[DELETE]",
+      "type": "exposes"
+    },
+    {
+      "from": "BrandingController",
+      "to": "BrandingController.GetBrandingAsync[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "BrandingController",
+      "to": "BrandingController.SaveBrandingAsync[PUT]",
+      "type": "exposes"
+    },
+    {
+      "from": "CatalogTypesController",
+      "to": "CatalogTypesController.GetAll[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "CatalogTypesController",
+      "to": "CatalogTypesController.Create[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "CatalogTypesController",
+      "to": "CatalogTypesController.Update[PUT]",
+      "type": "exposes"
+    },
+    {
+      "from": "CatalogTypesController",
+      "to": "CatalogTypesController.Delete[DELETE]",
+      "type": "exposes"
+    },
+    {
+      "from": "ClearingHouseSpecialDatesController",
+      "to": "ClearingHouseSpecialDatesController.GetAll[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "ClearingHouseSpecialDatesController",
+      "to": "ClearingHouseSpecialDatesController.Delete[DELETE]",
+      "type": "exposes"
+    },
+    {
+      "from": "ClearingHousesController",
+      "to": "ClearingHousesController.Get[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "ClearingHousesController",
+      "to": "ClearingHousesController.GetById[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "ClearingHousesController",
+      "to": "ClearingHousesController.GetCyclesForClearingHouse[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "CustomerThirdPartiesController",
+      "to": "CustomerThirdPartiesController.Get[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "CustomerThirdPartiesController",
+      "to": "CustomerThirdPartiesController.UpdateStatus[PATCH]",
+      "type": "exposes"
+    },
+    {
+      "from": "CustomersController",
+      "to": "CustomersController.GetAll[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "CustomersController",
+      "to": "CustomersController.GetById[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "CustomersController",
+      "to": "CustomersController.Create[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "CustomersController",
+      "to": "CustomersController.Update[PUT]",
+      "type": "exposes"
+    },
+    {
+      "from": "CustomersController",
+      "to": "CustomersController.Delete[DELETE]",
+      "type": "exposes"
+    },
+    {
+      "from": "DigitalEnvelopeCertificatesController",
+      "to": "DigitalEnvelopeCertificatesController.GetAsync[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "DigitalEnvelopeCertificatesController",
+      "to": "DigitalEnvelopeCertificatesController.UploadAsync[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "DigitalEnvelopeCertificatesController",
+      "to": "DigitalEnvelopeCertificatesController.DeleteAsync[DELETE]",
+      "type": "exposes"
+    },
+    {
+      "from": "FinancialInstitutionsController",
+      "to": "FinancialInstitutionsController.GetAll[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "FinancialInstitutionsController",
+      "to": "FinancialInstitutionsController.Create[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "FinancialInstitutionsController",
+      "to": "FinancialInstitutionsController.SetStatus[PATCH]",
+      "type": "exposes"
+    },
+    {
+      "from": "InstitutionClearingHousePreferencesController",
+      "to": "InstitutionClearingHousePreferencesController.GetAll[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "InstitutionClearingHousePreferencesController",
+      "to": "InstitutionClearingHousePreferencesController.Delete[DELETE]",
+      "type": "exposes"
+    },
+    {
+      "from": "JwksController",
+      "to": "JwksController.GetJwks[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "JwksController",
+      "to": "JwksController.TokenClientAssertions[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "JwksController",
+      "to": "JwksController.Authenticate[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "JwksController",
+      "to": "JwksController.GenerateClientAssertion[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "LoginLockoutSettingsController",
+      "to": "LoginLockoutSettingsController.GetAsync[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "LoginLockoutSettingsController",
+      "to": "LoginLockoutSettingsController.SaveAsync[PUT]",
+      "type": "exposes"
+    },
+    {
+      "from": "MaintenanceController",
+      "to": "MaintenanceController.RunDbInitializer[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "MenuItemsController",
+      "to": "MenuItemsController.GetMenuItemsAsync[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "MenuItemsController",
+      "to": "MenuItemsController.CreateMenuItemAsync[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "MenuItemsController",
+      "to": "MenuItemsController.UpdateMenuItemAsync[PUT]",
+      "type": "exposes"
+    },
+    {
+      "from": "MenuItemsController",
+      "to": "MenuItemsController.DeleteMenuItemAsync[DELETE]",
+      "type": "exposes"
+    },
+    {
+      "from": "NachaController",
+      "to": "NachaController.SaveHeader[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "NachaExportController",
+      "to": "NachaExportController.Export[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "NachaExportController",
+      "to": "NachaExportController.ExportEncrypted[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "NachaRecordDefinitionsController",
+      "to": "NachaRecordDefinitionsController.GetAll[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "NachaRecordDefinitionsController",
+      "to": "NachaRecordDefinitionsController.GetById[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "NachaRecordDefinitionsController",
+      "to": "NachaRecordDefinitionsController.Create[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "NachaRecordDefinitionsController",
+      "to": "NachaRecordDefinitionsController.Update[PUT]",
+      "type": "exposes"
+    },
+    {
+      "from": "NachaRecordDefinitionsController",
+      "to": "NachaRecordDefinitionsController.Delete[DELETE]",
+      "type": "exposes"
+    },
+    {
+      "from": "NachaRecordLayoutsController",
+      "to": "NachaRecordLayoutsController.GetAll[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "NachaRecordLayoutsController",
+      "to": "NachaRecordLayoutsController.GetById[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "NachaRecordLayoutsController",
+      "to": "NachaRecordLayoutsController.Create[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "NachaRecordLayoutsController",
+      "to": "NachaRecordLayoutsController.Update[PUT]",
+      "type": "exposes"
+    },
+    {
+      "from": "NachaRecordLayoutsController",
+      "to": "NachaRecordLayoutsController.Delete[DELETE]",
+      "type": "exposes"
+    },
+    {
+      "from": "NachaUploadController",
+      "to": "NachaUploadController.UploadNachaFile[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "NachaUploadController",
+      "to": "NachaUploadController.GetUploadedRecords[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "NavigationController",
+      "to": "NavigationController.GetMenuAsync[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "NavigationLogsController",
+      "to": "NavigationLogsController.GetNavigationLogsAsync[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "NavigationLogsController",
+      "to": "NavigationLogsController.AddNavigationLogAsync[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "OauthsController",
+      "to": "OauthsController.GenerateToken[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "OauthsController",
+      "to": "OauthsController.GenerateTokenAsync[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "PasswordRulesController",
+      "to": "PasswordRulesController.GetRulesAsync[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "PasswordRulesController",
+      "to": "PasswordRulesController.SaveRulesAsync[PUT]",
+      "type": "exposes"
+    },
+    {
+      "from": "PermissionsController",
+      "to": "PermissionsController.GetPermissionsAsync[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "ReturnReasonsController",
+      "to": "ReturnReasonsController.GetAll[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "RolesController",
+      "to": "RolesController.GetRolesAsync[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "ServersController",
+      "to": "ServersController.HandleRequest[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "SobreDigitalController",
+      "to": "SobreDigitalController.Encrypt[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "SobreDigitalController",
+      "to": "SobreDigitalController.Decrypt[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "SobreDigitalController",
+      "to": "SobreDigitalController.testRSA[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "TaskDefinitionsController",
+      "to": "TaskDefinitionsController.Get[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "TaskDefinitionsController",
+      "to": "TaskDefinitionsController.Get[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "TaskDefinitionsController",
+      "to": "TaskDefinitionsController.Post[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "TaskDefinitionsController",
+      "to": "TaskDefinitionsController.Put[PUT]",
+      "type": "exposes"
+    },
+    {
+      "from": "TaskDefinitionsController",
+      "to": "TaskDefinitionsController.Delete[DELETE]",
+      "type": "exposes"
+    },
+    {
+      "from": "TestsController",
+      "to": "TestsController.Get[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "TestsController",
+      "to": "TestsController.Get[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "TransactionsController",
+      "to": "TransactionsController.GetAll[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "TransactionsController",
+      "to": "TransactionsController.CreateTransaction[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "TransactionsController",
+      "to": "TransactionsController.GetById[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "UsersController",
+      "to": "UsersController.GetUsersAsync[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "UsersController",
+      "to": "UsersController.ValidateEmailDomainAsync[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "UsersController",
+      "to": "UsersController.GetUserAsync[GET]",
+      "type": "exposes"
+    },
+    {
+      "from": "UsersController",
+      "to": "UsersController.CreateUserAsync[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "UsersController",
+      "to": "UsersController.UpdateUserAsync[PUT]",
+      "type": "exposes"
+    },
+    {
+      "from": "UsersController",
+      "to": "UsersController.AssignRolesAsync[POST]",
+      "type": "exposes"
+    },
+    {
+      "from": "UsersController",
+      "to": "UsersController.DeactivateUserAsync[DELETE]",
+      "type": "exposes"
+    }
+  ]
+}

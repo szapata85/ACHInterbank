@@ -1,0 +1,5491 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ACH Interbank API - Generated docs",
+    "version": "1.0.0",
+    "description": "Generado automáticamente desde controladores C#."
+  },
+  "paths": {
+    "/ach-cycles": {
+      "get": {
+        "tags": [
+          "AchCycles"
+        ],
+        "operationId": "AchCycles_Get",
+        "summary": "Get (GET)",
+        "description": "Controller: AchCyclesController. Acción: Get. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "clearingHouseId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int? (FromQuery)"
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "DateTime? (FromQuery)"
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "DateTime? (FromQuery)"
+          },
+          {
+            "name": "processingDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "DateTime? (FromQuery)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "IActionResult"
+      },
+      "post": {
+        "tags": [
+          "AchCycles"
+        ],
+        "operationId": "AchCycles_Create",
+        "summary": "Create (POST)",
+        "description": "Controller: AchCyclesController. Acción: Create. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ach-cycles/exportable": {
+      "get": {
+        "tags": [
+          "AchCycles"
+        ],
+        "operationId": "AchCycles_GetExportable",
+        "summary": "GetExportable (GET)",
+        "description": "Controller: AchCyclesController. Acción: GetExportable. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "clearingHouseId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int? (FromQuery)"
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "DateTime? (FromQuery)"
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "DateTime? (FromQuery)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/ach-cycles/{id}": {
+      "get": {
+        "tags": [
+          "AchCycles"
+        ],
+        "operationId": "AchCycles_GetById",
+        "summary": "GetById (GET)",
+        "description": "Controller: AchCyclesController. Acción: GetById. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "IActionResult"
+      },
+      "put": {
+        "tags": [
+          "AchCycles"
+        ],
+        "operationId": "AchCycles_Update",
+        "summary": "Update (PUT)",
+        "description": "Controller: AchCyclesController. Acción: Update. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "AchCycles"
+        ],
+        "operationId": "AchCycles_Delete",
+        "summary": "Delete (DELETE)",
+        "description": "Controller: AchCyclesController. Acción: Delete. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/api/audit-logs": {
+      "get": {
+        "tags": [
+          "AuditLogs"
+        ],
+        "operationId": "AuditLogs_GetAuditLogsAsync",
+        "summary": "GetAuditLogsAsync (GET)",
+        "description": "Controller: AuditLogsController. Acción: GetAuditLogsAsync. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "DateTime? (FromQuery)"
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "DateTime? (FromQuery)"
+          },
+          {
+            "name": "changedBy",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string? (FromQuery)"
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string? (FromQuery)"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (FromQuery)"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (FromQuery)"
+          },
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/[controller]/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "Auth_Login",
+        "summary": "<summary> Endpoint de la API ACH Interbank. </summary>",
+        "description": "Controller: AuthController. Acción: Login. Autorización: AllowAnonymous.",
+        "parameters": [
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "AllowAnonymous",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/[controller]/forgot-password": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "Auth_ForgotPassword",
+        "summary": "ForgotPassword (POST)",
+        "description": "Controller: AuthController. Acción: ForgotPassword. Autorización: AllowAnonymous.",
+        "parameters": [
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "AllowAnonymous",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/[controller]/reset-password": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "Auth_ResetPassword",
+        "summary": "ResetPassword (POST)",
+        "description": "Controller: AuthController. Acción: ResetPassword. Autorización: AllowAnonymous.",
+        "parameters": [
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "AllowAnonymous",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/[controller]/refresh": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "Auth_RefreshSession",
+        "summary": "RefreshSession (POST)",
+        "description": "Controller: AuthController. Acción: RefreshSession. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/api/auth-logs": {
+      "get": {
+        "tags": [
+          "AuthLogs"
+        ],
+        "operationId": "AuthLogs_GetAuthLogsAsync",
+        "summary": "<summary> Endpoint de la API ACH Interbank. </summary>",
+        "description": "Controller: AuthLogsController. Acción: GetAuthLogsAsync. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "DateTime? (FromQuery)"
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "DateTime? (FromQuery)"
+          },
+          {
+            "name": "username",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string? (FromQuery)"
+          },
+          {
+            "name": "success",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "bool? (FromQuery)"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (FromQuery)"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (FromQuery)"
+          },
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/bank-holidays": {
+      "get": {
+        "tags": [
+          "BankHolidays"
+        ],
+        "operationId": "BankHolidays_GetAll",
+        "summary": "GetAll (GET)",
+        "description": "Controller: BankHolidaysController. Acción: GetAll. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int? (FromQuery)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/bank-holidays/{id}": {
+      "delete": {
+        "tags": [
+          "BankHolidays"
+        ],
+        "operationId": "BankHolidays_Delete",
+        "summary": "Delete (DELETE)",
+        "description": "Controller: BankHolidaysController. Acción: Delete. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/api/users/branding": {
+      "get": {
+        "tags": [
+          "Branding"
+        ],
+        "operationId": "Branding_GetBrandingAsync",
+        "summary": "GetBrandingAsync (GET)",
+        "description": "Controller: BrandingController. Acción: GetBrandingAsync. Autorización: AllowAnonymous.",
+        "parameters": [
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "AllowAnonymous",
+        "x-returnType": "Task<ActionResult<BrandingSettingsDto>>"
+      },
+      "put": {
+        "tags": [
+          "Branding"
+        ],
+        "operationId": "Branding_SaveBrandingAsync",
+        "summary": "<summary> Endpoint de la API ACH Interbank. </summary>",
+        "description": "Controller: BrandingController. Acción: SaveBrandingAsync. Autorización: NotSpecified.",
+        "parameters": [
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "NotSpecified",
+        "x-returnType": "Task<ActionResult<BrandingSettingsDto>>",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalog-types/{catalogType}": {
+      "get": {
+        "tags": [
+          "CatalogTypes"
+        ],
+        "operationId": "CatalogTypes_GetAll",
+        "summary": "GetAll (GET)",
+        "description": "Controller: CatalogTypesController. Acción: GetAll. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "catalogType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult"
+      },
+      "post": {
+        "tags": [
+          "CatalogTypes"
+        ],
+        "operationId": "CatalogTypes_Create",
+        "summary": "Create (POST)",
+        "description": "Controller: CatalogTypesController. Acción: Create. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "catalogType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalog-types/{catalogType}/{code}": {
+      "put": {
+        "tags": [
+          "CatalogTypes"
+        ],
+        "operationId": "CatalogTypes_Update",
+        "summary": "Update (PUT)",
+        "description": "Controller: CatalogTypesController. Acción: Update. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "catalogType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string (inferred)"
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "CatalogTypes"
+        ],
+        "operationId": "CatalogTypes_Delete",
+        "summary": "Delete (DELETE)",
+        "description": "Controller: CatalogTypesController. Acción: Delete. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "catalogType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string (inferred)"
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/clearing-house-special-dates": {
+      "get": {
+        "tags": [
+          "ClearingHouseSpecialDates"
+        ],
+        "operationId": "ClearingHouseSpecialDates_GetAll",
+        "summary": "GetAll (GET)",
+        "description": "Controller: ClearingHouseSpecialDatesController. Acción: GetAll. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int? (FromQuery)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/clearing-house-special-dates/{id}": {
+      "delete": {
+        "tags": [
+          "ClearingHouseSpecialDates"
+        ],
+        "operationId": "ClearingHouseSpecialDates_Delete",
+        "summary": "Delete (DELETE)",
+        "description": "Controller: ClearingHouseSpecialDatesController. Acción: Delete. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/clearing-houses": {
+      "get": {
+        "tags": [
+          "ClearingHouses"
+        ],
+        "operationId": "ClearingHouses_Get",
+        "summary": "Get (GET)",
+        "description": "Controller: ClearingHousesController. Acción: Get. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "request",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "PaginationRequest (FromQuery)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/clearing-houses/{id:int}": {
+      "get": {
+        "tags": [
+          "ClearingHouses"
+        ],
+        "operationId": "ClearingHouses_GetById",
+        "summary": "GetById (GET)",
+        "description": "Controller: ClearingHousesController. Acción: GetById. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/clearing-houses/{id:int}/cycles": {
+      "get": {
+        "tags": [
+          "ClearingHouses"
+        ],
+        "operationId": "ClearingHouses_GetCyclesForClearingHouse",
+        "summary": "GetCyclesForClearingHouse (GET)",
+        "description": "Controller: ClearingHousesController. Acción: GetCyclesForClearingHouse. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "processingDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "DateTime? (FromQuery)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/api/customer-third-parties": {
+      "get": {
+        "tags": [
+          "CustomerThirdParties"
+        ],
+        "operationId": "CustomerThirdParties_Get",
+        "summary": "Get (GET)",
+        "description": "Controller: CustomerThirdPartiesController. Acción: Get. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string? (FromQuery)"
+          },
+          {
+            "name": "destinationAccountNumber",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string? (FromQuery)"
+          },
+          {
+            "name": "recipientIdNumber",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string? (FromQuery)"
+          },
+          {
+            "name": "destinationInstitutionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int? (FromQuery)"
+          },
+          {
+            "name": "sourceAccountNumber",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string? (FromQuery)"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CustomerThirdPartyStatusEnum? (FromQuery)"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (FromQuery)"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (FromQuery)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/api/customer-third-parties/{id:int}/status": {
+      "patch": {
+        "tags": [
+          "CustomerThirdParties"
+        ],
+        "operationId": "CustomerThirdParties_UpdateStatus",
+        "summary": "UpdateStatus (PATCH)",
+        "description": "Controller: CustomerThirdPartiesController. Acción: UpdateStatus. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/customers": {
+      "get": {
+        "tags": [
+          "Customers"
+        ],
+        "operationId": "Customers_GetAll",
+        "summary": "<summary> Obtiene el listado de clientes registrados. </summary>",
+        "description": "Controller: CustomersController. Acción: GetAll. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "IActionResult"
+      },
+      "post": {
+        "tags": [
+          "Customers"
+        ],
+        "operationId": "Customers_Create",
+        "summary": "<summary> Registra un nuevo cliente. </summary>",
+        "description": "Controller: CustomersController. Acción: Create. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/customers/{id:int}": {
+      "get": {
+        "tags": [
+          "Customers"
+        ],
+        "operationId": "Customers_GetById",
+        "summary": "<summary> Obtiene el detalle de un cliente por identificador. </summary>",
+        "description": "Controller: CustomersController. Acción: GetById. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "IActionResult"
+      },
+      "put": {
+        "tags": [
+          "Customers"
+        ],
+        "operationId": "Customers_Update",
+        "summary": "<summary> Actualiza la información de un cliente existente. </summary>",
+        "description": "Controller: CustomersController. Acción: Update. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Customers"
+        ],
+        "operationId": "Customers_Delete",
+        "summary": "<summary> Elimina un cliente por identificador. </summary>",
+        "description": "Controller: CustomersController. Acción: Delete. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/nacha-security/certificates": {
+      "get": {
+        "tags": [
+          "DigitalEnvelopeCertificates"
+        ],
+        "operationId": "DigitalEnvelopeCertificates_GetAsync",
+        "summary": "GetAsync (GET)",
+        "description": "Controller: DigitalEnvelopeCertificatesController. Acción: GetAsync. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "Task<ActionResult<IEnumerable<DigitalEnvelopeCertificateResponse>>>"
+      },
+      "post": {
+        "tags": [
+          "DigitalEnvelopeCertificates"
+        ],
+        "operationId": "DigitalEnvelopeCertificates_UploadAsync",
+        "summary": "UploadAsync (POST)",
+        "description": "Controller: DigitalEnvelopeCertificatesController. Acción: UploadAsync. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "Task<ActionResult<DigitalEnvelopeCertificateResponse>>",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nacha-security/certificates/{id:int}": {
+      "delete": {
+        "tags": [
+          "DigitalEnvelopeCertificates"
+        ],
+        "operationId": "DigitalEnvelopeCertificates_DeleteAsync",
+        "summary": "DeleteAsync (DELETE)",
+        "description": "Controller: DigitalEnvelopeCertificatesController. Acción: DeleteAsync. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/financial-institutions": {
+      "get": {
+        "tags": [
+          "FinancialInstitutions"
+        ],
+        "operationId": "FinancialInstitutions_GetAll",
+        "summary": "GetAll (GET)",
+        "description": "Controller: FinancialInstitutionsController. Acción: GetAll. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "includeInactive",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "bool (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "IActionResult"
+      },
+      "post": {
+        "tags": [
+          "FinancialInstitutions"
+        ],
+        "operationId": "FinancialInstitutions_Create",
+        "summary": "Create (POST)",
+        "description": "Controller: FinancialInstitutionsController. Acción: Create. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/financial-institutions/{id}/status": {
+      "patch": {
+        "tags": [
+          "FinancialInstitutions"
+        ],
+        "operationId": "FinancialInstitutions_SetStatus",
+        "summary": "SetStatus (PATCH)",
+        "description": "Controller: FinancialInstitutionsController. Acción: SetStatus. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/institution-clearing-house-preferences": {
+      "get": {
+        "tags": [
+          "InstitutionClearingHousePreferences"
+        ],
+        "operationId": "InstitutionClearingHousePreferences_GetAll",
+        "summary": "GetAll (GET)",
+        "description": "Controller: InstitutionClearingHousePreferencesController. Acción: GetAll. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/institution-clearing-house-preferences/{id}": {
+      "delete": {
+        "tags": [
+          "InstitutionClearingHousePreferences"
+        ],
+        "operationId": "InstitutionClearingHousePreferences_Delete",
+        "summary": "Delete (DELETE)",
+        "description": "Controller: InstitutionClearingHousePreferencesController. Acción: Delete. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/oauth2/jwks": {
+      "get": {
+        "tags": [
+          "Jwks"
+        ],
+        "operationId": "Jwks_GetJwks",
+        "summary": "<summary> Endpoint de la API ACH Interbank. </summary>",
+        "description": "Controller: JwksController. Acción: GetJwks. Autorización: AllowAnonymous.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "AllowAnonymous",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/oauth2/TokenClientAssertions": {
+      "get": {
+        "tags": [
+          "Jwks"
+        ],
+        "operationId": "Jwks_TokenClientAssertions",
+        "summary": "TokenClientAssertions (GET)",
+        "description": "Controller: JwksController. Acción: TokenClientAssertions. Autorización: AllowAnonymous.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "AllowAnonymous",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/oauth2/client-assertion": {
+      "post": {
+        "tags": [
+          "Jwks"
+        ],
+        "operationId": "Jwks_Authenticate",
+        "summary": "Authenticate (POST)",
+        "description": "Controller: JwksController. Acción: Authenticate. Autorización: AllowAnonymous.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "AllowAnonymous",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/oauth2/Genearte-client-assertion": {
+      "post": {
+        "tags": [
+          "Jwks"
+        ],
+        "operationId": "Jwks_GenerateClientAssertion",
+        "summary": "GenerateClientAssertion (POST)",
+        "description": "Controller: JwksController. Acción: GenerateClientAssertion. Autorización: AllowAnonymous.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "AllowAnonymous",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/api/users/login-lockout": {
+      "get": {
+        "tags": [
+          "LoginLockoutSettings"
+        ],
+        "operationId": "LoginLockoutSettings_GetAsync",
+        "summary": "GetAsync (GET)",
+        "description": "Controller: LoginLockoutSettingsController. Acción: GetAsync. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "Task<ActionResult<LoginLockoutSettingsDto>>"
+      },
+      "put": {
+        "tags": [
+          "LoginLockoutSettings"
+        ],
+        "operationId": "LoginLockoutSettings_SaveAsync",
+        "summary": "SaveAsync (PUT)",
+        "description": "Controller: LoginLockoutSettingsController. Acción: SaveAsync. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "Task<ActionResult<LoginLockoutSettingsDto>>",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/seed": {
+      "post": {
+        "tags": [
+          "Maintenance"
+        ],
+        "operationId": "Maintenance_RunDbInitializer",
+        "summary": "RunDbInitializer (POST)",
+        "description": "Controller: MaintenanceController. Acción: RunDbInitializer. Autorización: NotSpecified.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "NotSpecified",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/navigation/menu-items": {
+      "get": {
+        "tags": [
+          "MenuItems"
+        ],
+        "operationId": "MenuItems_GetMenuItemsAsync",
+        "summary": "GetMenuItemsAsync (GET)",
+        "description": "Controller: MenuItemsController. Acción: GetMenuItemsAsync. Autorización: Authorize(Roles = \"Admin\").",
+        "parameters": [
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Roles = \"Admin\")",
+        "x-returnType": "Task<ActionResult<IEnumerable<MenuItemAdminDto>>>"
+      },
+      "post": {
+        "tags": [
+          "MenuItems"
+        ],
+        "operationId": "MenuItems_CreateMenuItemAsync",
+        "summary": "CreateMenuItemAsync (POST)",
+        "description": "Controller: MenuItemsController. Acción: CreateMenuItemAsync. Autorización: Authorize(Roles = \"Admin\").",
+        "parameters": [
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Roles = \"Admin\")",
+        "x-returnType": "Task<ActionResult<MenuItemAdminDto>>",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/navigation/menu-items/{id:int}": {
+      "put": {
+        "tags": [
+          "MenuItems"
+        ],
+        "operationId": "MenuItems_UpdateMenuItemAsync",
+        "summary": "UpdateMenuItemAsync (PUT)",
+        "description": "Controller: MenuItemsController. Acción: UpdateMenuItemAsync. Autorización: Authorize(Roles = \"Admin\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Roles = \"Admin\")",
+        "x-returnType": "Task<ActionResult<MenuItemAdminDto>>",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "MenuItems"
+        ],
+        "operationId": "MenuItems_DeleteMenuItemAsync",
+        "summary": "DeleteMenuItemAsync (DELETE)",
+        "description": "Controller: MenuItemsController. Acción: DeleteMenuItemAsync. Autorización: Authorize(Roles = \"Admin\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Roles = \"Admin\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/[controller]/header": {
+      "post": {
+        "tags": [
+          "Nacha"
+        ],
+        "operationId": "Nacha_SaveHeader",
+        "summary": "SaveHeader (POST)",
+        "description": "Controller: NachaController. Acción: SaveHeader. Autorización: AllowAnonymous.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "AllowAnonymous",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/[controller]/{cycleId}": {
+      "get": {
+        "tags": [
+          "NachaExport"
+        ],
+        "operationId": "NachaExport_Export",
+        "summary": "Export (GET)",
+        "description": "Controller: NachaExportController. Acción: Export. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "cycleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/[controller]/{cycleId}/sobre-digital": {
+      "get": {
+        "tags": [
+          "NachaExport"
+        ],
+        "operationId": "NachaExport_ExportEncrypted",
+        "summary": "ExportEncrypted (GET)",
+        "description": "Controller: NachaExportController. Acción: ExportEncrypted. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "cycleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string (inferred)"
+          },
+          {
+            "name": "forceEncryption",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "bool (FromQuery)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/nacha-record-definitions": {
+      "get": {
+        "tags": [
+          "NachaRecordDefinitions"
+        ],
+        "operationId": "NachaRecordDefinitions_GetAll",
+        "summary": "GetAll (GET)",
+        "description": "Controller: NachaRecordDefinitionsController. Acción: GetAll. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "Task<ActionResult<IEnumerable<NachaRecordDefinitionDto>>>"
+      },
+      "post": {
+        "tags": [
+          "NachaRecordDefinitions"
+        ],
+        "operationId": "NachaRecordDefinitions_Create",
+        "summary": "Create (POST)",
+        "description": "Controller: NachaRecordDefinitionsController. Acción: Create. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "Task<ActionResult<NachaRecordDefinitionDto>>",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nacha-record-definitions/{id:int}": {
+      "get": {
+        "tags": [
+          "NachaRecordDefinitions"
+        ],
+        "operationId": "NachaRecordDefinitions_GetById",
+        "summary": "GetById (GET)",
+        "description": "Controller: NachaRecordDefinitionsController. Acción: GetById. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "Task<ActionResult<NachaRecordDefinitionDto>>"
+      },
+      "put": {
+        "tags": [
+          "NachaRecordDefinitions"
+        ],
+        "operationId": "NachaRecordDefinitions_Update",
+        "summary": "Update (PUT)",
+        "description": "Controller: NachaRecordDefinitionsController. Acción: Update. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "NachaRecordDefinitions"
+        ],
+        "operationId": "NachaRecordDefinitions_Delete",
+        "summary": "Delete (DELETE)",
+        "description": "Controller: NachaRecordDefinitionsController. Acción: Delete. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/nacha-layouts": {
+      "get": {
+        "tags": [
+          "NachaRecordLayouts"
+        ],
+        "operationId": "NachaRecordLayouts_GetAll",
+        "summary": "GetAll (GET)",
+        "description": "Controller: NachaRecordLayoutsController. Acción: GetAll. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "Task<ActionResult<IEnumerable<NachaRecordLayoutDto>>>"
+      },
+      "post": {
+        "tags": [
+          "NachaRecordLayouts"
+        ],
+        "operationId": "NachaRecordLayouts_Create",
+        "summary": "Create (POST)",
+        "description": "Controller: NachaRecordLayoutsController. Acción: Create. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "Task<ActionResult<NachaRecordLayoutDto>>",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nacha-layouts/{id:int}": {
+      "get": {
+        "tags": [
+          "NachaRecordLayouts"
+        ],
+        "operationId": "NachaRecordLayouts_GetById",
+        "summary": "GetById (GET)",
+        "description": "Controller: NachaRecordLayoutsController. Acción: GetById. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "Task<ActionResult<NachaRecordLayoutDto>>"
+      },
+      "put": {
+        "tags": [
+          "NachaRecordLayouts"
+        ],
+        "operationId": "NachaRecordLayouts_Update",
+        "summary": "Update (PUT)",
+        "description": "Controller: NachaRecordLayoutsController. Acción: Update. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "NachaRecordLayouts"
+        ],
+        "operationId": "NachaRecordLayouts_Delete",
+        "summary": "Delete (DELETE)",
+        "description": "Controller: NachaRecordLayoutsController. Acción: Delete. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/[controller]/upload": {
+      "post": {
+        "tags": [
+          "NachaUpload"
+        ],
+        "operationId": "NachaUpload_UploadNachaFile",
+        "summary": "UploadNachaFile (POST)",
+        "description": "Controller: NachaUploadController. Acción: UploadNachaFile. Autorización: NotSpecified.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "NotSpecified",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/[controller]/records": {
+      "get": {
+        "tags": [
+          "NachaUpload"
+        ],
+        "operationId": "NachaUpload_GetUploadedRecords",
+        "summary": "GetUploadedRecords (GET)",
+        "description": "Controller: NachaUploadController. Acción: GetUploadedRecords. Autorización: NotSpecified.",
+        "parameters": [
+          {
+            "name": "immediateOrigin",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string? (FromQuery)"
+          },
+          {
+            "name": "immediateDestination",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string? (FromQuery)"
+          },
+          {
+            "name": "referenceCode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string? (FromQuery)"
+          },
+          {
+            "name": "achCycleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string? (FromQuery)"
+          },
+          {
+            "name": "fileCreationDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "DateTime? (FromQuery)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "NotSpecified",
+        "x-returnType": "Task<ActionResult<IReadOnlyList<NachaUploadRecordResponse>>>"
+      }
+    },
+    "/navigation/menu": {
+      "get": {
+        "tags": [
+          "Navigation"
+        ],
+        "operationId": "Navigation_GetMenuAsync",
+        "summary": "GetMenuAsync (GET)",
+        "description": "Controller: NavigationController. Acción: GetMenuAsync. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "Task<ActionResult<IList<MenuItemDto>>>"
+      }
+    },
+    "/api/navigation-logs": {
+      "get": {
+        "tags": [
+          "NavigationLogs"
+        ],
+        "operationId": "NavigationLogs_GetNavigationLogsAsync",
+        "summary": "GetNavigationLogsAsync (GET)",
+        "description": "Controller: NavigationLogsController. Acción: GetNavigationLogsAsync. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "DateTime? (FromQuery)"
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "DateTime? (FromQuery)"
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string? (FromQuery)"
+          },
+          {
+            "name": "route",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string? (FromQuery)"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (FromQuery)"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (FromQuery)"
+          },
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "IActionResult"
+      },
+      "post": {
+        "tags": [
+          "NavigationLogs"
+        ],
+        "operationId": "NavigationLogs_AddNavigationLogAsync",
+        "summary": "AddNavigationLogAsync (POST)",
+        "description": "Controller: NavigationLogsController. Acción: AddNavigationLogAsync. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/[controller]/GenerateToken": {
+      "post": {
+        "tags": [
+          "Oauths"
+        ],
+        "operationId": "Oauths_GenerateToken",
+        "summary": "GenerateToken (POST)",
+        "description": "Controller: OauthsController. Acción: GenerateToken. Autorización: AllowAnonymous.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "AllowAnonymous",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/[controller]/GenerateTokenAsync": {
+      "post": {
+        "tags": [
+          "Oauths"
+        ],
+        "operationId": "Oauths_GenerateTokenAsync",
+        "summary": "GenerateTokenAsync (POST)",
+        "description": "Controller: OauthsController. Acción: GenerateTokenAsync. Autorización: AllowAnonymous.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "AllowAnonymous",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/password-rules": {
+      "get": {
+        "tags": [
+          "PasswordRules"
+        ],
+        "operationId": "PasswordRules_GetRulesAsync",
+        "summary": "GetRulesAsync (GET)",
+        "description": "Controller: PasswordRulesController. Acción: GetRulesAsync. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "Task<ActionResult<PasswordRulesDto>>"
+      },
+      "put": {
+        "tags": [
+          "PasswordRules"
+        ],
+        "operationId": "PasswordRules_SaveRulesAsync",
+        "summary": "SaveRulesAsync (PUT)",
+        "description": "Controller: PasswordRulesController. Acción: SaveRulesAsync. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "Task<ActionResult<PasswordRulesDto>>",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/[controller]": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "operationId": "Users_GetUsersAsync",
+        "summary": "GetUsersAsync (GET)",
+        "description": "Controller: UsersController. Acción: GetUsersAsync. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string? (FromQuery)"
+          },
+          {
+            "name": "roleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Guid? (FromQuery)"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (FromQuery)"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (FromQuery)"
+          },
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "Task<ActionResult<PagedResponse<UserSummaryDto>>>"
+      },
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "operationId": "Users_CreateUserAsync",
+        "summary": "CreateUserAsync (POST)",
+        "description": "Controller: UsersController. Acción: CreateUserAsync. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "Task<ActionResult<UserSummaryDto>>",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/return-reasons": {
+      "get": {
+        "tags": [
+          "ReturnReasons"
+        ],
+        "operationId": "ReturnReasons_GetAll",
+        "summary": "GetAll (GET)",
+        "description": "Controller: ReturnReasonsController. Acción: GetAll. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/[controller]": {
+      "get": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "Transactions_GetAll",
+        "summary": "GetAll (GET)",
+        "description": "Controller: TransactionsController. Acción: GetAll. Autorización: NotSpecified.",
+        "parameters": [
+          {
+            "name": "achCycleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string? (FromQuery)"
+          },
+          {
+            "name": "achCycleName",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string? (FromQuery)"
+          },
+          {
+            "name": "effectiveDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "DateTime? (FromQuery)"
+          },
+          {
+            "name": "clearingHouseId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int? (FromQuery)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "NotSpecified",
+        "x-returnType": "IActionResult"
+      },
+      "post": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "Transactions_CreateTransaction",
+        "summary": "CreateTransaction (POST)",
+        "description": "Controller: TransactionsController. Acción: CreateTransaction. Autorización: NotSpecified.",
+        "parameters": [
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "NotSpecified",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/[controller]/encrypt": {
+      "post": {
+        "tags": [
+          "SobreDigital"
+        ],
+        "operationId": "SobreDigital_Encrypt",
+        "summary": "Encrypt (POST)",
+        "description": "Controller: SobreDigitalController. Acción: Encrypt. Autorización: NotSpecified.",
+        "parameters": [
+          {
+            "name": "file",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "IFormFile (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "NotSpecified",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/[controller]/decrypt": {
+      "post": {
+        "tags": [
+          "SobreDigital"
+        ],
+        "operationId": "SobreDigital_Decrypt",
+        "summary": "Decrypt (POST)",
+        "description": "Controller: SobreDigitalController. Acción: Decrypt. Autorización: NotSpecified.",
+        "parameters": [
+          {
+            "name": "file",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "IFormFile (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "NotSpecified",
+        "x-returnType": "Task<ActionResult<DecryptResponse>>"
+      }
+    },
+    "/[controller]/testRSA": {
+      "post": {
+        "tags": [
+          "SobreDigital"
+        ],
+        "operationId": "SobreDigital_testRSA",
+        "summary": "testRSA (POST)",
+        "description": "Controller: SobreDigitalController. Acción: testRSA. Autorización: NotSpecified.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "NotSpecified",
+        "x-returnType": "void"
+      }
+    },
+    "/[controller]/{id}": {
+      "get": {
+        "tags": [
+          "TaskDefinitions"
+        ],
+        "operationId": "TaskDefinitions_Get",
+        "summary": "Get (GET)",
+        "description": "Controller: TaskDefinitionsController. Acción: Get. Autorización: Authorize(Policy = \"CanReadAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanReadAch\")",
+        "x-returnType": "Task<ActionResult<TaskDefinitionDto>>"
+      },
+      "put": {
+        "tags": [
+          "TaskDefinitions"
+        ],
+        "operationId": "TaskDefinitions_Put",
+        "summary": "Put (PUT)",
+        "description": "Controller: TaskDefinitionsController. Acción: Put. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "TaskDefinitions"
+        ],
+        "operationId": "TaskDefinitions_Delete",
+        "summary": "Delete (DELETE)",
+        "description": "Controller: TaskDefinitionsController. Acción: Delete. Autorización: Authorize(Policy = \"CanManageAch\").",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize(Policy = \"CanManageAch\")",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/[controller]/Prueba": {
+      "get": {
+        "tags": [
+          "Tests"
+        ],
+        "operationId": "Tests_Get",
+        "summary": "Get (GET)",
+        "description": "Controller: TestsController. Acción: Get. Autorización: AllowAnonymous.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "AllowAnonymous",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/[controller]/{id:int}": {
+      "get": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "Transactions_GetById",
+        "summary": "GetById (GET)",
+        "description": "Controller: TransactionsController. Acción: GetById. Autorización: NotSpecified.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "int (inferred)"
+          },
+          {
+            "name": "ct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "NotSpecified",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/api/[controller]/validate-email-domain": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "operationId": "Users_ValidateEmailDomainAsync",
+        "summary": "ValidateEmailDomainAsync (GET)",
+        "description": "Controller: UsersController. Acción: ValidateEmailDomainAsync. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "email",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "string (FromQuery)"
+          },
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "Task<ActionResult<bool>>"
+      }
+    },
+    "/api/[controller]/{id:guid}": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "operationId": "Users_GetUserAsync",
+        "summary": "GetUserAsync (GET)",
+        "description": "Controller: UsersController. Acción: GetUserAsync. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Guid (inferred)"
+          },
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "Task<ActionResult<UserSummaryDto>>"
+      },
+      "put": {
+        "tags": [
+          "Users"
+        ],
+        "operationId": "Users_UpdateUserAsync",
+        "summary": "UpdateUserAsync (PUT)",
+        "description": "Controller: UsersController. Acción: UpdateUserAsync. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Guid (inferred)"
+          },
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "Task<ActionResult<UserSummaryDto>>",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Users"
+        ],
+        "operationId": "Users_DeactivateUserAsync",
+        "summary": "DeactivateUserAsync (DELETE)",
+        "description": "Controller: UsersController. Acción: DeactivateUserAsync. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Guid (inferred)"
+          },
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "IActionResult"
+      }
+    },
+    "/api/[controller]/{id:guid}/roles": {
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "operationId": "Users_AssignRolesAsync",
+        "summary": "AssignRolesAsync (POST)",
+        "description": "Controller: UsersController. Acción: AssignRolesAsync. Autorización: Authorize.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Guid (inferred)"
+          },
+          {
+            "name": "cancellationToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CancellationToken (inferred)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "example": {
+                  "message": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autorizado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        },
+        "x-authorization": "Authorize",
+        "x-returnType": "IActionResult",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "note": "Reemplazar con payload real"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-generated": {
+    "controllersCount": 36,
+    "endpointsCount": 97
+  }
+}
