@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
-public class MaintenanceController : Controller
+[ApiController]
+[Route("[controller]")]
+public class MaintenanceController : ControllerBase
 {
     private readonly IServiceProvider _services;
     private readonly IConfiguration _configuration;
