@@ -1,0 +1,66 @@
+<div class="card">
+  <h2>Integraciones SOAP ACH</h2>
+  <p class="subtitle">
+    Parametriza el mapeo de endpoint y SOAP Action de los métodos en
+    <strong>WscfaachSoapClient</strong> y <strong>WsAxonRespuestaTransaccionesSoapClient</strong>.
+  </p>
+
+  <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
+    <section>
+      <h3>WscfaachSoapClient</h3>
+      <div formArrayName="wscfaachMappings" class="rows">
+        <div class="row" *ngFor="let mapping of wscfaachMappings.controls; let i = index" [formGroupName]="i">
+          <label>
+            Método
+            <input type="text" formControlName="methodName" readonly />
+          </label>
+          <label>
+            Endpoint
+            <input type="text" formControlName="endpoint" placeholder="https://..." />
+            <app-error-message [control]="mapping.get('endpoint')"></app-error-message>
+          </label>
+          <label>
+            SOAP Action
+            <input type="text" formControlName="soapAction" />
+            <app-error-message [control]="mapping.get('soapAction')"></app-error-message>
+          </label>
+          <label class="check">
+            <input type="checkbox" formControlName="enabled" />
+            Habilitado
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h3>WsAxonRespuestaTransaccionesSoapClient</h3>
+      <div formArrayName="wsAxonRespuestaTransaccionesMappings" class="rows">
+        <div class="row" *ngFor="let mapping of wsAxonMappings.controls; let i = index" [formGroupName]="i">
+          <label>
+            Método
+            <input type="text" formControlName="methodName" readonly />
+          </label>
+          <label>
+            Endpoint
+            <input type="text" formControlName="endpoint" placeholder="https://..." />
+            <app-error-message [control]="mapping.get('endpoint')"></app-error-message>
+          </label>
+          <label>
+            SOAP Action
+            <input type="text" formControlName="soapAction" />
+            <app-error-message [control]="mapping.get('soapAction')"></app-error-message>
+          </label>
+          <label class="check">
+            <input type="checkbox" formControlName="enabled" />
+            Habilitado
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <div class="actions">
+      <button type="button" routerLink="/integraciones">Cancelar</button>
+      <button type="submit" class="primary">Guardar</button>
+    </div>
+  </form>
+</div>

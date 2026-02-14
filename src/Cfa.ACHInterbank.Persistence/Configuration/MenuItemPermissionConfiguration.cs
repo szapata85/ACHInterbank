@@ -155,6 +155,16 @@ public class MenuItemPermissionConfiguration : IEntityTypeConfiguration<MenuItem
             {
                 MenuItemId = MenuItemConfiguration.LoginLockoutSettingsId,
                 PermissionId = PermissionConfiguration.ManageUsersPermissionId
+            },
+            new MenuItemPermission
+            {
+                MenuItemId = MenuItemConfiguration.IntegrationsId,
+                PermissionId = PermissionConfiguration.ManageUsersPermissionId
+            },
+            new MenuItemPermission
+            {
+                MenuItemId = MenuItemConfiguration.SoapIntegrationSettingsId,
+                PermissionId = PermissionConfiguration.ManageUsersPermissionId
             });
     }
 }

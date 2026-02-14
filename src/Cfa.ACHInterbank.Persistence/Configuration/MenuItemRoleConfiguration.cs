@@ -93,6 +93,16 @@ public class MenuItemRoleConfiguration : IEntityTypeConfiguration<MenuItemRole>
             },
             new MenuItemRole
             {
+                MenuItemId = MenuItemConfiguration.IntegrationsId,
+                RoleId = RoleConfiguration.AdminRoleId
+            },
+            new MenuItemRole
+            {
+                MenuItemId = MenuItemConfiguration.SoapIntegrationSettingsId,
+                RoleId = RoleConfiguration.AdminRoleId
+            },
+            new MenuItemRole
+            {
                 MenuItemId = MenuItemConfiguration.FinancialInstitutionsId,
                 RoleId = RoleConfiguration.AdminRoleId
             },

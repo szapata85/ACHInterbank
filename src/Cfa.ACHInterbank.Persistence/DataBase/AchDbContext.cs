@@ -89,6 +89,7 @@ public class AchDbContext : DbContext
     public DbSet<AuthLog> AuthLogs => Set<AuthLog>();
     public DbSet<NavigationLog> NavigationLogs => Set<NavigationLog>();
     public DbSet<LoginLockoutSetting> LoginLockoutSettings => Set<LoginLockoutSetting>();
+    public DbSet<SoapIntegrationSetting> SoapIntegrationSettings => Set<SoapIntegrationSetting>();
 
 
 

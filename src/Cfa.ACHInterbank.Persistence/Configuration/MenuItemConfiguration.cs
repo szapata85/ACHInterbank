@@ -34,6 +34,8 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int NachaDefinitionsId = 25;
     public const int LogsId = 27;
     public const int CustomerThirdPartiesId = 28;
+    public const int IntegrationsId = 29;
+    public const int SoapIntegrationSettingsId = 30;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -120,6 +122,29 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Route = "/users/login-lockout",
                 Icon = "lock_clock",
                 Order = 4,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = IntegrationsId,
+                MenuId = MenuConfiguration.MainMenuId,
+                Label = "Integraciones",
+                Route = "/integraciones",
+                Icon = "hub",
+                Order = 5,
+                Exact = false,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = SoapIntegrationSettingsId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = IntegrationsId,
+                Label = "Integraciones SOAP",
+                Route = "/soap-integrations",
+                Icon = "settings_ethernet",
+                Order = 1,
                 Exact = true,
                 IsActive = true
             },

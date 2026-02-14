@@ -55,6 +55,25 @@ const routes: Routes = [
         loadChildren: () => import('./features/transactions/transactions.module').then((m) => m.TransactionsModule)
       },
       {
+        path: 'integraciones',
+        redirectTo: 'soap-integrations',
+        pathMatch: 'full'
+      },
+      {
+        path: 'soap-integrations',
+        canActivate: [roleGuard, permissionGuard],
+        data: {
+          roles: ['Admin'],
+          permissions: ['CanManageUsers'],
+          breadcrumb: 'Integraciones SOAP',
+          title: 'Mapeo de endpoints y métodos SOAP'
+        },
+        loadComponent: () =>
+          import('./features/admin/components/soap-integration-settings.component').then(
+            (m) => m.SoapIntegrationSettingsComponent
+          )
+      },
+      {
         path: 'navigation',
         canActivate: [roleGuard, permissionGuard],
         data: {
