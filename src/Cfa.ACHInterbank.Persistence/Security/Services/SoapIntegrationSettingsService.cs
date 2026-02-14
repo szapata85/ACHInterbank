@@ -100,21 +100,48 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
                     MethodName = "PLValidarUsuarioBV",
                     Endpoint = defaultWscfaachEndpoint,
                     SoapAction = "http://tempuri.org/IWSCFAACH/PLValidarUsuarioBV",
-                    Enabled = true
+                    Enabled = true,
+                    InputParameterMappings =
+                    [
+                        new SoapInputParameterMappingDto
+                        {
+                            InputName = "usuario",
+                            SoapParameterName = "Usuario",
+                            Required = true
+                        }
+                    ]
                 },
                 new SoapEndpointMethodMappingDto
                 {
                     MethodName = "Proc_Contrapartidas",
                     Endpoint = defaultWscfaachEndpoint,
                     SoapAction = "http://tempuri.org/IWSCFAACH/Proc_Contrapartidas",
-                    Enabled = true
+                    Enabled = true,
+                    InputParameterMappings =
+                    [
+                        new SoapInputParameterMappingDto
+                        {
+                            InputName = "transaccion",
+                            SoapParameterName = "Transaccion",
+                            Required = true
+                        }
+                    ]
                 },
                 new SoapEndpointMethodMappingDto
                 {
                     MethodName = "Proc_Transacciones",
                     Endpoint = defaultWscfaachEndpoint,
                     SoapAction = "http://tempuri.org/IWSCFAACH/Proc_Transacciones",
-                    Enabled = true
+                    Enabled = true,
+                    InputParameterMappings =
+                    [
+                        new SoapInputParameterMappingDto
+                        {
+                            InputName = "lote",
+                            SoapParameterName = "Lote",
+                            Required = true
+                        }
+                    ]
                 }
             ],
             WsAxonRespuestaTransaccionesMappings =
@@ -124,7 +151,16 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
                     MethodName = "RegistrarRespuestaTransaccion",
                     Endpoint = defaultWsAxonEndpoint,
                     SoapAction = "http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion",
-                    Enabled = true
+                    Enabled = true,
+                    InputParameterMappings =
+                    [
+                        new SoapInputParameterMappingDto
+                        {
+                            InputName = "respuesta",
+                            SoapParameterName = "Respuesta",
+                            Required = true
+                        }
+                    ]
                 }
             ]
         };
@@ -171,7 +207,10 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
                 return mapping with
                 {
                     Endpoint = string.IsNullOrWhiteSpace(mapping.Endpoint) ? defaultValue.Endpoint : mapping.Endpoint,
-                    SoapAction = string.IsNullOrWhiteSpace(mapping.SoapAction) ? defaultValue.SoapAction : mapping.SoapAction
+                    SoapAction = string.IsNullOrWhiteSpace(mapping.SoapAction) ? defaultValue.SoapAction : mapping.SoapAction,
+                    InputParameterMappings = (mapping.InputParameterMappings is null || mapping.InputParameterMappings.Count == 0)
+                        ? defaultValue.InputParameterMappings
+                        : mapping.InputParameterMappings
                 };
             })
             .ToList();
@@ -195,8 +234,30 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
                 MethodName = m.MethodName.Trim(),
                 Endpoint = m.Endpoint?.Trim() ?? string.Empty,
                 SoapAction = m.SoapAction?.Trim() ?? string.Empty,
-                Enabled = m.Enabled
+                Enabled = m.Enabled,
+                InputParameterMappings = NormalizeParameterMappings(m.InputParameterMappings)
             })
             .ToList();
     }
+
+    private static List<SoapInputParameterMappingDto> NormalizeParameterMappings(
+        IEnumerable<SoapInputParameterMappingDto>? mappings)
+    {
+        if (mappings is null)
+        {
+            return [];
+        }
+
+        return mappings
+            .Where(x => !string.IsNullOrWhiteSpace(x.InputName) || !string.IsNullOrWhiteSpace(x.SoapParameterName))
+            .Select(x => new SoapInputParameterMappingDto
+            {
+                InputName = x.InputName?.Trim() ?? string.Empty,
+                SoapParameterName = x.SoapParameterName?.Trim() ?? string.Empty,
+                DefaultValue = string.IsNullOrWhiteSpace(x.DefaultValue) ? null : x.DefaultValue.Trim(),
+                Required = x.Required
+            })
+            .ToList();
+    }
+
 }

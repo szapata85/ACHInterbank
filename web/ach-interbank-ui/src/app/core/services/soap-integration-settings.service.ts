@@ -2,11 +2,19 @@ import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject, Observable, tap } from 'rxjs';
 import { ApiService } from './api.service';
 
+export interface SoapInputParameterMapping {
+  inputName: string;
+  soapParameterName: string;
+  defaultValue?: string | null;
+  required: boolean;
+}
+
 export interface SoapEndpointMethodMapping {
   methodName: string;
   endpoint: string;
   soapAction: string;
   enabled: boolean;
+  inputParameterMappings: SoapInputParameterMapping[];
 }
 
 export interface SoapIntegrationSettings {
@@ -20,19 +28,22 @@ const DEFAULT_SETTINGS: SoapIntegrationSettings = {
       methodName: 'PLValidarUsuarioBV',
       endpoint: 'http://esparta/WSCFAACH/WSCFAACH.svc',
       soapAction: 'http://tempuri.org/IWSCFAACH/PLValidarUsuarioBV',
-      enabled: true
+      enabled: true,
+      inputParameterMappings: [{ inputName: 'usuario', soapParameterName: 'Usuario', required: true }]
     },
     {
       methodName: 'Proc_Contrapartidas',
       endpoint: 'http://esparta/WSCFAACH/WSCFAACH.svc',
       soapAction: 'http://tempuri.org/IWSCFAACH/Proc_Contrapartidas',
-      enabled: true
+      enabled: true,
+      inputParameterMappings: [{ inputName: 'transaccion', soapParameterName: 'Transaccion', required: true }]
     },
     {
       methodName: 'Proc_Transacciones',
       endpoint: 'http://esparta/WSCFAACH/WSCFAACH.svc',
       soapAction: 'http://tempuri.org/IWSCFAACH/Proc_Transacciones',
-      enabled: true
+      enabled: true,
+      inputParameterMappings: [{ inputName: 'lote', soapParameterName: 'Lote', required: true }]
     }
   ],
   wsAxonRespuestaTransaccionesMappings: [
@@ -40,7 +51,8 @@ const DEFAULT_SETTINGS: SoapIntegrationSettings = {
       methodName: 'RegistrarRespuestaTransaccion',
       endpoint: 'http://esparta/WSCFAACH/WSAxonRespuestaTransacciones.svc',
       soapAction: 'http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion',
-      enabled: true
+      enabled: true,
+      inputParameterMappings: [{ inputName: 'respuesta', soapParameterName: 'Respuesta', required: true }]
     }
   ]
 };

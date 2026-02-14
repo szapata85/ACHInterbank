@@ -5,6 +5,7 @@ import { take } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
 import {
   SoapEndpointMethodMapping,
+  SoapInputParameterMapping,
   SoapIntegrationSettingsService
 } from '../../../core/services/soap-integration-settings.service';
 import { SharedModule } from '../../../shared/shared.module';
@@ -45,7 +46,7 @@ export class SoapIntegrationSettingsComponent {
   save(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
-      this.notifications.error('Completa los valores requeridos de endpoint y SOAP Action.');
+      this.notifications.error('Completa los valores requeridos de endpoint, SOAP Action y mapeos.');
       return;
     }
 
@@ -60,17 +61,43 @@ export class SoapIntegrationSettingsComponent {
       });
   }
 
+  getInputMappings(mappingGroup: FormGroup): FormArray<FormGroup> {
+    return mappingGroup.get('inputParameterMappings') as FormArray<FormGroup>;
+  }
+
+  addInputMapping(mappingGroup: FormGroup): void {
+    this.getInputMappings(mappingGroup).push(this.createInputMappingGroup());
+  }
+
+  removeInputMapping(mappingGroup: FormGroup, index: number): void {
+    this.getInputMappings(mappingGroup).removeAt(index);
+  }
+
   private setMappings(target: FormArray<FormGroup>, mappings: SoapEndpointMethodMapping[]): void {
     target.clear();
     mappings.forEach((mapping) => target.push(this.createMappingGroup(mapping)));
   }
 
   private createMappingGroup(mapping: SoapEndpointMethodMapping): FormGroup {
+    const inputMappings = this.fb.array<FormGroup>(
+      (mapping.inputParameterMappings ?? []).map((item) => this.createInputMappingGroup(item))
+    );
+
     return this.fb.group({
       methodName: [mapping.methodName, [Validators.required]],
       endpoint: [mapping.endpoint, [Validators.required]],
       soapAction: [mapping.soapAction, [Validators.required]],
-      enabled: [mapping.enabled]
+      enabled: [mapping.enabled],
+      inputParameterMappings: inputMappings
+    });
+  }
+
+  private createInputMappingGroup(item?: SoapInputParameterMapping): FormGroup {
+    return this.fb.group({
+      inputName: [item?.inputName ?? '', [Validators.required]],
+      soapParameterName: [item?.soapParameterName ?? '', [Validators.required]],
+      defaultValue: [item?.defaultValue ?? ''],
+      required: [item?.required ?? true]
     });
   }
 }

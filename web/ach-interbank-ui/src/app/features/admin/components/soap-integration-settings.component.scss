@@ -53,6 +53,52 @@ input[type='text'] {
   margin-top: 1.8rem;
 }
 
+.input-mappings {
+  grid-column: 1 / -1;
+  border-top: 1px solid #e5e7eb;
+  margin-top: 0.25rem;
+  padding-top: 0.75rem;
+}
+
+.mapping-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.mapping-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto auto;
+  gap: 0.5rem;
+  align-items: end;
+  padding: 0.5rem;
+  border: 1px dashed #d1d5db;
+  border-radius: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.check-inline {
+  flex-direction: row;
+  align-items: center;
+  margin-top: 1.8rem;
+}
+
+button.small {
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.5rem;
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+}
+
+button.danger {
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.5rem;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;
