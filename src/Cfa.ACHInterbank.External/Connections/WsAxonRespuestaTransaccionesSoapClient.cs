@@ -22,6 +22,11 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
     public Task<string> RegistrarRespuestaTransaccionAsync(string requestXml, CancellationToken ct = default)
         => SendAsync(requestXml, ct);
 
+    public Task<string> RegistrarRespuestaTransaccionAsync(
+        IReadOnlyDictionary<string, object?> parameters,
+        CancellationToken ct = default)
+        => SendAsync(BuildBody(parameters), ct);
+
     public async Task<IReadOnlyList<string>> RegistrarRespuestaTransaccionParallelAsync(
     IEnumerable<string> requestXmls,
     int degreeOfParallelism = 4,
@@ -47,17 +52,35 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
             options,
             async (index, token) =>
             {
-                // Aquí va tu llamada async real
+                // AquÃ­ va tu llamada async real
                 var xml = xmlArray[index];
 
                 var respuesta = await RegistrarRespuestaTransaccionAsync(xml, token)
                     .ConfigureAwait(false);
 
-                // Guardamos en la misma posición para mantener el orden
+                // Guardamos en la misma posiciÃ³n para mantener el orden
                 results[index] = respuesta;
             });
 
         return results;
+    }
+
+    public async Task<IReadOnlyList<string>> RegistrarRespuestaTransaccionParallelAsync(
+        IEnumerable<IReadOnlyDictionary<string, object?>> parameterSets,
+        int degreeOfParallelism = 4,
+        CancellationToken ct = default)
+    {
+        if (parameterSets is null)
+        {
+            return [];
+        }
+
+        var bodies = parameterSets
+            .Select(BuildBody)
+            .ToArray();
+
+        return await RegistrarRespuestaTransaccionParallelAsync(bodies, degreeOfParallelism, ct)
+            .ConfigureAwait(false);
     }
 
     private async Task<string> SendAsync(string requestXml, CancellationToken ct)
@@ -99,4 +122,7 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
                 </soap:Envelope>
                 """;
     }
+
+    private static string BuildBody(IReadOnlyDictionary<string, object?> parameters)
+        => SoapParameterMapper.BuildActionBody("RegistrarRespuestaTransaccion", parameters, "http://tempuri.org/");
 }

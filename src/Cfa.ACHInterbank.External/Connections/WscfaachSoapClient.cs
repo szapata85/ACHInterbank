@@ -22,11 +22,26 @@ public class WscfaachSoapClient : IWscfaachSoapClient
     public Task<string> PLValidarUsuarioBVAsync(string requestXml, CancellationToken ct = default)
         => SendAsync("PLValidarUsuarioBV", requestXml, ct);
 
+    public Task<string> PLValidarUsuarioBVAsync(
+        IReadOnlyDictionary<string, object?> parameters,
+        CancellationToken ct = default)
+        => SendAsync("PLValidarUsuarioBV", BuildBody("PLValidarUsuarioBV", parameters), ct);
+
     public Task<string> ProcContrapartidasAsync(string requestXml, CancellationToken ct = default)
         => SendAsync("Proc_Contrapartidas", requestXml, ct);
 
+    public Task<string> ProcContrapartidasAsync(
+        IReadOnlyDictionary<string, object?> parameters,
+        CancellationToken ct = default)
+        => SendAsync("Proc_Contrapartidas", BuildBody("Proc_Contrapartidas", parameters), ct);
+
     public Task<string> ProcTransaccionesAsync(string requestXml, CancellationToken ct = default)
         => SendAsync("Proc_Transacciones", requestXml, ct);
+
+    public Task<string> ProcTransaccionesAsync(
+        IReadOnlyDictionary<string, object?> parameters,
+        CancellationToken ct = default)
+        => SendAsync("Proc_Transacciones", BuildBody("Proc_Transacciones", parameters), ct);
 
     public Task<IReadOnlyList<string>> ProcTransaccionesParallelAsync(
         IEnumerable<string> requestXmls,
@@ -40,6 +55,30 @@ public class WscfaachSoapClient : IWscfaachSoapClient
 
         return Task.Run(
             () => (IReadOnlyList<string>)requestXmls
+                .AsParallel()
+                .WithDegreeOfParallelism(degreeOfParallelism)
+                .WithCancellation(ct)
+                .Select(xml => ProcTransaccionesAsync(xml, ct).GetAwaiter().GetResult())
+                .ToArray(),
+            ct);
+    }
+
+    public Task<IReadOnlyList<string>> ProcTransaccionesParallelAsync(
+        IEnumerable<IReadOnlyDictionary<string, object?>> parameterSets,
+        int degreeOfParallelism = 4,
+        CancellationToken ct = default)
+    {
+        if (parameterSets is null)
+        {
+            return Task.FromResult<IReadOnlyList<string>>([]);
+        }
+
+        var bodies = parameterSets
+            .Select(parameters => BuildBody("Proc_Transacciones", parameters))
+            .ToArray();
+
+        return Task.Run(
+            () => (IReadOnlyList<string>)bodies
                 .AsParallel()
                 .WithDegreeOfParallelism(degreeOfParallelism)
                 .WithCancellation(ct)
@@ -87,4 +126,7 @@ public class WscfaachSoapClient : IWscfaachSoapClient
                 </soap:Envelope>
                 """;
     }
+
+    private static string BuildBody(string action, IReadOnlyDictionary<string, object?> parameters)
+        => SoapParameterMapper.BuildActionBody(action, parameters, "http://tempuri.org/");
 }
