@@ -36,8 +36,9 @@ internal static class SoapParameterMapper
             return new XElement(ns + name, ConvertToString(value));
         }
 
-        if (value is IEnumerable enumerable and value is not IDictionary)
+        if (value is IEnumerable && !(value is IDictionary))
         {
+            var enumerable = (IEnumerable)value;
             var collectionElement = new XElement(ns + name);
             foreach (var item in enumerable)
             {
