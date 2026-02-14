@@ -13,11 +13,9 @@ public class SoapIntegrationSettingConfiguration : IEntityTypeConfiguration<Soap
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.WscfaachMappingsJson)
-            .HasColumnType("nvarchar(max)")
             .IsRequired();
 
         builder.Property(x => x.WsAxonRespuestaTransaccionesMappingsJson)
-            .HasColumnType("nvarchar(max)")
             .IsRequired();
     }
 }
