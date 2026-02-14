@@ -97,22 +97,6 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
             [
                 new SoapEndpointMethodMappingDto
                 {
-                    MethodName = "PLValidarUsuarioBV",
-                    Endpoint = defaultWscfaachEndpoint,
-                    SoapAction = "http://tempuri.org/IWSCFAACH/PLValidarUsuarioBV",
-                    Enabled = true,
-                    InputParameterMappings =
-                    [
-                        new SoapInputParameterMappingDto
-                        {
-                            InputName = "usuario",
-                            SoapParameterName = "Usuario",
-                            Required = true
-                        }
-                    ]
-                },
-                new SoapEndpointMethodMappingDto
-                {
                     MethodName = "Proc_Contrapartidas",
                     Endpoint = defaultWscfaachEndpoint,
                     SoapAction = "http://tempuri.org/IWSCFAACH/Proc_Contrapartidas",
@@ -194,14 +178,14 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
         IEnumerable<SoapEndpointMethodMappingDto> current,
         IEnumerable<SoapEndpointMethodMappingDto> defaults)
     {
-        var defaultByMethod = defaults.ToDictionary(x => x.MethodName, StringComparer.OrdinalIgnoreCase);
+        var currentByMethod = current.ToDictionary(x => x.MethodName, StringComparer.OrdinalIgnoreCase);
 
-        return current
-            .Select(mapping =>
+        return defaults
+            .Select(defaultValue =>
             {
-                if (!defaultByMethod.TryGetValue(mapping.MethodName, out var defaultValue))
+                if (!currentByMethod.TryGetValue(defaultValue.MethodName, out var mapping))
                 {
-                    return mapping;
+                    return defaultValue;
                 }
 
                 return mapping with

@@ -25,13 +25,6 @@ export interface SoapIntegrationSettings {
 const DEFAULT_SETTINGS: SoapIntegrationSettings = {
   wscfaachMappings: [
     {
-      methodName: 'PLValidarUsuarioBV',
-      endpoint: 'http://esparta/WSCFAACH/WSCFAACH.svc',
-      soapAction: 'http://tempuri.org/IWSCFAACH/PLValidarUsuarioBV',
-      enabled: true,
-      inputParameterMappings: [{ inputName: 'usuario', soapParameterName: 'Usuario', required: true }]
-    },
-    {
       methodName: 'Proc_Contrapartidas',
       endpoint: 'http://esparta/WSCFAACH/WSCFAACH.svc',
       soapAction: 'http://tempuri.org/IWSCFAACH/Proc_Contrapartidas',
