@@ -3,7 +3,6 @@ using System.Text;
 using Cfa.ACHInterbank.Application.External.Connections;
 using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
-using Cfa.ACHInterbank.Domain.Models.Configurations;
 
 namespace Cfa.ACHInterbank.External.Connections;
 
@@ -12,7 +11,6 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
 {
     private readonly ILoggerManager _logger;
     private readonly ISoapIntegrationSettingsService _soapSettingsService;
-    private readonly AppSettings _appSettings = AppSettings.Settings;
 
     public WsAxonRespuestaTransaccionesSoapClient(
         ILoggerManager logger,
@@ -128,20 +126,22 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
             throw new InvalidOperationException($"SOAP method '{action}' is disabled by configuration.");
         }
 
-        var endpoint = !string.IsNullOrWhiteSpace(mapping?.Endpoint)
-            ? mapping.Endpoint
-            : _appSettings.Integrations?.UrlAch;
-
-        if (string.IsNullOrWhiteSpace(endpoint))
+        if (mapping is null)
         {
-            throw new InvalidOperationException($"SOAP endpoint for '{action}' is not configured.");
+            throw new InvalidOperationException($"SOAP mapping for '{action}' is not configured in database.");
         }
 
-        var soapAction = !string.IsNullOrWhiteSpace(mapping?.SoapAction)
-            ? mapping.SoapAction
-            : "http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion";
+        if (string.IsNullOrWhiteSpace(mapping.Endpoint))
+        {
+            throw new InvalidOperationException($"SOAP endpoint for '{action}' is not configured in database.");
+        }
 
-        return (endpoint, soapAction);
+        if (string.IsNullOrWhiteSpace(mapping.SoapAction))
+        {
+            throw new InvalidOperationException($"SOAP action for '{action}' is not configured in database.");
+        }
+
+        return (mapping.Endpoint, mapping.SoapAction);
     }
 
     private static string BuildEnvelope(string body)

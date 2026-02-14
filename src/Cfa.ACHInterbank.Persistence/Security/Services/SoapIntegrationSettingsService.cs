@@ -27,11 +27,25 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
     public async Task<SoapIntegrationSettingsDto> GetAsync(CancellationToken ct = default)
     {
         var settings = await _dbContext.Set<SoapIntegrationSetting>()
-            .AsNoTracking()
             .OrderBy(x => x.Id)
             .FirstOrDefaultAsync(ct);
 
-        return settings is null ? BuildDefaultSettings() : MapToDto(settings);
+        if (settings is null)
+        {
+            var defaults = Normalize(BuildDefaultSettings());
+            settings = new SoapIntegrationSetting
+            {
+                WscfaachMappingsJson = JsonSerializer.Serialize(defaults.WscfaachMappings, JsonOptions),
+                WsAxonRespuestaTransaccionesMappingsJson = JsonSerializer.Serialize(defaults.WsAxonRespuestaTransaccionesMappings, JsonOptions)
+            };
+
+            _dbContext.Set<SoapIntegrationSetting>().Add(settings);
+            await _dbContext.SaveChangesAsync(ct);
+
+            return defaults;
+        }
+
+        return MapToDto(settings);
     }
 
     public async Task<SoapIntegrationSettingsDto> SaveAsync(SoapIntegrationSettingsDto request, CancellationToken ct = default)
