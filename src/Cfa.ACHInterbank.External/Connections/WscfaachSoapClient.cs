@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using Cfa.ACHInterbank.Application.External.Connections;
 using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
+using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 
 namespace Cfa.ACHInterbank.External.Connections;
@@ -9,14 +10,16 @@ namespace Cfa.ACHInterbank.External.Connections;
 [Scoped]
 public class WscfaachSoapClient : IWscfaachSoapClient
 {
-    private const string DefaultEndpoint = "http://esparta/WSCFAACH/WSCFAACH.svc";
-    private const string SoapActionPrefix = "http://tempuri.org/IWSCFAACH/";
     private readonly ILoggerManager _logger;
+    private readonly ISoapIntegrationSettingsService _soapSettingsService;
     private readonly AppSettings _appSettings = AppSettings.Settings;
 
-    public WscfaachSoapClient(ILoggerManager logger)
+    public WscfaachSoapClient(
+        ILoggerManager logger,
+        ISoapIntegrationSettingsService soapSettingsService)
     {
         _logger = logger;
+        _soapSettingsService = soapSettingsService;
     }
 
     public Task<string> PLValidarUsuarioBVAsync(string requestXml, CancellationToken ct = default)
@@ -89,8 +92,8 @@ public class WscfaachSoapClient : IWscfaachSoapClient
 
     private async Task<string> SendAsync(string action, string requestXml, CancellationToken ct)
     {
-        var endpoint = _appSettings.Integrations?.UrlAch ?? DefaultEndpoint;
-        var soapAction = $"{SoapActionPrefix}{action}";
+        var (endpoint, soapAction) = await ResolveConfigurationAsync(action, ct)
+            .ConfigureAwait(false);
         var envelope = BuildEnvelope(requestXml);
 
         using var client = new HttpClient();
@@ -113,6 +116,36 @@ public class WscfaachSoapClient : IWscfaachSoapClient
         }
 
         return responseContent;
+    }
+
+    private async Task<(string Endpoint, string SoapAction)> ResolveConfigurationAsync(
+        string action,
+        CancellationToken ct)
+    {
+        var settings = await _soapSettingsService.GetAsync(ct).ConfigureAwait(false);
+
+        var mapping = settings.WscfaachMappings
+            .FirstOrDefault(x => string.Equals(x.MethodName, action, StringComparison.OrdinalIgnoreCase));
+
+        if (mapping is not null && !mapping.Enabled)
+        {
+            throw new InvalidOperationException($"SOAP method '{action}' is disabled by configuration.");
+        }
+
+        var endpoint = !string.IsNullOrWhiteSpace(mapping?.Endpoint)
+            ? mapping.Endpoint
+            : _appSettings.Integrations?.UrlAch;
+
+        if (string.IsNullOrWhiteSpace(endpoint))
+        {
+            throw new InvalidOperationException($"SOAP endpoint for '{action}' is not configured.");
+        }
+
+        var soapAction = !string.IsNullOrWhiteSpace(mapping?.SoapAction)
+            ? mapping.SoapAction
+            : $"http://tempuri.org/IWSCFAACH/{action}";
+
+        return (endpoint, soapAction);
     }
 
     private static string BuildEnvelope(string body)

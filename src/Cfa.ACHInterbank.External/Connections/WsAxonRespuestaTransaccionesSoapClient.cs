@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using Cfa.ACHInterbank.Application.External.Connections;
 using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
+using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 
 namespace Cfa.ACHInterbank.External.Connections;
@@ -9,14 +10,16 @@ namespace Cfa.ACHInterbank.External.Connections;
 [Scoped]
 public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccionesSoapClient
 {
-    private const string DefaultEndpoint = "http://esparta/WSCFAACH/WSAxonRespuestaTransacciones.svc";
-    private const string SoapAction = "http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion";
     private readonly ILoggerManager _logger;
+    private readonly ISoapIntegrationSettingsService _soapSettingsService;
     private readonly AppSettings _appSettings = AppSettings.Settings;
 
-    public WsAxonRespuestaTransaccionesSoapClient(ILoggerManager logger)
+    public WsAxonRespuestaTransaccionesSoapClient(
+        ILoggerManager logger,
+        ISoapIntegrationSettingsService soapSettingsService)
     {
         _logger = logger;
+        _soapSettingsService = soapSettingsService;
     }
 
     public Task<string> RegistrarRespuestaTransaccionAsync(string requestXml, CancellationToken ct = default)
@@ -85,13 +88,14 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
 
     private async Task<string> SendAsync(string requestXml, CancellationToken ct)
     {
-        var endpoint = _appSettings.Integrations?.UrlAch ?? DefaultEndpoint;
+        var (endpoint, soapAction) = await ResolveConfigurationAsync(ct)
+            .ConfigureAwait(false);
         var envelope = BuildEnvelope(requestXml);
 
         using var client = new HttpClient();
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
         request.Content = new StringContent(envelope, Encoding.UTF8, "text/xml");
-        request.Headers.Add("SOAPAction", SoapAction);
+        request.Headers.Add("SOAPAction", soapAction);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/xml"));
 
         _logger.LogInfo($"SOAP request RegistrarRespuestaTransaccion -> {endpoint}");
@@ -109,6 +113,35 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
         }
 
         return responseContent;
+    }
+
+    private async Task<(string Endpoint, string SoapAction)> ResolveConfigurationAsync(CancellationToken ct)
+    {
+        const string action = "RegistrarRespuestaTransaccion";
+        var settings = await _soapSettingsService.GetAsync(ct).ConfigureAwait(false);
+
+        var mapping = settings.WsAxonRespuestaTransaccionesMappings
+            .FirstOrDefault(x => string.Equals(x.MethodName, action, StringComparison.OrdinalIgnoreCase));
+
+        if (mapping is not null && !mapping.Enabled)
+        {
+            throw new InvalidOperationException($"SOAP method '{action}' is disabled by configuration.");
+        }
+
+        var endpoint = !string.IsNullOrWhiteSpace(mapping?.Endpoint)
+            ? mapping.Endpoint
+            : _appSettings.Integrations?.UrlAch;
+
+        if (string.IsNullOrWhiteSpace(endpoint))
+        {
+            throw new InvalidOperationException($"SOAP endpoint for '{action}' is not configured.");
+        }
+
+        var soapAction = !string.IsNullOrWhiteSpace(mapping?.SoapAction)
+            ? mapping.SoapAction
+            : "http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion";
+
+        return (endpoint, soapAction);
     }
 
     private static string BuildEnvelope(string body)
