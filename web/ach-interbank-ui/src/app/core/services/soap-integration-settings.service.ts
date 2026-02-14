@@ -18,19 +18,19 @@ const DEFAULT_SETTINGS: SoapIntegrationSettings = {
   wscfaachMappings: [
     {
       methodName: 'PLValidarUsuarioBV',
-      endpoint: '',
+      endpoint: 'http://esparta/WSCFAACH/WSCFAACH.svc',
       soapAction: 'http://tempuri.org/IWSCFAACH/PLValidarUsuarioBV',
       enabled: true
     },
     {
       methodName: 'Proc_Contrapartidas',
-      endpoint: '',
+      endpoint: 'http://esparta/WSCFAACH/WSCFAACH.svc',
       soapAction: 'http://tempuri.org/IWSCFAACH/Proc_Contrapartidas',
       enabled: true
     },
     {
       methodName: 'Proc_Transacciones',
-      endpoint: '',
+      endpoint: 'http://esparta/WSCFAACH/WSCFAACH.svc',
       soapAction: 'http://tempuri.org/IWSCFAACH/Proc_Transacciones',
       enabled: true
     }
@@ -38,7 +38,7 @@ const DEFAULT_SETTINGS: SoapIntegrationSettings = {
   wsAxonRespuestaTransaccionesMappings: [
     {
       methodName: 'RegistrarRespuestaTransaccion',
-      endpoint: '',
+      endpoint: 'http://esparta/WSCFAACH/WSAxonRespuestaTransacciones.svc',
       soapAction: 'http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion',
       enabled: true
     }
