@@ -26,6 +26,12 @@ public class AchTransaction : AuditableEntity
     public DateTime EffectiveEntryDate { get; set; }
     public bool AddendaRecordIndicator { get; set; }
     public bool IsPrenotification { get; set; }
+
+    public AchTransferStateEnum State { get; set; } = AchTransferStateEnum.Pending;
+    public DateTime StateChangedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime? SlaDeadlineAtUtc { get; set; }
+    public string ReturnReasonCode { get; set; } = string.Empty;
+    public string OriginalTraceRef { get; set; } = string.Empty;
     public string RecipientIdNumber { get; set; } = string.Empty;
     public string DiscretionaryData { get; set; } = string.Empty;
 
@@ -45,6 +51,7 @@ public class AchTransaction : AuditableEntity
     public AchBatch AchBatch { get; set; } = null!;
 
     public ICollection<AchTransactionAddenda> Addendas { get; set; } = new List<AchTransactionAddenda>();
+    public ICollection<AchTransactionStateEvent> StateEvents { get; set; } = new List<AchTransactionStateEvent>();
 }
 
 

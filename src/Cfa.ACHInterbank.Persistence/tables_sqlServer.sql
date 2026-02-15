@@ -380,3 +380,60 @@ BEGIN
     );
 END
 GO
+
+IF COL_LENGTH('dbo.AchTransactions', 'State') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[AchTransactions]
+    ADD [State] NVARCHAR(40) NOT NULL CONSTRAINT [DF_AchTransactions_State] DEFAULT 'Pending';
+END
+GO
+
+IF COL_LENGTH('dbo.AchTransactions', 'StateChangedAtUtc') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[AchTransactions]
+    ADD [StateChangedAtUtc] DATETIME2 NOT NULL CONSTRAINT [DF_AchTransactions_StateChangedAtUtc] DEFAULT SYSUTCDATETIME();
+END
+GO
+
+IF COL_LENGTH('dbo.AchTransactions', 'SlaDeadlineAtUtc') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[AchTransactions]
+    ADD [SlaDeadlineAtUtc] DATETIME2 NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.AchTransactions', 'ReturnReasonCode') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[AchTransactions]
+    ADD [ReturnReasonCode] NVARCHAR(20) NOT NULL CONSTRAINT [DF_AchTransactions_ReturnReasonCode] DEFAULT '';
+END
+GO
+
+IF COL_LENGTH('dbo.AchTransactions', 'OriginalTraceRef') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[AchTransactions]
+    ADD [OriginalTraceRef] NVARCHAR(20) NOT NULL CONSTRAINT [DF_AchTransactions_OriginalTraceRef] DEFAULT '';
+END
+GO
+
+IF OBJECT_ID('[dbo].[AchTransactionStateEvents]', 'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[AchTransactionStateEvents]
+    (
+        [Id] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [AchTransactionId] INT NOT NULL,
+        [FromState] NVARCHAR(40) NOT NULL,
+        [ToState] NVARCHAR(40) NOT NULL,
+        [Source] NVARCHAR(20) NOT NULL,
+        [ReasonCode] NVARCHAR(20) NULL,
+        [PayloadJson] NVARCHAR(MAX) NULL,
+        [CreatedAt] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        [UpdatedAt] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT [FK_AchTransactionStateEvents_AchTransactions_AchTransactionId]
+            FOREIGN KEY ([AchTransactionId]) REFERENCES [dbo].[AchTransactions]([Id]) ON DELETE CASCADE
+    );
+
+    CREATE INDEX [IX_AchTransactionStateEvents_AchTransactionId]
+        ON [dbo].[AchTransactionStateEvents] ([AchTransactionId]);
+END
+GO

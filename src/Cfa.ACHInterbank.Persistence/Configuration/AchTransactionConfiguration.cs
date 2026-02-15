@@ -23,6 +23,21 @@ public class AchTransactionConfiguration : IEntityTypeConfiguration<AchTransacti
         builder.Property(t => t.RecipientIdNumber)
             .HasMaxLength(20);
 
+        builder.Property(t => t.State)
+            .HasConversion<string>()
+            .HasMaxLength(40)
+            .HasDefaultValue("Pending")
+            .IsRequired();
+
+        builder.Property(t => t.StateChangedAtUtc)
+            .IsRequired();
+
+        builder.Property(t => t.ReturnReasonCode)
+            .HasMaxLength(20);
+
+        builder.Property(t => t.OriginalTraceRef)
+            .HasMaxLength(20);
+
         builder.HasOne(t => t.AchBatch)
             .WithMany(b => b.Transactions)
             .HasForeignKey(t => t.AchBatchId)
