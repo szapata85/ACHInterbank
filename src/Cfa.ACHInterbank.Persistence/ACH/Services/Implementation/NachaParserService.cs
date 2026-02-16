@@ -7,6 +7,7 @@ using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Text.RegularExpressions;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -15,12 +16,17 @@ public class NachaParserService : INachaParserService
 {
     private readonly AchDbContext _context;
     private readonly ILogger<NachaParserService> _logger;
+    private readonly IAchStateTransitionService _stateTransitionService;
     private HashSet<string>? _configuredTransactionCodes;
 
-    public NachaParserService(AchDbContext context, ILogger<NachaParserService> logger)
+    public NachaParserService(
+        AchDbContext context,
+        ILogger<NachaParserService> logger,
+        IAchStateTransitionService stateTransitionService)
     {
         _context = context;
         _logger = logger;
+        _stateTransitionService = stateTransitionService;
     }
 
     public async Task<IReadOnlyList<NachaValidationFailure>> ParseAndSaveAsync(Stream nachaStream, string FileName)
@@ -163,6 +169,7 @@ public class NachaParserService : INachaParserService
             _context.NachaHeaders.AddRange(headers);
 
             await _context.SaveChangesAsync();
+            await ApplyReturnStateTransitionsAsync(validEntries, currentHeader?.AddendaRecords ?? [], failures);
             _context.ChangeTracker.AutoDetectChangesEnabled = true;
         }
         catch (Exception ex)
@@ -515,6 +522,189 @@ public class NachaParserService : INachaParserService
         return sequence.Length <= 7 ? sequence : sequence[^7..];
     }
 
+
+    private async Task ApplyReturnStateTransitionsAsync(
+        IReadOnlyList<EntryDetail> validEntries,
+        IReadOnlyList<AddendaRecord> validAddendas,
+        IReadOnlyList<NachaValidationFailure> failures)
+    {
+        await ApplyReturnedByEprTransitionsAsync(validEntries, validAddendas);
+        await ApplyReturnedByOperatorTransitionsAsync(failures);
+    }
+
+    private async Task ApplyReturnedByEprTransitionsAsync(
+        IReadOnlyList<EntryDetail> validEntries,
+        IReadOnlyList<AddendaRecord> validAddendas)
+    {
+        var processedTransactionIds = new HashSet<int>();
+
+        foreach (var entry in validEntries.Where(e => ReturnCodes.Contains(e.TransactionCode ?? string.Empty)))
+        {
+            var relatedAddenda = validAddendas
+                .Where(addenda => IsAddendaForEntry(entry, addenda)
+                    && string.Equals(addenda.CodeTypeAddendumRecord?.Trim(), "99", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            var reasonCode = ExtractReturnReasonCode(relatedAddenda);
+            var originalTraceRef = ResolveOriginalTraceReference(entry, relatedAddenda);
+
+            if (string.IsNullOrWhiteSpace(reasonCode) || string.IsNullOrWhiteSpace(originalTraceRef))
+            {
+                continue;
+            }
+
+            var transaction = await FindTransactionByTraceReferenceAsync(originalTraceRef);
+            if (transaction is null || !processedTransactionIds.Add(transaction.Id))
+            {
+                continue;
+            }
+
+            try
+            {
+                await _stateTransitionService.TransitionAsync(
+                    transaction.Id,
+                    AchTransferStateEnum.ReturnedByEpr,
+                    AchStateEventSourceEnum.Epr,
+                    reasonCode: reasonCode,
+                    payloadJson: BuildParserPayload(entry, relatedAddenda),
+                    originalTraceRef: originalTraceRef);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex,
+                    "No se pudo aplicar transición ReturnedByEpr para transacción {TransactionId} (trace {TraceRef}).",
+                    transaction.Id,
+                    originalTraceRef);
+            }
+        }
+    }
+
+    private async Task ApplyReturnedByOperatorTransitionsAsync(IReadOnlyList<NachaValidationFailure> failures)
+    {
+        var processedTransactionIds = new HashSet<int>();
+
+        foreach (var failure in failures.Where(f => !string.IsNullOrWhiteSpace(f.EntrySequence)))
+        {
+            var transaction = await FindTransactionByTraceReferenceAsync(failure.EntrySequence);
+            if (transaction is null || !processedTransactionIds.Add(transaction.Id))
+            {
+                continue;
+            }
+
+            var reasonCode = ExtractOperatorReasonCode(failure.Reason);
+
+            try
+            {
+                await _stateTransitionService.TransitionAsync(
+                    transaction.Id,
+                    AchTransferStateEnum.ReturnedByOperator,
+                    AchStateEventSourceEnum.Operator,
+                    reasonCode: reasonCode,
+                    payloadJson: BuildOperatorFailurePayload(failure));
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex,
+                    "No se pudo aplicar transición ReturnedByOperator para transacción {TransactionId} asociada a secuencia {EntrySequence}.",
+                    transaction.Id,
+                    failure.EntrySequence);
+            }
+        }
+    }
+
+    private async Task<AchTransaction?> FindTransactionByTraceReferenceAsync(string? traceReference)
+    {
+        if (string.IsNullOrWhiteSpace(traceReference))
+        {
+            return null;
+        }
+
+        var normalized = traceReference.Trim();
+
+        var transaction = await _context.AchTransactions
+            .FirstOrDefaultAsync(t => t.TraceNumber == normalized);
+
+        if (transaction is not null)
+        {
+            return transaction;
+        }
+
+        var sequenceSuffix = GetEntrySequenceSuffix(normalized);
+        if (!int.TryParse(sequenceSuffix, out var sequenceNumber))
+        {
+            return null;
+        }
+
+        return await _context.AchTransactions
+            .FirstOrDefaultAsync(t => t.TraceSequenceNumber == sequenceNumber);
+    }
+
+    private static string? ResolveOriginalTraceReference(EntryDetail entry, IReadOnlyList<AddendaRecord> relatedAddenda)
+    {
+        var addendaRef = relatedAddenda
+            .SelectMany(addenda => new[]
+            {
+                addenda.InvoiceOrAccountNumber,
+                addenda.InfofromOriginator,
+                addenda.IdUserOrig
+            })
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value) && Regex.IsMatch(value, @"\d{7,15}"));
+
+        if (!string.IsNullOrWhiteSpace(addendaRef))
+        {
+            var digits = new string(addendaRef.Where(char.IsDigit).ToArray());
+            if (digits.Length is >= 7 and <= 15)
+            {
+                return digits;
+            }
+        }
+
+        return GetEntrySequenceSuffix(entry.SequenceNumber);
+    }
+
+    private static string? ExtractReturnReasonCode(IReadOnlyList<AddendaRecord> relatedAddenda)
+    {
+        foreach (var addenda in relatedAddenda)
+        {
+            var payload = string.Join(' ', new[]
+            {
+                addenda.IdUserOrig,
+                addenda.PurposeOfTransaction,
+                addenda.InvoiceOrAccountNumber,
+                addenda.InfofromOriginator
+            }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+            var match = Regex.Match(payload, @"\b(R\d{2}|DEV14)\b", RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                return match.Value.ToUpperInvariant();
+            }
+        }
+
+        return null;
+    }
+
+    private static string ExtractOperatorReasonCode(string reason)
+    {
+        var match = Regex.Match(reason ?? string.Empty, @"\bD\d{2}\b", RegexOptions.IgnoreCase);
+        return match.Success ? match.Value.ToUpperInvariant() : "D00";
+    }
+
+    private static string BuildOperatorFailurePayload(NachaValidationFailure failure)
+    {
+        return System.Text.Json.JsonSerializer.Serialize(new
+        {
+            recordType = failure.RecordType,
+            entrySequence = failure.EntrySequence,
+            message = failure.Reason
+        });
+    }
+
+    private static string BuildParserPayload(EntryDetail entry, IReadOnlyList<AddendaRecord> relatedAddenda)
+    {
+        var addendaCount = relatedAddenda.Count;
+        return $"{{\"transactionCode\":\"{entry.TransactionCode}\",\"entrySequence\":\"{entry.SequenceNumber}\",\"addendaCount\":{addendaCount}}}";
+    }
 
     private async Task<HashSet<string>> GetConfiguredTransactionCodesAsync()
     {
