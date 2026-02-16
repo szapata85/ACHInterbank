@@ -169,7 +169,8 @@ public class NachaParserService : INachaParserService
             _context.NachaHeaders.AddRange(headers);
 
             await _context.SaveChangesAsync();
-            await ApplyReturnStateTransitionsAsync(validEntries, currentHeader?.AddendaRecords ?? [], failures);
+            var validAddendas = currentHeader?.AddendaRecords?.ToList() ?? [];
+            await ApplyReturnStateTransitionsAsync(validEntries, validAddendas, failures);
             _context.ChangeTracker.AutoDetectChangesEnabled = true;
         }
         catch (Exception ex)
