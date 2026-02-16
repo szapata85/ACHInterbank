@@ -23,28 +23,39 @@ public class TaskParameterSeeder : IDbSeeder
         var seedTask = await _context.TaskDefinitions
             .FirstOrDefaultAsync(t => t.Code == "SeedBankHolidays");
 
-        if (seedTask is null)
+        if (seedTask is not null)
         {
-            return;
+            if (!_context.TaskParameters.Any(p => p.TaskDefinitionId == seedTask.Id && p.Key == "SeedNextYears"))
+            {
+                _context.TaskParameters.Add(new TaskParameter
+                {
+                    TaskDefinitionId = seedTask.Id,
+                    Key = "SeedNextYears",
+                    Value = "1"
+                });
+            }
+
+            if (!_context.TaskParameters.Any(p => p.TaskDefinitionId == seedTask.Id && p.Key == "Years"))
+            {
+                _context.TaskParameters.Add(new TaskParameter
+                {
+                    TaskDefinitionId = seedTask.Id,
+                    Key = "Years",
+                    Value = string.Empty
+                });
+            }
         }
 
-        if (!_context.TaskParameters.Any(p => p.TaskDefinitionId == seedTask.Id && p.Key == "SeedNextYears"))
+        var tacitTask = await _context.TaskDefinitions
+            .FirstOrDefaultAsync(t => t.Code == "AchTacitAcceptanceJob");
+
+        if (tacitTask is not null && !_context.TaskParameters.Any(p => p.TaskDefinitionId == tacitTask.Id && p.Key == "BatchSize"))
         {
             _context.TaskParameters.Add(new TaskParameter
             {
-                TaskDefinitionId = seedTask.Id,
-                Key = "SeedNextYears",
-                Value = "1"
-            });
-        }
-
-        if (!_context.TaskParameters.Any(p => p.TaskDefinitionId == seedTask.Id && p.Key == "Years"))
-        {
-            _context.TaskParameters.Add(new TaskParameter
-            {
-                TaskDefinitionId = seedTask.Id,
-                Key = "Years",
-                Value = string.Empty
+                TaskDefinitionId = tacitTask.Id,
+                Key = "BatchSize",
+                Value = "500"
             });
         }
 
