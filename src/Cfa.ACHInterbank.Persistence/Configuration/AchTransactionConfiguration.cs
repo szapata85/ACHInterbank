@@ -1,4 +1,5 @@
-﻿using Cfa.ACHInterbank.Domain.Models.ACH;
+﻿using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -26,7 +27,7 @@ public class AchTransactionConfiguration : IEntityTypeConfiguration<AchTransacti
         builder.Property(t => t.State)
             .HasConversion<string>()
             .HasMaxLength(40)
-            .HasDefaultValue("Pending")
+            .HasDefaultValue(AchTransferStateEnum.Pending)
             .IsRequired();
 
         builder.Property(t => t.StateChangedAtUtc)
