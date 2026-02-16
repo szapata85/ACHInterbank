@@ -3,6 +3,7 @@ using System.Text;
 using Cfa.ACHInterbank.Application.External.Connections;
 using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 
 namespace Cfa.ACHInterbank.External.Connections;
 

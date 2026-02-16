@@ -17,7 +17,7 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.1")
+                .HasAnnotation("ProductVersion", "10.0.2")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -99,6 +99,50 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasIndex("LoggedAt");
 
                     b.ToTable("AuthLog", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.Audit.NavigationLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("DurationMs")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Route")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("SessionId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("UserId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("VisitedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Route");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("VisitedAt");
+
+                    b.ToTable("NavigationLog", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.Branding.BrandingSetting", b =>
@@ -282,6 +326,29 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                             Order = 4,
                             ParentId = 2,
                             Route = "/users/login-lockout"
+                        },
+                        new
+                        {
+                            Id = 29,
+                            Exact = false,
+                            Icon = "hub",
+                            IsActive = true,
+                            Label = "Integraciones",
+                            MenuId = 1,
+                            Order = 5,
+                            Route = "/integraciones"
+                        },
+                        new
+                        {
+                            Id = 30,
+                            Exact = true,
+                            Icon = "settings_ethernet",
+                            IsActive = true,
+                            Label = "Integraciones SOAP",
+                            MenuId = 1,
+                            Order = 1,
+                            ParentId = 29,
+                            Route = "/soap-integrations"
                         },
                         new
                         {
@@ -518,6 +585,18 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
+                            Id = 28,
+                            Exact = true,
+                            Icon = "groups",
+                            IsActive = true,
+                            Label = "Terceros prenotificación",
+                            MenuId = 1,
+                            Order = 4,
+                            ParentId = 6,
+                            Route = "/customer-third-parties"
+                        },
+                        new
+                        {
                             Id = 21,
                             Exact = true,
                             Icon = "lock",
@@ -637,6 +716,16 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
+                            MenuItemId = 28,
+                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
+                        },
+                        new
+                        {
+                            MenuItemId = 28,
+                            PermissionId = new Guid("4f0cbde9-1b2e-4ad8-b8e6-62f0a1cd6cf7")
+                        },
+                        new
+                        {
                             MenuItemId = 18,
                             PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
                         },
@@ -668,6 +757,16 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         new
                         {
                             MenuItemId = 24,
+                            PermissionId = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf")
+                        },
+                        new
+                        {
+                            MenuItemId = 29,
+                            PermissionId = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf")
+                        },
+                        new
+                        {
+                            MenuItemId = 30,
                             PermissionId = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf")
                         });
                 });
@@ -724,6 +823,16 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
+                            MenuItemId = 28,
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
+                        },
+                        new
+                        {
+                            MenuItemId = 28,
+                            RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56")
+                        },
+                        new
+                        {
                             MenuItemId = 25,
                             RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
                         },
@@ -745,6 +854,16 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         new
                         {
                             MenuItemId = 24,
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
+                        },
+                        new
+                        {
+                            MenuItemId = 29,
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
+                        },
+                        new
+                        {
+                            MenuItemId = 30,
                             RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
                         },
                         new
@@ -1169,6 +1288,33 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         });
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.SoapIntegrationSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("WsAxonRespuestaTransaccionesMappingsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("WscfaachMappingsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("SoapIntegrationSettings", (string)null);
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.User.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1424,6 +1570,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<bool>("IsPrenotification")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("OriginalTraceRef")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("OriginatingDFI")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1441,9 +1592,17 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("ReturnReasonCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("ServiceClassCode")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("SlaDeadlineAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("SourceAccountNumber")
                         .IsRequired()
@@ -1451,6 +1610,16 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     b.Property<int>("SourceInstitutionId")
                         .HasColumnType("integer");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasDefaultValue("Pending");
+
+                    b.Property<DateTime>("StateChangedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("TraceNumber")
                         .IsRequired()
@@ -1520,6 +1689,52 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasIndex("AchTransactionId");
 
                     b.ToTable("AchTransactionAddenda", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchTransactionStateEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("AchTransactionId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FromState")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("PayloadJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ReasonCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("ToState")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AchTransactionId");
+
+                    b.ToTable("AchTransactionStateEvents", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AddendaRecord", b =>
@@ -1866,11 +2081,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("AccountNumber")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
                     b.Property<string>("CompanyName")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -1928,6 +2138,36 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .IsUnique();
 
                     b.ToTable("Customers", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerAccount", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AccountNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId", "AccountNumber")
+                        .IsUnique();
+
+                    b.ToTable("CustomerAccounts", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerAddress", b =>
@@ -3176,6 +3416,142 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         });
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.TransactionCodeCatalog", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Code");
+
+                    b.ToTable("TransactionCodes", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Code = "21",
+                            Description = "Devolución de crédito a cuenta corriente.",
+                            Name = "Devolución crédito cuenta corriente"
+                        },
+                        new
+                        {
+                            Code = "22",
+                            Description = "Crédito a cuenta corriente.",
+                            Name = "Crédito cuenta corriente"
+                        },
+                        new
+                        {
+                            Code = "23",
+                            Description = "Prenotificación crédito a cuenta corriente.",
+                            Name = "Prenotificación crédito cuenta corriente"
+                        },
+                        new
+                        {
+                            Code = "26",
+                            Description = "Devolución de débito a cuenta corriente.",
+                            Name = "Devolución débito cuenta corriente"
+                        },
+                        new
+                        {
+                            Code = "27",
+                            Description = "Débito a cuenta corriente.",
+                            Name = "Débito cuenta corriente"
+                        },
+                        new
+                        {
+                            Code = "28",
+                            Description = "Prenotificación débito a cuenta corriente.",
+                            Name = "Prenotificación débito cuenta corriente"
+                        },
+                        new
+                        {
+                            Code = "31",
+                            Description = "Devolución de crédito a cuenta de ahorros.",
+                            Name = "Devolución crédito cuenta ahorros"
+                        },
+                        new
+                        {
+                            Code = "32",
+                            Description = "Crédito a cuenta de ahorros.",
+                            Name = "Crédito cuenta ahorros"
+                        },
+                        new
+                        {
+                            Code = "33",
+                            Description = "Prenotificación crédito a cuenta de ahorros.",
+                            Name = "Prenotificación crédito cuenta ahorros"
+                        },
+                        new
+                        {
+                            Code = "36",
+                            Description = "Devolución de débito a cuenta de ahorros.",
+                            Name = "Devolución débito cuenta ahorros"
+                        },
+                        new
+                        {
+                            Code = "37",
+                            Description = "Débito a cuenta de ahorros.",
+                            Name = "Débito cuenta ahorros"
+                        },
+                        new
+                        {
+                            Code = "38",
+                            Description = "Prenotificación débito a cuenta de ahorros.",
+                            Name = "Prenotificación débito cuenta ahorros"
+                        },
+                        new
+                        {
+                            Code = "42",
+                            Description = "Código especial para crédito en cuenta puente (p. ej. recaudos PSE).",
+                            Name = "Crédito cuenta puente"
+                        },
+                        new
+                        {
+                            Code = "51",
+                            Description = "Devolución de crédito a depósitos electrónicos.",
+                            Name = "Devolución crédito depósitos electrónicos"
+                        },
+                        new
+                        {
+                            Code = "52",
+                            Description = "Crédito a depósitos electrónicos.",
+                            Name = "Crédito depósitos electrónicos"
+                        },
+                        new
+                        {
+                            Code = "53",
+                            Description = "Prenotificación crédito a depósitos electrónicos.",
+                            Name = "Prenotificación crédito depósitos electrónicos"
+                        },
+                        new
+                        {
+                            Code = "55",
+                            Description = "Débito a depósitos electrónicos.",
+                            Name = "Débito depósitos electrónicos"
+                        },
+                        new
+                        {
+                            Code = "56",
+                            Description = "Devolución de débito a depósitos electrónicos.",
+                            Name = "Devolución débito depósitos electrónicos"
+                        },
+                        new
+                        {
+                            Code = "57",
+                            Description = "Prenotificación débito a depósitos electrónicos.",
+                            Name = "Prenotificación débito depósitos electrónicos"
+                        });
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalEnvelopeCertificate", b =>
                 {
                     b.Property<int>("Id")
@@ -3428,6 +3804,17 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Navigation("Transaction");
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchTransactionStateEvent", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", "AchTransaction")
+                        .WithMany("StateEvents")
+                        .HasForeignKey("AchTransactionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AchTransaction");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AddendaRecord", b =>
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.NachaHeader", "NachaHeader")
@@ -3512,6 +3899,17 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Navigation("GenderCatalog");
 
                     b.Navigation("PersonTypeCatalog");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerAccount", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.Customer", "Customer")
+                        .WithMany("Accounts")
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CustomerAddress", b =>
@@ -3725,6 +4123,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", b =>
                 {
                     b.Navigation("Addendas");
+
+                    b.Navigation("StateEvents");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AddressTypeCatalog", b =>
@@ -3748,6 +4148,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.Customer", b =>
                 {
+                    b.Navigation("Accounts");
+
                     b.Navigation("Addresses");
 
                     b.Navigation("Emails");
