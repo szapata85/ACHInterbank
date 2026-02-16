@@ -93,6 +93,16 @@ const routes: Routes = [
         loadChildren: () => import('./features/scheduler/scheduler.module').then((m) => m.SchedulerModule)
       },
       {
+        path: 'log',
+        pathMatch: 'full',
+        redirectTo: 'audit-logs'
+      },
+      {
+        path: 'logs',
+        pathMatch: 'full',
+        redirectTo: 'audit-logs'
+      },
+      {
         path: 'audit-logs',
         loadChildren: () => import('./features/audit/audit.module').then((m) => m.AuditModule)
       },
