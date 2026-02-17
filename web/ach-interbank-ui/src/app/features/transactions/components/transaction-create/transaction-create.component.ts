@@ -49,7 +49,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   );
   readonly form: FormGroup = this.fb.group({
     customerId: [null],
-    amount: [null, [Validators.required, Validators.min(0.01)]],
+    amount: ['', [Validators.required]],
     reference: ['', [Validators.required, Validators.maxLength(30)]],
     type: [TransactionTypeEnum.Credit, Validators.required],
     accountType: [AccountTypeEnum.Checking, Validators.required],
@@ -73,6 +73,10 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   activeDestinationAccounts: ActiveThirdPartyAccount[] = [];
   filteredDestinationAccounts: ActiveThirdPartyAccount[] = [];
   selectedCustomerAccounts: string[] = [];
+  private readonly amountFormatter = new Intl.NumberFormat('es-CO', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  });
 
   ngOnInit(): void {
     this.form.setValidators([this.validateAccountDifference, this.validateBusinessRules]);
@@ -176,12 +180,19 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     }
 
     const payload = this.form.getRawValue() as TransactionDraft;
+    const parsedAmount = this.parseMaskedAmount(payload.amount);
+    if (parsedAmount === null || (!Boolean(payload.isPrenotification) && parsedAmount <= 0)) {
+      this.form.get('amount')?.setErrors({ invalidAmount: true });
+      this.form.get('amount')?.markAsTouched();
+      return;
+    }
+
     const sanitized: TransactionDraft = {
       ...payload,
       type: Number(payload.type) as TransactionTypeEnum,
       accountType: Number(payload.accountType) as AccountTypeEnum,
       isPrenotification: Boolean(payload.isPrenotification),
-      amount: Number(payload.amount),
+      amount: parsedAmount,
       destinationInstitutionId: Number(payload.destinationInstitutionId),
       reference: payload.reference.trim(),
       sourceAccountNumber: payload.sourceAccountNumber.trim(),
@@ -247,6 +258,18 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
   trackAddenda(index: number): number {
     return index;
+  }
+
+  get amountPreviewValue(): number {
+    return this.parseMaskedAmount(this.form.get('amount')?.value) ?? 0;
+  }
+
+  onAmountInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const formatted = this.formatMaskedAmount(input.value);
+    input.value = formatted;
+    this.form.get('amount')?.setValue(formatted, { emitEvent: false });
+    this.form.get('amount')?.updateValueAndValidity({ emitEvent: false });
   }
 
 
@@ -323,7 +346,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
   private validateBusinessRules = (group: FormGroup) => {
     const isPrenotification = Boolean(group.get('isPrenotification')?.value);
-    const amount = Number(group.get('amount')?.value ?? 0);
+    const amount = this.parseMaskedAmount(group.get('amount')?.value) ?? 0;
     const type = Number(group.get('type')?.value) as TransactionTypeEnum;
     const recipientId = group.get('recipientIdNumber')?.value;
     const requiresIdentityValidation = Boolean(group.get('requiresIdentityValidation')?.value);
@@ -366,5 +389,49 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       addendaType: item.addendaType?.trim().toUpperCase(),
       information: item.information.trim()
     };
+  }
+
+  private formatMaskedAmount(rawValue: string): string {
+    const sanitized = (rawValue ?? '').replace(/[^\d.,]/g, '');
+    if (!sanitized) {
+      return '';
+    }
+
+    const separatorMatch = sanitized.match(/[.,](?!.*[.,])/);
+    if (separatorMatch?.index === undefined) {
+      const digits = sanitized.replace(/\D/g, '');
+      return digits ? this.amountFormatter.format(Number(digits)) : '';
+    }
+
+    const separatorIndex = separatorMatch.index;
+    const integerDigits = sanitized.slice(0, separatorIndex).replace(/\D/g, '');
+    const decimalDigits = sanitized.slice(separatorIndex + 1).replace(/\D/g, '').slice(0, 2);
+    const integerFormatted = integerDigits ? this.amountFormatter.format(Number(integerDigits)) : '0';
+    const hasTrailingSeparator = separatorIndex === sanitized.length - 1;
+
+    if (decimalDigits) {
+      return `${integerFormatted},${decimalDigits}`;
+    }
+
+    return hasTrailingSeparator ? `${integerFormatted},` : integerFormatted;
+  }
+
+  private parseMaskedAmount(value: unknown): number | null {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null;
+    }
+
+    const raw = String(value ?? '').trim();
+    if (!raw) {
+      return null;
+    }
+
+    const normalized = raw.replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
+    if (!normalized) {
+      return null;
+    }
+
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
   }
 }

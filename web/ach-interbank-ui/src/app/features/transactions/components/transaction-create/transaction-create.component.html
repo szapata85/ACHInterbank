@@ -21,17 +21,17 @@
       <label>
         <span>Monto *</span>
         <input
-          type="number"
+          type="text"
           formControlName="amount"
           inputmode="decimal"
-          [min]="form.get('isPrenotification')?.value ? 0 : 0.01"
-          step="0.01"
+          (input)="onAmountInput($event)"
+          placeholder="0,00"
           required
           aria-describedby="amount-help"
         />
         <small id="amount-help">Ingrese el monto en pesos colombianos.</small>
         <small class="muted" *ngIf="form.get('isPrenotification')?.value">Las prenotificaciones deben ser $0.</small>
-        <small class="muted">Valor a enviar: {{ form.get('amount')?.value | currencyCol }}</small>
+        <small class="muted">Valor a enviar: {{ amountPreviewValue | currencyCol }}</small>
         <app-error-message [control]="form.get('amount')"></app-error-message>
       </label>
 
