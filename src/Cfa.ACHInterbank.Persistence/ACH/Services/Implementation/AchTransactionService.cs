@@ -100,15 +100,17 @@ public class AchTransactionService : IAchTransactionService
             preferredName: request.CompanyName,
             accountNumber: request.SourceAccountNumber,
             defaultPersonType: "PJ",
+            defaultDocumentType: "NIT",
             ct: ct);
 
         if (!string.IsNullOrWhiteSpace(request.RecipientIdNumber))
         {
             await EnsureCustomerWithAccountAsync(
                 documentNumber: request.RecipientIdNumber,
-                preferredName: request.RecipientIdNumber,
+                preferredName: null,
                 accountNumber: request.DestinationAccountNumber,
                 defaultPersonType: "PN",
+                defaultDocumentType: "CC",
                 ct: ct);
         }
     }
@@ -118,6 +120,7 @@ public class AchTransactionService : IAchTransactionService
         string? preferredName,
         string? accountNumber,
         string defaultPersonType,
+        string defaultDocumentType,
         CancellationToken ct)
     {
         var normalizedDocument = (documentNumber ?? string.Empty).Trim();
@@ -128,20 +131,43 @@ public class AchTransactionService : IAchTransactionService
             return;
         }
 
+        var resolvedDocumentType = await ResolveCatalogCodeAsync(_context.DocumentTypes, defaultDocumentType, ct);
+
         var customer = await _context.Customers
             .Include(c => c.Accounts)
-            .FirstOrDefaultAsync(c => c.DocumentNumber == normalizedDocument, ct);
+            .FirstOrDefaultAsync(
+                c => c.DocumentType == resolvedDocumentType && c.DocumentNumber == normalizedDocument,
+                ct);
 
         if (customer is null)
         {
+            var legacyCustomers = await _context.Customers
+                .Include(c => c.Accounts)
+                .Where(c => c.DocumentNumber == normalizedDocument)
+                .ToListAsync(ct);
+
+            if (legacyCustomers.Count == 1)
+            {
+                customer = legacyCustomers[0];
+                if (customer.DocumentType == "OTRO" && customer.DocumentType != resolvedDocumentType)
+                {
+                    customer.DocumentType = resolvedDocumentType;
+                }
+            }
+        }
+
+        if (customer is null)
+        {
+            var autoProfile = BuildAutoProfile(defaultPersonType, preferredName);
+
             customer = new Customer
             {
                 PersonType = await ResolveCatalogCodeAsync(_context.PersonTypes, defaultPersonType, ct),
-                DocumentType = await ResolveCatalogCodeAsync(_context.DocumentTypes, "OTRO", ct),
+                DocumentType = resolvedDocumentType,
                 DocumentNumber = normalizedDocument,
-                CompanyName = NormalizeText(preferredName, 200),
-                FirstName = NormalizeText(preferredName, 100, "N/A"),
-                LastName = "N/A"
+                CompanyName = autoProfile.CompanyName,
+                FirstName = autoProfile.FirstName,
+                LastName = autoProfile.LastName
             };
 
             customer.Accounts.Add(new CustomerAccount { AccountNumber = normalizedAccount });
@@ -150,11 +176,105 @@ public class AchTransactionService : IAchTransactionService
             return;
         }
 
+        RefreshAutoProfileIfNeeded(customer, defaultPersonType, preferredName);
+
         if (!customer.Accounts.Any(a => a.AccountNumber == normalizedAccount))
         {
             customer.Accounts.Add(new CustomerAccount { AccountNumber = normalizedAccount });
             await _context.SaveChangesAsync(ct);
         }
+        else if (_context.ChangeTracker.HasChanges())
+        {
+            await _context.SaveChangesAsync(ct);
+        }
+    }
+
+    private static (string FirstName, string LastName, string? CompanyName) BuildAutoProfile(
+        string personType,
+        string? preferredName)
+    {
+        if (personType == "PJ")
+        {
+            var companyName = NormalizeText(preferredName, 200, "EMPRESA NO IDENTIFICADA");
+            return (
+                FirstName: NormalizeText(companyName, 100, "EMPRESA"),
+                LastName: "N/A",
+                CompanyName: companyName);
+        }
+
+        var naturalName = IsLikelyIdentifier(preferredName)
+            ? string.Empty
+            : NormalizeText(preferredName, 100, "CLIENTE");
+
+        return (
+            FirstName: string.IsNullOrWhiteSpace(naturalName) ? "CLIENTE" : naturalName,
+            LastName: "NO IDENTIFICADO",
+            CompanyName: null);
+    }
+
+    private static void RefreshAutoProfileIfNeeded(Customer customer, string personType, string? preferredName)
+    {
+        if (string.IsNullOrWhiteSpace(preferredName) || IsLikelyIdentifier(preferredName))
+        {
+            return;
+        }
+
+        var normalizedName = NormalizeText(preferredName, 200);
+        if (string.IsNullOrWhiteSpace(normalizedName))
+        {
+            return;
+        }
+
+        if (personType == "PJ")
+        {
+            if (LooksAutoGenerated(customer.CompanyName))
+            {
+                customer.CompanyName = normalizedName;
+            }
+
+            if (LooksAutoGenerated(customer.FirstName))
+            {
+                customer.FirstName = NormalizeText(normalizedName, 100, "EMPRESA");
+            }
+
+            if (LooksAutoGenerated(customer.LastName))
+            {
+                customer.LastName = "N/A";
+            }
+
+            return;
+        }
+
+        if (LooksAutoGenerated(customer.FirstName))
+        {
+            customer.FirstName = NormalizeText(normalizedName, 100, "CLIENTE");
+        }
+
+        if (LooksAutoGenerated(customer.LastName))
+        {
+            customer.LastName = "NO IDENTIFICADO";
+        }
+    }
+
+    private static bool LooksAutoGenerated(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return true;
+        }
+
+        return normalized.Equals("N/A", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("CLIENTE", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("NO IDENTIFICADO", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("EMPRESA", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("EMPRESA NO IDENTIFICADA", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsLikelyIdentifier(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        return !string.IsNullOrWhiteSpace(normalized) && normalized.All(char.IsDigit);
     }
 
     private static string NormalizeText(string? value, int maxLength, string fallback = "")
