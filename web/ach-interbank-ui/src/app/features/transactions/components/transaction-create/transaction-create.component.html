@@ -7,16 +7,15 @@
   <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
     <div class="form-grid">
       <label>
-        <span>Cliente originador</span>
+        <span>Cliente originador (opcional)</span>
         <select formControlName="customerId">
           <option [ngValue]="null">Sin cliente pre-registrado</option>
           <option *ngFor="let customer of customers$ | async" [ngValue]="customer.id">
             {{ customer.fullName }} · {{ customer.documentType }} {{ customer.documentNumber }} · {{ customer.accountNumbers.length }} cuenta(s)
           </option>
         </select>
-        <small class="muted">Opcional: selecciónalo para autocompletar identificación, nombre y cuenta origen.</small>
-        <small class="muted">Si no existe, puedes crear la transacción y el cliente se registrará silenciosamente.</small>
-        <app-error-message [control]="form.get('customerId')"></app-error-message>
+        <small class="muted">Seleccionarlo autocompleta identificación, nombre y cuenta origen.</small>
+        <small class="muted">Si no existe, crea la transacción y el cliente se registrará silenciosamente.</small>
       </label>
 
       <label>
