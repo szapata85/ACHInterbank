@@ -7,15 +7,15 @@
   <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
     <div class="form-grid">
       <label>
-        <span>Cliente originador *</span>
-        <select formControlName="customerId" required>
-          <option [ngValue]="null" disabled>Seleccione un cliente registrado</option>
+        <span>Cliente originador</span>
+        <select formControlName="customerId">
+          <option [ngValue]="null">Sin cliente pre-registrado</option>
           <option *ngFor="let customer of customers$ | async" [ngValue]="customer.id">
             {{ customer.fullName }} · {{ customer.documentType }} {{ customer.documentNumber }} · {{ customer.accountNumbers.length }} cuenta(s)
           </option>
         </select>
-        <small class="muted">Debe existir y estar registrado para construir el lote NACHA (registro 5).</small>
-        <small class="muted">¿No existe? Regístralo en <a routerLink="/customers">Clientes</a>.</small>
+        <small class="muted">Opcional: selecciónalo para autocompletar identificación, nombre y cuenta origen.</small>
+        <small class="muted">Si no existe, puedes crear la transacción y el cliente se registrará silenciosamente.</small>
         <app-error-message [control]="form.get('customerId')"></app-error-message>
       </label>
 
@@ -81,10 +81,17 @@
 
       <label>
         <span>Cuenta origen *</span>
-        <select formControlName="sourceAccountNumber" required>
-          <option value="" disabled>Seleccione una cuenta origen</option>
-          <option *ngFor="let accountNumber of selectedCustomerAccounts" [value]="accountNumber">{{ accountNumber }}</option>
-        </select>
+        <ng-container *ngIf="selectedCustomerAccounts.length > 0; else manualSourceAccount">
+          <select formControlName="sourceAccountNumber" required>
+            <option value="" disabled>Seleccione una cuenta origen</option>
+            <option *ngFor="let accountNumber of selectedCustomerAccounts" [value]="accountNumber">{{ accountNumber }}</option>
+          </select>
+          <small class="muted">Puedes digitar otra cuenta limpiando el cliente originador.</small>
+        </ng-container>
+        <ng-template #manualSourceAccount>
+          <input type="text" formControlName="sourceAccountNumber" required inputmode="numeric" maxlength="18" />
+          <small class="muted">Digite la cuenta origen (6 a 18 dígitos).</small>
+        </ng-template>
         <app-error-message [control]="form.get('sourceAccountNumber')"></app-error-message>
       </label>
 
@@ -140,13 +147,15 @@
 
       <label>
         <span>Nombre usuario originador *</span>
-        <input type="text" formControlName="companyName" required maxlength="16" readonly />
+        <input type="text" formControlName="companyName" required maxlength="16" />
+        <small class="muted">Si seleccionas cliente se autocompleta, pero puedes ajustarlo.</small>
         <app-error-message [control]="form.get('companyName')"></app-error-message>
       </label>
 
       <label>
         <span>Identificación usuario originador *</span>
-        <input type="text" formControlName="companyIdentification" required maxlength="10" readonly />
+        <input type="text" formControlName="companyIdentification" required maxlength="10" />
+        <small class="muted">Este dato se usa para alta silenciosa/actualización del cliente originador.</small>
         <app-error-message [control]="form.get('companyIdentification')"></app-error-message>
       </label>
 

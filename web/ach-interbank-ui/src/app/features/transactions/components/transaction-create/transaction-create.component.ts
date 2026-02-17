@@ -48,7 +48,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     )
   );
   readonly form: FormGroup = this.fb.group({
-    customerId: [null, [Validators.required]],
+    customerId: [null],
     amount: [null, [Validators.required, Validators.min(0.01)]],
     reference: ['', [Validators.required, Validators.maxLength(30)]],
     type: [TransactionTypeEnum.Credit, Validators.required],
@@ -88,11 +88,6 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       .subscribe((customerId) => {
         if (!customerId) {
           this.selectedCustomerAccounts = [];
-          this.form.patchValue({
-            sourceAccountNumber: '',
-            companyName: '',
-            companyIdentification: ''
-          }, { emitEvent: false });
           this.loadActiveDestinationAccounts();
           this.cdr.markForCheck();
           return;
