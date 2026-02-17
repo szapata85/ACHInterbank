@@ -392,22 +392,29 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   }
 
   private formatMaskedAmount(rawValue: string): string {
-    const sanitized = (rawValue ?? '').replace(/[^\d.,]/g, '');
-    if (!sanitized) {
+    const raw = String(rawValue ?? '');
+    if (!raw.trim()) {
       return '';
     }
 
-    const separatorMatch = sanitized.match(/[.,](?!.*[.,])/);
-    if (separatorMatch?.index === undefined) {
-      const digits = sanitized.replace(/\D/g, '');
+    const normalized = raw
+      .replace(/\./g, '')
+      .replace(/[^\d,]/g, '');
+
+    if (!normalized) {
+      return '';
+    }
+
+    const separatorIndex = normalized.indexOf(',');
+    if (separatorIndex === -1) {
+      const digits = normalized.replace(/\D/g, '');
       return digits ? this.amountFormatter.format(Number(digits)) : '';
     }
 
-    const separatorIndex = separatorMatch.index;
-    const integerDigits = sanitized.slice(0, separatorIndex).replace(/\D/g, '');
-    const decimalDigits = sanitized.slice(separatorIndex + 1).replace(/\D/g, '').slice(0, 2);
+    const integerDigits = normalized.slice(0, separatorIndex).replace(/\D/g, '');
+    const decimalDigits = normalized.slice(separatorIndex + 1).replace(/\D/g, '').slice(0, 2);
     const integerFormatted = integerDigits ? this.amountFormatter.format(Number(integerDigits)) : '0';
-    const hasTrailingSeparator = separatorIndex === sanitized.length - 1;
+    const hasTrailingSeparator = separatorIndex === normalized.length - 1;
 
     if (decimalDigits) {
       return `${integerFormatted},${decimalDigits}`;
