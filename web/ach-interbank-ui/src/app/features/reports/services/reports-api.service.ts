@@ -7,7 +7,7 @@ export interface TraceabilityReportFilter {
   fromUtc?: string;
   toUtc?: string;
   state?: 'Pending' | 'ReturnedByOperator' | 'ReturnedByEpr' | 'AppliedTacitly' | 'Certified' | '';
-  achCycleId?: string;
+  achCycleId?: string[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -30,8 +30,8 @@ export class ReportsApiService {
       params.state = filter.state;
     }
 
-    if (filter.achCycleId?.trim()) {
-      params.achCycleId = filter.achCycleId.trim();
+    if (filter.achCycleId?.length) {
+      params.achCycleId = filter.achCycleId.join(',');
     }
 
     return this.http.get(this.api.resolveUrl('api/reports/traceability/pdf'), {

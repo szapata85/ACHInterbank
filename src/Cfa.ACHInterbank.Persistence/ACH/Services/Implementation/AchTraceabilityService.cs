@@ -122,8 +122,21 @@ public class AchTraceabilityService : IAchTraceabilityService
 
         if (!string.IsNullOrWhiteSpace(achCycleId))
         {
-            var cycleId = achCycleId.Trim();
-            query = query.Where(t => t.AchCycleId == cycleId);
+            var cycleIds = achCycleId
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            if (cycleIds.Length == 1)
+            {
+                var cycleId = cycleIds[0];
+                query = query.Where(t => t.AchCycleId == cycleId);
+            }
+            else if (cycleIds.Length > 1)
+            {
+                query = query.Where(t => cycleIds.Contains(t.AchCycleId));
+            }
         }
 
         return await query

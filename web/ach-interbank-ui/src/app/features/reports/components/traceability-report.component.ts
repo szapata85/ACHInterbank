@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { SharedModule } from '../../../shared/shared.module';
 import { NotificationService } from '../../../core/services/notification.service';
 import { ReportsApiService } from '../services/reports-api.service';
+import { AchCyclesApiService } from '../../ach-cycles/services/ach-cycles-api.service';
 
 @Component({
   selector: 'app-traceability-report',
@@ -13,11 +14,12 @@ import { ReportsApiService } from '../services/reports-api.service';
   styleUrls: ['./traceability-report.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class TraceabilityReportComponent {
+export class TraceabilityReportComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(ReportsApiService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly achCyclesApi = inject(AchCyclesApiService);
 
   loading = false;
 
@@ -30,12 +32,30 @@ export class TraceabilityReportComponent {
     { value: 'Certified', label: 'Certificado' }
   ];
 
+  achCycleOptions: Array<{ id: string; label: string }> = [];
+
   readonly form = this.fb.group({
     fromUtc: [''],
     toUtc: [''],
     state: ['' as '' | 'Pending' | 'ReturnedByOperator' | 'ReturnedByEpr' | 'AppliedTacitly' | 'Certified'],
-    achCycleId: ['']
+    achCycleId: this.fb.control<string[]>([], { nonNullable: true })
   });
+
+  ngOnInit(): void {
+    this.achCyclesApi.search({ page: 1, pageSize: 200 }).subscribe({
+      next: (response) => {
+        this.achCycleOptions = (response?.items ?? [])
+          .map((item) => ({ id: item.id, label: item.cycleName || item.id }))
+          .filter((item) => !!item.id)
+          .sort((a, b) => a.label.localeCompare(b.label));
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.achCycleOptions = [];
+        this.cdr.markForCheck();
+      }
+    });
+  }
 
   generatePdf(): void {
     if (this.isInvalidDateRange()) {
@@ -50,7 +70,7 @@ export class TraceabilityReportComponent {
       fromUtc: this.form.value.fromUtc ? `${this.form.value.fromUtc}T00:00:00Z` : undefined,
       toUtc: this.form.value.toUtc ? `${this.form.value.toUtc}T23:59:59Z` : undefined,
       state: this.form.value.state ?? '',
-      achCycleId: this.form.value.achCycleId ?? ''
+      achCycleId: (this.form.value.achCycleId ?? []).filter((value) => !!value)
     };
 
     this.api.downloadTraceabilityPdf(payload).subscribe({
