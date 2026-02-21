@@ -32,7 +32,7 @@ export class TraceabilityReportComponent implements OnInit {
     { value: 'Certified', label: 'Certificado' }
   ];
 
-  achCycleOptions: Array<{ id: string; label: string }> = [];
+  achCycleOptions: Array<{ id: string; cycleName: string; clearingHouseName: string }> = [];
 
   readonly form = this.fb.group({
     fromUtc: [''],
@@ -45,9 +45,13 @@ export class TraceabilityReportComponent implements OnInit {
     this.achCyclesApi.search({ page: 1, pageSize: 200 }).subscribe({
       next: (response) => {
         this.achCycleOptions = (response?.items ?? [])
-          .map((item) => ({ id: item.id, label: item.cycleName || item.id }))
           .filter((item) => !!item.id)
-          .sort((a, b) => a.label.localeCompare(b.label));
+          .map((item) => ({
+            id: item.id,
+            cycleName: item.cycleName || item.id,
+            clearingHouseName: item.clearingHouseName || 'Cámara compensadora no definida'
+          }))
+          .sort((a, b) => a.clearingHouseName.localeCompare(b.clearingHouseName) || a.cycleName.localeCompare(b.cycleName));
         this.cdr.markForCheck();
       },
       error: () => {

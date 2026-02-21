@@ -23,7 +23,7 @@
     <label>
       Ciclo ACH (selección múltiple)
       <select formControlName="achCycleId" multiple size="5">
-        <option *ngFor="let cycle of achCycleOptions" [ngValue]="cycle.id">{{ cycle.label }} ({{ cycle.id }})</option>
+        <option *ngFor="let cycle of achCycleOptions" [ngValue]="cycle.id">{{ cycle.clearingHouseName }} · {{ cycle.cycleName }}</option>
       </select>
       <small class="muted">Puedes seleccionar uno o varios ciclos manteniendo Ctrl/Cmd.</small>
     </label>
