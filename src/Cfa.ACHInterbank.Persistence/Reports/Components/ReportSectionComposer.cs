@@ -11,7 +11,7 @@ internal static class ReportSectionComposer
         container.Column(column =>
         {
             column.Spacing(4);
-            column.Item().Text(title).SemiBold().FontSize(14);
+            column.Item().Text(title);
 
             if (metadata.Count == 0)
             {
@@ -24,11 +24,7 @@ internal static class ReportSectionComposer
 
                 foreach (var item in metadata)
                 {
-                    grid.Item().PaddingRight(10).Text(text =>
-                    {
-                        text.Span($"{item.Key}: ").SemiBold();
-                        text.Span(item.Value);
-                    }).FontSize(9).FontColor(Colors.Grey.Darken2);
+                    grid.Item().PaddingRight(10).Text($"{item.Key}: {item.Value}");
                 }
             });
         });
@@ -43,21 +39,17 @@ internal static class ReportSectionComposer
             .Column(column =>
             {
                 column.Spacing(4);
-                column.Item().Text("Filtros aplicados").SemiBold().FontSize(10);
+                column.Item().Text("Filtros aplicados");
 
                 if (filters.Count == 0)
                 {
-                    column.Item().Text("Sin filtros.").FontSize(9).FontColor(Colors.Grey.Darken1);
+                    column.Item().Text("Sin filtros.");
                     return;
                 }
 
                 foreach (var item in filters)
                 {
-                    column.Item().Text(text =>
-                    {
-                        text.Span($"{item.Key}: ").SemiBold();
-                        text.Span(item.Value);
-                    }).FontSize(9);
+                    column.Item().Text($"{item.Key}: {item.Value}");
                 }
             });
     }
@@ -74,20 +66,21 @@ internal static class ReportSectionComposer
         {
             table.ColumnsDefinition(defineColumns);
 
-            foreach (var header in headers)
+            table.Header(header =>
             {
-                table.Header().Cell()
-                    .BorderBottom(1)
-                    .BorderColor(Colors.Grey.Lighten1)
-                    .PaddingVertical(4)
-                    .Text(header)
-                    .SemiBold()
-                    .FontSize(9);
-            }
+                foreach (var headerText in headers)
+                {
+                    header.Cell()
+                        .BorderBottom(1)
+                        .BorderColor(Colors.Grey.Lighten1)
+                        .PaddingVertical(4)
+                        .Text(headerText);
+                }
+            });
 
             if (rows.Count == 0)
             {
-                table.Cell().ColumnSpan(headers.Count).Padding(6).Text(emptyMessage).Italic().FontSize(9);
+                table.Cell().ColumnSpan((uint)headers.Count).Padding(6).Text(emptyMessage);
                 return;
             }
 

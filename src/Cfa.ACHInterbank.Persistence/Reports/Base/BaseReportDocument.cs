@@ -43,9 +43,9 @@ public abstract class BaseReportDocument<TModel> : IDocument
         container.Column(column =>
         {
             column.Spacing(2);
-            column.Item().Text(CompanyName).SemiBold().FontSize(12).FontColor(Colors.Blue.Darken2);
-            column.Item().Text(Title).SemiBold().FontSize(16);
-            column.Item().Text($"Generado UTC: {GeneratedAtUtc:yyyy-MM-dd HH:mm:ss}").FontSize(9).FontColor(Colors.Grey.Darken2);
+            column.Item().Text(CompanyName);
+            column.Item().Text(Title);
+            column.Item().Text($"Generado UTC: {GeneratedAtUtc:yyyy-MM-dd HH:mm:ss}");
         });
     }
 
@@ -53,14 +53,14 @@ public abstract class BaseReportDocument<TModel> : IDocument
     {
         container.Row(row =>
         {
-            row.RelativeItem().Text($"{CompanyName} · Confidencial").FontSize(8).FontColor(Colors.Grey.Darken1);
+            row.RelativeItem().Text($"{CompanyName} · Confidencial");
             row.ConstantItem(120).AlignRight().Text(text =>
             {
                 text.Span("Página ");
                 text.CurrentPageNumber();
                 text.Span(" de ");
                 text.TotalPages();
-            }).FontSize(8).FontColor(Colors.Grey.Darken1);
+            });
         });
     }
 }

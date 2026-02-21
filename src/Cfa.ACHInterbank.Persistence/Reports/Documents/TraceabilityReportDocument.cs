@@ -28,7 +28,7 @@ internal sealed class TraceabilityReportDocument : BaseReportDocument<Traceabili
                 new Dictionary<string, string>
                 {
                     ["Registros"] = Model.Rows.Count.ToString(),
-                    ["Estado"] = string.IsNullOrWhiteSpace(Model.Filter.State) ? "Todos" : Model.Filter.State,
+                    ["Estado"] = Model.Filter.State?.ToString() ?? "Todos",
                     ["Ciclo ACH"] = string.IsNullOrWhiteSpace(Model.Filter.AchCycleId) ? "Todos" : Model.Filter.AchCycleId
                 });
 
@@ -37,7 +37,7 @@ internal sealed class TraceabilityReportDocument : BaseReportDocument<Traceabili
                 {
                     ["Desde (UTC)"] = Model.Filter.FromUtc?.ToString("yyyy-MM-dd HH:mm:ss") ?? "Sin límite",
                     ["Hasta (UTC)"] = Model.Filter.ToUtc?.ToString("yyyy-MM-dd HH:mm:ss") ?? "Sin límite",
-                    ["Estado"] = string.IsNullOrWhiteSpace(Model.Filter.State) ? "Todos" : Model.Filter.State,
+                    ["Estado"] = Model.Filter.State?.ToString() ?? "Todos",
                     ["Ciclo ACH"] = string.IsNullOrWhiteSpace(Model.Filter.AchCycleId) ? "Todos" : Model.Filter.AchCycleId
                 });
 
@@ -67,14 +67,14 @@ internal sealed class TraceabilityReportDocument : BaseReportDocument<Traceabili
                 rows: Model.Rows,
                 composeRow: (table, row) =>
                 {
-                    table.Cell().PaddingVertical(3).Text(row.TransactionId.ToString()).FontSize(9);
-                    table.Cell().PaddingVertical(3).Text(row.Reference ?? string.Empty).FontSize(9);
-                    table.Cell().PaddingVertical(3).Text(row.TraceNumber ?? string.Empty).FontSize(9);
-                    table.Cell().PaddingVertical(3).AlignRight().Text($"{row.Amount:N2}").FontSize(9);
-                    table.Cell().PaddingVertical(3).Text(row.State.ToString()).FontSize(9);
-                    table.Cell().PaddingVertical(3).Text(row.AchCycleId ?? string.Empty).FontSize(9);
-                    table.Cell().PaddingVertical(3).Text($"{row.StateChangedAtUtc:yyyy-MM-dd HH:mm:ss}").FontSize(9);
-                    table.Cell().PaddingVertical(3).Text($"{row.SourceInstitutionName} → {row.DestinationInstitutionName}").FontSize(9);
+                    table.Cell().PaddingVertical(3).Text(row.TransactionId.ToString());
+                    table.Cell().PaddingVertical(3).Text(row.Reference ?? string.Empty);
+                    table.Cell().PaddingVertical(3).Text(row.TraceNumber ?? string.Empty);
+                    table.Cell().PaddingVertical(3).AlignRight().Text($"{row.Amount:N2}");
+                    table.Cell().PaddingVertical(3).Text(row.State.ToString());
+                    table.Cell().PaddingVertical(3).Text(row.AchCycleId ?? string.Empty);
+                    table.Cell().PaddingVertical(3).Text($"{row.StateChangedAtUtc:yyyy-MM-dd HH:mm:ss}");
+                    table.Cell().PaddingVertical(3).Text($"{row.SourceInstitutionName} → {row.DestinationInstitutionName}");
                 },
                 emptyMessage: "No hay datos para los filtros indicados.");
         });
