@@ -18,13 +18,17 @@ internal static class ReportSectionComposer
                 return;
             }
 
-            column.Item().Grid(grid =>
+            column.Item().Table(table =>
             {
-                grid.Columns(2);
+                table.ColumnsDefinition(columns =>
+                {
+                    columns.RelativeColumn();
+                    columns.RelativeColumn();
+                });
 
                 foreach (var item in metadata)
                 {
-                    grid.Item().PaddingRight(10).Text($"{item.Key}: {item.Value}");
+                    table.Cell().PaddingRight(10).Text($"{item.Key}: {item.Value}");
                 }
             });
         });
