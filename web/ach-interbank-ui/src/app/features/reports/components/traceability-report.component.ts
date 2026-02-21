@@ -78,8 +78,17 @@ export class TraceabilityReportComponent implements OnInit {
     };
 
     this.api.downloadTraceabilityPdf(payload).subscribe({
-      next: (response) => {
+      next: async (response) => {
         const blob = response.body ?? new Blob();
+        const contentType = (response.headers.get('content-type') ?? blob.type ?? '').toLowerCase();
+
+        if (!(await this.isValidPdfResponse(blob, contentType))) {
+          this.notifications.error('El archivo recibido no es un PDF válido. Verifica filtros/permisos e intenta nuevamente.');
+          this.loading = false;
+          this.cdr.markForCheck();
+          return;
+        }
+
         const fileName = this.extractFileName(response.headers.get('content-disposition')) ?? `ACH_Traceability_${this.buildTimestamp()}.pdf`;
         const url = window.URL.createObjectURL(blob);
 
@@ -100,6 +109,13 @@ export class TraceabilityReportComponent implements OnInit {
         this.cdr.markForCheck();
       }
     });
+  }
+
+  private async isValidPdfResponse(blob: Blob, contentType: string): Promise<boolean> {
+    const headerChunk = await blob.slice(0, 5).text();
+    const hasPdfSignature = headerChunk.startsWith('%PDF-');
+    const isPdfContentType = contentType.includes('application/pdf');
+    return hasPdfSignature || isPdfContentType;
   }
 
   private isInvalidDateRange(): boolean {
