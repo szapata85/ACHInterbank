@@ -38,6 +38,13 @@ export class NavigationService {
       icon: 'group'
     };
 
+    const reportsItem: MenuItem = {
+      id: -240,
+      label: 'Reportes',
+      route: '/reports',
+      icon: 'analytics'
+    };
+
 
     const logsChildren: MenuItem[] = [
       { id: -231, label: 'Log de auditoría', route: '/audit-logs', icon: 'fact_check' },
@@ -54,7 +61,7 @@ export class NavigationService {
     };
 
     if (!items.length) {
-      return [customerItem, logsGroup, catalogGroup];
+      return [customerItem, reportsItem, logsGroup, catalogGroup];
     }
 
     const hasRoute = (menu: MenuItem[], route: string): boolean =>
@@ -71,6 +78,9 @@ export class NavigationService {
       if (!hasRoute(next, customerItem.route)) {
         next = [...next, customerItem];
       }
+      if (!hasRoute(next, reportsItem.route)) {
+        next = [...next, reportsItem];
+      }
 
       const existingLogsGroup = next.find((item) => item.route === '/audit-logs' || item.label === 'Logs');
       if (existingLogsGroup) {
@@ -86,9 +96,10 @@ export class NavigationService {
     }
 
     const withCustomer = hasRoute(items, customerItem.route) ? items : [...items, customerItem];
-    const withLogs = hasRoute(withCustomer, '/navigation-logs') || hasRoute(withCustomer, '/auth-logs') || hasRoute(withCustomer, '/audit-logs')
-      ? withCustomer
-      : [...withCustomer, logsGroup];
+    const withReports = hasRoute(withCustomer, reportsItem.route) ? withCustomer : [...withCustomer, reportsItem];
+    const withLogs = hasRoute(withReports, '/navigation-logs') || hasRoute(withReports, '/auth-logs') || hasRoute(withReports, '/audit-logs')
+      ? withReports
+      : [...withReports, logsGroup];
 
     return [...withLogs, catalogGroup];
   }
