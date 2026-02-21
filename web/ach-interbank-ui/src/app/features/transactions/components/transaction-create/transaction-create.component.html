@@ -88,7 +88,7 @@
           <small class="muted">Puedes digitar otra cuenta limpiando el cliente originador.</small>
         </ng-container>
         <ng-template #manualSourceAccount>
-          <input type="text" formControlName="sourceAccountNumber" required inputmode="numeric" maxlength="18" />
+          <input type="text" formControlName="sourceAccountNumber" required inputmode="numeric" maxlength="18" (input)="onNumericAccountInput('sourceAccountNumber', $event)" />
           <small class="muted">Digite la cuenta origen (6 a 18 dígitos).</small>
         </ng-template>
         <app-error-message [control]="form.get('sourceAccountNumber')"></app-error-message>
@@ -118,7 +118,7 @@
           <small class="muted">Para registrar receptores usa <a routerLink="/customer-third-parties">Terceros</a>.</small>
         </ng-container>
         <ng-template #manualDestinationAccount>
-          <input type="text" formControlName="destinationAccountNumber" required inputmode="numeric" />
+          <input type="text" formControlName="destinationAccountNumber" required inputmode="numeric" maxlength="18" (input)="onNumericAccountInput('destinationAccountNumber', $event)" />
           <small class="muted">Para prenotificación puedes registrar una cuenta destino nueva.</small>
         </ng-template>
         <app-error-message [control]="form.get('destinationAccountNumber')"></app-error-message>

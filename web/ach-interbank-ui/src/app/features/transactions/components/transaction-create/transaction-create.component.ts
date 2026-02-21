@@ -195,8 +195,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       amount: parsedAmount,
       destinationInstitutionId: Number(payload.destinationInstitutionId),
       reference: payload.reference.trim(),
-      sourceAccountNumber: payload.sourceAccountNumber.trim(),
-      destinationAccountNumber: payload.destinationAccountNumber.trim(),
+      sourceAccountNumber: this.extractDigits(payload.sourceAccountNumber).slice(0, 18),
+      destinationAccountNumber: this.extractDigits(payload.destinationAccountNumber).slice(0, 18),
       recipientIdNumber: payload.recipientIdNumber?.trim() || undefined,
       requiresIdentityValidation: Boolean(payload.requiresIdentityValidation),
       companyName: payload.companyName.trim(),
@@ -289,6 +289,25 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
 
 
+  onNumericAccountInput(controlName: 'sourceAccountNumber' | 'destinationAccountNumber', event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    if (!input) {
+      return;
+    }
+
+    const digitsOnly = this.extractDigits(input.value).slice(0, 18);
+    if (input.value !== digitsOnly) {
+      input.value = digitsOnly;
+    }
+
+    const control = this.form.get(controlName);
+    if (control && control.value !== digitsOnly) {
+      control.setValue(digitsOnly);
+      control.markAsDirty();
+      control.markAsTouched();
+    }
+  }
+
   onDestinationAccountSelected(accountNumber: string): void {
     const selected = this.filteredDestinationAccounts.find((item) => item.destinationAccountNumber === accountNumber);
     if (!selected) {
@@ -296,6 +315,10 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     }
 
     this.form.patchValue({ recipientIdNumber: selected.recipientIdNumber }, { emitEvent: false });
+  }
+
+  private extractDigits(value: unknown): string {
+    return String(value ?? '').replace(/\D+/g, '');
   }
 
   private loadActiveDestinationAccounts(): void {
