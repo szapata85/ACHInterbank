@@ -1,0 +1,35 @@
+.cards {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  padding: 1rem;
+  background: #fff;
+}
+
+.card h3 {
+  margin: 0 0 0.4rem;
+  color: #0f172a;
+}
+
+.card p {
+  margin: 0 0 0.8rem;
+  color: #475569;
+  line-height: 1.4;
+}
+
+.link {
+  text-decoration: none;
+  color: var(--button-color, #0ea5e9);
+  font-weight: 600;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+

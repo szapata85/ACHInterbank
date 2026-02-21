@@ -1,0 +1,42 @@
+<app-page-header
+  title="Reporte de trazabilidad ACH"
+  subtitle="Genera el PDF por filtros de estado, ciclo y rango de fechas"
+  [actionsTemplate]="headerActions"
+></app-page-header>
+
+<section class="toolbar">
+  <form [formGroup]="form" class="filters" (ngSubmit)="generatePdf()">
+    <label>
+      Desde (UTC)
+      <input type="date" formControlName="fromUtc" />
+    </label>
+    <label>
+      Hasta (UTC)
+      <input type="date" formControlName="toUtc" />
+    </label>
+    <label>
+      Estado
+      <select formControlName="state">
+        <option *ngFor="let item of states" [ngValue]="item.value">{{ item.label }}</option>
+      </select>
+    </label>
+    <label>
+      Ciclo ACH
+      <input type="text" formControlName="achCycleId" placeholder="Ej: CYCLE-20260217" />
+    </label>
+    <button type="submit" [disabled]="loading">
+      {{ loading ? 'Generando...' : 'Generar PDF' }}
+    </button>
+  </form>
+</section>
+
+<section class="help">
+  <p>
+    El archivo incluirá el consolidado de transacciones ACH con los filtros aplicados.
+  </p>
+</section>
+
+<ng-template #headerActions>
+  <a routerLink="/reports" class="link">Volver a reportes</a>
+</ng-template>
+

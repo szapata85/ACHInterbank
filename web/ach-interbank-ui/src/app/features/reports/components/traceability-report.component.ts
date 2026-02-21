@@ -1,0 +1,103 @@
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
+import { FormBuilder } from '@angular/forms';
+import { RouterModule } from '@angular/router';
+import { SharedModule } from '../../../shared/shared.module';
+import { NotificationService } from '../../../core/services/notification.service';
+import { ReportsApiService } from '../services/reports-api.service';
+
+@Component({
+  selector: 'app-traceability-report',
+  standalone: true,
+  imports: [SharedModule, RouterModule],
+  templateUrl: './traceability-report.component.html',
+  styleUrls: ['./traceability-report.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush
+})
+export class TraceabilityReportComponent {
+  private readonly fb = inject(FormBuilder);
+  private readonly api = inject(ReportsApiService);
+  private readonly notifications = inject(NotificationService);
+  private readonly cdr = inject(ChangeDetectorRef);
+
+  loading = false;
+
+  readonly states: Array<{ value: '' | 'Pending' | 'ReturnedByOperator' | 'ReturnedByEpr' | 'AppliedTacitly' | 'Certified'; label: string }> = [
+    { value: '', label: 'Todos los estados' },
+    { value: 'Pending', label: 'Pendiente' },
+    { value: 'ReturnedByOperator', label: 'Devuelto por operador' },
+    { value: 'ReturnedByEpr', label: 'Devuelto por EPR' },
+    { value: 'AppliedTacitly', label: 'Aplicado tácitamente' },
+    { value: 'Certified', label: 'Certificado' }
+  ];
+
+  readonly form = this.fb.group({
+    fromUtc: [''],
+    toUtc: [''],
+    state: ['' as '' | 'Pending' | 'ReturnedByOperator' | 'ReturnedByEpr' | 'AppliedTacitly' | 'Certified'],
+    achCycleId: ['']
+  });
+
+  generatePdf(): void {
+    if (this.isInvalidDateRange()) {
+      this.notifications.error('La fecha inicial no puede ser posterior a la fecha final');
+      return;
+    }
+
+    this.loading = true;
+    this.cdr.markForCheck();
+
+    const payload = {
+      fromUtc: this.form.value.fromUtc ? `${this.form.value.fromUtc}T00:00:00Z` : undefined,
+      toUtc: this.form.value.toUtc ? `${this.form.value.toUtc}T23:59:59Z` : undefined,
+      state: this.form.value.state ?? '',
+      achCycleId: this.form.value.achCycleId ?? ''
+    };
+
+    this.api.downloadTraceabilityPdf(payload).subscribe({
+      next: (response) => {
+        const blob = response.body ?? new Blob();
+        const fileName = this.extractFileName(response.headers.get('content-disposition')) ?? `ACH_Traceability_${this.buildTimestamp()}.pdf`;
+        const url = window.URL.createObjectURL(blob);
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.click();
+
+        window.URL.revokeObjectURL(url);
+        this.loading = false;
+        this.notifications.success('Reporte generado correctamente');
+        this.cdr.markForCheck();
+      },
+      error: (error) => {
+        const message = error?.error?.message ?? 'No fue posible generar el reporte de trazabilidad.';
+        this.notifications.error(String(message));
+        this.loading = false;
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  private isInvalidDateRange(): boolean {
+    const { fromUtc, toUtc } = this.form.value;
+    return Boolean(fromUtc && toUtc && new Date(fromUtc) > new Date(toUtc));
+  }
+
+  private extractFileName(contentDisposition: string | null): string | null {
+    if (!contentDisposition) {
+      return null;
+    }
+
+    const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(contentDisposition);
+    const fileName = match?.[1] ?? match?.[2];
+
+    return fileName ? decodeURIComponent(fileName) : null;
+  }
+
+  private buildTimestamp(): string {
+    const now = new Date();
+    const pad = (value: number) => value.toString().padStart(2, '0');
+    return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  }
+}
+

@@ -121,6 +121,17 @@ const routes: Routes = [
           import('./features/customer-third-parties/customer-third-parties.module').then((m) => m.CustomerThirdPartiesModule)
       },
       {
+        path: 'reports',
+        canActivate: [roleGuard, permissionGuard],
+        data: {
+          roles: ['Admin', 'ACH.Operator'],
+          permissions: ['CanReadAch'],
+          breadcrumb: 'Reportes',
+          title: 'Reportes ACH'
+        },
+        loadChildren: () => import('./features/reports/reports.module').then((m) => m.ReportsModule)
+      },
+      {
         path: 'unauthorized',
         data: { title: 'No autorizado', breadcrumb: 'Error 403' },
         loadComponent: () =>
