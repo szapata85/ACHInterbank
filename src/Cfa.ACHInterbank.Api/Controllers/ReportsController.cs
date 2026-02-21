@@ -11,11 +11,17 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 [Authorize]
 public class ReportsController : ControllerBase
 {
-    private readonly IReportGenerator _reportGenerator;
+    private const int MaxDateRangeDays = 31;
+    private static readonly TimeSpan DefaultDateRange = TimeSpan.FromDays(7);
+    private static readonly TimeSpan ReportGenerationTimeout = TimeSpan.FromSeconds(30);
 
-    public ReportsController(IReportGenerator reportGenerator)
+    private readonly IReportGenerator _reportGenerator;
+    private readonly ILogger<ReportsController> _logger;
+
+    public ReportsController(IReportGenerator reportGenerator, ILogger<ReportsController> logger)
     {
         _reportGenerator = reportGenerator;
+        _logger = logger;
     }
 
     [HttpGet("traceability/pdf")]
@@ -27,22 +33,136 @@ public class ReportsController : ControllerBase
         [FromQuery] string? achCycleId,
         CancellationToken ct)
     {
-        if (fromUtc.HasValue && toUtc.HasValue && fromUtc.Value > toUtc.Value)
+        var reportName = "traceability";
+        var user = User?.Identity?.Name ?? "anonymous";
+        var startedAtUtc = DateTime.UtcNow;
+        var normalized = NormalizeDateRange(fromUtc, toUtc);
+
+        if (normalized.ValidationError is not null)
         {
-            return BadRequest(new { message = "La fecha inicial no puede ser mayor que la fecha final." });
+            _logger.LogWarning(
+                "ReportValidationFailed report={ReportName} user={User} fromUtc={FromUtc} toUtc={ToUtc} state={State} achCycleId={AchCycleId} reason={Reason}",
+                reportName,
+                user,
+                fromUtc,
+                toUtc,
+                state,
+                achCycleId,
+                normalized.ValidationError);
+
+            return BadRequest(new { message = normalized.ValidationError });
         }
 
-        var file = await _reportGenerator.GenerateTraceabilityPdfAsync(
-            new TraceabilityReportFilter
-            {
-                FromUtc = fromUtc,
-                ToUtc = toUtc,
-                State = state,
-                AchCycleId = achCycleId
-            },
-            ct);
+        using var scope = _logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["report"] = reportName,
+            ["user"] = user,
+            ["fromUtc"] = normalized.FromUtc,
+            ["toUtc"] = normalized.ToUtc,
+            ["state"] = state?.ToString(),
+            ["achCycleId"] = achCycleId
+        });
 
-        return File(file.Content, file.ContentType, file.FileName);
+        _logger.LogInformation(
+            "ReportExecutionStarted report={ReportName} user={User} fromUtc={FromUtc} toUtc={ToUtc} state={State} achCycleId={AchCycleId}",
+            reportName,
+            user,
+            normalized.FromUtc,
+            normalized.ToUtc,
+            state,
+            achCycleId);
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(ReportGenerationTimeout);
+
+        try
+        {
+            var file = await _reportGenerator.GenerateTraceabilityPdfAsync(
+                new TraceabilityReportFilter
+                {
+                    FromUtc = normalized.FromUtc,
+                    ToUtc = normalized.ToUtc,
+                    State = state,
+                    AchCycleId = achCycleId
+                },
+                timeoutCts.Token);
+
+            var elapsedMs = (long)(DateTime.UtcNow - startedAtUtc).TotalMilliseconds;
+            _logger.LogInformation(
+                "ReportExecutionCompleted report={ReportName} user={User} durationMs={DurationMs} sizeBytes={SizeBytes}",
+                reportName,
+                user,
+                elapsedMs,
+                file.Content.Length);
+
+            return File(file.Content, file.ContentType, file.FileName);
+        }
+        catch (OperationCanceledException ex) when (!ct.IsCancellationRequested)
+        {
+            var elapsedMs = (long)(DateTime.UtcNow - startedAtUtc).TotalMilliseconds;
+            _logger.LogWarning(
+                ex,
+                "ReportExecutionTimeout report={ReportName} user={User} durationMs={DurationMs} timeoutSeconds={TimeoutSeconds}",
+                reportName,
+                user,
+                elapsedMs,
+                ReportGenerationTimeout.TotalSeconds);
+
+            return StatusCode(StatusCodes.Status408RequestTimeout, new
+            {
+                message = "La generación del reporte tardó demasiado. Ajusta los filtros e intenta nuevamente."
+            });
+        }
+        catch (Exception ex)
+        {
+            var elapsedMs = (long)(DateTime.UtcNow - startedAtUtc).TotalMilliseconds;
+            _logger.LogError(
+                ex,
+                "ReportExecutionFailed report={ReportName} user={User} durationMs={DurationMs}",
+                reportName,
+                user,
+                elapsedMs);
+
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                message = "No fue posible generar el reporte en este momento. Intenta de nuevo más tarde."
+            });
+        }
+    }
+
+    private static (DateTime? FromUtc, DateTime? ToUtc, string? ValidationError) NormalizeDateRange(DateTime? fromUtc, DateTime? toUtc)
+    {
+        DateTime? normalizedFrom = fromUtc;
+        DateTime? normalizedTo = toUtc;
+
+        if (!normalizedFrom.HasValue && !normalizedTo.HasValue)
+        {
+            normalizedTo = DateTime.UtcNow;
+            normalizedFrom = normalizedTo.Value.Subtract(DefaultDateRange);
+        }
+        else if (!normalizedFrom.HasValue && normalizedTo.HasValue)
+        {
+            normalizedFrom = normalizedTo.Value.AddDays(-MaxDateRangeDays);
+        }
+        else if (normalizedFrom.HasValue && !normalizedTo.HasValue)
+        {
+            normalizedTo = normalizedFrom.Value.AddDays(MaxDateRangeDays);
+        }
+
+        if (normalizedFrom.HasValue && normalizedTo.HasValue && normalizedFrom.Value > normalizedTo.Value)
+        {
+            return (normalizedFrom, normalizedTo, "La fecha inicial no puede ser mayor que la fecha final.");
+        }
+
+        if (normalizedFrom.HasValue && normalizedTo.HasValue)
+        {
+            var days = (normalizedTo.Value - normalizedFrom.Value).TotalDays;
+            if (days > MaxDateRangeDays)
+            {
+                return (normalizedFrom, normalizedTo, $"El rango máximo permitido para reportes es de {MaxDateRangeDays} días.");
+            }
+        }
+
+        return (normalizedFrom, normalizedTo, null);
     }
 }
-
