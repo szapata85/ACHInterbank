@@ -81,15 +81,16 @@ export class TraceabilityReportComponent implements OnInit {
       next: async (response) => {
         const blob = response.body ?? new Blob();
         const contentType = (response.headers.get('content-type') ?? blob.type ?? '').toLowerCase();
+        const fileName = this.extractFileName(response.headers.get('content-disposition')) ?? `ACH_Traceability_${this.buildTimestamp()}.pdf`;
 
-        if (!(await this.isValidPdfResponse(blob, contentType))) {
-          this.notifications.error('El archivo recibido no es un PDF válido. Verifica filtros/permisos e intenta nuevamente.');
+        const serverErrorMessage = await this.tryExtractServerErrorMessage(blob, contentType);
+        if (serverErrorMessage) {
+          this.notifications.error(serverErrorMessage);
           this.loading = false;
           this.cdr.markForCheck();
           return;
         }
 
-        const fileName = this.extractFileName(response.headers.get('content-disposition')) ?? `ACH_Traceability_${this.buildTimestamp()}.pdf`;
         const url = window.URL.createObjectURL(blob);
 
         const link = document.createElement('a');
@@ -111,11 +112,27 @@ export class TraceabilityReportComponent implements OnInit {
     });
   }
 
-  private async isValidPdfResponse(blob: Blob, contentType: string): Promise<boolean> {
-    const headerChunk = await blob.slice(0, 5).text();
-    const hasPdfSignature = headerChunk.startsWith('%PDF-');
-    const isPdfContentType = contentType.includes('application/pdf');
-    return hasPdfSignature || isPdfContentType;
+  private async tryExtractServerErrorMessage(blob: Blob, contentType: string): Promise<string | null> {
+    const isTextLikeError = contentType.includes('application/json') || contentType.includes('text/plain') || contentType.includes('text/html');
+    if (!isTextLikeError) {
+      return null;
+    }
+
+    try {
+      const raw = await blob.text();
+      if (!raw) {
+        return 'No fue posible generar el reporte de trazabilidad.';
+      }
+
+      if (contentType.includes('application/json')) {
+        const parsed = JSON.parse(raw) as { message?: string };
+        return parsed?.message?.trim() || 'No fue posible generar el reporte de trazabilidad.';
+      }
+
+      return 'No fue posible generar el reporte de trazabilidad. Verifica filtros/permisos e intenta nuevamente.';
+    } catch {
+      return 'No fue posible generar el reporte de trazabilidad.';
+    }
   }
 
   private isInvalidDateRange(): boolean {
