@@ -401,9 +401,17 @@ public class NachaFileBuilder : INachaFileBuilder
         CancellationToken ct)
     {
         var layout = layoutCache[definition.RecordCode];
-        IReadOnlyList<object> records = definition.SourceType == NachaRecordSourceType.Custom
-            ? fallbackRecords.ToList()
+        var fallbackList = fallbackRecords.ToList();
+
+        var forceFallback = definition.RecordCode is "1" or "5" or "8" or "9";
+        IReadOnlyList<object> records = (definition.SourceType == NachaRecordSourceType.Custom || forceFallback)
+            ? fallbackList
             : await _recordDataProvider.GetRecordsAsync(definition, context, ct);
+
+        if (records.Count == 0 && fallbackList.Count > 0)
+        {
+            records = fallbackList;
+        }
 
         var count = 0;
         foreach (var record in records)
