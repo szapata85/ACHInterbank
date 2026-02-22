@@ -148,10 +148,12 @@ public class NachaFileBuilder : INachaFileBuilder
         if (!string.IsNullOrEmpty(layout.RecordCode))
             buffer[0] = layout.RecordCode[0];
 
+        var entityType = entity?.GetType() ?? typeof(T);
+
         foreach (var field in fields)
         {
-            var prop = ResolveProperty(typeof(T), field.DbColumn)
-                ?? ResolveProperty(typeof(T), field.FieldName);
+            var prop = ResolveProperty(entityType, field.DbColumn)
+                ?? ResolveProperty(entityType, field.FieldName);
             if (prop == null) continue;
 
             object? raw = prop.GetValue(entity);
