@@ -6,7 +6,7 @@ public interface IInstitutionClearingHousePreferenceService
 {
     Task<IEnumerable<InstitutionClearingHousePreferenceDto>> GetAllAsync(CancellationToken ct = default);
 
-    Task<InstitutionClearingHousePreferenceDto> UpdateAsync(InstitutionClearingHousePreferenceDto dto, CancellationToken ct = default);
+    Task<InstitutionClearingHousePreferenceDto> UpdateAsync(int id, UpdateInstitutionClearingHousePreferenceDto dto, CancellationToken ct = default);
 
     Task<InstitutionClearingHousePreferenceDto> CreateAsync(InstitutionClearingHousePreferenceDto dto, CancellationToken ct = default);
 

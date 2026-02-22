@@ -38,10 +38,10 @@ public class InstitutionClearingHousePreferencesController : ControllerBase
 
     [HttpPut("{id}")]
     [Authorize(Policy = "CanManageAch")]
-    public async Task<IActionResult> Update(int id, [FromBody] InstitutionClearingHousePreferenceDto dto, CancellationToken ct = default)
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateInstitutionClearingHousePreferenceDto? dto, CancellationToken ct = default)
     {
-        dto.Id = id;
-        return Ok(await _service.UpdateAsync(dto, ct));
+        dto ??= new UpdateInstitutionClearingHousePreferenceDto();
+        return Ok(await _service.UpdateAsync(id, dto, ct));
     }
     /// <summary>
     /// Endpoint de la API ACH Interbank.

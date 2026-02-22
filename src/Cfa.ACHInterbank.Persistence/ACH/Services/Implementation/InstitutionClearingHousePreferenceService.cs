@@ -66,18 +66,30 @@ public class InstitutionClearingHousePreferenceService : IInstitutionClearingHou
     }
 
     public async Task<InstitutionClearingHousePreferenceDto> UpdateAsync(
-        InstitutionClearingHousePreferenceDto dto,
+        int id,
+        UpdateInstitutionClearingHousePreferenceDto dto,
         CancellationToken ct = default)
     {
         var entity = await _context.InstitutionClearingHousePreferences
                          .Include(x => x.FinancialInstitution)
                          .Include(x => x.ClearingHouse)
-                         .FirstOrDefaultAsync(x => x.Id == dto.Id, ct)
+                         .FirstOrDefaultAsync(x => x.Id == id, ct)
                      ?? throw new KeyNotFoundException("Preferencia no encontrada");
 
-        entity.Priority = NormalizePriority(dto.Priority);
-        entity.IsDefault = dto.IsDefault;
-        entity.IsActive = dto.IsActive;
+        if (dto.Priority.HasValue)
+        {
+            entity.Priority = NormalizePriority(dto.Priority.Value);
+        }
+
+        if (dto.IsDefault.HasValue)
+        {
+            entity.IsDefault = dto.IsDefault.Value;
+        }
+
+        if (dto.IsActive.HasValue)
+        {
+            entity.IsActive = dto.IsActive.Value;
+        }
 
         await _context.SaveChangesAsync(ct);
 
