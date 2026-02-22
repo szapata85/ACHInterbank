@@ -1,8 +1,10 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.Reports.Interfaces;
 using Cfa.ACHInterbank.Application.Reports.Models;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.Reports.Documents;
 using Cfa.ACHInterbank.Persistence.Reports.Models;
+using QuestPDF;
 using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 
