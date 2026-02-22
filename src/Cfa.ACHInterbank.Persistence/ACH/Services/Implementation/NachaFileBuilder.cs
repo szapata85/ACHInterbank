@@ -122,7 +122,7 @@ public class NachaFileBuilder : INachaFileBuilder
 
         foreach (var field in fields)
         {
-            var prop = typeof(T).GetProperty(field.DbColumn);
+            var prop = ResolveProperty(typeof(T), field.DbColumn);
             if (prop == null) continue;
 
             object? raw = prop.GetValue(entity);
@@ -156,7 +156,7 @@ public class NachaFileBuilder : INachaFileBuilder
 
         foreach (var field in fields)
         {
-            if (!values.TryGetValue(field.DbColumn, out var raw))
+            if (!TryResolveValue(values, field.DbColumn, out var raw))
             {
                 continue;
             }
@@ -175,6 +175,64 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return Task.FromResult(new string(buffer));
+    }
+
+    private static System.Reflection.PropertyInfo? ResolveProperty(Type type, string? dbColumn)
+    {
+        if (string.IsNullOrWhiteSpace(dbColumn))
+        {
+            return null;
+        }
+
+        var property = type.GetProperty(dbColumn,
+            System.Reflection.BindingFlags.Public |
+            System.Reflection.BindingFlags.Instance |
+            System.Reflection.BindingFlags.IgnoreCase);
+
+        if (property is not null)
+        {
+            return property;
+        }
+
+        var normalizedTarget = NormalizeIdentifier(dbColumn);
+        return type.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+            .FirstOrDefault(p => NormalizeIdentifier(p.Name) == normalizedTarget);
+    }
+
+    private static bool TryResolveValue(IReadOnlyDictionary<string, object?> values, string? dbColumn, out object? raw)
+    {
+        raw = null;
+        if (string.IsNullOrWhiteSpace(dbColumn))
+        {
+            return false;
+        }
+
+        if (values.TryGetValue(dbColumn, out raw))
+        {
+            return true;
+        }
+
+        var exactIgnoreCase = values.FirstOrDefault(kv => string.Equals(kv.Key, dbColumn, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrEmpty(exactIgnoreCase.Key))
+        {
+            raw = exactIgnoreCase.Value;
+            return true;
+        }
+
+        var normalizedTarget = NormalizeIdentifier(dbColumn);
+        var normalizedMatch = values.FirstOrDefault(kv => NormalizeIdentifier(kv.Key) == normalizedTarget);
+        if (!string.IsNullOrEmpty(normalizedMatch.Key))
+        {
+            raw = normalizedMatch.Value;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string NormalizeIdentifier(string value)
+    {
+        return new string(value.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
