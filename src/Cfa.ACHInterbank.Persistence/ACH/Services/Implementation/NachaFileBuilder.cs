@@ -214,19 +214,28 @@ public class NachaFileBuilder : INachaFileBuilder
             return null;
         }
 
-        var property = type.GetProperty(dbColumn,
-            System.Reflection.BindingFlags.Public |
-            System.Reflection.BindingFlags.Instance |
-            System.Reflection.BindingFlags.IgnoreCase);
-
-        if (property is not null)
+        var properties = type.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        foreach (var candidate in EnumerateIdentifierCandidates(dbColumn))
         {
-            return property;
+            var property = type.GetProperty(candidate,
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.IgnoreCase);
+
+            if (property is not null)
+            {
+                return property;
+            }
+
+            var normalizedTarget = NormalizeIdentifier(candidate);
+            property = properties.FirstOrDefault(p => NormalizeIdentifier(p.Name) == normalizedTarget);
+            if (property is not null)
+            {
+                return property;
+            }
         }
 
-        var normalizedTarget = NormalizeIdentifier(dbColumn);
-        return type.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
-            .FirstOrDefault(p => NormalizeIdentifier(p.Name) == normalizedTarget);
+        return null;
     }
 
     private static bool TryResolveValue(IReadOnlyDictionary<string, object?> values, string? dbColumn, out object? raw)
@@ -237,27 +246,48 @@ public class NachaFileBuilder : INachaFileBuilder
             return false;
         }
 
-        if (values.TryGetValue(dbColumn, out raw))
+        foreach (var candidate in EnumerateIdentifierCandidates(dbColumn))
         {
-            return true;
-        }
+            if (values.TryGetValue(candidate, out raw))
+            {
+                return true;
+            }
 
-        var exactIgnoreCase = values.FirstOrDefault(kv => string.Equals(kv.Key, dbColumn, StringComparison.OrdinalIgnoreCase));
-        if (!string.IsNullOrEmpty(exactIgnoreCase.Key))
-        {
-            raw = exactIgnoreCase.Value;
-            return true;
-        }
+            var exactIgnoreCase = values.FirstOrDefault(kv => string.Equals(kv.Key, candidate, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrEmpty(exactIgnoreCase.Key))
+            {
+                raw = exactIgnoreCase.Value;
+                return true;
+            }
 
-        var normalizedTarget = NormalizeIdentifier(dbColumn);
-        var normalizedMatch = values.FirstOrDefault(kv => NormalizeIdentifier(kv.Key) == normalizedTarget);
-        if (!string.IsNullOrEmpty(normalizedMatch.Key))
-        {
-            raw = normalizedMatch.Value;
-            return true;
+            var normalizedTarget = NormalizeIdentifier(candidate);
+            var normalizedMatch = values.FirstOrDefault(kv => NormalizeIdentifier(kv.Key) == normalizedTarget);
+            if (!string.IsNullOrEmpty(normalizedMatch.Key))
+            {
+                raw = normalizedMatch.Value;
+                return true;
+            }
         }
 
         return false;
+    }
+
+    private static IEnumerable<string> EnumerateIdentifierCandidates(string value)
+    {
+        var trimmed = value.Trim();
+        if (trimmed.Length == 0)
+        {
+            yield break;
+        }
+
+        yield return trimmed;
+
+        var separators = new[] { '.', ':', '/' };
+        var segments = trimmed.Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (segments.Length > 1)
+        {
+            yield return segments[^1];
+        }
     }
 
     private static string NormalizeIdentifier(string value)
