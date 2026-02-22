@@ -83,6 +83,8 @@ public class NachaFileBuilder : INachaFileBuilder
             .AsNoTracking()
             .Include(t => t.Addendas)
             .Include(t => t.AchBatch)
+            .Include(t => t.SourceInstitution)
+            .Include(t => t.DestinationInstitution)
             .Where(t => t.AchCycleId == cycleId)
             .ToListAsync(ct);
 
@@ -343,7 +345,7 @@ public class NachaFileBuilder : INachaFileBuilder
                         sb,
                         definition,
                         layoutCache,
-                        new[] { FileHeaderRecord.From(context.Cycle, header) },
+                        new[] { FileHeaderRecord.From(context.Cycle, context.Transactions, header) },
                         context,
                         ct);
                     break;
@@ -595,27 +597,53 @@ public class NachaFileBuilder : INachaFileBuilder
         public string? CycleName { get; init; }
         public DateTime ProcessingDate { get; init; }
 
-        public static FileHeaderRecord From(AchCycle cycle, NachaHeader? header)
+        public static FileHeaderRecord From(AchCycle cycle, IReadOnlyCollection<AchTransaction> transactions, NachaHeader? header)
         {
             var now = DateTime.UtcNow;
+            var firstTransaction = transactions
+                .OrderBy(t => t.Id)
+                .FirstOrDefault();
+
+            var destinationDfi = CoalesceNonEmpty(
+                header?.ImmediateDestination,
+                cycle.ClearingHouse?.OriginCode,
+                firstTransaction?.ReceivingDFI);
+
+            var originDfi = CoalesceNonEmpty(
+                header?.ImmediateOrigin,
+                firstTransaction?.OriginatingDFI);
+
+            var destinationName = CoalesceNonEmpty(
+                header?.ImmediateDestinationName,
+                cycle.ClearingHouse?.Name,
+                firstTransaction?.DestinationInstitution?.Name);
+
+            var originName = CoalesceNonEmpty(
+                header?.ImmediateOriginName,
+                firstTransaction?.SourceInstitution?.Name);
 
             return new FileHeaderRecord
             {
-                PriorityCode = header?.PriorityCode,
-                ImmediateDestination = header?.ImmediateDestination,
-                ImmediateOrigin = header?.ImmediateOrigin,
+                PriorityCode = CoalesceNonEmpty(header?.PriorityCode, "01"),
+                ImmediateDestination = destinationDfi,
+                ImmediateOrigin = originDfi,
                 FileCreationDate = ParseDate(header?.FileCreationDate) ?? now,
                 FileCreationTime = ParseTime(header?.FileCreationTime) ?? now,
-                FileIdModifier = header?.FileIdModifier,
+                FileIdModifier = CoalesceNonEmpty(header?.FileIdModifier, "A"),
                 RecordSize = string.IsNullOrWhiteSpace(header?.RecordSize) ? "106" : header!.RecordSize,
                 BlockingFactor = string.IsNullOrWhiteSpace(header?.BlockingFactor) ? "10" : header!.BlockingFactor,
                 FormatCode = string.IsNullOrWhiteSpace(header?.FormatCode) ? "1" : header!.FormatCode,
-                ImmediateDestinationName = header?.ImmediateDestinationName,
-                ImmediateOriginName = header?.ImmediateOriginName,
-                ReferenceCode = header?.ReferenceCode,
+                ImmediateDestinationName = destinationName,
+                ImmediateOriginName = originName,
+                ReferenceCode = CoalesceNonEmpty(header?.ReferenceCode, cycle.CycleName),
                 CycleName = cycle.CycleName,
                 ProcessingDate = cycle.ProcessingDate
             };
+        }
+
+        private static string? CoalesceNonEmpty(params string?[] values)
+        {
+            return values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
         }
 
         private static DateTime? ParseDate(string? value)
