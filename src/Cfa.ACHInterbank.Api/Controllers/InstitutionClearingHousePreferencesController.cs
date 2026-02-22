@@ -40,7 +40,7 @@ public class InstitutionClearingHousePreferencesController : ControllerBase
     [Authorize(Policy = "CanManageAch")]
     public async Task<IActionResult> Update(int id, [FromBody] InstitutionClearingHousePreferenceDto dto, CancellationToken ct = default)
     {
-        if (id != dto.Id) return BadRequest();
+        dto.Id = id;
         return Ok(await _service.UpdateAsync(dto, ct));
     }
     /// <summary>
