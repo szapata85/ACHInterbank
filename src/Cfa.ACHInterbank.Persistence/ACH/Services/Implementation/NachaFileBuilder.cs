@@ -150,7 +150,8 @@ public class NachaFileBuilder : INachaFileBuilder
 
         foreach (var field in fields)
         {
-            var prop = ResolveProperty(typeof(T), field.DbColumn);
+            var prop = ResolveProperty(typeof(T), field.DbColumn)
+                ?? ResolveProperty(typeof(T), field.FieldName);
             if (prop == null) continue;
 
             object? raw = prop.GetValue(entity);
@@ -184,7 +185,8 @@ public class NachaFileBuilder : INachaFileBuilder
 
         foreach (var field in fields)
         {
-            if (!TryResolveValue(values, field.DbColumn, out var raw))
+            if (!TryResolveValue(values, field.DbColumn, out var raw) &&
+                !TryResolveValue(values, field.FieldName, out raw))
             {
                 continue;
             }
