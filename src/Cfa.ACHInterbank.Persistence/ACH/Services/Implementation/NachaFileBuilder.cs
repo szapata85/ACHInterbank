@@ -70,11 +70,40 @@ public class NachaFileBuilder : INachaFileBuilder
     {
         var cycle = await _context.AchCycles
             .AsNoTracking()
-            .Include(c => c.Batches)
-                .ThenInclude(b => b.Transactions)
-                    .ThenInclude(t => t.Addendas)
+            .Include(c => c.ClearingHouse)
             .FirstOrDefaultAsync(c => c.Id == cycleId, ct)
             ?? throw new InvalidOperationException($"No existe el ciclo {cycleId}.");
+
+        var cycleBatches = await _context.AchBatches
+            .AsNoTracking()
+            .Where(b => b.AchCycleId == cycleId)
+            .ToListAsync(ct);
+
+        var transactions = await _context.AchTransactions
+            .AsNoTracking()
+            .Include(t => t.Addendas)
+            .Include(t => t.AchBatch)
+            .Where(t => t.AchCycleId == cycleId)
+            .ToListAsync(ct);
+
+        var transactionBatches = transactions
+            .Where(t => t.AchBatch is not null)
+            .Select(t => t.AchBatch!)
+            .GroupBy(b => b.Id)
+            .Select(g => g.First())
+            .ToList();
+
+        var batches = cycleBatches
+            .Concat(transactionBatches)
+            .GroupBy(b => b.Id)
+            .Select(g => g.First())
+            .ToList();
+
+        if (transactions.Count == 0)
+            throw new InvalidOperationException($"El ciclo {cycleId} no tiene transacciones para exportar.");
+
+        if (batches.Count == 0)
+            throw new InvalidOperationException($"El ciclo {cycleId} no tiene lotes asociados para exportar.");
 
         var nachaHeader = await LoadHeaderAsync(cycle.Id, ct);
         var layoutCache = await _context.NachaRecordLayouts
@@ -82,13 +111,12 @@ public class NachaFileBuilder : INachaFileBuilder
             .Include(l => l.Fields)
             .ToDictionaryAsync(l => l.RecordCode!, ct);
 
-        var transactions = cycle.Batches.SelectMany(b => b.Transactions).ToList();
         await ValidateTransactionsForSendAsync(transactions, ct);
         var definitions = await LoadDefinitionsAsync(ct);
         var context = new NachaBuildContext
         {
             Cycle = cycle,
-            Batches = cycle.Batches.ToList(),
+            Batches = batches,
             Transactions = transactions
         };
         return await BuildFileAsync(context, definitions, layoutCache, nachaHeader, ct);
