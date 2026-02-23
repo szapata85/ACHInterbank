@@ -40,6 +40,18 @@ public class TransactionsController : ControllerBase
     /// Endpoint de la API ACH Interbank.
     /// </summary>
 
+
+    [HttpGet("company-entry-descriptions")]
+    [ProducesResponseType(typeof(IEnumerable<CompanyEntryDescriptionDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetCompanyEntryDescriptions(CancellationToken ct)
+    {
+        var items = await _transactionService.GetCompanyEntryDescriptionsAsync(ct);
+        return Ok(items);
+    }
+    /// <summary>
+    /// Endpoint de la API ACH Interbank.
+    /// </summary>
+
     [HttpPost]
     [ProducesResponseType(typeof(AchTransaction), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -67,7 +79,7 @@ public class TransactionsController : ControllerBase
                 destinationAccountNumber: request.DestinationAccountNumber,
                 companyName: request.CompanyName,
                 companyIdentification: request.CompanyIdentification,
-                companyEntryDescription: request.CompanyEntryDescription,
+                companyEntryDescriptionId: request.CompanyEntryDescriptionId,
                 recipientIdNumber: request.RecipientIdNumber,
                 requiresIdentityValidation: request.RequiresIdentityValidation,
                 addendas: request.Addendas,
@@ -126,7 +138,7 @@ public class AchTransactionRequest
 
     public string CompanyName { get; set; } = string.Empty;
     public string CompanyIdentification { get; set; } = string.Empty;
-    public string CompanyEntryDescription { get; set; } = "PAGOS";
+    public int CompanyEntryDescriptionId { get; set; }
 
     public List<AddendaDto>? Addendas { get; set; }
 }

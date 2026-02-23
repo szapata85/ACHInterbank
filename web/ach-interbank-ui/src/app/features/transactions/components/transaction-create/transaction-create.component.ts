@@ -61,7 +61,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     requiresIdentityValidation: [false],
     companyName: ['', [Validators.required, Validators.maxLength(16)]],
     companyIdentification: ['', [Validators.required, Validators.pattern(/^[A-Z0-9]{4,10}$/)]],
-    companyEntryDescription: ['NOMINA', [Validators.required, Validators.maxLength(11)]],
+    companyEntryDescriptionId: [null, [Validators.required, Validators.min(1)]],
     addendas: this.fb.array([])
   });
 
@@ -73,14 +73,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   activeDestinationAccounts: ActiveThirdPartyAccount[] = [];
   filteredDestinationAccounts: ActiveThirdPartyAccount[] = [];
   selectedCustomerAccounts: string[] = [];
+  companyEntryDescriptionOptions: CompanyEntryDescriptionOption[] = [];
 
-  private static readonly CompanyEntryDescriptionConceptTerms = [
-    'ADMON','AHORROS','APORTES','ARRIENDOS','ARRIENDO','CELULAR','CELULARES','CESANTIAS','CLUB','COLEGIO',
-    'COMISIONES','COMISION','CONTRATIST','DIVIDENDOS','DONACION','HONORARIO','IMPUESTOS','INTERESES','NOMINA','NÓMINA',
-    'PROVEEDOR','PENSIONES','PREPAGADA','PRESTAMOS','RENDIMIENT','RIESGOS P','SEGUROS','SEGURO','SERV PUBLI','SUSCRIPCI',
-    'TARCREDITO','TRASLADO','TRASLADOS','TV X CABL','TV SATELIT','UNIVERSIDA','OTROS',
-    'PAGOS PSE','MULTICREDIT','COBROS PSE','PAGOS DIAN','SSS','COBROS SSS'
-  ];
   private readonly amountFormatter = new Intl.NumberFormat('es-CO', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
@@ -88,6 +82,15 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.form.setValidators([this.validateAccountDifference, this.validateBusinessRules]);
+
+    this.api.getCompanyEntryDescriptions().pipe(take(1), takeUntil(this.destroy$)).subscribe((items) => {
+      this.companyEntryDescriptionOptions = (items ?? []).sort((a, b) => a.term.localeCompare(b.term));
+      const defaultItem = this.companyEntryDescriptionOptions.find((x) => x.term === "NOMINA") ?? this.companyEntryDescriptionOptions[0];
+      if (defaultItem) {
+        this.form.patchValue({ companyEntryDescriptionId: defaultItem.id }, { emitEvent: false });
+      }
+      this.cdr.markForCheck();
+    });
     this.form.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(() => {
       this.errorMessage.setValue(null);
       this.successMessage.setValue(null);
@@ -209,7 +212,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       requiresIdentityValidation: Boolean(payload.requiresIdentityValidation),
       companyName: payload.companyName.trim(),
       companyIdentification: payload.companyIdentification.trim().toUpperCase(),
-      companyEntryDescription: payload.companyEntryDescription.trim().toUpperCase(),
+      companyEntryDescriptionId: Number(payload.companyEntryDescriptionId),
       addendas: payload.addendas
         .map((item) => this.buildAddendaPayload(item))
         .filter((item) => item.addendaType && item.information)
@@ -234,7 +237,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
               type: TransactionTypeEnum.Credit,
               accountType: AccountTypeEnum.Checking,
               isPrenotification: false,
-              companyEntryDescription: 'NOMINA'
+              companyEntryDescriptionId: this.companyEntryDescriptionOptions.find((x) => x.term === 'NOMINA')?.id ?? null
             });
             this.addendas.clear();
             this.activeDestinationAccounts = [];
@@ -399,13 +402,6 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
     if (!addendas || addendas.length === 0) {
       errors.missingAddenda = true;
-    }
-
-    const companyEntryDescription = String(group.get('companyEntryDescription')?.value ?? '').trim().toUpperCase();
-    const hasRequiredConcept = TransactionCreateComponent.CompanyEntryDescriptionConceptTerms
-      .some((term) => companyEntryDescription.includes(term));
-    if (!hasRequiredConcept) {
-      errors.invalidCompanyEntryDescriptionConcept = true;
     }
 
     if (addendas && addendas.length > 0) {

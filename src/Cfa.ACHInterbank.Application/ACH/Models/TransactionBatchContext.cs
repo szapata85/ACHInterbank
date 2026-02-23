@@ -12,6 +12,7 @@ public record TransactionBatchContext
     public string CompanyName { get; init; } = string.Empty;
     public string CompanyIdentification { get; init; } = string.Empty;
     public string CompanyEntryDescription { get; init; } = string.Empty;
+    public int CompanyEntryDescriptionId { get; init; }
     public string ServiceClassCode { get; init; } = "200";
     public int SourceInstitutionId { get; init; }
     public int DestinationInstitutionId { get; init; }

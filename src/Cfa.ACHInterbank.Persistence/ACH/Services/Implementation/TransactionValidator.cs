@@ -4,8 +4,6 @@ using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
-using System.Globalization;
-using System.Text;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -79,54 +77,24 @@ public class TransactionValidator : ITransactionValidator
             throw new ArgumentException("La identificación del usuario originador debe tener entre 4 y 10 caracteres.", nameof(request.CompanyIdentification));
         }
 
-        if (string.IsNullOrWhiteSpace(request.CompanyEntryDescription))
+        if (request.CompanyEntryDescriptionId <= 0)
         {
-            throw new ArgumentException("La descripción de la entrada es obligatoria.", nameof(request.CompanyEntryDescription));
+            throw new ArgumentException("El concepto de lote es obligatorio.", nameof(request.CompanyEntryDescriptionId));
         }
 
-        var companyEntryDescription = request.CompanyEntryDescription.Trim();
-        if (companyEntryDescription.Length > 11)
-        {
-            throw new ArgumentException("La descripción de la entrada no puede superar 11 caracteres.", nameof(request.CompanyEntryDescription));
-        }
-
-        string normalizedDescription = RemoveDiacritics(companyEntryDescription).ToUpperInvariant();
-
-        var catalogTerms = _context.CompanyEntryDescriptionCatalogs
+        var existsInCatalog = _context.CompanyEntryDescriptionCatalogs
             .AsNoTracking()
-            .Where(item => item.IsActive)
-            .Select(item => item.Term)
-            .ToList();
-
-        bool existsInCatalog = catalogTerms
-            .Any(term => RemoveDiacritics(term).ToUpperInvariant() == normalizedDescription);
+            .Any(item => item.Id == request.CompanyEntryDescriptionId && item.IsActive);
 
         if (!existsInCatalog)
         {
-            throw new ArgumentException("La descripción de la entrada no existe en el catálogo permitido de conceptos de lote.", nameof(request.CompanyEntryDescription));
+            throw new ArgumentException("El concepto de lote seleccionado no existe en el catálogo permitido.", nameof(request.CompanyEntryDescriptionId));
         }
 
         if (request.Type == TransactionTypeEnum.Credit && request.RequiresIdentityValidation && string.IsNullOrWhiteSpace(request.RecipientIdNumber))
         {
             throw new ArgumentException("La identificación del receptor es obligatoria cuando se solicita validación.", nameof(request.RecipientIdNumber));
         }
-    }
-
-    private static string RemoveDiacritics(string value)
-    {
-        var normalized = value.Normalize(NormalizationForm.FormD);
-        var sb = new StringBuilder();
-
-        foreach (char c in normalized)
-        {
-            var category = CharUnicodeInfo.GetUnicodeCategory(c);
-            if (category != UnicodeCategory.NonSpacingMark)
-            {
-                sb.Append(c);
-            }
-        }
-
-        return sb.ToString().Normalize(NormalizationForm.FormC);
     }
 
     public string ResolveTransactionCode(TransactionTypeEnum type, AccountTypeEnum accountType, bool isPrenotification)

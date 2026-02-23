@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { catchError, map, throwError } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { AccountTypeEnum, TransactionTypeEnum } from '../transactions.types';
-import { ActiveThirdPartyAccount, TransactionDraft, TransactionListFilter, TransactionListItem, TransactionResponse } from '../transactions.models';
+import { ActiveThirdPartyAccount, CompanyEntryDescriptionOption, TransactionDraft, TransactionListFilter, TransactionListItem, TransactionResponse } from '../transactions.models';
 
 interface PagedResponse<T> {
   items: T[];
@@ -22,6 +22,10 @@ interface CustomerThirdPartyApiItem {
 @Injectable({ providedIn: 'root' })
 export class TransactionsApiService {
   private readonly api = inject(ApiService);
+
+  getCompanyEntryDescriptions() {
+    return this.api.get<CompanyEntryDescriptionOption[]>('transactions/company-entry-descriptions');
+  }
 
   createTransaction(payload: TransactionDraft) {
     const sanitized: TransactionDraft = {

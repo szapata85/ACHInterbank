@@ -13,7 +13,7 @@ public class AchTransaction : AuditableEntity
 
     public string TransactionCode { get; set; } = string.Empty;
     public string ServiceClassCode { get; set; } = "200";
-    public string CompanyEntryDescription { get; set; } = "PAGOS";
+    public int CompanyEntryDescriptionId { get; set; }
     public string CompanyName { get; set; } = string.Empty;
     public string CompanyIdentification { get; set; } = string.Empty;
 

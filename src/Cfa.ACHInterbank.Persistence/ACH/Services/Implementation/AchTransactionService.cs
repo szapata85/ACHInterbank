@@ -46,7 +46,7 @@ public class AchTransactionService : IAchTransactionService
         string destinationAccountNumber,
         string companyName,
         string companyIdentification,
-        string companyEntryDescription = "PAGOS",
+        int companyEntryDescriptionId,
         string? recipientIdNumber = null,
         bool requiresIdentityValidation = false,
         IEnumerable<AddendaDto>? addendas = null,
@@ -64,7 +64,7 @@ public class AchTransactionService : IAchTransactionService
             DestinationAccountNumber = destinationAccountNumber,
             CompanyName = companyName,
             CompanyIdentification = companyIdentification,
-            CompanyEntryDescription = companyEntryDescription,
+            CompanyEntryDescriptionId = companyEntryDescriptionId,
             RecipientIdNumber = recipientIdNumber,
             RequiresIdentityValidation = requiresIdentityValidation,
             Addendas = addendas
@@ -92,6 +92,22 @@ public class AchTransactionService : IAchTransactionService
         return persisted.Transaction;
     }
 
+
+    public async Task<IReadOnlyList<CompanyEntryDescriptionDto>> GetCompanyEntryDescriptionsAsync(CancellationToken ct = default)
+    {
+        return await _context.CompanyEntryDescriptionCatalogs
+            .AsNoTracking()
+            .Where(item => item.IsActive)
+            .OrderBy(item => item.Term)
+            .Select(item => new CompanyEntryDescriptionDto
+            {
+                Id = item.Id,
+                Term = item.Term,
+                Description = item.Description,
+                StandardEntryClassCode = item.StandardEntryClassCode
+            })
+            .ToListAsync(ct);
+    }
 
     private async Task EnsureCustomerAndAccountsAsync(AchTransactionRequestData request, CancellationToken ct)
     {

@@ -21,6 +21,9 @@ public class AchTransactionConfiguration : IEntityTypeConfiguration<AchTransacti
         builder.Property(t => t.DiscretionaryData)
             .HasMaxLength(2);
 
+        builder.Property(t => t.CompanyEntryDescriptionId)
+            .IsRequired();
+
         builder.Property(t => t.RecipientIdNumber)
             .HasMaxLength(20);
 
@@ -38,6 +41,8 @@ public class AchTransactionConfiguration : IEntityTypeConfiguration<AchTransacti
 
         builder.Property(t => t.OriginalTraceRef)
             .HasMaxLength(20);
+
+        builder.HasIndex(t => t.CompanyEntryDescriptionId);
 
         builder.HasOne(t => t.AchBatch)
             .WithMany(b => b.Transactions)

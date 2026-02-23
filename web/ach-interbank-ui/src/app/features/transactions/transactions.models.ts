@@ -24,7 +24,7 @@ export interface TransactionDraft {
   requiresIdentityValidation?: boolean;
   companyName: string;
   companyIdentification: string;
-  companyEntryDescription: string;
+  companyEntryDescriptionId: number;
   addendas: Array<{
     addendaType: string;
     information: string;
@@ -86,4 +86,12 @@ export interface ActiveThirdPartyAccount {
   destinationInstitutionName: string;
   destinationAccountNumber: string;
   recipientIdNumber: string;
+}
+
+
+export interface CompanyEntryDescriptionOption {
+  id: number;
+  term: string;
+  description: string;
+  standardEntryClassCode: string;
 }

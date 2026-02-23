@@ -92,7 +92,15 @@ public class BatchResolver : IBatchResolver
 
         string companyName = request.CompanyName.Trim();
         string companyIdentification = request.CompanyIdentification.Trim().ToUpperInvariant();
-        string companyEntryDescription = request.CompanyEntryDescription.Trim().ToUpperInvariant();
+
+        var companyEntryDescriptionCatalog = await _context.CompanyEntryDescriptionCatalogs
+            .AsNoTracking()
+            .Where(item => item.Id == request.CompanyEntryDescriptionId && item.IsActive)
+            .Select(item => new { item.Id, item.Term })
+            .FirstOrDefaultAsync(ct)
+            ?? throw new InvalidOperationException("El concepto de lote seleccionado no existe o está inactivo.");
+
+        string companyEntryDescription = companyEntryDescriptionCatalog.Term.Trim().ToUpperInvariant();
 
         var batch = await _context.AchBatches
             .FirstOrDefaultAsync(b =>
@@ -110,6 +118,7 @@ public class BatchResolver : IBatchResolver
                 CompanyName = companyName,
                 CompanyIdentification = companyIdentification,
                 CompanyEntryDescription = companyEntryDescription,
+            CompanyEntryDescriptionId = companyEntryDescriptionCatalog.Id,
                 EffectiveEntryDate = effectiveEntryDate,
                 OriginOrOdfi = originBase
             };
@@ -127,6 +136,7 @@ public class BatchResolver : IBatchResolver
             CompanyName = companyName,
             CompanyIdentification = companyIdentification,
             CompanyEntryDescription = companyEntryDescription,
+            CompanyEntryDescriptionId = companyEntryDescriptionCatalog.Id,
             ServiceClassCode = "200",
             SourceInstitutionId = source.Id,
             DestinationInstitutionId = dest.Id

@@ -17,7 +17,7 @@ public interface IAchTransactionService
         string destinationAccountNumber,
         string companyName,
         string companyIdentification,
-        string companyEntryDescription = "PAGOS",
+        int companyEntryDescriptionId,
         string? recipientIdNumber = null,
         bool requiresIdentityValidation = false,
         IEnumerable<AddendaDto>? addendas = null,
@@ -31,6 +31,8 @@ public interface IAchTransactionService
         CancellationToken ct = default);
 
     Task<AchTransaction?> GetTransactionByIdAsync(int transactionId, CancellationToken ct = default);
+
+    Task<IReadOnlyList<CompanyEntryDescriptionDto>> GetCompanyEntryDescriptionsAsync(CancellationToken ct = default);
 
     Task<IReadOnlyList<AchTransactionListDto>> GetAllAsync(
         string? achCycleId = default,

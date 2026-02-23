@@ -42,7 +42,7 @@ public class TransactionPersister : ITransactionPersister
 
             TransactionCode = transactionCode,
             ServiceClassCode = context.ServiceClassCode,
-            CompanyEntryDescription = context.CompanyEntryDescription,
+            CompanyEntryDescriptionId = context.CompanyEntryDescriptionId,
             CompanyName = context.CompanyName,
             CompanyIdentification = context.CompanyIdentification,
 

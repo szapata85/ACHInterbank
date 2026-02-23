@@ -160,10 +160,14 @@
 
       <label>
         <span>Descripción de la entrada *</span>
-        <input type="text" formControlName="companyEntryDescription" required maxlength="11" placeholder="NOMINA / PROVEEDOR / TRASLADOS" />
-        <small class="muted">Debe contener un concepto permitido del catálogo (ej: NOMINA, PROVEEDOR, TRASLADOS, PAGOS PSE).</small>
-        <app-error-message [control]="form.get('companyEntryDescription')"></app-error-message>
-        <small class="error" *ngIf="form.errors?.invalidCompanyEntryDescriptionConcept">El concepto debe ser uno de los términos permitidos del catálogo.</small>
+        <select formControlName="companyEntryDescriptionId" required>
+          <option [ngValue]="null">Seleccione un concepto</option>
+          <option *ngFor="let option of companyEntryDescriptionOptions" [ngValue]="option.id">
+            {{ option.description }} ({{ option.term }})
+          </option>
+        </select>
+        <small class="muted">Seleccione un concepto del catálogo CompanyEntryDescription.</small>
+        <app-error-message [control]="form.get('companyEntryDescriptionId')"></app-error-message>
       </label>
     </div>
 
