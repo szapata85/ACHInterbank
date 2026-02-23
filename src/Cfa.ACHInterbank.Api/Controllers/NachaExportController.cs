@@ -54,8 +54,9 @@ public class NachaExportController : ControllerBase
 
         string nachaContent = await _nachaBuilder.BuildNachaFileByCycleAsync(cycleId, ct);
         string fileName = BuildNachaFileName(clearingHouse, cycle);
+        string normalizedNachaContent = NormalizeFileHeaderIdentifierForCenit(nachaContent, clearingHouse, fileName);
 
-        return File(Encoding.ASCII.GetBytes(nachaContent), "text/plain", fileName);
+        return File(Encoding.ASCII.GetBytes(normalizedNachaContent), "text/plain", fileName);
     }
     /// <summary>
     /// Endpoint de la API ACH Interbank.
@@ -79,13 +80,14 @@ public class NachaExportController : ControllerBase
         }
 
         string fileName = BuildNachaFileName(clearingHouse, cycle);
+        string normalizedNachaContent = NormalizeFileHeaderIdentifierForCenit(nachaContent, clearingHouse, fileName);
 
         if (!forceEncryption && !_envelopePolicy.ShouldEncrypt(cycle.ClearingHouseId))
         {
-            return File(Encoding.ASCII.GetBytes(nachaContent), "text/plain", fileName);
+            return File(Encoding.ASCII.GetBytes(normalizedNachaContent), "text/plain", fileName);
         }
 
-        byte[] digitalEnvelope = await _crypto.CreateEnvelopeAsync(Encoding.ASCII.GetBytes(nachaContent), fileName);
+        byte[] digitalEnvelope = await _crypto.CreateEnvelopeAsync(Encoding.ASCII.GetBytes(normalizedNachaContent), fileName);
         string envelopeFileName = $"{fileName}.ENV";
 
         return File(digitalEnvelope, "application/xml", envelopeFileName);
@@ -111,5 +113,64 @@ public class NachaExportController : ControllerBase
         }
 
         return cycleNumber.ToString("D3");
+    }
+
+    private static string NormalizeFileHeaderIdentifierForCenit(string nachaContent, ClearingHouseDto clearingHouse, string fileName)
+    {
+        if (!string.Equals(clearingHouse.Code, "CENIT", StringComparison.OrdinalIgnoreCase))
+        {
+            return nachaContent;
+        }
+
+        char expectedIdentifier = ResolveIdentifierFromFileName(fileName);
+        return ReplaceHeaderPosition36(nachaContent, expectedIdentifier);
+    }
+
+    private static char ResolveIdentifierFromFileName(string fileName)
+    {
+        Match match = Regex.Match(fileName, @"^[^.]+\.(\d{3})\.1$");
+        if (!match.Success)
+        {
+            throw new InvalidOperationException($"Nombre de archivo CENIT inválido: {fileName}.");
+        }
+
+        int dailySequence = int.Parse(match.Groups[1].Value);
+        if (dailySequence is < 1 or > 36)
+        {
+            throw new InvalidOperationException($"Consecutivo diario fuera de rango SLA (001-036): {dailySequence:D3}.");
+        }
+
+        if (dailySequence <= 26)
+        {
+            return (char)('A' + (dailySequence - 1));
+        }
+
+        return (char)('0' + (dailySequence - 27));
+    }
+
+    private static string ReplaceHeaderPosition36(string nachaContent, char expectedIdentifier)
+    {
+        if (string.IsNullOrEmpty(nachaContent))
+        {
+            return nachaContent;
+        }
+
+        string[] lines = nachaContent.Split('\n');
+        if (lines.Length == 0)
+        {
+            return nachaContent;
+        }
+
+        string firstLine = lines[0].TrimEnd('\r');
+        if (firstLine.Length < 36)
+        {
+            return nachaContent;
+        }
+
+        char[] chars = firstLine.ToCharArray();
+        chars[35] = expectedIdentifier;
+        lines[0] = new string(chars);
+
+        return string.Join('\n', lines);
     }
 }
