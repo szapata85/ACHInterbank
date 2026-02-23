@@ -18,19 +18,22 @@ public class NachaExportController : ControllerBase
     private readonly IAchCycleAppService _cycleService;
     private readonly IClearingHouseService _clearingHouseService;
     private readonly IDigitalEnvelopePolicy _envelopePolicy;
+    private readonly INachaFileIdentifierMapService _identifierMapService;
 
     public NachaExportController(
         INachaFileBuilder nachaBuilder,
         ICryptoServiceScoped crypto,
         IAchCycleAppService cycleService,
         IClearingHouseService clearingHouseService,
-        IDigitalEnvelopePolicy envelopePolicy)
+        IDigitalEnvelopePolicy envelopePolicy,
+        INachaFileIdentifierMapService identifierMapService)
     {
         _nachaBuilder = nachaBuilder;
         _crypto = crypto;
         _cycleService = cycleService;
         _clearingHouseService = clearingHouseService;
         _envelopePolicy = envelopePolicy;
+        _identifierMapService = identifierMapService;
     }
     /// <summary>
     /// Endpoint de la API ACH Interbank.
@@ -54,7 +57,7 @@ public class NachaExportController : ControllerBase
 
         string nachaContent = await _nachaBuilder.BuildNachaFileByCycleAsync(cycleId, ct);
         string fileName = BuildNachaFileName(clearingHouse, cycle);
-        string normalizedNachaContent = NormalizeFileHeaderIdentifierForCenit(nachaContent, clearingHouse, fileName);
+        string normalizedNachaContent = await NormalizeFileHeaderIdentifierForCenitAsync(nachaContent, clearingHouse, fileName, ct);
 
         return File(Encoding.ASCII.GetBytes(normalizedNachaContent), "text/plain", fileName);
     }
@@ -80,7 +83,7 @@ public class NachaExportController : ControllerBase
         }
 
         string fileName = BuildNachaFileName(clearingHouse, cycle);
-        string normalizedNachaContent = NormalizeFileHeaderIdentifierForCenit(nachaContent, clearingHouse, fileName);
+        string normalizedNachaContent = await NormalizeFileHeaderIdentifierForCenitAsync(nachaContent, clearingHouse, fileName, ct);
 
         if (!forceEncryption && !_envelopePolicy.ShouldEncrypt(cycle.ClearingHouseId))
         {
@@ -115,18 +118,19 @@ public class NachaExportController : ControllerBase
         return cycleNumber.ToString("D3");
     }
 
-    private static string NormalizeFileHeaderIdentifierForCenit(string nachaContent, ClearingHouseDto clearingHouse, string fileName)
+    private async Task<string> NormalizeFileHeaderIdentifierForCenitAsync(string nachaContent, ClearingHouseDto clearingHouse, string fileName, CancellationToken ct)
     {
         if (!string.Equals(clearingHouse.Code, "CENIT", StringComparison.OrdinalIgnoreCase))
         {
             return nachaContent;
         }
 
-        char expectedIdentifier = ResolveIdentifierFromFileName(fileName);
+        int dailySequence = ResolveDailySequenceFromFileName(fileName);
+        char expectedIdentifier = await _identifierMapService.ResolveIdentifierAsync(dailySequence, ct);
         return ReplaceHeaderPosition36(nachaContent, expectedIdentifier);
     }
 
-    private static char ResolveIdentifierFromFileName(string fileName)
+    private static int ResolveDailySequenceFromFileName(string fileName)
     {
         Match match = Regex.Match(fileName, @"^[^.]+\.(\d{3})\.1$");
         if (!match.Success)
@@ -134,18 +138,7 @@ public class NachaExportController : ControllerBase
             throw new InvalidOperationException($"Nombre de archivo CENIT inválido: {fileName}.");
         }
 
-        int dailySequence = int.Parse(match.Groups[1].Value);
-        if (dailySequence is < 1 or > 36)
-        {
-            throw new InvalidOperationException($"Consecutivo diario fuera de rango SLA (001-036): {dailySequence:D3}.");
-        }
-
-        if (dailySequence <= 26)
-        {
-            return (char)('A' + (dailySequence - 1));
-        }
-
-        return (char)('0' + (dailySequence - 27));
+        return int.Parse(match.Groups[1].Value);
     }
 
     private static string ReplaceHeaderPosition36(string nachaContent, char expectedIdentifier)
