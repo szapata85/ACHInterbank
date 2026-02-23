@@ -371,6 +371,12 @@ public class NachaFileBuilder : INachaFileBuilder
         long totalDebit = 0, totalCredit = 0;
         int recordCount = 0, batchCount = orderedBatches.Count, entryAddendaCount = 0;
 
+        var companyEntryDescriptionCatalog = await _context.CompanyEntryDescriptionCatalogs
+            .AsNoTracking()
+            .Where(item => item.IsActive)
+            .Select(item => new CompanyEntryDescriptionCatalogItem(item.Term, item.StandardEntryClassCode))
+            .ToListAsync(ct);
+
         foreach (var definition in definitions)
         {
             if (!definition.IsEnabled)
@@ -395,7 +401,11 @@ public class NachaFileBuilder : INachaFileBuilder
                         definition,
                         layoutCache,
                         orderedBatches.Select(batch =>
-                            BatchHeaderRecord.From(batch, context.Transactions.Where(t => t.AchBatchId == batch.Id))),
+                        {
+                            var batchTransactions = context.Transactions.Where(t => t.AchBatchId == batch.Id).ToList();
+                            string secCode = ResolveStandardEntryClassCode(batch, batchTransactions, companyEntryDescriptionCatalog);
+                            return BatchHeaderRecord.From(batch, secCode);
+                        }),
                         context,
                         ct);
                     break;
@@ -698,11 +708,10 @@ public class NachaFileBuilder : INachaFileBuilder
         }
     }
 
+    private sealed record CompanyEntryDescriptionCatalogItem(string Term, string StandardEntryClassCode);
+
     private sealed record BatchHeaderRecord
     {
-        private static readonly string[] PpdKeywords = new[] { "NOMINA", "NÓMINA", "TRASLADO", "PROVEEDOR", "PROVEEDORES", "CESANTIAS", "CESANTÍAS" };
-        private static readonly string[] CcdKeywords = new[] { "PSE", "DIAN", "SSS", "SEGURIDAD SOCIAL" };
-
         public string ServiceClassCode { get; init; } = string.Empty;
         public string CompanyName { get; init; } = string.Empty;
         public string CompanyDiscretionaryData { get; init; } = string.Empty;
@@ -716,9 +725,8 @@ public class NachaFileBuilder : INachaFileBuilder
         public string OriginatingDFI { get; init; } = string.Empty;
         public int BatchNumber { get; init; }
 
-        public static BatchHeaderRecord From(AchBatch batch, IEnumerable<AchTransaction> batchTransactions)
+        public static BatchHeaderRecord From(AchBatch batch, string standardEntryClassCode)
         {
-            string standardEntryClassCode = ResolveStandardEntryClassCode(batch, batchTransactions);
             if (standardEntryClassCode is not ("PPD" or "CCD"))
             {
                 throw new InvalidOperationException("Error Fatal ID 20: Tipo de servicio del lote inválido. Solo se permite PPD o CCD.");
@@ -740,32 +748,34 @@ public class NachaFileBuilder : INachaFileBuilder
                 BatchNumber = batch.BatchSequenceNumber
             };
         }
+    }
 
-        private static string ResolveStandardEntryClassCode(AchBatch batch, IEnumerable<AchTransaction> batchTransactions)
+    private static string ResolveStandardEntryClassCode(
+        AchBatch batch,
+        IReadOnlyCollection<AchTransaction> batchTransactions,
+        IReadOnlyCollection<CompanyEntryDescriptionCatalogItem> catalog)
+    {
+        bool isPseOrigin = batchTransactions.Any(tx =>
+            string.Equals(tx.SourceInstitution?.Name, "PSE", StringComparison.OrdinalIgnoreCase) ||
+            (tx.Reference?.Contains("PSE", StringComparison.OrdinalIgnoreCase) ?? false));
+
+        bool isDianDestination = batchTransactions.Any(tx =>
+            tx.DestinationInstitution?.Name?.Contains("DIAN", StringComparison.OrdinalIgnoreCase) == true ||
+            (tx.Reference?.Contains("DIAN", StringComparison.OrdinalIgnoreCase) ?? false));
+
+        if (isPseOrigin || isDianDestination)
         {
-            string description = (batch.CompanyEntryDescription ?? string.Empty).ToUpperInvariant();
-            var transactions = batchTransactions.ToList();
-
-            bool isPseOrigin = transactions.Any(tx =>
-                string.Equals(tx.SourceInstitution?.Name, "PSE", StringComparison.OrdinalIgnoreCase) ||
-                (tx.Reference?.Contains("PSE", StringComparison.OrdinalIgnoreCase) ?? false));
-
-            bool isDianDestination = transactions.Any(tx =>
-                tx.DestinationInstitution?.Name?.Contains("DIAN", StringComparison.OrdinalIgnoreCase) == true ||
-                (tx.Reference?.Contains("DIAN", StringComparison.OrdinalIgnoreCase) ?? false));
-
-            if (isPseOrigin || isDianDestination || CcdKeywords.Any(k => description.Contains(k, StringComparison.OrdinalIgnoreCase)))
-            {
-                return "CCD";
-            }
-
-            if (PpdKeywords.Any(k => description.Contains(k, StringComparison.OrdinalIgnoreCase)))
-            {
-                return "PPD";
-            }
-
-            return "PPD";
+            return "CCD";
         }
+
+        string description = (batch.CompanyEntryDescription ?? string.Empty).Trim().ToUpperInvariant();
+        var termMatch = catalog.FirstOrDefault(item => string.Equals(item.Term, description, StringComparison.OrdinalIgnoreCase));
+        if (termMatch is not null)
+        {
+            return termMatch.StandardEntryClassCode;
+        }
+
+        throw new InvalidOperationException("Error Fatal ID 20: Tipo de servicio del lote inválido. El concepto no está parametrizado en el catálogo.");
     }
 
     private sealed record EntryDetailRecord

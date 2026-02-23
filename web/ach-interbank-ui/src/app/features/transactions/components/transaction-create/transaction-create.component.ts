@@ -74,7 +74,13 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   filteredDestinationAccounts: ActiveThirdPartyAccount[] = [];
   selectedCustomerAccounts: string[] = [];
 
-  private static readonly CompanyEntryDescriptionConceptTerms = ['NOMINA', 'NÓMINA', 'PROVEEDOR', 'TRASLADO', 'TRASLADOS'];
+  private static readonly CompanyEntryDescriptionConceptTerms = [
+    'ADMON','AHORROS','APORTES','ARRIENDOS','ARRIENDO','CELULAR','CELULARES','CESANTIAS','CLUB','COLEGIO',
+    'COMISIONES','COMISION','CONTRATIST','DIVIDENDOS','DONACION','HONORARIO','IMPUESTOS','INTERESES','NOMINA','NÓMINA',
+    'PROVEEDOR','PENSIONES','PREPAGADA','PRESTAMOS','RENDIMIENT','RIESGOS P','SEGUROS','SEGURO','SERV PUBLI','SUSCRIPCI',
+    'TARCREDITO','TRASLADO','TRASLADOS','TV X CABL','TV SATELIT','UNIVERSIDA','OTROS',
+    'PAGOS PSE','MULTICREDIT','COBROS PSE','PAGOS DIAN','SSS','COBROS SSS'
+  ];
   private readonly amountFormatter = new Intl.NumberFormat('es-CO', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0

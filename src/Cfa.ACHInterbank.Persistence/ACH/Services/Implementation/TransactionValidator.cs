@@ -30,9 +30,6 @@ public class TransactionValidator : ITransactionValidator
             { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, true), "57" }
         };
 
-    private static readonly string[] ValidCompanyEntryDescriptionConceptTerms =
-    ["NOMINA", "PROVEEDOR", "TRASLADO", "TRASLADOS"];
-
     public TransactionValidator(AchDbContext context)
     {
         _context = context;
@@ -94,18 +91,42 @@ public class TransactionValidator : ITransactionValidator
         }
 
         string normalizedDescription = RemoveDiacritics(companyEntryDescription).ToUpperInvariant();
-        bool hasRequiredConcept = ValidCompanyEntryDescriptionConceptTerms
-            .Any(term => normalizedDescription.Contains(term, StringComparison.Ordinal));
 
-        if (!hasRequiredConcept)
+        var catalogTerms = _context.CompanyEntryDescriptionCatalogs
+            .AsNoTracking()
+            .Where(item => item.IsActive)
+            .Select(item => item.Term)
+            .ToList();
+
+        bool existsInCatalog = catalogTerms
+            .Any(term => RemoveDiacritics(term).ToUpperInvariant() == normalizedDescription);
+
+        if (!existsInCatalog)
         {
-            throw new ArgumentException("La descripción de la entrada debe incluir al menos uno de estos conceptos: NOMINA, PROVEEDOR o TRASLADOS.", nameof(request.CompanyEntryDescription));
+            throw new ArgumentException("La descripción de la entrada no existe en el catálogo permitido de conceptos de lote.", nameof(request.CompanyEntryDescription));
         }
 
         if (request.Type == TransactionTypeEnum.Credit && request.RequiresIdentityValidation && string.IsNullOrWhiteSpace(request.RecipientIdNumber))
         {
             throw new ArgumentException("La identificación del receptor es obligatoria cuando se solicita validación.", nameof(request.RecipientIdNumber));
         }
+    }
+
+    private static string RemoveDiacritics(string value)
+    {
+        var normalized = value.Normalize(NormalizationForm.FormD);
+        var sb = new StringBuilder();
+
+        foreach (char c in normalized)
+        {
+            var category = CharUnicodeInfo.GetUnicodeCategory(c);
+            if (category != UnicodeCategory.NonSpacingMark)
+            {
+                sb.Append(c);
+            }
+        }
+
+        return sb.ToString().Normalize(NormalizationForm.FormC);
     }
 
     public string ResolveTransactionCode(TransactionTypeEnum type, AccountTypeEnum accountType, bool isPrenotification)

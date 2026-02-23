@@ -70,6 +70,7 @@ public class AchDbContext : DbContext
     public DbSet<NachaRecordField> NachaRecordFields => Set<NachaRecordField>();
     public DbSet<NachaRecordDefinition> NachaRecordDefinitions => Set<NachaRecordDefinition>();
     public DbSet<NachaFileIdentifierMap> NachaFileIdentifierMaps => Set<NachaFileIdentifierMap>();
+    public DbSet<CompanyEntryDescriptionCatalog> CompanyEntryDescriptionCatalogs => Set<CompanyEntryDescriptionCatalog>();
     public DbSet<AchBatch> AchBatches => Set<AchBatch>();
     public DbSet<ReturnReason> ReturnReasons => Set<ReturnReason>();
 

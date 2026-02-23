@@ -161,9 +161,9 @@
       <label>
         <span>Descripción de la entrada *</span>
         <input type="text" formControlName="companyEntryDescription" required maxlength="10" placeholder="NOMINA / PROVEEDOR / TRASLADOS" />
-        <small class="muted">Debe contener el concepto del lote (ej: NOMINA, PROVEEDOR o TRASLADOS).</small>
+        <small class="muted">Debe contener un concepto permitido del catálogo (ej: NOMINA, PROVEEDOR, TRASLADOS, PAGOS PSE).</small>
         <app-error-message [control]="form.get('companyEntryDescription')"></app-error-message>
-        <small class="error" *ngIf="form.errors?.invalidCompanyEntryDescriptionConcept">El concepto debe incluir al menos: NOMINA, PROVEEDOR o TRASLADOS.</small>
+        <small class="error" *ngIf="form.errors?.invalidCompanyEntryDescriptionConcept">El concepto debe ser uno de los términos permitidos del catálogo.</small>
       </label>
     </div>
 
