@@ -37,6 +37,10 @@ public class NachaFileBuilder : INachaFileBuilder
                 .ThenInclude(c => c!.ClearingHouse)
             .Include(b => b.Transactions)
                 .ThenInclude(t => t.Addendas)
+            .Include(b => b.Transactions)
+                .ThenInclude(t => t.SourceInstitution)
+            .Include(b => b.Transactions)
+                .ThenInclude(t => t.DestinationInstitution)
             .Where(b => batchIds.Contains(b.Id))
             .ToListAsync(ct);
 
@@ -390,7 +394,8 @@ public class NachaFileBuilder : INachaFileBuilder
                         sb,
                         definition,
                         layoutCache,
-                        orderedBatches.Select(BatchHeaderRecord.From),
+                        orderedBatches.Select(batch =>
+                            BatchHeaderRecord.From(batch, context.Transactions.Where(t => t.AchBatchId == batch.Id))),
                         context,
                         ct);
                     break;
@@ -695,6 +700,9 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private sealed record BatchHeaderRecord
     {
+        private static readonly string[] PpdKeywords = new[] { "NOMINA", "NÓMINA", "TRASLADO", "PROVEEDOR", "PROVEEDORES", "CESANTIAS", "CESANTÍAS" };
+        private static readonly string[] CcdKeywords = new[] { "PSE", "DIAN", "SSS", "SEGURIDAD SOCIAL" };
+
         public string ServiceClassCode { get; init; } = string.Empty;
         public string CompanyName { get; init; } = string.Empty;
         public string CompanyDiscretionaryData { get; init; } = string.Empty;
@@ -708,15 +716,21 @@ public class NachaFileBuilder : INachaFileBuilder
         public string OriginatingDFI { get; init; } = string.Empty;
         public int BatchNumber { get; init; }
 
-        public static BatchHeaderRecord From(AchBatch batch)
+        public static BatchHeaderRecord From(AchBatch batch, IEnumerable<AchTransaction> batchTransactions)
         {
+            string standardEntryClassCode = ResolveStandardEntryClassCode(batch, batchTransactions);
+            if (standardEntryClassCode is not ("PPD" or "CCD"))
+            {
+                throw new InvalidOperationException("Error Fatal ID 20: Tipo de servicio del lote inválido. Solo se permite PPD o CCD.");
+            }
+
             return new BatchHeaderRecord
             {
                 ServiceClassCode = batch.ServiceClassCode,
                 CompanyName = batch.CompanyName,
                 CompanyDiscretionaryData = string.Empty,
                 CompanyIdentification = batch.CompanyIdentification,
-                StandardEntryClassCode = "PPD",
+                StandardEntryClassCode = standardEntryClassCode,
                 CompanyEntryDescription = batch.CompanyEntryDescription,
                 CompanyDescriptiveDate = batch.EffectiveEntryDate,
                 EffectiveEntryDate = batch.EffectiveEntryDate,
@@ -725,6 +739,32 @@ public class NachaFileBuilder : INachaFileBuilder
                 OriginatingDFI = batch.OriginOrOdfi,
                 BatchNumber = batch.BatchSequenceNumber
             };
+        }
+
+        private static string ResolveStandardEntryClassCode(AchBatch batch, IEnumerable<AchTransaction> batchTransactions)
+        {
+            string description = (batch.CompanyEntryDescription ?? string.Empty).ToUpperInvariant();
+            var transactions = batchTransactions.ToList();
+
+            bool isPseOrigin = transactions.Any(tx =>
+                string.Equals(tx.SourceInstitution?.Name, "PSE", StringComparison.OrdinalIgnoreCase) ||
+                (tx.Reference?.Contains("PSE", StringComparison.OrdinalIgnoreCase) ?? false));
+
+            bool isDianDestination = transactions.Any(tx =>
+                tx.DestinationInstitution?.Name?.Contains("DIAN", StringComparison.OrdinalIgnoreCase) == true ||
+                (tx.Reference?.Contains("DIAN", StringComparison.OrdinalIgnoreCase) ?? false));
+
+            if (isPseOrigin || isDianDestination || CcdKeywords.Any(k => description.Contains(k, StringComparison.OrdinalIgnoreCase)))
+            {
+                return "CCD";
+            }
+
+            if (PpdKeywords.Any(k => description.Contains(k, StringComparison.OrdinalIgnoreCase)))
+            {
+                return "PPD";
+            }
+
+            return "PPD";
         }
     }
 
