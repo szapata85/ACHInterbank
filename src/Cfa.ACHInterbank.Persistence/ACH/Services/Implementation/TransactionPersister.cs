@@ -29,7 +29,10 @@ public class TransactionPersister : ITransactionPersister
             .Select(t => (int?)t.TraceSequenceNumber)
             .MaxAsync(ct) ?? 0;
         nextSeq++;
-        string traceNumber = $"{context.OriginatingDfi}{nextSeq.ToString().PadLeft(7, '0')}";
+        string traceOriginatingDfi = context.OriginatingDfi.Length >= 8
+            ? context.OriginatingDfi[..8]
+            : context.OriginatingDfi;
+        string traceNumber = $"{traceOriginatingDfi}{nextSeq.ToString().PadLeft(7, '0')}";
 
         var tx = new AchTransaction
         {

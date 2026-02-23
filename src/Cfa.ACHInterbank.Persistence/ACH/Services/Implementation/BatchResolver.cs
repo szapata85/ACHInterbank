@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -50,6 +51,8 @@ public class BatchResolver : IBatchResolver
             throw new InvalidOperationException($"La institución de origen tiene una longitud inválida para el ruteo: {originBase}.");
         }
 
+        string originWithCheckDigit = BuildTransitCodeWithCheckDigit(sourceRouting, sourceTransit, source.CheckDigit);
+
         var dest = await _context.FinancialInstitutions
             .AsNoTracking()
             .Where(fi => fi.Id == request.DestinationInstitutionId && fi.Status == FinancialInstitutionStatus.Active)
@@ -76,6 +79,8 @@ public class BatchResolver : IBatchResolver
         {
             throw new InvalidOperationException($"La institución destino tiene una longitud inválida para el ruteo: {destinationBase}.");
         }
+
+        string destinationWithCheckDigit = BuildTransitCodeWithCheckDigit(destRouting, destTransit, dest.CheckDigit);
 
         var now = DateTime.Now;
         string achCycleId = await _routing.ResolveClearingHouseForTransactionAsync(request.DestinationInstitutionId, now, ct);
@@ -117,8 +122,8 @@ public class BatchResolver : IBatchResolver
             Batch = batch,
             AchCycleId = achCycleId,
             EffectiveEntryDate = effectiveEntryDate,
-            OriginatingDfi = originBase,
-            ReceivingDfi = destinationBase,
+            OriginatingDfi = originWithCheckDigit,
+            ReceivingDfi = destinationWithCheckDigit,
             CompanyName = companyName,
             CompanyIdentification = companyIdentification,
             CompanyEntryDescription = companyEntryDescription,
@@ -126,5 +131,21 @@ public class BatchResolver : IBatchResolver
             SourceInstitutionId = source.Id,
             DestinationInstitutionId = dest.Id
         };
+    }
+
+
+    private static string BuildTransitCodeWithCheckDigit(string routingNumber, string transitCode, string? checkDigit)
+    {
+        string baseCode = $"{routingNumber}{transitCode}";
+        string resolvedCheckDigit = string.IsNullOrWhiteSpace(checkDigit)
+            ? DigitoChequeoHelper.CalcularDigitoChequeo(baseCode)
+            : checkDigit.Trim();
+
+        if (resolvedCheckDigit.Length != 1)
+        {
+            throw new InvalidOperationException($"Dígito de chequeo inválido para código de tránsito {baseCode}.");
+        }
+
+        return $"{baseCode}{resolvedCheckDigit}";
     }
 }
