@@ -157,17 +157,17 @@ public class NachaFileBuilder : INachaFileBuilder
             object? raw;
             if (TryResolveConstant(field.DbColumn, out raw))
             {
-                string value = FormatValue(raw, field);
+                string constantValue = FormatValue(raw, field);
 
-                if (value.Length > field.Length)
-                    value = value.Substring(0, field.Length);
+                if (constantValue.Length > field.Length)
+                    constantValue = constantValue.Substring(0, field.Length);
 
-                value = field.Justification == 'R'
-                    ? value.PadLeft(field.Length, field.PadChar)
-                    : value.PadRight(field.Length, field.PadChar);
+                constantValue = field.Justification == 'R'
+                    ? constantValue.PadLeft(field.Length, field.PadChar)
+                    : constantValue.PadRight(field.Length, field.PadChar);
 
-                int start = field.StartPosition - 1;
-                value.CopyTo(0, buffer, start, value.Length);
+                int constantStart = field.StartPosition - 1;
+                constantValue.CopyTo(0, buffer, constantStart, constantValue.Length);
                 continue;
             }
 
