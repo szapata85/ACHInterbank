@@ -85,9 +85,9 @@ public class TransactionValidator : ITransactionValidator
         }
 
         var companyEntryDescription = request.CompanyEntryDescription.Trim();
-        if (companyEntryDescription.Length > 10)
+        if (companyEntryDescription.Length > 11)
         {
-            throw new ArgumentException("La descripción de la entrada no puede superar 10 caracteres.", nameof(request.CompanyEntryDescription));
+            throw new ArgumentException("La descripción de la entrada no puede superar 11 caracteres.", nameof(request.CompanyEntryDescription));
         }
 
         string normalizedDescription = RemoveDiacritics(companyEntryDescription).ToUpperInvariant();

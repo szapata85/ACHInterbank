@@ -61,7 +61,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     requiresIdentityValidation: [false],
     companyName: ['', [Validators.required, Validators.maxLength(16)]],
     companyIdentification: ['', [Validators.required, Validators.pattern(/^[A-Z0-9]{4,10}$/)]],
-    companyEntryDescription: ['NOMINA', [Validators.required, Validators.maxLength(10)]],
+    companyEntryDescription: ['NOMINA', [Validators.required, Validators.maxLength(11)]],
     addendas: this.fb.array([])
   });
 
@@ -79,7 +79,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     'COMISIONES','COMISION','CONTRATIST','DIVIDENDOS','DONACION','HONORARIO','IMPUESTOS','INTERESES','NOMINA','NÓMINA',
     'PROVEEDOR','PENSIONES','PREPAGADA','PRESTAMOS','RENDIMIENT','RIESGOS P','SEGUROS','SEGURO','SERV PUBLI','SUSCRIPCI',
     'TARCREDITO','TRASLADO','TRASLADOS','TV X CABL','TV SATELIT','UNIVERSIDA','OTROS',
-    'PAGOS PSE','MULTICREDI','COBROS PSE','PAGOS DIAN','SSS','COBROS SSS'
+    'PAGOS PSE','MULTICREDIT','COBROS PSE','PAGOS DIAN','SSS','COBROS SSS'
   ];
   private readonly amountFormatter = new Intl.NumberFormat('es-CO', {
     minimumFractionDigits: 0,
