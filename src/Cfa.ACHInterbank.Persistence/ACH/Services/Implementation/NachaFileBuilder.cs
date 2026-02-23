@@ -154,11 +154,28 @@ public class NachaFileBuilder : INachaFileBuilder
 
         foreach (var field in fields)
         {
+            object? raw;
+            if (TryResolveConstant(field.DbColumn, out raw))
+            {
+                string value = FormatValue(raw, field);
+
+                if (value.Length > field.Length)
+                    value = value.Substring(0, field.Length);
+
+                value = field.Justification == 'R'
+                    ? value.PadLeft(field.Length, field.PadChar)
+                    : value.PadRight(field.Length, field.PadChar);
+
+                int start = field.StartPosition - 1;
+                value.CopyTo(0, buffer, start, value.Length);
+                continue;
+            }
+
             var prop = ResolveProperty(entityType, field.DbColumn)
                 ?? ResolveProperty(entityType, field.FieldName);
             if (prop == null) continue;
 
-            object? raw = prop.GetValue(entity);
+            raw = prop.GetValue(entity);
             string value = FormatValue(raw, field);
 
             if (value.Length > field.Length)
@@ -189,7 +206,9 @@ public class NachaFileBuilder : INachaFileBuilder
 
         foreach (var field in fields)
         {
-            if (!TryResolveValue(values, field.DbColumn, out var raw) &&
+            object? raw;
+            if (!TryResolveConstant(field.DbColumn, out raw) &&
+                !TryResolveValue(values, field.DbColumn, out raw) &&
                 !TryResolveValue(values, field.FieldName, out raw))
             {
                 continue;
@@ -240,6 +259,23 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return null;
+    }
+
+    private static bool TryResolveConstant(string? dbColumn, out object? raw)
+    {
+        raw = null;
+        if (string.IsNullOrWhiteSpace(dbColumn))
+        {
+            return false;
+        }
+
+        if (!dbColumn.StartsWith("CONST:", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        raw = dbColumn[6..];
+        return true;
     }
 
     private static bool TryResolveValue(IReadOnlyDictionary<string, object?> values, string? dbColumn, out object? raw)

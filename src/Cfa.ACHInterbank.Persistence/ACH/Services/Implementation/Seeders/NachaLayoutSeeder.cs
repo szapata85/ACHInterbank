@@ -20,6 +20,7 @@ public class NachaLayoutSeeder : IDbSeeder
         if (await _context.NachaRecordLayouts.AnyAsync())
         {
             await EnsureHeaderOriginAndDestinationLeftPaddingAsync();
+            await EnsureReferenceCodeConstantAsync();
             return;
         }
 
@@ -47,7 +48,7 @@ public class NachaLayoutSeeder : IDbSeeder
                         new NachaRecordField { FieldName="FormatCode", StartPosition=42, Length=1, PadChar='0', Justification='R', DbColumn="FormatCode" },
                         new NachaRecordField { FieldName="ImmediateDestinationName", StartPosition=43, Length=23, PadChar=' ', Justification='L', DbColumn="ImmediateDestinationName" },
                         new NachaRecordField { FieldName="ImmediateOriginName", StartPosition=66, Length=23, PadChar=' ', Justification='L', DbColumn="ImmediateOriginName" },
-                        new NachaRecordField { FieldName="ReferenceCode", StartPosition=89, Length=8, PadChar=' ', Justification='L', DbColumn="ReferenceCode" }
+                        new NachaRecordField { FieldName="ReferenceCode", StartPosition=89, Length=8, PadChar=' ', Justification='L', DbColumn="CONST:1" }
                     }
                 },
 
@@ -166,6 +167,7 @@ public class NachaLayoutSeeder : IDbSeeder
         await _context.SaveChangesAsync();
 
         await EnsureHeaderOriginAndDestinationLeftPaddingAsync();
+        await EnsureReferenceCodeConstantAsync();
     }
 
     private async Task EnsureHeaderOriginAndDestinationLeftPaddingAsync()
@@ -188,4 +190,23 @@ public class NachaLayoutSeeder : IDbSeeder
 
         await _context.SaveChangesAsync();
     }
+
+    private async Task EnsureReferenceCodeConstantAsync()
+    {
+        NachaRecordField? referenceCodeField = await _context.NachaRecordFields
+            .Where(field => field.NachaRecordLayoutId == 1 && field.FieldName == "ReferenceCode")
+            .FirstOrDefaultAsync();
+
+        if (referenceCodeField is null)
+        {
+            return;
+        }
+
+        if (referenceCodeField.DbColumn != "CONST:1")
+        {
+            referenceCodeField.DbColumn = "CONST:1";
+            await _context.SaveChangesAsync();
+        }
+    }
+
 }
