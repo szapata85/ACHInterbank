@@ -18,7 +18,10 @@ public class NachaLayoutSeeder : IDbSeeder
     public async Task SeedAsync()
     {
         if (await _context.NachaRecordLayouts.AnyAsync())
+        {
+            await EnsureHeaderOriginAndDestinationLeftPaddingAsync();
             return;
+        }
 
         var layouts = new List<NachaRecordLayout>
             {
@@ -159,8 +162,30 @@ public class NachaLayoutSeeder : IDbSeeder
                     }
                 }
             };
-
         _context.NachaRecordLayouts.AddRange(layouts);
+        await _context.SaveChangesAsync();
+
+        await EnsureHeaderOriginAndDestinationLeftPaddingAsync();
+    }
+
+    private async Task EnsureHeaderOriginAndDestinationLeftPaddingAsync()
+    {
+        List<NachaRecordField> headerFields = await _context.NachaRecordFields
+            .Where(field => field.NachaRecordLayoutId == 1
+                && (field.FieldName == "ImmediateOrigin" || field.FieldName == "ImmediateDestination"))
+            .ToListAsync();
+
+        if (headerFields.Count == 0)
+        {
+            return;
+        }
+
+        foreach (NachaRecordField field in headerFields)
+        {
+            field.PadChar = '0';
+            field.Justification = 'R';
+        }
+
         await _context.SaveChangesAsync();
     }
 }
