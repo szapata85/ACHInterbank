@@ -42,7 +42,7 @@ public class CompanyEntryDescriptionCatalogConfiguration : IEntityTypeConfigurat
 
         string[] ccdTerms =
         [
-            "PAGOS PSE", "MULTICREDIT", "COBROS PSE", "PAGOS DIAN", "SSS", "COBROS SSS"
+            "PAGOS PSE", "MULTICREDI", "COBROS PSE", "PAGOS DIAN", "SSS", "COBROS SSS"
         ];
 
         var seed = new List<CompanyEntryDescriptionCatalog>();
