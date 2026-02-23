@@ -4,6 +4,8 @@ using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using System.Text;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -27,6 +29,9 @@ public class TransactionValidator : ITransactionValidator
             { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, false), "55" },
             { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, true), "57" }
         };
+
+    private static readonly string[] ValidCompanyEntryDescriptionConceptTerms =
+    ["NOMINA", "PROVEEDOR", "TRASLADO", "TRASLADOS"];
 
     public TransactionValidator(AchDbContext context)
     {
@@ -82,11 +87,20 @@ public class TransactionValidator : ITransactionValidator
             throw new ArgumentException("La descripción de la entrada es obligatoria.", nameof(request.CompanyEntryDescription));
         }
 
-        if (request.CompanyEntryDescription.Trim().Length > 10)
+        var companyEntryDescription = request.CompanyEntryDescription.Trim();
+        if (companyEntryDescription.Length > 10)
         {
             throw new ArgumentException("La descripción de la entrada no puede superar 10 caracteres.", nameof(request.CompanyEntryDescription));
         }
 
+        string normalizedDescription = RemoveDiacritics(companyEntryDescription).ToUpperInvariant();
+        bool hasRequiredConcept = ValidCompanyEntryDescriptionConceptTerms
+            .Any(term => normalizedDescription.Contains(term, StringComparison.Ordinal));
+
+        if (!hasRequiredConcept)
+        {
+            throw new ArgumentException("La descripción de la entrada debe incluir al menos uno de estos conceptos: NOMINA, PROVEEDOR o TRASLADOS.", nameof(request.CompanyEntryDescription));
+        }
 
         if (request.Type == TransactionTypeEnum.Credit && request.RequiresIdentityValidation && string.IsNullOrWhiteSpace(request.RecipientIdNumber))
         {

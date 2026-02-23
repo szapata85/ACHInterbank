@@ -160,8 +160,10 @@
 
       <label>
         <span>Descripción de la entrada *</span>
-        <input type="text" formControlName="companyEntryDescription" required maxlength="10" />
+        <input type="text" formControlName="companyEntryDescription" required maxlength="10" placeholder="NOMINA / PROVEEDOR / TRASLADOS" />
+        <small class="muted">Debe contener el concepto del lote (ej: NOMINA, PROVEEDOR o TRASLADOS).</small>
         <app-error-message [control]="form.get('companyEntryDescription')"></app-error-message>
+        <small class="error" *ngIf="form.errors?.invalidCompanyEntryDescriptionConcept">El concepto debe incluir al menos: NOMINA, PROVEEDOR o TRASLADOS.</small>
       </label>
     </div>
 

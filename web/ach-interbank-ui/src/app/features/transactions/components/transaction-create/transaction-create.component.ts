@@ -61,7 +61,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     requiresIdentityValidation: [false],
     companyName: ['', [Validators.required, Validators.maxLength(16)]],
     companyIdentification: ['', [Validators.required, Validators.pattern(/^[A-Z0-9]{4,10}$/)]],
-    companyEntryDescription: ['PAGOS', [Validators.required, Validators.maxLength(10)]],
+    companyEntryDescription: ['NOMINA', [Validators.required, Validators.maxLength(10)]],
     addendas: this.fb.array([])
   });
 
@@ -73,6 +73,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   activeDestinationAccounts: ActiveThirdPartyAccount[] = [];
   filteredDestinationAccounts: ActiveThirdPartyAccount[] = [];
   selectedCustomerAccounts: string[] = [];
+
+  private static readonly CompanyEntryDescriptionConceptTerms = ['NOMINA', 'NÓMINA', 'PROVEEDOR', 'TRASLADO', 'TRASLADOS'];
   private readonly amountFormatter = new Intl.NumberFormat('es-CO', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
@@ -226,7 +228,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
               type: TransactionTypeEnum.Credit,
               accountType: AccountTypeEnum.Checking,
               isPrenotification: false,
-              companyEntryDescription: 'PAGOS'
+              companyEntryDescription: 'NOMINA'
             });
             this.addendas.clear();
             this.activeDestinationAccounts = [];
@@ -391,6 +393,13 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
     if (!addendas || addendas.length === 0) {
       errors.missingAddenda = true;
+    }
+
+    const companyEntryDescription = String(group.get('companyEntryDescription')?.value ?? '').trim().toUpperCase();
+    const hasRequiredConcept = TransactionCreateComponent.CompanyEntryDescriptionConceptTerms
+      .some((term) => companyEntryDescription.includes(term));
+    if (!hasRequiredConcept) {
+      errors.invalidCompanyEntryDescriptionConcept = true;
     }
 
     if (addendas && addendas.length > 0) {
