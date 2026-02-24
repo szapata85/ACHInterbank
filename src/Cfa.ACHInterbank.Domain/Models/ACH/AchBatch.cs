@@ -13,6 +13,7 @@ public class AchBatch : AuditableEntity
     public string CompanyName { get; set; } = string.Empty;
     public string CompanyIdentification { get; set; } = string.Empty;
     public string CompanyEntryDescription { get; set; } = "PAGOS";
+    public int CompanyEntryDescriptionId { get; set; }
     public string OriginOrOdfi { get; set; } = string.Empty;
 
     public DateTime EffectiveEntryDate { get; set; }

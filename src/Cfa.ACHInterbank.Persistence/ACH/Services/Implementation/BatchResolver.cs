@@ -118,7 +118,7 @@ public class BatchResolver : IBatchResolver
                 CompanyName = companyName,
                 CompanyIdentification = companyIdentification,
                 CompanyEntryDescription = companyEntryDescription,
-            CompanyEntryDescriptionId = companyEntryDescriptionCatalog.Id,
+                CompanyEntryDescriptionId = companyEntryDescriptionCatalog.Id,
                 EffectiveEntryDate = effectiveEntryDate,
                 OriginOrOdfi = originBase
             };
