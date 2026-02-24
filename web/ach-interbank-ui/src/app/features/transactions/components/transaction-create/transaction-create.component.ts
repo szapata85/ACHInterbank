@@ -85,7 +85,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
     this.api.getCompanyEntryDescriptions().pipe(take(1), takeUntil(this.destroy$)).subscribe((items) => {
       this.companyEntryDescriptionOptions = (items ?? []).sort((a, b) => a.term.localeCompare(b.term));
-      const defaultItem = this.companyEntryDescriptionOptions.find((x) => x.term === "NOMINA") ?? this.companyEntryDescriptionOptions[0];
+      const defaultItem = this.companyEntryDescriptionOptions.find((x) => x.term === "NOMINAS") ?? this.companyEntryDescriptionOptions[0];
       if (defaultItem) {
         this.form.patchValue({ companyEntryDescriptionId: defaultItem.id }, { emitEvent: false });
       }
