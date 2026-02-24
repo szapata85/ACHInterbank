@@ -1,0 +1,79 @@
+<app-page-header
+  title="Company Entry Description"
+  subtitle="Administra el catálogo de conceptos para company entry description.">
+</app-page-header>
+
+<section class="card form-card">
+  <h3>{{ editingId ? 'Editar registro' : 'Nuevo registro' }}</h3>
+  <form [formGroup]="form" (ngSubmit)="submit()" class="form-grid" novalidate>
+    <label>
+      <span>Término *</span>
+      <input type="text" formControlName="term" maxlength="12" />
+      <app-error-message [control]="form.get('term')"></app-error-message>
+    </label>
+
+    <label>
+      <span>Código SEC *</span>
+      <select formControlName="standardEntryClassCode">
+        <option value="PPD">PPD</option>
+        <option value="CCD">CCD</option>
+      </select>
+      <app-error-message [control]="form.get('standardEntryClassCode')"></app-error-message>
+    </label>
+
+    <label>
+      <span>Estado</span>
+      <select formControlName="isActive">
+        <option [ngValue]="true">Activo</option>
+        <option [ngValue]="false">Inactivo</option>
+      </select>
+      <app-error-message [control]="form.get('isActive')"></app-error-message>
+    </label>
+
+    <label class="full-width">
+      <span>Descripción *</span>
+      <input type="text" formControlName="description" maxlength="255" />
+      <app-error-message [control]="form.get('description')"></app-error-message>
+    </label>
+
+    <div class="actions full-width">
+      <button type="submit" [disabled]="saving || loading">{{ editingId ? 'Actualizar' : 'Crear' }}</button>
+      <button type="button" class="ghost" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <table class="table" *ngIf="rows.length > 0; else emptyState">
+    <thead>
+      <tr>
+        <th>Id</th>
+        <th>Término</th>
+        <th>Descripción</th>
+        <th>SEC</th>
+        <th>Estado</th>
+        <th class="actions-col">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let row of rows">
+        <td>{{ row.id }}</td>
+        <td>{{ row.term }}</td>
+        <td>{{ row.description }}</td>
+        <td>{{ row.standardEntryClassCode }}</td>
+        <td>{{ row.isActive ? 'Activo' : 'Inactivo' }}</td>
+        <td class="actions-col">
+          <div class="row-actions">
+            <button type="button" class="link" (click)="edit(row)">Editar</button>
+            <button type="button" class="link danger" (click)="remove(row)">Eliminar</button>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <ng-template #emptyState>
+    <p class="muted" *ngIf="loading">Cargando...</p>
+    <p class="muted" *ngIf="!loading">No hay registros.</p>
+  </ng-template>
+</section>

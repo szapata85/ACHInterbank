@@ -54,6 +54,17 @@ const routes: Routes = [
     }
   },
   {
+    path: 'company-entry-descriptions',
+    loadComponent: () =>
+      import('./components/company-entry-description-admin.component').then((m) => m.CompanyEntryDescriptionAdminComponent),
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['CanManageAch'],
+      breadcrumb: 'Company Entry Description',
+      title: 'Company Entry Description'
+    }
+  },
+  {
     path: 'document-types',
     loadComponent: () =>
       import('./components/catalog-types-admin.component').then((m) => m.CatalogTypesAdminComponent),

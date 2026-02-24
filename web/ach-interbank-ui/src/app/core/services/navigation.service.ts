@@ -15,6 +15,7 @@ export class NavigationService {
 
   private mergeDefaultMenu(items: MenuItem[]): MenuItem[] {
     const catalogChildren: MenuItem[] = [
+      { id: -2101, label: 'Company Entry Description', route: '/catalogs/company-entry-descriptions', icon: 'list' },
       { id: -211, label: 'Tipos de documento', route: '/catalogs/document-types', icon: 'badge' },
       { id: -212, label: 'Tipos de género', route: '/catalogs/gender-types', icon: 'diversity_3' },
       { id: -213, label: 'Tipos de persona', route: '/catalogs/person-types', icon: 'apartment' },
