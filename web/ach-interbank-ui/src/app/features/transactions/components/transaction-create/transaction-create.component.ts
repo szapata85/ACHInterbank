@@ -4,7 +4,7 @@ import { debounceTime, distinctUntilChanged, map, shareReplay, take, takeUntil, 
 import { Subject } from 'rxjs';
 import { Router } from '@angular/router';
 import { TransactionsApiService } from '../../services/transactions-api.service';
-import { ActiveThirdPartyAccount, TransactionDraft, TransactionResponse } from '../../transactions.models';
+import { ActiveThirdPartyAccount, CompanyEntryDescriptionOption, TransactionDraft, TransactionResponse } from '../../transactions.models';
 import { AccountTypeEnum, FinancialInstitutionStatusEnum, TransactionTypeEnum } from '../../transactions.types';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SharedModule } from '../../../../shared/shared.module';
