@@ -16,7 +16,7 @@ export class CatalogsListComponent implements OnInit {
   private readonly api = inject(CatalogsApiService);
   banks: CatalogItem[] = [];
   readonly adminCatalogs = [
-    { label: 'Company Entry Description', route: '/catalogs/company-entry-descriptions' },
+    { label: 'Conceptos de lote', route: '/catalogs/company-entry-descriptions' },
     { label: 'Tipos de documento', route: '/catalogs/document-types' },
     { label: 'Tipos de género', route: '/catalogs/gender-types' },
     { label: 'Tipos de persona', route: '/catalogs/person-types' },

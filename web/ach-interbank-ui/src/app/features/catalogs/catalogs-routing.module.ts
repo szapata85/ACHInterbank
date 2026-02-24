@@ -60,8 +60,8 @@ const routes: Routes = [
     canActivate: [permissionGuard],
     data: {
       permissions: ['CanManageAch'],
-      breadcrumb: 'Company Entry Description',
-      title: 'Company Entry Description'
+      breadcrumb: 'Conceptos de lote',
+      title: 'Conceptos de lote'
     }
   },
   {
