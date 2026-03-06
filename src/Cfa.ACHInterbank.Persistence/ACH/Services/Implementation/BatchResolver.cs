@@ -90,6 +90,11 @@ public class BatchResolver : IBatchResolver
             ?? throw new InvalidOperationException("No se encontró el ciclo ACH para la transacción.");
         DateTime effectiveEntryDate = cycle.ProcessingDate.Date;
 
+        if (request.Type == TransactionTypeEnum.Debit && IsCycleFive(cycle.CycleName))
+        {
+            throw new InvalidOperationException("No se aceptan transacciones débito en el Ciclo 5.");
+        }
+
         string companyName = request.CompanyName.Trim();
         string companyIdentification = request.CompanyIdentification.Trim().ToUpperInvariant();
 
@@ -137,10 +142,44 @@ public class BatchResolver : IBatchResolver
             CompanyIdentification = companyIdentification,
             CompanyEntryDescription = companyEntryDescription,
             CompanyEntryDescriptionId = companyEntryDescriptionCatalog.Id,
+            ReturnSlaDeadlineAtUtc = await CalculateReturnSlaDeadlineAtUtcAsync(cycle, ct),
             ServiceClassCode = "200",
             SourceInstitutionId = source.Id,
             DestinationInstitutionId = dest.Id
         };
+    }
+
+    private static bool IsCycleFive(string cycleName)
+    {
+        if (string.IsNullOrWhiteSpace(cycleName))
+        {
+            return false;
+        }
+
+        var digits = new string(cycleName.Where(char.IsDigit).ToArray());
+        return int.TryParse(digits, out var cycleNumber) && cycleNumber == 5;
+    }
+
+    private async Task<DateTime?> CalculateReturnSlaDeadlineAtUtcAsync(AchCycle currentCycle, CancellationToken ct)
+    {
+        var orderedCycles = await _context.AchCycles
+            .AsNoTracking()
+            .Where(c => c.ClearingHouseId == currentCycle.ClearingHouseId)
+            .Where(c => c.ProcessingDate > currentCycle.ProcessingDate
+                        || (c.ProcessingDate == currentCycle.ProcessingDate && c.CutoffTime >= currentCycle.CutoffTime))
+            .OrderBy(c => c.ProcessingDate)
+            .ThenBy(c => c.CutoffTime)
+            .Take(5)
+            .ToListAsync(ct);
+
+        if (orderedCycles.Count < 5)
+        {
+            return null;
+        }
+
+        var deadlineCycle = orderedCycles[4];
+        var deadlineLocal = deadlineCycle.ProcessingDate.Date + deadlineCycle.CutoffTime;
+        return DateTime.SpecifyKind(deadlineLocal, DateTimeKind.Local).ToUniversalTime();
     }
 
 

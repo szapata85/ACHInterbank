@@ -44,6 +44,8 @@ public class AchStateTransitionService : IAchStateTransitionService
 
         if (toState is AchTransferStateEnum.ReturnedByOperator or AchTransferStateEnum.ReturnedByEpr)
         {
+            EnforceReturnSla(transaction, toState);
+
             transaction.ReturnReasonCode = normalizedReasonCode!;
             if (!string.IsNullOrWhiteSpace(normalizedOriginalTraceRef))
             {
@@ -145,5 +147,30 @@ public class AchStateTransitionService : IAchStateTransitionService
 
         var normalized = originalTraceRef.Trim();
         return normalized.Length <= 20 ? normalized : normalized[..20];
+    }
+
+    private static void EnforceReturnSla(AchTransaction transaction, AchTransferStateEnum toState)
+    {
+        if (toState is not (AchTransferStateEnum.ReturnedByOperator or AchTransferStateEnum.ReturnedByEpr))
+        {
+            return;
+        }
+
+        if (!transaction.SlaDeadlineAtUtc.HasValue)
+        {
+            return;
+        }
+
+        var nowUtc = DateTime.UtcNow;
+        if (nowUtc <= transaction.SlaDeadlineAtUtc.Value)
+        {
+            return;
+        }
+
+        if (transaction.Type == TransactionTypeEnum.Debit)
+        {
+            throw new InvalidOperationException(
+                $"No se permite compensar devoluciones débito fuera del plazo de 4 ciclos. SLA vencido: {transaction.SlaDeadlineAtUtc:O}.");
+        }
     }
 }

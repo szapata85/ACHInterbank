@@ -55,6 +55,7 @@ public class TransactionPersister : ITransactionPersister
             EffectiveEntryDate = context.EffectiveEntryDate,
             AddendaRecordIndicator = true,
             IsPrenotification = request.IsPrenotification,
+            SlaDeadlineAtUtc = context.ReturnSlaDeadlineAtUtc,
             RecipientIdNumber = request.RecipientIdNumber?.Trim() ?? string.Empty,
             DiscretionaryData = request.Type == TransactionTypeEnum.Credit && request.RequiresIdentityValidation ? "V" : string.Empty,
 
