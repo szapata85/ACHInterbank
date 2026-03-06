@@ -59,6 +59,20 @@ public class TaskParameterSeeder : IDbSeeder
             });
         }
 
+        var contrapartidasTask = await _context.TaskDefinitions
+            .FirstOrDefaultAsync(t => t.Code == "AchContrapartidasByCycle");
+
+        if (contrapartidasTask is not null
+            && !_context.TaskParameters.Any(p => p.TaskDefinitionId == contrapartidasTask.Id && p.Key == "MaxTransactionsPerCycle"))
+        {
+            _context.TaskParameters.Add(new TaskParameter
+            {
+                TaskDefinitionId = contrapartidasTask.Id,
+                Key = "MaxTransactionsPerCycle",
+                Value = "1000"
+            });
+        }
+
         await _context.SaveChangesAsync();
     }
 }

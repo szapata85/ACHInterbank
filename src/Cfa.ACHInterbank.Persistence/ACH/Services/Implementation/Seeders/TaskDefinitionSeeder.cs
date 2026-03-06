@@ -74,6 +74,19 @@ public class TaskDefinitionSeeder : IDbSeeder
                 StartAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero)
             });
         }
+
+        if (!_context.TaskDefinitions.Any(t => t.Code == "AchContrapartidasByCycle"))
+        {
+            _context.TaskDefinitions.Add(new TaskDefinition
+            {
+                Code = "AchContrapartidasByCycle",
+                Name = "Enviar contrapartidas por ciclo y cámara",
+                PeriodicityType = PeriodicityTypeEnum.EveryNMinutes,
+                N = 5,
+                TimeZoneId = "America/Bogota",
+                StartAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            });
+        }
         await _context.SaveChangesAsync();
         _context.ChangeTracker.AutoDetectChangesEnabled = true;
     }
