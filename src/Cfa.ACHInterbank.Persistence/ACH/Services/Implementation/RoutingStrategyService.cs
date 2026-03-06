@@ -75,7 +75,7 @@ public class RoutingStrategyService : IRoutingStrategyService
                     .Where(c =>
                         c.ClearingHouseId == pref.ClearingHouseId &&
                         c.ProcessingDate == processingDate &&
-                        (processingDate > now.Date || c.CutoffTime > now.TimeOfDay))
+                        IsWithinCycleWindow(now, c.ProcessingDate, c.StartTime, c.EndTime))
                     .OrderBy(c => c.ProcessingDate)
                     .ThenBy(c => c.CutoffTime)
                     .FirstOrDefaultAsync(ct);
@@ -129,5 +129,19 @@ public class RoutingStrategyService : IRoutingStrategyService
         }
 
         return 2;
+    }
+
+    private static bool IsWithinCycleWindow(DateTime now, DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
+    {
+        if (startTime <= endTime)
+        {
+            var start = processingDate.Date + startTime;
+            var end = processingDate.Date + endTime;
+            return now >= start && now <= end;
+        }
+
+        var overnightStart = processingDate.Date.AddDays(-1) + startTime;
+        var overnightEnd = processingDate.Date + endTime;
+        return now >= overnightStart && now <= overnightEnd;
     }
 }

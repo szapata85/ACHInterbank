@@ -15,6 +15,10 @@ public class AchCycle : AuditableEntity
     // Hora límite de recepción del ciclo
     public TimeSpan CutoffTime { get; set; }
 
+    // Ventana operativa del ciclo
+    public TimeSpan StartTime { get; set; }
+    public TimeSpan EndTime { get; set; }
+
     // Indica si debe correrse al siguiente día hábil si cae en festivo
     public bool RescheduleOnHoliday { get; set; }
 

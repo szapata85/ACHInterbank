@@ -19,6 +19,12 @@ public class AchCycleConfiguration : IEntityTypeConfiguration<AchCycle>
         builder.Property(cycle => cycle.CutoffTime)
             .IsRequired();
 
+        builder.Property(cycle => cycle.StartTime)
+            .IsRequired();
+
+        builder.Property(cycle => cycle.EndTime)
+            .IsRequired();
+
         builder.Property(cycle => cycle.ProcessingDate)
             .HasColumnType("date");
 

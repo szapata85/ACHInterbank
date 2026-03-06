@@ -10,6 +10,8 @@ public class ClearingHouseCycleConfig
     public int Id { get; set; }
     public int ClearingHouseId { get; set; }
     public string CycleName { get; set; } = null!;
+    public TimeSpan StartTime { get; set; }
+    public TimeSpan EndTime { get; set; }
     public TimeSpan CutoffTime { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime EffectiveFrom { get; set; }

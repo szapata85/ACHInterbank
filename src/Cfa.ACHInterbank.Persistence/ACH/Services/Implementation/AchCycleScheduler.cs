@@ -112,6 +112,8 @@ public class AchCycleScheduler : IAchCycleScheduler
                     ClearingHouseId = clearingHouseId,
                     CycleName = cfg.CycleName,
                     ProcessingDate = processingDate.Date,
+                    StartTime = cfg.StartTime,
+                    EndTime = cfg.EndTime,
                     CutoffTime = cfg.CutoffTime,
                     RescheduleOnHoliday = true
                 });

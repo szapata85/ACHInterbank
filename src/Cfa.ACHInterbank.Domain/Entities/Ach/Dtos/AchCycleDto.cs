@@ -5,6 +5,8 @@ public class AchCycleDto
     public string Id { get; set; } = null!;
     public string CycleName { get; set; } = null!;
     public DateTime ProcessingDate { get; set; }
+    public TimeSpan StartTime { get; set; }
+    public TimeSpan EndTime { get; set; }
     public TimeSpan CutoffTime { get; set; }
     public bool RescheduleOnHoliday { get; set; }
     public int ClearingHouseId { get; set; }
@@ -15,6 +17,8 @@ public class AchCycleRequest
 {
     public string CycleName { get; set; } = null!;
     public DateTime ProcessingDate { get; set; }
+    public TimeSpan StartTime { get; set; }
+    public TimeSpan EndTime { get; set; }
     public TimeSpan CutoffTime { get; set; }
     public bool RescheduleOnHoliday { get; set; }
     public int ClearingHouseId { get; set; }
