@@ -78,14 +78,13 @@ public class AchContrapartidasByCycleHandler : ITaskHandler
                 var responseCode = ExtractResponseCode(response);
                 var normalizedCode = NormalizeResponseCode(responseCode);
                 var isSuccess = string.Equals(normalizedCode, "R96", StringComparison.OrdinalIgnoreCase);
-                var valueToStore = isSuccess ? string.Empty : normalizedCode;
 
                 var txIds = cycleTx.Select(t => t.Id).ToList();
                 await _db.AchTransactions
                     .Where(t => txIds.Contains(t.Id))
                     .ExecuteUpdateAsync(
                         setters => setters
-                            .SetProperty(t => t.ContrapartidasResponseCode, valueToStore),
+                            .SetProperty(t => t.ContrapartidasResponseCode, normalizedCode),
                         cancellationToken);
 
                 if (!isSuccess)
