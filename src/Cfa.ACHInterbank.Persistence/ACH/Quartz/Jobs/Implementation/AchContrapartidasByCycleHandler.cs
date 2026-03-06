@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Text.RegularExpressions;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
 
@@ -72,7 +73,17 @@ public class AchContrapartidasByCycleHandler : ITaskHandler
             try
             {
                 var parameters = BuildRequestParameters(cycle, cycleTx, now);
-                await _soapClient.ProcContrapartidasAsync(parameters, cancellationToken);
+                var response = await _soapClient.ProcContrapartidasAsync(parameters, cancellationToken);
+                var responseCode = ExtractResponseCode(response);
+
+                var txIds = cycleTx.Select(t => t.Id).ToList();
+                await _db.AchTransactions
+                    .Where(t => txIds.Contains(t.Id))
+                    .ExecuteUpdateAsync(
+                        setters => setters
+                            .SetProperty(t => t.ContrapartidasResponseCode, responseCode),
+                        cancellationToken);
+
                 sent++;
             }
             catch (Exception ex)
@@ -144,5 +155,18 @@ public class AchContrapartidasByCycleHandler : ITaskHandler
     {
         var raw = task.Parameters.FirstOrDefault(p => p.Key == key)?.Value;
         return int.TryParse(raw, out var parsed) && parsed > 0 ? parsed : defaultValue;
+    }
+
+    private static string ExtractResponseCode(string response)
+    {
+        if (string.IsNullOrWhiteSpace(response))
+        {
+            return "R00";
+        }
+
+        var match = Regex.Match(response, @"\bR\d{2}\b", RegexOptions.IgnoreCase);
+        return match.Success
+            ? match.Value.ToUpperInvariant()
+            : "R00";
     }
 }

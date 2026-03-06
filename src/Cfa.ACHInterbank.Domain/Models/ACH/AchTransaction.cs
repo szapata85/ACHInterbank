@@ -30,6 +30,7 @@ public class AchTransaction : AuditableEntity
     public AchTransferStateEnum State { get; set; } = AchTransferStateEnum.Pending;
     public DateTime StateChangedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? SlaDeadlineAtUtc { get; set; }
+    public string ContrapartidasResponseCode { get; set; } = string.Empty;
     public string ReturnReasonCode { get; set; } = string.Empty;
     public string OriginalTraceRef { get; set; } = string.Empty;
     public string RecipientIdNumber { get; set; } = string.Empty;
@@ -53,5 +54,4 @@ public class AchTransaction : AuditableEntity
     public ICollection<AchTransactionAddenda> Addendas { get; set; } = new List<AchTransactionAddenda>();
     public ICollection<AchTransactionStateEvent> StateEvents { get; set; } = new List<AchTransactionStateEvent>();
 }
-
 

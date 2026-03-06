@@ -39,6 +39,9 @@ public class AchTransactionConfiguration : IEntityTypeConfiguration<AchTransacti
         builder.Property(t => t.ReturnReasonCode)
             .HasMaxLength(20);
 
+        builder.Property(t => t.ContrapartidasResponseCode)
+            .HasMaxLength(10);
+
         builder.Property(t => t.OriginalTraceRef)
             .HasMaxLength(20);
 
