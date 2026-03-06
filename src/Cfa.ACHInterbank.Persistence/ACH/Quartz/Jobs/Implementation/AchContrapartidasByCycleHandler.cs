@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
 
@@ -75,14 +76,27 @@ public class AchContrapartidasByCycleHandler : ITaskHandler
                 var parameters = BuildRequestParameters(cycle, cycleTx, now);
                 var response = await _soapClient.ProcContrapartidasAsync(parameters, cancellationToken);
                 var responseCode = ExtractResponseCode(response);
+                var normalizedCode = NormalizeResponseCode(responseCode);
+                var isSuccess = string.Equals(normalizedCode, "R96", StringComparison.OrdinalIgnoreCase);
+                var valueToStore = isSuccess ? string.Empty : normalizedCode;
 
                 var txIds = cycleTx.Select(t => t.Id).ToList();
                 await _db.AchTransactions
                     .Where(t => txIds.Contains(t.Id))
                     .ExecuteUpdateAsync(
                         setters => setters
-                            .SetProperty(t => t.ContrapartidasResponseCode, responseCode),
+                            .SetProperty(t => t.ContrapartidasResponseCode, valueToStore),
                         cancellationToken);
+
+                if (!isSuccess)
+                {
+                    _log.LogWarning(
+                        "Proc_Contrapartidas devolvió código de error {ResponseCode} para ciclo {CycleId} ({CycleName}) cámara {ClearingHouseCode}.",
+                        normalizedCode,
+                        cycle.Id,
+                        cycle.CycleName,
+                        cycle.ClearingHouse?.Code);
+                }
 
                 sent++;
             }
@@ -161,12 +175,49 @@ public class AchContrapartidasByCycleHandler : ITaskHandler
     {
         if (string.IsNullOrWhiteSpace(response))
         {
-            return "R00";
+            return "UNKNOWN";
         }
 
-        var match = Regex.Match(response, @"\bR\d{2}\b", RegexOptions.IgnoreCase);
+        try
+        {
+            var xml = XDocument.Parse(response);
+            var knownNodes = new[]
+            {
+                "Codigo", "CodigoRespuesta", "ResponseCode", "Code", "Estado", "ResultCode"
+            };
+
+            foreach (var nodeName in knownNodes)
+            {
+                var value = xml
+                    .Descendants()
+                    .FirstOrDefault(e => string.Equals(e.Name.LocalName, nodeName, StringComparison.OrdinalIgnoreCase))
+                    ?.Value;
+
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value.Trim();
+                }
+            }
+        }
+        catch
+        {
+            // fallback a regex cuando la respuesta no sea XML válido
+        }
+
+        var match = Regex.Match(response, @"\b[A-Za-z][A-Za-z0-9]{1,9}\b", RegexOptions.IgnoreCase);
         return match.Success
-            ? match.Value.ToUpperInvariant()
-            : "R00";
+            ? match.Value.Trim()
+            : "UNKNOWN";
+    }
+
+    private static string NormalizeResponseCode(string? responseCode)
+    {
+        if (string.IsNullOrWhiteSpace(responseCode))
+        {
+            return "UNKNOWN";
+        }
+
+        var value = responseCode.Trim().ToUpperInvariant();
+        return value.Length <= 10 ? value : value[..10];
     }
 }
