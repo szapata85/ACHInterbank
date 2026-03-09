@@ -1,11 +1,9 @@
-using System.Collections.Concurrent;
 using System.Net.Http.Headers;
 using System.Text;
 using Cfa.ACHInterbank.Application.External.Connections;
 using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
-using Microsoft.Extensions.Configuration;
 
 namespace Cfa.ACHInterbank.External.Connections;
 
@@ -15,26 +13,15 @@ public class WscfaachSoapClient : IWscfaachSoapClient
     private readonly ILoggerManager _logger;
     private readonly ISoapIntegrationSettingsService _soapSettingsService;
     private readonly IHttpClientFactory _httpClientFactory;
-    private static readonly ConcurrentDictionary<int, SemaphoreSlim> _bulkheadsByLimit = new();
-    private readonly SemaphoreSlim _bulkhead;
 
     public WscfaachSoapClient(
         ILoggerManager logger,
         ISoapIntegrationSettingsService soapSettingsService,
-        IHttpClientFactory httpClientFactory,
-        IConfiguration configuration)
+        IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
         _soapSettingsService = soapSettingsService;
         _httpClientFactory = httpClientFactory;
-
-        int maxConcurrentConnections = configuration.GetValue<int?>("Soap:Wscfaach:MaxConcurrentConnections") ?? 10;
-        if (maxConcurrentConnections <= 0)
-        {
-            maxConcurrentConnections = 10;
-        }
-
-        _bulkhead = _bulkheadsByLimit.GetOrAdd(maxConcurrentConnections, limit => new SemaphoreSlim(limit, limit));
     }
 
     public Task<string> PLValidarUsuarioBVAsync(string requestXml, CancellationToken ct = default)
@@ -131,35 +118,26 @@ public class WscfaachSoapClient : IWscfaachSoapClient
             .ConfigureAwait(false);
         var envelope = BuildEnvelope(requestXml);
 
-        await _bulkhead.WaitAsync(ct).ConfigureAwait(false);
+        using var client = _httpClientFactory.CreateClient(nameof(WscfaachSoapClient));
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+        request.Content = new StringContent(envelope, Encoding.UTF8, "text/xml");
+        request.Headers.Add("SOAPAction", soapAction);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/xml"));
 
-        try
+        _logger.LogInfo($"SOAP request {action} -> {endpoint}");
+
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct)
+            .ConfigureAwait(false);
+
+        var responseContent = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+
+        if (!response.IsSuccessStatusCode)
         {
-            using var client = _httpClientFactory.CreateClient(nameof(WscfaachSoapClient));
-            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
-            request.Content = new StringContent(envelope, Encoding.UTF8, "text/xml");
-            request.Headers.Add("SOAPAction", soapAction);
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/xml"));
-
-            _logger.LogInfo($"SOAP request {action} -> {endpoint}");
-
-            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct)
-                .ConfigureAwait(false);
-
-            var responseContent = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogError($"SOAP error {action}: {response.StatusCode} - {responseContent}");
-                throw new InvalidOperationException($"SOAP error {action}: {response.StatusCode}");
-            }
-
-            return responseContent;
+            _logger.LogError($"SOAP error {action}: {response.StatusCode} - {responseContent}");
+            throw new InvalidOperationException($"SOAP error {action}: {response.StatusCode}");
         }
-        finally
-        {
-            _bulkhead.Release();
-        }
+
+        return responseContent;
     }
 
     private async Task<(string Endpoint, string SoapAction)> ResolveConfigurationAsync(

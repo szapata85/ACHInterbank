@@ -5,6 +5,9 @@ using Cfa.ACHInterbank.External.Notifications;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
+using Polly;
+using System.Threading.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using System.Reflection;
 using System.Security.Claims;
@@ -20,8 +23,55 @@ public static class DependencyInjectionService
     public static IServiceCollection AddExternal(this IServiceCollection services, IConfiguration configuration)
     {
 
+        var resilienceSection = configuration.GetSection("Resilience:Soap");
+        var timeoutSeconds = resilienceSection.GetValue<int?>("TimeoutSeconds") ?? 15;
+        var maxRetryAttempts = resilienceSection.GetValue<int?>("MaxRetryAttempts") ?? 3;
+        var retryBaseDelaySeconds = resilienceSection.GetValue<int?>("RetryBaseDelaySeconds") ?? 2;
+        var breakerFailureRatio = resilienceSection.GetValue<double?>("CircuitBreaker:FailureRatio") ?? 0.5;
+        var breakerSamplingSeconds = resilienceSection.GetValue<int?>("CircuitBreaker:SamplingDurationSeconds") ?? 30;
+        var breakerMinimumThroughput = resilienceSection.GetValue<int?>("CircuitBreaker:MinimumThroughput") ?? 20;
+        var breakerBreakSeconds = resilienceSection.GetValue<int?>("CircuitBreaker:BreakDurationSeconds") ?? 30;
+        var outboundRatePermitLimit = resilienceSection.GetValue<int?>("RateLimit:PermitLimit") ?? 50;
+        var outboundRateWindowSeconds = resilienceSection.GetValue<int?>("RateLimit:WindowSeconds") ?? 1;
+        var outboundRateQueueLimit = resilienceSection.GetValue<int?>("RateLimit:QueueLimit") ?? 100;
+        var outboundBulkheadPermitLimit = resilienceSection.GetValue<int?>("Bulkhead:PermitLimit") ?? 10;
+        var outboundBulkheadQueueLimit = resilienceSection.GetValue<int?>("Bulkhead:QueueLimit") ?? 50;
+
         services.AddHttpClient(nameof(Connections.WscfaachSoapClient))
-            .SetHandlerLifetime(TimeSpan.FromMinutes(10));
+            .SetHandlerLifetime(TimeSpan.FromMinutes(10))
+            .AddResilienceHandler("ach-soap-pipeline", pipeline =>
+            {
+                pipeline.AddRateLimiter(new HttpRateLimiterStrategyOptions
+                {
+                    DefaultRateLimiterOptions = new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = outboundRatePermitLimit,
+                        Window = TimeSpan.FromSeconds(outboundRateWindowSeconds),
+                        QueueLimit = outboundRateQueueLimit,
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+                    }
+                });
+
+                pipeline.AddTimeout(TimeSpan.FromSeconds(timeoutSeconds));
+
+                pipeline.AddRetry(new HttpRetryStrategyOptions
+                {
+                    MaxRetryAttempts = maxRetryAttempts,
+                    BackoffType = DelayBackoffType.Exponential,
+                    Delay = TimeSpan.FromSeconds(retryBaseDelaySeconds),
+                    UseJitter = true
+                });
+
+                pipeline.AddCircuitBreaker(new HttpCircuitBreakerStrategyOptions
+                {
+                    FailureRatio = breakerFailureRatio,
+                    SamplingDuration = TimeSpan.FromSeconds(breakerSamplingSeconds),
+                    MinimumThroughput = breakerMinimumThroughput,
+                    BreakDuration = TimeSpan.FromSeconds(breakerBreakSeconds)
+                });
+
+                pipeline.AddConcurrencyLimiter(outboundBulkheadPermitLimit, outboundBulkheadQueueLimit);
+            });
 
         services.AddScoped<IEmailSender, LoggingEmailSender>();
 
