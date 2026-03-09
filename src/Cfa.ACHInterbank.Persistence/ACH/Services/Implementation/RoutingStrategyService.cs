@@ -35,16 +35,25 @@ public class RoutingStrategyService : IRoutingStrategyService
             ?? throw new InvalidOperationException("Institución destino no encontrada.");
 
         // Primero los que son default, luego por prioridad
-
-        List<InstitutionClearingHousePreference> preferences = fi.ClearingHousePreferences
-            .Where(p => p.IsActive)
+        List<InstitutionClearingHousePreference> allPreferences = fi.ClearingHousePreferences
             .OrderByDescending(p => p.IsDefault)  // true primero
             .ThenBy(p => NormalizePriority(p.Priority))
             .ThenBy(p => p.Id)
             .ToList();
 
-        if (!preferences.Any())
+        if (!allPreferences.Any())
+        {
             throw new InvalidOperationException("La institución no tiene cámaras asociadas.");
+        }
+
+        List<InstitutionClearingHousePreference> preferences = allPreferences
+            .Where(p => p.IsActive)
+            .ToList();
+
+        if (!preferences.Any())
+        {
+            throw new InvalidOperationException("La institución destino no tiene cámaras activas configuradas.");
+        }
 
         // 2️) Próxima fecha hábil
         DateTime processingDate = GetNextBusinessDay(now.Date);
