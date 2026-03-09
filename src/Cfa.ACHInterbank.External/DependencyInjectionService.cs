@@ -20,6 +20,9 @@ public static class DependencyInjectionService
     public static IServiceCollection AddExternal(this IServiceCollection services, IConfiguration configuration)
     {
 
+        services.AddHttpClient(nameof(Connections.WscfaachSoapClient))
+            .SetHandlerLifetime(TimeSpan.FromMinutes(10));
+
         services.AddScoped<IEmailSender, LoggingEmailSender>();
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(option =>

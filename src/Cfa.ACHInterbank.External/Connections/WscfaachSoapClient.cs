@@ -1,9 +1,11 @@
+using System.Collections.Concurrent;
 using System.Net.Http.Headers;
 using System.Text;
 using Cfa.ACHInterbank.Application.External.Connections;
 using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Microsoft.Extensions.Configuration;
 
 namespace Cfa.ACHInterbank.External.Connections;
 
@@ -12,13 +14,27 @@ public class WscfaachSoapClient : IWscfaachSoapClient
 {
     private readonly ILoggerManager _logger;
     private readonly ISoapIntegrationSettingsService _soapSettingsService;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private static readonly ConcurrentDictionary<int, SemaphoreSlim> _bulkheadsByLimit = new();
+    private readonly SemaphoreSlim _bulkhead;
 
     public WscfaachSoapClient(
         ILoggerManager logger,
-        ISoapIntegrationSettingsService soapSettingsService)
+        ISoapIntegrationSettingsService soapSettingsService,
+        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration)
     {
         _logger = logger;
         _soapSettingsService = soapSettingsService;
+        _httpClientFactory = httpClientFactory;
+
+        int maxConcurrentConnections = configuration.GetValue<int?>("Soap:Wscfaach:MaxConcurrentConnections") ?? 10;
+        if (maxConcurrentConnections <= 0)
+        {
+            maxConcurrentConnections = 10;
+        }
+
+        _bulkhead = _bulkheadsByLimit.GetOrAdd(maxConcurrentConnections, limit => new SemaphoreSlim(limit, limit));
     }
 
     public Task<string> PLValidarUsuarioBVAsync(string requestXml, CancellationToken ct = default)
@@ -55,14 +71,7 @@ public class WscfaachSoapClient : IWscfaachSoapClient
             return Task.FromResult<IReadOnlyList<string>>([]);
         }
 
-        return Task.Run(
-            () => (IReadOnlyList<string>)requestXmls
-                .AsParallel()
-                .WithDegreeOfParallelism(degreeOfParallelism)
-                .WithCancellation(ct)
-                .Select(xml => ProcTransaccionesAsync(xml, ct).GetAwaiter().GetResult())
-                .ToArray(),
-            ct);
+        return ProcTransaccionesParallelInternalAsync(requestXmls, degreeOfParallelism, ct);
     }
 
     public Task<IReadOnlyList<string>> ProcTransaccionesParallelAsync(
@@ -79,14 +88,41 @@ public class WscfaachSoapClient : IWscfaachSoapClient
             .Select(parameters => BuildBody("Proc_Transacciones", parameters))
             .ToArray();
 
-        return Task.Run(
-            () => (IReadOnlyList<string>)bodies
-                .AsParallel()
-                .WithDegreeOfParallelism(degreeOfParallelism)
-                .WithCancellation(ct)
-                .Select(xml => ProcTransaccionesAsync(xml, ct).GetAwaiter().GetResult())
-                .ToArray(),
-            ct);
+        return ProcTransaccionesParallelInternalAsync(bodies, degreeOfParallelism, ct);
+    }
+
+
+    private async Task<IReadOnlyList<string>> ProcTransaccionesParallelInternalAsync(
+        IEnumerable<string> requestXmls,
+        int degreeOfParallelism,
+        CancellationToken ct)
+    {
+        var requests = requestXmls.ToArray();
+        if (requests.Length == 0)
+        {
+            return [];
+        }
+
+        if (degreeOfParallelism <= 0)
+        {
+            degreeOfParallelism = 1;
+        }
+
+        var responses = new string[requests.Length];
+
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, requests.Length),
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = degreeOfParallelism,
+                CancellationToken = ct
+            },
+            async (index, token) =>
+            {
+                responses[index] = await ProcTransaccionesAsync(requests[index], token).ConfigureAwait(false);
+            }).ConfigureAwait(false);
+
+        return responses;
     }
 
     private async Task<string> SendAsync(string action, string requestXml, CancellationToken ct)
@@ -95,26 +131,35 @@ public class WscfaachSoapClient : IWscfaachSoapClient
             .ConfigureAwait(false);
         var envelope = BuildEnvelope(requestXml);
 
-        using var client = new HttpClient();
-        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
-        request.Content = new StringContent(envelope, Encoding.UTF8, "text/xml");
-        request.Headers.Add("SOAPAction", soapAction);
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/xml"));
+        await _bulkhead.WaitAsync(ct).ConfigureAwait(false);
 
-        _logger.LogInfo($"SOAP request {action} -> {endpoint}");
-
-        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct)
-            .ConfigureAwait(false);
-
-        var responseContent = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            _logger.LogError($"SOAP error {action}: {response.StatusCode} - {responseContent}");
-            throw new InvalidOperationException($"SOAP error {action}: {response.StatusCode}");
-        }
+            using var client = _httpClientFactory.CreateClient(nameof(WscfaachSoapClient));
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+            request.Content = new StringContent(envelope, Encoding.UTF8, "text/xml");
+            request.Headers.Add("SOAPAction", soapAction);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/xml"));
 
-        return responseContent;
+            _logger.LogInfo($"SOAP request {action} -> {endpoint}");
+
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct)
+                .ConfigureAwait(false);
+
+            var responseContent = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError($"SOAP error {action}: {response.StatusCode} - {responseContent}");
+                throw new InvalidOperationException($"SOAP error {action}: {response.StatusCode}");
+            }
+
+            return responseContent;
+        }
+        finally
+        {
+            _bulkhead.Release();
+        }
     }
 
     private async Task<(string Endpoint, string SoapAction)> ResolveConfigurationAsync(
