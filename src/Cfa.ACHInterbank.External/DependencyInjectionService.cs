@@ -32,7 +32,6 @@ public static class DependencyInjectionService
         var breakerMinimumThroughput = resilienceSection.GetValue<int?>("CircuitBreaker:MinimumThroughput") ?? 20;
         var breakerBreakSeconds = resilienceSection.GetValue<int?>("CircuitBreaker:BreakDurationSeconds") ?? 30;
         var outboundRatePermitLimit = resilienceSection.GetValue<int?>("RateLimit:PermitLimit") ?? 50;
-        var outboundRateWindowSeconds = resilienceSection.GetValue<int?>("RateLimit:WindowSeconds") ?? 1;
         var outboundRateQueueLimit = resilienceSection.GetValue<int?>("RateLimit:QueueLimit") ?? 100;
         var outboundBulkheadPermitLimit = resilienceSection.GetValue<int?>("Bulkhead:PermitLimit") ?? 10;
         var outboundBulkheadQueueLimit = resilienceSection.GetValue<int?>("Bulkhead:QueueLimit") ?? 50;
@@ -43,10 +42,9 @@ public static class DependencyInjectionService
             {
                 pipeline.AddRateLimiter(new HttpRateLimiterStrategyOptions
                 {
-                    DefaultRateLimiterOptions = new FixedWindowRateLimiterOptions
+                    DefaultRateLimiterOptions = new ConcurrencyLimiterOptions
                     {
                         PermitLimit = outboundRatePermitLimit,
-                        Window = TimeSpan.FromSeconds(outboundRateWindowSeconds),
                         QueueLimit = outboundRateQueueLimit,
                         QueueProcessingOrder = QueueProcessingOrder.OldestFirst
                     }
