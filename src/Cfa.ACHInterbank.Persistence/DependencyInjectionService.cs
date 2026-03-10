@@ -31,6 +31,9 @@ public static class DependencyInjectionService
 
         var commandTimeout = configuration.GetValue<int?>("Database:CommandTimeoutSeconds");
         var provider = configuration.GetValue<string>("Database:Provider") ?? "SqlServer";
+        var maxRetryCount = configuration.GetValue<int?>("Database:MaxRetryCount") ?? 5;
+        var maxRetryDelaySeconds = configuration.GetValue<int?>("Database:MaxRetryDelaySeconds") ?? 10;
+        var maxRetryDelay = TimeSpan.FromSeconds(maxRetryDelaySeconds);
         var connectionString = GetConnectionString(provider, configuration);
         services.AddDbContext<AchDbContext>(options =>
         {
@@ -49,6 +52,11 @@ public static class DependencyInjectionService
                             {
                                 sqlOptions.CommandTimeout(commandTimeout.Value);
                             }
+
+                            sqlOptions.EnableRetryOnFailure(
+                                maxRetryCount: maxRetryCount,
+                                maxRetryDelay: maxRetryDelay,
+                                errorNumbersToAdd: null);
                         });
                     break;
                 case "postgres":
@@ -62,6 +70,11 @@ public static class DependencyInjectionService
                             {
                                 npgsqlOptions.CommandTimeout(commandTimeout.Value);
                             }
+
+                            npgsqlOptions.EnableRetryOnFailure(
+                                maxRetryCount: maxRetryCount,
+                                maxRetryDelay: maxRetryDelay,
+                                errorCodesToAdd: null);
                         });
                     break;
                 default:
