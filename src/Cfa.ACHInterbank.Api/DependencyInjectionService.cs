@@ -3,6 +3,7 @@ using Cfa.ACHInterbank.Application.Helpers.Middleware;
 using Cfa.ACHInterbank.Persistence.ACH.Services;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using NLog.Extensions.Logging;
 using Scalar.AspNetCore;
@@ -26,6 +27,13 @@ public static class DependencyInjectionService
             options.JsonSerializerOptions.MaxDepth = 128; // Profundidad máxima de serialización
             options.JsonSerializerOptions.WriteIndented = true;
             options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+        });
+
+
+        services.Configure<FormOptions>(options =>
+        {
+            options.MultipartBodyLengthLimit = 10 * 1024 * 1024; // 10 MB
+            options.MultipartHeadersLengthLimit = 16 * 1024;
         });
 
         services.AddEndpointsApiExplorer();

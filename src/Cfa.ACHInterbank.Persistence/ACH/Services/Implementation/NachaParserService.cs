@@ -29,7 +29,7 @@ public class NachaParserService : INachaParserService
         _stateTransitionService = stateTransitionService;
     }
 
-    public async Task<IReadOnlyList<NachaValidationFailure>> ParseAndSaveAsync(Stream nachaStream, string FileName)
+    public async Task<IReadOnlyList<NachaValidationFailure>> ParseAndSaveAsync(Stream nachaStream, string FileName, CancellationToken ct = default)
     {
         var failures = new List<NachaValidationFailure>();
 
@@ -47,7 +47,7 @@ public class NachaParserService : INachaParserService
 
             var clearingHouseMap = await _context.ClearingHouses
                 .AsNoTracking()
-                .ToDictionaryAsync(ch => ch.OriginCode.Trim(), ch => ch.Id);
+                .ToDictionaryAsync(ch => ch.OriginCode.Trim(), ch => ch.Id, ct);
 
             List<NachaHeader> headers = new();
             NachaHeader? currentHeader = null;
@@ -79,7 +79,7 @@ public class NachaParserService : INachaParserService
                             .AnyAsync(p => p.FileCreationDate == currentHeader.FileCreationDate
                                         && p.FileCreationTime == currentHeader.FileCreationTime
                                         && p.FileIdModifier == currentHeader.FileIdModifier
-                                        && p.ImmediateOrigin == currentHeader.ImmediateOrigin);
+                                        && p.ImmediateOrigin == currentHeader.ImmediateOrigin, ct);
 
                         if (NachaHeadersExists)
                         {
@@ -105,7 +105,7 @@ public class NachaParserService : INachaParserService
 
                         entry.NachaID = currentHeader?.NachaID;
 
-                        var (isValid, failureReason) = await ValidateEntryAsync(entry, currentBatch, failures);
+                        var (isValid, failureReason) = await ValidateEntryAsync(entry, currentBatch, failures, ct);
                         if (isValid)
                         {
                             entryDetails.Add(entry);
@@ -118,7 +118,7 @@ public class NachaParserService : INachaParserService
 
                         if (PrenoteCodes.Contains(entry.TransactionCode ?? string.Empty))
                         {
-                            await UpdateThirdPartyStatusAsync(entry, currentHeader?.AchCycleId, isValid, failureReason);
+                            await UpdateThirdPartyStatusAsync(entry, currentHeader?.AchCycleId, isValid, failureReason, ct);
                         }
                         break;
                     case '7':
@@ -168,9 +168,9 @@ public class NachaParserService : INachaParserService
 
             _context.NachaHeaders.AddRange(headers);
 
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(ct);
             var validAddendas = currentHeader?.AddendaRecords?.ToList() ?? [];
-            await ApplyReturnStateTransitionsAsync(validEntries, validAddendas, failures);
+            await ApplyReturnStateTransitionsAsync(validEntries, validAddendas, failures, ct);
             _context.ChangeTracker.AutoDetectChangesEnabled = true;
         }
         catch (Exception ex)
@@ -334,10 +334,11 @@ public class NachaParserService : INachaParserService
     private async Task<(bool IsValid, string? FailureReason)> ValidateEntryAsync(
         EntryDetail entry,
         BatchHeader? batch,
-        List<NachaValidationFailure> failures)
+        List<NachaValidationFailure> failures,
+        CancellationToken ct)
     {
         var code = entry.TransactionCode ?? string.Empty;
-        var configuredCodes = await GetConfiguredTransactionCodesAsync();
+        var configuredCodes = await GetConfiguredTransactionCodesAsync(ct);
         if (!configuredCodes.Contains(code))
         {
             const string reason = "Código de transacción inválido.";
@@ -391,7 +392,7 @@ public class NachaParserService : INachaParserService
             var recipientId = entry.RecipIdNumber ?? string.Empty;
             var matches = await _context.Customers
                 .AsNoTracking()
-                .AnyAsync(c => c.DocumentNumber == recipientId && c.Accounts.Any(a => a.AccountNumber == accountNumber));
+                .AnyAsync(c => c.DocumentNumber == recipientId && c.Accounts.Any(a => a.AccountNumber == accountNumber), ct);
 
             if (!matches)
             {
@@ -408,7 +409,8 @@ public class NachaParserService : INachaParserService
         EntryDetail entry,
         string? validationCycleId,
         bool isValid,
-        string? failureReason)
+        string? failureReason,
+        CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(entry.AccountNumber) || string.IsNullOrWhiteSpace(entry.RecipIdNumber))
         {
@@ -419,7 +421,7 @@ public class NachaParserService : INachaParserService
             .FirstOrDefaultAsync(t =>
                 t.DestinationAccountNumber == entry.AccountNumber &&
                 t.RecipientIdNumber == entry.RecipIdNumber &&
-                t.Status == CustomerThirdPartyStatusEnum.Pending);
+                t.Status == CustomerThirdPartyStatusEnum.Pending, ct);
 
         if (thirdParty is null)
         {
@@ -527,15 +529,17 @@ public class NachaParserService : INachaParserService
     private async Task ApplyReturnStateTransitionsAsync(
         IReadOnlyList<EntryDetail> validEntries,
         IReadOnlyList<AddendaRecord> validAddendas,
-        IReadOnlyList<NachaValidationFailure> failures)
+        IReadOnlyList<NachaValidationFailure> failures,
+        CancellationToken ct)
     {
-        await ApplyReturnedByEprTransitionsAsync(validEntries, validAddendas);
-        await ApplyReturnedByOperatorTransitionsAsync(failures);
+        await ApplyReturnedByEprTransitionsAsync(validEntries, validAddendas, ct);
+        await ApplyReturnedByOperatorTransitionsAsync(failures, ct);
     }
 
     private async Task ApplyReturnedByEprTransitionsAsync(
         IReadOnlyList<EntryDetail> validEntries,
-        IReadOnlyList<AddendaRecord> validAddendas)
+        IReadOnlyList<AddendaRecord> validAddendas,
+        CancellationToken ct)
     {
         var processedTransactionIds = new HashSet<int>();
 
@@ -554,7 +558,7 @@ public class NachaParserService : INachaParserService
                 continue;
             }
 
-            var transaction = await FindTransactionByTraceReferenceAsync(originalTraceRef);
+            var transaction = await FindTransactionByTraceReferenceAsync(originalTraceRef, ct);
             if (transaction is null || !processedTransactionIds.Add(transaction.Id))
             {
                 continue;
@@ -580,13 +584,14 @@ public class NachaParserService : INachaParserService
         }
     }
 
-    private async Task ApplyReturnedByOperatorTransitionsAsync(IReadOnlyList<NachaValidationFailure> failures)
+    private async Task ApplyReturnedByOperatorTransitionsAsync(IReadOnlyList<NachaValidationFailure> failures,
+        CancellationToken ct)
     {
         var processedTransactionIds = new HashSet<int>();
 
         foreach (var failure in failures.Where(f => !string.IsNullOrWhiteSpace(f.EntrySequence)))
         {
-            var transaction = await FindTransactionByTraceReferenceAsync(failure.EntrySequence);
+            var transaction = await FindTransactionByTraceReferenceAsync(failure.EntrySequence, ct);
             if (transaction is null || !processedTransactionIds.Add(transaction.Id))
             {
                 continue;
@@ -613,7 +618,7 @@ public class NachaParserService : INachaParserService
         }
     }
 
-    private async Task<AchTransaction?> FindTransactionByTraceReferenceAsync(string? traceReference)
+    private async Task<AchTransaction?> FindTransactionByTraceReferenceAsync(string? traceReference, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(traceReference))
         {
@@ -623,7 +628,7 @@ public class NachaParserService : INachaParserService
         var normalized = traceReference.Trim();
 
         var transaction = await _context.AchTransactions
-            .FirstOrDefaultAsync(t => t.TraceNumber == normalized);
+            .FirstOrDefaultAsync(t => t.TraceNumber == normalized, ct);
 
         if (transaction is not null)
         {
@@ -637,7 +642,7 @@ public class NachaParserService : INachaParserService
         }
 
         return await _context.AchTransactions
-            .FirstOrDefaultAsync(t => t.TraceSequenceNumber == sequenceNumber);
+            .FirstOrDefaultAsync(t => t.TraceSequenceNumber == sequenceNumber, ct);
     }
 
     private static string? ResolveOriginalTraceReference(EntryDetail entry, IReadOnlyList<AddendaRecord> relatedAddenda)
@@ -707,7 +712,7 @@ public class NachaParserService : INachaParserService
         return $"{{\"transactionCode\":\"{entry.TransactionCode}\",\"entrySequence\":\"{entry.SequenceNumber}\",\"addendaCount\":{addendaCount}}}";
     }
 
-    private async Task<HashSet<string>> GetConfiguredTransactionCodesAsync()
+    private async Task<HashSet<string>> GetConfiguredTransactionCodesAsync(CancellationToken ct)
     {
         if (_configuredTransactionCodes is not null)
         {
@@ -717,7 +722,7 @@ public class NachaParserService : INachaParserService
         var configuredCodes = await _context.TransactionCodes
             .AsNoTracking()
             .Select(x => x.Code)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         _configuredTransactionCodes = configuredCodes.Count == 0
             ? new HashSet<string>(FallbackTransactionCodes, StringComparer.OrdinalIgnoreCase)

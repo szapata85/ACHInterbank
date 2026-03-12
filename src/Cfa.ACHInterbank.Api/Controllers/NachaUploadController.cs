@@ -1,12 +1,14 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.Validators.NachaValidator;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Api.Controllers
 {
     [ApiController]
+    [Authorize(Policy = "CanReadAch")]
     [Route("[controller]")]
     public class NachaUploadController : Controller
     {
@@ -27,34 +29,135 @@ namespace Cfa.ACHInterbank.Api.Controllers
         /// Endpoint de la API ACH Interbank.
         /// </summary>
 
-        [HttpPost("upload")]
-        [Consumes("multipart/form-data")]
-        public async Task<IActionResult> UploadNachaFile([FromForm] NachaUploadRequest request)
+        private const long MaxUploadSizeBytes = 10 * 1024 * 1024; // 10 MB
+        private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
+            ".ach", ".nacha", ".txt"
+        };
+        private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "text/plain", "application/octet-stream"
+        };
+
+        [HttpPost("upload")]
+        [Authorize(Policy = "CanManageAch")]
+        [Consumes("multipart/form-data")]
+        [RequestSizeLimit(MaxUploadSizeBytes)]
+        [RequestFormLimits(MultipartBodyLengthLimit = MaxUploadSizeBytes)]
+        public async Task<IActionResult> UploadNachaFile([FromForm] NachaUploadRequest request, CancellationToken ct)
+        {
+            var traceId = HttpContext.TraceIdentifier;
             var file = request.File;
             if (file == null || file.Length == 0)
-                return BadRequest("Archivo inválido.");
+            {
+                return BadRequest(new NachaUploadResponseDto
+                {
+                    Success = false,
+                    Partial = false,
+                    Message = "Archivo inválido.",
+                    Errors = ["Debe enviar un archivo NACHA válido."],
+                    TraceId = traceId
+                });
+            }
+
+            if (file.Length > MaxUploadSizeBytes)
+            {
+                return BadRequest(new NachaUploadResponseDto
+                {
+                    Success = false,
+                    Partial = false,
+                    Message = "Archivo excede el tamaño permitido.",
+                    Errors = [$"Tamaño máximo permitido: {MaxUploadSizeBytes / (1024 * 1024)} MB."],
+                    TraceId = traceId
+                });
+            }
+
+            var extension = Path.GetExtension(file.FileName);
+            if (!AllowedExtensions.Contains(extension))
+            {
+                return BadRequest(new NachaUploadResponseDto
+                {
+                    Success = false,
+                    Partial = false,
+                    Message = "Extensión de archivo no permitida.",
+                    Errors = ["Extensiones permitidas: .ach, .nacha, .txt"],
+                    TraceId = traceId
+                });
+            }
+
+            if (!string.IsNullOrWhiteSpace(file.ContentType) && !AllowedContentTypes.Contains(file.ContentType))
+            {
+                return BadRequest(new NachaUploadResponseDto
+                {
+                    Success = false,
+                    Partial = false,
+                    Message = "Tipo MIME no permitido.",
+                    Errors = ["Tipos MIME permitidos: text/plain, application/octet-stream"],
+                    TraceId = traceId
+                });
+            }
 
             try
             {
-                using var stream = file.OpenReadStream();
-                var failures = await _parserService.ParseAndSaveAsync(stream, file.FileName);
+                await using var stream = file.OpenReadStream();
+                var failures = await _parserService.ParseAndSaveAsync(stream, file.FileName, ct);
 
                 if (failures.Count > 0)
                 {
-                    return Ok(new
+                    return UnprocessableEntity(new NachaUploadResponseDto
                     {
-                        message = "Archivo procesado con devoluciones por operador.",
-                        operatorReturns = failures
+                        Success = false,
+                        Partial = true,
+                        Message = "Archivo procesado con observaciones de validación.",
+                        Errors = failures.Select(f => f.Reason).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList(),
+                        OperatorReturns = failures,
+                        TraceId = traceId
                     });
                 }
 
-                return Ok("Archivo procesado y guardado.");
+                return Ok(new NachaUploadResponseDto
+                {
+                    Success = true,
+                    Partial = false,
+                    Message = "Archivo procesado y guardado.",
+                    Errors = [],
+                    TraceId = traceId
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                _logger.LogWarning(ex, "Validación de archivo NACHA falló {FileName}", file.FileName);
+                return BadRequest(new NachaUploadResponseDto
+                {
+                    Success = false,
+                    Partial = false,
+                    Message = "No fue posible validar el archivo.",
+                    Errors = [ex.Message],
+                    TraceId = traceId
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                return StatusCode(StatusCodes.Status408RequestTimeout, new NachaUploadResponseDto
+                {
+                    Success = false,
+                    Partial = false,
+                    Message = "La carga del archivo fue cancelada.",
+                    Errors = ["La operación fue cancelada o agotó el tiempo de espera."],
+                    TraceId = traceId
+                });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al procesar archivo NACHA-M {FileName}", file.FileName);
-                return StatusCode(StatusCodes.Status500InternalServerError, "No fue posible procesar el archivo.");
+                return StatusCode(StatusCodes.Status500InternalServerError, new NachaUploadResponseDto
+                {
+                    Success = false,
+                    Partial = false,
+                    Message = "No fue posible procesar el archivo.",
+                    Errors = ["Error interno del servidor."],
+                    TraceId = traceId
+                });
             }
         }
 
@@ -146,6 +249,16 @@ namespace Cfa.ACHInterbank.Api.Controllers
     public class NachaUploadRequest
     {
         public IFormFile File { get; set; } = null!;
+    }
+
+    public class NachaUploadResponseDto
+    {
+        public bool Success { get; set; }
+        public bool Partial { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public IReadOnlyList<string> Errors { get; set; } = [];
+        public IReadOnlyList<NachaValidationFailure> OperatorReturns { get; set; } = [];
+        public string TraceId { get; set; } = string.Empty;
     }
 
     public class NachaUploadRecordResponse
