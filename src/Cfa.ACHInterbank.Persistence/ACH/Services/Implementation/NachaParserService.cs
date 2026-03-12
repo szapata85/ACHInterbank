@@ -407,6 +407,7 @@ public class NachaParserService : INachaParserService
         var isCredit = CreditCodes.Contains(code);
         var isDebit = DebitCodes.Contains(code);
         var serviceClassCode = batch?.ServiceClassCode?.Trim();
+        var isPseCcdCredit = isCredit && IsPseCcdBatch(batch);
 
         if (serviceClassCode == "220" && !isCredit)
         {
@@ -437,6 +438,26 @@ public class NachaParserService : INachaParserService
         }
 
         var requiresIdentityValidation = isDebit || ShouldValidateCreditIdentity(entry.DiscreData);
+
+        if (isPseCcdCredit)
+        {
+            var accountNumber = entry.AccountNumber ?? string.Empty;
+            var accountExists = await _context.CustomerAccounts
+                .AsNoTracking()
+                .AnyAsync(a => a.AccountNumber == accountNumber, ct);
+
+            if (!accountExists)
+            {
+                const string reason = "R03: Cuenta de destino no existe en la entidad receptora.";
+                failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
+                return (false, reason);
+            }
+
+            // Excepción de negocio para CCD/PSE como banco receptor:
+            // si la cuenta existe, no se aplican validaciones adicionales de límites.
+            return (true, null);
+        }
+
         if (requiresIdentityValidation)
         {
             if (string.IsNullOrWhiteSpace(entry.RecipIdNumber))
@@ -461,6 +482,31 @@ public class NachaParserService : INachaParserService
         }
 
         return (true, null);
+    }
+
+    private static bool IsPseCcdBatch(BatchHeader? batch)
+    {
+        if (batch is null)
+        {
+            return false;
+        }
+
+        if (!string.Equals(batch.StandardEntryClassCode?.Trim(), "CCD", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var pseHints = new[]
+        {
+            batch.CompanyEntryDescription,
+            batch.CompanyName,
+            batch.DiscretionaryData,
+            batch.CompanyId
+        };
+
+        return pseHints.Any(value =>
+            !string.IsNullOrWhiteSpace(value) &&
+            value.Contains("PSE", StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task UpdateThirdPartyStatusAsync(

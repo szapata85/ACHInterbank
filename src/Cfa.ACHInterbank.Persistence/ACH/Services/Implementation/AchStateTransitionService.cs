@@ -4,6 +4,7 @@ using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Nodes;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -60,7 +61,7 @@ public class AchStateTransitionService : IAchStateTransitionService
             ToState = toState,
             Source = source,
             ReasonCode = normalizedReasonCode,
-            PayloadJson = string.IsNullOrWhiteSpace(payloadJson) ? null : payloadJson.Trim()
+            PayloadJson = BuildAuditPayloadJson(toState, payloadJson, normalizedReasonCode)
         };
 
         await _context.AchTransactionStateEvents.AddAsync(stateEvent, ct);
@@ -147,6 +148,59 @@ public class AchStateTransitionService : IAchStateTransitionService
 
         var normalized = originalTraceRef.Trim();
         return normalized.Length <= 20 ? normalized : normalized[..20];
+    }
+
+    private static string? BuildAuditPayloadJson(
+        AchTransferStateEnum toState,
+        string? payloadJson,
+        string? reasonCode)
+    {
+        var marker = GetMirrorStatusLabel(toState);
+        if (marker is null)
+        {
+            return string.IsNullOrWhiteSpace(payloadJson) ? null : payloadJson.Trim();
+        }
+
+        JsonObject payload;
+        if (string.IsNullOrWhiteSpace(payloadJson))
+        {
+            payload = new JsonObject();
+        }
+        else
+        {
+            try
+            {
+                payload = JsonNode.Parse(payloadJson)?.AsObject() ?? new JsonObject
+                {
+                    ["payload"] = payloadJson.Trim()
+                };
+            }
+            catch (Exception)
+            {
+                payload = new JsonObject
+                {
+                    ["payload"] = payloadJson.Trim()
+                };
+            }
+        }
+
+        payload["mirrorStatusLabel"] = marker;
+        if (!string.IsNullOrWhiteSpace(reasonCode))
+        {
+            payload["returnReasonCode"] = reasonCode;
+        }
+
+        return payload.ToJsonString();
+    }
+
+    private static string? GetMirrorStatusLabel(AchTransferStateEnum toState)
+    {
+        return toState switch
+        {
+            AchTransferStateEnum.ReturnedByEpr or AchTransferStateEnum.ReturnedByOperator => "TRANSACCIÓN FALLIDA",
+            AchTransferStateEnum.AppliedTacitly or AchTransferStateEnum.Certified => "TRANSACCIÓN APLICADA EXITOSAMENTE",
+            _ => null
+        };
     }
 
     private static void EnforceReturnSla(AchTransaction transaction, AchTransferStateEnum toState)
