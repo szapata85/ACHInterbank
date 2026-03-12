@@ -7,6 +7,7 @@ using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
@@ -184,30 +185,42 @@ public class NachaParserService : INachaParserService
 
     private List<NachaHeader> ParseFileHeaderLinq(List<string> line, Dictionary<string, int> clearingHouseMap, string FileName)
     {
-        var parts = FileName.Split('.');
-        var cycleNumber = int.Parse(parts[1]);
-
-
+        int cycleNumber = ExtractCycleNumberFromFileName(FileName);
 
         return line.Select(a =>
         {
-            string ImmediateOrigin = a.Substring(13, 10).Trim();
-            int? ClearingHouseId = clearingHouseMap.TryGetValue(ImmediateOrigin, out var chId) ? chId : null;
+            string immediateOrigin = a.Substring(13, 10).Trim();
+            int? clearingHouseId = clearingHouseMap.TryGetValue(immediateOrigin, out var chId) ? chId : null;
+            string fileCreationDate = a.Substring(23, 8);
+            DateTime? processingDate = ParseNachaProcessingDate(fileCreationDate);
 
-            string? AchCycleId = _context.AchCycles.Where(c => c.ClearingHouseId == ClearingHouseId &&
-                                         c.ProcessingDate == DateTime.Today &&
-                                         c.CycleName.Contains(cycleNumber.ToString())
-                                   ).Select(c => c.Id)
-                             .FirstOrDefault();
+            IQueryable<AchCycle> cycleQuery = _context.AchCycles
+                .Where(c => c.ClearingHouseId == clearingHouseId);
+
+            if (processingDate.HasValue)
+            {
+                cycleQuery = cycleQuery.Where(c => c.ProcessingDate == processingDate.Value.Date);
+            }
+
+            if (cycleNumber > 0)
+            {
+                cycleQuery = cycleQuery.Where(c => c.CycleName.Contains(cycleNumber.ToString()));
+            }
+
+            string? achCycleId = cycleQuery
+                .OrderByDescending(c => c.ProcessingDate)
+                .ThenByDescending(c => c.CutoffTime)
+                .Select(c => c.Id)
+                .FirstOrDefault();
 
             return new NachaHeader
             {
                 NachaID = HashHelper.GenerateHashSha1(
-                    $"{a.Substring(3, 10).Trim()}{ImmediateOrigin}{a.Substring(23, 8).Trim()}{a.Substring(31, 4).Trim()}"),
+                    $"{a.Substring(3, 10).Trim()}{immediateOrigin}{fileCreationDate.Trim()}{a.Substring(31, 4).Trim()}"),
                 PriorityCode = a.Substring(1, 2),
                 ImmediateDestination = a.Substring(3, 10).Trim(),
-                ImmediateOrigin = ImmediateOrigin,
-                FileCreationDate = a.Substring(23, 8),
+                ImmediateOrigin = immediateOrigin,
+                FileCreationDate = fileCreationDate,
                 FileCreationTime = a.Substring(31, 4),
                 FileIdModifier = a.Substring(35, 1),
                 RecordSize = a.Substring(36, 3),
@@ -216,12 +229,57 @@ public class NachaParserService : INachaParserService
                 ImmediateDestinationName = a.Substring(42, 23).Trim(),
                 ImmediateOriginName = a.Substring(65, 23).Trim(),
                 ReferenceCode = a.Substring(88, 8).Trim(),
-                ClearingHouseId = ClearingHouseId,
+                ClearingHouseId = clearingHouseId,
                 CycleNumber = cycleNumber,
-                // 🔹 Relacionar con AchCycle (si existe en BD)
-                AchCycleId = AchCycleId
+                AchCycleId = achCycleId
             };
         }).ToList();
+    }
+
+    private static int ExtractCycleNumberFromFileName(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return 0;
+        }
+
+        var nameWithoutExtension = Path.GetFileNameWithoutExtension(fileName);
+        if (string.IsNullOrWhiteSpace(nameWithoutExtension))
+        {
+            return 0;
+        }
+
+        var segments = nameWithoutExtension.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var segment in segments)
+        {
+            if (int.TryParse(segment, out var cycleNumber) && cycleNumber > 0)
+            {
+                return cycleNumber;
+            }
+        }
+
+        return 0;
+    }
+
+    private static DateTime? ParseNachaProcessingDate(string? fileCreationDate)
+    {
+        if (string.IsNullOrWhiteSpace(fileCreationDate))
+        {
+            return null;
+        }
+
+        var value = fileCreationDate.Trim();
+        if (DateTime.TryParseExact(value, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var yyyyMMdd))
+        {
+            return yyyyMMdd.Date;
+        }
+
+        if (DateTime.TryParseExact(value, "yyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var yyMMdd))
+        {
+            return yyMMdd.Date;
+        }
+
+        return null;
     }
 
     private List<BatchHeader> ParseBatchHeaderLinq(List<string> line)
