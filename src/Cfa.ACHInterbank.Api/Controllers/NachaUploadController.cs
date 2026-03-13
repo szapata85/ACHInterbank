@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Validators.NachaValidator;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Authorization;

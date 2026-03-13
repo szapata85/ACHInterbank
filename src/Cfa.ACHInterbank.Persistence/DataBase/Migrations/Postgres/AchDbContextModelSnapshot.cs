@@ -1438,6 +1438,9 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("CompanyEntryDescriptionId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("CompanyIdentification")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1496,11 +1499,17 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<TimeSpan>("EndTime")
+                        .HasColumnType("interval");
+
                     b.Property<DateTime>("ProcessingDate")
                         .HasColumnType("date");
 
                     b.Property<bool>("RescheduleOnHoliday")
                         .HasColumnType("boolean");
+
+                    b.Property<TimeSpan>("StartTime")
+                        .HasColumnType("interval");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1534,9 +1543,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<decimal>("Amount")
                         .HasColumnType("numeric");
 
-                    b.Property<string>("CompanyEntryDescription")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("CompanyEntryDescriptionId")
+                        .HasColumnType("integer");
 
                     b.Property<string>("CompanyIdentification")
                         .IsRequired()
@@ -1545,6 +1553,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<string>("CompanyName")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("ContrapartidasResponseCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1644,6 +1657,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasIndex("AchBatchId");
 
                     b.HasIndex("AchCycleId");
+
+                    b.HasIndex("CompanyEntryDescriptionId");
 
                     b.HasIndex("CustomerId");
 
@@ -2036,8 +2051,14 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<DateTime?>("EffectiveTo")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<TimeSpan>("EndTime")
+                        .HasColumnType("interval");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
+
+                    b.Property<TimeSpan>("StartTime")
+                        .HasColumnType("interval");
 
                     b.HasKey("Id");
 
@@ -2071,6 +2092,346 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .IsUnique();
 
                     b.ToTable("ClearingHouseSpecialDates", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CompanyEntryDescriptionCatalog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("StandardEntryClassCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<string>("Term")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Term")
+                        .IsUnique();
+
+                    b.ToTable("CompanyEntryDescription", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Description = "Pagos de administración.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "ADMONES"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Description = "Fondos destinados a ahorro.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "AHORROS"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Description = "Pagos de aportes.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "APORTES"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Description = "Pagos de arrendamientos o arriendos.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "ARRIENDOS"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Description = "Pagos de servicios de buscapersonas.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "BEEPERS"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Description = "Pagos de cédulas de capitalización (Ajustado al límite de 10 caracteres).",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "CEDULAS CP"
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Description = "Pagos de servicios de telefonía móvil.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "CELULARES"
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Description = "Pagos de fondos de cesantías.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "CESANTIAS"
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Description = "Pagos de cuotas de clubes.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "CLUBS"
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Description = "Pagos de matrículas o pensiones escolares.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "COLEGIOS"
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Description = "Pagos de comisiones.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "COMISIONES"
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Description = "Pagos a contratistas.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "CONTRATISTS"
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Description = "Pagos de dividendos o acciones.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "DIVIDENDOS"
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Description = "Pagos por concepto de donaciones.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "DONACIONES"
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Description = "Pagos de servicios profesionales u honorarios.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "HONORARIOS"
+                        },
+                        new
+                        {
+                            Id = 16,
+                            Description = "Pagos de obligaciones tributarias.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "IMPUESTOS"
+                        },
+                        new
+                        {
+                            Id = 17,
+                            Description = "Pagos de rendimientos financieros o intereses.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "INTERESES"
+                        },
+                        new
+                        {
+                            Id = 18,
+                            Description = "Pagos de nóminas de empleados.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "NOMINAS"
+                        },
+                        new
+                        {
+                            Id = 19,
+                            Description = "Otros tipos de pagos no categorizados.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "OTROS"
+                        },
+                        new
+                        {
+                            Id = 20,
+                            Description = "Pagos de mesadas pensionales.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "PENSIONES"
+                        },
+                        new
+                        {
+                            Id = 21,
+                            Description = "Pagos de servicios de medicina prepagada.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "PREPAGADAS"
+                        },
+                        new
+                        {
+                            Id = 22,
+                            Description = "Pagos de cuotas de créditos o préstamos.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "PRESTAMOS"
+                        },
+                        new
+                        {
+                            Id = 23,
+                            Description = "Pagos a proveedores (Ajustado al límite de 10 caracteres).",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "PROVEEDORS"
+                        },
+                        new
+                        {
+                            Id = 24,
+                            Description = "Pagos de rendimientos financieros.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "RENDIMIENTS"
+                        },
+                        new
+                        {
+                            Id = 25,
+                            Description = "Pagos de Riesgos Profesionales.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "RIESGOS P"
+                        },
+                        new
+                        {
+                            Id = 26,
+                            Description = "Pagos de primas de seguros.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "SEGUROS"
+                        },
+                        new
+                        {
+                            Id = 27,
+                            Description = "Pagos de servicios públicos (Ajustado al límite de 10 caracteres).",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "SERVS PUBL"
+                        },
+                        new
+                        {
+                            Id = 28,
+                            Description = "Pagos de suscripciones a revistas o servicios.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "SUSCRIPCIS"
+                        },
+                        new
+                        {
+                            Id = 29,
+                            Description = "Pagos de cuotas de tarjetas de crédito.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "TARCREDITS"
+                        },
+                        new
+                        {
+                            Id = 30,
+                            Description = "Transferencias de fondos entre cuentas (Obligatorio para personas naturales).",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "TRASLADOS"
+                        },
+                        new
+                        {
+                            Id = 31,
+                            Description = "Pagos de servicios de televisión por cable.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "TVS X CABL"
+                        },
+                        new
+                        {
+                            Id = 32,
+                            Description = "Pagos de servicios de televisión satelital.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "TVS SATEL"
+                        },
+                        new
+                        {
+                            Id = 33,
+                            Description = "Pagos de matrículas o pensiones universitarias.",
+                            IsActive = true,
+                            StandardEntryClassCode = "PPD",
+                            Term = "UNIVERSIDAS"
+                        },
+                        new
+                        {
+                            Id = 34,
+                            Description = "Nuevo concepto para transacciones crédito generadas por PSE.",
+                            IsActive = true,
+                            StandardEntryClassCode = "CCD",
+                            Term = "MULTICREDITS"
+                        },
+                        new
+                        {
+                            Id = 35,
+                            Description = "Transacciones de comercio electrónico a través del botón de pagos.",
+                            IsActive = true,
+                            StandardEntryClassCode = "CCD",
+                            Term = "PAGOS PSE"
+                        },
+                        new
+                        {
+                            Id = 36,
+                            Description = "Recaudos originados por el sistema PSE.",
+                            IsActive = true,
+                            StandardEntryClassCode = "CCD",
+                            Term = "COBROS PSE"
+                        },
+                        new
+                        {
+                            Id = 37,
+                            Description = "Pagos de impuestos a la Dirección de Impuestos y Aduanas Nacionales.",
+                            IsActive = true,
+                            StandardEntryClassCode = "CCD",
+                            Term = "PAGOS DIAN"
+                        },
+                        new
+                        {
+                            Id = 38,
+                            Description = "Pagos y recaudos del Sistema de Seguridad Social",
+                            IsActive = true,
+                            StandardEntryClassCode = "CCD",
+                            Term = "COBROS SSS"
+                        });
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.Customer", b =>
@@ -2687,6 +3048,248 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .IsUnique();
 
                     b.ToTable("InstitutionClearingHousePreferences", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaFileIdentifierMap", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Identifier")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .HasColumnType("character varying(1)");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Sequence")
+                        .IsUnique();
+
+                    b.ToTable("NachaFileIdentifierMap", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Identifier = "A",
+                            Sequence = 1
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Identifier = "B",
+                            Sequence = 2
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Identifier = "C",
+                            Sequence = 3
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Identifier = "D",
+                            Sequence = 4
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Identifier = "E",
+                            Sequence = 5
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Identifier = "F",
+                            Sequence = 6
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Identifier = "G",
+                            Sequence = 7
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Identifier = "H",
+                            Sequence = 8
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Identifier = "I",
+                            Sequence = 9
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Identifier = "J",
+                            Sequence = 10
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Identifier = "K",
+                            Sequence = 11
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Identifier = "L",
+                            Sequence = 12
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Identifier = "M",
+                            Sequence = 13
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Identifier = "N",
+                            Sequence = 14
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Identifier = "O",
+                            Sequence = 15
+                        },
+                        new
+                        {
+                            Id = 16,
+                            Identifier = "P",
+                            Sequence = 16
+                        },
+                        new
+                        {
+                            Id = 17,
+                            Identifier = "Q",
+                            Sequence = 17
+                        },
+                        new
+                        {
+                            Id = 18,
+                            Identifier = "R",
+                            Sequence = 18
+                        },
+                        new
+                        {
+                            Id = 19,
+                            Identifier = "S",
+                            Sequence = 19
+                        },
+                        new
+                        {
+                            Id = 20,
+                            Identifier = "T",
+                            Sequence = 20
+                        },
+                        new
+                        {
+                            Id = 21,
+                            Identifier = "U",
+                            Sequence = 21
+                        },
+                        new
+                        {
+                            Id = 22,
+                            Identifier = "V",
+                            Sequence = 22
+                        },
+                        new
+                        {
+                            Id = 23,
+                            Identifier = "W",
+                            Sequence = 23
+                        },
+                        new
+                        {
+                            Id = 24,
+                            Identifier = "X",
+                            Sequence = 24
+                        },
+                        new
+                        {
+                            Id = 25,
+                            Identifier = "Y",
+                            Sequence = 25
+                        },
+                        new
+                        {
+                            Id = 26,
+                            Identifier = "Z",
+                            Sequence = 26
+                        },
+                        new
+                        {
+                            Id = 27,
+                            Identifier = "0",
+                            Sequence = 27
+                        },
+                        new
+                        {
+                            Id = 28,
+                            Identifier = "1",
+                            Sequence = 28
+                        },
+                        new
+                        {
+                            Id = 29,
+                            Identifier = "2",
+                            Sequence = 29
+                        },
+                        new
+                        {
+                            Id = 30,
+                            Identifier = "3",
+                            Sequence = 30
+                        },
+                        new
+                        {
+                            Id = 31,
+                            Identifier = "4",
+                            Sequence = 31
+                        },
+                        new
+                        {
+                            Id = 32,
+                            Identifier = "5",
+                            Sequence = 32
+                        },
+                        new
+                        {
+                            Id = 33,
+                            Identifier = "6",
+                            Sequence = 33
+                        },
+                        new
+                        {
+                            Id = 34,
+                            Identifier = "7",
+                            Sequence = 34
+                        },
+                        new
+                        {
+                            Id = 35,
+                            Identifier = "8",
+                            Sequence = 35
+                        },
+                        new
+                        {
+                            Id = 36,
+                            Identifier = "9",
+                            Sequence = 36
+                        });
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaHeader", b =>
