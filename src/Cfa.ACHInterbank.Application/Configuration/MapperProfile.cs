@@ -26,7 +26,7 @@ public static class MapperBootstrapper
             var configurationExpression = new MapperConfigurationExpression();
             configurationExpression.AddProfile<MapperProfile>();
 
-            var config = new MapperConfiguration(configurationExpression, loggerFactory: null);
+            var config = new MapperConfiguration(configurationExpression, null);
             _instance = config.CreateMapper();
         }
     }
