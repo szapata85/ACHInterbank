@@ -23,10 +23,10 @@ public static class MapperBootstrapper
     {
         if (_instance == null)
         {
-            var config = new MapperConfiguration(cfg =>
-            {
-                cfg.AddProfile<MapperProfile>();
-            });
+            var configurationExpression = new MapperConfigurationExpression();
+            configurationExpression.AddProfile<MapperProfile>();
+
+            var config = new MapperConfiguration(configurationExpression);
             _instance = config.CreateMapper();
         }
     }
