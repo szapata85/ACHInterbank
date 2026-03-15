@@ -386,6 +386,9 @@ public class NachaFileBuilder : INachaFileBuilder
     {
         var sb = new StringBuilder(capacity: 10240);
         var orderedBatches = context.Batches.OrderBy(b => b.Id).ToList();
+        var batchSequenceById = orderedBatches
+            .Select((batch, index) => new { batch.Id, BatchNumber = index + 1 })
+            .ToDictionary(item => item.Id, item => item.BatchNumber);
 
         if (!orderedBatches.Any())
             throw new InvalidOperationException("No se encontraron lotes para exportar.");
@@ -426,7 +429,7 @@ public class NachaFileBuilder : INachaFileBuilder
                         {
                             var batchTransactions = context.Transactions.Where(t => t.AchBatchId == batch.Id).ToList();
                             string secCode = ResolveStandardEntryClassCode(batch, batchTransactions, companyEntryDescriptionCatalog);
-                            return BatchHeaderRecord.From(batch, secCode);
+                            return BatchHeaderRecord.From(batch, secCode, batchSequenceById[batch.Id]);
                         }),
                         context,
                         ct);
@@ -468,7 +471,8 @@ public class NachaFileBuilder : INachaFileBuilder
                                 batch,
                                 batch.Transactions.Count + batch.Transactions.Sum(t => BuildAddendasForTransaction(t).Count()),
                                 SumBatchDebit(batch),
-                                SumBatchCredit(batch))),
+                                SumBatchCredit(batch),
+                                batchSequenceById[batch.Id])),
                         context,
                         ct);
                     break;
@@ -747,7 +751,7 @@ public class NachaFileBuilder : INachaFileBuilder
         public string OriginatingDFI { get; init; } = string.Empty;
         public int BatchNumber { get; init; }
 
-        public static BatchHeaderRecord From(AchBatch batch, string standardEntryClassCode)
+        public static BatchHeaderRecord From(AchBatch batch, string standardEntryClassCode, int batchNumber)
         {
             if (standardEntryClassCode is not ("PPD" or "CCD"))
             {
@@ -767,7 +771,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 SettlementDate = string.Empty,
                 OriginatorStatusCode = "1",
                 OriginatingDFI = batch.OriginOrOdfi,
-                BatchNumber = batch.BatchSequenceNumber
+                BatchNumber = batchNumber
             };
         }
     }
@@ -955,7 +959,7 @@ public class NachaFileBuilder : INachaFileBuilder
         public string OriginatingDFI { get; init; } = string.Empty;
         public int BatchNumber { get; init; }
 
-        public static BatchControlRecord From(AchBatch batch, int entryAddendaCount, long batchDebit, long batchCredit)
+        public static BatchControlRecord From(AchBatch batch, int entryAddendaCount, long batchDebit, long batchCredit, int batchNumber)
         {
             return new BatchControlRecord
             {
@@ -967,7 +971,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 CompanyIdentification = batch.CompanyIdentification,
                 MessageAuthenticationCode = string.Empty,
                 OriginatingDFI = batch.OriginOrOdfi,
-                BatchNumber = batch.BatchSequenceNumber
+                BatchNumber = batchNumber
             };
         }
     }

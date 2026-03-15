@@ -158,6 +158,8 @@ public class NachaParserService : INachaParserService
             }
 
             var validEntries = EnforceAddendaRequirements(entryDetails, addendaRecords, failures);
+            ValidateBatchSequenceAndControlConsistency(headers.SelectMany(h => h.Batches ?? []), batchControls);
+
             if (currentHeader is not null)
             {
                 currentHeader.EntryDetails = validEntries;
@@ -182,6 +184,44 @@ public class NachaParserService : INachaParserService
         }
 
         return failures;
+    }
+
+    private static void ValidateBatchSequenceAndControlConsistency(IEnumerable<BatchHeader> batchHeaders, IEnumerable<BatchControl> batchControls)
+    {
+        var headers = batchHeaders.ToList();
+        var controls = batchControls.ToList();
+
+        if (headers.Count == 0)
+        {
+            return;
+        }
+
+        if (headers.Count != controls.Count)
+        {
+            throw new InvalidOperationException("Error Fatal D18: la cantidad de registros tipo 5 no coincide con los registros tipo 8 del archivo.");
+        }
+
+        for (int index = 0; index < headers.Count; index++)
+        {
+            var expectedBatchNumber = index + 1;
+            var header = headers[index];
+            var control = controls[index];
+
+            if (header.BatchNumber != expectedBatchNumber)
+            {
+                throw new InvalidOperationException($"Error Fatal ID 5: el Número de Lote del registro tipo 5 debe iniciar en 0000001 y ser secuencial ascendente. Se esperaba {expectedBatchNumber:0000000} y se recibió {header.BatchNumber:0000000}.");
+            }
+
+            if (!int.TryParse(control.BatchNumber?.Trim(), out var controlBatchNumber))
+            {
+                throw new InvalidOperationException("Error Fatal D18: el Número de Lote del registro tipo 8 debe ser numérico en posiciones 100-106.");
+            }
+
+            if (controlBatchNumber != expectedBatchNumber || controlBatchNumber != header.BatchNumber)
+            {
+                throw new InvalidOperationException($"Error Fatal D18: inconsistencia en Número de Lote entre registros tipo 5 y tipo 8. Se esperaba {expectedBatchNumber:0000000}, tipo 5={header.BatchNumber:0000000}, tipo 8={controlBatchNumber:0000000}.");
+            }
+        }
     }
 
     private List<NachaHeader> ParseFileHeaderLinq(List<string> line, Dictionary<string, int> clearingHouseMap, string FileName)
@@ -299,6 +339,12 @@ public class NachaParserService : INachaParserService
                 throw new InvalidOperationException(compensationValidation.ErrorMessage ?? "Error Fatal 65: la Fecha de Compensación Juliana contiene caracteres no numéricos.");
             }
 
+            var rawBatchNumber = a.Substring(91, 7);
+            if (!rawBatchNumber.All(char.IsDigit))
+            {
+                throw new InvalidOperationException("Error Fatal ID 5: el Número de Lote del registro tipo 5 (posiciones 92-98) debe ser numérico de 7 dígitos.");
+            }
+
             return new BatchHeader
             {
                 ServiceClassCode = a.Substring(1, 3),
@@ -312,7 +358,7 @@ public class NachaParserService : INachaParserService
                 CompensationDate = compensationValidation.FormattedValue.Trim(),
                 OriginUserStatusCode = a.Substring(82, 1).Trim(),
                 OriginParticipantEntityCode = a.Substring(83, 8).Trim(),
-                BatchNumber = int.Parse(a.Substring(91, 7).Trim())
+                BatchNumber = int.Parse(rawBatchNumber)
             };
         }).ToList();
     }
