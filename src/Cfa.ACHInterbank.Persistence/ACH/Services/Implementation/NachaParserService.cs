@@ -1,6 +1,7 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Helpers.Hash;
+using Cfa.ACHInterbank.Application.Helpers.ACH;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -284,20 +285,35 @@ public class NachaParserService : INachaParserService
 
     private List<BatchHeader> ParseBatchHeaderLinq(List<string> line)
     {
-        return line.Select(a => new BatchHeader
+        return line.Select(a =>
         {
-            ServiceClassCode = a.Substring(1, 3),
-            CompanyName = a.Substring(4, 16).Trim(),
-            DiscretionaryData = a.Substring(20, 20).Trim(),
-            CompanyId = a.Substring(40, 10).Trim(),
-            StandardEntryClassCode = a.Substring(50, 3).Trim(),
-            CompanyEntryDescription = a.Substring(53, 10).Trim(),
-            DescriptiveDate = a.Substring(63, 8).Trim(),
-            EffectiveEntryDate = a.Substring(71, 8).Trim(),
-            CompensationDate = a.Substring(79, 3).Trim(),
-            OriginUserStatusCode = a.Substring(82, 1).Trim(),
-            OriginParticipantEntityCode = a.Substring(83, 8).Trim(),
-            BatchNumber = int.Parse(a.Substring(91, 7).Trim())
+            if (a.Length < BatchHeaderType5JulianDateValidator.RecordLength || a[0] != '5')
+            {
+                throw new InvalidOperationException("El Registro Tipo 5 debe iniciar con '5' y tener longitud fija de 106 caracteres.");
+            }
+
+            var rawCompensationDate = a.Substring(BatchHeaderType5JulianDateValidator.JulianDateStartIndex, BatchHeaderType5JulianDateValidator.JulianDateLength);
+            var compensationValidation = BatchHeaderType5JulianDateValidator.ValidateAndFormat(rawCompensationDate);
+            if (!compensationValidation.IsValid)
+            {
+                throw new InvalidOperationException(compensationValidation.ErrorMessage ?? "Error Fatal 65: la Fecha de Compensación Juliana contiene caracteres no numéricos.");
+            }
+
+            return new BatchHeader
+            {
+                ServiceClassCode = a.Substring(1, 3),
+                CompanyName = a.Substring(4, 16).Trim(),
+                DiscretionaryData = a.Substring(20, 20).Trim(),
+                CompanyId = a.Substring(40, 10).Trim(),
+                StandardEntryClassCode = a.Substring(50, 3).Trim(),
+                CompanyEntryDescription = a.Substring(53, 10).Trim(),
+                DescriptiveDate = a.Substring(63, 8).Trim(),
+                EffectiveEntryDate = a.Substring(71, 8).Trim(),
+                CompensationDate = compensationValidation.FormattedValue.Trim(),
+                OriginUserStatusCode = a.Substring(82, 1).Trim(),
+                OriginParticipantEntityCode = a.Substring(83, 8).Trim(),
+                BatchNumber = int.Parse(a.Substring(91, 7).Trim())
+            };
         }).ToList();
     }
 

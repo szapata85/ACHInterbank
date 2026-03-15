@@ -1,5 +1,6 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.Helpers.ACH;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -182,6 +183,11 @@ public class NachaFileBuilder : INachaFileBuilder
             raw = prop.GetValue(entity);
             string value = FormatValue(raw, field);
 
+            if (recordType == "5" && string.Equals(field.FieldName, "SettlementDate", StringComparison.OrdinalIgnoreCase))
+            {
+                value = NormalizeBatchSettlementDate(value);
+            }
+
             if (value.Length > field.Length)
                 value = value.Substring(0, field.Length);
 
@@ -220,6 +226,11 @@ public class NachaFileBuilder : INachaFileBuilder
 
             var value = FormatValue(raw, field);
 
+            if (recordType == "5" && string.Equals(field.FieldName, "SettlementDate", StringComparison.OrdinalIgnoreCase))
+            {
+                value = NormalizeBatchSettlementDate(value);
+            }
+
             if (value.Length > field.Length)
                 value = value.Substring(0, field.Length);
 
@@ -232,6 +243,17 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return Task.FromResult(new string(buffer));
+    }
+
+    private static string NormalizeBatchSettlementDate(string? value)
+    {
+        var validation = BatchHeaderType5JulianDateValidator.ValidateAndFormat(value);
+        if (!validation.IsValid)
+        {
+            throw new InvalidOperationException(validation.ErrorMessage ?? "Error Fatal 65 en Fecha de Compensación Juliana.");
+        }
+
+        return validation.FormattedValue;
     }
 
     private static System.Reflection.PropertyInfo? ResolveProperty(Type type, string? dbColumn)
