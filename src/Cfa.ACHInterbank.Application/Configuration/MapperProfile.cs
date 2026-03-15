@@ -1,4 +1,5 @@
 using AutoMapper;
+using Microsoft.Extensions.Logging.Abstractions;
 using Cfa.ACHInterbank.Domain.Entities.Servers;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using static Cfa.ACHInterbank.Domain.Entities.JwksService.JwksService;
@@ -26,7 +27,7 @@ public static class MapperBootstrapper
             var configurationExpression = new MapperConfigurationExpression();
             configurationExpression.AddProfile<MapperProfile>();
 
-            var config = new AutoMapper.MapperConfiguration(configurationExpression, null);
+            var config = new AutoMapper.MapperConfiguration(configurationExpression, NullLoggerFactory.Instance);
             _instance = config.CreateMapper();
         }
     }
