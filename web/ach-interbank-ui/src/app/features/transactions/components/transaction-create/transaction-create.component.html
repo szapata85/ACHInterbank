@@ -6,53 +6,58 @@
 
   <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
     <div class="form-grid">
-      <label>
-        <span>Monto *</span>
-        <input
-          type="text"
-          formControlName="amount"
-          inputmode="decimal"
-          (input)="onAmountInput($event)"
-          placeholder="0,00"
-          required
-          aria-describedby="amount-help"
-        />
-        <small id="amount-help">Ingrese el monto en pesos colombianos.</small>
-        <small class="muted" *ngIf="form.get('isPrenotification')?.value">Las prenotificaciones deben ser $0.</small>
-        <small class="muted">Valor a enviar: {{ amountPreviewValue | currencyCol }}</small>
-        <app-error-message [control]="form.get('amount')"></app-error-message>
-      </label>
+      <fieldset class="form-group">
+        <legend>Datos de la transacción</legend>
+        <div class="fieldset-grid">
+          <label>
+            <span>Monto *</span>
+            <input
+              type="text"
+              formControlName="amount"
+              inputmode="decimal"
+              (input)="onAmountInput($event)"
+              placeholder="0,00"
+              required
+              aria-describedby="amount-help"
+            />
+            <small id="amount-help">Ingrese el monto en pesos colombianos.</small>
+            <small class="muted" *ngIf="form.get('isPrenotification')?.value">Las prenotificaciones deben ser $0.</small>
+            <small class="muted">Valor a enviar: {{ amountPreviewValue | currencyCol }}</small>
+            <app-error-message [control]="form.get('amount')"></app-error-message>
+          </label>
 
-      <label>
-        <span>Referencia *</span>
-        <input type="text" formControlName="reference" maxlength="30" required />
-        <app-error-message [control]="form.get('reference')"></app-error-message>
-      </label>
+          <label>
+            <span>Referencia *</span>
+            <input type="text" formControlName="reference" maxlength="30" required />
+            <app-error-message [control]="form.get('reference')"></app-error-message>
+          </label>
 
-      <label>
-        <span>Tipo *</span>
-        <select formControlName="type" required>
-          <option [ngValue]="TransactionType.Credit">Crédito</option>
-          <option [ngValue]="TransactionType.Debit">Débito</option>
-        </select>
-        <app-error-message [control]="form.get('type')"></app-error-message>
-      </label>
+          <label>
+            <span>Tipo *</span>
+            <select formControlName="type" required>
+              <option [ngValue]="TransactionType.Credit">Crédito</option>
+              <option [ngValue]="TransactionType.Debit">Débito</option>
+            </select>
+            <app-error-message [control]="form.get('type')"></app-error-message>
+          </label>
 
-      <label>
-        <span>Tipo de cuenta *</span>
-        <select formControlName="accountType" required>
-          <option [ngValue]="AccountType.Checking">Cuenta corriente</option>
-          <option [ngValue]="AccountType.Savings">Cuenta de ahorros</option>
-          <option [ngValue]="AccountType.ElectronicDeposits">Depósitos electrónicos</option>
-        </select>
-        <app-error-message [control]="form.get('accountType')"></app-error-message>
-      </label>
+          <label>
+            <span>Tipo de cuenta *</span>
+            <select formControlName="accountType" required>
+              <option [ngValue]="AccountType.Checking">Cuenta corriente</option>
+              <option [ngValue]="AccountType.Savings">Cuenta de ahorros</option>
+              <option [ngValue]="AccountType.ElectronicDeposits">Depósitos electrónicos</option>
+            </select>
+            <app-error-message [control]="form.get('accountType')"></app-error-message>
+          </label>
 
-      <label class="toggle">
-        <span>Prenotificación</span>
-        <input type="checkbox" formControlName="isPrenotification" />
-        <small class="muted">Se enviará con monto cero.</small>
-      </label>
+          <label class="toggle">
+            <span>Prenotificación</span>
+            <input type="checkbox" formControlName="isPrenotification" />
+            <small class="muted">Se enviará con monto cero.</small>
+          </label>
+        </div>
+      </fieldset>
 
       <fieldset class="form-group">
         <legend>Datos del originador</legend>
