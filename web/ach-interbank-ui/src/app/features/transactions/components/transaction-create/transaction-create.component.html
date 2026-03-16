@@ -160,6 +160,14 @@
           </label>
 
           <label>
+            <span>Tipo persona receptor *</span>
+            <select formControlName="recipientPersonType" required>
+              <option value="PN">Persona natural (PN)</option>
+              <option value="PJ">Persona jurídica (PJ)</option>
+            </select>
+          </label>
+
+          <label>
             <span>Identificación del receptor</span>
             <input type="text" formControlName="recipientIdNumber" maxlength="20" />
             <small class="muted" *ngIf="form.get('type')?.value === TransactionType.Debit">
@@ -180,14 +188,6 @@
             <small class="error" *ngIf="form.errors?.missingRecipientName">
               Debes diligenciar el nombre del receptor cuando ingresas su identificación.
             </small>
-          </label>
-
-          <label>
-            <span>Tipo persona receptor *</span>
-            <select formControlName="recipientPersonType" required>
-              <option value="PN">Persona natural (PN)</option>
-              <option value="PJ">Persona jurídica (PJ)</option>
-            </select>
           </label>
 
           <label class="toggle" *ngIf="form.get('type')?.value === TransactionType.Credit">
