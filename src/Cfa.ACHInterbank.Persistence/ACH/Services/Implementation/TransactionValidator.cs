@@ -95,6 +95,11 @@ public class TransactionValidator : ITransactionValidator
         {
             throw new ArgumentException("La identificación del receptor es obligatoria cuando se solicita validación.", nameof(request.RecipientIdNumber));
         }
+
+        if (!string.IsNullOrWhiteSpace(request.RecipientIdNumber) && string.IsNullOrWhiteSpace(request.RecipientName))
+        {
+            throw new ArgumentException("El nombre del receptor es obligatorio cuando se diligencia identificación de receptor.", nameof(request.RecipientName));
+        }
     }
 
     public string ResolveTransactionCode(TransactionTypeEnum type, AccountTypeEnum accountType, bool isPrenotification)

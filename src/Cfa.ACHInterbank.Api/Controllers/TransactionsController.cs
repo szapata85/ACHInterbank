@@ -69,6 +69,8 @@ public class TransactionsController : ControllerBase
             return BadRequest("El tipo de persona del originador debe ser PN o PJ.");
         if (!string.IsNullOrWhiteSpace(request.RecipientPersonType) && request.RecipientPersonType is not ("PN" or "PJ"))
             return BadRequest("El tipo de persona del receptor debe ser PN o PJ.");
+        if (!string.IsNullOrWhiteSpace(request.RecipientIdNumber) && string.IsNullOrWhiteSpace(request.RecipientName))
+            return BadRequest("El nombre del receptor es obligatorio cuando se diligencia identificación de receptor.");
 
         try
         {
@@ -87,6 +89,7 @@ public class TransactionsController : ControllerBase
                 sourcePersonType: request.SourcePersonType,
                 recipientPersonType: request.RecipientPersonType,
                 recipientIdNumber: request.RecipientIdNumber,
+                recipientName: request.RecipientName,
                 requiresIdentityValidation: request.RequiresIdentityValidation,
                 addendas: request.Addendas,
                 ct: ct
@@ -140,6 +143,7 @@ public class AchTransactionRequest
     public string SourceAccountNumber { get; set; } = string.Empty;
     public string DestinationAccountNumber { get; set; } = string.Empty;
     public string? RecipientIdNumber { get; set; }
+    public string? RecipientName { get; set; }
     public bool RequiresIdentityValidation { get; set; }
 
     public string CompanyName { get; set; } = string.Empty;

@@ -21,6 +21,7 @@ export interface TransactionDraft {
   sourceAccountNumber: string;
   destinationAccountNumber: string;
   recipientIdNumber?: string;
+  recipientName?: string;
   requiresIdentityValidation?: boolean;
   companyName: string;
   companyIdentification: string;

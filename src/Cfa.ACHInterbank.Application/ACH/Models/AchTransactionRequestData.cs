@@ -19,6 +19,7 @@ public record AchTransactionRequestData
     public string? SourcePersonType { get; init; }
     public string? RecipientPersonType { get; init; }
     public string? RecipientIdNumber { get; init; }
+    public string? RecipientName { get; init; }
     public bool RequiresIdentityValidation { get; init; }
     public IEnumerable<AddendaDto>? Addendas { get; init; }
 }

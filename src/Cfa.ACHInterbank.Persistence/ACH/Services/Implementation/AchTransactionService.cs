@@ -50,6 +50,7 @@ public class AchTransactionService : IAchTransactionService
         string? sourcePersonType = null,
         string? recipientPersonType = null,
         string? recipientIdNumber = null,
+        string? recipientName = null,
         bool requiresIdentityValidation = false,
         IEnumerable<AddendaDto>? addendas = null,
         CancellationToken ct = default)
@@ -70,6 +71,7 @@ public class AchTransactionService : IAchTransactionService
             SourcePersonType = sourcePersonType,
             RecipientPersonType = recipientPersonType,
             RecipientIdNumber = recipientIdNumber,
+            RecipientName = recipientName,
             RequiresIdentityValidation = requiresIdentityValidation,
             Addendas = addendas
         };
@@ -135,7 +137,7 @@ public class AchTransactionService : IAchTransactionService
         {
             await EnsureCustomerWithAccountAsync(
                 documentNumber: request.RecipientIdNumber,
-                preferredName: null,
+                preferredName: request.RecipientName,
                 accountNumber: request.DestinationAccountNumber,
                 defaultPersonType: ResolvePersonTypeCode(request.RecipientPersonType, "PN"),
                 defaultDocumentType: "CC",

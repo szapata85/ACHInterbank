@@ -138,6 +138,15 @@
         </small>
       </label>
 
+      <label>
+        <span>Nombre del receptor</span>
+        <input type="text" formControlName="recipientName" maxlength="100" />
+        <small class="muted">Se usa para crear/actualizar el cliente receptor en alta silenciosa.</small>
+        <small class="error" *ngIf="form.errors?.missingRecipientName">
+          Debes diligenciar el nombre del receptor cuando ingresas su identificación.
+        </small>
+      </label>
+
       <label class="toggle" *ngIf="form.get('type')?.value === TransactionType.Credit">
         <span>Validar identidad</span>
         <input type="checkbox" formControlName="requiresIdentityValidation" />

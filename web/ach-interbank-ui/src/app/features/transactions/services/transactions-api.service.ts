@@ -36,7 +36,8 @@ export class TransactionsApiService {
       accountType: Number(payload.accountType) as AccountTypeEnum,
       isPrenotification: Boolean(payload.isPrenotification),
       requiresIdentityValidation: Boolean(payload.requiresIdentityValidation),
-      recipientIdNumber: payload.recipientIdNumber?.trim() || undefined
+      recipientIdNumber: payload.recipientIdNumber?.trim() || undefined,
+      recipientName: payload.recipientName?.trim() || undefined
     };
 
     return this.api.post<TransactionResponse>('transactions', sanitized).pipe(
