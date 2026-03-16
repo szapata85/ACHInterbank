@@ -162,6 +162,7 @@ public class AchTransactionService : IAchTransactionService
         }
 
         var resolvedDocumentType = await ResolveCatalogCodeAsync(_context.DocumentTypes, defaultDocumentType, ct);
+        var resolvedPersonType = await ResolveCatalogCodeAsync(_context.PersonTypes, defaultPersonType, ct);
 
         var customer = await _context.Customers
             .Include(c => c.Accounts)
@@ -192,7 +193,7 @@ public class AchTransactionService : IAchTransactionService
 
             customer = new Customer
             {
-                PersonType = await ResolveCatalogCodeAsync(_context.PersonTypes, defaultPersonType, ct),
+                PersonType = resolvedPersonType,
                 DocumentType = resolvedDocumentType,
                 DocumentNumber = normalizedDocument,
                 CompanyName = autoProfile.CompanyName,
@@ -204,6 +205,18 @@ public class AchTransactionService : IAchTransactionService
             _context.Customers.Add(customer);
             await _context.SaveChangesAsync(ct);
             return;
+        }
+
+        if (!string.Equals(customer.PersonType, resolvedPersonType, StringComparison.OrdinalIgnoreCase))
+        {
+            customer.PersonType = resolvedPersonType;
+        }
+
+        if (!string.Equals(customer.DocumentType, resolvedDocumentType, StringComparison.OrdinalIgnoreCase)
+            && (string.Equals(customer.DocumentType, "OTRO", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(customer.DocumentType)))
+        {
+            customer.DocumentType = resolvedDocumentType;
         }
 
         RefreshAutoProfileIfNeeded(customer, defaultPersonType, preferredName);
