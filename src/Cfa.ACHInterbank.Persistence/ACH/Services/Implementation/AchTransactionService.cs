@@ -72,24 +72,32 @@ public class AchTransactionService : IAchTransactionService
 
         _transactionValidator.ValidateRequest(request);
 
-        await using var dbTransaction = await _context.Database.BeginTransactionAsync(ct);
+        var executionStrategy = _context.Database.CreateExecutionStrategy();
+        AchTransaction? registeredTransaction = null;
 
-        await EnsureCustomerAndAccountsAsync(request, ct);
-
-        var batchContext = await _batchResolver.ResolveAsync(request, ct);
-        var persisted = await _transactionPersister.PersistAsync(request, batchContext, ct);
-
-        if (isPrenotification)
+        await executionStrategy.ExecuteAsync(async () =>
         {
-            await _prenotificationHandler.HandleAsync(request, persisted.Transaction, ct);
-        }
+            await using var dbTransaction = await _context.Database.BeginTransactionAsync(ct);
 
-        await _transactionPersister.UpdateBatchTotalsAsync(persisted.Batch, ct);
-        await _transactionPersister.UpdateBatchServiceClassCodeAsync(persisted.Batch, ct);
+            await EnsureCustomerAndAccountsAsync(request, ct);
 
-        await dbTransaction.CommitAsync(ct);
+            var batchContext = await _batchResolver.ResolveAsync(request, ct);
+            var persisted = await _transactionPersister.PersistAsync(request, batchContext, ct);
 
-        return persisted.Transaction;
+            if (isPrenotification)
+            {
+                await _prenotificationHandler.HandleAsync(request, persisted.Transaction, ct);
+            }
+
+            await _transactionPersister.UpdateBatchTotalsAsync(persisted.Batch, ct);
+            await _transactionPersister.UpdateBatchServiceClassCodeAsync(persisted.Batch, ct);
+
+            await dbTransaction.CommitAsync(ct);
+            registeredTransaction = persisted.Transaction;
+        });
+
+        return registeredTransaction
+            ?? throw new InvalidOperationException("No fue posible registrar la transacción ACH.");
     }
 
 
