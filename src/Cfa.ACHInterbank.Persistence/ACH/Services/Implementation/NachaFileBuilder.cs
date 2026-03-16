@@ -440,7 +440,7 @@ public class NachaFileBuilder : INachaFileBuilder
                         sb,
                         definition,
                         layoutCache,
-                        context.Transactions.OrderBy(t => t.Id).Select(EntryDetailRecord.From),
+                        await BuildEntryDetailRecordsAsync(context.Transactions, ct),
                         context,
                         ct);
                     entryAddendaCount += context.Transactions.Count;
@@ -819,7 +819,7 @@ public class NachaFileBuilder : INachaFileBuilder
         public string TraceNumber { get; init; } = string.Empty;
         public string CompanyIdentification { get; init; } = string.Empty;
 
-        public static EntryDetailRecord From(AchTransaction tx)
+        public static EntryDetailRecord From(AchTransaction tx, string receiverName)
         {
             var receivingDfi = (tx.ReceivingDFI ?? string.Empty).Trim();
             if (receivingDfi.Length != 8 || receivingDfi.Any(c => !char.IsDigit(c)))
@@ -844,13 +844,87 @@ public class NachaFileBuilder : INachaFileBuilder
                 DestinationAccountNumber = tx.DestinationAccountNumber,
                 Amount = tx.Amount,
                 RecipientIdNumber = tx.RecipientIdNumber,
-                ReceiverName = tx.Reference,
+                ReceiverName = receiverName,
                 DiscretionaryData = tx.DiscretionaryData,
                 AddendumIndicator = "1",
                 TraceNumber = tx.TraceNumber,
                 CompanyIdentification = tx.CompanyIdentification
             };
         }
+    }
+
+    private async Task<IReadOnlyList<EntryDetailRecord>> BuildEntryDetailRecordsAsync(
+        IReadOnlyList<AchTransaction> transactions,
+        CancellationToken ct)
+    {
+        var records = new List<EntryDetailRecord>(transactions.Count);
+
+        foreach (var transaction in transactions.OrderBy(t => t.Id))
+        {
+            var receiverName = await ResolveReceiverNameForType6Async(transaction, ct);
+            var normalizedReceiverName = NachaReceiverNameHelper.SanitizeForType6(receiverName);
+
+            if (string.IsNullOrWhiteSpace(normalizedReceiverName))
+            {
+                throw new InvalidOperationException($"Error Fatal ID 22: la transacción {transaction.Id} no tiene Nombre del Usuario Receptor válido para posiciones 63-84 del registro tipo 6.");
+            }
+
+            records.Add(EntryDetailRecord.From(transaction, normalizedReceiverName));
+        }
+
+        return records;
+    }
+
+    private async Task<string?> ResolveReceiverNameForType6Async(AchTransaction transaction, CancellationToken ct)
+    {
+        var destinationAccount = (transaction.DestinationAccountNumber ?? string.Empty).Trim();
+        var recipientId = (transaction.RecipientIdNumber ?? string.Empty).Trim();
+
+        Customer? customer;
+        if (!string.IsNullOrWhiteSpace(recipientId))
+        {
+            customer = await _context.Customers
+                .AsNoTracking()
+                .Include(c => c.Accounts)
+                .FirstOrDefaultAsync(c => c.DocumentNumber == recipientId && c.Accounts.Any(a => a.AccountNumber == destinationAccount), ct);
+
+            if (customer is not null)
+            {
+                return BuildReceiverName(customer);
+            }
+        }
+
+        var accountMatches = await _context.Customers
+            .AsNoTracking()
+            .Include(c => c.Accounts)
+            .Where(c => c.Accounts.Any(a => a.AccountNumber == destinationAccount))
+            .ToListAsync(ct);
+
+        if (accountMatches.Count == 1)
+        {
+            return BuildReceiverName(accountMatches[0]);
+        }
+
+        return null;
+    }
+
+    private static string BuildReceiverName(Customer customer)
+    {
+        if (string.Equals(customer.PersonType, "PJ", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(customer.CompanyName))
+        {
+            return customer.CompanyName;
+        }
+
+        var parts = new[] { customer.FirstName, customer.LastName }
+            .Where(value => !string.IsNullOrWhiteSpace(value));
+
+        var fullName = string.Join(' ', parts).Trim();
+        if (!string.IsNullOrWhiteSpace(fullName))
+        {
+            return fullName;
+        }
+
+        return customer.CompanyName ?? string.Empty;
     }
 
     private sealed record AddendaRecord

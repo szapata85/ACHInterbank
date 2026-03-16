@@ -374,7 +374,7 @@ public class NachaParserService : INachaParserService
             AccountNumber = a.Substring(12, 17).TrimEnd(),
             Amount = Convert.ToDecimal(a.Substring(29, 18)) / 100,
             RecipIdNumber = a.Substring(47, 15).TrimEnd(),
-            RecipUserName = a.Substring(62, 22).Trim(),
+            RecipUserName = a.Substring(62, 22),
             DiscreData = a.Substring(84, 2),
             AddendumIndicator = a.Substring(86, 1).Trim(),
             SequenceNumber = a.Substring(87, 15).Trim()
@@ -507,6 +507,13 @@ public class NachaParserService : INachaParserService
             return (false, checkDigitValidationReason);
         }
 
+        var receiverNameValidationReason = ValidateType6ReceiverName(entry);
+        if (receiverNameValidationReason is not null)
+        {
+            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, receiverNameValidationReason));
+            return (false, receiverNameValidationReason);
+        }
+
         var requiresIdentityValidation = isDebit || ShouldValidateCreditIdentity(entry.DiscreData);
 
         if (isPseCcdCredit)
@@ -552,6 +559,11 @@ public class NachaParserService : INachaParserService
         }
 
         return (true, null);
+    }
+
+    private static string? ValidateType6ReceiverName(EntryDetail entry)
+    {
+        return NachaReceiverNameHelper.ValidateType6RawField(entry.RecipUserName);
     }
 
     private async Task<string?> ValidateType6CheckDigitAsync(EntryDetail entry, CancellationToken ct)
