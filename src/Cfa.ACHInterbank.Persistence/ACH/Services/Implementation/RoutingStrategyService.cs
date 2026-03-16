@@ -80,14 +80,16 @@ public class RoutingStrategyService : IRoutingStrategyService
             // 4️) Evaluar cámaras en el orden IsDefault + Priority
             foreach (InstitutionClearingHousePreference pref in preferences)
             {
-                var nextCycle = await _context.AchCycles
+                var candidateCycles = await _context.AchCycles
                     .Where(c =>
                         c.ClearingHouseId == pref.ClearingHouseId &&
-                        c.ProcessingDate == processingDate &&
-                        IsWithinCycleWindow(now, c.ProcessingDate, c.StartTime, c.EndTime))
+                        c.ProcessingDate == processingDate)
                     .OrderBy(c => c.ProcessingDate)
                     .ThenBy(c => c.CutoffTime)
-                    .FirstOrDefaultAsync(ct);
+                    .ToListAsync(ct);
+
+                var nextCycle = candidateCycles
+                    .FirstOrDefault(c => IsWithinCycleWindow(now, c.ProcessingDate, c.StartTime, c.EndTime));
 
                 if (nextCycle != null)
                     return nextCycle.Id;
