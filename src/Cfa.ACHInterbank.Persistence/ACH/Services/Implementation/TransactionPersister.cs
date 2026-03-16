@@ -24,14 +24,38 @@ public class TransactionPersister : ITransactionPersister
     {
         var transactionCode = _validator.ResolveTransactionCode(request.Type, request.AccountType, request.IsPrenotification);
 
-        int nextSeq = await _context.AchTransactions
-            .Where(t => t.AchBatchId == context.Batch.Id)
-            .Select(t => (int?)t.TraceSequenceNumber)
-            .MaxAsync(ct) ?? 0;
-        nextSeq++;
         string traceOriginatingDfi = context.OriginatingDfi.Length >= 8
             ? context.OriginatingDfi[..8]
             : context.OriginatingDfi;
+
+        if (traceOriginatingDfi.Length != 8 || traceOriginatingDfi.Any(c => !char.IsDigit(c)))
+        {
+            throw new InvalidOperationException("Error Fatal ID 7: el segmento de entidad del número de secuencia (posiciones 88-95) debe ser un código originador de 8 dígitos numéricos.");
+        }
+
+        var processingDate = context.EffectiveEntryDate.Date;
+        int nextSeq = await _context.AchTransactions
+            .Where(t => t.EffectiveEntryDate.Date == processingDate)
+            .Where(t => t.TraceNumber.StartsWith(traceOriginatingDfi))
+            .Select(t => (int?)t.TraceSequenceNumber)
+            .MaxAsync(ct) ?? 0;
+        nextSeq++;
+
+        if (nextSeq > 6_999_999)
+        {
+            throw new InvalidOperationException("Error Fatal ID 7: el consecutivo diario excede el máximo permitido (6999999). El rango 7000001-9999999 está reservado para PSE.");
+        }
+
+        var duplicateSequenceExists = await _context.AchTransactions
+            .AnyAsync(t => t.EffectiveEntryDate.Date == processingDate
+                           && t.TraceSequenceNumber == nextSeq
+                           && t.TraceNumber.StartsWith(traceOriginatingDfi), ct);
+
+        if (duplicateSequenceExists)
+        {
+            throw new InvalidOperationException($"Error Fatal ID 7: el consecutivo diario {nextSeq:0000000} ya fue utilizado para la entidad originadora {traceOriginatingDfi} en la fecha de proceso {processingDate:yyyy-MM-dd}.");
+        }
+
         string traceNumber = $"{traceOriginatingDfi}{nextSeq.ToString().PadLeft(7, '0')}";
 
         var tx = new AchTransaction

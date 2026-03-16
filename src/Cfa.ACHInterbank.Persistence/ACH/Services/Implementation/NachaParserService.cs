@@ -60,6 +60,8 @@ public class NachaParserService : INachaParserService
             var addendaRecords = new List<AddendaRecord>();
             var batchControls = new List<BatchControl>();
             var fileControls = new List<FileControl>();
+            var lastConsecutiveByBatch = new Dictionary<int, int>();
+            var seenSequenceNumbers = new HashSet<string>(StringComparer.Ordinal);
 
             foreach (var line in lines)
             {
@@ -107,6 +109,8 @@ public class NachaParserService : INachaParserService
                         }
 
                         entry.NachaID = currentHeader?.NachaID;
+
+                        await ValidateEntrySequencePolicyAsync(entry, currentBatch, currentHeader, lastConsecutiveByBatch, seenSequenceNumbers, ct);
 
                         var (isValid, failureReason) = await ValidateEntryAsync(entry, currentBatch, failures, ct);
                         if (isValid)
@@ -185,6 +189,74 @@ public class NachaParserService : INachaParserService
         }
 
         return failures;
+    }
+
+    private async Task ValidateEntrySequencePolicyAsync(
+        EntryDetail entry,
+        BatchHeader? batch,
+        NachaHeader? header,
+        Dictionary<int, int> lastConsecutiveByBatch,
+        HashSet<string> seenSequenceNumbers,
+        CancellationToken ct)
+    {
+        if (batch is null)
+        {
+            throw new InvalidOperationException("Error Fatal ID 7: no se encontró lote (registro tipo 5) para validar el Número de Secuencia del registro tipo 6.");
+        }
+
+        var rawSequence = (entry.SequenceNumber ?? string.Empty).Trim();
+        if (rawSequence.Length != 15 || rawSequence.Any(c => !char.IsDigit(c)))
+        {
+            throw new InvalidOperationException("Error Fatal ID 7: el Número de Secuencia del registro tipo 6 (posiciones 88-102) debe contener exactamente 15 dígitos numéricos.");
+        }
+
+        if (!seenSequenceNumbers.Add(rawSequence))
+        {
+            throw new InvalidOperationException($"Error Fatal ID 7: número de secuencia duplicado en el archivo ({rawSequence}).");
+        }
+
+        var originSegment = rawSequence[..8];
+        var consecutiveSegment = rawSequence[8..];
+
+        var batchOrigin = (batch.OriginParticipantEntityCode ?? string.Empty).Trim();
+        if (batchOrigin.Length != 8 || batchOrigin.Any(c => !char.IsDigit(c)))
+        {
+            throw new InvalidOperationException("Error Fatal ID 7: el código de entidad originadora del registro tipo 5 debe ser numérico de 8 dígitos para validar secuencia.");
+        }
+
+        if (!string.Equals(originSegment, batchOrigin, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Error Fatal ID 7: el segmento de entidad del Número de Secuencia ({originSegment}) no coincide con la entidad originadora del lote ({batchOrigin}).");
+        }
+
+        var consecutiveValue = int.Parse(consecutiveSegment);
+        if (consecutiveValue < 1)
+        {
+            throw new InvalidOperationException("Error Fatal ID 7: el segmento consecutivo del Número de Secuencia debe iniciar en 0000001 o superior.");
+        }
+
+        if (consecutiveValue > 6_999_999)
+        {
+            throw new InvalidOperationException("Error Fatal ID 7: el segmento consecutivo del Número de Secuencia excede 6999999. El rango 7000001-9999999 está reservado para PSE.");
+        }
+
+        if (lastConsecutiveByBatch.TryGetValue(batch.BatchNumber, out var previousConsecutive) && consecutiveValue <= previousConsecutive)
+        {
+            throw new InvalidOperationException($"Error Fatal ID 7: la secuencia del lote no es ascendente. Anterior={previousConsecutive:0000000}, actual={consecutiveValue:0000000}.");
+        }
+
+        lastConsecutiveByBatch[batch.BatchNumber] = consecutiveValue;
+
+        var processingDate = ParseNachaProcessingDate(header?.FileCreationDate) ?? DateTime.Today;
+        var existsInPreviousCycle = await _context.AchTransactions
+            .AsNoTracking()
+            .AnyAsync(t => t.EffectiveEntryDate.Date == processingDate
+                           && t.TraceNumber == rawSequence, ct);
+
+        if (existsInPreviousCycle)
+        {
+            throw new InvalidOperationException($"Error Fatal ID 7: número de secuencia duplicado para la fecha de proceso {processingDate:yyyy-MM-dd} ({rawSequence}).");
+        }
     }
 
     private static void ValidateBatchSequenceAndControlConsistency(IEnumerable<BatchHeader> batchHeaders, IEnumerable<BatchControl> batchControls)
