@@ -2,6 +2,7 @@
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Helpers.ACH;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -820,11 +821,26 @@ public class NachaFileBuilder : INachaFileBuilder
 
         public static EntryDetailRecord From(AchTransaction tx)
         {
+            var receivingDfi = (tx.ReceivingDFI ?? string.Empty).Trim();
+            if (receivingDfi.Length != 8 || receivingDfi.Any(c => !char.IsDigit(c)))
+            {
+                throw new InvalidOperationException("Error Fatal ID 35: el Código Entidad Participante Receptor (posiciones 4-11) debe contener 8 dígitos numéricos para calcular el dígito de chequeo.");
+            }
+
+            var expectedCheckDigit = DigitoChequeoHelper.CalcularDigitoChequeo(receivingDfi);
+            var destinationCheckDigit = tx.DestinationInstitution?.CheckDigit?.Trim();
+            var checkDigit = string.IsNullOrWhiteSpace(destinationCheckDigit) ? expectedCheckDigit : destinationCheckDigit;
+
+            if (!string.Equals(checkDigit, expectedCheckDigit, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException($"Error Fatal ID 35: inconsistencia de dígito de chequeo para la entidad receptora {receivingDfi}. Base de datos={checkDigit}, calculado={expectedCheckDigit}.");
+            }
+
             return new EntryDetailRecord
             {
                 TransactionCode = tx.TransactionCode,
-                ReceivingDFI = tx.ReceivingDFI,
-                CheckDigit = string.Empty,
+                ReceivingDFI = receivingDfi,
+                CheckDigit = checkDigit,
                 DestinationAccountNumber = tx.DestinationAccountNumber,
                 Amount = tx.Amount,
                 RecipientIdNumber = tx.RecipientIdNumber,

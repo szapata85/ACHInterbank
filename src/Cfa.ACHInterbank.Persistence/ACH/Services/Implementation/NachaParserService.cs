@@ -3,6 +3,7 @@ using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Helpers.Hash;
 using Cfa.ACHInterbank.Application.Helpers.ACH;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -499,6 +500,13 @@ public class NachaParserService : INachaParserService
             return (false, reason);
         }
 
+        var checkDigitValidationReason = await ValidateType6CheckDigitAsync(entry, ct);
+        if (checkDigitValidationReason is not null)
+        {
+            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, checkDigitValidationReason));
+            return (false, checkDigitValidationReason);
+        }
+
         var requiresIdentityValidation = isDebit || ShouldValidateCreditIdentity(entry.DiscreData);
 
         if (isPseCcdCredit)
@@ -544,6 +552,47 @@ public class NachaParserService : INachaParserService
         }
 
         return (true, null);
+    }
+
+    private async Task<string?> ValidateType6CheckDigitAsync(EntryDetail entry, CancellationToken ct)
+    {
+        var receivingCode = (entry.ReceivingParticipantEntityCode ?? string.Empty).Trim();
+        if (receivingCode.Length != 8 || receivingCode.Any(c => !char.IsDigit(c)))
+        {
+            return "Error Fatal ID 35: el Código Entidad Participante Receptor (posiciones 4-11) debe contener 8 dígitos numéricos.";
+        }
+
+        var fileCheckDigit = (entry.CheckDigit ?? string.Empty).Trim();
+        if (fileCheckDigit.Length != 1 || !char.IsDigit(fileCheckDigit[0]))
+        {
+            return "Error Fatal ID 35: el Dígito de Chequeo (posición 12) debe ser numérico de longitud 1.";
+        }
+
+        var expectedCheckDigit = DigitoChequeoHelper.CalcularDigitoChequeo(receivingCode);
+        if (!string.Equals(fileCheckDigit, expectedCheckDigit, StringComparison.Ordinal))
+        {
+            return $"Error Fatal ID 35: el Dígito de Chequeo (posición 12) no corresponde al Código Entidad Participante Receptor (posiciones 4-11). Valor archivo={fileCheckDigit}, calculado={expectedCheckDigit}.";
+        }
+
+        var institution = await _context.FinancialInstitutions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(fi => (fi.RoutingNumber + fi.TransitCode) == receivingCode, ct);
+
+        if (institution is not null)
+        {
+            var dbCheckDigit = (institution.CheckDigit ?? string.Empty).Trim();
+            if (dbCheckDigit.Length != 1 || !char.IsDigit(dbCheckDigit[0]))
+            {
+                return $"Error Fatal ID 35: el dígito de chequeo almacenado en FinancialInstitutions para el código {receivingCode} no es válido.";
+            }
+
+            if (!string.Equals(dbCheckDigit, expectedCheckDigit, StringComparison.Ordinal))
+            {
+                return $"Error Fatal ID 35: inconsistencia en FinancialInstitutions.CheckDigit para el código {receivingCode}. Base de datos={dbCheckDigit}, calculado={expectedCheckDigit}.";
+            }
+        }
+
+        return null;
     }
 
     private static bool IsPseCcdBatch(BatchHeader? batch)
