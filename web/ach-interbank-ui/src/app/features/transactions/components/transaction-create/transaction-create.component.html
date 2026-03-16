@@ -91,10 +91,11 @@
           </label>
 
           <label>
-            <span>Nombre usuario originador *</span>
-            <input type="text" formControlName="companyName" required maxlength="16" />
-            <small class="muted">Si seleccionas cliente se autocompleta, pero puedes ajustarlo.</small>
-            <app-error-message [control]="form.get('companyName')"></app-error-message>
+            <span>Tipo persona originador *</span>
+            <select formControlName="sourcePersonType" required>
+              <option value="PJ">Persona jurídica (PJ)</option>
+              <option value="PN">Persona natural (PN)</option>
+            </select>
           </label>
 
           <label>
@@ -105,11 +106,10 @@
           </label>
 
           <label>
-            <span>Tipo persona originador *</span>
-            <select formControlName="sourcePersonType" required>
-              <option value="PJ">Persona jurídica (PJ)</option>
-              <option value="PN">Persona natural (PN)</option>
-            </select>
+            <span>Nombre usuario originador *</span>
+            <input type="text" formControlName="companyName" required maxlength="16" />
+            <small class="muted">Si seleccionas cliente se autocompleta, pero puedes ajustarlo.</small>
+            <app-error-message [control]="form.get('companyName')"></app-error-message>
           </label>
         </div>
       </fieldset>
