@@ -18,6 +18,8 @@ public interface IAchTransactionService
         string companyName,
         string companyIdentification,
         int companyEntryDescriptionId,
+        string? sourcePersonType = null,
+        string? recipientPersonType = null,
         string? recipientIdNumber = null,
         bool requiresIdentityValidation = false,
         IEnumerable<AddendaDto>? addendas = null,

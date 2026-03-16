@@ -159,6 +159,22 @@
       </label>
 
       <label>
+        <span>Tipo persona originador *</span>
+        <select formControlName="sourcePersonType" required>
+          <option value="PJ">Persona jurídica (PJ)</option>
+          <option value="PN">Persona natural (PN)</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Tipo persona receptor *</span>
+        <select formControlName="recipientPersonType" required>
+          <option value="PN">Persona natural (PN)</option>
+          <option value="PJ">Persona jurídica (PJ)</option>
+        </select>
+      </label>
+
+      <label>
         <span>Descripción de la entrada *</span>
         <select formControlName="companyEntryDescriptionId" required>
           <option [ngValue]="null">Seleccione un concepto</option>

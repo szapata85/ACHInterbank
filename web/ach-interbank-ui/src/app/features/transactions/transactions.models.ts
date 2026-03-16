@@ -24,6 +24,8 @@ export interface TransactionDraft {
   requiresIdentityValidation?: boolean;
   companyName: string;
   companyIdentification: string;
+  sourcePersonType?: 'PN' | 'PJ';
+  recipientPersonType?: 'PN' | 'PJ';
   companyEntryDescriptionId: number;
   addendas: Array<{
     addendaType: string;

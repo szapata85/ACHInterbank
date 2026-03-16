@@ -61,6 +61,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     requiresIdentityValidation: [false],
     companyName: ['', [Validators.required, Validators.maxLength(16)]],
     companyIdentification: ['', [Validators.required, Validators.pattern(/^[A-Z0-9]{4,10}$/)]],
+    sourcePersonType: ['PJ', [Validators.required]],
+    recipientPersonType: ['PN', [Validators.required]],
     companyEntryDescriptionId: [null, [Validators.required, Validators.min(1)]],
     addendas: this.fb.array([])
   });
@@ -121,7 +123,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
           this.form.patchValue({
             sourceAccountNumber: accounts[0] ?? '',
             companyName: this.normalizeCompanyName(selected),
-            companyIdentification: selected.documentNumber
+            companyIdentification: selected.documentNumber,
+            sourcePersonType: selected.personType === 'PN' ? 'PN' : 'PJ'
           }, { emitEvent: false });
 
           this.loadActiveDestinationAccounts();
@@ -212,6 +215,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       requiresIdentityValidation: Boolean(payload.requiresIdentityValidation),
       companyName: payload.companyName.trim(),
       companyIdentification: payload.companyIdentification.trim().toUpperCase(),
+      sourcePersonType: payload.sourcePersonType === 'PN' ? 'PN' : 'PJ',
+      recipientPersonType: payload.recipientPersonType === 'PJ' ? 'PJ' : 'PN',
       companyEntryDescriptionId: Number(payload.companyEntryDescriptionId),
       addendas: payload.addendas
         .map((item) => this.buildAddendaPayload(item))
@@ -237,6 +242,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
               type: TransactionTypeEnum.Credit,
               accountType: AccountTypeEnum.Checking,
               isPrenotification: false,
+              sourcePersonType: 'PJ',
+              recipientPersonType: 'PN',
               companyEntryDescriptionId: this.companyEntryDescriptionOptions.find((x) => x.term === 'NOMINA')?.id ?? null
             });
             this.addendas.clear();
