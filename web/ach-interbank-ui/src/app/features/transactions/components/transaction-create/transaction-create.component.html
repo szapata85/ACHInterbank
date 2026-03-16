@@ -7,18 +7,6 @@
   <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
     <div class="form-grid">
       <label>
-        <span>Cliente originador (opcional)</span>
-        <select formControlName="customerId">
-          <option [ngValue]="null">Sin cliente pre-registrado</option>
-          <option *ngFor="let customer of customers$ | async" [ngValue]="customer.id">
-            {{ customer.fullName }} · {{ customer.documentType }} {{ customer.documentNumber }} · {{ customer.accountNumbers.length }} cuenta(s)
-          </option>
-        </select>
-        <small class="muted">Seleccionarlo autocompleta identificación, nombre y cuenta origen.</small>
-        <small class="muted">Si no existe, crea la transacción y el cliente se registrará silenciosamente.</small>
-      </label>
-
-      <label>
         <span>Monto *</span>
         <input
           type="text"
@@ -66,122 +54,144 @@
         <small class="muted">Se enviará con monto cero.</small>
       </label>
 
-      <label>
-        <span>Institución destino *</span>
-        <select formControlName="destinationInstitutionId" required>
-          <option [ngValue]="null" disabled>Seleccione una institución</option>
-          <option *ngFor="let institution of institutions$ | async" [ngValue]="institution.id">
-            {{ institution.name }}
-          </option>
-        </select>
-        <small class="muted">Seleccione una institución habilitada.</small>
-        <app-error-message [control]="form.get('destinationInstitutionId')"></app-error-message>
-      </label>
+      <fieldset class="form-group">
+        <legend>Datos del originador</legend>
+        <div class="fieldset-grid">
+          <label>
+            <span>Cliente originador (opcional)</span>
+            <select formControlName="customerId">
+              <option [ngValue]="null">Sin cliente pre-registrado</option>
+              <option *ngFor="let customer of customers$ | async" [ngValue]="customer.id">
+                {{ customer.fullName }} · {{ customer.documentType }} {{ customer.documentNumber }} · {{ customer.accountNumbers.length }} cuenta(s)
+              </option>
+            </select>
+            <small class="muted">Seleccionarlo autocompleta identificación, nombre y cuenta origen.</small>
+            <small class="muted">Si no existe, crea la transacción y el cliente se registrará silenciosamente.</small>
+          </label>
 
-      <label>
-        <span>Cuenta origen *</span>
-        <ng-container *ngIf="selectedCustomerAccounts.length > 0; else manualSourceAccount">
-          <select formControlName="sourceAccountNumber" required>
-            <option value="" disabled>Seleccione una cuenta origen</option>
-            <option *ngFor="let accountNumber of selectedCustomerAccounts" [value]="accountNumber">{{ accountNumber }}</option>
-          </select>
-          <small class="muted">Puedes digitar otra cuenta limpiando el cliente originador.</small>
-        </ng-container>
-        <ng-template #manualSourceAccount>
-          <input type="text" formControlName="sourceAccountNumber" required inputmode="numeric" maxlength="18" (input)="onNumericAccountInput('sourceAccountNumber', $event)" />
-          <small class="muted">Digite la cuenta origen (6 a 18 dígitos).</small>
-        </ng-template>
-        <app-error-message [control]="form.get('sourceAccountNumber')"></app-error-message>
-      </label>
+          <label>
+            <span>Cuenta origen *</span>
+            <ng-container *ngIf="selectedCustomerAccounts.length > 0; else manualSourceAccount">
+              <select formControlName="sourceAccountNumber" required>
+                <option value="" disabled>Seleccione una cuenta origen</option>
+                <option *ngFor="let accountNumber of selectedCustomerAccounts" [value]="accountNumber">{{ accountNumber }}</option>
+              </select>
+              <small class="muted">Puedes digitar otra cuenta limpiando el cliente originador.</small>
+            </ng-container>
+            <ng-template #manualSourceAccount>
+              <input type="text" formControlName="sourceAccountNumber" required inputmode="numeric" maxlength="18" (input)="onNumericAccountInput('sourceAccountNumber', $event)" />
+              <small class="muted">Digite la cuenta origen (6 a 18 dígitos).</small>
+            </ng-template>
+            <app-error-message [control]="form.get('sourceAccountNumber')"></app-error-message>
+          </label>
 
-      <label>
-        <span>Cuenta destino *</span>
-        <ng-container *ngIf="!form.get('isPrenotification')?.value; else manualDestinationAccount">
-          <select
-            formControlName="destinationAccountNumber"
-            (change)="onDestinationAccountSelected($any($event.target).value)"
-            [disabled]="sourceAccountRequiredForDestinationSelection"
-            required
-          >
-            <option value="" disabled>Seleccione una cuenta con prenotificación exitosa</option>
-            <option *ngFor="let account of filteredDestinationAccounts" [value]="account.destinationAccountNumber">
-              {{ account.destinationAccountNumber }} · {{ account.recipientIdNumber }} · {{ account.destinationInstitutionName }}
-            </option>
-          </select>
-          <small class="muted">Solo se muestran cuentas con prenotificación aprobada (Active).</small>
-          <small class="muted" *ngIf="sourceAccountRequiredForDestinationSelection">
-            Primero selecciona/digita la cuenta origen para cargar las cuentas destino permitidas.
-          </small>
-          <small class="muted" *ngIf="filteredDestinationAccounts.length === 0">
-            No hay cuentas activas para la institución seleccionada.
-          </small>
-          <small class="muted">Para registrar receptores usa <a routerLink="/customer-third-parties">Terceros</a>.</small>
-        </ng-container>
-        <ng-template #manualDestinationAccount>
-          <input type="text" formControlName="destinationAccountNumber" required inputmode="numeric" maxlength="18" (input)="onNumericAccountInput('destinationAccountNumber', $event)" />
-          <small class="muted">Para prenotificación puedes registrar una cuenta destino nueva.</small>
-        </ng-template>
-        <app-error-message [control]="form.get('destinationAccountNumber')"></app-error-message>
-      </label>
+          <label>
+            <span>Nombre usuario originador *</span>
+            <input type="text" formControlName="companyName" required maxlength="16" />
+            <small class="muted">Si seleccionas cliente se autocompleta, pero puedes ajustarlo.</small>
+            <app-error-message [control]="form.get('companyName')"></app-error-message>
+          </label>
 
-      <label>
-        <span>Identificación del receptor</span>
-        <input type="text" formControlName="recipientIdNumber" maxlength="20" />
-        <small class="muted" *ngIf="form.get('type')?.value === TransactionType.Debit">
-          Obligatoria para transacciones débito.
-        </small>
-        <small class="muted" *ngIf="form.get('type')?.value === TransactionType.Credit">
-          Obligatoria si se solicita validación de identidad.
-        </small>
-        <small class="error" *ngIf="form.errors?.missingRecipientId">
-          Debes diligenciar la identificación del receptor.
-        </small>
-      </label>
+          <label>
+            <span>Identificación usuario originador *</span>
+            <input type="text" formControlName="companyIdentification" required maxlength="10" />
+            <small class="muted">Este dato se usa para alta silenciosa/actualización del cliente originador.</small>
+            <app-error-message [control]="form.get('companyIdentification')"></app-error-message>
+          </label>
 
-      <label>
-        <span>Nombre del receptor</span>
-        <input type="text" formControlName="recipientName" maxlength="100" />
-        <small class="muted">Se usa para crear/actualizar el cliente receptor en alta silenciosa.</small>
-        <small class="error" *ngIf="form.errors?.missingRecipientName">
-          Debes diligenciar el nombre del receptor cuando ingresas su identificación.
-        </small>
-      </label>
+          <label>
+            <span>Tipo persona originador *</span>
+            <select formControlName="sourcePersonType" required>
+              <option value="PJ">Persona jurídica (PJ)</option>
+              <option value="PN">Persona natural (PN)</option>
+            </select>
+          </label>
+        </div>
+      </fieldset>
 
-      <label class="toggle" *ngIf="form.get('type')?.value === TransactionType.Credit">
-        <span>Validar identidad</span>
-        <input type="checkbox" formControlName="requiresIdentityValidation" />
-        <small class="muted">Marca V para validar identidad.</small>
-      </label>
+      <fieldset class="form-group">
+        <legend>Datos del receptor</legend>
+        <div class="fieldset-grid">
+          <label>
+            <span>Institución destino *</span>
+            <select formControlName="destinationInstitutionId" required>
+              <option [ngValue]="null" disabled>Seleccione una institución</option>
+              <option *ngFor="let institution of institutions$ | async" [ngValue]="institution.id">
+                {{ institution.name }}
+              </option>
+            </select>
+            <small class="muted">Seleccione una institución habilitada.</small>
+            <app-error-message [control]="form.get('destinationInstitutionId')"></app-error-message>
+          </label>
 
-      <label>
-        <span>Nombre usuario originador *</span>
-        <input type="text" formControlName="companyName" required maxlength="16" />
-        <small class="muted">Si seleccionas cliente se autocompleta, pero puedes ajustarlo.</small>
-        <app-error-message [control]="form.get('companyName')"></app-error-message>
-      </label>
+          <label>
+            <span>Cuenta destino *</span>
+            <ng-container *ngIf="!form.get('isPrenotification')?.value; else manualDestinationAccount">
+              <select
+                formControlName="destinationAccountNumber"
+                (change)="onDestinationAccountSelected($any($event.target).value)"
+                [disabled]="sourceAccountRequiredForDestinationSelection"
+                required
+              >
+                <option value="" disabled>Seleccione una cuenta con prenotificación exitosa</option>
+                <option *ngFor="let account of filteredDestinationAccounts" [value]="account.destinationAccountNumber">
+                  {{ account.destinationAccountNumber }} · {{ account.recipientIdNumber }} · {{ account.destinationInstitutionName }}
+                </option>
+              </select>
+              <small class="muted">Solo se muestran cuentas con prenotificación aprobada (Active).</small>
+              <small class="muted" *ngIf="sourceAccountRequiredForDestinationSelection">
+                Primero selecciona/digita la cuenta origen para cargar las cuentas destino permitidas.
+              </small>
+              <small class="muted" *ngIf="filteredDestinationAccounts.length === 0">
+                No hay cuentas activas para la institución seleccionada.
+              </small>
+              <small class="muted">Para registrar receptores usa <a routerLink="/customer-third-parties">Terceros</a>.</small>
+            </ng-container>
+            <ng-template #manualDestinationAccount>
+              <input type="text" formControlName="destinationAccountNumber" required inputmode="numeric" maxlength="18" (input)="onNumericAccountInput('destinationAccountNumber', $event)" />
+              <small class="muted">Para prenotificación puedes registrar una cuenta destino nueva.</small>
+            </ng-template>
+            <app-error-message [control]="form.get('destinationAccountNumber')"></app-error-message>
+          </label>
 
-      <label>
-        <span>Identificación usuario originador *</span>
-        <input type="text" formControlName="companyIdentification" required maxlength="10" />
-        <small class="muted">Este dato se usa para alta silenciosa/actualización del cliente originador.</small>
-        <app-error-message [control]="form.get('companyIdentification')"></app-error-message>
-      </label>
+          <label>
+            <span>Identificación del receptor</span>
+            <input type="text" formControlName="recipientIdNumber" maxlength="20" />
+            <small class="muted" *ngIf="form.get('type')?.value === TransactionType.Debit">
+              Obligatoria para transacciones débito.
+            </small>
+            <small class="muted" *ngIf="form.get('type')?.value === TransactionType.Credit">
+              Obligatoria si se solicita validación de identidad.
+            </small>
+            <small class="error" *ngIf="form.errors?.missingRecipientId">
+              Debes diligenciar la identificación del receptor.
+            </small>
+          </label>
 
-      <label>
-        <span>Tipo persona originador *</span>
-        <select formControlName="sourcePersonType" required>
-          <option value="PJ">Persona jurídica (PJ)</option>
-          <option value="PN">Persona natural (PN)</option>
-        </select>
-      </label>
+          <label>
+            <span>Nombre del receptor</span>
+            <input type="text" formControlName="recipientName" maxlength="100" />
+            <small class="muted">Se usa para crear/actualizar el cliente receptor en alta silenciosa.</small>
+            <small class="error" *ngIf="form.errors?.missingRecipientName">
+              Debes diligenciar el nombre del receptor cuando ingresas su identificación.
+            </small>
+          </label>
 
-      <label>
-        <span>Tipo persona receptor *</span>
-        <select formControlName="recipientPersonType" required>
-          <option value="PN">Persona natural (PN)</option>
-          <option value="PJ">Persona jurídica (PJ)</option>
-        </select>
-      </label>
+          <label>
+            <span>Tipo persona receptor *</span>
+            <select formControlName="recipientPersonType" required>
+              <option value="PN">Persona natural (PN)</option>
+              <option value="PJ">Persona jurídica (PJ)</option>
+            </select>
+          </label>
+
+          <label class="toggle" *ngIf="form.get('type')?.value === TransactionType.Credit">
+            <span>Validar identidad</span>
+            <input type="checkbox" formControlName="requiresIdentityValidation" />
+            <small class="muted">Marca V para validar identidad.</small>
+          </label>
+        </div>
+      </fieldset>
 
       <label>
         <span>Descripción de la entrada *</span>
