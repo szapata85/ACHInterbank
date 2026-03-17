@@ -11,10 +11,16 @@ public class ReturnReasonService(AchDbContext context) : IReturnReasonService
 {
     private readonly AchDbContext _context = context;
 
-    public async Task<IEnumerable<ReturnReasonDto>> GetAllAsync(CancellationToken ct = default)
+    public async Task<IEnumerable<ReturnReasonDto>> GetAllAsync(bool onlyForReturn = false, CancellationToken ct = default)
     {
-        var items = await _context.ReturnReasons
-            .AsNoTracking()
+        var query = _context.ReturnReasons.AsNoTracking();
+
+        if (onlyForReturn)
+        {
+            query = query.Where(reason => reason.IsForReturn);
+        }
+
+        var items = await query
             .OrderBy(reason => reason.Code)
             .ToListAsync(ct);
 
@@ -23,7 +29,8 @@ public class ReturnReasonService(AchDbContext context) : IReturnReasonService
             Id = reason.Id,
             Code = reason.Code,
             Description = reason.Description,
-            Category = reason.Category
+            Category = reason.Category,
+            IsForReturn = reason.IsForReturn
         });
     }
 }

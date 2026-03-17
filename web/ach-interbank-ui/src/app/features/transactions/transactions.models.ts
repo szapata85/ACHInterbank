@@ -80,6 +80,7 @@ export interface ReturnReason {
   code: string;
   description: string;
   category: string;
+  isForReturn: boolean;
 }
 
 

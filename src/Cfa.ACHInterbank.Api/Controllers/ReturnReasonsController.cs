@@ -21,6 +21,6 @@ public class ReturnReasonsController : ControllerBase
 
     [HttpGet]
     [Authorize(Policy = "CanReadAch")]
-    public async Task<IActionResult> GetAll(CancellationToken ct = default)
-        => Ok(await _service.GetAllAsync(ct));
+    public async Task<IActionResult> GetAll([FromQuery] bool onlyForReturn = false, CancellationToken ct = default)
+        => Ok(await _service.GetAllAsync(onlyForReturn, ct));
 }

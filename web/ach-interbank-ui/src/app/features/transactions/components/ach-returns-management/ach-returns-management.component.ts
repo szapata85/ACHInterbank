@@ -150,9 +150,9 @@ export class AchReturnsManagementComponent implements OnInit {
   }
 
   private loadReasons(): void {
-    this.returnReasonsApi.getAll().subscribe({
+    this.returnReasonsApi.getForReturns().subscribe({
       next: (items) => {
-        this.reasons = (items ?? []).filter((r) => r.code.startsWith('R'));
+        this.reasons = items ?? [];
         this.cdr.markForCheck();
       },
       error: () => this.notifications.error('No fue posible cargar el catálogo de causales de devolución.')
