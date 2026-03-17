@@ -98,3 +98,31 @@ export interface CompanyEntryDescriptionOption {
   description: string;
   standardEntryClassCode: string;
 }
+
+
+export interface ReturnEligibleTransaction {
+  id: number;
+  traceNumber: string;
+  amount: number;
+  transactionCode: string;
+  reference: string;
+  sourceAccountNumber: string;
+  destinationAccountNumber: string;
+  originatingDfi: string;
+  receivingDfi: string;
+  achCycleId: string;
+  effectiveEntryDate: string;
+  isPrenotification: boolean;
+  isEligible: boolean;
+  validationMessage?: string | null;
+}
+
+export interface ReturnSelectionItem {
+  transactionId: number;
+  returnReasonCode: string;
+}
+
+export interface GenerateReturnsFileRequest {
+  cycleId: string;
+  items: ReturnSelectionItem[];
+}

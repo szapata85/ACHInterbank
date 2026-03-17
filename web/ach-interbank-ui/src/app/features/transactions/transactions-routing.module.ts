@@ -3,6 +3,7 @@ import { RouterModule, Routes } from '@angular/router';
 import { TransactionCreateComponent } from './components/transaction-create/transaction-create.component';
 import { TransactionListComponent } from './components/transaction-list/transaction-list.component';
 import { NachaUploadComponent } from './components/nacha-upload/nacha-upload.component';
+import { AchReturnsManagementComponent } from './components/ach-returns-management/ach-returns-management.component';
 
 const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'list' },
@@ -20,6 +21,11 @@ const routes: Routes = [
     path: 'nacha-upload',
     component: NachaUploadComponent,
     data: { title: 'Cargar NACHA-M', breadcrumb: 'Cargar NACHA-M' }
+  },
+  {
+    path: 'returns',
+    component: AchReturnsManagementComponent,
+    data: { title: 'Devoluciones ACH', breadcrumb: 'Devoluciones ACH' }
   }
 ];
 

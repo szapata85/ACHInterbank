@@ -1,0 +1,73 @@
+<app-page-header title="Gestión de Devoluciones ACH" description="Seleccione un ciclo, marque transacciones y genere el archivo .RET"></app-page-header>
+
+<div class="toolbar">
+  <label>
+    Ciclo operativo
+    <select [(ngModel)]="selectedCycleId">
+      <option *ngFor="let cycle of cycles" [ngValue]="cycle.id">{{ cycle.cycleName }} ({{ cycle.processingDate | date:'yyyy-MM-dd' }})</option>
+    </select>
+  </label>
+
+  <button type="button" (click)="loadTransactions()" [disabled]="loading">Consultar</button>
+  <button type="button" class="ghost" (click)="openReasonModal()" [disabled]="loading || rows.length === 0">Asignar causal / Generar</button>
+</div>
+
+<div class="table-wrapper" *ngIf="rows.length > 0; else empty">
+  <table>
+    <thead>
+      <tr>
+        <th><input type="checkbox" (change)="selectAllEligible($any($event.target).checked)" /></th>
+        <th>ID</th>
+        <th>Trace</th>
+        <th>Referencia</th>
+        <th>Monto</th>
+        <th>Cod. Tx</th>
+        <th>Estado</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let row of rows">
+        <td>
+          <input
+            type="checkbox"
+            [checked]="selectedRows.has(row.id)"
+            [disabled]="!row.isEligible"
+            (change)="toggleSelection(row.id, $any($event.target).checked)"
+          />
+        </td>
+        <td>{{ row.id }}</td>
+        <td>{{ row.traceNumber }}</td>
+        <td>{{ row.reference }}</td>
+        <td>{{ row.amount | currency:'COP':'symbol':'1.2-2':'es-CO' }}</td>
+        <td>{{ row.transactionCode }}</td>
+        <td>
+          <span *ngIf="row.isEligible" class="ok">Elegible</span>
+          <span *ngIf="!row.isEligible" class="error">{{ row.validationMessage }}</span>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<ng-template #empty>
+  <div class="empty">No hay transacciones cargadas para devolución.</div>
+</ng-template>
+
+<div class="modal-backdrop" *ngIf="showReasonModal">
+  <div class="modal">
+    <h3>Asignar causal de devolución</h3>
+    <label>
+      Causal (Rxx)
+      <select [(ngModel)]="selectedReasonCode">
+        <option *ngFor="let reason of reasons" [value]="reason.code">{{ reason.code }} - {{ reason.description }}</option>
+      </select>
+    </label>
+
+    <p>Transacciones seleccionadas: {{ selectedRows.size }}</p>
+
+    <div class="actions">
+      <button type="button" class="ghost" (click)="closeReasonModal()" [disabled]="loading">Cancelar</button>
+      <button type="button" (click)="generateFile()" [disabled]="loading">Generar Archivo NACHA-M (.RET)</button>
+    </div>
+  </div>
+</div>
