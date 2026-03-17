@@ -89,7 +89,12 @@ public class RoutingStrategyService : IRoutingStrategyService
                     .ToListAsync(ct);
 
                 var nextCycle = candidateCycles
-                    .FirstOrDefault(c => IsWithinCycleWindow(now, c.ProcessingDate, c.StartTime, c.EndTime));
+                    .Select(c => new { Cycle = c, Window = BuildCycleWindow(c.ProcessingDate, c.StartTime, c.EndTime) })
+                    .Where(x => now <= x.Window.End)
+                    .OrderBy(x => x.Window.End)
+                    .ThenBy(x => x.Cycle.CutoffTime)
+                    .Select(x => x.Cycle)
+                    .FirstOrDefault();
 
                 if (nextCycle != null)
                     return nextCycle.Id;
@@ -141,18 +146,13 @@ public class RoutingStrategyService : IRoutingStrategyService
 
         return 2;
     }
-
-    private static bool IsWithinCycleWindow(DateTime now, DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
+    private static (DateTime Start, DateTime End) BuildCycleWindow(DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
     {
         if (startTime <= endTime)
         {
-            var start = processingDate.Date + startTime;
-            var end = processingDate.Date + endTime;
-            return now >= start && now <= end;
+            return (processingDate.Date + startTime, processingDate.Date + endTime);
         }
 
-        var overnightStart = processingDate.Date.AddDays(-1) + startTime;
-        var overnightEnd = processingDate.Date + endTime;
-        return now >= overnightStart && now <= overnightEnd;
+        return (processingDate.Date.AddDays(-1) + startTime, processingDate.Date + endTime);
     }
 }
