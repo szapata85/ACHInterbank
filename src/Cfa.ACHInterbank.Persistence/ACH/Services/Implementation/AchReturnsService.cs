@@ -28,7 +28,7 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
         var cycleOrder = await GetCycleOrderAsync(cycle.ClearingHouseId, ct);
         cycleOrder.TryGetValue(cycle.Id, out var selectedCycleOrder);
 
-        var alreadyReturned = await context.AchReturnsGenerated
+        var alreadyReturned = await context.Set<AchReturnGenerated>()
             .AsNoTracking()
             .Select(r => r.OriginalTransactionId)
             .ToHashSetAsync(ct);
@@ -174,7 +174,7 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
             row.FileName = fileName;
         }
 
-        context.AchReturnsGenerated.AddRange(generatedRows);
+        context.Set<AchReturnGenerated>().AddRange(generatedRows);
         await context.SaveChangesAsync(ct);
 
         var fileContent = string.Join(Environment.NewLine, lines);
@@ -198,7 +198,7 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
     {
         var entityCode = NormalizeDigits(receivingDfi, 8);
 
-        var last = await context.AchReturnsGenerated
+        var last = await context.Set<AchReturnGenerated>()
             .AsNoTracking()
             .Where(r => r.GeneratedAtUtc.Date == day && r.NewSequenceNumber.StartsWith(entityCode))
             .Select(r => r.NewSequenceNumber)
