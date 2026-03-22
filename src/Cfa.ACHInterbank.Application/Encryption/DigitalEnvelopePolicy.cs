@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
 
-namespace Cfa.ACHInterbank.Api.Encryption;
+namespace Cfa.ACHInterbank.Application.Encryption;
 
 public interface IDigitalEnvelopePolicy
 {

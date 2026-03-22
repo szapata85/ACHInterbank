@@ -1,8 +1,8 @@
 using System.Text;
 using System.Text.RegularExpressions;
-using Cfa.ACHInterbank.Api.Encryption;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
+using Cfa.ACHInterbank.Application.Encryption;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
