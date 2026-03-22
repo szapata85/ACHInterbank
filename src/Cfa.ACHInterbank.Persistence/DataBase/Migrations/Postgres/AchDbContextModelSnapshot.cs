@@ -17,7 +17,7 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.2")
+                .HasAnnotation("ProductVersion", "10.0.5")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -594,6 +594,18 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                             Order = 4,
                             ParentId = 6,
                             Route = "/customer-third-parties"
+                        },
+                        new
+                        {
+                            Id = 31,
+                            Exact = true,
+                            Icon = "assignment_return",
+                            IsActive = true,
+                            Label = "Gestión devoluciones",
+                            MenuId = 1,
+                            Order = 5,
+                            ParentId = 6,
+                            Route = "/transactions/returns"
                         },
                         new
                         {
@@ -1522,6 +1534,68 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.ToTable("AchCycles");
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchReturnGenerated", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime>("GeneratedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NewSequenceNumber")
+                        .IsRequired()
+                        .HasMaxLength(15)
+                        .HasColumnType("character varying(15)");
+
+                    b.Property<string>("OriginalSequenceNumber")
+                        .IsRequired()
+                        .HasMaxLength(15)
+                        .HasColumnType("character varying(15)");
+
+                    b.Property<int>("OriginalTransactionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OriginatorEntityCode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<string>("ReceiverEntityCode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<string>("ReturnCycleId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ReturnReasonCode")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReturnCycleId");
+
+                    b.HasIndex("OriginalTransactionId", "ReturnReasonCode", "ReturnCycleId");
+
+                    b.ToTable("AchReturnsGenerated", (string)null);
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", b =>
                 {
                     b.Property<int>("Id")
@@ -1685,16 +1759,52 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
 
+                    b.Property<string>("BusinessType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("CollectorId")
+                        .HasMaxLength(13)
+                        .HasColumnType("character varying(13)");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Information")
-                        .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<string>("NewTraceNumber")
+                        .HasMaxLength(15)
+                        .HasColumnType("character varying(15)");
+
+                    b.Property<string>("OriginalTraceNumber")
+                        .HasMaxLength(15)
+                        .HasColumnType("character varying(15)");
+
+                    b.Property<string>("Purpose")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("ReceiverCustomerCode")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(53)
+                        .HasColumnType("character varying(53)");
+
+                    b.Property<string>("ReturnReasonCode")
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)");
+
                     b.Property<int?>("SequenceNumber")
                         .HasColumnType("integer");
+
+                    b.Property<string>("ServiceDescription")
+                        .HasMaxLength(15)
+                        .HasColumnType("character varying(15)");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1764,8 +1874,16 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .HasMaxLength(4)
                         .HasColumnType("character varying(4)");
 
+                    b.Property<string>("BusinessType")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("CodeTypeAddendumRecord")
                         .HasColumnType("text");
+
+                    b.Property<string>("CollectorId")
+                        .HasMaxLength(13)
+                        .HasColumnType("character varying(13)");
 
                     b.Property<string>("EntryDetailSequenceNumber")
                         .HasMaxLength(7)
@@ -1783,8 +1901,28 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<string>("NachaID")
                         .HasColumnType("character varying(64)");
 
+                    b.Property<string>("NewTraceNumber")
+                        .HasMaxLength(15)
+                        .HasColumnType("character varying(15)");
+
+                    b.Property<string>("OriginalTraceNumber")
+                        .HasMaxLength(15)
+                        .HasColumnType("character varying(15)");
+
                     b.Property<string>("PurposeOfTransaction")
                         .HasColumnType("text");
+
+                    b.Property<string>("ReceiverCustomerCode")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("ReturnReasonCode")
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)");
+
+                    b.Property<string>("ServiceDescription")
+                        .HasMaxLength(15)
+                        .HasColumnType("character varying(15)");
 
                     b.HasKey("AddendaID");
 
@@ -1873,20 +2011,25 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("BatchControlID"));
 
                     b.Property<string>("BatchNumber")
-                        .HasColumnType("text");
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)");
 
                     b.Property<string>("BatchTranClassCode")
                         .HasColumnType("text");
 
                     b.Property<string>("CodAutMessage")
-                        .HasMaxLength(8)
-                        .HasColumnType("character varying(8)");
+                        .HasMaxLength(19)
+                        .HasColumnType("character varying(19)");
 
                     b.Property<int?>("EntryAddendaCount")
                         .HasColumnType("integer");
 
+                    b.Property<long?>("EntryHash")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("IdOrigEntity")
-                        .HasColumnType("text");
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
 
                     b.Property<string>("IdUserOrig")
                         .HasMaxLength(10)
@@ -1895,14 +2038,15 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<string>("NachaID")
                         .HasColumnType("character varying(64)");
 
+                    b.Property<string>("Reserved")
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)");
+
                     b.Property<decimal>("TotalCreditAmount")
                         .HasColumnType("money");
 
                     b.Property<decimal>("TotalDebitAmount")
                         .HasColumnType("money");
-
-                    b.Property<int?>("TotalEntry")
-                        .HasColumnType("integer");
 
                     b.HasKey("BatchControlID");
 
@@ -2896,11 +3040,15 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<int>("EntryAddendaCount")
                         .HasColumnType("integer");
 
+                    b.Property<long>("EntryHash")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("NachaID")
                         .HasColumnType("character varying(64)");
 
-                    b.Property<decimal>("TotalControl")
-                        .HasColumnType("money");
+                    b.Property<string>("Reserved")
+                        .HasMaxLength(39)
+                        .HasColumnType("character varying(39)");
 
                     b.Property<decimal>("TotalCreditAmount")
                         .HasColumnType("money");
@@ -3624,6 +3772,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
+                    b.Property<bool>("IsForReturn")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.HasKey("Id");
 
                     b.HasIndex("Code")
@@ -3637,385 +3790,440 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                             Id = 1,
                             Category = "R",
                             Code = "R01",
-                            Description = "Fondos Insuficientes."
+                            Description = "Fondos Insuficientes.",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 2,
                             Category = "R",
                             Code = "R02",
-                            Description = "Cuenta o Depósito Electrónico Cerrado (Saldado o Cancelado)."
+                            Description = "Cuenta o Depósito Electrónico Cerrado (Saldado o Cancelado).",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 3,
                             Category = "R",
                             Code = "R03",
-                            Description = "Cuenta o Depósito Electrónico No Abierto."
+                            Description = "Cuenta o Depósito Electrónico No Abierto.",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 4,
                             Category = "R",
                             Code = "R04",
-                            Description = "Número Cuenta o Depósito Electrónico Inválido."
+                            Description = "Número Cuenta o Depósito Electrónico Inválido.",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 5,
                             Category = "R",
                             Code = "R06",
-                            Description = "Devolución Solicitada por el participante originador (por error o listas restrictivas)."
+                            Description = "Devolución Solicitada por el participante originador (por error o listas restrictivas).",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 6,
                             Category = "R",
                             Code = "R07",
-                            Description = "Autorización de Recaudo Revocada por el usuario Receptor."
+                            Description = "Autorización de Recaudo Revocada por el usuario Receptor.",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 7,
                             Category = "R",
                             Code = "R08",
-                            Description = "Orden de No Pago (instrucción específica del usuario)."
+                            Description = "Orden de No Pago (instrucción específica del usuario).",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 8,
                             Category = "R",
                             Code = "R09",
-                            Description = "Fondos no Disponibles (saldo total suficiente, pero no el disponible)."
+                            Description = "Fondos no Disponibles (saldo total suficiente, pero no el disponible).",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 9,
                             Category = "R",
                             Code = "R10",
-                            Description = "No existe prenotificación (para débitos)."
+                            Description = "No existe prenotificación (para débitos).",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 10,
                             Category = "R",
                             Code = "R12",
-                            Description = "Usuario Originador no autorizado o Sucursal Vendida."
+                            Description = "Usuario Originador no autorizado o Sucursal Vendida.",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 11,
                             Category = "R",
                             Code = "R13",
-                            Description = "Devolución por solicitud del usuario Receptor (Persona Natural: fecha/monto errado o duplicidad)."
+                            Description = "Devolución por solicitud del usuario Receptor (Persona Natural: fecha/monto errado o duplicidad).",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 12,
                             Category = "R",
                             Code = "R14",
-                            Description = "Muerte del delegado o Representante."
+                            Description = "Muerte del delegado o Representante.",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 13,
                             Category = "R",
                             Code = "R15",
-                            Description = "Muerte del Beneficiario o Titular de la Cuenta."
+                            Description = "Muerte del Beneficiario o Titular de la Cuenta.",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 14,
                             Category = "R",
                             Code = "R16",
-                            Description = "Cuenta o Depósito Electrónico Inactivo / Bloqueado."
+                            Description = "Cuenta o Depósito Electrónico Inactivo / Bloqueado.",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 15,
                             Category = "R",
                             Code = "R17",
-                            Description = "La Identificación no coincide con Cuenta."
+                            Description = "La Identificación no coincide con Cuenta.",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 16,
                             Category = "R",
                             Code = "R20",
-                            Description = "Cuenta No Habilitada (listas restrictivas OFAC/ONU o fines políticos)."
+                            Description = "Cuenta No Habilitada (listas restrictivas OFAC/ONU o fines políticos).",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 17,
                             Category = "R",
                             Code = "R23",
-                            Description = "Devolución crédito por solicitud del usuario (sobrepago, litigio, etc.)."
+                            Description = "Devolución crédito por solicitud del usuario (sobrepago, litigio, etc.).",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 18,
                             Category = "R",
                             Code = "R29",
-                            Description = "Devolución débito por solicitud del usuario (Persona Jurídica)."
+                            Description = "Devolución débito por solicitud del usuario (Persona Jurídica).",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 19,
                             Category = "R",
                             Code = "R30",
-                            Description = "Cliente Receptor no habilitado para depósitos electrónicos."
+                            Description = "Cliente Receptor no habilitado para depósitos electrónicos.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 20,
                             Category = "R",
                             Code = "R31",
-                            Description = "Prenotificación no procesada por falta de información en adenda."
+                            Description = "Prenotificación no procesada por falta de información en adenda.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 21,
                             Category = "R",
                             Code = "R32",
-                            Description = "Transacción crédito no procesada por falta de información en adenda."
+                            Description = "Transacción crédito no procesada por falta de información en adenda.",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 22,
                             Category = "R",
                             Code = "R33",
-                            Description = "Excede los límites establecidos para Depósitos Electrónicos."
+                            Description = "Excede los límites establecidos para Depósitos Electrónicos.",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 23,
                             Category = "R",
                             Code = "R35",
-                            Description = "Tipo de Cuenta Errada."
+                            Description = "Tipo de Cuenta Errada.",
+                            IsForReturn = true
                         },
                         new
                         {
                             Id = 24,
                             Category = "D",
                             Code = "D01",
-                            Description = "Fecha efectiva menor a la fecha de proceso."
+                            Description = "Fecha efectiva menor a la fecha de proceso.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 25,
                             Category = "D",
                             Code = "D02",
-                            Description = "Fecha efectiva no es válida."
+                            Description = "Fecha efectiva no es válida.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 26,
                             Category = "D",
                             Code = "D03",
-                            Description = "Valor de la transacción no es numérico."
+                            Description = "Valor de la transacción no es numérico.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 27,
                             Category = "D",
                             Code = "D04",
-                            Description = "Valor de prenotificación es diferente de cero."
+                            Description = "Valor de prenotificación es diferente de cero.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 28,
                             Category = "D",
                             Code = "D05",
-                            Description = "Valor de transacción monetaria es igual a cero."
+                            Description = "Valor de transacción monetaria es igual a cero.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 29,
                             Category = "D",
                             Code = "D06",
-                            Description = "Excede el monto diario permitido por usuario/cuenta."
+                            Description = "Excede el monto diario permitido por usuario/cuenta.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 30,
                             Category = "D",
                             Code = "D07",
-                            Description = "Transacción excede el límite y no fue autorizada."
+                            Description = "Transacción excede el límite y no fue autorizada.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 31,
                             Category = "D",
                             Code = "D08",
-                            Description = "Número de secuencia del registro adenda incorrecto."
+                            Description = "Número de secuencia del registro adenda incorrecto.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 32,
                             Category = "D",
                             Code = "D09",
-                            Description = "Indicador de adenda no concuerda con el registro."
+                            Description = "Indicador de adenda no concuerda con el registro.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 33,
                             Category = "D",
                             Code = "D10",
-                            Description = "Causal de devolución en adenda es incorrecta."
+                            Description = "Causal de devolución en adenda es incorrecta.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 34,
                             Category = "D",
                             Code = "D11",
-                            Description = "Número mínimo de registros adenda diferente de 1."
+                            Description = "Número mínimo de registros adenda diferente de 1.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 35,
                             Category = "D",
                             Code = "D12",
-                            Description = "Código de tipo de registro adenda es incorrecto (debe ser 05 o 99)."
+                            Description = "Código de tipo de registro adenda es incorrecto (debe ser 05 o 99).",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 36,
                             Category = "D",
                             Code = "D13",
-                            Description = "Datos obligatorios en débito (referencia/servicio) vacíos o en cero."
+                            Description = "Datos obligatorios en débito (referencia/servicio) vacíos o en cero.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 37,
                             Category = "D",
                             Code = "D14",
-                            Description = "Código de cliente originador por servicio no numérico."
+                            Description = "Código de cliente originador por servicio no numérico.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 38,
                             Category = "D",
                             Code = "D15",
-                            Description = "Nombre del usuario originador vacío."
+                            Description = "Nombre del usuario originador vacío.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 39,
                             Category = "D",
                             Code = "D16",
-                            Description = "ID del originador en control de lote no coincide con encabezado."
+                            Description = "ID del originador en control de lote no coincide con encabezado.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 40,
                             Category = "D",
                             Code = "D17",
-                            Description = "Número de cuenta receptora no válida."
+                            Description = "Número de cuenta receptora no válida.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 41,
                             Category = "D",
                             Code = "D18",
-                            Description = "Número de lote en control no coincide con encabezado."
+                            Description = "Número de lote en control no coincide con encabezado.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 42,
                             Category = "D",
                             Code = "D19",
-                            Description = "Código de participante originador vacío o en ceros."
+                            Description = "Código de participante originador vacío o en ceros.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 43,
                             Category = "D",
                             Code = "D20",
-                            Description = "Código clase de transacción en control de lote inválido."
+                            Description = "Código clase de transacción en control de lote inválido.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 44,
                             Category = "D",
                             Code = "D21",
-                            Description = "Código de participante receptor no válido o no está en producción."
+                            Description = "Código de participante receptor no válido o no está en producción.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 45,
                             Category = "D",
                             Code = "D22",
-                            Description = "Nombre del cliente receptor vacío."
+                            Description = "Nombre del cliente receptor vacío.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 46,
                             Category = "D",
                             Code = "D23",
-                            Description = "ID del usuario receptor vacío."
+                            Description = "ID del usuario receptor vacío.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 47,
                             Category = "D",
                             Code = "D24",
-                            Description = "Descripción del lote vacía."
+                            Description = "Descripción del lote vacía.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 48,
                             Category = "D",
                             Code = "D25",
-                            Description = "Descripción de lote de Cuentas de Préstamo no válida."
+                            Description = "Descripción de lote de Cuentas de Préstamo no válida.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 49,
                             Category = "D",
                             Code = "D26",
-                            Description = "Campo alfanumérico no alineado a la izquierda."
+                            Description = "Campo alfanumérico no alineado a la izquierda.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 50,
                             Category = "D",
                             Code = "D27",
-                            Description = "Caracteres especiales inválidos en la línea."
+                            Description = "Caracteres especiales inválidos en la línea.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 51,
                             Category = "D",
                             Code = "D28",
-                            Description = "Devolución de una devolución."
+                            Description = "Devolución de una devolución.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 52,
                             Category = "D",
                             Code = "D29",
-                            Description = "Devolución débito tardía."
+                            Description = "Devolución débito tardía.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 53,
                             Category = "D",
                             Code = "D30",
-                            Description = "Entidad Participante no puede procesar débitos."
+                            Description = "Entidad Participante no puede procesar débitos.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 54,
                             Category = "D",
                             Code = "D31",
-                            Description = "Lote duplicado en el mismo día sin autorización."
+                            Description = "Lote duplicado en el mismo día sin autorización.",
+                            IsForReturn = false
                         },
                         new
                         {
                             Id = 55,
                             Category = "D",
                             Code = "D32",
-                            Description = "Transacción no permitida en este ciclo."
+                            Description = "Transacción no permitida en este ciclo.",
+                            IsForReturn = false
                         });
                 });
 
@@ -4355,6 +4563,25 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .IsRequired();
 
                     b.Navigation("ClearingHouse");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchReturnGenerated", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", "OriginalTransaction")
+                        .WithMany()
+                        .HasForeignKey("OriginalTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchCycle", "ReturnCycle")
+                        .WithMany()
+                        .HasForeignKey("ReturnCycleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OriginalTransaction");
+
+                    b.Navigation("ReturnCycle");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", b =>
