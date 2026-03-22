@@ -24,8 +24,8 @@ public static class DependencyInjectionService
         {
             options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
             options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-            options.JsonSerializerOptions.MaxDepth = 128; // Profundidad máxima de serialización
-            options.JsonSerializerOptions.WriteIndented = true;
+            options.JsonSerializerOptions.MaxDepth = 64;
+            options.JsonSerializerOptions.WriteIndented = false;
             options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
         });
 
@@ -41,7 +41,7 @@ public static class DependencyInjectionService
 
         services.ConfigureHttpJsonOptions(options =>
         {
-            options.SerializerOptions.MaxDepth = 256;
+            options.SerializerOptions.MaxDepth = 64;
             options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
             options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
         });
@@ -72,23 +72,17 @@ public static class DependencyInjectionService
         services.AddCors(options => options.AddPolicy(CorsPolicyName, builder =>
         {
             var configuredOrigins = configuration.GetSection("Cors:Origins").Get<string[]>();
-            var origins = configuredOrigins?.Length > 0
-                ? configuredOrigins
-                : new[]
-                {
-                    "http://localhost:4200",
-                    "https://localhost:4200",
-                    "http://localhost:7269",
-                    "https://localhost:7269",
-                    "http://cfaach.ddns.net:743",
-                    "http://cfaach.ddns.net:744"
-                };
+            var origins = configuredOrigins?.Where(origin => !string.IsNullOrWhiteSpace(origin)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+                ?? [];
 
-            builder
-                .WithOrigins(origins)
-                .AllowAnyMethod()
-                .AllowAnyHeader()
-                .AllowCredentials();
+            if (origins.Length > 0)
+            {
+                builder
+                    .WithOrigins(origins)
+                    .AllowAnyMethod()
+                    .AllowAnyHeader()
+                    .AllowCredentials();
+            }
         }));
 
         services.AddHttpClient();
@@ -100,24 +94,28 @@ public static class DependencyInjectionService
 
     public static void ConfigureHandler(this WebApplication app)
     {
-        app.MapOpenApi("/openapi/{documentName}.json").AllowAnonymous();
-        app.MapScalarApiReference().AllowAnonymous();
-
-        app.MapGet("/", context =>
+        var exposeApiDocs = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("OpenApi:Expose", false);
+        if (exposeApiDocs)
         {
-            context.Response.Redirect("/scalar");
-            return Task.CompletedTask;
-        }).AllowAnonymous();
+            app.MapOpenApi("/openapi/{documentName}.json").AllowAnonymous();
+            app.MapScalarApiReference().AllowAnonymous();
 
-        app.MapGet("/index.html", context =>
-        {
-            context.Response.Redirect("/scalar");
-            return Task.CompletedTask;
-        }).AllowAnonymous();
+            app.MapGet("/", context =>
+            {
+                context.Response.Redirect("/scalar");
+                return Task.CompletedTask;
+            }).AllowAnonymous();
+
+            app.MapGet("/index.html", context =>
+            {
+                context.Response.Redirect("/scalar");
+                return Task.CompletedTask;
+            }).AllowAnonymous();
+        }
 
         app.UseMiddleware<GlobalExceptionMiddleware>();
 
-        var applyMigrations = app.Configuration.GetValue("Database:ApplyMigrations", !IsRunningInContainer());
+        var applyMigrations = app.Configuration.GetValue("Database:ApplyMigrations", false);
         if (applyMigrations)
         {
             using var scope = app.Services.CreateScope();
@@ -132,31 +130,8 @@ public static class DependencyInjectionService
         app.UseRouting();
         app.UseCors(CorsPolicyName);
 
-        app.Use(async (context, next) =>
-        {
-            if (HttpMethods.IsOptions(context.Request.Method))
-            {
-                var origin = context.Request.Headers["Origin"].ToString();
-                if (!string.IsNullOrEmpty(origin))
-                {
-                    context.Response.Headers.TryAdd("Access-Control-Allow-Origin", origin);
-                    context.Response.Headers.TryAdd("Vary", "Origin");
-                }
-
-                context.Response.Headers.TryAdd("Access-Control-Allow-Credentials", "true");
-                context.Response.Headers.TryAdd("Access-Control-Allow-Headers", "*");
-                context.Response.Headers.TryAdd("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-
-                context.Response.StatusCode = StatusCodes.Status200OK;
-                await context.Response.CompleteAsync();
-                return;
-            }
-
-            await next();
-        });
-
         app.UseWhen(
-            context => !IsOpenApiOrScalarRequest(context.Request.Path),
+            context => !exposeApiDocs || !IsOpenApiOrScalarRequest(context.Request.Path),
             branch =>
             {
                 branch.UseMiddleware<WafMiddleware>();
@@ -175,11 +150,6 @@ public static class DependencyInjectionService
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapControllers();
-    }
-
-    private static bool IsRunningInContainer()
-    {
-        return string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsOpenApiOrScalarRequest(PathString path)

@@ -18,15 +18,18 @@ public class NachaFileBuilder : INachaFileBuilder
     private readonly AchDbContext _context;
     private readonly IBankHoliday _holidayService;
     private readonly INachaRecordDataProvider _recordDataProvider;
+    private readonly INachaBatchRuleService _batchRuleService;
 
     public NachaFileBuilder(
         AchDbContext context,
         IBankHoliday holidayService,
-        INachaRecordDataProvider recordDataProvider)
+        INachaRecordDataProvider recordDataProvider,
+        INachaBatchRuleService batchRuleService)
     {
         _context = context;
         _holidayService = holidayService;
         _recordDataProvider = recordDataProvider;
+        _batchRuleService = batchRuleService;
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -431,7 +434,7 @@ public class NachaFileBuilder : INachaFileBuilder
                         {
                             var batchTransactions = context.Transactions.Where(t => t.AchBatchId == batch.Id).ToList();
                             string secCode = ResolveStandardEntryClassCode(batch, batchTransactions, companyEntryDescriptionCatalog);
-                            return BatchHeaderRecord.From(batch, secCode, batchSequenceById[batch.Id]);
+                            return BatchHeaderRecord.From(batch, batchTransactions, secCode, batchSequenceById[batch.Id], _batchRuleService);
                         }),
                         context,
                         ct);
@@ -454,8 +457,13 @@ public class NachaFileBuilder : INachaFileBuilder
                     }
                     break;
                 case "7":
-                    recordCount += AppendTypedAddendaRecords(sb, orderedBatches);
-                    entryAddendaCount += context.Transactions.Sum(tx => BuildAddendasForTransaction(tx).Count());
+                    recordCount += AppendTypedAddendaRecords(sb, orderedBatches, _batchRuleService);
+                    entryAddendaCount += orderedBatches.Sum(batch =>
+                    {
+                        var batchTransactions = batch.Transactions.OrderBy(t => t.Id).ToList();
+                        var exportedBatchDescription = _batchRuleService.ResolveBatchDescription(batch, batchTransactions);
+                        return batchTransactions.Sum(tx => BuildAddendasForTransaction(tx, exportedBatchDescription).Count());
+                    });
                     break;
                 case "8":
                     recordCount += await AppendCustomOrConfiguredAsync(
@@ -463,12 +471,16 @@ public class NachaFileBuilder : INachaFileBuilder
                         definition,
                         layoutCache,
                         orderedBatches.Select(batch =>
-                            BatchControlRecord.From(
+                        {
+                            var batchTransactions = batch.Transactions.OrderBy(t => t.Id).ToList();
+                            var exportedBatchDescription = _batchRuleService.ResolveBatchDescription(batch, batchTransactions);
+                            return BatchControlRecord.From(
                                 batch,
-                                batch.Transactions.Count + batch.Transactions.Sum(t => BuildAddendasForTransaction(t).Count()),
+                                batch.Transactions.Count + batchTransactions.Sum(t => BuildAddendasForTransaction(t, exportedBatchDescription).Count()),
                                 SumBatchDebit(batch),
                                 SumBatchCredit(batch),
-                                batchSequenceById[batch.Id])),
+                                batchSequenceById[batch.Id]);
+                        }),
                         context,
                         ct);
                     break;
@@ -617,7 +629,7 @@ public class NachaFileBuilder : INachaFileBuilder
         };
     }
 
-    private static IEnumerable<AchTransactionAddenda> BuildAddendasForTransaction(AchTransaction tx)
+    private static IEnumerable<AchTransactionAddenda> BuildAddendasForTransaction(AchTransaction tx, string batchDescription)
     {
         if (tx.Addendas != null && tx.Addendas.Any())
         {
@@ -632,7 +644,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 BusinessType = tx.Type == TransactionTypeEnum.Debit
                     ? AchAddendaBusinessType.Debit
                     : AchAddendaBusinessType.Credit,
-                Purpose = tx.AchBatch?.CompanyEntryDescription,
+                Purpose = batchDescription,
                 Reference = string.IsNullOrWhiteSpace(tx.Reference) ? new string('0', 53) : tx.Reference,
                 CollectorId = tx.Type == TransactionTypeEnum.Debit ? tx.CompanyIdentification : null,
                 ReceiverCustomerCode = tx.Type == TransactionTypeEnum.Debit ? tx.RecipientIdNumber : null,
@@ -642,16 +654,19 @@ public class NachaFileBuilder : INachaFileBuilder
         };
     }
 
-    private static int AppendTypedAddendaRecords(StringBuilder sb, IReadOnlyList<AchBatch> orderedBatches)
+    private static int AppendTypedAddendaRecords(StringBuilder sb, IReadOnlyList<AchBatch> orderedBatches, INachaBatchRuleService batchRuleService)
     {
         var count = 0;
         foreach (var batch in orderedBatches)
         {
-            foreach (var transaction in batch.Transactions.OrderBy(t => t.Id))
+            var batchTransactions = batch.Transactions.OrderBy(t => t.Id).ToList();
+            var exportedBatchDescription = batchRuleService.ResolveBatchDescription(batch, batchTransactions);
+
+            foreach (var transaction in batchTransactions)
             {
-                foreach (var addenda in BuildAddendasForTransaction(transaction))
+                foreach (var addenda in BuildAddendasForTransaction(transaction, exportedBatchDescription))
                 {
-                    sb.Append(BuildType7Record(batch, transaction, addenda));
+                    sb.Append(BuildType7Record(batch, transaction, addenda, exportedBatchDescription));
                     count++;
                 }
             }
@@ -660,21 +675,21 @@ public class NachaFileBuilder : INachaFileBuilder
         return count;
     }
 
-    private static string BuildType7Record(AchBatch batch, AchTransaction transaction, AchTransactionAddenda addenda)
+    private static string BuildType7Record(AchBatch batch, AchTransaction transaction, AchTransactionAddenda addenda, string batchDescription)
     {
         return addenda.BusinessType switch
         {
             AchAddendaBusinessType.Debit => BuildDebitType7Record(transaction, addenda),
             AchAddendaBusinessType.Return => BuildReturnType7Record(transaction, addenda),
-            _ => BuildCreditType7Record(batch, transaction, addenda)
+            _ => BuildCreditType7Record(transaction, addenda, batchDescription)
         };
     }
 
-    private static string BuildCreditType7Record(AchBatch batch, AchTransaction transaction, AchTransactionAddenda addenda)
+    private static string BuildCreditType7Record(AchTransaction transaction, AchTransactionAddenda addenda, string batchDescription)
     {
-        var purpose = FormatAlpha(addenda.Purpose ?? batch.CompanyEntryDescription, 10);
-        var batchDescription = FormatAlpha(batch.CompanyEntryDescription, 10);
-        if (!string.Equals(purpose, batchDescription, StringComparison.Ordinal))
+        var purpose = FormatAlpha(addenda.Purpose ?? batchDescription, 10);
+        var normalizedBatchDescription = FormatAlpha(batchDescription, 10);
+        if (!string.Equals(purpose, normalizedBatchDescription, StringComparison.Ordinal))
         {
             throw new InvalidOperationException($"La addenda de crédito de la transacción {transaction.Id} debe reflejar la descripción del lote tipo 5.");
         }
@@ -885,12 +900,20 @@ public class NachaFileBuilder : INachaFileBuilder
         public string OriginatingDFI { get; init; } = string.Empty;
         public int BatchNumber { get; init; }
 
-        public static BatchHeaderRecord From(AchBatch batch, string standardEntryClassCode, int batchNumber)
+        public static BatchHeaderRecord From(
+            AchBatch batch,
+            IReadOnlyCollection<AchTransaction> transactions,
+            string standardEntryClassCode,
+            int batchNumber,
+            INachaBatchRuleService batchRuleService)
         {
             if (standardEntryClassCode is not ("PPD" or "CCD"))
             {
                 throw new InvalidOperationException("Error Fatal ID 20: Tipo de servicio del lote inválido. Solo se permite PPD o CCD.");
             }
+
+            var batchDescription = batchRuleService.ResolveBatchDescription(batch, transactions);
+            var descriptiveDate = batchRuleService.ResolveDescriptiveDate(batch, transactions);
 
             return new BatchHeaderRecord
             {
@@ -899,8 +922,8 @@ public class NachaFileBuilder : INachaFileBuilder
                 CompanyDiscretionaryData = string.Empty,
                 CompanyIdentification = batch.CompanyIdentification,
                 StandardEntryClassCode = standardEntryClassCode,
-                CompanyEntryDescription = batch.CompanyEntryDescription,
-                CompanyDescriptiveDate = batch.EffectiveEntryDate,
+                CompanyEntryDescription = batchDescription,
+                CompanyDescriptiveDate = descriptiveDate,
                 EffectiveEntryDate = batch.EffectiveEntryDate,
                 SettlementDate = string.Empty,
                 OriginatorStatusCode = "1",

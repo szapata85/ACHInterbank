@@ -15,6 +15,7 @@ public class TransactionValidator : ITransactionValidator
 {
     private readonly AchDbContext _context;
     private static readonly Regex ReturnReasonRegex = new(@"^R\d{2}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex RecipientIdentificationRegex = new(@"^[A-Z0-9\-]{5,20}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly IReadOnlyDictionary<(TransactionTypeEnum Type, AccountTypeEnum Account, bool IsPrenotification), string> FallbackTransactionCodeMap
         = new Dictionary<(TransactionTypeEnum, AccountTypeEnum, bool), string>
         {
@@ -54,6 +55,21 @@ public class TransactionValidator : ITransactionValidator
         if (string.IsNullOrWhiteSpace(request.Reference))
         {
             throw new ArgumentException("La referencia es obligatoria.", nameof(request.Reference));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.SourceAccountNumber))
+        {
+            throw new ArgumentException("La cuenta de origen es obligatoria.", nameof(request.SourceAccountNumber));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.DestinationAccountNumber))
+        {
+            throw new ArgumentException("La cuenta de destino es obligatoria.", nameof(request.DestinationAccountNumber));
+        }
+
+        if (string.Equals(request.SourceAccountNumber.Trim(), request.DestinationAccountNumber.Trim(), StringComparison.Ordinal))
+        {
+            throw new ArgumentException("La cuenta de origen y la cuenta de destino no pueden ser iguales.", nameof(request.DestinationAccountNumber));
         }
 
         if (request.Type == TransactionTypeEnum.Debit && string.IsNullOrWhiteSpace(request.RecipientIdNumber))
@@ -103,6 +119,15 @@ public class TransactionValidator : ITransactionValidator
         if (!string.IsNullOrWhiteSpace(request.RecipientIdNumber) && string.IsNullOrWhiteSpace(request.RecipientName))
         {
             throw new ArgumentException("El nombre del receptor es obligatorio cuando se diligencia identificación de receptor.", nameof(request.RecipientName));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.RecipientIdNumber))
+        {
+            var normalizedRecipientId = request.RecipientIdNumber.Trim().ToUpperInvariant();
+            if (!RecipientIdentificationRegex.IsMatch(normalizedRecipientId))
+            {
+                throw new ArgumentException("La identificación del receptor debe ser alfanumérica y tener entre 5 y 20 caracteres.", nameof(request.RecipientIdNumber));
+            }
         }
     }
 

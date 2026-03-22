@@ -40,7 +40,7 @@ public class MaintenanceControllerTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:SqlConnection"] = "Server=localhost;Database=ACHInterbank;User Id=sa;Password=Cooperativa1*;TrustServerCertificate=True"
+                ["ConnectionStrings:SqlConnection"] = "Server=localhost;Database=ACHInterbank;User Id=sa;Password=LocalTestPassword123!;TrustServerCertificate=True"
             })
             .Build();
 

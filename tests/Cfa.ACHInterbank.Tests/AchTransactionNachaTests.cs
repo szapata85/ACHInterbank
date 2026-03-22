@@ -190,7 +190,7 @@ public class AchTransactionNachaTests
             .Setup(h => h.GetHolidays(It.IsAny<int>()))
             .Returns([]);
         var recordDataProvider = new Mock<INachaRecordDataProvider>();
-        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object);
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object, new NachaBatchRuleService());
         var nachaContent = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
 
         var records = ChunkRecords(nachaContent);
@@ -282,7 +282,7 @@ public class AchTransactionNachaTests
             .Setup(h => h.GetHolidays(It.IsAny<int>()))
             .Returns([]);
         var recordDataProvider = new Mock<INachaRecordDataProvider>();
-        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object);
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object, new NachaBatchRuleService());
         var nachaContent = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
 
         Assert.NotEmpty(nachaContent);
@@ -335,7 +335,7 @@ public class AchTransactionNachaTests
         var holidayService = new Mock<IBankHoliday>();
         holidayService.Setup(h => h.GetHolidays(It.IsAny<int>())).Returns([]);
         var recordDataProvider = new Mock<INachaRecordDataProvider>();
-        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object);
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object, new NachaBatchRuleService());
         var records = ChunkRecords(await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None));
         var addendaRecord = records.Single(record => record.StartsWith("7"));
 
@@ -904,7 +904,7 @@ public class AchTransactionNachaTests
         var holidayService = new Mock<IBankHoliday>();
         holidayService.Setup(h => h.GetHolidays(It.IsAny<int>())).Returns([]);
         var recordDataProvider = new Mock<INachaRecordDataProvider>();
-        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object);
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object, new NachaBatchRuleService());
         return await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
     }
 }

@@ -58,20 +58,6 @@ public class TransactionsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> CreateTransaction([FromBody] AchTransactionRequest request, CancellationToken ct)
     {
-        if (request is null) return BadRequest("El cuerpo de la solicitud no puede estar vacío.");
-        if (!request.IsPrenotification && request.Amount <= 0) return BadRequest("El monto debe ser mayor a cero.");
-        if (string.IsNullOrWhiteSpace(request.Reference)) return BadRequest("La referencia es obligatoria.");
-        if (string.IsNullOrWhiteSpace(request.SourceAccountNumber)) return BadRequest("La cuenta de origen es obligatoria.");
-        if (string.IsNullOrWhiteSpace(request.DestinationAccountNumber)) return BadRequest("La cuenta de destino es obligatoria.");
-        if (string.IsNullOrWhiteSpace(request.CompanyName)) return BadRequest("El nombre del usuario originador es obligatorio.");
-        if (string.IsNullOrWhiteSpace(request.CompanyIdentification)) return BadRequest("La identificación del usuario originador es obligatoria.");
-        if (!string.IsNullOrWhiteSpace(request.SourcePersonType) && request.SourcePersonType is not ("PN" or "PJ"))
-            return BadRequest("El tipo de persona del originador debe ser PN o PJ.");
-        if (!string.IsNullOrWhiteSpace(request.RecipientPersonType) && request.RecipientPersonType is not ("PN" or "PJ"))
-            return BadRequest("El tipo de persona del receptor debe ser PN o PJ.");
-        if (!string.IsNullOrWhiteSpace(request.RecipientIdNumber) && string.IsNullOrWhiteSpace(request.RecipientName))
-            return BadRequest("El nombre del receptor es obligatorio cuando se diligencia identificación de receptor.");
-
         try
         {
             var tx = await _transactionService.RegisterTransactionAsync(

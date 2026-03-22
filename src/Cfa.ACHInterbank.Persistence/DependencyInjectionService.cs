@@ -1,4 +1,5 @@
-﻿using Cfa.ACHInterbank.Application.DataBase;
+﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz;
@@ -98,8 +99,13 @@ public static class DependencyInjectionService
 
 
 
-        
 
+        services.AddScoped<IAchTransactionService, ACH.Services.Implementation.AchTransactionService>();
+        services.AddScoped<ITransactionValidator, ACH.Services.Implementation.TransactionValidator>();
+        services.AddScoped<INachaFileBuilder, ACH.Services.Implementation.NachaFileBuilder>();
+        services.AddScoped<INachaBatchRuleService, ACH.Services.Implementation.NachaBatchRuleService>();
+        services.AddScoped<INachaFormatValidator, ACH.Services.Implementation.NachaFormatValidator>();
+        services.AddScoped<INachaExportService, ACH.Services.Implementation.NachaExportService>();
 
         //Injection
         List<Type> types = Assembly.GetExecutingAssembly().GetTypes()

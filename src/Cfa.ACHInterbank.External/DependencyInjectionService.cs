@@ -22,6 +22,8 @@ public static class DependencyInjectionService
 
     public static IServiceCollection AddExternal(this IServiceCollection services, IConfiguration configuration)
     {
+        var tokenSettings = _appSettings.TokenManager ?? throw new InvalidOperationException("La configuración appSettings:tokenManager es obligatoria.");
+        ValidateTokenSettings(tokenSettings);
 
         var resilienceSection = configuration.GetSection("Resilience:Soap");
         var timeoutSeconds = resilienceSection.GetValue<int?>("TimeoutSeconds") ?? 15;
@@ -81,9 +83,9 @@ public static class DependencyInjectionService
                 ValidateAudience = true,
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_appSettings.TokenManager!.secretKetJwt!)),
-                ValidIssuer = _appSettings.TokenManager.issuerJwt,
-                ValidAudience = _appSettings.TokenManager.audienceJwt,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenSettings.secretKetJwt!)),
+                ValidIssuer = tokenSettings.issuerJwt,
+                ValidAudience = tokenSettings.audienceJwt,
                 NameClaimType = JwtRegisteredClaimNames.Sub,
                 RoleClaimType = ClaimTypes.Role,
                 ClockSkew = TimeSpan.Zero
@@ -136,5 +138,25 @@ public static class DependencyInjectionService
 
 
         return services;
+    }
+
+    private static void ValidateTokenSettings(Token tokenSettings)
+    {
+        if (string.IsNullOrWhiteSpace(tokenSettings.secretKetJwt)
+            || tokenSettings.secretKetJwt.Contains("placeholder", StringComparison.OrdinalIgnoreCase)
+            || tokenSettings.secretKetJwt.Contains("SET_ME", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Debe configurar un secreto JWT seguro mediante variables de entorno o secret store.");
+        }
+
+        if (Encoding.UTF8.GetByteCount(tokenSettings.secretKetJwt) < 32)
+        {
+            throw new InvalidOperationException("El secreto JWT debe tener al menos 32 bytes.");
+        }
+
+        if (string.IsNullOrWhiteSpace(tokenSettings.issuerJwt) || string.IsNullOrWhiteSpace(tokenSettings.audienceJwt))
+        {
+            throw new InvalidOperationException("Issuer y Audience JWT son obligatorios.");
+        }
     }
 }

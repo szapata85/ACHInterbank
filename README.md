@@ -7,14 +7,15 @@ El API incluye un Dockerfile con imagen base Linux. Para construir y ejecutar el
 ```bash
 docker build -f src/Cfa.ACHInterbank.Api/Dockerfile -t achinterbank-api .
 docker run --rm \
-  -e ConnectionStrings__SqlConnection="Server=host.docker.internal,1433;Database=ACHInterbank;User Id=sa;Password=Cooperativa1*;TrustServerCertificate=True" \
-  -e Database__ApplyMigrations=true \
+  -e ConnectionStrings__SqlConnection="Server=host.docker.internal,1433;Database=ACHInterbank;User Id=sa;Password=<SQL_PASSWORD>;TrustServerCertificate=True" \
+  -e appSettings__tokenManager__secretKetJwt="<JWT_SECRET_32_BYTES_MIN>" \
+  -e Database__ApplyMigrations=false \
   -e Database__AllowSeed=true \
   -p 8080:8080 -p 8081:8081 \
   achinterbank-api
 ```
 
-En contenedores, las migraciones y el endpoint de seeding se omiten por defecto; use `Database__ApplyMigrations=true` y `Database__AllowSeed=true` si desea habilitarlos.
+En contenedores, las migraciones y el endpoint de seeding se omiten por defecto; use `Database__ApplyMigrations=true` y `Database__AllowSeed=true` solo cuando esté controlado operacionalmente.
 Por defecto, el servicio queda disponible en `http://localhost:8080`.
 
 Si la base de datos corre en otro contenedor, conecte ambos servicios a la misma red de Docker y use el nombre del contenedor como host (por ejemplo `db,1433`).
@@ -30,10 +31,10 @@ El frontend Angular se levanta en `https://localhost:4200` mediante el servicio 
 
 ### HTTPS y Swagger en Docker
 
-El `docker-compose.yml` expone HTTP (8080) y HTTPS (8081). Para habilitar HTTPS, coloque un certificado PFX en `./certs/aspnetapp.pfx` con contraseña `changeit` (o actualice los valores en el compose). El volumen `./certs` se monta con permisos de escritura para permitir la generación automática.
+El `docker-compose.yml` expone HTTP (8080) y HTTPS (8081). Para habilitar HTTPS, coloque un certificado PFX en `./certs/aspnetapp.pfx` con una contraseña local de desarrollo definida vía `ASPNETCORE_CERT_PASSWORD` (o actualice los valores en el compose). El volumen `./certs` se monta con permisos de escritura para permitir la generación automática.
 
 ```bash
-dotnet dev-certs https -ep certs/aspnetapp.pfx -p changeit
+dotnet dev-certs https -ep certs/aspnetapp.pfx -p <LOCAL_DEV_CERT_PASSWORD>
 ```
 
 Si no existe el PFX, el contenedor generará uno automáticamente al iniciar.

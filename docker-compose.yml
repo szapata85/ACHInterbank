@@ -5,7 +5,7 @@ services:
     container_name: ACHinterbank-sqlserver
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "Cooperativa1*"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-ChangeMe_SqlServer_OnlyForLocalDev!234}"
     ports:
       - "1433:1433"
     healthcheck:
@@ -20,8 +20,8 @@ services:
     container_name: ACHinterbank-postgres
     environment:
       POSTGRES_DB: "ACHInterbank"
-      POSTGRES_USER: "sa"
-      POSTGRES_PASSWORD: "Cooperativa1*"
+      POSTGRES_USER: "${POSTGRES_USER:-achinterbank}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-ChangeMe_Postgres_OnlyForLocalDev!234}"
     ports:
       - "5432:5432"
     healthcheck:
@@ -42,10 +42,10 @@ services:
       ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
       EnableHttpsRedirection: "${ENABLE_HTTPS_REDIRECTION:-false}"
       ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/aspnetapp.pfx"
-      ASPNETCORE_Kestrel__Certificates__Default__Password: "changeit"
+      ASPNETCORE_Kestrel__Certificates__Default__Password: "${ASPNETCORE_CERT_PASSWORD:-changeit-local-dev}"
       Database__Provider: "SqlServer"
-      ConnectionStrings__SqlConnection: "Server=db-sqlserver,1433;Database=ACHInterbank;User Id=sa;Password=Cooperativa1*;TrustServerCertificate=True"
-      Database__ApplyMigrations: "true"
+      ConnectionStrings__SqlConnection: "${SQLSERVER_CONNECTION_STRING:-Server=db-sqlserver,1433;Database=ACHInterbank;User Id=sa;Password=ChangeMe_SqlServer_OnlyForLocalDev!234;TrustServerCertificate=True}"
+      Database__ApplyMigrations: "${DATABASE_APPLY_MIGRATIONS:-false}"
       Database__CommandTimeoutSeconds: "180"
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -69,10 +69,10 @@ services:
       ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
       EnableHttpsRedirection: "${ENABLE_HTTPS_REDIRECTION:-false}"
       ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/aspnetapp.pfx"
-      ASPNETCORE_Kestrel__Certificates__Default__Password: "changeit"
+      ASPNETCORE_Kestrel__Certificates__Default__Password: "${ASPNETCORE_CERT_PASSWORD:-changeit-local-dev}"
       Database__Provider: "Postgres"
-      ConnectionStrings__PostgresConnection: "Host=db-postgres;Port=5432;Database=ACHInterbank;Username=sa;Password=Cooperativa1*"
-      Database__ApplyMigrations: "true"
+      ConnectionStrings__PostgresConnection: "${POSTGRES_CONNECTION_STRING:-Host=db-postgres;Port=5432;Database=ACHInterbank;Username=achinterbank;Password=ChangeMe_Postgres_OnlyForLocalDev!234}"
+      Database__ApplyMigrations: "${DATABASE_APPLY_MIGRATIONS:-false}"
       Database__CommandTimeoutSeconds: "180"
     extra_hosts:
       - "host.docker.internal:host-gateway"

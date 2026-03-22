@@ -2,7 +2,7 @@
 set -e
 
 cert_path="${ASPNETCORE_Kestrel__Certificates__Default__Path:-/https/aspnetapp.pfx}"
-cert_password="${ASPNETCORE_Kestrel__Certificates__Default__Password:-changeit}"
+cert_password="${ASPNETCORE_Kestrel__Certificates__Default__Password:-changeit-local-dev}"
 
 if [ -z "${Database__Provider:-}" ] && [ -n "${ConnectionStrings__PostgresConnection:-}" ]; then
   export Database__Provider="Postgres"
