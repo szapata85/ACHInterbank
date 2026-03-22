@@ -1,0 +1,10 @@
+.toolbar { display: flex; gap: 1rem; align-items: end; margin-bottom: 1rem; }
+.table-wrapper { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { border-bottom: 1px solid #d9d9d9; padding: .5rem; text-align: left; }
+.ok { color: #1a7f37; font-weight: 600; }
+.error { color: #b42318; }
+.empty { padding: 1rem; border: 1px dashed #ccc; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: grid; place-items: center; }
+.modal { background: #fff; padding: 1rem; width: min(560px, 92vw); border-radius: .5rem; }
+.actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1rem; }

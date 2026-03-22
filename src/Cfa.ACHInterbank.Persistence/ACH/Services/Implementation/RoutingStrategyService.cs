@@ -80,14 +80,21 @@ public class RoutingStrategyService : IRoutingStrategyService
             // 4️) Evaluar cámaras en el orden IsDefault + Priority
             foreach (InstitutionClearingHousePreference pref in preferences)
             {
-                var nextCycle = await _context.AchCycles
+                var candidateCycles = await _context.AchCycles
                     .Where(c =>
                         c.ClearingHouseId == pref.ClearingHouseId &&
-                        c.ProcessingDate == processingDate &&
-                        IsWithinCycleWindow(now, c.ProcessingDate, c.StartTime, c.EndTime))
+                        c.ProcessingDate == processingDate)
                     .OrderBy(c => c.ProcessingDate)
                     .ThenBy(c => c.CutoffTime)
-                    .FirstOrDefaultAsync(ct);
+                    .ToListAsync(ct);
+
+                var nextCycle = candidateCycles
+                    .Select(c => new { Cycle = c, Window = BuildCycleWindow(c.ProcessingDate, c.StartTime, c.EndTime) })
+                    .Where(x => now <= x.Window.End)
+                    .OrderBy(x => x.Window.End)
+                    .ThenBy(x => x.Cycle.CutoffTime)
+                    .Select(x => x.Cycle)
+                    .FirstOrDefault();
 
                 if (nextCycle != null)
                     return nextCycle.Id;
@@ -139,18 +146,13 @@ public class RoutingStrategyService : IRoutingStrategyService
 
         return 2;
     }
-
-    private static bool IsWithinCycleWindow(DateTime now, DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
+    private static (DateTime Start, DateTime End) BuildCycleWindow(DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
     {
         if (startTime <= endTime)
         {
-            var start = processingDate.Date + startTime;
-            var end = processingDate.Date + endTime;
-            return now >= start && now <= end;
+            return (processingDate.Date + startTime, processingDate.Date + endTime);
         }
 
-        var overnightStart = processingDate.Date.AddDays(-1) + startTime;
-        var overnightEnd = processingDate.Date + endTime;
-        return now >= overnightStart && now <= overnightEnd;
+        return (processingDate.Date.AddDays(-1) + startTime, processingDate.Date + endTime);
     }
 }

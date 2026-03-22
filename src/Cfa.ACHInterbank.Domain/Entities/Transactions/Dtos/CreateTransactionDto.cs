@@ -21,6 +21,14 @@ public class CreateTransactionDto
 public class AddendaDto
 {
     public string AddendaType { get; set; } = "05";
-    public string Information { get; set; } = null!;
+    public AchAddendaBusinessType? BusinessType { get; set; }
+    public string? Information { get; set; }
+    public string? Purpose { get; set; }
+    public string? Reference { get; set; }
+    public string? CollectorId { get; set; }
+    public string? ReceiverCustomerCode { get; set; }
+    public string? ServiceDescription { get; set; }
+    public string? ReturnReasonCode { get; set; }
+    public string? OriginalTraceNumber { get; set; }
+    public string? NewTraceNumber { get; set; }
 }
-

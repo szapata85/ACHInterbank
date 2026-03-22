@@ -8,7 +8,12 @@ export class ReturnReasonsApiService {
   private readonly api = inject(ApiService);
   private readonly basePath = 'return-reasons';
 
-  getAll(): Observable<ReturnReason[]> {
-    return this.api.get<ReturnReason[]>(this.basePath);
+  getAll(onlyForReturn = false): Observable<ReturnReason[]> {
+    const params = onlyForReturn ? { onlyForReturn: true } : undefined;
+    return this.api.get<ReturnReason[]>(this.basePath, { params });
+  }
+
+  getForReturns(): Observable<ReturnReason[]> {
+    return this.getAll(true);
   }
 }

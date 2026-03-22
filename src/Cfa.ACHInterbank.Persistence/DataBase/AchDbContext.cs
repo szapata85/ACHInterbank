@@ -73,6 +73,7 @@ public class AchDbContext : DbContext
     public DbSet<CompanyEntryDescriptionCatalog> CompanyEntryDescriptionCatalogs => Set<CompanyEntryDescriptionCatalog>();
     public DbSet<AchBatch> AchBatches => Set<AchBatch>();
     public DbSet<ReturnReason> ReturnReasons => Set<ReturnReason>();
+    public DbSet<AchReturnGenerated> AchReturnsGenerated => Set<AchReturnGenerated>();
 
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();

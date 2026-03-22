@@ -47,7 +47,10 @@ public class AchTransactionService : IAchTransactionService
         string companyName,
         string companyIdentification,
         int companyEntryDescriptionId,
+        string? sourcePersonType = null,
+        string? recipientPersonType = null,
         string? recipientIdNumber = null,
+        string? recipientName = null,
         bool requiresIdentityValidation = false,
         IEnumerable<AddendaDto>? addendas = null,
         CancellationToken ct = default)
@@ -65,31 +68,42 @@ public class AchTransactionService : IAchTransactionService
             CompanyName = companyName,
             CompanyIdentification = companyIdentification,
             CompanyEntryDescriptionId = companyEntryDescriptionId,
+            SourcePersonType = sourcePersonType,
+            RecipientPersonType = recipientPersonType,
             RecipientIdNumber = recipientIdNumber,
+            RecipientName = recipientName,
             RequiresIdentityValidation = requiresIdentityValidation,
-            Addendas = addendas
+            Addendas = addendas?.ToList()
         };
 
         _transactionValidator.ValidateRequest(request);
 
-        await using var dbTransaction = await _context.Database.BeginTransactionAsync(ct);
+        var executionStrategy = _context.Database.CreateExecutionStrategy();
+        AchTransaction? registeredTransaction = null;
 
-        await EnsureCustomerAndAccountsAsync(request, ct);
-
-        var batchContext = await _batchResolver.ResolveAsync(request, ct);
-        var persisted = await _transactionPersister.PersistAsync(request, batchContext, ct);
-
-        if (isPrenotification)
+        await executionStrategy.ExecuteAsync(async () =>
         {
-            await _prenotificationHandler.HandleAsync(request, persisted.Transaction, ct);
-        }
+            await using var dbTransaction = await _context.Database.BeginTransactionAsync(ct);
 
-        await _transactionPersister.UpdateBatchTotalsAsync(persisted.Batch, ct);
-        await _transactionPersister.UpdateBatchServiceClassCodeAsync(persisted.Batch, ct);
+            await EnsureCustomerAndAccountsAsync(request, ct);
 
-        await dbTransaction.CommitAsync(ct);
+            var batchContext = await _batchResolver.ResolveAsync(request, ct);
+            var persisted = await _transactionPersister.PersistAsync(request, batchContext, ct);
 
-        return persisted.Transaction;
+            if (isPrenotification)
+            {
+                await _prenotificationHandler.HandleAsync(request, persisted.Transaction, ct);
+            }
+
+            await _transactionPersister.UpdateBatchTotalsAsync(persisted.Batch, ct);
+            await _transactionPersister.UpdateBatchServiceClassCodeAsync(persisted.Batch, ct);
+
+            await dbTransaction.CommitAsync(ct);
+            registeredTransaction = persisted.Transaction;
+        });
+
+        return registeredTransaction
+            ?? throw new InvalidOperationException("No fue posible registrar la transacción ACH.");
     }
 
 
@@ -115,7 +129,7 @@ public class AchTransactionService : IAchTransactionService
             documentNumber: request.CompanyIdentification,
             preferredName: request.CompanyName,
             accountNumber: request.SourceAccountNumber,
-            defaultPersonType: "PJ",
+            defaultPersonType: ResolvePersonTypeCode(request.SourcePersonType, "PJ"),
             defaultDocumentType: "NIT",
             ct: ct);
 
@@ -123,9 +137,9 @@ public class AchTransactionService : IAchTransactionService
         {
             await EnsureCustomerWithAccountAsync(
                 documentNumber: request.RecipientIdNumber,
-                preferredName: null,
+                preferredName: request.RecipientName,
                 accountNumber: request.DestinationAccountNumber,
-                defaultPersonType: "PN",
+                defaultPersonType: ResolvePersonTypeCode(request.RecipientPersonType, "PN"),
                 defaultDocumentType: "CC",
                 ct: ct);
         }
@@ -148,6 +162,7 @@ public class AchTransactionService : IAchTransactionService
         }
 
         var resolvedDocumentType = await ResolveCatalogCodeAsync(_context.DocumentTypes, defaultDocumentType, ct);
+        var resolvedPersonType = await ResolveCatalogCodeAsync(_context.PersonTypes, defaultPersonType, ct);
 
         var customer = await _context.Customers
             .Include(c => c.Accounts)
@@ -178,7 +193,7 @@ public class AchTransactionService : IAchTransactionService
 
             customer = new Customer
             {
-                PersonType = await ResolveCatalogCodeAsync(_context.PersonTypes, defaultPersonType, ct),
+                PersonType = resolvedPersonType,
                 DocumentType = resolvedDocumentType,
                 DocumentNumber = normalizedDocument,
                 CompanyName = autoProfile.CompanyName,
@@ -192,6 +207,18 @@ public class AchTransactionService : IAchTransactionService
             return;
         }
 
+        if (!string.Equals(customer.PersonType, resolvedPersonType, StringComparison.OrdinalIgnoreCase))
+        {
+            customer.PersonType = resolvedPersonType;
+        }
+
+        if (!string.Equals(customer.DocumentType, resolvedDocumentType, StringComparison.OrdinalIgnoreCase)
+            && (string.Equals(customer.DocumentType, "OTRO", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(customer.DocumentType)))
+        {
+            customer.DocumentType = resolvedDocumentType;
+        }
+
         RefreshAutoProfileIfNeeded(customer, defaultPersonType, preferredName);
 
         if (!customer.Accounts.Any(a => a.AccountNumber == normalizedAccount))
@@ -203,6 +230,12 @@ public class AchTransactionService : IAchTransactionService
         {
             await _context.SaveChangesAsync(ct);
         }
+    }
+
+    private static string ResolvePersonTypeCode(string? requestedPersonType, string fallback)
+    {
+        var normalized = (requestedPersonType ?? string.Empty).Trim().ToUpperInvariant();
+        return normalized is "PN" or "PJ" ? normalized : fallback;
     }
 
     private static (string FirstName, string LastName, string? CompanyName) BuildAutoProfile(
@@ -230,30 +263,26 @@ public class AchTransactionService : IAchTransactionService
 
     private static void RefreshAutoProfileIfNeeded(Customer customer, string personType, string? preferredName)
     {
-        if (string.IsNullOrWhiteSpace(preferredName) || IsLikelyIdentifier(preferredName))
-        {
-            return;
-        }
-
-        var normalizedName = NormalizeText(preferredName, 200);
-        if (string.IsNullOrWhiteSpace(normalizedName))
-        {
-            return;
-        }
+        var canUsePreferredName = !string.IsNullOrWhiteSpace(preferredName) && !IsLikelyIdentifier(preferredName);
+        var normalizedName = canUsePreferredName ? NormalizeText(preferredName, 200) : string.Empty;
 
         if (personType == "PJ")
         {
-            if (LooksAutoGenerated(customer.CompanyName))
+            var effectiveCompanyName = string.IsNullOrWhiteSpace(normalizedName)
+                ? NormalizeText(customer.CompanyName, 200, "EMPRESA NO IDENTIFICADA")
+                : normalizedName;
+
+            if (LooksAutoGenerated(customer.CompanyName) || string.IsNullOrWhiteSpace(customer.CompanyName))
             {
-                customer.CompanyName = normalizedName;
+                customer.CompanyName = effectiveCompanyName;
             }
 
-            if (LooksAutoGenerated(customer.FirstName))
+            if (LooksAutoGenerated(customer.FirstName) || string.IsNullOrWhiteSpace(customer.FirstName))
             {
-                customer.FirstName = NormalizeText(normalizedName, 100, "EMPRESA");
+                customer.FirstName = NormalizeText(effectiveCompanyName, 100, "EMPRESA");
             }
 
-            if (LooksAutoGenerated(customer.LastName))
+            if (LooksAutoGenerated(customer.LastName) || string.IsNullOrWhiteSpace(customer.LastName))
             {
                 customer.LastName = "N/A";
             }
@@ -261,14 +290,23 @@ public class AchTransactionService : IAchTransactionService
             return;
         }
 
-        if (LooksAutoGenerated(customer.FirstName))
+        var effectiveFirstName = string.IsNullOrWhiteSpace(normalizedName)
+            ? NormalizeText(customer.FirstName, 100, "CLIENTE")
+            : NormalizeText(normalizedName, 100, "CLIENTE");
+
+        if (LooksAutoGenerated(customer.FirstName) || string.IsNullOrWhiteSpace(customer.FirstName))
         {
-            customer.FirstName = NormalizeText(normalizedName, 100, "CLIENTE");
+            customer.FirstName = effectiveFirstName;
         }
 
-        if (LooksAutoGenerated(customer.LastName))
+        if (LooksAutoGenerated(customer.LastName) || string.IsNullOrWhiteSpace(customer.LastName))
         {
             customer.LastName = "NO IDENTIFICADO";
+        }
+
+        if (LooksAutoGenerated(customer.CompanyName))
+        {
+            customer.CompanyName = null;
         }
     }
 

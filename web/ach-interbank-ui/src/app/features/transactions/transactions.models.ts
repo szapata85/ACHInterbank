@@ -21,9 +21,12 @@ export interface TransactionDraft {
   sourceAccountNumber: string;
   destinationAccountNumber: string;
   recipientIdNumber?: string;
+  recipientName?: string;
   requiresIdentityValidation?: boolean;
   companyName: string;
   companyIdentification: string;
+  sourcePersonType?: 'PN' | 'PJ';
+  recipientPersonType?: 'PN' | 'PJ';
   companyEntryDescriptionId: number;
   addendas: Array<{
     addendaType: string;
@@ -77,6 +80,7 @@ export interface ReturnReason {
   code: string;
   description: string;
   category: string;
+  isForReturn: boolean;
 }
 
 
@@ -94,4 +98,32 @@ export interface CompanyEntryDescriptionOption {
   term: string;
   description: string;
   standardEntryClassCode: string;
+}
+
+
+export interface ReturnEligibleTransaction {
+  id: number;
+  traceNumber: string;
+  amount: number;
+  transactionCode: string;
+  reference: string;
+  sourceAccountNumber: string;
+  destinationAccountNumber: string;
+  originatingDfi: string;
+  receivingDfi: string;
+  achCycleId: string;
+  effectiveEntryDate: string;
+  isPrenotification: boolean;
+  isEligible: boolean;
+  validationMessage?: string | null;
+}
+
+export interface ReturnSelectionItem {
+  transactionId: number;
+  returnReasonCode: string;
+}
+
+export interface GenerateReturnsFileRequest {
+  cycleId: string;
+  items: ReturnSelectionItem[];
 }

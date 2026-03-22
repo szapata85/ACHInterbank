@@ -12,14 +12,14 @@ public class FileControlConfiguration : IEntityTypeConfiguration<FileControl>
 
         builder.HasKey(x => x.FileControlID);
 
-        builder.Property(p => p.TotalControl)
-            .HasColumnType("money");
-
         builder.Property(p => p.TotalDebitAmount)
             .HasColumnType("money");
 
         builder.Property(p => p.TotalCreditAmount)
             .HasColumnType("money");
+
+        builder.Property(x => x.Reserved)
+            .HasMaxLength(39);
 
 
         //builder.HasOne(x => x.NachaHeader)

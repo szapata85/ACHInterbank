@@ -32,6 +32,10 @@ export class ApiService {
     return this.http.put<T>(this.buildUrl(path), body, options);
   }
 
+  postBlob(path: string, body: unknown, options?: Omit<RequestOptions, 'responseType'>): Observable<Blob> {
+    return this.http.post(this.buildUrl(path), body, { ...options, responseType: 'blob' });
+  }
+
   patch<T>(path: string, body: unknown, options?: RequestOptions): Observable<T> {
     return this.http.patch<T>(this.buildUrl(path), body, options);
   }

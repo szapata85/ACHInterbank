@@ -36,6 +36,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int CustomerThirdPartiesId = 28;
     public const int IntegrationsId = 29;
     public const int SoapIntegrationSettingsId = 30;
+    public const int TransactionsReturnsId = 31;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -390,6 +391,18 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Route = "/customer-third-parties",
                 Icon = "groups",
                 Order = 4,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = TransactionsReturnsId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = TransactionsId,
+                Label = "Gestión devoluciones",
+                Route = "/transactions/returns",
+                Icon = "assignment_return",
+                Order = 5,
                 Exact = true,
                 IsActive = true
             },

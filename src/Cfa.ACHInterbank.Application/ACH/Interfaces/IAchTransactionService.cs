@@ -18,7 +18,10 @@ public interface IAchTransactionService
         string companyName,
         string companyIdentification,
         int companyEntryDescriptionId,
+        string? sourcePersonType = null,
+        string? recipientPersonType = null,
         string? recipientIdNumber = null,
+        string? recipientName = null,
         bool requiresIdentityValidation = false,
         IEnumerable<AddendaDto>? addendas = null,
         CancellationToken ct = default);

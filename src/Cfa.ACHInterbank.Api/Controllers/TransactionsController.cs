@@ -65,6 +65,12 @@ public class TransactionsController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.DestinationAccountNumber)) return BadRequest("La cuenta de destino es obligatoria.");
         if (string.IsNullOrWhiteSpace(request.CompanyName)) return BadRequest("El nombre del usuario originador es obligatorio.");
         if (string.IsNullOrWhiteSpace(request.CompanyIdentification)) return BadRequest("La identificación del usuario originador es obligatoria.");
+        if (!string.IsNullOrWhiteSpace(request.SourcePersonType) && request.SourcePersonType is not ("PN" or "PJ"))
+            return BadRequest("El tipo de persona del originador debe ser PN o PJ.");
+        if (!string.IsNullOrWhiteSpace(request.RecipientPersonType) && request.RecipientPersonType is not ("PN" or "PJ"))
+            return BadRequest("El tipo de persona del receptor debe ser PN o PJ.");
+        if (!string.IsNullOrWhiteSpace(request.RecipientIdNumber) && string.IsNullOrWhiteSpace(request.RecipientName))
+            return BadRequest("El nombre del receptor es obligatorio cuando se diligencia identificación de receptor.");
 
         try
         {
@@ -80,7 +86,10 @@ public class TransactionsController : ControllerBase
                 companyName: request.CompanyName,
                 companyIdentification: request.CompanyIdentification,
                 companyEntryDescriptionId: request.CompanyEntryDescriptionId,
+                sourcePersonType: request.SourcePersonType,
+                recipientPersonType: request.RecipientPersonType,
                 recipientIdNumber: request.RecipientIdNumber,
+                recipientName: request.RecipientName,
                 requiresIdentityValidation: request.RequiresIdentityValidation,
                 addendas: request.Addendas,
                 ct: ct
@@ -134,11 +143,14 @@ public class AchTransactionRequest
     public string SourceAccountNumber { get; set; } = string.Empty;
     public string DestinationAccountNumber { get; set; } = string.Empty;
     public string? RecipientIdNumber { get; set; }
+    public string? RecipientName { get; set; }
     public bool RequiresIdentityValidation { get; set; }
 
     public string CompanyName { get; set; } = string.Empty;
     public string CompanyIdentification { get; set; } = string.Empty;
     public int CompanyEntryDescriptionId { get; set; }
+    public string? SourcePersonType { get; set; }
+    public string? RecipientPersonType { get; set; }
 
     public List<AddendaDto>? Addendas { get; set; }
 }

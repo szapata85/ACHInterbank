@@ -16,7 +16,10 @@ public record AchTransactionRequestData
     public string CompanyName { get; init; } = string.Empty;
     public string CompanyIdentification { get; init; } = string.Empty;
     public int CompanyEntryDescriptionId { get; init; }
+    public string? SourcePersonType { get; init; }
+    public string? RecipientPersonType { get; init; }
     public string? RecipientIdNumber { get; init; }
+    public string? RecipientName { get; init; }
     public bool RequiresIdentityValidation { get; init; }
-    public IEnumerable<AddendaDto>? Addendas { get; init; }
+    public IReadOnlyList<AddendaDto>? Addendas { get; init; }
 }

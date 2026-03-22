@@ -4,5 +4,5 @@ namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
 
 public interface IReturnReasonService
 {
-    Task<IEnumerable<ReturnReasonDto>> GetAllAsync(CancellationToken ct = default);
+    Task<IEnumerable<ReturnReasonDto>> GetAllAsync(bool onlyForReturn = false, CancellationToken ct = default);
 }

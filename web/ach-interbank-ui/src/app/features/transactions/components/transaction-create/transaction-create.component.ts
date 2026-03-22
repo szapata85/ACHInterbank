@@ -58,9 +58,12 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     sourceAccountNumber: ['', [Validators.required, Validators.pattern(/^[0-9]{6,18}$/)]],
     destinationAccountNumber: ['', [Validators.required, Validators.pattern(/^[0-9]{6,18}$/)]],
     recipientIdNumber: [''],
+    recipientName: ['', [Validators.maxLength(100)]],
     requiresIdentityValidation: [false],
     companyName: ['', [Validators.required, Validators.maxLength(16)]],
     companyIdentification: ['', [Validators.required, Validators.pattern(/^[A-Z0-9]{4,10}$/)]],
+    sourcePersonType: ['PJ', [Validators.required]],
+    recipientPersonType: ['PN', [Validators.required]],
     companyEntryDescriptionId: [null, [Validators.required, Validators.min(1)]],
     addendas: this.fb.array([])
   });
@@ -121,7 +124,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
           this.form.patchValue({
             sourceAccountNumber: accounts[0] ?? '',
             companyName: this.normalizeCompanyName(selected),
-            companyIdentification: selected.documentNumber
+            companyIdentification: selected.documentNumber,
+            sourcePersonType: selected.personType === 'PN' ? 'PN' : 'PJ'
           }, { emitEvent: false });
 
           this.loadActiveDestinationAccounts();
@@ -209,9 +213,12 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       sourceAccountNumber: this.extractDigits(payload.sourceAccountNumber).slice(0, 18),
       destinationAccountNumber: this.extractDigits(payload.destinationAccountNumber).slice(0, 18),
       recipientIdNumber: payload.recipientIdNumber?.trim() || undefined,
+      recipientName: payload.recipientName?.trim() || undefined,
       requiresIdentityValidation: Boolean(payload.requiresIdentityValidation),
       companyName: payload.companyName.trim(),
       companyIdentification: payload.companyIdentification.trim().toUpperCase(),
+      sourcePersonType: payload.sourcePersonType === 'PN' ? 'PN' : 'PJ',
+      recipientPersonType: payload.recipientPersonType === 'PJ' ? 'PJ' : 'PN',
       companyEntryDescriptionId: Number(payload.companyEntryDescriptionId),
       addendas: payload.addendas
         .map((item) => this.buildAddendaPayload(item))
@@ -237,6 +244,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
               type: TransactionTypeEnum.Credit,
               accountType: AccountTypeEnum.Checking,
               isPrenotification: false,
+              sourcePersonType: 'PJ',
+              recipientPersonType: 'PN',
               companyEntryDescriptionId: this.companyEntryDescriptionOptions.find((x) => x.term === 'NOMINA')?.id ?? null
             });
             this.addendas.clear();
@@ -325,7 +334,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.form.patchValue({ recipientIdNumber: selected.recipientIdNumber }, { emitEvent: false });
+    this.form.patchValue({ recipientIdNumber: selected.recipientIdNumber, recipientName: '' }, { emitEvent: false });
   }
 
   private extractDigits(value: unknown): string {
@@ -383,6 +392,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     const amount = this.parseMaskedAmount(group.get('amount')?.value) ?? 0;
     const type = Number(group.get('type')?.value) as TransactionTypeEnum;
     const recipientId = group.get('recipientIdNumber')?.value;
+    const recipientName = group.get('recipientName')?.value;
     const requiresIdentityValidation = Boolean(group.get('requiresIdentityValidation')?.value);
     const addendas = group.get('addendas') as FormArray<FormGroup>;
 
@@ -398,6 +408,10 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
     if (type === TransactionTypeEnum.Credit && requiresIdentityValidation && !recipientId) {
       errors.missingRecipientId = true;
+    }
+
+    if (recipientId && !String(recipientName ?? '').trim()) {
+      errors.missingRecipientName = true;
     }
 
     if (!addendas || addendas.length === 0) {

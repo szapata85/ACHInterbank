@@ -1,6 +1,9 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.Helpers.ACH;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -182,6 +185,11 @@ public class NachaFileBuilder : INachaFileBuilder
             raw = prop.GetValue(entity);
             string value = FormatValue(raw, field);
 
+            if (recordType == "5" && string.Equals(field.FieldName, "SettlementDate", StringComparison.OrdinalIgnoreCase))
+            {
+                value = NormalizeBatchSettlementDate(value);
+            }
+
             if (value.Length > field.Length)
                 value = value.Substring(0, field.Length);
 
@@ -220,6 +228,11 @@ public class NachaFileBuilder : INachaFileBuilder
 
             var value = FormatValue(raw, field);
 
+            if (recordType == "5" && string.Equals(field.FieldName, "SettlementDate", StringComparison.OrdinalIgnoreCase))
+            {
+                value = NormalizeBatchSettlementDate(value);
+            }
+
             if (value.Length > field.Length)
                 value = value.Substring(0, field.Length);
 
@@ -232,6 +245,17 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return Task.FromResult(new string(buffer));
+    }
+
+    private static string NormalizeBatchSettlementDate(string? value)
+    {
+        var validation = BatchHeaderType5JulianDateValidator.ValidateAndFormat(value);
+        if (!validation.IsValid)
+        {
+            throw new InvalidOperationException(validation.ErrorMessage ?? "Error Fatal 65 en Fecha de Compensación Juliana.");
+        }
+
+        return validation.FormattedValue;
     }
 
     private static System.Reflection.PropertyInfo? ResolveProperty(Type type, string? dbColumn)
@@ -364,6 +388,9 @@ public class NachaFileBuilder : INachaFileBuilder
     {
         var sb = new StringBuilder(capacity: 10240);
         var orderedBatches = context.Batches.OrderBy(b => b.Id).ToList();
+        var batchSequenceById = orderedBatches
+            .Select((batch, index) => new { batch.Id, BatchNumber = index + 1 })
+            .ToDictionary(item => item.Id, item => item.BatchNumber);
 
         if (!orderedBatches.Any())
             throw new InvalidOperationException("No se encontraron lotes para exportar.");
@@ -404,7 +431,7 @@ public class NachaFileBuilder : INachaFileBuilder
                         {
                             var batchTransactions = context.Transactions.Where(t => t.AchBatchId == batch.Id).ToList();
                             string secCode = ResolveStandardEntryClassCode(batch, batchTransactions, companyEntryDescriptionCatalog);
-                            return BatchHeaderRecord.From(batch, secCode);
+                            return BatchHeaderRecord.From(batch, secCode, batchSequenceById[batch.Id]);
                         }),
                         context,
                         ct);
@@ -414,7 +441,7 @@ public class NachaFileBuilder : INachaFileBuilder
                         sb,
                         definition,
                         layoutCache,
-                        context.Transactions.OrderBy(t => t.Id).Select(EntryDetailRecord.From),
+                        await BuildEntryDetailRecordsAsync(context.Transactions, ct),
                         context,
                         ct);
                     entryAddendaCount += context.Transactions.Count;
@@ -427,13 +454,7 @@ public class NachaFileBuilder : INachaFileBuilder
                     }
                     break;
                 case "7":
-                    recordCount += await AppendCustomOrConfiguredAsync(
-                        sb,
-                        definition,
-                        layoutCache,
-                        BuildAddendaRecords(context.Transactions),
-                        context,
-                        ct);
+                    recordCount += AppendTypedAddendaRecords(sb, orderedBatches);
                     entryAddendaCount += context.Transactions.Sum(tx => BuildAddendasForTransaction(tx).Count());
                     break;
                 case "8":
@@ -446,7 +467,8 @@ public class NachaFileBuilder : INachaFileBuilder
                                 batch,
                                 batch.Transactions.Count + batch.Transactions.Sum(t => BuildAddendasForTransaction(t).Count()),
                                 SumBatchDebit(batch),
-                                SumBatchCredit(batch))),
+                                SumBatchCredit(batch),
+                                batchSequenceById[batch.Id])),
                         context,
                         ct);
                     break;
@@ -515,17 +537,6 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return count;
-    }
-
-    private static IEnumerable<AddendaRecord> BuildAddendaRecords(IEnumerable<AchTransaction> transactions)
-    {
-        foreach (var tx in transactions)
-        {
-            foreach (var addenda in BuildAddendasForTransaction(tx))
-            {
-                yield return AddendaRecord.From(addenda, tx.TraceSequenceNumber);
-            }
-        }
     }
 
     private static long SumBatchDebit(AchBatch batch)
@@ -618,10 +629,159 @@ public class NachaFileBuilder : INachaFileBuilder
             new AchTransactionAddenda
             {
                 AddendaType = "05",
-                Information = string.IsNullOrWhiteSpace(tx.Reference) ? "PAGO" : tx.Reference,
+                BusinessType = tx.Type == TransactionTypeEnum.Debit
+                    ? AchAddendaBusinessType.Debit
+                    : AchAddendaBusinessType.Credit,
+                Purpose = tx.AchBatch?.CompanyEntryDescription,
+                Reference = string.IsNullOrWhiteSpace(tx.Reference) ? new string('0', 53) : tx.Reference,
+                CollectorId = tx.Type == TransactionTypeEnum.Debit ? tx.CompanyIdentification : null,
+                ReceiverCustomerCode = tx.Type == TransactionTypeEnum.Debit ? tx.RecipientIdNumber : null,
+                ServiceDescription = tx.Type == TransactionTypeEnum.Debit ? tx.Reference : null,
                 SequenceNumber = 1
             }
         };
+    }
+
+    private static int AppendTypedAddendaRecords(StringBuilder sb, IReadOnlyList<AchBatch> orderedBatches)
+    {
+        var count = 0;
+        foreach (var batch in orderedBatches)
+        {
+            foreach (var transaction in batch.Transactions.OrderBy(t => t.Id))
+            {
+                foreach (var addenda in BuildAddendasForTransaction(transaction))
+                {
+                    sb.Append(BuildType7Record(batch, transaction, addenda));
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
+    private static string BuildType7Record(AchBatch batch, AchTransaction transaction, AchTransactionAddenda addenda)
+    {
+        return addenda.BusinessType switch
+        {
+            AchAddendaBusinessType.Debit => BuildDebitType7Record(transaction, addenda),
+            AchAddendaBusinessType.Return => BuildReturnType7Record(transaction, addenda),
+            _ => BuildCreditType7Record(batch, transaction, addenda)
+        };
+    }
+
+    private static string BuildCreditType7Record(AchBatch batch, AchTransaction transaction, AchTransactionAddenda addenda)
+    {
+        var purpose = FormatAlpha(addenda.Purpose ?? batch.CompanyEntryDescription, 10);
+        var batchDescription = FormatAlpha(batch.CompanyEntryDescription, 10);
+        if (!string.Equals(purpose, batchDescription, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"La addenda de crédito de la transacción {transaction.Id} debe reflejar la descripción del lote tipo 5.");
+        }
+
+        var reference = string.IsNullOrWhiteSpace(addenda.Reference)
+            ? new string('0', 53)
+            : FormatAlpha(addenda.Reference, 53);
+
+        var buffer = CreateBlankRecord('7');
+        WriteValue(buffer, 2, "05");
+        WriteValue(buffer, 21, purpose);
+        WriteValue(buffer, 31, reference);
+        WriteValue(buffer, 84, FormatNumeric((addenda.SequenceNumber ?? 1).ToString(), 4));
+        WriteValue(buffer, 88, FormatNumeric(GetTraceSuffix(transaction.TraceNumber), 7));
+        return new string(buffer);
+    }
+
+    private static string BuildDebitType7Record(AchTransaction transaction, AchTransactionAddenda addenda)
+    {
+        var collectorId = FormatNumeric(addenda.CollectorId, 13);
+        var receiverCustomerCode = FormatAlpha(addenda.ReceiverCustomerCode, 30);
+        var serviceDescription = FormatAlpha(addenda.ServiceDescription, 15);
+
+        if (string.IsNullOrWhiteSpace(collectorId.Trim('0')))
+        {
+            throw new InvalidOperationException($"La transacción débito {transaction.Id} requiere CollectorId en la addenda tipo 7.");
+        }
+
+        if (string.IsNullOrWhiteSpace(receiverCustomerCode.Trim()))
+        {
+            throw new InvalidOperationException($"La transacción débito {transaction.Id} requiere ReceiverCustomerCode en la addenda tipo 7.");
+        }
+
+        if (string.IsNullOrWhiteSpace(serviceDescription.Trim()))
+        {
+            throw new InvalidOperationException($"La transacción débito {transaction.Id} requiere ServiceDescription en la addenda tipo 7.");
+        }
+
+        var buffer = CreateBlankRecord('7');
+        WriteValue(buffer, 2, "05");
+        WriteValue(buffer, 4, collectorId);
+        WriteValue(buffer, 17, receiverCustomerCode);
+        WriteValue(buffer, 47, serviceDescription);
+        WriteValue(buffer, 84, FormatNumeric((addenda.SequenceNumber ?? 1).ToString(), 4));
+        WriteValue(buffer, 88, FormatNumeric(GetTraceSuffix(transaction.TraceNumber), 7));
+        return new string(buffer);
+    }
+
+    private static string BuildReturnType7Record(AchTransaction transaction, AchTransactionAddenda addenda)
+    {
+        var returnReasonCode = FormatAlpha(addenda.ReturnReasonCode, 3);
+        var originalTraceNumber = FormatNumeric(addenda.OriginalTraceNumber, 15);
+        var newTraceNumber = FormatNumeric(addenda.NewTraceNumber, 15);
+
+        var buffer = CreateBlankRecord('7');
+        WriteValue(buffer, 2, "99");
+        WriteValue(buffer, 4, returnReasonCode);
+        WriteValue(buffer, 7, originalTraceNumber);
+        WriteValue(buffer, 82, newTraceNumber);
+        WriteValue(buffer, 100, FormatNumeric(GetTraceSuffix(transaction.TraceNumber), 7));
+        return new string(buffer);
+    }
+
+    private static char[] CreateBlankRecord(char recordType)
+    {
+        var buffer = new char[106];
+        Array.Fill(buffer, ' ');
+        buffer[0] = recordType;
+        return buffer;
+    }
+
+    private static void WriteValue(char[] buffer, int startPosition, string value)
+    {
+        var start = startPosition - 1;
+        value.CopyTo(0, buffer, start, value.Length);
+    }
+
+    private static string FormatAlpha(string? value, int length)
+    {
+        var normalized = new string((value ?? string.Empty)
+            .Trim()
+            .ToUpperInvariant()
+            .Where(ch => char.IsLetterOrDigit(ch) || ch == ' ' || ch is '.' or ',' or '-' or '/' or '&')
+            .ToArray());
+        if (normalized.Length > length)
+        {
+            normalized = normalized[..length];
+        }
+
+        return normalized.PadRight(length, ' ');
+    }
+
+    private static string FormatNumeric(string? value, int length)
+    {
+        var digits = new string((value ?? string.Empty).Where(char.IsDigit).ToArray());
+        if (digits.Length > length)
+        {
+            digits = digits[^length..];
+        }
+
+        return digits.PadLeft(length, '0');
+    }
+
+    private static string GetTraceSuffix(string? traceNumber)
+    {
+        var digits = new string((traceNumber ?? string.Empty).Where(char.IsDigit).ToArray());
+        return digits.Length <= 7 ? digits : digits[^7..];
     }
 
     private async Task<NachaHeader?> LoadHeaderAsync(string cycleId, CancellationToken ct)
@@ -725,7 +885,7 @@ public class NachaFileBuilder : INachaFileBuilder
         public string OriginatingDFI { get; init; } = string.Empty;
         public int BatchNumber { get; init; }
 
-        public static BatchHeaderRecord From(AchBatch batch, string standardEntryClassCode)
+        public static BatchHeaderRecord From(AchBatch batch, string standardEntryClassCode, int batchNumber)
         {
             if (standardEntryClassCode is not ("PPD" or "CCD"))
             {
@@ -745,7 +905,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 SettlementDate = string.Empty,
                 OriginatorStatusCode = "1",
                 OriginatingDFI = batch.OriginOrOdfi,
-                BatchNumber = batch.BatchSequenceNumber
+                BatchNumber = batchNumber
             };
         }
     }
@@ -792,17 +952,32 @@ public class NachaFileBuilder : INachaFileBuilder
         public string TraceNumber { get; init; } = string.Empty;
         public string CompanyIdentification { get; init; } = string.Empty;
 
-        public static EntryDetailRecord From(AchTransaction tx)
+        public static EntryDetailRecord From(AchTransaction tx, string receiverName)
         {
+            var receivingDfi = (tx.ReceivingDFI ?? string.Empty).Trim();
+            if (receivingDfi.Length != 8 || receivingDfi.Any(c => !char.IsDigit(c)))
+            {
+                throw new InvalidOperationException("Error Fatal ID 35: el Código Entidad Participante Receptor (posiciones 4-11) debe contener 8 dígitos numéricos para calcular el dígito de chequeo.");
+            }
+
+            var expectedCheckDigit = DigitoChequeoHelper.CalcularDigitoChequeo(receivingDfi);
+            var destinationCheckDigit = tx.DestinationInstitution?.CheckDigit?.Trim();
+            var checkDigit = string.IsNullOrWhiteSpace(destinationCheckDigit) ? expectedCheckDigit : destinationCheckDigit;
+
+            if (!string.Equals(checkDigit, expectedCheckDigit, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException($"Error Fatal ID 35: inconsistencia de dígito de chequeo para la entidad receptora {receivingDfi}. Base de datos={checkDigit}, calculado={expectedCheckDigit}.");
+            }
+
             return new EntryDetailRecord
             {
                 TransactionCode = tx.TransactionCode,
-                ReceivingDFI = tx.ReceivingDFI,
-                CheckDigit = string.Empty,
+                ReceivingDFI = receivingDfi,
+                CheckDigit = checkDigit,
                 DestinationAccountNumber = tx.DestinationAccountNumber,
                 Amount = tx.Amount,
                 RecipientIdNumber = tx.RecipientIdNumber,
-                ReceiverName = tx.Reference,
+                ReceiverName = receiverName,
                 DiscretionaryData = tx.DiscretionaryData,
                 AddendumIndicator = "1",
                 TraceNumber = tx.TraceNumber,
@@ -811,23 +986,78 @@ public class NachaFileBuilder : INachaFileBuilder
         }
     }
 
-    private sealed record AddendaRecord
+    private async Task<IReadOnlyList<EntryDetailRecord>> BuildEntryDetailRecordsAsync(
+        IReadOnlyList<AchTransaction> transactions,
+        CancellationToken ct)
     {
-        public string AddendaType { get; init; } = string.Empty;
-        public string Information { get; init; } = string.Empty;
-        public int SequenceNumber { get; init; }
-        public int EntryDetailSequenceNumber { get; init; }
+        var records = new List<EntryDetailRecord>(transactions.Count);
 
-        public static AddendaRecord From(AchTransactionAddenda addenda, int entrySequence)
+        foreach (var transaction in transactions.OrderBy(t => t.Id))
         {
-            return new AddendaRecord
+            var receiverName = await ResolveReceiverNameForType6Async(transaction, ct);
+            var normalizedReceiverName = NachaReceiverNameHelper.SanitizeForType6(receiverName);
+
+            if (string.IsNullOrWhiteSpace(normalizedReceiverName))
             {
-                AddendaType = addenda.AddendaType,
-                Information = addenda.Information,
-                SequenceNumber = addenda.SequenceNumber ?? 0,
-                EntryDetailSequenceNumber = entrySequence
-            };
+                throw new InvalidOperationException($"Error Fatal ID 22: la transacción {transaction.Id} no tiene Nombre del Usuario Receptor válido para posiciones 63-84 del registro tipo 6.");
+            }
+
+            records.Add(EntryDetailRecord.From(transaction, normalizedReceiverName));
         }
+
+        return records;
+    }
+
+    private async Task<string?> ResolveReceiverNameForType6Async(AchTransaction transaction, CancellationToken ct)
+    {
+        var destinationAccount = (transaction.DestinationAccountNumber ?? string.Empty).Trim();
+        var recipientId = (transaction.RecipientIdNumber ?? string.Empty).Trim();
+
+        Customer? customer;
+        if (!string.IsNullOrWhiteSpace(recipientId))
+        {
+            customer = await _context.Customers
+                .AsNoTracking()
+                .Include(c => c.Accounts)
+                .FirstOrDefaultAsync(c => c.DocumentNumber == recipientId && c.Accounts.Any(a => a.AccountNumber == destinationAccount), ct);
+
+            if (customer is not null)
+            {
+                return BuildReceiverName(customer);
+            }
+        }
+
+        var accountMatches = await _context.Customers
+            .AsNoTracking()
+            .Include(c => c.Accounts)
+            .Where(c => c.Accounts.Any(a => a.AccountNumber == destinationAccount))
+            .ToListAsync(ct);
+
+        if (accountMatches.Count == 1)
+        {
+            return BuildReceiverName(accountMatches[0]);
+        }
+
+        return null;
+    }
+
+    private static string BuildReceiverName(Customer customer)
+    {
+        if (string.Equals(customer.PersonType, "PJ", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(customer.CompanyName))
+        {
+            return customer.CompanyName;
+        }
+
+        var parts = new[] { customer.FirstName, customer.LastName }
+            .Where(value => !string.IsNullOrWhiteSpace(value));
+
+        var fullName = string.Join(' ', parts).Trim();
+        if (!string.IsNullOrWhiteSpace(fullName))
+        {
+            return fullName;
+        }
+
+        return customer.CompanyName ?? string.Empty;
     }
 
     private async Task ValidateTransactionsForSendAsync(IEnumerable<AchTransaction> transactions, CancellationToken ct)
@@ -933,7 +1163,7 @@ public class NachaFileBuilder : INachaFileBuilder
         public string OriginatingDFI { get; init; } = string.Empty;
         public int BatchNumber { get; init; }
 
-        public static BatchControlRecord From(AchBatch batch, int entryAddendaCount, long batchDebit, long batchCredit)
+        public static BatchControlRecord From(AchBatch batch, int entryAddendaCount, long batchDebit, long batchCredit, int batchNumber)
         {
             return new BatchControlRecord
             {
@@ -945,7 +1175,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 CompanyIdentification = batch.CompanyIdentification,
                 MessageAuthenticationCode = string.Empty,
                 OriginatingDFI = batch.OriginOrOdfi,
-                BatchNumber = batch.BatchSequenceNumber
+                BatchNumber = batchNumber
             };
         }
     }
@@ -977,7 +1207,7 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private static long ComputeEntryHash(IEnumerable<AchTransaction> transactions)
     {
-        const long maxHash = 9999999999;
+        const long maxHash = 10_000_000_000L;
         long hash = 0;
 
         foreach (var tx in transactions)
