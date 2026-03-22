@@ -132,7 +132,7 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
             var originEntity = NormalizeDigits(tx.ReceivingDFI, 8);
 
             entryLines.Add(BuildType6ReturnLine(tx, receiverEntity, amount, newSequence));
-            addendaLines.Add(BuildType7ReturnAddendaLine(reason.Code, originalSequence));
+            addendaLines.Add(BuildType7ReturnAddendaLine(reason.Code, originalSequence, newSequence, newSequence[^7..]));
 
             generatedRows.Add(new AchReturnGenerated
             {
@@ -266,16 +266,18 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
         return Ensure106(text.ToString());
     }
 
-    private static string BuildType7ReturnAddendaLine(string reasonCode, string originalSequence)
+    private static string BuildType7ReturnAddendaLine(string reasonCode, string originalTraceNumber, string newTraceNumber, string entryDetailSequenceNumber)
     {
-        var text = new StringBuilder(106);
-        text.Append('7');
-        text.Append("99");
-        text.Append(PadAlpha($"{reasonCode} ORIGSEQ:{originalSequence}", 80));
-        text.Append(PadNum("1", 4));
-        text.Append(PadNum(originalSequence[^7..], 7));
-        text.Append(PadAlpha(string.Empty, 12));
-        return Ensure106(text.ToString());
+        var buffer = new char[106];
+        Array.Fill(buffer, ' ');
+        buffer[0] = '7';
+
+        WriteValue(buffer, 2, "99");
+        WriteValue(buffer, 4, PadAlpha(reasonCode, 3));
+        WriteValue(buffer, 7, PadNum(originalTraceNumber, 15));
+        WriteValue(buffer, 82, PadNum(newTraceNumber, 15));
+        WriteValue(buffer, 100, PadNum(entryDetailSequenceNumber, 7));
+        return new string(buffer);
     }
 
     private static string BuildType8ControlLine(int entryCount, int addendaCount, long hash, decimal totalDebit, decimal totalCredit)
@@ -343,5 +345,10 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
         }
 
         return value.PadRight(106, ' ');
+    }
+
+    private static void WriteValue(char[] buffer, int startPosition, string value)
+    {
+        value.CopyTo(0, buffer, startPosition - 1, value.Length);
     }
 }

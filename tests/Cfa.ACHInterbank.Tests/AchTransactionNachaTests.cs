@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Helpers;
@@ -41,12 +42,15 @@ public class AchTransactionNachaTests
                 destinationInstitutionId: 2,
                 sourceAccountNumber: "111122223333",
                 destinationAccountNumber: "999988887777",
+                companyName: "Empresa Demo",
+                companyIdentification: "123456780",
+                companyEntryDescriptionId: 1,
                 recipientIdNumber: null,
                 requiresIdentityValidation: false,
                 addendas:
                 [
-                    new() { AddendaType = "05", Information = "Factura #123" },
-                    new() { AddendaType = "99", Information = "Pago complementario" }
+                    new() { AddendaType = "05", BusinessType = AchAddendaBusinessType.Credit, Purpose = "PAGOS PSE", Reference = "Factura 123" },
+                    new() { AddendaType = "99", BusinessType = AchAddendaBusinessType.Return, ReturnReasonCode = "R01", OriginalTraceNumber = "123456780000001", NewTraceNumber = "765432100000001" }
                 ],
                 ct: CancellationToken.None);
 
@@ -74,13 +78,18 @@ public class AchTransactionNachaTests
             first =>
             {
                 Assert.Equal("05", first.AddendaType);
-                Assert.Equal("Factura #123", first.Information);
+                Assert.Equal(AchAddendaBusinessType.Credit, first.BusinessType);
+                Assert.Equal("PAGOS PSE", first.Purpose);
+                Assert.Equal("FACTURA 123", first.Reference);
                 Assert.Equal(1, first.SequenceNumber);
             },
             second =>
             {
                 Assert.Equal("99", second.AddendaType);
-                Assert.Equal("Pago complementario", second.Information);
+                Assert.Equal(AchAddendaBusinessType.Return, second.BusinessType);
+                Assert.Equal("R01", second.ReturnReasonCode);
+                Assert.Equal("123456780000001", second.OriginalTraceNumber);
+                Assert.Equal("765432100000001", second.NewTraceNumber);
                 Assert.Equal(2, second.SequenceNumber);
             });
         Assert.Equal(1, savedTransaction.SourceInstitutionId);
@@ -116,6 +125,9 @@ public class AchTransactionNachaTests
             destinationInstitutionId: 2,
             sourceAccountNumber: "111122223333",
             destinationAccountNumber: "999988887777",
+            companyName: "Empresa Demo",
+            companyIdentification: "123456780",
+            companyEntryDescriptionId: 1,
             recipientIdNumber: null,
             requiresIdentityValidation: false,
             addendas: null,
@@ -145,6 +157,9 @@ public class AchTransactionNachaTests
                 destinationInstitutionId: 2,
                 sourceAccountNumber: "111122223333",
                 destinationAccountNumber: "999988887777",
+                companyName: "Empresa Demo",
+                companyIdentification: "123456780",
+                companyEntryDescriptionId: 1,
                 recipientIdNumber: null,
                 requiresIdentityValidation: false,
                 addendas: null,
@@ -159,6 +174,9 @@ public class AchTransactionNachaTests
                 destinationInstitutionId: 2,
                 sourceAccountNumber: "111122223333",
                 destinationAccountNumber: "999988887777",
+                companyName: "Empresa Demo",
+                companyIdentification: "123456780",
+                companyEntryDescriptionId: 1,
                 recipientIdNumber: null,
                 requiresIdentityValidation: false,
                 addendas: null,
@@ -174,28 +192,22 @@ public class AchTransactionNachaTests
         var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object);
         var nachaContent = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
 
-        // 6 registros esperados: 1,5,6,7,8,9
-        Assert.Equal(150, nachaContent.Length);
+        var records = ChunkRecords(nachaContent);
 
-        var segments = new List<string>
-        {
-            nachaContent[..20],
-            nachaContent.Substring(20, 30),
-            nachaContent.Substring(50, 40),
-            nachaContent.Substring(90, 20),
-            nachaContent.Substring(110, 20),
-            nachaContent.Substring(130, 20)
-        };
+        Assert.Equal(8, records.Count);
+        Assert.All(records, record => Assert.Equal(106, record.Length));
+        Assert.Equal("1", records[0][..1]);
+        Assert.Equal("5", records[1][..1]);
+        Assert.Equal("6", records[2][..1]);
+        Assert.Equal("7", records[3][..1]);
+        Assert.Equal("6", records[4][..1]);
+        Assert.Equal("7", records[5][..1]);
+        Assert.Equal("8", records[6][..1]);
+        Assert.Equal("9", records[7][..1]);
 
-        Assert.StartsWith("1", segments[0]);
-        Assert.StartsWith("5", segments[1]);
-        Assert.StartsWith("6", segments[2]);
-        Assert.StartsWith("7", segments[3]);
-        Assert.StartsWith("8", segments[4]);
-        Assert.StartsWith("9", segments[5]);
-
-        Assert.Contains("PAGO-REF-002", segments[2]);
-        Assert.Contains("0000150000", segments[2]);
+        Assert.Equal("05", records[3].Substring(1, 2));
+        Assert.Equal("PAGOS PSE ", records[3].Substring(20, 10));
+        Assert.Equal("0000001", records[3].Substring(87, 7));
     }
 
     [Fact]
@@ -220,6 +232,9 @@ public class AchTransactionNachaTests
                 destinationInstitutionId: 2,
                 sourceAccountNumber: "111122223333",
                 destinationAccountNumber: "222233334444",
+                companyName: "Empresa Demo",
+                companyIdentification: "123456780",
+                companyEntryDescriptionId: 1,
                 recipientIdNumber: null,
                 requiresIdentityValidation: false,
                 addendas: null,
@@ -234,6 +249,9 @@ public class AchTransactionNachaTests
                 destinationInstitutionId: 2,
                 sourceAccountNumber: "111122223333",
                 destinationAccountNumber: "555566667777",
+                companyName: "Empresa Demo",
+                companyIdentification: "123456780",
+                companyEntryDescriptionId: 1,
                 recipientIdNumber: null,
                 requiresIdentityValidation: false,
                 addendas: null,
@@ -248,6 +266,9 @@ public class AchTransactionNachaTests
                 destinationInstitutionId: 2,
                 sourceAccountNumber: "111122223333",
                 destinationAccountNumber: "888899990000",
+                companyName: "Empresa Demo",
+                companyIdentification: "123456780",
+                companyEntryDescriptionId: 1,
                 recipientIdNumber: null,
                 requiresIdentityValidation: false,
                 addendas: null,
@@ -266,6 +287,131 @@ public class AchTransactionNachaTests
         Assert.NotEmpty(nachaContent);
         Assert.Contains("PAGO-SAV-001", nachaContent);
         Assert.Contains("PAGO-CHK-001", nachaContent);
+    }
+
+    [Fact]
+    public async Task BuildNachaFileByCycleAsync_DebitAddenda_UsesGoldenPositions()
+    {
+        using var connection = CreateOpenConnection();
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+
+        using (var arrangeContext = CreateContext(connection))
+        {
+            SeedCoreEntities(arrangeContext);
+            SeedNachaLayouts(arrangeContext);
+
+            var transactionService = BuildTransactionService(arrangeContext, cycleId);
+            await transactionService.RegisterTransactionAsync(
+                amount: 2500m,
+                reference: "RECAUDO SERVICIO",
+                type: TransactionTypeEnum.Debit,
+                accountType: AccountTypeEnum.Checking,
+                isPrenotification: false,
+                destinationInstitutionId: 2,
+                sourceAccountNumber: "111122223333",
+                destinationAccountNumber: "999988887777",
+                companyName: "Empresa Demo",
+                companyIdentification: "123456780",
+                companyEntryDescriptionId: 2,
+                recipientIdNumber: "900123456",
+                recipientName: "Cliente Recaudo",
+                requiresIdentityValidation: false,
+                addendas:
+                [
+                    new()
+                    {
+                        AddendaType = "05",
+                        BusinessType = AchAddendaBusinessType.Debit,
+                        CollectorId = "9001234567",
+                        ReceiverCustomerCode = "CLI0000000001",
+                        ServiceDescription = "FACTURA"
+                    }
+                ],
+                ct: CancellationToken.None);
+        }
+
+        using var executionContext = CreateContext(connection);
+        var holidayService = new Mock<IBankHoliday>();
+        holidayService.Setup(h => h.GetHolidays(It.IsAny<int>())).Returns([]);
+        var recordDataProvider = new Mock<INachaRecordDataProvider>();
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object);
+        var records = ChunkRecords(await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None));
+        var addendaRecord = records.Single(record => record.StartsWith("7"));
+
+        Assert.Equal("05", addendaRecord.Substring(1, 2));
+        Assert.Equal("0009001234567", addendaRecord.Substring(3, 13));
+        Assert.Equal("CLI0000000001                  ", addendaRecord.Substring(16, 30));
+        Assert.Equal("FACTURA        ", addendaRecord.Substring(46, 15));
+        Assert.Equal(records.Single(record => record.StartsWith("6")).Substring(95, 7), addendaRecord.Substring(87, 7));
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_ReturnAddenda_UsesGoldenPositions()
+    {
+        using var connection = CreateOpenConnection();
+
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+
+        using (var arrangeContext = CreateContext(connection))
+        {
+            SeedCoreEntities(arrangeContext);
+            SeedNachaLayouts(arrangeContext);
+
+            var cycle = await arrangeContext.AchCycles.SingleAsync(c => c.Id == cycleId);
+
+            var transaction = new AchTransaction
+            {
+                Amount = 1200m,
+                Reference = "PAGO RET",
+                Type = TransactionTypeEnum.Credit,
+                TransactionCode = "22",
+                OriginatingDFI = "12345678",
+                ReceivingDFI = "76543210",
+                TraceNumber = "123456780000123",
+                TraceSequenceNumber = 123,
+                EffectiveEntryDate = cycle.ProcessingDate,
+                AddendaRecordIndicator = true,
+                IsPrenotification = false,
+                CompanyName = "Empresa Demo",
+                CompanyIdentification = "123456780",
+                SourceAccountNumber = "111122223333",
+                DestinationAccountNumber = "999988887777",
+                AchCycleId = cycle.Id,
+                SourceInstitutionId = 1,
+                DestinationInstitutionId = 2
+            };
+
+            arrangeContext.AchTransactions.Add(transaction);
+            arrangeContext.ReturnReasons.Add(new ReturnReason
+            {
+                Id = 999,
+                Code = "R01",
+                Description = "Fondos insuficientes",
+                Category = "R",
+                IsForReturn = true
+            });
+            await arrangeContext.SaveChangesAsync();
+        }
+
+        using var executionContext = CreateContext(connection);
+        var persistedTransactionId = await executionContext.AchTransactions.Select(t => t.Id).SingleAsync();
+        var service = new AchReturnsService(executionContext);
+        var response = await service.GenerateReturnsFileAsync(
+            new GenerateReturnsFileRequest(
+                cycleId,
+                [new ReturnSelectionItemDto(persistedTransactionId, "R01")]),
+            CancellationToken.None);
+
+        var records = System.Text.Encoding.UTF8.GetString(response.Content)
+            .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+        var addendaRecord = records.Single(record => record.StartsWith("7"));
+
+        Assert.Equal("99", addendaRecord.Substring(1, 2));
+        Assert.Equal("R01", addendaRecord.Substring(3, 3));
+        Assert.Equal("123456780000123", addendaRecord.Substring(6, 15));
+        Assert.Equal(15, addendaRecord.Substring(81, 15).Trim().Length);
+        Assert.Equal(7, addendaRecord.Substring(99, 7).Trim().Length);
     }
 
     private static SqliteConnection CreateOpenConnection()
@@ -357,6 +503,23 @@ public class AchTransactionNachaTests
         destinationInstitution.CalculateCheckDigit();
 
         context.ClearingHouseConfigs.Add(config);
+        context.CompanyEntryDescriptionCatalogs.AddRange(
+            new CompanyEntryDescriptionCatalog
+            {
+                Id = 1,
+                Term = "PAGOS PSE",
+                Description = "Pagos PSE",
+                StandardEntryClassCode = "PPD",
+                IsActive = true
+            },
+            new CompanyEntryDescriptionCatalog
+            {
+                Id = 2,
+                Term = "RECAUDOS",
+                Description = "Recaudos",
+                StandardEntryClassCode = "PPD",
+                IsActive = true
+            });
         context.DocumentTypeCatalogs.Add(documentType);
         context.PersonTypeCatalogs.Add(personType);
         context.GenderCatalogs.Add(gender);
@@ -402,7 +565,7 @@ public class AchTransactionNachaTests
             .Setup(h => h.GetHolidays(It.IsAny<int>()))
             .Returns([]);
 
-        var validator = new TransactionValidator();
+        var validator = new TransactionValidator(context);
         var batchResolver = new BatchResolver(context, routing.Object);
         var persister = new TransactionPersister(context, validator);
         var prenotificationHandler = new PrenotificationHandler(context);
@@ -564,5 +727,12 @@ public class AchTransactionNachaTests
 
         context.NachaRecordLayouts.AddRange(layout1, layout5, layout6, layout7, layout8, layout9);
         context.SaveChanges();
+    }
+
+    private static List<string> ChunkRecords(string content)
+    {
+        return Enumerable.Range(0, content.Length / 106)
+            .Select(index => content.Substring(index * 106, 106))
+            .ToList();
     }
 }

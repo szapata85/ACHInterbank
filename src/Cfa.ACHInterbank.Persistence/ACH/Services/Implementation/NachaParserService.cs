@@ -458,12 +458,21 @@ public class NachaParserService : INachaParserService
         return line.Select(a => new AddendaRecord
         {
             CodeTypeAddendumRecord = a.Substring(1, 2).Trim(),
-            IdUserOrig = a.Substring(3, 15).Trim(),
-            PurposeOfTransaction = a.Substring(20, 10).Trim(),
-            InvoiceOrAccountNumber = a.Substring(20, 10).ToUpper().Trim() == "TRANSFER" ? a.Substring(30, 24).Trim() : a.Substring(30, 53).Trim(),
-            InfofromOriginator = a.Substring(20, 10).ToUpper().Trim() == "TRANSFER" ? a.Substring(56, 24).Trim() : null,
-            AddendumSequence = a.Substring(83, 4).Trim(),
-            EntryDetailSequenceNumber = a.Substring(87, 7).Trim()
+            BusinessType = a.Substring(1, 2).Trim() == "99"
+                ? "Return"
+                : ParseBusinessTypeFromType05(a),
+            CollectorId = a.Substring(1, 2).Trim() == "05" ? a.Substring(3, 13).Trim() : null,
+            ReceiverCustomerCode = a.Substring(1, 2).Trim() == "05" ? a.Substring(16, 30).Trim() : null,
+            ServiceDescription = a.Substring(1, 2).Trim() == "05" ? a.Substring(46, 15).Trim() : null,
+            IdUserOrig = a.Substring(1, 2).Trim() == "99" ? a.Substring(3, 3).Trim() : a.Substring(3, 13).Trim(),
+            PurposeOfTransaction = a.Substring(1, 2).Trim() == "99" ? null : a.Substring(20, 10).Trim(),
+            InvoiceOrAccountNumber = a.Substring(1, 2).Trim() == "99" ? a.Substring(6, 15).Trim() : a.Substring(30, 53).Trim(),
+            InfofromOriginator = a.Substring(1, 2).Trim() == "99" ? a.Substring(81, 15).Trim() : null,
+            ReturnReasonCode = a.Substring(1, 2).Trim() == "99" ? a.Substring(3, 3).Trim() : null,
+            OriginalTraceNumber = a.Substring(1, 2).Trim() == "99" ? a.Substring(6, 15).Trim() : null,
+            NewTraceNumber = a.Substring(1, 2).Trim() == "99" ? a.Substring(81, 15).Trim() : null,
+            AddendumSequence = a.Substring(1, 2).Trim() == "99" ? null : a.Substring(83, 4).Trim(),
+            EntryDetailSequenceNumber = a.Substring(1, 2).Trim() == "99" ? a.Substring(99, 7).Trim() : a.Substring(87, 7).Trim()
         }).ToList();
     }
 
@@ -482,6 +491,19 @@ public class NachaParserService : INachaParserService
             IdOrigEntity = a.Substring(91, 8),
             BatchNumber = a.Substring(99, 7),
         }).ToList();
+    }
+
+    private static string ParseBusinessTypeFromType05(string addendaLine)
+    {
+        var collectorId = addendaLine.Substring(3, 13).Trim();
+        var receiverCustomerCode = addendaLine.Substring(16, 30).Trim();
+        var serviceDescription = addendaLine.Substring(46, 15).Trim();
+
+        return !string.IsNullOrWhiteSpace(collectorId)
+               && !string.IsNullOrWhiteSpace(receiverCustomerCode)
+               && !string.IsNullOrWhiteSpace(serviceDescription)
+            ? "Debit"
+            : "Credit";
     }
 
     private List<FileControl> ParseFileControlLinq(List<string> line)
@@ -774,8 +796,8 @@ public class NachaParserService : INachaParserService
                 }
 
                 var hasOriginalTraceReference = relatedAddendas.Any(addenda =>
-                    !string.IsNullOrWhiteSpace(addenda.EntryDetailSequenceNumber) &&
-                    addenda.EntryDetailSequenceNumber.Trim().Length == 7);
+                    !string.IsNullOrWhiteSpace(addenda.OriginalTraceNumber) &&
+                    addenda.OriginalTraceNumber.Trim().Length == 15);
 
                 if (!hasOriginalTraceReference)
                 {
@@ -800,18 +822,8 @@ public class NachaParserService : INachaParserService
 
     private static bool HasReturnReason(AddendaRecord addenda)
     {
-        var payload = string.Join(' ', new[]
-        {
-            addenda.IdUserOrig,
-            addenda.PurposeOfTransaction,
-            addenda.InvoiceOrAccountNumber,
-            addenda.InfofromOriginator
-        }.Where(value => !string.IsNullOrWhiteSpace(value)));
-
-        return System.Text.RegularExpressions.Regex.IsMatch(
-            payload,
-            @"\bR\d{2}\b|\bDEV14\b",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return !string.IsNullOrWhiteSpace(addenda.ReturnReasonCode)
+               && Regex.IsMatch(addenda.ReturnReasonCode.Trim(), @"^R\d{2}$|^DEV14$", RegexOptions.IgnoreCase);
     }
 
     private static string? GetEntrySequenceSuffix(string? sequence)
@@ -946,47 +958,27 @@ public class NachaParserService : INachaParserService
 
     private static string? ResolveOriginalTraceReference(EntryDetail entry, IReadOnlyList<AddendaRecord> relatedAddenda)
     {
-        var addendaRef = relatedAddenda
-            .SelectMany(addenda => new[]
-            {
-                addenda.InvoiceOrAccountNumber,
-                addenda.InfofromOriginator,
-                addenda.IdUserOrig
-            })
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value) && Regex.IsMatch(value, @"\d{7,15}"));
+        var originalTrace = relatedAddenda
+            .Select(addenda => addenda.OriginalTraceNumber)
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
 
-        if (!string.IsNullOrWhiteSpace(addendaRef))
+        if (!string.IsNullOrWhiteSpace(originalTrace))
         {
-            var digits = new string(addendaRef.Where(char.IsDigit).ToArray());
-            if (digits.Length is >= 7 and <= 15)
+            var digits = new string(originalTrace.Where(char.IsDigit).ToArray());
+            if (digits.Length == 15)
             {
                 return digits;
             }
         }
 
-        return GetEntrySequenceSuffix(entry.SequenceNumber);
+        return null;
     }
 
     private static string? ExtractReturnReasonCode(IReadOnlyList<AddendaRecord> relatedAddenda)
     {
-        foreach (var addenda in relatedAddenda)
-        {
-            var payload = string.Join(' ', new[]
-            {
-                addenda.IdUserOrig,
-                addenda.PurposeOfTransaction,
-                addenda.InvoiceOrAccountNumber,
-                addenda.InfofromOriginator
-            }.Where(value => !string.IsNullOrWhiteSpace(value)));
-
-            var match = Regex.Match(payload, @"\b(R\d{2}|DEV14)\b", RegexOptions.IgnoreCase);
-            if (match.Success)
-            {
-                return match.Value.ToUpperInvariant();
-            }
-        }
-
-        return null;
+        return relatedAddenda
+            .Select(addenda => addenda.ReturnReasonCode?.Trim().ToUpperInvariant())
+            .FirstOrDefault(code => !string.IsNullOrWhiteSpace(code));
     }
 
     private static string ExtractOperatorReasonCode(string reason)

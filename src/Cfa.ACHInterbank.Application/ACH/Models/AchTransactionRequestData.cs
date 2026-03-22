@@ -21,5 +21,5 @@ public record AchTransactionRequestData
     public string? RecipientIdNumber { get; init; }
     public string? RecipientName { get; init; }
     public bool RequiresIdentityValidation { get; init; }
-    public IEnumerable<AddendaDto>? Addendas { get; init; }
+    public IReadOnlyList<AddendaDto>? Addendas { get; init; }
 }

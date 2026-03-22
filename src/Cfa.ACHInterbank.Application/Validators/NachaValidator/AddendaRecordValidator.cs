@@ -8,6 +8,10 @@ public class AddendaRecordValidator : AbstractValidator<AddendaRecord>
     public AddendaRecordValidator()
     {
         RuleFor(x => x.AddendumSequence)
-            .NotEmpty().Length(4);
+            .Must(value => string.IsNullOrWhiteSpace(value) || value.Length == 4);
+
+        RuleFor(x => x.EntryDetailSequenceNumber)
+            .NotEmpty()
+            .Length(7);
     }
 }

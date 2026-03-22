@@ -95,12 +95,32 @@ public class TransactionPersister : ITransactionPersister
 
         if (request.Addendas != null)
         {
-            tx.Addendas = request.Addendas.Select((a, idx) => new AchTransactionAddenda
-            {
-                AddendaType = _validator.ValidateAddendaType(a.AddendaType),
-                Information = a.Information,
-                SequenceNumber = idx + 1
-            }).ToList();
+            tx.Addendas = request.Addendas
+                .Select((a, idx) =>
+                {
+                    var normalized = _validator.NormalizeAndValidateAddenda(
+                        a,
+                        request.Type,
+                        request.IsPrenotification,
+                        context.CompanyEntryDescription);
+
+                    return new AchTransactionAddenda
+                    {
+                        AddendaType = normalized.AddendaType,
+                        BusinessType = normalized.BusinessType!.Value,
+                        Information = normalized.Information,
+                        Purpose = normalized.Purpose,
+                        Reference = normalized.Reference,
+                        CollectorId = normalized.CollectorId,
+                        ReceiverCustomerCode = normalized.ReceiverCustomerCode,
+                        ServiceDescription = normalized.ServiceDescription,
+                        ReturnReasonCode = normalized.ReturnReasonCode,
+                        OriginalTraceNumber = normalized.OriginalTraceNumber,
+                        NewTraceNumber = normalized.NewTraceNumber,
+                        SequenceNumber = idx + 1
+                    };
+                })
+                .ToList();
         }
 
         _context.AchTransactions.Add(tx);
