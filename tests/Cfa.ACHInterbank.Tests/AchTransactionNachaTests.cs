@@ -429,6 +429,7 @@ public class AchTransactionNachaTests
         Assert.Equal("000001", fileControl.Substring(1, 6));
         Assert.Equal("000001", fileControl.Substring(7, 6));
         Assert.Equal("00000002", fileControl.Substring(13, 8));
+        Assert.Equal(new string(' ', 39), fileControl.Substring(67, 39));
         Assert.All(records.Skip(6), record => Assert.Equal(new string('9', 106), record));
     }
 
@@ -487,6 +488,43 @@ public class AchTransactionNachaTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => parser.ParseAndSaveAsync(stream, "fatal87.ach", CancellationToken.None));
 
         Assert.Contains("Error Fatal 87", ex.Message);
+    }
+
+    [Fact]
+    public async Task ParseAndSaveAsync_WhenFileControlCountDoesNotMatch_ThrowsFatal60()
+    {
+        using var connection = CreateOpenConnection();
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var nachaContent = await BuildValidNachaFileAsync(connection, cycleId);
+        var records = ChunkRecords(nachaContent);
+        var fileControlIndex = records.FindIndex(record => record.StartsWith("9") && record != new string('9', 106));
+        records[fileControlIndex] = ReplaceSegment(records[fileControlIndex], 13, 8, "00000099");
+
+        using var parseContext = CreateContext(connection);
+        var parser = BuildParser(parseContext);
+        using var stream = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(string.Concat(records)));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => parser.ParseAndSaveAsync(stream, "fatal60.ach", CancellationToken.None));
+
+        Assert.Contains("Error Fatal 60", ex.Message);
+    }
+
+    [Fact]
+    public async Task ParseAndSaveAsync_WhenPaddingContainsCharactersOtherThanNine_ThrowsFatal64()
+    {
+        using var connection = CreateOpenConnection();
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var nachaContent = await BuildValidNachaFileAsync(connection, cycleId);
+        var records = ChunkRecords(nachaContent);
+        records[^1] = ReplaceSegment(records[^1], 50, 1, "0");
+
+        using var parseContext = CreateContext(connection);
+        var parser = BuildParser(parseContext);
+        using var stream = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(string.Concat(records)));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => parser.ParseAndSaveAsync(stream, "fatal64.ach", CancellationToken.None));
+
+        Assert.Contains("Error Fatal 64", ex.Message);
     }
 
     private static SqliteConnection CreateOpenConnection()

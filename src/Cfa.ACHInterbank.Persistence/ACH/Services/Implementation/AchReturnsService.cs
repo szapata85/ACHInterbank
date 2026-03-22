@@ -214,7 +214,18 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
         var blockCount = (int)Math.Ceiling(totalRecordsWithFileControl / 10m);
         var paddingNeeded = (blockCount * 10) - totalRecordsWithFileControl;
 
-        lines.Add(BuildType9ControlLine(1, totalRecordsWithFileControl, entryLines.Count + addendaLines.Count, hash, totalDebit, totalCredit));
+        var fileControlLine = BuildType9ControlLine(1, totalRecordsWithFileControl, entryLines.Count + addendaLines.Count, hash, totalDebit, totalCredit);
+        ValidateGeneratedFileControl(
+            fileControlLine,
+            batchControlLine,
+            1,
+            totalRecordsWithFileControl + paddingNeeded,
+            entryLines.Count + addendaLines.Count,
+            hash,
+            totalDebit,
+            totalCredit);
+
+        lines.Add(fileControlLine);
 
         if (paddingNeeded > 0)
         {
@@ -503,6 +514,68 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
         if (batchControlLine.Substring(1, 3) != PadNum(serviceClassCode, 3))
         {
             throw new InvalidOperationException("Error Fatal 8: la clase de servicio generada para el Registro Tipo 8 es inconsistente.");
+        }
+    }
+
+    private static void ValidateGeneratedFileControl(
+        string fileControlLine,
+        string batchControlLine,
+        int batchCount,
+        int totalRecordsIncludingPadding,
+        int entryAddendaCount,
+        long entryHash,
+        decimal totalDebit,
+        decimal totalCredit)
+    {
+        if (fileControlLine.Length != 106)
+        {
+            throw new InvalidOperationException($"Error Fatal 9: el Registro Tipo 9 debe tener exactamente 106 caracteres y se generaron {fileControlLine.Length}.");
+        }
+
+        if (fileControlLine.Contains('\r') || fileControlLine.Contains('\n'))
+        {
+            throw new InvalidOperationException("Error Fatal 9: el Registro Tipo 9 no puede contener caracteres CR/LF.");
+        }
+
+        var expectedBlockCount = totalRecordsIncludingPadding / 10;
+        if (fileControlLine.Substring(1, 6) != batchCount.ToString("000000"))
+        {
+            throw new InvalidOperationException("Error Fatal 58/59: la cantidad total de lotes del Registro Tipo 9 no coincide con el archivo.");
+        }
+
+        if (fileControlLine.Substring(7, 6) != expectedBlockCount.ToString("000000"))
+        {
+            throw new InvalidOperationException("Error Fatal 58/59: el número de bloques físicos del Registro Tipo 9 no coincide con el archivo.");
+        }
+
+        if (fileControlLine.Substring(13, 8) != entryAddendaCount.ToString("00000000"))
+        {
+            throw new InvalidOperationException("Error Fatal 60: el conteo total de registros tipo 6 y 7 no coincide con el Registro Tipo 9.");
+        }
+
+        if (fileControlLine.Substring(21, 10) != (entryHash % 10_000_000_000L).ToString("0000000000"))
+        {
+            throw new InvalidOperationException("Error Fatal 61: el Hash Total del archivo no coincide con el Registro Tipo 9.");
+        }
+
+        if (fileControlLine.Substring(31, 18) != ((long)(totalDebit * 100)).ToString("000000000000000000"))
+        {
+            throw new InvalidOperationException("Error Fatal 62: el total de débitos del archivo no coincide con el Registro Tipo 9.");
+        }
+
+        if (fileControlLine.Substring(49, 18) != ((long)(totalCredit * 100)).ToString("000000000000000000"))
+        {
+            throw new InvalidOperationException("Error Fatal 63: el total de créditos del archivo no coincide con el Registro Tipo 9.");
+        }
+
+        if (fileControlLine.Substring(67, 39) != new string(' ', 39))
+        {
+            throw new InvalidOperationException("Error Fatal 9: el campo reservado del Registro Tipo 9 debe contener espacios en blanco.");
+        }
+
+        if (batchControlLine[0] != '8')
+        {
+            throw new InvalidOperationException("Error Fatal 9: se requiere al menos un Registro Tipo 8 válido antes del Registro Tipo 9.");
         }
     }
 

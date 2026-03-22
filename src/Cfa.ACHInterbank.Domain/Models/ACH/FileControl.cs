@@ -8,9 +8,10 @@ public class FileControl
     public int BatchCount { get; set; }
     public int BlockCount { get; set; }
     public int EntryAddendaCount { get; set; }
-    public decimal TotalControl { get; set; }
+    public long EntryHash { get; set; }
     public decimal TotalDebitAmount { get; set; }
     public decimal TotalCreditAmount { get; set; }
+    public string? Reserved { get; set; }
     public string? NachaID { get; set; }
 
     [ForeignKey("NachaID")]
