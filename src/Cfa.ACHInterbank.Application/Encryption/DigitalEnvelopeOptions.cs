@@ -1,6 +1,4 @@
-using System.Collections.Generic;
-
-namespace Cfa.ACHInterbank.Api.Encryption;
+namespace Cfa.ACHInterbank.Application.Encryption;
 
 public class DigitalEnvelopeOptions
 {
