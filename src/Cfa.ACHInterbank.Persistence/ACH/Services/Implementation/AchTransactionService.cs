@@ -73,7 +73,7 @@ public class AchTransactionService : IAchTransactionService
             RecipientIdNumber = recipientIdNumber,
             RecipientName = recipientName,
             RequiresIdentityValidation = requiresIdentityValidation,
-            Addendas = addendas
+            Addendas = addendas?.ToList()
         };
 
         _transactionValidator.ValidateRequest(request);
