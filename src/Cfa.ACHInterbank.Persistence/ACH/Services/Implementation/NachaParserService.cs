@@ -62,6 +62,7 @@ public class NachaParserService : INachaParserService
             var fileControls = new List<FileControl>();
             var lastConsecutiveByBatch = new Dictionary<int, int>();
             var seenSequenceNumbers = new HashSet<string>(StringComparer.Ordinal);
+            BatchRuntimeMetrics? currentBatchMetrics = null;
 
             foreach (var line in lines)
             {
@@ -97,6 +98,7 @@ public class NachaParserService : INachaParserService
                         currentBatch = ParseBatchHeaderLinq([line]).FirstOrDefault();
                         if (currentBatch is not null)
                         {
+                            currentBatchMetrics = new BatchRuntimeMetrics();
                             currentBatch.NachaID = currentHeader?.NachaID;
                             currentHeader?.Batches?.Add(currentBatch);
                         }
@@ -109,6 +111,7 @@ public class NachaParserService : INachaParserService
                         }
 
                         entry.NachaID = currentHeader?.NachaID;
+                        UpdateBatchMetricsForEntry(currentBatchMetrics, entry);
 
                         await ValidateEntrySequencePolicyAsync(entry, currentBatch, currentHeader, lastConsecutiveByBatch, seenSequenceNumbers, ct);
 
@@ -133,6 +136,7 @@ public class NachaParserService : INachaParserService
                         if (addenda is not null)
                         {
                             addenda.NachaID = currentHeader?.NachaID;
+                            currentBatchMetrics?.RegisterAddenda();
                             if (lastEntry is null)
                             {
                                 failures.Add(new NachaValidationFailure("7", currentBatch?.BatchNumber.ToString(), null, null,
@@ -149,7 +153,9 @@ public class NachaParserService : INachaParserService
                         var batchControl = ParseBatchControlLinq([line]).FirstOrDefault();
                         if (batchControl is not null)
                         {
+                            ValidateCurrentBatchControl(currentBatch, currentBatchMetrics, batchControl);
                             batchControls.Add(batchControl);
+                            currentBatchMetrics = null;
                         }
                         break;
                     case '9':
@@ -294,6 +300,55 @@ public class NachaParserService : INachaParserService
             {
                 throw new InvalidOperationException($"Error Fatal D18: inconsistencia en Número de Lote entre registros tipo 5 y tipo 8. Se esperaba {expectedBatchNumber:0000000}, tipo 5={header.BatchNumber:0000000}, tipo 8={controlBatchNumber:0000000}.");
             }
+        }
+    }
+
+    private static void ValidateCurrentBatchControl(BatchHeader? header, BatchRuntimeMetrics? metrics, BatchControl control)
+    {
+        if (header is null || metrics is null)
+        {
+            throw new InvalidOperationException("Error Fatal D18: se recibió un registro tipo 8 sin un registro tipo 5 asociado.");
+        }
+
+        var serviceClassCode = (control.BatchTranClassCode ?? string.Empty).Trim();
+        if (!string.Equals(serviceClassCode, (header.ServiceClassCode ?? string.Empty).Trim(), StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Error Fatal 8: el Código Clase de Transacciones del registro tipo 8 ({serviceClassCode}) no coincide con el del registro tipo 5 ({header.ServiceClassCode}).");
+        }
+
+        if ((control.EntryAddendaCount ?? 0) != metrics.EntryAddendaCount)
+        {
+            throw new InvalidOperationException($"Error Fatal 51: el conteo físico de registros tipo 6 y 7 del lote ({metrics.EntryAddendaCount}) no coincide con el valor reportado en el registro tipo 8 ({control.EntryAddendaCount ?? 0}).");
+        }
+
+        if ((control.EntryHash ?? 0) != metrics.EntryHash)
+        {
+            throw new InvalidOperationException($"Error Fatal 52: el Total de Control del lote ({metrics.EntryHash:0000000000}) no coincide con el valor reportado en el registro tipo 8 ({control.EntryHash ?? 0:0000000000}).");
+        }
+
+        if (control.TotalDebitAmount != metrics.TotalDebitAmount)
+        {
+            throw new InvalidOperationException($"Error Fatal 8: el total de débitos del lote ({metrics.TotalDebitAmount:0.00}) no coincide con el registro tipo 8 ({control.TotalDebitAmount:0.00}).");
+        }
+
+        if (control.TotalCreditAmount != metrics.TotalCreditAmount)
+        {
+            throw new InvalidOperationException($"Error Fatal 8: el total de créditos del lote ({metrics.TotalCreditAmount:0.00}) no coincide con el registro tipo 8 ({control.TotalCreditAmount:0.00}).");
+        }
+
+        if (!string.Equals((control.IdUserOrig ?? string.Empty).Trim(), (header.CompanyId ?? string.Empty).Trim(), StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Error Fatal 8: la Identificación del Usuario Originador del registro tipo 8 ({control.IdUserOrig?.Trim()}) no coincide con el registro tipo 5 ({header.CompanyId}).");
+        }
+
+        if (!string.IsNullOrEmpty(control.Reserved) && control.Reserved.Any(c => c != ' '))
+        {
+            throw new InvalidOperationException("Error Fatal 87: el campo reservado del registro tipo 8 (posiciones 86-91) debe contener únicamente espacios en blanco.");
+        }
+
+        if (!string.Equals((control.IdOrigEntity ?? string.Empty).Trim(), (header.OriginParticipantEntityCode ?? string.Empty).Trim(), StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Error Fatal 8: la Identificación de la Entidad Participante Originadora del registro tipo 8 ({control.IdOrigEntity?.Trim()}) no coincide con el registro tipo 5 ({header.OriginParticipantEntityCode}).");
         }
     }
 
@@ -483,14 +538,66 @@ public class NachaParserService : INachaParserService
         {
             BatchTranClassCode = a.Substring(1, 3),
             EntryAddendaCount = int.Parse(a.Substring(4, 6)),
-            TotalEntry = int.Parse(a.Substring(10, 10)),
+            EntryHash = long.Parse(a.Substring(10, 10)),
             TotalDebitAmount = Convert.ToDecimal(a.Substring(20, 18).Trim()) / 100,
             TotalCreditAmount = Convert.ToDecimal(a.Substring(38, 18).Trim()) / 100,
             IdUserOrig = a.Substring(56, 10).Trim(),
             CodAutMessage = a.Substring(66, 19),
+            Reserved = a.Substring(85, 6),
             IdOrigEntity = a.Substring(91, 8),
             BatchNumber = a.Substring(99, 7),
         }).ToList();
+    }
+
+    private static void UpdateBatchMetricsForEntry(BatchRuntimeMetrics? metrics, EntryDetail entry)
+    {
+        if (metrics is null)
+        {
+            throw new InvalidOperationException("Error Fatal D18: se recibió un registro tipo 6 sin un registro tipo 5 asociado.");
+        }
+
+        metrics.RegisterEntry(entry, CreditCodes, DebitCodes);
+    }
+
+    private sealed class BatchRuntimeMetrics
+    {
+        private const long MaxHash = 10_000_000_000L;
+
+        public int EntryAddendaCount { get; private set; }
+        public long EntryHash { get; private set; }
+        public decimal TotalDebitAmount { get; private set; }
+        public decimal TotalCreditAmount { get; private set; }
+
+        public void RegisterEntry(EntryDetail entry, IReadOnlySet<string> creditCodes, IReadOnlySet<string> debitCodes)
+        {
+            EntryAddendaCount++;
+
+            var entityCode = new string((entry.ReceivingParticipantEntityCode ?? string.Empty).Where(char.IsDigit).ToArray());
+            if (entityCode.Length > 0)
+            {
+                var hashDigits = entityCode.Length > 8 ? entityCode[..8] : entityCode;
+                if (long.TryParse(hashDigits, out var hashValue))
+                {
+                    EntryHash = (EntryHash + hashValue) % MaxHash;
+                }
+            }
+
+            var amount = entry.Amount ?? 0m;
+            var transactionCode = (entry.TransactionCode ?? string.Empty).Trim();
+            if (debitCodes.Contains(transactionCode))
+            {
+                TotalDebitAmount += amount;
+            }
+            else if (creditCodes.Contains(transactionCode))
+            {
+                TotalCreditAmount += amount;
+            }
+        }
+
+        public void RegisterAddenda()
+        {
+            EntryAddendaCount++;
+        }
     }
 
     private static string ParseBusinessTypeFromType05(string addendaLine)

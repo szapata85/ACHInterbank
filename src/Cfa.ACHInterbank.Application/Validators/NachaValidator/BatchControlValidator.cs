@@ -8,6 +8,7 @@ public class BatchControlValidator : AbstractValidator<BatchControl>
     public BatchControlValidator()
     {
         RuleFor(x => x.IdUserOrig).NotEmpty().Length(10);
-        RuleFor(x => x.CodAutMessage).NotEmpty().Length(8);
+        RuleFor(x => x.CodAutMessage).NotNull().Length(19);
+        RuleFor(x => x.Reserved).NotNull().Length(6);
     }
 }

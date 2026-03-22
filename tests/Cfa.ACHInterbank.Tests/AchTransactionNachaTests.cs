@@ -13,6 +13,7 @@ using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 
@@ -402,16 +403,81 @@ public class AchTransactionNachaTests
                 [new ReturnSelectionItemDto(persistedTransactionId, "R01")]),
             CancellationToken.None);
 
-        var records = System.Text.Encoding.UTF8.GetString(response.Content)
-            .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
-            .ToList();
+        var records = ChunkRecords(System.Text.Encoding.UTF8.GetString(response.Content));
         var addendaRecord = records.Single(record => record.StartsWith("7"));
+        var batchHeader = records.Single(record => record.StartsWith("5"));
+        var batchControl = records.Single(record => record.StartsWith("8"));
 
         Assert.Equal("99", addendaRecord.Substring(1, 2));
         Assert.Equal("R01", addendaRecord.Substring(3, 3));
         Assert.Equal("123456780000123", addendaRecord.Substring(6, 15));
         Assert.Equal(15, addendaRecord.Substring(81, 15).Trim().Length);
         Assert.Equal(7, addendaRecord.Substring(99, 7).Trim().Length);
+        Assert.Equal(106 * records.Count, response.Content.Length);
+        Assert.DoesNotContain('\n', System.Text.Encoding.UTF8.GetString(response.Content));
+        Assert.DoesNotContain('\r', System.Text.Encoding.UTF8.GetString(response.Content));
+        Assert.Equal(batchHeader.Substring(1, 3), batchControl.Substring(1, 3));
+        Assert.Equal(batchHeader.Substring(40, 10), batchControl.Substring(56, 10));
+        Assert.Equal(batchHeader.Substring(83, 8), batchControl.Substring(91, 8));
+        Assert.Equal(batchHeader.Substring(91, 7), batchControl.Substring(99, 7));
+        Assert.Equal("      ", batchControl.Substring(85, 6));
+    }
+
+    [Fact]
+    public async Task ParseAndSaveAsync_WhenBatchControlCountDoesNotMatch_ThrowsFatal51()
+    {
+        using var connection = CreateOpenConnection();
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var nachaContent = await BuildValidNachaFileAsync(connection, cycleId);
+        var records = ChunkRecords(nachaContent);
+        var controlIndex = records.FindIndex(record => record.StartsWith("8"));
+        records[controlIndex] = ReplaceSegment(records[controlIndex], 4, 6, "000003");
+
+        using var parseContext = CreateContext(connection);
+        var parser = BuildParser(parseContext);
+        using var stream = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(string.Concat(records)));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => parser.ParseAndSaveAsync(stream, "fatal51.ach", CancellationToken.None));
+
+        Assert.Contains("Error Fatal 51", ex.Message);
+    }
+
+    [Fact]
+    public async Task ParseAndSaveAsync_WhenBatchControlHashDoesNotMatch_ThrowsFatal52()
+    {
+        using var connection = CreateOpenConnection();
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var nachaContent = await BuildValidNachaFileAsync(connection, cycleId);
+        var records = ChunkRecords(nachaContent);
+        var controlIndex = records.FindIndex(record => record.StartsWith("8"));
+        records[controlIndex] = ReplaceSegment(records[controlIndex], 10, 10, "9999999999");
+
+        using var parseContext = CreateContext(connection);
+        var parser = BuildParser(parseContext);
+        using var stream = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(string.Concat(records)));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => parser.ParseAndSaveAsync(stream, "fatal52.ach", CancellationToken.None));
+
+        Assert.Contains("Error Fatal 52", ex.Message);
+    }
+
+    [Fact]
+    public async Task ParseAndSaveAsync_WhenBatchControlReservedFieldContainsData_ThrowsFatal87()
+    {
+        using var connection = CreateOpenConnection();
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var nachaContent = await BuildValidNachaFileAsync(connection, cycleId);
+        var records = ChunkRecords(nachaContent);
+        var controlIndex = records.FindIndex(record => record.StartsWith("8"));
+        records[controlIndex] = ReplaceSegment(records[controlIndex], 85, 6, "ABC123");
+
+        using var parseContext = CreateContext(connection);
+        var parser = BuildParser(parseContext);
+        using var stream = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(string.Concat(records)));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => parser.ParseAndSaveAsync(stream, "fatal87.ach", CancellationToken.None));
+
+        Assert.Contains("Error Fatal 87", ex.Message);
     }
 
     private static SqliteConnection CreateOpenConnection()
@@ -734,5 +800,64 @@ public class AchTransactionNachaTests
         return Enumerable.Range(0, content.Length / 106)
             .Select(index => content.Substring(index * 106, 106))
             .ToList();
+    }
+
+    private static NachaParserService BuildParser(AchDbContext context)
+    {
+        var logger = new Mock<ILogger<NachaParserService>>();
+        var stateTransitionService = new Mock<IAchStateTransitionService>();
+        stateTransitionService
+            .Setup(service => service.TransitionAsync(
+                It.IsAny<int>(),
+                It.IsAny<AchTransferStateEnum>(),
+                It.IsAny<AchStateEventSourceEnum>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<DateTime?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchTransaction());
+
+        return new NachaParserService(context, logger.Object, stateTransitionService.Object);
+    }
+
+    private static string ReplaceSegment(string value, int startIndex, int length, string replacement)
+    {
+        Assert.Equal(length, replacement.Length);
+        return string.Concat(value.AsSpan(0, startIndex), replacement, value.AsSpan(startIndex + length));
+    }
+
+    private static async Task<string> BuildValidNachaFileAsync(SqliteConnection connection, string cycleId)
+    {
+        using (var arrangeContext = CreateContext(connection))
+        {
+            SeedCoreEntities(arrangeContext);
+            SeedNachaLayouts(arrangeContext);
+
+            var transactionService = BuildTransactionService(arrangeContext, cycleId);
+            await transactionService.RegisterTransactionAsync(
+                amount: 1500m,
+                reference: "PAGO-REF-VALIDACION",
+                type: TransactionTypeEnum.Credit,
+                accountType: AccountTypeEnum.Checking,
+                isPrenotification: false,
+                destinationInstitutionId: 2,
+                sourceAccountNumber: "111122223333",
+                destinationAccountNumber: "999988887777",
+                companyName: "Empresa Demo",
+                companyIdentification: "123456780",
+                companyEntryDescriptionId: 1,
+                recipientIdNumber: null,
+                requiresIdentityValidation: false,
+                addendas: null,
+                ct: CancellationToken.None);
+        }
+
+        using var executionContext = CreateContext(connection);
+        var holidayService = new Mock<IBankHoliday>();
+        holidayService.Setup(h => h.GetHolidays(It.IsAny<int>())).Returns([]);
+        var recordDataProvider = new Mock<INachaRecordDataProvider>();
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object);
+        return await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
     }
 }

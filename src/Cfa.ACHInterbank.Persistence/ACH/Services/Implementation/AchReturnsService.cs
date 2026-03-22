@@ -13,6 +13,9 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
 {
     private const int MaxCyclesForReturn = 4;
     private const string ImmediateDestinationAchColombia = "000101006";
+    private const string ReturnServiceClassCode = "200";
+    private const string ReturnOriginatorId = "BANCORET";
+    private const string ReturnBatchNumber = "0000001";
 
     public async Task<IReadOnlyList<ReturnEligibleTransactionDto>> GetTransactionsByCycleAsync(string cycleId, CancellationToken ct = default)
     {
@@ -166,7 +169,18 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
             lines.Add(addendaLines[i]);
         }
 
-        lines.Add(BuildType8ControlLine(entryLines.Count, addendaLines.Count, hash, totalDebit, totalCredit));
+        var originatingDfi = NormalizeDigits(cycle.ClearingHouse?.OriginCode, 8);
+
+        lines.Add(BuildType8ControlLine(
+            entryLines.Count,
+            addendaLines.Count,
+            hash,
+            totalDebit,
+            totalCredit,
+            ReturnServiceClassCode,
+            ReturnOriginatorId,
+            originatingDfi,
+            ReturnBatchNumber));
         lines.Add(BuildType9ControlLine(1, lines.Count + 1, entryLines.Count + addendaLines.Count, hash, totalDebit, totalCredit));
 
         foreach (var row in generatedRows)
@@ -177,7 +191,7 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
         context.Set<AchReturnGenerated>().AddRange(generatedRows);
         await context.SaveChangesAsync(ct);
 
-        var fileContent = string.Join(Environment.NewLine, lines);
+        var fileContent = string.Concat(lines);
         return new GenerateReturnsFileResponse(fileName, "text/plain", Encoding.UTF8.GetBytes(fileContent), lines.Count, generatedRows.Count);
     }
 
@@ -234,10 +248,10 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
     {
         var text = new StringBuilder(106);
         text.Append('5');
-        text.Append("200");
+        text.Append(ReturnServiceClassCode);
         text.Append(PadAlpha("DEVOLUCIONES", 16));
         text.Append(PadAlpha(string.Empty, 20));
-        text.Append(PadAlpha("BANCORET", 10));
+        text.Append(PadAlpha(ReturnOriginatorId, 10));
         text.Append("PPD");
         text.Append(PadAlpha("RETORNO", 10));
         text.Append(nowUtc.ToString("yyyyMMdd"));
@@ -245,7 +259,7 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
         text.Append("000");
         text.Append('1');
         text.Append(PadNum(NormalizeDigits(cycle.ClearingHouse?.OriginCode, 8), 8));
-        text.Append("0000001");
+        text.Append(ReturnBatchNumber);
         return Ensure106(text.ToString());
     }
 
@@ -280,18 +294,29 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
         return new string(buffer);
     }
 
-    private static string BuildType8ControlLine(int entryCount, int addendaCount, long hash, decimal totalDebit, decimal totalCredit)
+    private static string BuildType8ControlLine(
+        int entryCount,
+        int addendaCount,
+        long hash,
+        decimal totalDebit,
+        decimal totalCredit,
+        string serviceClassCode,
+        string companyIdentification,
+        string originatingDfi,
+        string batchNumber)
     {
         var text = new StringBuilder(106);
         text.Append('8');
-        text.Append("200");
+        text.Append(PadNum(serviceClassCode, 3));
         text.Append(PadNum((entryCount + addendaCount).ToString(), 6));
         text.Append(PadNum((hash % 10_000_000_000L).ToString(), 10));
         text.Append(PadNum(((long)(totalDebit * 100)).ToString(), 18));
         text.Append(PadNum(((long)(totalCredit * 100)).ToString(), 18));
-        text.Append(PadAlpha("BANCORET", 25));
-        text.Append(PadNum("0000001", 7));
+        text.Append(PadAlpha(companyIdentification, 10));
         text.Append(PadAlpha(string.Empty, 19));
+        text.Append(PadAlpha(string.Empty, 6));
+        text.Append(PadNum(originatingDfi, 8));
+        text.Append(PadNum(batchNumber, 7));
         return Ensure106(text.ToString());
     }
 

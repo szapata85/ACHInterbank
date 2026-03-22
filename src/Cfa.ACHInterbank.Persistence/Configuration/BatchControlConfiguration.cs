@@ -13,7 +13,10 @@ public class BatchControlConfiguration : IEntityTypeConfiguration<BatchControl>
         builder.HasKey(x => x.BatchControlID);
 
         builder.Property(x => x.IdUserOrig).HasMaxLength(10);
-        builder.Property(x => x.CodAutMessage).HasMaxLength(8);
+        builder.Property(x => x.CodAutMessage).HasMaxLength(19);
+        builder.Property(x => x.Reserved).HasMaxLength(6);
+        builder.Property(x => x.IdOrigEntity).HasMaxLength(8);
+        builder.Property(x => x.BatchNumber).HasMaxLength(7);
 
         builder.Property(p => p.TotalCreditAmount).HasColumnType("money");
 

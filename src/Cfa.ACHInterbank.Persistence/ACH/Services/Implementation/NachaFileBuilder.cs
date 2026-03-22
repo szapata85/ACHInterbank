@@ -1207,7 +1207,7 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private static long ComputeEntryHash(IEnumerable<AchTransaction> transactions)
     {
-        const long maxHash = 9999999999;
+        const long maxHash = 10_000_000_000L;
         long hash = 0;
 
         foreach (var tx in transactions)
