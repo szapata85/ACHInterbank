@@ -407,20 +407,29 @@ public class AchTransactionNachaTests
         var addendaRecord = records.Single(record => record.StartsWith("7"));
         var batchHeader = records.Single(record => record.StartsWith("5"));
         var batchControl = records.Single(record => record.StartsWith("8"));
+        var fileControl = records.First(record => record.StartsWith("9"));
 
         Assert.Equal("99", addendaRecord.Substring(1, 2));
         Assert.Equal("R01", addendaRecord.Substring(3, 3));
         Assert.Equal("123456780000123", addendaRecord.Substring(6, 15));
         Assert.Equal(15, addendaRecord.Substring(81, 15).Trim().Length);
         Assert.Equal(7, addendaRecord.Substring(99, 7).Trim().Length);
+        Assert.Equal(10, records.Count);
         Assert.Equal(106 * records.Count, response.Content.Length);
         Assert.DoesNotContain('\n', System.Text.Encoding.UTF8.GetString(response.Content));
         Assert.DoesNotContain('\r', System.Text.Encoding.UTF8.GetString(response.Content));
+        Assert.Equal("220", batchHeader.Substring(1, 3));
         Assert.Equal(batchHeader.Substring(1, 3), batchControl.Substring(1, 3));
         Assert.Equal(batchHeader.Substring(40, 10), batchControl.Substring(56, 10));
         Assert.Equal(batchHeader.Substring(83, 8), batchControl.Substring(91, 8));
         Assert.Equal(batchHeader.Substring(91, 7), batchControl.Substring(99, 7));
         Assert.Equal("      ", batchControl.Substring(85, 6));
+        Assert.Equal("000000000000000000", batchControl.Substring(20, 18));
+        Assert.Equal("000000000000120000", batchControl.Substring(38, 18));
+        Assert.Equal("000001", fileControl.Substring(1, 6));
+        Assert.Equal("000001", fileControl.Substring(7, 6));
+        Assert.Equal("00000002", fileControl.Substring(13, 8));
+        Assert.All(records.Skip(6), record => Assert.Equal(new string('9', 106), record));
     }
 
     [Fact]

@@ -13,9 +13,16 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
 {
     private const int MaxCyclesForReturn = 4;
     private const string ImmediateDestinationAchColombia = "000101006";
-    private const string ReturnServiceClassCode = "200";
     private const string ReturnOriginatorId = "BANCORET";
     private const string ReturnBatchNumber = "0000001";
+    private static readonly HashSet<string> CreditTransactionCodes = new(StringComparer.Ordinal)
+    {
+        "21", "22", "23", "31", "32", "33", "42", "51", "52", "53"
+    };
+    private static readonly HashSet<string> DebitTransactionCodes = new(StringComparer.Ordinal)
+    {
+        "26", "27", "28", "36", "37", "38", "55", "56", "57"
+    };
 
     public async Task<IReadOnlyList<ReturnEligibleTransactionDto>> GetTransactionsByCycleAsync(string cycleId, CancellationToken ct = default)
     {
@@ -113,6 +120,7 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
         var generatedRows = new List<AchReturnGenerated>();
         var entryLines = new List<string>();
         var addendaLines = new List<string>();
+        var returnEntries = new List<ReturnEntrySnapshot>();
 
         foreach (var item in request.Items)
         {
@@ -136,6 +144,7 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
 
             entryLines.Add(BuildType6ReturnLine(tx, receiverEntity, amount, newSequence));
             addendaLines.Add(BuildType7ReturnAddendaLine(reason.Code, originalSequence, newSequence, newSequence[^7..]));
+            returnEntries.Add(new ReturnEntrySnapshot(tx.TransactionCode, amount, receiverEntity));
 
             generatedRows.Add(new AchReturnGenerated
             {
@@ -152,15 +161,21 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
             });
         }
 
-        var totalDebit = generatedRows.Sum(r => r.Amount);
-        var totalCredit = 0m;
-        var hash = generatedRows.Sum(r => long.Parse(r.ReceiverEntityCode));
+        var serviceClassCode = ResolveServiceClassCode(returnEntries);
+        var totalDebit = returnEntries
+            .Where(entry => DebitTransactionCodes.Contains(entry.TransactionCode))
+            .Sum(entry => entry.Amount);
+        var totalCredit = returnEntries
+            .Where(entry => CreditTransactionCodes.Contains(entry.TransactionCode))
+            .Sum(entry => entry.Amount);
+        var hash = ComputeEntryHash(returnEntries.Select(entry => entry.ReceiverEntityCode));
         var fileName = $"RET_{request.CycleId}_{now:yyyyMMddHHmmss}.RET";
+        var originatingDfi = NormalizeDigits(cycle.ClearingHouse?.OriginCode, 8);
 
         var lines = new List<string>
         {
             BuildType1HeaderLine(cycle, now),
-            BuildType5HeaderLine(cycle, now),
+            BuildType5HeaderLine(now, serviceClassCode, ReturnOriginatorId, ReturnBatchNumber, originatingDfi),
         };
 
         for (int i = 0; i < entryLines.Count; i++)
@@ -169,19 +184,46 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
             lines.Add(addendaLines[i]);
         }
 
-        var originatingDfi = NormalizeDigits(cycle.ClearingHouse?.OriginCode, 8);
-
-        lines.Add(BuildType8ControlLine(
+        var batchControlLine = BuildType8ControlLine(
             entryLines.Count,
             addendaLines.Count,
             hash,
             totalDebit,
             totalCredit,
-            ReturnServiceClassCode,
+            serviceClassCode,
             ReturnOriginatorId,
             originatingDfi,
-            ReturnBatchNumber));
-        lines.Add(BuildType9ControlLine(1, lines.Count + 1, entryLines.Count + addendaLines.Count, hash, totalDebit, totalCredit));
+            ReturnBatchNumber);
+
+        ValidateGeneratedBatchControl(
+            lines[1],
+            batchControlLine,
+            entryLines.Count,
+            addendaLines.Count,
+            hash,
+            totalDebit,
+            totalCredit,
+            serviceClassCode,
+            ReturnOriginatorId,
+            originatingDfi,
+            ReturnBatchNumber);
+
+        lines.Add(batchControlLine);
+
+        var totalRecordsWithFileControl = lines.Count + 1;
+        var blockCount = (int)Math.Ceiling(totalRecordsWithFileControl / 10m);
+        var paddingNeeded = (blockCount * 10) - totalRecordsWithFileControl;
+
+        lines.Add(BuildType9ControlLine(1, totalRecordsWithFileControl, entryLines.Count + addendaLines.Count, hash, totalDebit, totalCredit));
+
+        if (paddingNeeded > 0)
+        {
+            var paddingRecord = new string('9', 106);
+            for (int i = 0; i < paddingNeeded; i++)
+            {
+                lines.Add(paddingRecord);
+            }
+        }
 
         foreach (var row in generatedRows)
         {
@@ -244,22 +286,27 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
         return Ensure106(text.ToString());
     }
 
-    private static string BuildType5HeaderLine(AchCycle cycle, DateTime nowUtc)
+    private static string BuildType5HeaderLine(
+        DateTime nowUtc,
+        string serviceClassCode,
+        string companyIdentification,
+        string batchNumber,
+        string originatingDfi)
     {
         var text = new StringBuilder(106);
         text.Append('5');
-        text.Append(ReturnServiceClassCode);
+        text.Append(PadNum(serviceClassCode, 3));
         text.Append(PadAlpha("DEVOLUCIONES", 16));
         text.Append(PadAlpha(string.Empty, 20));
-        text.Append(PadAlpha(ReturnOriginatorId, 10));
+        text.Append(PadAlpha(companyIdentification, 10));
         text.Append("PPD");
         text.Append(PadAlpha("RETORNO", 10));
         text.Append(nowUtc.ToString("yyyyMMdd"));
         text.Append(nowUtc.ToString("yyyyMMdd"));
         text.Append("000");
         text.Append('1');
-        text.Append(PadNum(NormalizeDigits(cycle.ClearingHouse?.OriginCode, 8), 8));
-        text.Append(ReturnBatchNumber);
+        text.Append(PadNum(originatingDfi, 8));
+        text.Append(PadNum(batchNumber, 7));
         return Ensure106(text.ToString());
     }
 
@@ -335,6 +382,130 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
         return Ensure106(text.ToString());
     }
 
+    private static string ResolveServiceClassCode(IEnumerable<ReturnEntrySnapshot> entries)
+    {
+        var hasCredits = false;
+        var hasDebits = false;
+
+        foreach (var entry in entries)
+        {
+            if (CreditTransactionCodes.Contains(entry.TransactionCode))
+            {
+                hasCredits = true;
+            }
+            else if (DebitTransactionCodes.Contains(entry.TransactionCode))
+            {
+                hasDebits = true;
+            }
+            else
+            {
+                throw new InvalidOperationException($"Error Fatal 8: código de transacción no soportado para construir el control de lote RET ({entry.TransactionCode}).");
+            }
+        }
+
+        if (hasCredits && hasDebits)
+        {
+            return "200";
+        }
+
+        return hasCredits ? "220" : "225";
+    }
+
+    private static long ComputeEntryHash(IEnumerable<string> receiverEntityCodes)
+    {
+        const long maxHash = 10_000_000_000L;
+        long hash = 0;
+
+        foreach (var receiverEntityCode in receiverEntityCodes)
+        {
+            var digits = NormalizeDigits(receiverEntityCode, 8);
+            if (long.TryParse(digits, out var value))
+            {
+                hash = (hash + value) % maxHash;
+            }
+        }
+
+        return hash;
+    }
+
+    private static void ValidateGeneratedBatchControl(
+        string batchHeaderLine,
+        string batchControlLine,
+        int entryCount,
+        int addendaCount,
+        long entryHash,
+        decimal totalDebit,
+        decimal totalCredit,
+        string serviceClassCode,
+        string companyIdentification,
+        string originatingDfi,
+        string batchNumber)
+    {
+        if (batchControlLine.Length != 106)
+        {
+            throw new InvalidOperationException($"Error Fatal 8: el Registro Tipo 8 debe tener exactamente 106 caracteres y se generaron {batchControlLine.Length}.");
+        }
+
+        if (batchControlLine.Contains('\r') || batchControlLine.Contains('\n'))
+        {
+            throw new InvalidOperationException("Error Fatal 8: el Registro Tipo 8 no puede contener caracteres CR/LF.");
+        }
+
+        if (!string.Equals(batchControlLine.Substring(1, 3), batchHeaderLine.Substring(1, 3), StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Error Fatal 8: el Código Clase de Transacciones del Registro Tipo 8 no coincide con el Registro Tipo 5.");
+        }
+
+        var physicalCount = entryCount + addendaCount;
+        if (batchControlLine.Substring(4, 6) != physicalCount.ToString("000000"))
+        {
+            throw new InvalidOperationException("Error Fatal 51/60: el conteo físico de registros tipo 6 y 7 no coincide con el control del lote.");
+        }
+
+        if (batchControlLine.Substring(10, 10) != (entryHash % 10_000_000_000L).ToString("0000000000"))
+        {
+            throw new InvalidOperationException("Error Fatal 52/61: el Hash Total del lote no coincide con la sumatoria de los registros tipo 6.");
+        }
+
+        if (batchControlLine.Substring(20, 18) != ((long)(totalDebit * 100)).ToString("000000000000000000"))
+        {
+            throw new InvalidOperationException("Error Fatal 63: el total de débitos del lote no coincide con el control de lote.");
+        }
+
+        if (batchControlLine.Substring(38, 18) != ((long)(totalCredit * 100)).ToString("000000000000000000"))
+        {
+            throw new InvalidOperationException("Error Fatal 63: el total de créditos del lote no coincide con el control de lote.");
+        }
+
+        if (batchControlLine.Substring(56, 10) != PadAlpha(companyIdentification, 10)
+            || batchControlLine.Substring(56, 10) != batchHeaderLine.Substring(40, 10))
+        {
+            throw new InvalidOperationException("Error Fatal 8: la Identificación del Usuario Originador del Registro Tipo 8 no coincide con el Registro Tipo 5.");
+        }
+
+        if (batchControlLine.Substring(85, 6) != "      ")
+        {
+            throw new InvalidOperationException("Error Fatal 87: el campo reservado del Registro Tipo 8 debe contener únicamente espacios en blanco.");
+        }
+
+        if (batchControlLine.Substring(91, 8) != PadNum(originatingDfi, 8)
+            || batchControlLine.Substring(91, 8) != batchHeaderLine.Substring(83, 8))
+        {
+            throw new InvalidOperationException("Error Fatal 8: la Entidad Participante Originadora del Registro Tipo 8 no coincide con el Registro Tipo 5.");
+        }
+
+        if (batchControlLine.Substring(99, 7) != PadNum(batchNumber, 7)
+            || batchControlLine.Substring(99, 7) != batchHeaderLine.Substring(91, 7))
+        {
+            throw new InvalidOperationException("Error Fatal D18: el Número de Lote del Registro Tipo 8 no coincide con el Registro Tipo 5.");
+        }
+
+        if (batchControlLine.Substring(1, 3) != PadNum(serviceClassCode, 3))
+        {
+            throw new InvalidOperationException("Error Fatal 8: la clase de servicio generada para el Registro Tipo 8 es inconsistente.");
+        }
+    }
+
     private static string PadAlpha(string? value, int length)
     {
         var val = (value ?? string.Empty).Trim();
@@ -376,4 +547,6 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
     {
         value.CopyTo(0, buffer, startPosition - 1, value.Length);
     }
+
+    private sealed record ReturnEntrySnapshot(string TransactionCode, decimal Amount, string ReceiverEntityCode);
 }
