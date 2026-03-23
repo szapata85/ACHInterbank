@@ -18,15 +18,18 @@ public class NachaFileBuilder : INachaFileBuilder
     private readonly AchDbContext _context;
     private readonly IBankHoliday _holidayService;
     private readonly INachaRecordDataProvider _recordDataProvider;
+    private readonly INachaSemanticValidator _nachaSemanticValidator;
 
     public NachaFileBuilder(
         AchDbContext context,
         IBankHoliday holidayService,
-        INachaRecordDataProvider recordDataProvider)
+        INachaRecordDataProvider recordDataProvider,
+        INachaSemanticValidator nachaSemanticValidator)
     {
         _context = context;
         _holidayService = holidayService;
         _recordDataProvider = recordDataProvider;
+        _nachaSemanticValidator = nachaSemanticValidator;
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -431,7 +434,8 @@ public class NachaFileBuilder : INachaFileBuilder
                         {
                             var batchTransactions = context.Transactions.Where(t => t.AchBatchId == batch.Id).ToList();
                             string secCode = ResolveStandardEntryClassCode(batch, batchTransactions, companyEntryDescriptionCatalog);
-                            return BatchHeaderRecord.From(batch, secCode, batchSequenceById[batch.Id]);
+                            var batchDescription = ResolveBatchEntryDescription(batch, batchTransactions);
+                            return BatchHeaderRecord.From(batch, secCode, batchSequenceById[batch.Id], batchDescription);
                         }),
                         context,
                         ct);
@@ -447,7 +451,7 @@ public class NachaFileBuilder : INachaFileBuilder
                     entryAddendaCount += context.Transactions.Count;
                     foreach (var tx in context.Transactions)
                     {
-                        if (tx.Type == TransactionTypeEnum.Debit)
+                        if (tx.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal)
                             totalDebit += (long)(tx.Amount * 100);
                         else
                             totalCredit += (long)(tx.Amount * 100);
@@ -498,7 +502,9 @@ public class NachaFileBuilder : INachaFileBuilder
             }
         }
 
-        return sb.ToString();
+        var fileContent = sb.ToString();
+        _nachaSemanticValidator.Validate(fileContent, context);
+        return fileContent;
     }
 
     private async Task<int> AppendCustomOrConfiguredAsync(
@@ -542,14 +548,14 @@ public class NachaFileBuilder : INachaFileBuilder
     private static long SumBatchDebit(AchBatch batch)
     {
         return batch.Transactions
-            .Where(tx => tx.Type == TransactionTypeEnum.Debit)
+            .Where(tx => tx.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal)
             .Sum(tx => (long)(tx.Amount * 100));
     }
 
     private static long SumBatchCredit(AchBatch batch)
     {
         return batch.Transactions
-            .Where(tx => tx.Type != TransactionTypeEnum.Debit)
+            .Where(tx => tx.Type is TransactionTypeEnum.Credit or TransactionTypeEnum.Prenotification)
             .Sum(tx => (long)(tx.Amount * 100));
     }
 
@@ -629,14 +635,14 @@ public class NachaFileBuilder : INachaFileBuilder
             new AchTransactionAddenda
             {
                 AddendaType = "05",
-                BusinessType = tx.Type == TransactionTypeEnum.Debit
+                BusinessType = tx.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal
                     ? AchAddendaBusinessType.Debit
                     : AchAddendaBusinessType.Credit,
                 Purpose = tx.AchBatch?.CompanyEntryDescription,
                 Reference = string.IsNullOrWhiteSpace(tx.Reference) ? new string('0', 53) : tx.Reference,
-                CollectorId = tx.Type == TransactionTypeEnum.Debit ? tx.CompanyIdentification : null,
-                ReceiverCustomerCode = tx.Type == TransactionTypeEnum.Debit ? tx.RecipientIdNumber : null,
-                ServiceDescription = tx.Type == TransactionTypeEnum.Debit ? tx.Reference : null,
+                CollectorId = tx.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal ? tx.CompanyIdentification : null,
+                ReceiverCustomerCode = tx.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal ? tx.RecipientIdNumber : null,
+                ServiceDescription = tx.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal ? tx.Reference : null,
                 SequenceNumber = 1
             }
         };
@@ -870,6 +876,14 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private sealed record CompanyEntryDescriptionCatalogItem(string Term, string StandardEntryClassCode);
 
+    private static string ResolveBatchEntryDescription(AchBatch batch, IReadOnlyCollection<AchTransaction> batchTransactions)
+    {
+        var description = (batch.CompanyEntryDescription ?? string.Empty).Trim().ToUpperInvariant();
+        var creditLikeCount = batchTransactions.Count(tx => tx.Type is TransactionTypeEnum.Credit or TransactionTypeEnum.Prenotification);
+        return creditLikeCount > 1 ? "MULTICREDIT" : description;
+    }
+
+
     private sealed record BatchHeaderRecord
     {
         public string ServiceClassCode { get; init; } = string.Empty;
@@ -885,7 +899,7 @@ public class NachaFileBuilder : INachaFileBuilder
         public string OriginatingDFI { get; init; } = string.Empty;
         public int BatchNumber { get; init; }
 
-        public static BatchHeaderRecord From(AchBatch batch, string standardEntryClassCode, int batchNumber)
+        public static BatchHeaderRecord From(AchBatch batch, string standardEntryClassCode, int batchNumber, string companyEntryDescription)
         {
             if (standardEntryClassCode is not ("PPD" or "CCD"))
             {
@@ -899,7 +913,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 CompanyDiscretionaryData = string.Empty,
                 CompanyIdentification = batch.CompanyIdentification,
                 StandardEntryClassCode = standardEntryClassCode,
-                CompanyEntryDescription = batch.CompanyEntryDescription,
+                CompanyEntryDescription = companyEntryDescription,
                 CompanyDescriptiveDate = batch.EffectiveEntryDate,
                 EffectiveEntryDate = batch.EffectiveEntryDate,
                 SettlementDate = string.Empty,

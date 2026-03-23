@@ -22,7 +22,11 @@ public class TransactionPersister : ITransactionPersister
 
     public async Task<TransactionPersistResult> PersistAsync(AchTransactionRequestData request, TransactionBatchContext context, CancellationToken ct = default)
     {
-        var transactionCode = _validator.ResolveTransactionCode(request.Type, request.AccountType, request.IsPrenotification);
+        var effectiveType = request.IsPrenotification || request.Type == TransactionTypeEnum.Prenotification
+            ? TransactionTypeEnum.Prenotification
+            : request.Type;
+
+        var transactionCode = _validator.ResolveTransactionCode(effectiveType, request.AccountType, request.IsPrenotification || effectiveType == TransactionTypeEnum.Prenotification);
 
         string traceOriginatingDfi = context.OriginatingDfi.Length >= 8
             ? context.OriginatingDfi[..8]
@@ -62,7 +66,7 @@ public class TransactionPersister : ITransactionPersister
         {
             Amount = request.Amount,
             Reference = request.Reference,
-            Type = request.Type,
+            Type = effectiveType,
 
             TransactionCode = transactionCode,
             ServiceClassCode = context.ServiceClassCode,
@@ -78,10 +82,10 @@ public class TransactionPersister : ITransactionPersister
 
             EffectiveEntryDate = context.EffectiveEntryDate,
             AddendaRecordIndicator = true,
-            IsPrenotification = request.IsPrenotification,
+            IsPrenotification = effectiveType == TransactionTypeEnum.Prenotification || request.IsPrenotification,
             SlaDeadlineAtUtc = context.ReturnSlaDeadlineAtUtc,
             RecipientIdNumber = request.RecipientIdNumber?.Trim() ?? string.Empty,
-            DiscretionaryData = request.Type == TransactionTypeEnum.Credit && request.RequiresIdentityValidation ? "V" : string.Empty,
+            DiscretionaryData = effectiveType == TransactionTypeEnum.Credit && request.RequiresIdentityValidation ? "V" : string.Empty,
 
             SourceAccountNumber = request.SourceAccountNumber,
             DestinationAccountNumber = request.DestinationAccountNumber,
@@ -100,8 +104,8 @@ public class TransactionPersister : ITransactionPersister
                 {
                     var normalized = _validator.NormalizeAndValidateAddenda(
                         a,
-                        request.Type,
-                        request.IsPrenotification,
+                        effectiveType,
+                        effectiveType == TransactionTypeEnum.Prenotification || request.IsPrenotification,
                         context.CompanyEntryDescription);
 
                     return new AchTransactionAddenda
@@ -146,12 +150,12 @@ public class TransactionPersister : ITransactionPersister
             .ToListAsync(ct);
 
         decimal debit = totals
-            .Where(t => t.Type == TransactionTypeEnum.Debit)
+            .Where(t => t.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal)
             .Select(t => t.Sum)
             .FirstOrDefault();
 
         decimal credit = totals
-            .Where(t => t.Type == TransactionTypeEnum.Credit)
+            .Where(t => t.Type is TransactionTypeEnum.Credit or TransactionTypeEnum.Prenotification)
             .Select(t => t.Sum)
             .FirstOrDefault();
 
@@ -176,8 +180,8 @@ public class TransactionPersister : ITransactionPersister
             return;
         }
 
-        bool allCredits = transactions.All(t => t == TransactionTypeEnum.Credit);
-        bool allDebits = transactions.All(t => t == TransactionTypeEnum.Debit);
+        bool allCredits = transactions.All(t => t is TransactionTypeEnum.Credit or TransactionTypeEnum.Prenotification);
+        bool allDebits = transactions.All(t => t is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal);
 
         string newCode = allCredits ? "220" : allDebits ? "225" : "200";
 

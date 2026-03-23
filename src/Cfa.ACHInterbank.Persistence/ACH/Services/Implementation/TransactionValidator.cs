@@ -29,7 +29,16 @@ public class TransactionValidator : ITransactionValidator
             { (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, false), "52" },
             { (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, true), "53" },
             { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, false), "55" },
-            { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, true), "57" }
+            { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, true), "57" },
+            { (TransactionTypeEnum.Prenotification, AccountTypeEnum.Checking, true), "23" },
+            { (TransactionTypeEnum.Prenotification, AccountTypeEnum.Savings, true), "33" },
+            { (TransactionTypeEnum.Prenotification, AccountTypeEnum.ElectronicDeposits, true), "53" },
+            { (TransactionTypeEnum.Return, AccountTypeEnum.Checking, false), "27" },
+            { (TransactionTypeEnum.Return, AccountTypeEnum.Savings, false), "37" },
+            { (TransactionTypeEnum.Return, AccountTypeEnum.ElectronicDeposits, false), "55" },
+            { (TransactionTypeEnum.Reversal, AccountTypeEnum.Checking, false), "27" },
+            { (TransactionTypeEnum.Reversal, AccountTypeEnum.Savings, false), "37" },
+            { (TransactionTypeEnum.Reversal, AccountTypeEnum.ElectronicDeposits, false), "55" }
         };
 
     public TransactionValidator(AchDbContext context)
@@ -39,7 +48,9 @@ public class TransactionValidator : ITransactionValidator
 
     public void ValidateRequest(AchTransactionRequestData request)
     {
-        if (request.IsPrenotification)
+        var effectiveType = ResolveEffectiveType(request.Type, request.IsPrenotification);
+
+        if (effectiveType == TransactionTypeEnum.Prenotification)
         {
             if (request.Amount != 0)
             {
@@ -76,7 +87,7 @@ public class TransactionValidator : ITransactionValidator
             ValidateParticipantIdentity(request.RecipientPersonType, request.RecipientIdNumber, nameof(request.RecipientIdNumber));
         }
 
-        if (request.Type == TransactionTypeEnum.Debit && string.IsNullOrWhiteSpace(request.RecipientIdNumber))
+        if (effectiveType is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal && string.IsNullOrWhiteSpace(request.RecipientIdNumber))
         {
             throw new ArgumentException("La identificación del receptor es obligatoria para débitos.", nameof(request.RecipientIdNumber));
         }
@@ -115,7 +126,7 @@ public class TransactionValidator : ITransactionValidator
             throw new ArgumentException("El concepto de lote seleccionado no existe en el catálogo permitido.", nameof(request.CompanyEntryDescriptionId));
         }
 
-        if (request.Type == TransactionTypeEnum.Credit && request.RequiresIdentityValidation && string.IsNullOrWhiteSpace(request.RecipientIdNumber))
+        if (effectiveType == TransactionTypeEnum.Credit && request.RequiresIdentityValidation && string.IsNullOrWhiteSpace(request.RecipientIdNumber))
         {
             throw new ArgumentException("La identificación del receptor es obligatoria cuando se solicita validación.", nameof(request.RecipientIdNumber));
         }
@@ -292,6 +303,16 @@ public class TransactionValidator : ITransactionValidator
         }
     }
 
+    private static TransactionTypeEnum ResolveEffectiveType(TransactionTypeEnum requestedType, bool isPrenotification)
+    {
+        if (requestedType == TransactionTypeEnum.Prenotification || isPrenotification)
+        {
+            return TransactionTypeEnum.Prenotification;
+        }
+
+        return requestedType;
+    }
+
     private static AchAddendaBusinessType ResolveBusinessType(TransactionTypeEnum transactionType, string addendaType)
     {
         if (addendaType == "99")
@@ -299,7 +320,7 @@ public class TransactionValidator : ITransactionValidator
             return AchAddendaBusinessType.Return;
         }
 
-        return transactionType == TransactionTypeEnum.Debit
+        return transactionType is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal
             ? AchAddendaBusinessType.Debit
             : AchAddendaBusinessType.Credit;
     }

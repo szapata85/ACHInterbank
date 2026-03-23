@@ -364,6 +364,18 @@ export class TransactionListComponent implements OnInit {
       return 'Débito';
     }
 
+    if (type === TransactionTypeEnum.Prenotification) {
+      return 'Prenotificación';
+    }
+
+    if (type === TransactionTypeEnum.Reversal) {
+      return 'Reverso';
+    }
+
+    if (type === TransactionTypeEnum.Return) {
+      return 'Devolución';
+    }
+
     return 'Desconocido';
   }
 

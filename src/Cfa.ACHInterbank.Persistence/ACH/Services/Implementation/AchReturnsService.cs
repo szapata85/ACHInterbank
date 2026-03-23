@@ -23,6 +23,14 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
     {
         "26", "27", "28", "36", "37", "38", "55", "56", "57"
     };
+    private static readonly IReadOnlyDictionary<string, int> ReturnReasonMaxDays = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["DEV14"] = 60,
+        ["R07"] = 5,
+        ["R10"] = 5,
+        ["R13"] = 5,
+        ["R29"] = 5
+    };
 
     public async Task<IReadOnlyList<ReturnEligibleTransactionDto>> GetTransactionsByCycleAsync(string cycleId, CancellationToken ct = default)
     {
@@ -116,6 +124,11 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
         var cycleOrder = await GetCycleOrderAsync(cycle.ClearingHouseId, ct);
         cycleOrder.TryGetValue(request.CycleId, out var selectedCycleOrder);
 
+        var alreadyReturnedTransactions = await context.Set<AchReturnGenerated>()
+            .AsNoTracking()
+            .Select(r => r.OriginalTransactionId)
+            .ToHashSetAsync(ct);
+
         var now = DateTime.UtcNow;
         var generatedRows = new List<AchReturnGenerated>();
         var entryLines = new List<string>();
@@ -126,15 +139,22 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
         {
             var tx = transactions.First(t => t.Id == item.TransactionId);
 
+            if (alreadyReturnedTransactions.Contains(tx.Id))
+            {
+                throw new InvalidOperationException($"La transacción {tx.Id} ya cuenta con una devolución registrada.");
+            }
+
             if (!cycleOrder.TryGetValue(tx.AchCycleId, out var txCycleOrder) || (selectedCycleOrder - txCycleOrder) > MaxCyclesForReturn)
             {
                 throw new InvalidOperationException($"La transacción {tx.Id} excede la ventana máxima de 4 ciclos para devolución.");
             }
 
-            if (!reasons.TryGetValue(item.ReturnReasonCode, out var reason) || !reason.Code.StartsWith("R", StringComparison.OrdinalIgnoreCase))
+            if (!reasons.TryGetValue(item.ReturnReasonCode, out var reason) || (!reason.Code.StartsWith("R", StringComparison.OrdinalIgnoreCase) && !string.Equals(reason.Code, "DEV14", StringComparison.OrdinalIgnoreCase)))
             {
                 throw new InvalidOperationException($"La causal {item.ReturnReasonCode} no es válida para devolución ACH.");
             }
+
+            ValidateReturnWindow(tx, reason.Code, now);
 
             var amount = tx.IsPrenotification ? 0m : tx.Amount;
             var newSequence = await GenerateNewReturnSequenceAsync(tx.ReceivingDFI, now.Date, ct);
@@ -246,6 +266,21 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
 
         var fileContent = string.Concat(lines);
         return new GenerateReturnsFileResponse(fileName, "text/plain", Encoding.UTF8.GetBytes(fileContent), lines.Count, generatedRows.Count);
+    }
+
+
+    private static void ValidateReturnWindow(AchTransaction transaction, string reasonCode, DateTime nowUtc)
+    {
+        if (!ReturnReasonMaxDays.TryGetValue(reasonCode, out var maxDays))
+        {
+            return;
+        }
+
+        var elapsedDays = (nowUtc.Date - transaction.EffectiveEntryDate.Date).TotalDays;
+        if (elapsedDays > maxDays)
+        {
+            throw new InvalidOperationException($"La causal {reasonCode} excede la ventana máxima de {maxDays} días para la transacción {transaction.Id}.");
+        }
     }
 
     private async Task<Dictionary<string, int>> GetCycleOrderAsync(int clearingHouseId, CancellationToken ct)

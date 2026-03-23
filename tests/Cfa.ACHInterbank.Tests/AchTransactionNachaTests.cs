@@ -190,7 +190,8 @@ public class AchTransactionNachaTests
             .Setup(h => h.GetHolidays(It.IsAny<int>()))
             .Returns([]);
         var recordDataProvider = new Mock<INachaRecordDataProvider>();
-        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object);
+        var semanticValidator = new Mock<INachaSemanticValidator>();
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object, semanticValidator.Object);
         var nachaContent = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
 
         var records = ChunkRecords(nachaContent);
@@ -282,7 +283,8 @@ public class AchTransactionNachaTests
             .Setup(h => h.GetHolidays(It.IsAny<int>()))
             .Returns([]);
         var recordDataProvider = new Mock<INachaRecordDataProvider>();
-        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object);
+        var semanticValidator = new Mock<INachaSemanticValidator>();
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object, semanticValidator.Object);
         var nachaContent = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
 
         Assert.NotEmpty(nachaContent);
@@ -335,7 +337,8 @@ public class AchTransactionNachaTests
         var holidayService = new Mock<IBankHoliday>();
         holidayService.Setup(h => h.GetHolidays(It.IsAny<int>())).Returns([]);
         var recordDataProvider = new Mock<INachaRecordDataProvider>();
-        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object);
+        var semanticValidator = new Mock<INachaSemanticValidator>();
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object, semanticValidator.Object);
         var records = ChunkRecords(await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None));
         var addendaRecord = records.Single(record => record.StartsWith("7"));
 
@@ -683,7 +686,12 @@ public class AchTransactionNachaTests
         var persister = new TransactionPersister(context, validator);
         var prenotificationHandler = new PrenotificationHandler(context);
 
-        return new AchTransactionService(context, holiday.Object, validator, batchResolver, persister, prenotificationHandler);
+        var policyService = new Mock<ITransactionPolicyService>();
+        policyService
+            .Setup(x => x.PreviewAsync(It.IsAny<TransactionPolicyPreviewRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TransactionPolicyPreview(true, null, cycleId, "CICLO-TEST", DateTime.Today, "ACH Colombia", 1, "", true, null, null, null, null, false));
+
+        return new AchTransactionService(context, holiday.Object, validator, batchResolver, persister, prenotificationHandler, policyService.Object);
     }
 
     private static void SeedNachaLayouts(AchDbContext context)
@@ -904,7 +912,8 @@ public class AchTransactionNachaTests
         var holidayService = new Mock<IBankHoliday>();
         holidayService.Setup(h => h.GetHolidays(It.IsAny<int>())).Returns([]);
         var recordDataProvider = new Mock<INachaRecordDataProvider>();
-        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object);
+        var semanticValidator = new Mock<INachaSemanticValidator>();
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object, semanticValidator.Object);
         return await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
     }
 }
