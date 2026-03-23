@@ -36,7 +36,9 @@ public static class DependencyInjectionService
         var maxRetryCount = configuration.GetValue<int?>("Database:MaxRetryCount") ?? 5;
         var maxRetryDelaySeconds = configuration.GetValue<int?>("Database:MaxRetryDelaySeconds") ?? 10;
         var maxRetryDelay = TimeSpan.FromSeconds(maxRetryDelaySeconds);
-        var connectionString = GetConnectionString(provider, configuration);
+        var resolvedDatabase = ResolveDatabase(provider, configuration);
+        provider = resolvedDatabase.Provider;
+        var connectionString = resolvedDatabase.ConnectionString;
         services.AddDbContext<AchDbContext>(options =>
         {
             options.ConfigureWarnings(warnings =>
@@ -141,21 +143,38 @@ public static class DependencyInjectionService
         return services;
     }
 
-    private static string GetConnectionString(string provider, IConfiguration configuration)
+    private static (string Provider, string ConnectionString) ResolveDatabase(string provider, IConfiguration configuration)
     {
-        var connectionStringName = provider?.Trim().ToLowerInvariant() switch
+        var normalizedProvider = provider?.Trim().ToLowerInvariant() switch
         {
-            "postgres" or "postgresql" or "npgsql" => "PostgresConnection",
-            _ => "SqlConnection"
+            "postgres" or "postgresql" or "npgsql" => "postgres",
+            _ => "sqlserver"
         };
 
-        var connectionString = configuration.GetConnectionString(connectionStringName);
-        if (string.IsNullOrWhiteSpace(connectionString))
+        var sqlConnection = configuration.GetConnectionString("SqlConnection");
+        var postgresConnection = configuration.GetConnectionString("PostgresConnection");
+
+        if (normalizedProvider == "postgres" && !string.IsNullOrWhiteSpace(postgresConnection))
         {
-            throw new InvalidOperationException(
-                $"Connection string '{connectionStringName}' is missing for provider '{provider}'.");
+            return ("postgres", postgresConnection);
         }
 
-        return connectionString;
+        if (normalizedProvider == "sqlserver" && !string.IsNullOrWhiteSpace(sqlConnection))
+        {
+            return ("sqlserver", sqlConnection);
+        }
+
+        if (!string.IsNullOrWhiteSpace(postgresConnection))
+        {
+            return ("postgres", postgresConnection);
+        }
+
+        if (!string.IsNullOrWhiteSpace(sqlConnection))
+        {
+            return ("sqlserver", sqlConnection);
+        }
+
+        throw new InvalidOperationException(
+            $"No configured connection string was found for provider '{provider}'. Configure either 'ConnectionStrings:PostgresConnection' or 'ConnectionStrings:SqlConnection'.");
     }
 }
