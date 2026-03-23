@@ -98,6 +98,14 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
             throw new InvalidOperationException("Debe seleccionar al menos una transacción para devolver.");
         }
 
+        var duplicateSelections = request.Items
+            .GroupBy(item => item.TransactionId)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicateSelections is not null)
+        {
+            throw new InvalidOperationException($"La transacción {duplicateSelections.Key} fue seleccionada más de una vez en la misma generación.");
+        }
+
         var cycle = await context.AchCycles
             .Include(c => c.ClearingHouse)
             .AsNoTracking()
@@ -142,6 +150,11 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
             if (alreadyReturnedTransactions.Contains(tx.Id))
             {
                 throw new InvalidOperationException($"La transacción {tx.Id} ya cuenta con una devolución registrada.");
+            }
+
+            if (tx.Type is Domain.Entities.Transactions.Enums.TransactionTypeEnum.Return or Domain.Entities.Transactions.Enums.TransactionTypeEnum.Reversal)
+            {
+                throw new InvalidOperationException($"La transacción {tx.Id} no es elegible para devolución porque ya corresponde a un retorno o reverso.");
             }
 
             if (!cycleOrder.TryGetValue(tx.AchCycleId, out var txCycleOrder) || (selectedCycleOrder - txCycleOrder) > MaxCyclesForReturn)
@@ -380,8 +393,8 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
         buffer[0] = '7';
 
         WriteValue(buffer, 2, "99");
-        WriteValue(buffer, 4, PadAlpha(reasonCode, 3));
-        WriteValue(buffer, 7, PadNum(originalTraceNumber, 15));
+        WriteValue(buffer, 4, PadAlpha(reasonCode, 5));
+        WriteValue(buffer, 9, PadNum(originalTraceNumber, 15));
         WriteValue(buffer, 82, PadNum(newTraceNumber, 15));
         WriteValue(buffer, 100, PadNum(entryDetailSequenceNumber, 7));
         return new string(buffer);

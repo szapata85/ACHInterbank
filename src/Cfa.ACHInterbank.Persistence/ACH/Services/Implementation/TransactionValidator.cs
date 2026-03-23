@@ -14,7 +14,7 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class TransactionValidator : ITransactionValidator
 {
     private readonly AchDbContext _context;
-    private static readonly Regex ReturnReasonRegex = new(@"^R\d{2}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex ReturnReasonRegex = new(@"^(R\d{2}|DEV14)$", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private static readonly IReadOnlyDictionary<(TransactionTypeEnum Type, AccountTypeEnum Account, bool IsPrenotification), string> FallbackTransactionCodeMap
         = new Dictionary<(TransactionTypeEnum, AccountTypeEnum, bool), string>
         {
@@ -335,7 +335,7 @@ public class TransactionValidator : ITransactionValidator
         var normalized = value.Trim().ToUpperInvariant();
         if (!ReturnReasonRegex.IsMatch(normalized))
         {
-            throw new ArgumentException("El código de retorno debe cumplir el formato ^R\\d{2}$.", nameof(value));
+            throw new ArgumentException("El código de retorno debe cumplir el formato ^R\\d{2}$ o DEV14.", nameof(value));
         }
 
         return normalized;

@@ -256,7 +256,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
               isPrenotification: false,
               sourcePersonType: 'PJ',
               recipientPersonType: 'PN',
-              companyEntryDescriptionId: this.companyEntryDescriptionOptions.find((x) => x.term === 'NOMINA')?.id ?? null
+              companyEntryDescriptionId: this.companyEntryDescriptionOptions.find((x) => x.term === 'NOMINAS')?.id ?? null
             });
             this.addendas.clear();
             this.activeDestinationAccounts = [];
@@ -445,7 +445,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       errors.prenoteAmount = true;
     }
 
-    if (type === TransactionTypeEnum.Debit && !recipientId) {
+    if ((type === TransactionTypeEnum.Debit || type === TransactionTypeEnum.Reversal) && !recipientId) {
       errors.missingRecipientId = true;
     }
 

@@ -731,14 +731,14 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private static string BuildReturnType7Record(AchTransaction transaction, AchTransactionAddenda addenda)
     {
-        var returnReasonCode = FormatAlpha(addenda.ReturnReasonCode, 3);
+        var returnReasonCode = FormatAlpha(addenda.ReturnReasonCode, 5);
         var originalTraceNumber = FormatNumeric(addenda.OriginalTraceNumber, 15);
         var newTraceNumber = FormatNumeric(addenda.NewTraceNumber, 15);
 
         var buffer = CreateBlankRecord('7');
         WriteValue(buffer, 2, "99");
         WriteValue(buffer, 4, returnReasonCode);
-        WriteValue(buffer, 7, originalTraceNumber);
+        WriteValue(buffer, 9, originalTraceNumber);
         WriteValue(buffer, 82, newTraceNumber);
         WriteValue(buffer, 100, FormatNumeric(GetTraceSuffix(transaction.TraceNumber), 7));
         return new string(buffer);

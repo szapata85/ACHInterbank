@@ -37,6 +37,7 @@
             <select formControlName="type" required>
               <option [ngValue]="TransactionType.Credit">Crédito</option>
               <option [ngValue]="TransactionType.Debit">Débito</option>
+              <option [ngValue]="TransactionType.Reversal">Reverso</option>
             </select>
             <app-error-message [control]="form.get('type')"></app-error-message>
           </label>
@@ -174,6 +175,9 @@
             <small class="muted" *ngIf="form.get('type')?.value === TransactionType.Debit">
               Obligatoria para transacciones débito.
             </small>
+            <small class="muted" *ngIf="form.get('type')?.value === TransactionType.Reversal">
+              Obligatoria para reversos por trazabilidad regulatoria.
+            </small>
             <small class="muted" *ngIf="form.get('type')?.value === TransactionType.Credit">
               Obligatoria si se solicita validación de identidad.
             </small>
@@ -269,6 +273,10 @@
           <dd>{{ (preview.remainingAmountForCycle ?? 0) | currencyCol }}</dd>
         </div>
         <div>
+          <dt>Límite por transacción</dt>
+          <dd>{{ preview.maxAmountPerTransaction != null ? (preview.maxAmountPerTransaction | currencyCol) : '-' }}</dd>
+        </div>
+        <div>
           <dt>Transacciones restantes</dt>
           <dd>{{ preview.remainingTransactionsForCycle ?? '-' }}</dd>
         </div>
@@ -279,6 +287,8 @@
       </dl>
       <p class="muted" *ngIf="preview.canSubmit">La transacción cumple la política operativa vigente.</p>
       <p class="error" *ngIf="!preview.canSubmit">{{ preview.message }}</p>
+      <p class="error" *ngIf="preview.wouldDuplicate">Advertencia: ya existe una transacción equivalente en el mismo ciclo operativo.</p>
+      <p class="error" *ngIf="!preview.isWithinProcessingWindow">Advertencia: el ciclo está fuera de ventana y el envío será bloqueado.</p>
     </section>
 
     <div class="actions">
