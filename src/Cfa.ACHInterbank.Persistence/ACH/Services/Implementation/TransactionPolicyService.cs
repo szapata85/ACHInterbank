@@ -156,8 +156,8 @@ public class TransactionPolicyService : ITransactionPolicyService
             window.HasValue ? $"{window.Value.Start:yyyy-MM-dd HH:mm} - {window.Value.End:yyyy-MM-dd HH:mm}" : null,
             false,
             rule?.MaxAmountPerTransaction,
-            rule?.MaxAmountPerCycle.HasValue && existingAmount.HasValue ? Math.Max(0, rule.MaxAmountPerCycle.Value - existingAmount.Value) : null,
-            rule?.MaxTransactionsPerCycle.HasValue && existingCount.HasValue ? Math.Max(0, rule.MaxTransactionsPerCycle.Value - existingCount.Value) : null,
+            rule?.MaxAmountPerCycle.HasValue == true && existingAmount.HasValue ? Math.Max(0, rule.MaxAmountPerCycle.Value - existingAmount.Value) : null,
+            rule?.MaxTransactionsPerCycle.HasValue == true && existingCount.HasValue ? Math.Max(0, rule.MaxTransactionsPerCycle.Value - existingCount.Value) : null,
             idempotencyKey,
             false);
     }
