@@ -25,9 +25,12 @@ public class AchTraceabilityDetailDto
     public string AchCycleId { get; set; } = string.Empty;
     public string AchCycleName { get; set; } = string.Empty;
     public string ClearingHouseName { get; set; } = string.Empty;
+    public string ClearingHouseCode { get; set; } = string.Empty;
     public string CurrentNachaFileName { get; set; } = string.Empty;
     public DateTime? CurrentNachaGeneratedAtUtc { get; set; }
     public string ReturnFileName { get; set; } = string.Empty;
+    public string ReturnCycleId { get; set; } = string.Empty;
+    public int? ReturnOriginalTransactionId { get; set; }
     public DateTime? ReturnGeneratedAtUtc { get; set; }
     public string SourceInstitutionName { get; set; } = string.Empty;
     public string DestinationInstitutionName { get; set; } = string.Empty;
@@ -50,6 +53,7 @@ public class AchTraceabilityReportRowDto
     public string AchCycleId { get; set; } = string.Empty;
     public string AchCycleName { get; set; } = string.Empty;
     public string ClearingHouseName { get; set; } = string.Empty;
+    public string ClearingHouseCode { get; set; } = string.Empty;
     public string CurrentNachaFileName { get; set; } = string.Empty;
     public DateTime EffectiveEntryDate { get; set; }
     public AchTransferStateEnum State { get; set; }

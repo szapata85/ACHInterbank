@@ -14,11 +14,13 @@ public class BatchResolver : IBatchResolver
 {
     private readonly AchDbContext _context;
     private readonly IRoutingStrategyService _routing;
+    private readonly TimeProvider _timeProvider;
 
-    public BatchResolver(AchDbContext context, IRoutingStrategyService routing)
+    public BatchResolver(AchDbContext context, IRoutingStrategyService routing, TimeProvider? timeProvider = null)
     {
         _context = context;
         _routing = routing;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<TransactionBatchContext> ResolveAsync(AchTransactionRequestData request, CancellationToken ct = default)
@@ -82,13 +84,15 @@ public class BatchResolver : IBatchResolver
 
         string destinationWithCheckDigit = BuildTransitCodeWithCheckDigit(destRouting, destTransit, dest.CheckDigit);
 
-        var now = DateTime.Now;
+        var now = _timeProvider.GetLocalNow().LocalDateTime;
         string achCycleId = await _routing.ResolveClearingHouseForTransactionAsync(request.DestinationInstitutionId, now, ct);
         var cycle = await _context.AchCycles
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == achCycleId, ct)
             ?? throw new InvalidOperationException("No se encontró el ciclo ACH para la transacción.");
         DateTime effectiveEntryDate = cycle.ProcessingDate.Date;
+
+        EnsureCycleIsOpenForTransactions(cycle, now);
 
         if (request.Type == TransactionTypeEnum.Debit && IsCycleFive(cycle.CycleName))
         {
@@ -147,6 +151,32 @@ public class BatchResolver : IBatchResolver
             SourceInstitutionId = source.Id,
             DestinationInstitutionId = dest.Id
         };
+    }
+
+
+    private static void EnsureCycleIsOpenForTransactions(AchCycle cycle, DateTime nowLocal)
+    {
+        var (windowStart, windowEnd) = BuildCycleWindow(cycle.ProcessingDate, cycle.StartTime, cycle.EndTime);
+
+        if (nowLocal < windowStart)
+        {
+            throw new InvalidOperationException($"El ciclo {cycle.CycleName} aún no está abierto. Ventana operativa: {windowStart:yyyy-MM-dd HH:mm} - {windowEnd:yyyy-MM-dd HH:mm}.");
+        }
+
+        if (nowLocal > windowEnd)
+        {
+            throw new InvalidOperationException($"El ciclo {cycle.CycleName} está cerrado para recepción de transacciones. Ventana operativa: {windowStart:yyyy-MM-dd HH:mm} - {windowEnd:yyyy-MM-dd HH:mm}.");
+        }
+    }
+
+    private static (DateTime Start, DateTime End) BuildCycleWindow(DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
+    {
+        if (startTime <= endTime)
+        {
+            return (processingDate.Date + startTime, processingDate.Date + endTime);
+        }
+
+        return (processingDate.Date.AddDays(-1) + startTime, processingDate.Date + endTime);
     }
 
     private static bool IsCycleFive(string cycleName)

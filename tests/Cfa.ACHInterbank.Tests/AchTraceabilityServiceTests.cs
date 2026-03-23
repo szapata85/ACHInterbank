@@ -155,7 +155,11 @@ public class AchTraceabilityServiceTests
         Assert.Equal("cycle-1", traceability!.AchCycleId);
         Assert.Equal("CICLO-1", traceability.AchCycleName);
         Assert.Equal("ACH Colombia", traceability.ClearingHouseName);
+        Assert.Equal("ACHCOL", traceability.ClearingHouseCode);
         Assert.Equal("NACHA_cycle-1_20260323_100000.txt", traceability.CurrentNachaFileName);
         Assert.Equal("RET_cycle-1_20260323110000.RET", traceability.ReturnFileName);
+        Assert.Equal("cycle-1", traceability.ReturnCycleId);
+        Assert.Equal(10, traceability.ReturnOriginalTransactionId);
+        Assert.Equal("DEV14", traceability.ReturnReasonCode);
     }
 }

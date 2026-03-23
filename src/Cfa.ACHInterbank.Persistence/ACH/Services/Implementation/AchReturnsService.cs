@@ -9,8 +9,9 @@ using System.Text;
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
-public class AchReturnsService(AchDbContext context) : IAchReturnsService
+public class AchReturnsService(AchDbContext context, TimeProvider? timeProvider = null) : IAchReturnsService
 {
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
     private const int MaxCyclesForReturn = 4;
     private const string ImmediateDestinationAchColombia = "000101006";
     private const string ReturnOriginatorId = "BANCORET";
@@ -137,7 +138,7 @@ public class AchReturnsService(AchDbContext context) : IAchReturnsService
             .Select(r => r.OriginalTransactionId)
             .ToHashSetAsync(ct);
 
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
         var generatedRows = new List<AchReturnGenerated>();
         var entryLines = new List<string>();
         var addendaLines = new List<string>();
