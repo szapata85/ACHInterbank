@@ -1,4 +1,5 @@
-﻿using Cfa.ACHInterbank.Application.DataBase;
+﻿using Cfa.ACHInterbank.Application.ACH.Configuration;
+using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz;
@@ -18,6 +19,7 @@ public static class DependencyInjectionService
 {
     public static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<TransactionPolicyOptions>(configuration.GetSection("TransactionPolicies"));
         //services.AddDbContext<DataBaseService>(options => options.UseAseClient(configuration.GetConnectionString("SybaseConnection")));
 
         //using (var connection = new AseConnection(""))

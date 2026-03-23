@@ -4,13 +4,14 @@ import { debounceTime, distinctUntilChanged, map, shareReplay, take, takeUntil, 
 import { Subject } from 'rxjs';
 import { Router } from '@angular/router';
 import { TransactionsApiService } from '../../services/transactions-api.service';
-import { ActiveThirdPartyAccount, CompanyEntryDescriptionOption, TransactionDraft, TransactionResponse } from '../../transactions.models';
+import { ActiveThirdPartyAccount, CompanyEntryDescriptionOption, TransactionDraft, TransactionPolicyPreview, TransactionResponse } from '../../transactions.models';
 import { AccountTypeEnum, FinancialInstitutionStatusEnum, TransactionTypeEnum } from '../../transactions.types';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SharedModule } from '../../../../shared/shared.module';
 import { FinancialInstitutionsApiService } from '../../services/financial-institutions-api.service';
 import { CustomersApiService } from '../../../customers/services/customers-api.service';
 import { CustomerSummary } from '../../../customers/models/customer.model';
+import { policyPreviewValidator, recipientIdentityValidator } from '../../transaction-policy.validators';
 
 @Component({
   selector: 'app-transaction-create',
@@ -77,6 +78,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   filteredDestinationAccounts: ActiveThirdPartyAccount[] = [];
   selectedCustomerAccounts: string[] = [];
   companyEntryDescriptionOptions: CompanyEntryDescriptionOption[] = [];
+  policyPreview: TransactionPolicyPreview | null = null;
 
   private readonly amountFormatter = new Intl.NumberFormat('es-CO', {
     minimumFractionDigits: 0,
@@ -84,7 +86,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
-    this.form.setValidators([this.validateAccountDifference, this.validateBusinessRules]);
+    this.form.setValidators([this.validateAccountDifference, this.validateBusinessRules, recipientIdentityValidator(), policyPreviewValidator(() => this.policyPreview)]);
 
     this.api.getCompanyEntryDescriptions().pipe(take(1), takeUntil(this.destroy$)).subscribe((items) => {
       this.companyEntryDescriptionOptions = (items ?? []).sort((a, b) => a.term.localeCompare(b.term));
@@ -98,6 +100,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       this.errorMessage.setValue(null);
       this.successMessage.setValue(null);
     });
+
+    this.form.valueChanges.pipe(debounceTime(250), takeUntil(this.destroy$)).subscribe(() => this.loadPolicyPreview());
 
 
     this.form
@@ -202,6 +206,12 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (this.policyPreview && !this.policyPreview.canSubmit) {
+      this.errorMessage.setValue(this.policyPreview.message ?? 'La transacción incumple la política ACH vigente.');
+      this.notifications.error(this.errorMessage.value);
+      return;
+    }
+
     const sanitized: TransactionDraft = {
       ...payload,
       type: Number(payload.type) as TransactionTypeEnum,
@@ -246,12 +256,13 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
               isPrenotification: false,
               sourcePersonType: 'PJ',
               recipientPersonType: 'PN',
-              companyEntryDescriptionId: this.companyEntryDescriptionOptions.find((x) => x.term === 'NOMINA')?.id ?? null
+              companyEntryDescriptionId: this.companyEntryDescriptionOptions.find((x) => x.term === 'NOMINAS')?.id ?? null
             });
             this.addendas.clear();
             this.activeDestinationAccounts = [];
             this.filteredDestinationAccounts = [];
             this.selectedCustomerAccounts = [];
+            this.policyPreview = null;
             this.cdr.markForCheck();
             this.router.navigate(['/transactions']);
           },
@@ -387,6 +398,38 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+
+  private loadPolicyPreview(): void {
+    const raw = this.form.getRawValue() as TransactionDraft;
+    const parsedAmount = this.parseMaskedAmount(raw.amount);
+
+    if (!raw.destinationInstitutionId || !raw.sourceAccountNumber || !raw.destinationAccountNumber || !raw.reference || parsedAmount === null) {
+      this.policyPreview = null;
+      this.form.updateValueAndValidity({ emitEvent: false });
+      this.cdr.markForCheck();
+      return;
+    }
+
+    this.api.previewPolicy({
+      ...raw,
+      amount: parsedAmount,
+      sourceAccountNumber: this.extractDigits(raw.sourceAccountNumber).slice(0, 18),
+      destinationAccountNumber: this.extractDigits(raw.destinationAccountNumber).slice(0, 18)
+    } as TransactionDraft)
+      .pipe(take(1), takeUntil(this.destroy$))
+      .subscribe({
+        next: (preview) => {
+          this.policyPreview = preview;
+          this.form.updateValueAndValidity({ emitEvent: false });
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.policyPreview = null;
+          this.cdr.markForCheck();
+        }
+      });
+  }
+
   private validateBusinessRules = (group: FormGroup) => {
     const isPrenotification = Boolean(group.get('isPrenotification')?.value);
     const amount = this.parseMaskedAmount(group.get('amount')?.value) ?? 0;
@@ -402,7 +445,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       errors.prenoteAmount = true;
     }
 
-    if (type === TransactionTypeEnum.Debit && !recipientId) {
+    if ((type === TransactionTypeEnum.Debit || type === TransactionTypeEnum.Reversal) && !recipientId) {
       errors.missingRecipientId = true;
     }
 
@@ -416,6 +459,10 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
     if (!addendas || addendas.length === 0) {
       errors.missingAddenda = true;
+    }
+
+    if (this.policyPreview && !this.policyPreview.canSubmit) {
+      errors.policyRejected = true;
     }
 
     if (addendas && addendas.length > 0) {

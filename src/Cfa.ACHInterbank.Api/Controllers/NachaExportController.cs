@@ -19,6 +19,7 @@ public class NachaExportController : ControllerBase
     private readonly IClearingHouseService _clearingHouseService;
     private readonly IDigitalEnvelopePolicy _envelopePolicy;
     private readonly INachaFileIdentifierMapService _identifierMapService;
+    private readonly IAchFileExportAuditService _fileExportAuditService;
 
     public NachaExportController(
         INachaFileBuilder nachaBuilder,
@@ -26,7 +27,8 @@ public class NachaExportController : ControllerBase
         IAchCycleAppService cycleService,
         IClearingHouseService clearingHouseService,
         IDigitalEnvelopePolicy envelopePolicy,
-        INachaFileIdentifierMapService identifierMapService)
+        INachaFileIdentifierMapService identifierMapService,
+        IAchFileExportAuditService fileExportAuditService)
     {
         _nachaBuilder = nachaBuilder;
         _crypto = crypto;
@@ -34,6 +36,7 @@ public class NachaExportController : ControllerBase
         _clearingHouseService = clearingHouseService;
         _envelopePolicy = envelopePolicy;
         _identifierMapService = identifierMapService;
+        _fileExportAuditService = fileExportAuditService;
     }
     /// <summary>
     /// Endpoint de la API ACH Interbank.
@@ -58,6 +61,15 @@ public class NachaExportController : ControllerBase
         string nachaContent = await _nachaBuilder.BuildNachaFileByCycleAsync(cycleId, ct);
         string fileName = BuildNachaFileName(clearingHouse, cycle);
         string normalizedNachaContent = await NormalizeFileHeaderIdentifierForCenitAsync(nachaContent, clearingHouse, fileName, ct);
+        await _fileExportAuditService.RecordGeneratedFileAsync(
+            cycle.Id,
+            cycle.ClearingHouseId,
+            "NACHA",
+            fileName,
+            CountRecords(normalizedNachaContent),
+            CountTransactions(normalizedNachaContent),
+            false,
+            ct);
 
         return File(Encoding.ASCII.GetBytes(normalizedNachaContent), "text/plain", fileName);
     }
@@ -84,6 +96,15 @@ public class NachaExportController : ControllerBase
 
         string fileName = BuildNachaFileName(clearingHouse, cycle);
         string normalizedNachaContent = await NormalizeFileHeaderIdentifierForCenitAsync(nachaContent, clearingHouse, fileName, ct);
+        await _fileExportAuditService.RecordGeneratedFileAsync(
+            cycle.Id,
+            cycle.ClearingHouseId,
+            "NACHA",
+            fileName,
+            CountRecords(normalizedNachaContent),
+            CountTransactions(normalizedNachaContent),
+            forceEncryption || _envelopePolicy.ShouldEncrypt(cycle.ClearingHouseId),
+            ct);
 
         if (!forceEncryption && !_envelopePolicy.ShouldEncrypt(cycle.ClearingHouseId))
         {
@@ -165,5 +186,22 @@ public class NachaExportController : ControllerBase
         lines[0] = new string(chars);
 
         return string.Join('\n', lines);
+    }
+
+    private static int CountRecords(string nachaContent)
+    {
+        return string.IsNullOrEmpty(nachaContent) ? 0 : nachaContent.Length / 106;
+    }
+
+    private static int CountTransactions(string nachaContent)
+    {
+        if (string.IsNullOrEmpty(nachaContent))
+        {
+            return 0;
+        }
+
+        return Enumerable.Range(0, nachaContent.Length / 106)
+            .Select(index => nachaContent[index * 106])
+            .Count(recordType => recordType == '6');
     }
 }

@@ -2,7 +2,6 @@ using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
-using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
@@ -47,6 +46,8 @@ public class AchTraceabilityService : IAchTraceabilityService
     {
         var transaction = await _context.AchTransactions
             .AsNoTracking()
+            .Include(t => t.AchCycle)
+                .ThenInclude(c => c!.ClearingHouse)
             .Include(t => t.SourceInstitution)
             .Include(t => t.DestinationInstitution)
             .Include(t => t.StateEvents)
@@ -56,6 +57,18 @@ public class AchTraceabilityService : IAchTraceabilityService
         {
             return null;
         }
+
+        var latestNachaFile = await _context.AchFileExports
+            .AsNoTracking()
+            .Where(export => export.AchCycleId == transaction.AchCycleId && export.ExportKind == "NACHA")
+            .OrderByDescending(export => export.GeneratedAtUtc)
+            .FirstOrDefaultAsync(ct);
+
+        var latestReturnFile = await _context.AchReturnsGenerated
+            .AsNoTracking()
+            .Where(row => row.OriginalTransactionId == transactionId)
+            .OrderByDescending(row => row.GeneratedAtUtc)
+            .FirstOrDefaultAsync(ct);
 
         return new AchTraceabilityDetailDto
         {
@@ -67,12 +80,21 @@ public class AchTraceabilityService : IAchTraceabilityService
             Amount = transaction.Amount,
             EffectiveEntryDate = transaction.EffectiveEntryDate,
             AchCycleId = transaction.AchCycleId,
+            AchCycleName = transaction.AchCycle?.CycleName ?? string.Empty,
+            ClearingHouseName = transaction.AchCycle?.ClearingHouse?.Name ?? string.Empty,
+            ClearingHouseCode = transaction.AchCycle?.ClearingHouse?.Code ?? string.Empty,
+            CurrentNachaFileName = latestNachaFile?.FileName ?? string.Empty,
+            CurrentNachaGeneratedAtUtc = latestNachaFile?.GeneratedAtUtc,
+            ReturnFileName = latestReturnFile?.FileName ?? string.Empty,
+            ReturnCycleId = latestReturnFile?.ReturnCycleId ?? string.Empty,
+            ReturnOriginalTransactionId = latestReturnFile?.OriginalTransactionId,
+            ReturnGeneratedAtUtc = latestReturnFile?.GeneratedAtUtc,
             SourceInstitutionName = transaction.SourceInstitution?.Name ?? string.Empty,
             DestinationInstitutionName = transaction.DestinationInstitution?.Name ?? string.Empty,
             State = transaction.State,
             StateChangedAtUtc = transaction.StateChangedAtUtc,
             SlaDeadlineAtUtc = transaction.SlaDeadlineAtUtc,
-            ReturnReasonCode = transaction.ReturnReasonCode,
+            ReturnReasonCode = !string.IsNullOrWhiteSpace(transaction.ReturnReasonCode) ? transaction.ReturnReasonCode : latestReturnFile?.ReturnReasonCode ?? string.Empty,
             Events = transaction.StateEvents
                 .OrderBy(e => e.CreatedAt)
                 .Select(e => new AchTraceabilityEventDto
@@ -98,6 +120,8 @@ public class AchTraceabilityService : IAchTraceabilityService
     {
         var query = _context.AchTransactions
             .AsNoTracking()
+            .Include(t => t.AchCycle)
+                .ThenInclude(c => c!.ClearingHouse)
             .Include(t => t.SourceInstitution)
             .Include(t => t.DestinationInstitution)
             .Include(t => t.StateEvents)
@@ -130,8 +154,7 @@ public class AchTraceabilityService : IAchTraceabilityService
 
             if (cycleIds.Length == 1)
             {
-                var cycleId = cycleIds[0];
-                query = query.Where(t => t.AchCycleId == cycleId);
+                query = query.Where(t => t.AchCycleId == cycleIds[0]);
             }
             else if (cycleIds.Length > 1)
             {
@@ -139,8 +162,37 @@ public class AchTraceabilityService : IAchTraceabilityService
             }
         }
 
-        return await query
+        var latestExportsByCycle = await _context.AchFileExports
+            .AsNoTracking()
+            .Where(export => export.ExportKind == "NACHA")
+            .GroupBy(export => export.AchCycleId)
+            .Select(group => group.OrderByDescending(export => export.GeneratedAtUtc).First())
+            .ToDictionaryAsync(export => export.AchCycleId, export => export.FileName, ct);
+
+        var rows = await query
             .OrderByDescending(t => t.StateChangedAtUtc)
+            .Select(t => new
+            {
+                t.Id,
+                t.Reference,
+                t.TraceNumber,
+                t.TransactionCode,
+                t.Amount,
+                t.AchCycleId,
+                AchCycleName = t.AchCycle.CycleName,
+                ClearingHouseName = t.AchCycle.ClearingHouse != null ? t.AchCycle.ClearingHouse.Name : string.Empty,
+                ClearingHouseCode = t.AchCycle.ClearingHouse != null ? t.AchCycle.ClearingHouse.Code : string.Empty,
+                t.EffectiveEntryDate,
+                t.State,
+                t.StateChangedAtUtc,
+                t.ReturnReasonCode,
+                EventsCount = t.StateEvents.Count,
+                SourceInstitutionName = t.SourceInstitution.Name,
+                DestinationInstitutionName = t.DestinationInstitution.Name
+            })
+            .ToListAsync(ct);
+
+        return rows
             .Select(t => new AchTraceabilityReportRowDto
             {
                 TransactionId = t.Id,
@@ -149,14 +201,18 @@ public class AchTraceabilityService : IAchTraceabilityService
                 TransactionCode = t.TransactionCode,
                 Amount = t.Amount,
                 AchCycleId = t.AchCycleId,
+                AchCycleName = t.AchCycleName,
+                ClearingHouseName = t.ClearingHouseName,
+                ClearingHouseCode = t.ClearingHouseCode,
+                CurrentNachaFileName = latestExportsByCycle.TryGetValue(t.AchCycleId, out var fileName) ? fileName : string.Empty,
                 EffectiveEntryDate = t.EffectiveEntryDate,
                 State = t.State,
                 StateChangedAtUtc = t.StateChangedAtUtc,
                 ReturnReasonCode = t.ReturnReasonCode,
-                EventsCount = t.StateEvents.Count,
-                SourceInstitutionName = t.SourceInstitution.Name,
-                DestinationInstitutionName = t.DestinationInstitution.Name
+                EventsCount = t.EventsCount,
+                SourceInstitutionName = t.SourceInstitutionName,
+                DestinationInstitutionName = t.DestinationInstitutionName
             })
-            .ToListAsync(ct);
+            .ToList();
     }
 }

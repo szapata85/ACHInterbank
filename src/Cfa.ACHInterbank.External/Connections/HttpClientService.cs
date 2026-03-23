@@ -22,78 +22,85 @@ public class HttpClientService : IHttpClientService
 
     public async Task<T> SendPostRequestAsync<T>(string url, object content, HttpMethod method, TypeBody typeBody, string? token = null)
     {
-        try
+        T dataobject = default!;
+
+        using var client = new HttpClient();
+        using var request = new HttpRequestMessage(method, $"{url}");
+
+        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
+
+        HttpContent? httpContent = null;
+
+        if (content != null)
         {
-            T dataobject = default!;
-
-            using var client = new HttpClient();
-            using var request = new HttpRequestMessage(method, $"{url}");
-
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
-
-            HttpContent? httpContent = null;
-
-            // Diferenciamos el tipo de contenido
-            if (content != null)
+            switch (typeBody)
             {
-                switch (typeBody)
-                {
-                    case TypeBody.Query:
-                        var fromData = ParseFormUrlEncodedContent(JsonSerializer.Serialize(content));
-                        httpContent = new FormUrlEncodedContent(fromData);
-                        break;
-                    default:
-                        var json = JsonSerializer.Serialize(content);
-                        httpContent = new StringContent(json, Encoding.UTF8, "application/json");
-                        break;
-                }
+                case TypeBody.Query:
+                    var fromData = ParseFormUrlEncodedContent(JsonSerializer.Serialize(content));
+                    httpContent = new FormUrlEncodedContent(fromData);
+                    break;
+                default:
+                    var json = JsonSerializer.Serialize(content);
+                    httpContent = new StringContent(json, Encoding.UTF8, "application/json");
+                    break;
             }
-            request.Content = httpContent;
-            //client.DefaultRequestHeaders.Add("x-api-key", _appSettings.TokenManager!.x_api_key);
-            //client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
-
-            var curlCommand = GenerateCurlCommand(request);
-            _logger.LogInfo($"Curl de la petición {curlCommand}");
-            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
-            if (response.Content != null)
-            {
-                var responseContent = await response.Content.ReadAsStringAsync();
-                if (!string.IsNullOrEmpty(responseContent))
-                {
-                    _logger.LogInfo($"Este es la respuesta del servicio: {responseContent}");
-                    if (response.IsSuccessStatusCode)
-                        dataobject = JsonSerializer.Deserialize<T>(responseContent)!;
-                    else
-                        throw new Exception(responseContent);
-                }
-
-            }
-
-            return dataobject;
-        }
-        catch
-        {
-            throw;
         }
 
+        request.Content = httpContent;
+        if (!string.IsNullOrWhiteSpace(_appSettings.TokenManager?.x_api_key))
+        {
+            client.DefaultRequestHeaders.Add("x-api-key", _appSettings.TokenManager.x_api_key);
+        }
+
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
+
+        var curlCommand = GenerateCurlCommand(request);
+        _logger.LogInfo($"Curl de la petición {curlCommand}");
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+        if (response.Content != null)
+        {
+            var responseContent = await response.Content.ReadAsStringAsync();
+            if (!string.IsNullOrEmpty(responseContent))
+            {
+                _logger.LogInfo($"Este es la respuesta del servicio: {responseContent}");
+                if (response.IsSuccessStatusCode)
+                {
+                    dataobject = JsonSerializer.Deserialize<T>(responseContent)!;
+                }
+                else
+                {
+                    throw new Exception(responseContent);
+                }
+            }
+        }
+
+        return dataobject;
     }
 
     private HttpClient GetHttpClientWithMTLS(string serialNumberCertificate)
     {
         //Extraigo el certificado del almacen de llaves del sistema operativo
-        X509Store store = new X509Store(StoreName.Root, StoreLocation.LocalMachine);
+        X509Store store = new X509Store(StoreName.My, StoreLocation.LocalMachine);
         store.Open(OpenFlags.ReadOnly);
         X509Certificate2? cert = store.Certificates
+            .Find(X509FindType.FindBySerialNumber, serialNumberCertificate, validOnly: false)
             .OfType<X509Certificate2>()
-            .FirstOrDefault(c => c.SerialNumber.Contains(serialNumberCertificate));
+            .FirstOrDefault();
+
+        if (cert is null || !cert.HasPrivateKey)
+        {
+            throw new InvalidOperationException("No se encontró un certificado válido con llave privada para mTLS.");
+        }
 
         HttpClientHandler handler = new()
         {
-            SslProtocols = SslProtocols.Tls13,
-            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
+            SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13
         };
 
-        handler.ClientCertificates.Add(cert!); //Agrega certificado con llave privada al objeto httpclient
+        handler.ClientCertificates.Add(cert); //Agrega certificado con llave privada al objeto httpclient
         return new HttpClient(handler);
     }
 

@@ -37,6 +37,7 @@
             <select formControlName="type" required>
               <option [ngValue]="TransactionType.Credit">Crédito</option>
               <option [ngValue]="TransactionType.Debit">Débito</option>
+              <option [ngValue]="TransactionType.Reversal">Reverso</option>
             </select>
             <app-error-message [control]="form.get('type')"></app-error-message>
           </label>
@@ -170,8 +171,12 @@
           <label>
             <span>Identificación del receptor</span>
             <input type="text" formControlName="recipientIdNumber" maxlength="20" />
+            <small class="error" *ngIf="form.errors?.recipientIdentityFormat">El formato de identificación no coincide con el tipo de persona.</small>
             <small class="muted" *ngIf="form.get('type')?.value === TransactionType.Debit">
               Obligatoria para transacciones débito.
+            </small>
+            <small class="muted" *ngIf="form.get('type')?.value === TransactionType.Reversal">
+              Obligatoria para reversos por trazabilidad regulatoria.
             </small>
             <small class="muted" *ngIf="form.get('type')?.value === TransactionType.Credit">
               Obligatoria si se solicita validación de identidad.
@@ -244,7 +249,47 @@
       </ng-template>
       <p class="error" *ngIf="form.errors?.missingAddenda">Debes registrar al menos una addenda.</p>
       <p class="error" *ngIf="form.errors?.invalidAddenda">En esta pantalla solo se permite addenda tipo 05.</p>
+      <p class="error" *ngIf="form.errors?.policyRejected">La transacción está fuera de política operativa o excede límites dinámicos.</p>
     </div>
+
+
+    <section class="result" *ngIf="policyPreview as preview" [class.error]="!preview.canSubmit" [class.success]="preview.canSubmit">
+      <h3>Resumen operativo del ciclo</h3>
+      <dl>
+        <div>
+          <dt>Cámara</dt>
+          <dd>{{ preview.clearingHouseName || '-' }}</dd>
+        </div>
+        <div>
+          <dt>Ciclo</dt>
+          <dd>{{ preview.cycleName || '-' }}</dd>
+        </div>
+        <div>
+          <dt>Ventana</dt>
+          <dd>{{ preview.windowLabel || '-' }}</dd>
+        </div>
+        <div>
+          <dt>Monto restante</dt>
+          <dd>{{ (preview.remainingAmountForCycle ?? 0) | currencyCol }}</dd>
+        </div>
+        <div>
+          <dt>Límite por transacción</dt>
+          <dd>{{ preview.maxAmountPerTransaction != null ? (preview.maxAmountPerTransaction | currencyCol) : '-' }}</dd>
+        </div>
+        <div>
+          <dt>Transacciones restantes</dt>
+          <dd>{{ preview.remainingTransactionsForCycle ?? '-' }}</dd>
+        </div>
+        <div>
+          <dt>Idempotencia</dt>
+          <dd>{{ preview.idempotencyKey || '-' }}</dd>
+        </div>
+      </dl>
+      <p class="muted" *ngIf="preview.canSubmit">La transacción cumple la política operativa vigente.</p>
+      <p class="error" *ngIf="!preview.canSubmit">{{ preview.message }}</p>
+      <p class="error" *ngIf="preview.wouldDuplicate">Advertencia: ya existe una transacción equivalente en el mismo ciclo operativo.</p>
+      <p class="error" *ngIf="!preview.isWithinProcessingWindow">Advertencia: el ciclo está fuera de ventana y el envío será bloqueado.</p>
+    </section>
 
     <div class="actions">
       <button type="submit" [disabled]="isSubmitting.value || form.invalid">

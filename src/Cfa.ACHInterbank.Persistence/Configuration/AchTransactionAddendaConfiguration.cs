@@ -29,7 +29,7 @@ public class AchTransactionAddendaConfiguration : IEntityTypeConfiguration<AchTr
         builder.Property(a => a.CollectorId).HasMaxLength(13);
         builder.Property(a => a.ReceiverCustomerCode).HasMaxLength(30);
         builder.Property(a => a.ServiceDescription).HasMaxLength(15);
-        builder.Property(a => a.ReturnReasonCode).HasMaxLength(4);
+        builder.Property(a => a.ReturnReasonCode).HasMaxLength(5);
         builder.Property(a => a.OriginalTraceNumber).HasMaxLength(15);
         builder.Property(a => a.NewTraceNumber).HasMaxLength(15);
 
@@ -40,4 +40,3 @@ public class AchTransactionAddendaConfiguration : IEntityTypeConfiguration<AchTr
 
     }
 }
-

@@ -14,7 +14,7 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class TransactionValidator : ITransactionValidator
 {
     private readonly AchDbContext _context;
-    private static readonly Regex ReturnReasonRegex = new(@"^R\d{2}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex ReturnReasonRegex = new(@"^(R\d{2}|DEV14)$", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private static readonly IReadOnlyDictionary<(TransactionTypeEnum Type, AccountTypeEnum Account, bool IsPrenotification), string> FallbackTransactionCodeMap
         = new Dictionary<(TransactionTypeEnum, AccountTypeEnum, bool), string>
         {
@@ -29,7 +29,16 @@ public class TransactionValidator : ITransactionValidator
             { (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, false), "52" },
             { (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, true), "53" },
             { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, false), "55" },
-            { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, true), "57" }
+            { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, true), "57" },
+            { (TransactionTypeEnum.Prenotification, AccountTypeEnum.Checking, true), "23" },
+            { (TransactionTypeEnum.Prenotification, AccountTypeEnum.Savings, true), "33" },
+            { (TransactionTypeEnum.Prenotification, AccountTypeEnum.ElectronicDeposits, true), "53" },
+            { (TransactionTypeEnum.Return, AccountTypeEnum.Checking, false), "27" },
+            { (TransactionTypeEnum.Return, AccountTypeEnum.Savings, false), "37" },
+            { (TransactionTypeEnum.Return, AccountTypeEnum.ElectronicDeposits, false), "55" },
+            { (TransactionTypeEnum.Reversal, AccountTypeEnum.Checking, false), "27" },
+            { (TransactionTypeEnum.Reversal, AccountTypeEnum.Savings, false), "37" },
+            { (TransactionTypeEnum.Reversal, AccountTypeEnum.ElectronicDeposits, false), "55" }
         };
 
     public TransactionValidator(AchDbContext context)
@@ -39,7 +48,9 @@ public class TransactionValidator : ITransactionValidator
 
     public void ValidateRequest(AchTransactionRequestData request)
     {
-        if (request.IsPrenotification)
+        var effectiveType = ResolveEffectiveType(request.Type, request.IsPrenotification);
+
+        if (effectiveType == TransactionTypeEnum.Prenotification)
         {
             if (request.Amount != 0)
             {
@@ -56,7 +67,27 @@ public class TransactionValidator : ITransactionValidator
             throw new ArgumentException("La referencia es obligatoria.", nameof(request.Reference));
         }
 
-        if (request.Type == TransactionTypeEnum.Debit && string.IsNullOrWhiteSpace(request.RecipientIdNumber))
+        if (!Regex.IsMatch(request.Reference.Trim(), @"^[A-Za-z0-9\-_/]{1,30}$"))
+        {
+            throw new ArgumentException("La referencia solo puede contener caracteres alfanuméricos y -_/ .", nameof(request.Reference));
+        }
+
+        ValidateAccountNumber(request.SourceAccountNumber, nameof(request.SourceAccountNumber));
+        ValidateAccountNumber(request.DestinationAccountNumber, nameof(request.DestinationAccountNumber));
+
+        if (string.Equals(request.SourceAccountNumber?.Trim(), request.DestinationAccountNumber?.Trim(), StringComparison.Ordinal))
+        {
+            throw new ArgumentException("La cuenta origen y destino no pueden ser iguales.", nameof(request.DestinationAccountNumber));
+        }
+
+        ValidateParticipantIdentity(request.SourcePersonType, request.CompanyIdentification, nameof(request.CompanyIdentification));
+
+        if (!string.IsNullOrWhiteSpace(request.RecipientIdNumber))
+        {
+            ValidateParticipantIdentity(request.RecipientPersonType, request.RecipientIdNumber, nameof(request.RecipientIdNumber));
+        }
+
+        if (effectiveType is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal && string.IsNullOrWhiteSpace(request.RecipientIdNumber))
         {
             throw new ArgumentException("La identificación del receptor es obligatoria para débitos.", nameof(request.RecipientIdNumber));
         }
@@ -95,7 +126,7 @@ public class TransactionValidator : ITransactionValidator
             throw new ArgumentException("El concepto de lote seleccionado no existe en el catálogo permitido.", nameof(request.CompanyEntryDescriptionId));
         }
 
-        if (request.Type == TransactionTypeEnum.Credit && request.RequiresIdentityValidation && string.IsNullOrWhiteSpace(request.RecipientIdNumber))
+        if (effectiveType == TransactionTypeEnum.Credit && request.RequiresIdentityValidation && string.IsNullOrWhiteSpace(request.RecipientIdNumber))
         {
             throw new ArgumentException("La identificación del receptor es obligatoria cuando se solicita validación.", nameof(request.RecipientIdNumber));
         }
@@ -240,6 +271,48 @@ public class TransactionValidator : ITransactionValidator
         return normalized;
     }
 
+    private static void ValidateAccountNumber(string? accountNumber, string paramName)
+    {
+        if (string.IsNullOrWhiteSpace(accountNumber) || !Regex.IsMatch(accountNumber.Trim(), @"^\d{6,18}$"))
+        {
+            throw new ArgumentException("La cuenta debe tener entre 6 y 18 dígitos numéricos.", paramName);
+        }
+    }
+
+    private static void ValidateParticipantIdentity(string? personType, string? idNumber, string paramName)
+    {
+        var normalizedPersonType = (personType ?? string.Empty).Trim().ToUpperInvariant();
+        var normalizedId = (idNumber ?? string.Empty).Trim().ToUpperInvariant();
+
+        if (string.IsNullOrWhiteSpace(normalizedId))
+        {
+            throw new ArgumentException("La identificación es obligatoria.", paramName);
+        }
+
+        var isNumeric = Regex.IsMatch(normalizedId, @"^\d{5,20}$");
+        var isTaxId = Regex.IsMatch(normalizedId, @"^[A-Z0-9]{4,20}$");
+
+        if (normalizedPersonType == "PN" && !isNumeric)
+        {
+            throw new ArgumentException("Las personas naturales deben identificarse con un número de 5 a 20 dígitos.", paramName);
+        }
+
+        if (normalizedPersonType == "PJ" && !isTaxId)
+        {
+            throw new ArgumentException("Las personas jurídicas deben identificarse con un NIT/identificador alfanumérico válido.", paramName);
+        }
+    }
+
+    private static TransactionTypeEnum ResolveEffectiveType(TransactionTypeEnum requestedType, bool isPrenotification)
+    {
+        if (requestedType == TransactionTypeEnum.Prenotification || isPrenotification)
+        {
+            return TransactionTypeEnum.Prenotification;
+        }
+
+        return requestedType;
+    }
+
     private static AchAddendaBusinessType ResolveBusinessType(TransactionTypeEnum transactionType, string addendaType)
     {
         if (addendaType == "99")
@@ -247,7 +320,7 @@ public class TransactionValidator : ITransactionValidator
             return AchAddendaBusinessType.Return;
         }
 
-        return transactionType == TransactionTypeEnum.Debit
+        return transactionType is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal
             ? AchAddendaBusinessType.Debit
             : AchAddendaBusinessType.Credit;
     }
@@ -262,7 +335,7 @@ public class TransactionValidator : ITransactionValidator
         var normalized = value.Trim().ToUpperInvariant();
         if (!ReturnReasonRegex.IsMatch(normalized))
         {
-            throw new ArgumentException("El código de retorno debe cumplir el formato ^R\\d{2}$.", nameof(value));
+            throw new ArgumentException("El código de retorno debe cumplir el formato ^R\\d{2}$ o DEV14.", nameof(value));
         }
 
         return normalized;

@@ -11,6 +11,10 @@ public class AchCycleDto
     public bool RescheduleOnHoliday { get; set; }
     public int ClearingHouseId { get; set; }
     public string? ClearingHouseName { get; set; }
+    public string OperationalStatus { get; set; } = string.Empty;
+    public bool AcceptsTransactions { get; set; }
+    public bool IsContingencyCycle { get; set; }
+    public string WindowLabel { get; set; } = string.Empty;
 }
 
 public class AchCycleRequest

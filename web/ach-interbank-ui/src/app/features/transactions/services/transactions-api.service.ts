@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { catchError, map, throwError } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { AccountTypeEnum, TransactionTypeEnum } from '../transactions.types';
-import { ActiveThirdPartyAccount, CompanyEntryDescriptionOption, TransactionDraft, TransactionListFilter, TransactionListItem, TransactionResponse } from '../transactions.models';
+import { ActiveThirdPartyAccount, CompanyEntryDescriptionOption, TransactionDraft, TransactionListFilter, TransactionListItem, TransactionPolicyPreview, TransactionResponse } from '../transactions.models';
 
 interface PagedResponse<T> {
   items: T[];
@@ -25,6 +25,23 @@ export class TransactionsApiService {
 
   getCompanyEntryDescriptions() {
     return this.api.get<CompanyEntryDescriptionOption[]>('transactions/company-entry-descriptions');
+  }
+
+  previewPolicy(payload: TransactionDraft) {
+    const params: Record<string, string | number | boolean> = {
+      amount: Number(payload.amount),
+      reference: payload.reference?.trim() || '',
+      type: Number(payload.type),
+      accountType: Number(payload.accountType),
+      isPrenotification: Boolean(payload.isPrenotification),
+      destinationInstitutionId: Number(payload.destinationInstitutionId),
+      sourceAccountNumber: payload.sourceAccountNumber?.trim() || '',
+      destinationAccountNumber: payload.destinationAccountNumber?.trim() || '',
+      companyIdentification: payload.companyIdentification?.trim() || '',
+      recipientIdNumber: payload.recipientIdNumber?.trim() || ''
+    };
+
+    return this.api.get<TransactionPolicyPreview>('transactions/policies/preview', { params });
   }
 
   createTransaction(payload: TransactionDraft) {

@@ -73,6 +73,13 @@ public static class DependencyInjectionService
 
         services.AddScoped<IEmailSender, LoggingEmailSender>();
 
+        var validIssuer = configuration["appSettings:tokenManager:issuerJwt"]
+            ?? _appSettings.TokenManager?.issuerJwt
+            ?? string.Empty;
+        var validAudience = configuration["appSettings:tokenManager:audienceJwt"]
+            ?? _appSettings.TokenManager?.audienceJwt
+            ?? string.Empty;
+
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(option =>
         {
             option.TokenValidationParameters = new TokenValidationParameters
@@ -81,9 +88,9 @@ public static class DependencyInjectionService
                 ValidateAudience = true,
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_appSettings.TokenManager!.secretKetJwt!)),
-                ValidIssuer = _appSettings.TokenManager.issuerJwt,
-                ValidAudience = _appSettings.TokenManager.audienceJwt,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(ResolveJwtSecret(configuration))),
+                ValidIssuer = validIssuer,
+                ValidAudience = validAudience,
                 NameClaimType = JwtRegisteredClaimNames.Sub,
                 RoleClaimType = ClaimTypes.Role,
                 ClockSkew = TimeSpan.Zero
@@ -136,5 +143,19 @@ public static class DependencyInjectionService
 
 
         return services;
+    }
+
+    private static string ResolveJwtSecret(IConfiguration configuration)
+    {
+        var configured = configuration["appSettings:tokenManager:secretKetJwt"]
+            ?? Environment.GetEnvironmentVariable("appSettings__tokenManager__secretKetJwt")
+            ?? _appSettings.TokenManager?.secretKetJwt;
+
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            throw new InvalidOperationException("Debe configurar appSettings__tokenManager__secretKetJwt mediante variables de entorno o secretos del entorno.");
+        }
+
+        return configured.Trim();
     }
 }
