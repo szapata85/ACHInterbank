@@ -40,7 +40,7 @@ public class CenitClearingHouseStrategy : IClearingHouseStrategy
     public byte[] GenerateCycleFile(AchCycle cycle)
     {
         var xml = $@"
-<CenitCycle format=\"{OutputFormat}\">
+<CenitCycle format=""{OutputFormat}"">
     <Name>{cycle.CycleName}</Name>
     <Date>{cycle.ProcessingDate:yyyy-MM-dd}</Date>
     <Cutoff>{cycle.CutoffTime}</Cutoff>
