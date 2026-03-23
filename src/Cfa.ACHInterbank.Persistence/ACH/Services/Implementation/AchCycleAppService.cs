@@ -63,7 +63,8 @@ public class AchCycleAppService : IAchCycleAppService
             .ThenBy(cycle => cycle.CutoffTime)
             .ToListAsync(ct);
 
-        return _mapper.Map<IEnumerable<AchCycleDto>>(cycles);
+        return _mapper.Map<IEnumerable<AchCycleDto>>(cycles)
+            .Zip(cycles, ApplyOperationalMetadata);
     }
 
     public async Task<AchCycleDto?> GetByIdAsync(string id, CancellationToken ct = default)
@@ -73,7 +74,8 @@ public class AchCycleAppService : IAchCycleAppService
             .Include(cycle => cycle.ClearingHouse)
             .FirstOrDefaultAsync(cycle => cycle.Id == id, ct);
 
-        return _mapper.Map<AchCycleDto?>(entity);
+        var dto = _mapper.Map<AchCycleDto?>(entity);
+        return dto is null || entity is null ? dto : ApplyOperationalMetadata(dto, entity);
     }
 
     public async Task<AchCycleDto> CreateAsync(AchCycleRequest request, CancellationToken ct = default)
@@ -164,5 +166,35 @@ public class AchCycleAppService : IAchCycleAppService
         {
             throw new KeyNotFoundException("Cámara de compensación no encontrada");
         }
+    }
+
+    private static AchCycleDto ApplyOperationalMetadata(AchCycleDto dto, AchCycle cycle)
+    {
+        var now = DateTime.UtcNow;
+        var window = BuildCycleWindow(cycle.ProcessingDate, cycle.StartTime, cycle.EndTime);
+
+        dto.WindowLabel = $"{window.Start:yyyy-MM-dd HH:mm} - {window.End:yyyy-MM-dd HH:mm}";
+        dto.AcceptsTransactions = now >= window.Start && now <= window.End;
+        dto.OperationalStatus = now < window.Start ? "Scheduled" : dto.AcceptsTransactions ? "Open" : "Closed";
+        dto.IsContingencyCycle = IsContingencyCycle(cycle.CycleName);
+        return dto;
+    }
+
+    private static (DateTime Start, DateTime End) BuildCycleWindow(DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
+    {
+        if (startTime <= endTime)
+        {
+            return (processingDate.Date + startTime, processingDate.Date + endTime);
+        }
+
+        return (processingDate.Date.AddDays(-1) + startTime, processingDate.Date + endTime);
+    }
+
+    private static bool IsContingencyCycle(string cycleName)
+    {
+        var normalized = (cycleName ?? string.Empty).Trim().ToUpperInvariant();
+        return normalized.Contains("REPROCESO", StringComparison.Ordinal)
+               || normalized.Contains("REPROC", StringComparison.Ordinal)
+               || normalized.Contains("CONTING", StringComparison.Ordinal);
     }
 }

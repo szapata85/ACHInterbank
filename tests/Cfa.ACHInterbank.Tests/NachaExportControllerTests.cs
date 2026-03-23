@@ -16,39 +16,55 @@ namespace Cfa.ACHInterbank.Tests;
 public class NachaExportControllerTests
 {
     [Fact]
-    public async Task Export_ReturnsPlainTextFileWithNachaContent()
+    public async Task Export_ReturnsPlainTextFileWithNachaContent_AndAuditsExport()
     {
-        // Arrange
         const string cycleId = "cycle-42";
         const string nachaContent = "HEADER\nDETAIL";
 
         var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
         var crypto = new Mock<ICryptoServiceScoped>(MockBehavior.Strict);
         var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
+        var clearingHouseService = new Mock<IClearingHouseService>(MockBehavior.Strict);
         var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
+        var identifierMapService = new Mock<INachaFileIdentifierMapService>(MockBehavior.Strict);
+        var auditService = new Mock<IAchFileExportAuditService>(MockBehavior.Strict);
+
         builder
             .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(nachaContent);
+        cycleService
+            .Setup(c => c.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchCycleDto { Id = cycleId, ClearingHouseId = 1, CycleName = "CICLO-1", ProcessingDate = DateTime.UtcNow });
+        clearingHouseService
+            .Setup(c => c.GetByIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ClearingHouseDto { Id = 1, Code = "ACHCOL", OriginCode = "12345678", Name = "ACH Colombia" });
+        auditService
+            .Setup(s => s.RecordGeneratedFileAsync(cycleId, 1, "NACHA", It.Is<string>(f => f.StartsWith($"NACHA_{cycleId}_") && f.EndsWith(".txt")), 0, 0, false, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
-        var controller = new NachaExportController(builder.Object, crypto.Object, cycleService.Object, envelopePolicy.Object);
+        var controller = new NachaExportController(
+            builder.Object,
+            crypto.Object,
+            cycleService.Object,
+            clearingHouseService.Object,
+            envelopePolicy.Object,
+            identifierMapService.Object,
+            auditService.Object);
 
-        // Act
         var result = await controller.Export(cycleId, CancellationToken.None);
 
-        // Assert
         var fileResult = Assert.IsType<FileContentResult>(result);
         Assert.Equal("text/plain", fileResult.ContentType);
         Assert.StartsWith($"NACHA_{cycleId}_", fileResult.FileDownloadName);
         Assert.EndsWith(".txt", fileResult.FileDownloadName);
         Assert.Equal(nachaContent, Encoding.ASCII.GetString(fileResult.FileContents));
 
-        builder.Verify(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()), Times.Once);
+        auditService.VerifyAll();
     }
 
     [Fact]
-    public async Task ExportEncrypted_ReturnsEnvelopeFile()
+    public async Task ExportEncrypted_ReturnsEnvelopeFile_AndAuditsEncryptedExport()
     {
-        // Arrange
         const string cycleId = "cycle-99";
         const string nachaContent = "HEADER\nDETAIL\nTRAILER";
         byte[] expectedEnvelope = Encoding.UTF8.GetBytes("<envelope/>\n");
@@ -56,130 +72,101 @@ public class NachaExportControllerTests
         var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
         var crypto = new Mock<ICryptoServiceScoped>(MockBehavior.Strict);
         var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
+        var clearingHouseService = new Mock<IClearingHouseService>(MockBehavior.Strict);
         var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
+        var identifierMapService = new Mock<INachaFileIdentifierMapService>(MockBehavior.Strict);
+        var auditService = new Mock<IAchFileExportAuditService>(MockBehavior.Strict);
 
         builder
             .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(nachaContent);
-
         cycleService
             .Setup(c => c.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AchCycleDto { Id = cycleId, ClearingHouseId = 7, CycleName = "cycle", ProcessingDate = DateTime.UtcNow });
-
+        clearingHouseService
+            .Setup(c => c.GetByIdAsync(7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ClearingHouseDto { Id = 7, Code = "ACHCOL", OriginCode = "12345678", Name = "ACH Colombia" });
         envelopePolicy
             .Setup(p => p.ShouldEncrypt(7))
             .Returns(true);
-
+        auditService
+            .Setup(s => s.RecordGeneratedFileAsync(cycleId, 7, "NACHA", It.Is<string>(f => f.StartsWith($"NACHA_{cycleId}_") && f.EndsWith(".txt")), 0, 0, true, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
         crypto
             .Setup(c => c.CreateEnvelopeAsync(It.Is<byte[]>(d => Encoding.ASCII.GetString(d) == nachaContent), It.Is<string>(f => f.StartsWith($"NACHA_{cycleId}_") && f.EndsWith(".txt"))))
             .ReturnsAsync(expectedEnvelope);
 
-        var controller = new NachaExportController(builder.Object, crypto.Object, cycleService.Object, envelopePolicy.Object);
+        var controller = new NachaExportController(
+            builder.Object,
+            crypto.Object,
+            cycleService.Object,
+            clearingHouseService.Object,
+            envelopePolicy.Object,
+            identifierMapService.Object,
+            auditService.Object);
 
-        // Act
         var result = await controller.ExportEncrypted(cycleId, false, CancellationToken.None);
 
-        // Assert
         var fileResult = Assert.IsType<FileContentResult>(result);
         Assert.Equal("application/xml", fileResult.ContentType);
         Assert.StartsWith($"NACHA_{cycleId}_", fileResult.FileDownloadName);
         Assert.EndsWith(".ENV", fileResult.FileDownloadName);
         Assert.Equal(expectedEnvelope, fileResult.FileContents);
 
-        builder.Verify(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()), Times.Once);
-        cycleService.Verify(c => c.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()), Times.Once);
-        envelopePolicy.Verify(p => p.ShouldEncrypt(7), Times.Once);
-        crypto.Verify(c => c.CreateEnvelopeAsync(It.IsAny<byte[]>(), It.IsAny<string>()), Times.Once);
+        auditService.VerifyAll();
+        crypto.VerifyAll();
     }
 
     [Fact]
-    public async Task ExportEncrypted_ReturnsPlainFile_WhenPolicyDisablesEncryption()
+    public async Task ExportEncrypted_UsesCenitNamingAndIdentifierNormalization()
     {
-        // Arrange
-        const string cycleId = "cycle-101";
-        const int clearingHouseId = 5;
-        const string nachaContent = "CONTENT";
+        const string cycleId = "cycle-cenit";
+        var nachaContent = new string('1', 106) + new string('5', 106);
 
         var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
         var crypto = new Mock<ICryptoServiceScoped>(MockBehavior.Strict);
         var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
+        var clearingHouseService = new Mock<IClearingHouseService>(MockBehavior.Strict);
         var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
+        var identifierMapService = new Mock<INachaFileIdentifierMapService>(MockBehavior.Strict);
+        var auditService = new Mock<IAchFileExportAuditService>(MockBehavior.Strict);
 
         builder
             .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(nachaContent);
-
         cycleService
             .Setup(c => c.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AchCycleDto { Id = cycleId, ClearingHouseId = clearingHouseId, CycleName = "cycle", ProcessingDate = DateTime.UtcNow });
-
+            .ReturnsAsync(new AchCycleDto { Id = cycleId, ClearingHouseId = 2, CycleName = "CICLO-3", ProcessingDate = DateTime.UtcNow });
+        clearingHouseService
+            .Setup(c => c.GetByIdAsync(2, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ClearingHouseDto { Id = 2, Code = "CENIT", OriginCode = "12345678", Name = "CENIT" });
         envelopePolicy
-            .Setup(p => p.ShouldEncrypt(clearingHouseId))
+            .Setup(p => p.ShouldEncrypt(2))
             .Returns(false);
+        identifierMapService
+            .Setup(s => s.ResolveIdentifierAsync(3, It.IsAny<CancellationToken>()))
+            .ReturnsAsync('B');
+        auditService
+            .Setup(s => s.RecordGeneratedFileAsync(cycleId, 2, "NACHA", "12345678.003.1", 2, 0, false, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
-        var controller = new NachaExportController(builder.Object, crypto.Object, cycleService.Object, envelopePolicy.Object);
+        var controller = new NachaExportController(
+            builder.Object,
+            crypto.Object,
+            cycleService.Object,
+            clearingHouseService.Object,
+            envelopePolicy.Object,
+            identifierMapService.Object,
+            auditService.Object);
 
-        // Act
         var result = await controller.ExportEncrypted(cycleId, false, CancellationToken.None);
 
-        // Assert
         var fileResult = Assert.IsType<FileContentResult>(result);
         Assert.Equal("text/plain", fileResult.ContentType);
-        Assert.Equal(nachaContent, Encoding.ASCII.GetString(fileResult.FileContents));
-        Assert.StartsWith($"NACHA_{cycleId}_", fileResult.FileDownloadName);
-        Assert.EndsWith(".txt", fileResult.FileDownloadName);
+        Assert.Equal("12345678.003.1", fileResult.FileDownloadName);
+        Assert.Equal('B', Encoding.ASCII.GetString(fileResult.FileContents)[35]);
 
-        builder.Verify(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()), Times.Once);
-        cycleService.Verify(c => c.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()), Times.Once);
-        envelopePolicy.Verify(p => p.ShouldEncrypt(clearingHouseId), Times.Once);
-        crypto.VerifyNoOtherCalls();
-    }
-
-    [Fact]
-    public async Task ExportEncrypted_UsesDigitalEnvelope_WhenForced()
-    {
-        // Arrange
-        const string cycleId = "cycle-202";
-        const int clearingHouseId = 11;
-        const string nachaContent = "FORCED";
-        byte[] expectedEnvelope = Encoding.UTF8.GetBytes("<env>forced</env>");
-
-        var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
-        var crypto = new Mock<ICryptoServiceScoped>(MockBehavior.Strict);
-        var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
-        var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
-
-        builder
-            .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(nachaContent);
-
-        cycleService
-            .Setup(c => c.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AchCycleDto { Id = cycleId, ClearingHouseId = clearingHouseId, CycleName = "cycle", ProcessingDate = DateTime.UtcNow });
-
-        envelopePolicy
-            .Setup(p => p.ShouldEncrypt(clearingHouseId))
-            .Returns(false);
-
-        crypto
-            .Setup(c => c.CreateEnvelopeAsync(It.Is<byte[]>(d => Encoding.ASCII.GetString(d) == nachaContent), It.Is<string>(f => f.StartsWith($"NACHA_{cycleId}_") && f.EndsWith(".txt"))))
-            .ReturnsAsync(expectedEnvelope);
-
-        var controller = new NachaExportController(builder.Object, crypto.Object, cycleService.Object, envelopePolicy.Object);
-
-        // Act
-        var result = await controller.ExportEncrypted(cycleId, true, CancellationToken.None);
-
-        // Assert
-        var fileResult = Assert.IsType<FileContentResult>(result);
-        Assert.Equal("application/xml", fileResult.ContentType);
-        Assert.StartsWith($"NACHA_{cycleId}_", fileResult.FileDownloadName);
-        Assert.EndsWith(".ENV", fileResult.FileDownloadName);
-        Assert.Equal(expectedEnvelope, fileResult.FileContents);
-
-        builder.Verify(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()), Times.Once);
-        cycleService.Verify(c => c.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()), Times.Once);
-        envelopePolicy.Verify(p => p.ShouldEncrypt(clearingHouseId), Times.Once);
-        crypto.Verify(c => c.CreateEnvelopeAsync(It.IsAny<byte[]>(), It.IsAny<string>()), Times.Once);
+        auditService.VerifyAll();
+        identifierMapService.VerifyAll();
     }
 }

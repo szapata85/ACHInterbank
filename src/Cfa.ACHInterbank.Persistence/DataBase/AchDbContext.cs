@@ -74,6 +74,7 @@ public class AchDbContext : DbContext
     public DbSet<AchBatch> AchBatches => Set<AchBatch>();
     public DbSet<ReturnReason> ReturnReasons => Set<ReturnReason>();
     public DbSet<AchReturnGenerated> AchReturnsGenerated => Set<AchReturnGenerated>();
+    public DbSet<AchFileExport> AchFileExports => Set<AchFileExport>();
 
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();
