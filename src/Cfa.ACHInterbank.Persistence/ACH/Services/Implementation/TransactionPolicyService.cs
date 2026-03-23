@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
