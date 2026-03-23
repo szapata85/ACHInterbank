@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -12,13 +13,16 @@ public class TransactionsController : ControllerBase
 {
     private readonly IAchTransactionService _transactionService;
     private readonly ILogger<TransactionsController> _logger;
+    private readonly ITransactionPolicyService _transactionPolicyService;
 
     public TransactionsController(
         IAchTransactionService transactionService,
+        ITransactionPolicyService transactionPolicyService,
         ILogger<TransactionsController> logger)
     {
         _transactionService = transactionService;
         _logger = logger;
+        _transactionPolicyService = transactionPolicyService;
     }
     /// <summary>
     /// Endpoint de la API ACH Interbank.
@@ -51,6 +55,36 @@ public class TransactionsController : ControllerBase
     /// <summary>
     /// Endpoint de la API ACH Interbank.
     /// </summary>
+
+    [HttpGet("policies/preview")]
+    [ProducesResponseType(typeof(TransactionPolicyPreview), StatusCodes.Status200OK)]
+    public async Task<IActionResult> PreviewPolicy(
+        [FromQuery] decimal amount,
+        [FromQuery] string reference,
+        [FromQuery] TransactionTypeEnum type,
+        [FromQuery] AccountTypeEnum accountType,
+        [FromQuery] bool isPrenotification,
+        [FromQuery] int destinationInstitutionId,
+        [FromQuery] string sourceAccountNumber,
+        [FromQuery] string destinationAccountNumber,
+        [FromQuery] string companyIdentification,
+        [FromQuery] string? recipientIdNumber,
+        CancellationToken ct)
+    {
+        var preview = await _transactionPolicyService.PreviewAsync(new TransactionPolicyPreviewRequest(
+            amount,
+            reference,
+            type,
+            accountType,
+            isPrenotification,
+            destinationInstitutionId,
+            sourceAccountNumber,
+            destinationAccountNumber,
+            companyIdentification,
+            recipientIdNumber), ct);
+
+        return Ok(preview);
+    }
 
     [HttpPost]
     [ProducesResponseType(typeof(AchTransaction), StatusCodes.Status201Created)]

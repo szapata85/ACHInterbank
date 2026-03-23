@@ -81,7 +81,7 @@ public static class DependencyInjectionService
                 ValidateAudience = true,
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_appSettings.TokenManager!.secretKetJwt!)),
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(ResolveJwtSecret(configuration))),
                 ValidIssuer = _appSettings.TokenManager.issuerJwt,
                 ValidAudience = _appSettings.TokenManager.audienceJwt,
                 NameClaimType = JwtRegisteredClaimNames.Sub,
@@ -136,5 +136,19 @@ public static class DependencyInjectionService
 
 
         return services;
+    }
+
+    private static string ResolveJwtSecret(IConfiguration configuration)
+    {
+        var configured = configuration["appSettings:tokenManager:secretKetJwt"]
+            ?? Environment.GetEnvironmentVariable("appSettings__tokenManager__secretKetJwt")
+            ?? _appSettings.TokenManager?.secretKetJwt;
+
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            throw new InvalidOperationException("Debe configurar appSettings__tokenManager__secretKetJwt mediante variables de entorno o secretos del entorno.");
+        }
+
+        return configured.Trim();
     }
 }

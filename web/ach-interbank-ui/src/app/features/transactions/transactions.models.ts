@@ -127,3 +127,20 @@ export interface GenerateReturnsFileRequest {
   cycleId: string;
   items: ReturnSelectionItem[];
 }
+
+export interface TransactionPolicyPreview {
+  canSubmit: boolean;
+  message?: string | null;
+  cycleId?: string | null;
+  cycleName?: string | null;
+  processingDate?: string | null;
+  clearingHouseName?: string | null;
+  clearingHouseId?: number | null;
+  windowLabel?: string | null;
+  isWithinProcessingWindow: boolean;
+  maxAmountPerTransaction?: number | null;
+  remainingAmountForCycle?: number | null;
+  remainingTransactionsForCycle?: number | null;
+  idempotencyKey?: string | null;
+  wouldDuplicate: boolean;
+}

@@ -56,6 +56,26 @@ public class TransactionValidator : ITransactionValidator
             throw new ArgumentException("La referencia es obligatoria.", nameof(request.Reference));
         }
 
+        if (!Regex.IsMatch(request.Reference.Trim(), @"^[A-Za-z0-9\-_/]{1,30}$"))
+        {
+            throw new ArgumentException("La referencia solo puede contener caracteres alfanuméricos y -_/ .", nameof(request.Reference));
+        }
+
+        ValidateAccountNumber(request.SourceAccountNumber, nameof(request.SourceAccountNumber));
+        ValidateAccountNumber(request.DestinationAccountNumber, nameof(request.DestinationAccountNumber));
+
+        if (string.Equals(request.SourceAccountNumber?.Trim(), request.DestinationAccountNumber?.Trim(), StringComparison.Ordinal))
+        {
+            throw new ArgumentException("La cuenta origen y destino no pueden ser iguales.", nameof(request.DestinationAccountNumber));
+        }
+
+        ValidateParticipantIdentity(request.SourcePersonType, request.CompanyIdentification, nameof(request.CompanyIdentification));
+
+        if (!string.IsNullOrWhiteSpace(request.RecipientIdNumber))
+        {
+            ValidateParticipantIdentity(request.RecipientPersonType, request.RecipientIdNumber, nameof(request.RecipientIdNumber));
+        }
+
         if (request.Type == TransactionTypeEnum.Debit && string.IsNullOrWhiteSpace(request.RecipientIdNumber))
         {
             throw new ArgumentException("La identificación del receptor es obligatoria para débitos.", nameof(request.RecipientIdNumber));
@@ -238,6 +258,38 @@ public class TransactionValidator : ITransactionValidator
         }
 
         return normalized;
+    }
+
+    private static void ValidateAccountNumber(string? accountNumber, string paramName)
+    {
+        if (string.IsNullOrWhiteSpace(accountNumber) || !Regex.IsMatch(accountNumber.Trim(), @"^\d{6,18}$"))
+        {
+            throw new ArgumentException("La cuenta debe tener entre 6 y 18 dígitos numéricos.", paramName);
+        }
+    }
+
+    private static void ValidateParticipantIdentity(string? personType, string? idNumber, string paramName)
+    {
+        var normalizedPersonType = (personType ?? string.Empty).Trim().ToUpperInvariant();
+        var normalizedId = (idNumber ?? string.Empty).Trim().ToUpperInvariant();
+
+        if (string.IsNullOrWhiteSpace(normalizedId))
+        {
+            throw new ArgumentException("La identificación es obligatoria.", paramName);
+        }
+
+        var isNumeric = Regex.IsMatch(normalizedId, @"^\d{5,20}$");
+        var isTaxId = Regex.IsMatch(normalizedId, @"^[A-Z0-9]{4,20}$");
+
+        if (normalizedPersonType == "PN" && !isNumeric)
+        {
+            throw new ArgumentException("Las personas naturales deben identificarse con un número de 5 a 20 dígitos.", paramName);
+        }
+
+        if (normalizedPersonType == "PJ" && !isTaxId)
+        {
+            throw new ArgumentException("Las personas jurídicas deben identificarse con un NIT/identificador alfanumérico válido.", paramName);
+        }
     }
 
     private static AchAddendaBusinessType ResolveBusinessType(TransactionTypeEnum transactionType, string addendaType)

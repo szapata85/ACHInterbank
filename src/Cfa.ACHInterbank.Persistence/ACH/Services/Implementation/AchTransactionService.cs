@@ -18,6 +18,7 @@ public class AchTransactionService : IAchTransactionService
     private readonly IBatchResolver _batchResolver;
     private readonly ITransactionPersister _transactionPersister;
     private readonly IPrenotificationHandler _prenotificationHandler;
+    private readonly ITransactionPolicyService? _transactionPolicyService;
 
     public AchTransactionService(
         AchDbContext context,
@@ -25,7 +26,8 @@ public class AchTransactionService : IAchTransactionService
         ITransactionValidator transactionValidator,
         IBatchResolver batchResolver,
         ITransactionPersister transactionPersister,
-        IPrenotificationHandler prenotificationHandler)
+        IPrenotificationHandler prenotificationHandler,
+        ITransactionPolicyService? transactionPolicyService = null)
     {
         _context = context;
         _holidayService = holidayService;
@@ -33,6 +35,7 @@ public class AchTransactionService : IAchTransactionService
         _batchResolver = batchResolver;
         _transactionPersister = transactionPersister;
         _prenotificationHandler = prenotificationHandler;
+        _transactionPolicyService = transactionPolicyService;
     }
 
     public async Task<AchTransaction> RegisterTransactionAsync(
@@ -77,6 +80,25 @@ public class AchTransactionService : IAchTransactionService
         };
 
         _transactionValidator.ValidateRequest(request);
+        if (_transactionPolicyService is not null)
+        {
+            var preview = await _transactionPolicyService.PreviewAsync(new TransactionPolicyPreviewRequest(
+                request.Amount,
+                request.Reference,
+                request.Type,
+                request.AccountType,
+                request.IsPrenotification,
+                request.DestinationInstitutionId,
+                request.SourceAccountNumber,
+                request.DestinationAccountNumber,
+                request.CompanyIdentification,
+                request.RecipientIdNumber), ct);
+
+            if (!preview.CanSubmit)
+            {
+                throw new InvalidOperationException(preview.Message ?? "La transacción incumple las políticas operativas ACH.");
+            }
+        }
 
         var executionStrategy = _context.Database.CreateExecutionStrategy();
         AchTransaction? registeredTransaction = null;
