@@ -31,11 +31,11 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.5" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
-    <PackageReference Include="QuestPDF" Version="2026.2.3" />
-    <PackageReference Include="Quartz" Version="3.16.1" />
-    <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.16.1" />
-    <PackageReference Include="Quartz.Extensions.Hosting" Version="3.16.1" />
-    <PackageReference Include="Quartz.Serialization.Json" Version="3.16.1" />
+    <PackageReference Include="QuestPDF" Version="2026.2.4" />
+    <PackageReference Include="Quartz" Version="3.17.1" />
+    <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.17.1" />
+    <PackageReference Include="Quartz.Extensions.Hosting" Version="3.17.1" />
+    <PackageReference Include="Quartz.Serialization.Json" Version="3.17.1" />
   </ItemGroup>
 
 </Project>
