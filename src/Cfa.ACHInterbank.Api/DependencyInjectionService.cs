@@ -81,7 +81,7 @@ public static class DependencyInjectionService
                     "http://localhost:7269",
                     "https://localhost:7269",
                     "http://cfaach.ddns.net:743",
-                    "http://cfaach.ddns.net:744"
+                    "http://192.168.150.6:843"
                 };
 
             builder
