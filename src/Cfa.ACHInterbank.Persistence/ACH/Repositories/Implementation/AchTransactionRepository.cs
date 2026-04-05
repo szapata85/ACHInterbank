@@ -4,6 +4,7 @@ using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using System.Runtime.CompilerServices;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Repositories.Implementation;
 
@@ -46,17 +47,25 @@ public class AchTransactionRepository : IAchTransactionRepository
             ? await _context.AchTransactions
                 .AsNoTracking()
                 .Where(t => t.AchBatchId == batch.Id)
-                .Select(t => new { t.Type, t.Amount })
+                .Select(t => new { t.Id, t.Type, t.Amount })
                 .ToListAsync(ct)
             : [];
 
         var tracked = _context.AchTransactions.Local
             .Where(t => ReferenceEquals(t.AchBatch, batch) || (batch.Id > 0 && t.AchBatchId == batch.Id))
-            .Select(t => new { t.Type, t.Amount })
+            .Select(t => new { t.Id, t.Type, t.Amount, InstanceId = RuntimeHelpers.GetHashCode(t) })
             .ToList();
 
         return persisted
-            .Concat(tracked)
+            .Select(t => new { Key = $"db:{t.Id}", t.Type, t.Amount })
+            .Concat(tracked.Select(t => new
+            {
+                Key = t.Id > 0 ? $"db:{t.Id}" : $"mem:{t.InstanceId}",
+                t.Type,
+                t.Amount
+            }))
+            .GroupBy(t => t.Key)
+            .Select(g => g.First())
             .GroupBy(t => t.Type)
             .Select(g => (Type: g.Key, Sum: g.Sum(x => x.Amount)))
             .ToList();
@@ -68,15 +77,24 @@ public class AchTransactionRepository : IAchTransactionRepository
             ? await _context.AchTransactions
                 .AsNoTracking()
                 .Where(t => t.AchBatchId == batch.Id)
-                .Select(t => t.Type)
+                .Select(t => new { t.Id, t.Type })
                 .ToListAsync(ct)
             : [];
 
         var trackedTypes = _context.AchTransactions.Local
             .Where(t => ReferenceEquals(t.AchBatch, batch) || (batch.Id > 0 && t.AchBatchId == batch.Id))
-            .Select(t => t.Type)
+            .Select(t => new { t.Id, t.Type, InstanceId = RuntimeHelpers.GetHashCode(t) })
             .ToList();
 
-        return persistedTypes.Concat(trackedTypes).ToList();
+        return persistedTypes
+            .Select(t => new { Key = $"db:{t.Id}", t.Type })
+            .Concat(trackedTypes.Select(t => new
+            {
+                Key = t.Id > 0 ? $"db:{t.Id}" : $"mem:{t.InstanceId}",
+                t.Type
+            }))
+            .GroupBy(t => t.Key)
+            .Select(g => g.First().Type)
+            .ToList();
     }
 }
