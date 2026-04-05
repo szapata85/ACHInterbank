@@ -33,7 +33,7 @@ public class AchBatchRepository : IAchBatchRepository
         return Task.CompletedTask;
     }
 
-    public async Task<IReadOnlyList<AchCycle>> GetUpcomingCyclesAsync(string clearingHouseId, DateTime processingDate, TimeSpan cutoffTime, int take, CancellationToken ct = default)
+    public async Task<IReadOnlyList<AchCycle>> GetUpcomingCyclesAsync(int clearingHouseId, DateTime processingDate, TimeSpan cutoffTime, int take, CancellationToken ct = default)
     {
         return await _context.AchCycles
             .AsNoTracking()
