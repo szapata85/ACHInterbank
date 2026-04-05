@@ -34,7 +34,7 @@ public class DigitalEnvelopeCertificateRepository : IDigitalEnvelopeCertificateR
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<DigitalEnvelopeCertificate> SaveAsync(DigitalEnvelopeCertificate certificate, CancellationToken cancellationToken = default)
+    public async Task<DigitalEnvelopeCertificate> UpsertAsync(DigitalEnvelopeCertificate certificate, CancellationToken cancellationToken = default)
     {
         // replace existing certificate of the same type to keep a single active copy
         var existing = await _dbContext.DigitalEnvelopeCertificates
@@ -48,7 +48,6 @@ public class DigitalEnvelopeCertificateRepository : IDigitalEnvelopeCertificateR
 
         certificate.UploadedAt = DateTime.UtcNow;
         await _dbContext.DigitalEnvelopeCertificates.AddAsync(certificate, cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
         return certificate;
     }
 
@@ -58,7 +57,6 @@ public class DigitalEnvelopeCertificateRepository : IDigitalEnvelopeCertificateR
         if (entity != null)
         {
             _dbContext.DigitalEnvelopeCertificates.Remove(entity);
-            await _dbContext.SaveChangesAsync(cancellationToken);
         }
     }
 }

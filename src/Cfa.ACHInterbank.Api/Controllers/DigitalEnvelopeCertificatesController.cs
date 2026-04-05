@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
+using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -16,10 +17,12 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 public class DigitalEnvelopeCertificatesController : ControllerBase
 {
     private readonly IDigitalEnvelopeCertificateRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public DigitalEnvelopeCertificatesController(IDigitalEnvelopeCertificateRepository repository)
+    public DigitalEnvelopeCertificatesController(IDigitalEnvelopeCertificateRepository repository, IUnitOfWork unitOfWork)
     {
         _repository = repository;
+        _unitOfWork = unitOfWork;
     }
     /// <summary>
     /// Endpoint de la API ACH Interbank.
@@ -75,7 +78,8 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
             NotAfter = certificate.NotAfter
         };
 
-        var saved = await _repository.SaveAsync(entity, cancellationToken);
+        var saved = await _repository.UpsertAsync(entity, cancellationToken);
+        await _unitOfWork.CommitAsync(cancellationToken);
         return Ok(MapToResponse(saved));
     }
     /// <summary>
@@ -86,6 +90,7 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
     public async Task<IActionResult> DeleteAsync(int id, CancellationToken cancellationToken)
     {
         await _repository.DeleteAsync(id, cancellationToken);
+        await _unitOfWork.CommitAsync(cancellationToken);
         return NoContent();
     }
 

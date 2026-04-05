@@ -16,10 +16,10 @@ public class PasswordResetTokenRepository : IPasswordResetTokenRepository
         _context = context;
     }
 
-    public async Task AddAsync(PasswordResetToken token, CancellationToken cancellationToken = default)
+    public Task AddAsync(PasswordResetToken token, CancellationToken cancellationToken = default)
     {
         _context.PasswordResetTokens.Add(token);
-        await _context.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public async Task<PasswordResetToken?> GetValidTokenAsync(string token, CancellationToken cancellationToken = default)
@@ -31,10 +31,10 @@ public class PasswordResetTokenRepository : IPasswordResetTokenRepository
             .FirstOrDefaultAsync(t => t.Token == token && !t.IsUsed && t.Expiration >= now, cancellationToken);
     }
 
-    public async Task MarkAsUsedAsync(PasswordResetToken token, CancellationToken cancellationToken = default)
+    public Task MarkAsUsedAsync(PasswordResetToken token, CancellationToken cancellationToken = default)
     {
         token.IsUsed = true;
         _context.PasswordResetTokens.Update(token);
-        await _context.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 }

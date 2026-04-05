@@ -47,14 +47,14 @@ public class UserAuthRepository : IUserAuthRepository
             .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
     }
 
-    public async Task UpdatePasswordHashAsync(User user, string passwordHash, CancellationToken cancellationToken = default)
+    public Task UpdatePasswordHashAsync(User user, string passwordHash, CancellationToken cancellationToken = default)
     {
         user.PasswordHash = passwordHash;
         _context.Users.Update(user);
-        await _context.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
-    public async Task UpdateLoginStateAsync(Guid userId, int failedLoginAttempts, DateTimeOffset? lockoutEnd, CancellationToken cancellationToken = default)
+    public Task UpdateLoginStateAsync(Guid userId, int failedLoginAttempts, DateTimeOffset? lockoutEnd, CancellationToken cancellationToken = default)
     {
         var user = new User
         {
@@ -66,6 +66,6 @@ public class UserAuthRepository : IUserAuthRepository
         _context.Users.Attach(user);
         _context.Entry(user).Property(u => u.FailedLoginAttempts).IsModified = true;
         _context.Entry(user).Property(u => u.LockoutEnd).IsModified = true;
-        await _context.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 }

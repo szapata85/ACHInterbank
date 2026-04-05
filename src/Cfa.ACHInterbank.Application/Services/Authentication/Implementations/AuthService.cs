@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.DataBase.Repositories.Security;
+using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Application.Helpers.Hash;
 using Cfa.ACHInterbank.Application.Services.Authentication.Interfaces;
 using Cfa.ACHInterbank.Application.Services.Authentication.Models;
@@ -24,18 +25,21 @@ public class AuthService : IAuthService
     private readonly ILoginLockoutSettingsRepository _lockoutSettingsRepository;
     private readonly IPasswordResetTokenRepository _passwordResetTokenRepository;
     private readonly IEmailSender _emailSender;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly Token _tokenSettings;
 
     public AuthService(
         IUserAuthRepository userRepository,
         ILoginLockoutSettingsRepository lockoutSettingsRepository,
         IPasswordResetTokenRepository passwordResetTokenRepository,
-        IEmailSender emailSender)
+        IEmailSender emailSender,
+        IUnitOfWork unitOfWork)
     {
         _userRepository = userRepository;
         _lockoutSettingsRepository = lockoutSettingsRepository;
         _passwordResetTokenRepository = passwordResetTokenRepository;
         _emailSender = emailSender;
+        _unitOfWork = unitOfWork;
         _tokenSettings = AppSettings.Settings.TokenManager!;
     }
 
@@ -70,6 +74,7 @@ public class AuthService : IAuthService
             }
 
             await _userRepository.UpdateLoginStateAsync(user.Id, 0, null, cancellationToken);
+            await _unitOfWork.CommitAsync(cancellationToken);
             user.FailedLoginAttempts = 0;
             user.LockoutEnd = null;
         }
@@ -86,12 +91,14 @@ public class AuthService : IAuthService
             }
 
             await _userRepository.UpdateLoginStateAsync(user.Id, failedAttempts, lockoutEnd, cancellationToken);
+            await _unitOfWork.CommitAsync(cancellationToken);
             return new AuthResult { Success = false, Message = LoginErrorMessage };
         }
 
         if (user.FailedLoginAttempts > 0 || user.LockoutEnd.HasValue)
         {
             await _userRepository.UpdateLoginStateAsync(user.Id, 0, null, cancellationToken);
+            await _unitOfWork.CommitAsync(cancellationToken);
         }
 
         return BuildAuthResult(user);
@@ -116,6 +123,7 @@ public class AuthService : IAuthService
 
         var resetToken = BuildToken(user);
         await _passwordResetTokenRepository.AddAsync(resetToken, cancellationToken);
+        await _unitOfWork.CommitAsync(cancellationToken);
 
         var resetLink = BuildResetLink(resetToken.Token);
         await _emailSender.SendPasswordResetAsync(user, resetLink, cancellationToken);
@@ -150,6 +158,7 @@ public class AuthService : IAuthService
         var newHash = HashHelper.GenerateHashSha256(request.NewPassword);
         await _userRepository.UpdatePasswordHashAsync(tokenEntity.User, newHash, cancellationToken);
         await _passwordResetTokenRepository.MarkAsUsedAsync(tokenEntity, cancellationToken);
+        await _unitOfWork.CommitAsync(cancellationToken);
 
         return new OperationResult { Success = true, Message = "Contraseña actualizada correctamente" };
     }
