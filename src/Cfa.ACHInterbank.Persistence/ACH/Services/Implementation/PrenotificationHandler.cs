@@ -1,21 +1,24 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
-using Cfa.ACHInterbank.Persistence.DataBase;
-using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
 public class PrenotificationHandler : IPrenotificationHandler
 {
-    private readonly AchDbContext _context;
+    private readonly IAchCustomerRepository _customerRepository;
+    private readonly ICustomerThirdPartyRepository _customerThirdPartyRepository;
 
-    public PrenotificationHandler(AchDbContext context)
+    public PrenotificationHandler(
+        IAchCustomerRepository customerRepository,
+        ICustomerThirdPartyRepository customerThirdPartyRepository)
     {
-        _context = context;
+        _customerRepository = customerRepository;
+        _customerThirdPartyRepository = customerThirdPartyRepository;
     }
 
     public async Task HandleAsync(AchTransactionRequestData request, AchTransaction transaction, CancellationToken ct = default)
@@ -25,8 +28,7 @@ public class PrenotificationHandler : IPrenotificationHandler
             return;
         }
 
-        var customer = await _context.Customers
-            .FirstOrDefaultAsync(c => c.Accounts.Any(a => a.AccountNumber == request.SourceAccountNumber), ct);
+        var customer = await _customerRepository.FindBySourceAccountNumberAsync(request.SourceAccountNumber, ct);
 
         if (customer is null)
         {
@@ -35,17 +37,18 @@ public class PrenotificationHandler : IPrenotificationHandler
             return;
         }
 
-        var existingThirdParty = await _context.CustomerThirdParties
-            .FirstOrDefaultAsync(t =>
-                t.CustomerId == customer.Id &&
-                t.DestinationInstitutionId == request.DestinationInstitutionId &&
-                t.DestinationAccountNumber == request.DestinationAccountNumber &&
-                t.RecipientIdNumber == (request.RecipientIdNumber ?? string.Empty), ct);
+        var recipientIdNumber = request.RecipientIdNumber?.Trim() ?? string.Empty;
+        var existingThirdParty = await _customerThirdPartyRepository.FindAsync(
+            customer.Id,
+            request.DestinationInstitutionId,
+            request.DestinationAccountNumber,
+            recipientIdNumber,
+            ct);
 
         if (existingThirdParty is not null)
         {
             existingThirdParty.Status = CustomerThirdPartyStatusEnum.Pending;
-            existingThirdParty.PrenotificationTransactionId = transaction.Id;
+            existingThirdParty.PrenotificationTransaction = transaction;
             existingThirdParty.ValidationCycleId = null;
             existingThirdParty.ValidationReceivedAt = null;
             existingThirdParty.ValidationMessage = null;
@@ -57,13 +60,11 @@ public class PrenotificationHandler : IPrenotificationHandler
                 CustomerId = customer.Id,
                 DestinationInstitutionId = request.DestinationInstitutionId,
                 DestinationAccountNumber = request.DestinationAccountNumber,
-                RecipientIdNumber = request.RecipientIdNumber?.Trim() ?? string.Empty,
+                RecipientIdNumber = recipientIdNumber,
                 Status = CustomerThirdPartyStatusEnum.Pending,
-                PrenotificationTransactionId = transaction.Id
+                PrenotificationTransaction = transaction
             };
-            _context.CustomerThirdParties.Add(thirdParty);
+            await _customerThirdPartyRepository.AddAsync(thirdParty, ct);
         }
-
-        await _context.SaveChangesAsync(ct);
     }
 }

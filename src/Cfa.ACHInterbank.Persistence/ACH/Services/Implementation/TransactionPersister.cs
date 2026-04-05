@@ -1,22 +1,26 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
-using Cfa.ACHInterbank.Persistence.DataBase;
-using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
 public class TransactionPersister : ITransactionPersister
 {
-    private readonly AchDbContext _context;
+    private readonly IAchTransactionRepository _transactionRepository;
+    private readonly IAchBatchRepository _batchRepository;
     private readonly ITransactionValidator _validator;
 
-    public TransactionPersister(AchDbContext context, ITransactionValidator validator)
+    public TransactionPersister(
+        IAchTransactionRepository transactionRepository,
+        IAchBatchRepository batchRepository,
+        ITransactionValidator validator)
     {
-        _context = context;
+        _transactionRepository = transactionRepository;
+        _batchRepository = batchRepository;
         _validator = validator;
     }
 
@@ -38,11 +42,7 @@ public class TransactionPersister : ITransactionPersister
         }
 
         var processingDate = context.EffectiveEntryDate.Date;
-        int nextSeq = await _context.AchTransactions
-            .Where(t => t.EffectiveEntryDate.Date == processingDate)
-            .Where(t => t.TraceNumber.StartsWith(traceOriginatingDfi))
-            .Select(t => (int?)t.TraceSequenceNumber)
-            .MaxAsync(ct) ?? 0;
+        int nextSeq = await _transactionRepository.GetMaxTraceSequenceAsync(processingDate, traceOriginatingDfi, ct) ?? 0;
         nextSeq++;
 
         if (nextSeq > 6_999_999)
@@ -50,10 +50,7 @@ public class TransactionPersister : ITransactionPersister
             throw new InvalidOperationException("Error Fatal ID 7: el consecutivo diario excede el máximo permitido (6999999). El rango 7000001-9999999 está reservado para PSE.");
         }
 
-        var duplicateSequenceExists = await _context.AchTransactions
-            .AnyAsync(t => t.EffectiveEntryDate.Date == processingDate
-                           && t.TraceSequenceNumber == nextSeq
-                           && t.TraceNumber.StartsWith(traceOriginatingDfi), ct);
+        var duplicateSequenceExists = await _transactionRepository.ExistsTraceSequenceAsync(processingDate, traceOriginatingDfi, nextSeq, ct);
 
         if (duplicateSequenceExists)
         {
@@ -127,8 +124,7 @@ public class TransactionPersister : ITransactionPersister
                 .ToList();
         }
 
-        _context.AchTransactions.Add(tx);
-        await _context.SaveChangesAsync(ct);
+        await _transactionRepository.AddAsync(tx, ct);
 
         return new TransactionPersistResult
         {
@@ -139,15 +135,7 @@ public class TransactionPersister : ITransactionPersister
 
     public async Task UpdateBatchTotalsAsync(AchBatch batch, CancellationToken ct = default)
     {
-        var totals = await _context.AchTransactions
-            .Where(t => t.AchBatchId == batch.Id)
-            .GroupBy(t => t.Type)
-            .Select(g => new
-            {
-                Type = g.Key,
-                Sum = g.Sum(t => t.Amount)
-            })
-            .ToListAsync(ct);
+        var totals = await _transactionRepository.GetTotalsByBatchAsync(batch.Id, ct);
 
         decimal debit = totals
             .Where(t => t.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal)
@@ -163,17 +151,13 @@ public class TransactionPersister : ITransactionPersister
         {
             batch.TotalDebitAmount = debit;
             batch.TotalCreditAmount = credit;
-            _context.AchBatches.Update(batch);
-            await _context.SaveChangesAsync(ct);
+            await _batchRepository.UpdateAsync(batch, ct);
         }
     }
 
     public async Task UpdateBatchServiceClassCodeAsync(AchBatch batch, CancellationToken ct = default)
     {
-        var transactions = await _context.AchTransactions
-            .Where(t => t.AchBatchId == batch.Id)
-            .Select(t => t.Type)
-            .ToListAsync(ct);
+        var transactions = await _transactionRepository.GetTypesByBatchAsync(batch.Id, ct);
 
         if (!transactions.Any())
         {
@@ -188,8 +172,7 @@ public class TransactionPersister : ITransactionPersister
         if (batch.ServiceClassCode != newCode)
         {
             batch.ServiceClassCode = newCode;
-            _context.AchBatches.Update(batch);
-            await _context.SaveChangesAsync(ct);
+            await _batchRepository.UpdateAsync(batch, ct);
         }
     }
 }

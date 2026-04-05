@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Helpers;
@@ -13,12 +14,18 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class BatchResolver : IBatchResolver
 {
     private readonly AchDbContext _context;
+    private readonly IAchBatchRepository _batchRepository;
     private readonly IRoutingStrategyService _routing;
     private readonly TimeProvider _timeProvider;
 
-    public BatchResolver(AchDbContext context, IRoutingStrategyService routing, TimeProvider? timeProvider = null)
+    public BatchResolver(
+        AchDbContext context,
+        IAchBatchRepository batchRepository,
+        IRoutingStrategyService routing,
+        TimeProvider? timeProvider = null)
     {
         _context = context;
+        _batchRepository = batchRepository;
         _routing = routing;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
@@ -111,13 +118,13 @@ public class BatchResolver : IBatchResolver
 
         string companyEntryDescription = companyEntryDescriptionCatalog.Term.Trim().ToUpperInvariant();
 
-        var batch = await _context.AchBatches
-            .FirstOrDefaultAsync(b =>
-                b.AchCycleId == achCycleId &&
-                b.CompanyName == companyName &&
-                b.CompanyIdentification == companyIdentification &&
-                b.CompanyEntryDescription == companyEntryDescription &&
-                b.EffectiveEntryDate == effectiveEntryDate, ct);
+        var batch = await _batchRepository.FindForTransactionAsync(
+            achCycleId,
+            companyName,
+            companyIdentification,
+            companyEntryDescription,
+            effectiveEntryDate,
+            ct);
 
         if (batch is null)
         {
@@ -131,8 +138,7 @@ public class BatchResolver : IBatchResolver
                 EffectiveEntryDate = effectiveEntryDate,
                 OriginOrOdfi = originBase
             };
-            _context.AchBatches.Add(batch);
-            await _context.SaveChangesAsync(ct);
+            await _batchRepository.AddAsync(batch, ct);
         }
 
         return new TransactionBatchContext
@@ -192,15 +198,12 @@ public class BatchResolver : IBatchResolver
 
     private async Task<DateTime?> CalculateReturnSlaDeadlineAtUtcAsync(AchCycle currentCycle, CancellationToken ct)
     {
-        var orderedCycles = await _context.AchCycles
-            .AsNoTracking()
-            .Where(c => c.ClearingHouseId == currentCycle.ClearingHouseId)
-            .Where(c => c.ProcessingDate > currentCycle.ProcessingDate
-                        || (c.ProcessingDate == currentCycle.ProcessingDate && c.CutoffTime >= currentCycle.CutoffTime))
-            .OrderBy(c => c.ProcessingDate)
-            .ThenBy(c => c.CutoffTime)
-            .Take(5)
-            .ToListAsync(ct);
+        var orderedCycles = await _batchRepository.GetUpcomingCyclesAsync(
+            currentCycle.ClearingHouseId,
+            currentCycle.ProcessingDate,
+            currentCycle.CutoffTime,
+            5,
+            ct);
 
         if (orderedCycles.Count < 5)
         {

@@ -1,5 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -13,6 +15,8 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class AchTransactionService : IAchTransactionService
 {
     private readonly AchDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IAchCustomerRepository _customerRepository;
     private readonly IBankHoliday _holidayService;
     private readonly ITransactionValidator _transactionValidator;
     private readonly IBatchResolver _batchResolver;
@@ -22,6 +26,8 @@ public class AchTransactionService : IAchTransactionService
 
     public AchTransactionService(
         AchDbContext context,
+        IUnitOfWork unitOfWork,
+        IAchCustomerRepository customerRepository,
         IBankHoliday holidayService,
         ITransactionValidator transactionValidator,
         IBatchResolver batchResolver,
@@ -30,6 +36,8 @@ public class AchTransactionService : IAchTransactionService
         ITransactionPolicyService? transactionPolicyService = null)
     {
         _context = context;
+        _unitOfWork = unitOfWork;
+        _customerRepository = customerRepository;
         _holidayService = holidayService;
         _transactionValidator = transactionValidator;
         _batchResolver = batchResolver;
@@ -120,6 +128,7 @@ public class AchTransactionService : IAchTransactionService
             await _transactionPersister.UpdateBatchTotalsAsync(persisted.Batch, ct);
             await _transactionPersister.UpdateBatchServiceClassCodeAsync(persisted.Batch, ct);
 
+            await _unitOfWork.CommitAsync(ct);
             await dbTransaction.CommitAsync(ct);
             registeredTransaction = persisted.Transaction;
         });
@@ -183,21 +192,14 @@ public class AchTransactionService : IAchTransactionService
             return;
         }
 
-        var resolvedDocumentType = await ResolveCatalogCodeAsync(_context.DocumentTypes, defaultDocumentType, ct);
-        var resolvedPersonType = await ResolveCatalogCodeAsync(_context.PersonTypes, defaultPersonType, ct);
+        var resolvedDocumentType = await _customerRepository.ResolveDocumentTypeCodeAsync(defaultDocumentType, ct);
+        var resolvedPersonType = await _customerRepository.ResolvePersonTypeCodeAsync(defaultPersonType, ct);
 
-        var customer = await _context.Customers
-            .Include(c => c.Accounts)
-            .FirstOrDefaultAsync(
-                c => c.DocumentType == resolvedDocumentType && c.DocumentNumber == normalizedDocument,
-                ct);
+        var customer = await _customerRepository.GetByDocumentAsync(resolvedDocumentType, normalizedDocument, ct);
 
         if (customer is null)
         {
-            var legacyCustomers = await _context.Customers
-                .Include(c => c.Accounts)
-                .Where(c => c.DocumentNumber == normalizedDocument)
-                .ToListAsync(ct);
+            var legacyCustomers = await _customerRepository.GetByDocumentNumberAsync(normalizedDocument, ct);
 
             if (legacyCustomers.Count == 1)
             {
@@ -224,8 +226,7 @@ public class AchTransactionService : IAchTransactionService
             };
 
             customer.Accounts.Add(new CustomerAccount { AccountNumber = normalizedAccount });
-            _context.Customers.Add(customer);
-            await _context.SaveChangesAsync(ct);
+            await _customerRepository.AddAsync(customer, ct);
             return;
         }
 
@@ -246,11 +247,6 @@ public class AchTransactionService : IAchTransactionService
         if (!customer.Accounts.Any(a => a.AccountNumber == normalizedAccount))
         {
             customer.Accounts.Add(new CustomerAccount { AccountNumber = normalizedAccount });
-            await _context.SaveChangesAsync(ct);
-        }
-        else if (_context.ChangeTracker.HasChanges())
-        {
-            await _context.SaveChangesAsync(ct);
         }
     }
 
@@ -362,37 +358,6 @@ public class AchTransactionService : IAchTransactionService
         }
 
         return normalized.Length <= maxLength ? normalized : normalized[..maxLength];
-    }
-
-    private static async Task<string> ResolveCatalogCodeAsync<TCatalog>(
-        DbSet<TCatalog> dbSet,
-        string preferredCode,
-        CancellationToken ct)
-        where TCatalog : class
-    {
-        var codeProperty = typeof(TCatalog).GetProperty("Code")
-            ?? throw new InvalidOperationException($"La entidad {typeof(TCatalog).Name} no define la propiedad Code.");
-
-        var preferred = await dbSet
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => EF.Property<string>(x, "Code") == preferredCode, ct);
-
-        if (preferred is not null)
-        {
-            return (string)(codeProperty.GetValue(preferred) ?? preferredCode);
-        }
-
-        var fallback = await dbSet
-            .AsNoTracking()
-            .Select(x => EF.Property<string>(x, "Code"))
-            .FirstOrDefaultAsync(ct);
-
-        if (string.IsNullOrWhiteSpace(fallback))
-        {
-            throw new InvalidOperationException($"No existen registros en el catálogo {typeof(TCatalog).Name}.");
-        }
-
-        return fallback;
     }
 
     public Task<DateTime> GetNextBusinessDayAsync(DateTime baseDate, CancellationToken ct = default)
