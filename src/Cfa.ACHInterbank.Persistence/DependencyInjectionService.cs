@@ -86,6 +86,8 @@ public static class DependencyInjectionService
             }
         });
 
+        services.AddScoped<IUnitOfWork, UnitOfWork>();
+
         services.AddQuartz(q =>
         {
             // Quartz usará el contenedor de DI para crear los Jobs

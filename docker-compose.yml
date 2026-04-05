@@ -50,7 +50,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "744:8080"
+      - "843:8080"
     volumes:
       - ./certs:/https:rw
     depends_on:
@@ -77,7 +77,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "744:8080"
+      - "843:8080"
     volumes:
       - ./certs:/https:rw
     depends_on:
