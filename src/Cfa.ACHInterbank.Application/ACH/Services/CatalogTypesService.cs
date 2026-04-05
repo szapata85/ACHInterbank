@@ -40,12 +40,12 @@ public class CatalogTypesService : ICatalogTypesService
         }
 
         var code = request.Code!.Trim().ToUpperInvariant();
-        if (await _repository.ExistsAsync(type.Value, code, ct))
+        if (await _repository.ExistsAsync(type, code, ct))
         {
             throw new InvalidOperationException("Ya existe un registro con ese código.");
         }
 
-        await _repository.AddAsync(type.Value, code, request.Name!.Trim(), request.Description?.Trim(), ct);
+        await _repository.AddAsync(type, code, request.Name!.Trim(), request.Description?.Trim(), ct);
         await _unitOfWork.CommitAsync(ct);
 
         return new CatalogTypeItemDto { Code = code, Name = request.Name!.Trim(), Description = request.Description?.Trim() };
@@ -66,7 +66,7 @@ public class CatalogTypesService : ICatalogTypesService
         }
 
         var normalizedCode = code.Trim().ToUpperInvariant();
-        var updated = await _repository.UpdateAsync(type.Value, normalizedCode, request.Name.Trim(), request.Description?.Trim(), ct);
+        var updated = await _repository.UpdateAsync(type, normalizedCode, request.Name.Trim(), request.Description?.Trim(), ct);
         if (!updated)
         {
             throw new KeyNotFoundException("Registro no encontrado.");
@@ -86,7 +86,7 @@ public class CatalogTypesService : ICatalogTypesService
         }
 
         var normalizedCode = code.Trim().ToUpperInvariant();
-        var removed = await _repository.RemoveAsync(type.Value, normalizedCode, ct);
+        var removed = await _repository.RemoveAsync(type, normalizedCode, ct);
         if (!removed)
         {
             throw new KeyNotFoundException("Registro no encontrado.");
