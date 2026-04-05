@@ -1,5 +1,4 @@
-using Cfa.ACHInterbank.Application.ACH.Interfaces;
-using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -8,143 +7,16 @@ using Microsoft.EntityFrameworkCore;
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
-public class CatalogTypesService : ICatalogTypesService
+public class CatalogTypesRepository : ICatalogTypesRepository
 {
     private readonly AchDbContext _context;
-    private readonly IUnitOfWork _unitOfWork;
 
-    public CatalogTypesService(AchDbContext context, IUnitOfWork unitOfWork)
+    public CatalogTypesRepository(AchDbContext context)
     {
         _context = context;
-        _unitOfWork = unitOfWork;
     }
 
-    public async Task<IReadOnlyList<CatalogTypeItemDto>> GetAllAsync(string catalogType, CancellationToken ct = default)
-    {
-        var type = ParseCatalogType(catalogType);
-        if (type is null)
-        {
-            throw new ArgumentException("Tipo de catálogo inválido.");
-        }
-
-        return await ListAsync(type.Value, ct);
-    }
-
-    public async Task<CatalogTypeItemDto> CreateAsync(string catalogType, CatalogTypeUpsertRequest request, CancellationToken ct = default)
-    {
-        var type = ParseCatalogType(catalogType);
-        if (type is null)
-        {
-            throw new ArgumentException("Tipo de catálogo inválido.");
-        }
-
-        var validationError = ValidateRequest(request);
-        if (!string.IsNullOrEmpty(validationError))
-        {
-            throw new ArgumentException(validationError);
-        }
-
-        var code = request.Code!.Trim().ToUpperInvariant();
-        var exists = await ExistsAsync(type.Value, code, ct);
-        if (exists)
-        {
-            throw new InvalidOperationException("Ya existe un registro con ese código.");
-        }
-
-        AddEntity(type.Value, code, request.Name!.Trim(), request.Description?.Trim());
-        await _unitOfWork.CommitAsync(ct);
-
-        return new CatalogTypeItemDto { Code = code, Name = request.Name!.Trim(), Description = request.Description?.Trim() };
-    }
-
-    public async Task<CatalogTypeItemDto> UpdateAsync(string catalogType, string code, CatalogTypeUpsertRequest request, CancellationToken ct = default)
-    {
-        var type = ParseCatalogType(catalogType);
-        if (type is null)
-        {
-            throw new ArgumentException("Tipo de catálogo inválido.");
-        }
-
-        if (string.IsNullOrWhiteSpace(code))
-        {
-            throw new ArgumentException("El código es obligatorio.");
-        }
-
-        if (string.IsNullOrWhiteSpace(request.Name))
-        {
-            throw new ArgumentException("El nombre es obligatorio.");
-        }
-
-        var normalizedCode = code.Trim().ToUpperInvariant();
-        var updated = await UpdateEntityAsync(type.Value, normalizedCode, request.Name.Trim(), request.Description?.Trim(), ct);
-        if (!updated)
-        {
-            throw new KeyNotFoundException("Registro no encontrado.");
-        }
-
-        await _unitOfWork.CommitAsync(ct);
-        return new CatalogTypeItemDto { Code = normalizedCode, Name = request.Name.Trim(), Description = request.Description?.Trim() };
-    }
-
-    public async Task DeleteAsync(string catalogType, string code, CancellationToken ct = default)
-    {
-        var type = ParseCatalogType(catalogType);
-        if (type is null)
-        {
-            throw new ArgumentException("Tipo de catálogo inválido.");
-        }
-
-        if (string.IsNullOrWhiteSpace(code))
-        {
-            throw new ArgumentException("El código es obligatorio.");
-        }
-
-        var normalizedCode = code.Trim().ToUpperInvariant();
-        var removed = await RemoveEntityAsync(type.Value, normalizedCode, ct);
-        if (!removed)
-        {
-            throw new KeyNotFoundException("Registro no encontrado.");
-        }
-
-        try
-        {
-            await _unitOfWork.CommitAsync(ct);
-        }
-        catch (DbUpdateException ex)
-        {
-            throw new InvalidOperationException("No se puede eliminar el registro porque está siendo utilizado.", ex);
-        }
-    }
-
-    private static string? ValidateRequest(CatalogTypeUpsertRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.Code))
-        {
-            return "El código es obligatorio.";
-        }
-
-        if (string.IsNullOrWhiteSpace(request.Name))
-        {
-            return "El nombre es obligatorio.";
-        }
-
-        return null;
-    }
-
-    private static CatalogTypeKey? ParseCatalogType(string value)
-        => value.Trim().ToLowerInvariant() switch
-        {
-            "document-types" => CatalogTypeKey.DocumentTypes,
-            "gender-types" => CatalogTypeKey.GenderTypes,
-            "person-types" => CatalogTypeKey.PersonTypes,
-            "phone-types" => CatalogTypeKey.PhoneTypes,
-            "email-types" => CatalogTypeKey.EmailTypes,
-            "address-types" => CatalogTypeKey.AddressTypes,
-            "transaction-codes" => CatalogTypeKey.TransactionCodes,
-            _ => null
-        };
-
-    private async Task<List<CatalogTypeItemDto>> ListAsync(CatalogTypeKey key, CancellationToken ct)
+    public async Task<IReadOnlyList<CatalogTypeItemDto>> ListAsync(CatalogTypeKey key, CancellationToken ct = default)
     {
         return key switch
         {
@@ -166,7 +38,7 @@ public class CatalogTypesService : ICatalogTypesService
         };
     }
 
-    private async Task<bool> ExistsAsync(CatalogTypeKey key, string code, CancellationToken ct)
+    public async Task<bool> ExistsAsync(CatalogTypeKey key, string code, CancellationToken ct = default)
         => key switch
         {
             CatalogTypeKey.DocumentTypes => await _context.DocumentTypes.AnyAsync(x => x.Code == code, ct),
@@ -179,35 +51,37 @@ public class CatalogTypesService : ICatalogTypesService
             _ => false
         };
 
-    private void AddEntity(CatalogTypeKey key, string code, string name, string? description)
+    public Task AddAsync(CatalogTypeKey key, string code, string name, string? description, CancellationToken ct = default)
     {
         switch (key)
         {
             case CatalogTypeKey.DocumentTypes:
                 _context.DocumentTypes.Add(new DocumentTypeCatalog { Code = code, Name = name, Description = description });
-                return;
+                break;
             case CatalogTypeKey.GenderTypes:
                 _context.GenderTypes.Add(new GenderCatalog { Code = code, Name = name, Description = description });
-                return;
+                break;
             case CatalogTypeKey.PersonTypes:
                 _context.PersonTypes.Add(new PersonTypeCatalog { Code = code, Name = name, Description = description });
-                return;
+                break;
             case CatalogTypeKey.PhoneTypes:
                 _context.PhoneTypes.Add(new PhoneTypeCatalog { Code = code, Name = name, Description = description });
-                return;
+                break;
             case CatalogTypeKey.EmailTypes:
                 _context.EmailTypes.Add(new EmailTypeCatalog { Code = code, Name = name, Description = description });
-                return;
+                break;
             case CatalogTypeKey.AddressTypes:
                 _context.AddressTypes.Add(new AddressTypeCatalog { Code = code, Name = name, Description = description });
-                return;
+                break;
             case CatalogTypeKey.TransactionCodes:
                 _context.TransactionCodes.Add(new TransactionCodeCatalog { Code = code, Name = name, Description = description });
-                return;
+                break;
         }
+
+        return Task.CompletedTask;
     }
 
-    private async Task<bool> UpdateEntityAsync(CatalogTypeKey key, string code, string name, string? description, CancellationToken ct)
+    public async Task<bool> UpdateAsync(CatalogTypeKey key, string code, string name, string? description, CancellationToken ct = default)
     {
         switch (key)
         {
@@ -258,7 +132,7 @@ public class CatalogTypesService : ICatalogTypesService
         }
     }
 
-    private async Task<bool> RemoveEntityAsync(CatalogTypeKey key, string code, CancellationToken ct)
+    public async Task<bool> RemoveAsync(CatalogTypeKey key, string code, CancellationToken ct = default)
     {
         switch (key)
         {
@@ -300,16 +174,5 @@ public class CatalogTypesService : ICatalogTypesService
             default:
                 return false;
         }
-    }
-
-    private enum CatalogTypeKey
-    {
-        DocumentTypes,
-        GenderTypes,
-        PersonTypes,
-        PhoneTypes,
-        EmailTypes,
-        AddressTypes,
-        TransactionCodes
     }
 }
