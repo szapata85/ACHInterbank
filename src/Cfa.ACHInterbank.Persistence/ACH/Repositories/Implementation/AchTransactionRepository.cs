@@ -40,22 +40,43 @@ public class AchTransactionRepository : IAchTransactionRepository
         return Task.CompletedTask;
     }
 
-    public async Task<IReadOnlyList<(TransactionTypeEnum Type, decimal Sum)>> GetTotalsByBatchAsync(int batchId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<(TransactionTypeEnum Type, decimal Sum)>> GetTotalsByBatchAsync(AchBatch batch, CancellationToken ct = default)
     {
-        var totals = await _context.AchTransactions
-            .Where(t => t.AchBatchId == batchId)
-            .GroupBy(t => t.Type)
-            .Select(g => new { Type = g.Key, Sum = g.Sum(t => t.Amount) })
-            .ToListAsync(ct);
+        var persisted = batch.Id > 0
+            ? await _context.AchTransactions
+                .AsNoTracking()
+                .Where(t => t.AchBatchId == batch.Id)
+                .Select(t => new { t.Type, t.Amount })
+                .ToListAsync(ct)
+            : [];
 
-        return totals.Select(t => (t.Type, t.Sum)).ToList();
+        var tracked = _context.AchTransactions.Local
+            .Where(t => ReferenceEquals(t.AchBatch, batch) || (batch.Id > 0 && t.AchBatchId == batch.Id))
+            .Select(t => new { t.Type, t.Amount })
+            .ToList();
+
+        return persisted
+            .Concat(tracked)
+            .GroupBy(t => t.Type)
+            .Select(g => (Type: g.Key, Sum: g.Sum(x => x.Amount)))
+            .ToList();
     }
 
-    public async Task<IReadOnlyList<TransactionTypeEnum>> GetTypesByBatchAsync(int batchId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<TransactionTypeEnum>> GetTypesByBatchAsync(AchBatch batch, CancellationToken ct = default)
     {
-        return await _context.AchTransactions
-            .Where(t => t.AchBatchId == batchId)
+        var persistedTypes = batch.Id > 0
+            ? await _context.AchTransactions
+                .AsNoTracking()
+                .Where(t => t.AchBatchId == batch.Id)
+                .Select(t => t.Type)
+                .ToListAsync(ct)
+            : [];
+
+        var trackedTypes = _context.AchTransactions.Local
+            .Where(t => ReferenceEquals(t.AchBatch, batch) || (batch.Id > 0 && t.AchBatchId == batch.Id))
             .Select(t => t.Type)
-            .ToListAsync(ct);
+            .ToList();
+
+        return persistedTypes.Concat(trackedTypes).ToList();
     }
 }

@@ -8,6 +8,6 @@ public interface IAchTransactionRepository
     Task<int?> GetMaxTraceSequenceAsync(DateTime processingDate, string traceOriginatingDfi, CancellationToken ct = default);
     Task<bool> ExistsTraceSequenceAsync(DateTime processingDate, string traceOriginatingDfi, int sequence, CancellationToken ct = default);
     Task AddAsync(AchTransaction transaction, CancellationToken ct = default);
-    Task<IReadOnlyList<(TransactionTypeEnum Type, decimal Sum)>> GetTotalsByBatchAsync(int batchId, CancellationToken ct = default);
-    Task<IReadOnlyList<TransactionTypeEnum>> GetTypesByBatchAsync(int batchId, CancellationToken ct = default);
+    Task<IReadOnlyList<(TransactionTypeEnum Type, decimal Sum)>> GetTotalsByBatchAsync(AchBatch batch, CancellationToken ct = default);
+    Task<IReadOnlyList<TransactionTypeEnum>> GetTypesByBatchAsync(AchBatch batch, CancellationToken ct = default);
 }

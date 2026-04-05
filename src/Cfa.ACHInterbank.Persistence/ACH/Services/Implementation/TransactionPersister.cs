@@ -91,7 +91,7 @@ public class TransactionPersister : ITransactionPersister
             DestinationInstitutionId = context.DestinationInstitutionId,
 
             AchCycleId = context.AchCycleId,
-            AchBatchId = context.Batch.Id
+            AchBatch = context.Batch
         };
 
         if (request.Addendas != null)
@@ -135,7 +135,7 @@ public class TransactionPersister : ITransactionPersister
 
     public async Task UpdateBatchTotalsAsync(AchBatch batch, CancellationToken ct = default)
     {
-        var totals = await _transactionRepository.GetTotalsByBatchAsync(batch.Id, ct);
+        var totals = await _transactionRepository.GetTotalsByBatchAsync(batch, ct);
 
         decimal debit = totals
             .Where(t => t.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal)
@@ -157,7 +157,7 @@ public class TransactionPersister : ITransactionPersister
 
     public async Task UpdateBatchServiceClassCodeAsync(AchBatch batch, CancellationToken ct = default)
     {
-        var transactions = await _transactionRepository.GetTypesByBatchAsync(batch.Id, ct);
+        var transactions = await _transactionRepository.GetTypesByBatchAsync(batch, ct);
 
         if (!transactions.Any())
         {
