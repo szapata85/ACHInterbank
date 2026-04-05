@@ -4,7 +4,6 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
-using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -16,13 +15,11 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 [Authorize]
 public class DigitalEnvelopeCertificatesController : ControllerBase
 {
-    private readonly IDigitalEnvelopeCertificateRepository _repository;
-    private readonly IUnitOfWork _unitOfWork;
+    private readonly IDigitalEnvelopeCertificateService _service;
 
-    public DigitalEnvelopeCertificatesController(IDigitalEnvelopeCertificateRepository repository, IUnitOfWork unitOfWork)
+    public DigitalEnvelopeCertificatesController(IDigitalEnvelopeCertificateService service)
     {
-        _repository = repository;
-        _unitOfWork = unitOfWork;
+        _service = service;
     }
     /// <summary>
     /// Endpoint de la API ACH Interbank.
@@ -31,7 +28,7 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<DigitalEnvelopeCertificateResponse>>> GetAsync(CancellationToken cancellationToken)
     {
-        var certificates = await _repository.ListAsync(cancellationToken);
+        var certificates = await _service.ListAsync(cancellationToken);
         var response = certificates.Select(MapToResponse);
         return Ok(response);
     }
@@ -78,8 +75,7 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
             NotAfter = certificate.NotAfter
         };
 
-        var saved = await _repository.UpsertAsync(entity, cancellationToken);
-        await _unitOfWork.CommitAsync(cancellationToken);
+        var saved = await _service.UpsertAsync(entity, cancellationToken);
         return Ok(MapToResponse(saved));
     }
     /// <summary>
@@ -89,8 +85,7 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteAsync(int id, CancellationToken cancellationToken)
     {
-        await _repository.DeleteAsync(id, cancellationToken);
-        await _unitOfWork.CommitAsync(cancellationToken);
+        await _service.DeleteAsync(id, cancellationToken);
         return NoContent();
     }
 

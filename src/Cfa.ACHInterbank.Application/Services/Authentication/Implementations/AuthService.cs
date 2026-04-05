@@ -66,6 +66,8 @@ public class AuthService : IAuthService
             return new AuthResult { Success = false, Message = LoginErrorMessage };
         }
 
+        var stateResetPending = false;
+
         if (user.LockoutEnd.HasValue)
         {
             if (user.LockoutEnd.Value > DateTimeOffset.UtcNow)
@@ -74,9 +76,9 @@ public class AuthService : IAuthService
             }
 
             await _userRepository.UpdateLoginStateAsync(user.Id, 0, null, cancellationToken);
-            await _unitOfWork.CommitAsync(cancellationToken);
             user.FailedLoginAttempts = 0;
             user.LockoutEnd = null;
+            stateResetPending = true;
         }
 
         var incomingHash = HashHelper.GenerateHashSha256(request.Password);
@@ -95,7 +97,11 @@ public class AuthService : IAuthService
             return new AuthResult { Success = false, Message = LoginErrorMessage };
         }
 
-        if (user.FailedLoginAttempts > 0 || user.LockoutEnd.HasValue)
+        if (stateResetPending)
+        {
+            await _unitOfWork.CommitAsync(cancellationToken);
+        }
+        else if (user.FailedLoginAttempts > 0 || user.LockoutEnd.HasValue)
         {
             await _userRepository.UpdateLoginStateAsync(user.Id, 0, null, cancellationToken);
             await _unitOfWork.CommitAsync(cancellationToken);
