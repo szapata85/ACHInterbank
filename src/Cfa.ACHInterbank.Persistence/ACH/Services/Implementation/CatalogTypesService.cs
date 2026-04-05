@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;

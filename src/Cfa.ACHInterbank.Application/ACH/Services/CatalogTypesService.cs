@@ -1,9 +1,8 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.DataBase;
-using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
-using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Application.ACH.Services;
 
@@ -97,7 +96,7 @@ public class CatalogTypesService : ICatalogTypesService
         {
             await _unitOfWork.CommitAsync(ct);
         }
-        catch (DbUpdateException ex)
+        catch (Exception ex)
         {
             throw new InvalidOperationException("No se puede eliminar el registro porque está siendo utilizado.", ex);
         }

@@ -1,5 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
-using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
