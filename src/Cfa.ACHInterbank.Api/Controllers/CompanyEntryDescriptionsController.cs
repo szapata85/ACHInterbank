@@ -1,8 +1,7 @@
-using Cfa.ACHInterbank.Domain.Models.ACH;
-using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
@@ -11,30 +10,18 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 [Authorize]
 public class CompanyEntryDescriptionsController : ControllerBase
 {
-    private readonly AchDbContext _context;
+    private readonly ICompanyEntryDescriptionsService _service;
 
-    public CompanyEntryDescriptionsController(AchDbContext context)
+    public CompanyEntryDescriptionsController(ICompanyEntryDescriptionsService service)
     {
-        _context = context;
+        _service = service;
     }
 
     [HttpGet]
     [Authorize(Policy = "CanManageAch")]
     public async Task<IActionResult> GetAll(CancellationToken ct = default)
     {
-        var rows = await _context.CompanyEntryDescriptionCatalogs
-            .AsNoTracking()
-            .OrderBy(x => x.Term)
-            .Select(x => new CompanyEntryDescriptionAdminDto
-            {
-                Id = x.Id,
-                Term = x.Term,
-                Description = x.Description,
-                StandardEntryClassCode = x.StandardEntryClassCode,
-                IsActive = x.IsActive
-            })
-            .ToListAsync(ct);
-
+        var rows = await _service.GetAllAsync(ct);
         return Ok(rows);
     }
 
@@ -42,153 +29,60 @@ public class CompanyEntryDescriptionsController : ControllerBase
     [Authorize(Policy = "CanManageAch")]
     public async Task<IActionResult> Create([FromBody] CompanyEntryDescriptionUpsertRequest request, CancellationToken ct = default)
     {
-        var validation = ValidateRequest(request);
-        if (!string.IsNullOrEmpty(validation))
+        try
         {
-            return BadRequest(validation);
+            var created = await _service.CreateAsync(request, ct);
+            return Ok(created);
         }
-
-        var term = request.Term!.Trim().ToUpperInvariant();
-        var sec = request.StandardEntryClassCode!.Trim().ToUpperInvariant();
-
-        var exists = await _context.CompanyEntryDescriptionCatalogs.AnyAsync(x => x.Term == term, ct);
-        if (exists)
+        catch (ArgumentException ex)
         {
-            return Conflict("Ya existe un concepto con ese término.");
+            return BadRequest(ex.Message);
         }
-
-        var entity = new CompanyEntryDescriptionCatalog
+        catch (InvalidOperationException ex)
         {
-            Term = term,
-            Description = request.Description!.Trim(),
-            StandardEntryClassCode = sec,
-            IsActive = request.IsActive
-        };
-
-        _context.CompanyEntryDescriptionCatalogs.Add(entity);
-        await _context.SaveChangesAsync(ct);
-
-        return Ok(Map(entity));
+            return Conflict(ex.Message);
+        }
     }
 
     [HttpPut("{id:int}")]
     [Authorize(Policy = "CanManageAch")]
     public async Task<IActionResult> Update(int id, [FromBody] CompanyEntryDescriptionUpsertRequest request, CancellationToken ct = default)
     {
-        var validation = ValidateRequest(request);
-        if (!string.IsNullOrEmpty(validation))
+        try
         {
-            return BadRequest(validation);
+            var updated = await _service.UpdateAsync(id, request, ct);
+            return Ok(updated);
         }
-
-        var entity = await _context.CompanyEntryDescriptionCatalogs.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (entity is null)
+        catch (ArgumentException ex)
         {
-            return NotFound("Registro no encontrado.");
+            return BadRequest(ex.Message);
         }
-
-        var term = request.Term!.Trim().ToUpperInvariant();
-        var sec = request.StandardEntryClassCode!.Trim().ToUpperInvariant();
-
-        var exists = await _context.CompanyEntryDescriptionCatalogs.AnyAsync(x => x.Id != id && x.Term == term, ct);
-        if (exists)
+        catch (KeyNotFoundException ex)
         {
-            return Conflict("Ya existe un concepto con ese término.");
+            return NotFound(ex.Message);
         }
-
-        entity.Term = term;
-        entity.Description = request.Description!.Trim();
-        entity.StandardEntryClassCode = sec;
-        entity.IsActive = request.IsActive;
-
-        await _context.SaveChangesAsync(ct);
-        return Ok(Map(entity));
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ex.Message);
+        }
     }
 
     [HttpDelete("{id:int}")]
     [Authorize(Policy = "CanManageAch")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct = default)
     {
-        var entity = await _context.CompanyEntryDescriptionCatalogs.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (entity is null)
-        {
-            return NotFound("Registro no encontrado.");
-        }
-
-        _context.CompanyEntryDescriptionCatalogs.Remove(entity);
-
         try
         {
-            await _context.SaveChangesAsync(ct);
+            await _service.DeleteAsync(id, ct);
+            return NoContent();
         }
-        catch (DbUpdateException)
+        catch (KeyNotFoundException ex)
         {
-            return Conflict("No se puede eliminar el registro porque está siendo utilizado.");
+            return NotFound(ex.Message);
         }
-
-        return NoContent();
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ex.Message);
+        }
     }
-
-    private static string? ValidateRequest(CompanyEntryDescriptionUpsertRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.Term))
-        {
-            return "El término es obligatorio.";
-        }
-
-        if (request.Term.Trim().Length > 12)
-        {
-            return "El término no puede superar 12 caracteres.";
-        }
-
-        if (string.IsNullOrWhiteSpace(request.Description))
-        {
-            return "La descripción es obligatoria.";
-        }
-
-        if (request.Description.Trim().Length > 255)
-        {
-            return "La descripción no puede superar 255 caracteres.";
-        }
-
-        if (string.IsNullOrWhiteSpace(request.StandardEntryClassCode))
-        {
-            return "El código SEC es obligatorio.";
-        }
-
-        var sec = request.StandardEntryClassCode.Trim().ToUpperInvariant();
-        if (sec != "PPD" && sec != "CCD")
-        {
-            return "El código SEC debe ser PPD o CCD.";
-        }
-
-        return null;
-    }
-
-    private static CompanyEntryDescriptionAdminDto Map(CompanyEntryDescriptionCatalog entity)
-        => new()
-        {
-            Id = entity.Id,
-            Term = entity.Term,
-            Description = entity.Description,
-            StandardEntryClassCode = entity.StandardEntryClassCode,
-            IsActive = entity.IsActive
-        };
-}
-
-public class CompanyEntryDescriptionAdminDto
-{
-    public int Id { get; set; }
-    public string Term { get; set; } = string.Empty;
-    public string Description { get; set; } = string.Empty;
-    public string StandardEntryClassCode { get; set; } = string.Empty;
-    public bool IsActive { get; set; }
-}
-
-public class CompanyEntryDescriptionUpsertRequest
-{
-    public string? Term { get; set; }
-    public string? Description { get; set; }
-    public string? StandardEntryClassCode { get; set; }
-    public bool IsActive { get; set; } = true;
 }
