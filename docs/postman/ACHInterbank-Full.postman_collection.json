@@ -1,0 +1,3362 @@
+{
+  "info": {
+    "name": "ACHInterbank API - Full Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "AchCyclesController",
+      "item": [
+        {
+          "name": "Get",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ach-cycles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ach-cycles"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GetExportable",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ach-cycles/exportable",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ach-cycles",
+                "exportable"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GetById",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ach-cycles/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ach-cycles",
+                "{{id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ach-cycles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ach-cycles"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para AchCycleRequest\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ach-cycles/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ach-cycles",
+                "{{id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para AchCycleRequest\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ach-cycles/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ach-cycles",
+                "{{id}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "AchReturnsController",
+      "item": [
+        {
+          "name": "GetTransactionsByCycle",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ach-returns/cycles/{{cycleId}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ach-returns",
+                "cycles",
+                "{{cycleId}}",
+                "transactions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GenerateFile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ach-returns/generate-file",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ach-returns",
+                "generate-file"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cycleId\": \"CYCLE-20260408-01\",\n  \"items\": [\n    {\n      \"transactionId\": 123,\n      \"returnReasonCode\": \"R01\"\n    }\n  ]\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "AchTraceabilityController",
+      "item": [
+        {
+          "name": "CertifyWithSol02",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ach-traceability/sol02/{{transactionId:int}}/certify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ach-traceability",
+                "sol02",
+                "{{transactionId:int}}",
+                "certify"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para Sol02CertificationRequest\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "GetTransactionTraceability",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ach-traceability/transactions/{{transactionId:int}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ach-traceability",
+                "transactions",
+                "{{transactionId:int}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GetTraceabilityReport",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ach-traceability/report",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ach-traceability",
+                "report"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "AuditLogsController",
+      "item": [
+        {
+          "name": "GetAuditLogsAsync",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/audit-logs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "audit-logs"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "AuthController",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"P@ssw0rd!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "ForgotPassword",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "forgot-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\"\n}"
+            }
+          }
+        },
+        {
+          "name": "ResetPassword",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "reset-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"sample-token\",\n  \"newPassword\": \"NuevaClave123!\",\n  \"confirmPassword\": \"NuevaClave123!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "RefreshSession",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "refresh"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "AuthLogsController",
+      "item": [
+        {
+          "name": "GetAuthLogsAsync",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth-logs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth-logs"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "BankHolidaysController",
+      "item": [
+        {
+          "name": "GetAll",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bank-holidays",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bank-holidays"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bank-holidays",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bank-holidays"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para BankHolidayDto\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bank-holidays/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bank-holidays",
+                "{{id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para BankHolidayDto\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bank-holidays/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bank-holidays",
+                "{{id}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "BrandingController",
+      "item": [
+        {
+          "name": "GetBrandingAsync",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/branding",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "branding"
+              ]
+            }
+          }
+        },
+        {
+          "name": "SaveBrandingAsync",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/branding",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "branding"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para BrandingSettingsDto\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "CatalogTypesController",
+      "item": [
+        {
+          "name": "GetAll",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/catalog-types/{{catalogType}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "catalog-types",
+                "{{catalogType}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/catalog-types/{{catalogType}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "catalog-types",
+                "{{catalogType}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"01\",\n  \"name\": \"Ejemplo\",\n  \"description\": \"Descripción\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/catalog-types/{{catalogType}}/{{code}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "catalog-types",
+                "{{catalogType}}",
+                "{{code}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"01\",\n  \"name\": \"Ejemplo\",\n  \"description\": \"Descripción\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/catalog-types/{{catalogType}}/{{code}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "catalog-types",
+                "{{catalogType}}",
+                "{{code}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "ClearingHouseSpecialDatesController",
+      "item": [
+        {
+          "name": "GetAll",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/clearing-house-special-dates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clearing-house-special-dates"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/clearing-house-special-dates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clearing-house-special-dates"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para ClearingHouseSpecialDateDto\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/clearing-house-special-dates/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clearing-house-special-dates",
+                "{{id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para ClearingHouseSpecialDateDto\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/clearing-house-special-dates/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clearing-house-special-dates",
+                "{{id}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "ClearingHousesController",
+      "item": [
+        {
+          "name": "Get",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/clearing-houses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clearing-houses"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GetById",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/clearing-houses/{{id:int}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clearing-houses",
+                "{{id:int}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GetCyclesForClearingHouse",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/clearing-houses/{{id:int}}/cycles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clearing-houses",
+                "{{id:int}}",
+                "cycles"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "CompanyEntryDescriptionsController",
+      "item": [
+        {
+          "name": "GetAll",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/company-entry-descriptions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "company-entry-descriptions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/company-entry-descriptions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "company-entry-descriptions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"term\": \"NOMINA\",\n  \"description\": \"Pago nómina\",\n  \"standardEntryClassCode\": \"PPD\",\n  \"isActive\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/company-entry-descriptions/{{id:int}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "company-entry-descriptions",
+                "{{id:int}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"term\": \"NOMINA\",\n  \"description\": \"Pago nómina\",\n  \"standardEntryClassCode\": \"PPD\",\n  \"isActive\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/company-entry-descriptions/{{id:int}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "company-entry-descriptions",
+                "{{id:int}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "CustomerThirdPartiesController",
+      "item": [
+        {
+          "name": "Get",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/customer-third-parties",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customer-third-parties"
+              ]
+            }
+          }
+        },
+        {
+          "name": "UpdateStatus",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/customer-third-parties/{{id:int}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customer-third-parties",
+                "{{id:int}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para UpdateCustomerThirdPartyStatusRequest\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "CustomersController",
+      "item": [
+        {
+          "name": "GetAll",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/customers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "customers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GetById",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{id:int}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "customers",
+                "{{id:int}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/customers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "customers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para SaveCustomerRequest\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{id:int}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "customers",
+                "{{id:int}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para SaveCustomerRequest\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{id:int}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "customers",
+                "{{id:int}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "DigitalEnvelopeCertificatesController",
+      "item": [
+        {
+          "name": "GetAsync",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nacha-security/certificates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nacha-security",
+                "certificates"
+              ]
+            }
+          }
+        },
+        {
+          "name": "UploadAsync",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nacha-security/certificates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nacha-security",
+                "certificates"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DeleteAsync",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nacha-security/certificates/{{id:int}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nacha-security",
+                "certificates",
+                "{{id:int}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "FinancialInstitutionsController",
+      "item": [
+        {
+          "name": "GetAll",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financial-institutions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financial-institutions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GetById",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financial-institutions/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financial-institutions",
+                "{{id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financial-institutions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financial-institutions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para FinancialInstitutionDto\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financial-institutions/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financial-institutions",
+                "{{id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para FinancialInstitutionDto\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "SetStatus",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financial-institutions/{{id}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financial-institutions",
+                "{{id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para FinancialInstitutionStatus\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "InstitutionClearingHousePreferencesController",
+      "item": [
+        {
+          "name": "GetAll",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/institution-clearing-house-preferences",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "institution-clearing-house-preferences"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/institution-clearing-house-preferences",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "institution-clearing-house-preferences"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para InstitutionClearingHousePreferenceDto\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/institution-clearing-house-preferences/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "institution-clearing-house-preferences",
+                "{{id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para JsonElement\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/institution-clearing-house-preferences/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "institution-clearing-house-preferences",
+                "{{id}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "JwksController",
+      "item": [
+        {
+          "name": "GetJwks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}//oauth2/jwks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "",
+                "oauth2",
+                "jwks"
+              ]
+            }
+          }
+        },
+        {
+          "name": "TokenClientAssertions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}//oauth2/TokenClientAssertions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "",
+                "oauth2",
+                "TokenClientAssertions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Authenticate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}//oauth2/client-assertion",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "",
+                "oauth2",
+                "client-assertion"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para string\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "GenerateClientAssertion",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}//oauth2/Genearte-client-assertion",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "",
+                "oauth2",
+                "Genearte-client-assertion"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "LoginLockoutSettingsController",
+      "item": [
+        {
+          "name": "GetAsync",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/login-lockout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "login-lockout"
+              ]
+            }
+          }
+        },
+        {
+          "name": "SaveAsync",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/login-lockout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "login-lockout"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para LoginLockoutSettingsDto\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "MaintenanceController",
+      "item": [
+        {
+          "name": "RunDbInitializer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/seed",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "seed"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "MenuItemsController",
+      "item": [
+        {
+          "name": "GetMenuItemsAsync",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/navigation/menu-items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "navigation",
+                "menu-items"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CreateMenuItemAsync",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/navigation/menu-items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "navigation",
+                "menu-items"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para SaveMenuItemRequest\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "UpdateMenuItemAsync",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/navigation/menu-items/{{id:int}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "navigation",
+                "menu-items",
+                "{{id:int}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para SaveMenuItemRequest\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "DeleteMenuItemAsync",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/navigation/menu-items/{{id:int}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "navigation",
+                "menu-items",
+                "{{id:int}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "NachaController",
+      "item": [
+        {
+          "name": "SaveHeader",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/header",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "header"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para NachaHeader\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "NachaExportController",
+      "item": [
+        {
+          "name": "Export",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/{{cycleId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "{{cycleId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ExportEncrypted",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/{{cycleId}}/sobre-digital",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "{{cycleId}}",
+                "sobre-digital"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "NachaRecordDefinitionsController",
+      "item": [
+        {
+          "name": "GetAll",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nacha-record-definitions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nacha-record-definitions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GetById",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nacha-record-definitions/{{id:int}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nacha-record-definitions",
+                "{{id:int}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nacha-record-definitions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nacha-record-definitions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para NachaRecordDefinitionDto\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nacha-record-definitions/{{id:int}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nacha-record-definitions",
+                "{{id:int}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para NachaRecordDefinitionDto\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nacha-record-definitions/{{id:int}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nacha-record-definitions",
+                "{{id:int}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "NachaRecordLayoutsController",
+      "item": [
+        {
+          "name": "GetAll",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nacha-layouts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nacha-layouts"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GetById",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nacha-layouts/{{id:int}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nacha-layouts",
+                "{{id:int}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nacha-layouts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nacha-layouts"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para NachaRecordLayoutDto\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nacha-layouts/{{id:int}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nacha-layouts",
+                "{{id:int}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para NachaRecordLayoutDto\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nacha-layouts/{{id:int}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nacha-layouts",
+                "{{id:int}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "NachaUploadController",
+      "item": [
+        {
+          "name": "UploadNachaFile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/upload",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "upload"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GetUploadedRecords",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/records",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "records"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "NavigationController",
+      "item": [
+        {
+          "name": "GetMenuAsync",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/navigation/menu",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "navigation",
+                "menu"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "NavigationLogsController",
+      "item": [
+        {
+          "name": "GetNavigationLogsAsync",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/navigation-logs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "navigation-logs"
+              ]
+            }
+          }
+        },
+        {
+          "name": "AddNavigationLogAsync",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/navigation-logs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "navigation-logs"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para NavigationLogCreate\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "OauthsController",
+      "item": [
+        {
+          "name": "GenerateToken",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/GenerateToken",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "GenerateToken"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para TokenModelClient\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "GenerateTokenAsync",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/GenerateTokenAsync",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "GenerateTokenAsync"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para string\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "PasswordRulesController",
+      "item": [
+        {
+          "name": "GetRulesAsync",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/password-rules",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "password-rules"
+              ]
+            }
+          }
+        },
+        {
+          "name": "SaveRulesAsync",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/password-rules",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "password-rules"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para PasswordRulesDto\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "PermissionsController",
+      "item": [
+        {
+          "name": "GetPermissionsAsync",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/[controller]",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "[controller]"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "ReportsController",
+      "item": [
+        {
+          "name": "GetTraceabilityPdf",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/traceability/pdf",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "traceability",
+                "pdf"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "ReturnReasonsController",
+      "item": [
+        {
+          "name": "GetAll",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/return-reasons",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "return-reasons"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "RolesController",
+      "item": [
+        {
+          "name": "GetRolesAsync",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/[controller]",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "[controller]"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "ServersController",
+      "item": [
+        {
+          "name": "HandleRequest",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}//[controller]",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "",
+                "[controller]"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "SoapIntegrationSettingsController",
+      "item": [
+        {
+          "name": "GetAsync",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/soap-integrations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "soap-integrations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "SaveAsync",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/soap-integrations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "soap-integrations"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para SoapIntegrationSettingsDto\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "SobreDigitalController",
+      "item": [
+        {
+          "name": "Encrypt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/encrypt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "encrypt"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Decrypt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/decrypt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "decrypt"
+              ]
+            }
+          }
+        },
+        {
+          "name": "testRSA",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/testRSA",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "testRSA"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "TaskDefinitionsController",
+      "item": [
+        {
+          "name": "Get",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "{{id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Post",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para TaskDefinitionDto\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Put",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "{{id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para TaskDefinitionDto\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "{{id}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "TestsController",
+      "item": [
+        {
+          "name": "Get",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}//[controller]",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "",
+                "[controller]"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}//[controller]/Prueba",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "",
+                "[controller]",
+                "Prueba"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "TransactionsController",
+      "item": [
+        {
+          "name": "GetAll",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GetCompanyEntryDescriptions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/company-entry-descriptions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "company-entry-descriptions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PreviewPolicy",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/policies/preview",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "policies",
+                "preview"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CreateTransaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para AchTransactionRequest\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "GetById",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/[controller]/{{id:int}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "[controller]",
+                "{{id:int}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "UsersController",
+      "item": [
+        {
+          "name": "GetUsersAsync",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/[controller]",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "[controller]"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ValidateEmailDomainAsync",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/[controller]/validate-email-domain",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "[controller]",
+                "validate-email-domain"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GetUserAsync",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/[controller]/{{id:guid}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "[controller]",
+                "{{id:guid}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CreateUserAsync",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/[controller]",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "[controller]"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para SaveUserRequest\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "UpdateUserAsync",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/[controller]/{{id:guid}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "[controller]",
+                "{{id:guid}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para SaveUserRequest\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "AssignRolesAsync",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/[controller]/{{id:guid}}/roles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "[controller]",
+                "{{id:guid}}",
+                "roles"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_note\": \"Ejemplo para AssignRolesRequest\",\n  \"value\": \"sample\"\n}"
+            }
+          }
+        },
+        {
+          "name": "DeactivateUserAsync",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/[controller]/{{id:guid}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "[controller]",
+                "{{id:guid}}"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
