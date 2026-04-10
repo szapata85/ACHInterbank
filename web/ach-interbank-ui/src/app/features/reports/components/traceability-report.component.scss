@@ -14,7 +14,7 @@
   flex-direction: column;
   gap: 0.25rem;
   font-size: 0.9rem;
-  color: #475569;
+  color: var(--color-text-muted);
 }
 
 .filters input,
@@ -29,7 +29,7 @@
   border-radius: 4px;
   border: 1px solid var(--button-color, #0ea5e9);
   background: var(--button-color, #0ea5e9);
-  color: #fff;
+  color: var(--color-surface);
   cursor: pointer;
 }
 

@@ -31,17 +31,17 @@ import { NotificationMessage, NotificationService } from '../../core/services/no
         min-width: 260px;
         max-width: 360px;
         background: #fff;
-        border-radius: 8px;
+        border-radius: var(--radius-lg);
         padding: 0.75rem 0.9rem;
         box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
-        border-left: 4px solid #2563eb;
+        border-left: 4px solid var(--color-primary);
         position: relative;
       }
       .toast.success {
-        border-color: #16a34a;
+        border-color: var(--color-success);
       }
       .toast.error {
-        border-color: #dc2626;
+        border-color: var(--color-danger);
       }
       .toast.warning {
         border-color: #f59e0b;
@@ -49,11 +49,11 @@ import { NotificationMessage, NotificationService } from '../../core/services/no
       .type {
         display: inline-block;
         font-size: 0.75rem;
-        color: #6b7280;
+        color: var(--color-text-soft);
       }
       p {
         margin: 0.15rem 0 0;
-        color: #111827;
+        color: var(--color-text);
       }
       button {
         position: absolute;

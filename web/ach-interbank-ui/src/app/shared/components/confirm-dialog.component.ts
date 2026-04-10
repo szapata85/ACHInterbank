@@ -30,7 +30,7 @@ import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from 
       .dialog {
         background: #fff;
         padding: 1.5rem;
-        border-radius: 8px;
+        border-radius: var(--radius-lg);
         width: min(420px, 90vw);
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
       }
@@ -47,17 +47,17 @@ import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from 
         gap: 0.5rem;
       }
       button {
-        border: 1px solid #d1d5db;
+        border: 1px solid var(--color-border-strong);
         padding: 0.45rem 0.9rem;
-        border-radius: 6px;
+        border-radius: var(--radius-md);
         cursor: pointer;
       }
       .secondary {
         background: #fff;
       }
       .danger {
-        background: #dc2626;
-        border-color: #dc2626;
+        background: var(--color-danger);
+        border-color: var(--color-danger);
         color: #fff;
       }
     `

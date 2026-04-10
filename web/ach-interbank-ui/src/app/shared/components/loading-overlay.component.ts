@@ -24,15 +24,15 @@ import { LoadingService } from '../../core/services/loading.service';
         background: rgba(255, 255, 255, 0.65);
         z-index: 9999;
         backdrop-filter: blur(2px);
-        color: #111827;
+        color: var(--color-text);
         text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
       }
       .spinner {
         width: 64px;
         height: 64px;
         border-radius: 50%;
-        border: 6px solid #e5e7eb;
-        border-top-color: #2563eb;
+        border: 6px solid var(--color-border);
+        border-top-color: var(--color-primary);
         animation: spin 1s linear infinite;
         margin-bottom: 0.75rem;
       }

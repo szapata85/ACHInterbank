@@ -8,7 +8,7 @@ import { ChangeDetectionStrategy, Component, Input, TemplateRef } from '@angular
   template: `
     <header class="page-header">
       <div>
-        <p class="eyebrow">{{ subtitle }}</p>
+        <p class="eyebrow">{{ subtitle || description }}</p>
         <h2>{{ title }}</h2>
       </div>
       <div class="actions" *ngIf="actionsTemplate">
@@ -49,5 +49,6 @@ import { ChangeDetectionStrategy, Component, Input, TemplateRef } from '@angular
 export class PageHeaderComponent {
   @Input() title = '';
   @Input() subtitle = '';
+  @Input() description = '';
   @Input() actionsTemplate?: TemplateRef<any> | null;
 }

@@ -9,9 +9,9 @@
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1rem;
   align-items: end;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   padding: 1.25rem;
 }
 
@@ -20,14 +20,14 @@
   flex-direction: column;
   gap: 0.4rem;
   font-weight: 600;
-  color: #374151;
+  color: #334155;
 }
 
 .form-grid input,
 .form-grid select {
   padding: 0.5rem 0.65rem;
-  border-radius: 6px;
-  border: 1px solid #d1d5db;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
   font-weight: 500;
 }
 
@@ -38,20 +38,20 @@
 }
 
 button.primary {
-  background: #2563eb;
+  background: var(--color-primary);
   border: none;
   color: #fff;
-  padding: 0.55rem 1.1rem;
-  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
   cursor: pointer;
 }
 
 button.ghost {
   background: transparent;
-  border: 1px solid #d1d5db;
-  color: #111827;
-  padding: 0.55rem 1.1rem;
-  border-radius: 6px;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text);
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
   cursor: pointer;
 }
 
@@ -84,5 +84,5 @@ button.ghost {
 
 .empty-state {
   text-align: center;
-  color: #6b7280;
+  color: var(--color-text-soft);
 }

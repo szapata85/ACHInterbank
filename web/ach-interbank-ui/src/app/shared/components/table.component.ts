@@ -53,8 +53,8 @@ export interface TableColumn {
   styles: [
     `
       .table-wrapper {
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
         background: #fff;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
       }
@@ -68,13 +68,13 @@ export interface TableColumn {
       th,
       td {
         padding: 0.75rem 1rem;
-        border-bottom: 1px solid #f3f4f6;
+        border-bottom: 1px solid #edf2f7;
         text-align: left;
       }
       th {
-        background: #f9fafb;
+        background: var(--color-surface-muted);
         font-weight: 600;
-        color: #374151;
+        color: #334155;
         white-space: nowrap;
       }
       .align-end {
@@ -83,7 +83,7 @@ export interface TableColumn {
       .empty,
       .loading-row {
         text-align: center;
-        color: #6b7280;
+        color: var(--color-text-soft);
       }
       .pagination {
         display: flex;
@@ -92,10 +92,10 @@ export interface TableColumn {
         padding: 0.75rem 1rem;
       }
       button {
-        border: 1px solid #d1d5db;
+        border: 1px solid var(--color-border-strong);
         background: #fff;
         padding: 0.35rem 0.75rem;
-        border-radius: 4px;
+        border-radius: var(--radius-sm);
         cursor: pointer;
       }
       button:disabled {

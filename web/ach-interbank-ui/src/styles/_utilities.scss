@@ -1,0 +1,18 @@
+.u-stack-sm > * + * { margin-top: var(--space-2); }
+.u-stack-md > * + * { margin-top: var(--space-4); }
+.u-stack-lg > * + * { margin-top: var(--space-5); }
+
+.u-row { display: flex; gap: var(--space-3); align-items: center; }
+.u-row-between { display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; }
+.u-wrap { flex-wrap: wrap; }
+
+.u-text-muted { color: var(--color-text-soft); }
+.u-text-danger { color: var(--color-danger); }
+
+@media (max-width: 768px) {
+  .toolbar,
+  .u-row-between {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

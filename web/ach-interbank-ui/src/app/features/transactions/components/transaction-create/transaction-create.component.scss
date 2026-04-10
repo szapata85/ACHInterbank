@@ -1,6 +1,6 @@
 .transaction-card {
-  background: #fff;
-  border-radius: 12px;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
   padding: 1.5rem;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
   display: flex;
@@ -15,7 +15,7 @@
 
   .subtitle {
     margin: 0;
-    color: #6b7280;
+    color: var(--color-text-soft);
     font-size: 0.95rem;
   }
 }
@@ -30,7 +30,7 @@
     flex-direction: column;
     gap: 0.35rem;
     font-weight: 600;
-    color: #111827;
+    color: var(--color-text);
 
     span {
       font-size: 0.95rem;
@@ -38,8 +38,8 @@
 
     input,
     select {
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
       padding: 0.65rem 0.75rem;
       font-size: 0.95rem;
       font-weight: 500;
@@ -53,7 +53,7 @@
     }
 
     small {
-      color: #6b7280;
+      color: var(--color-text-soft);
     }
 
     .muted {
@@ -65,8 +65,8 @@
 
 .form-group {
   grid-column: 1 / -1;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   padding: 0.75rem;
   margin: 0;
 
@@ -92,7 +92,7 @@
 }
 
 .error {
-  color: #b91c1c;
+  color: var(--color-danger);
   font-weight: 600;
 }
 
@@ -124,14 +124,14 @@
     align-items: end;
     background: #f9fafb;
     padding: 0.75rem;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
 
     button.danger {
       justify-self: flex-start;
       background: #fee2e2;
       border: 1px solid #fecaca;
-      color: #b91c1c;
-      border-radius: 8px;
+      color: var(--color-danger);
+      border-radius: var(--radius-md);
       padding: 0.35rem 0.75rem;
       cursor: pointer;
     }
@@ -143,7 +143,7 @@
   padding: 0.75rem;
   background: #eff6ff;
   border: 1px solid #bfdbfe;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: #1e3a8a;
   font-weight: 500;
 }
@@ -180,8 +180,8 @@
   display: grid;
   gap: 0.75rem;
   padding: 0.75rem;
-  border-radius: 12px;
-  background: #fff;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
   box-shadow: 0 10px 25px rgba(15, 23, 42, 0.18);
   z-index: 10;
   opacity: 0;
@@ -225,7 +225,7 @@
 
   button {
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     padding: 0.75rem 1.25rem;
     cursor: pointer;
     font-weight: 700;
@@ -240,14 +240,14 @@
   }
 
   .ghost {
-    background: #fff;
+    background: var(--color-surface);
     color: #0f172a;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--color-border);
   }
 }
 
 .result {
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 1rem;
 
   &.success {

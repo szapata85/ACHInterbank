@@ -6,5 +6,5 @@ th, td { border-bottom: 1px solid #d9d9d9; padding: .5rem; text-align: left; }
 .error { color: #b42318; }
 .empty { padding: 1rem; border: 1px dashed #ccc; }
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: grid; place-items: center; }
-.modal { background: #fff; padding: 1rem; width: min(560px, 92vw); border-radius: .5rem; }
+.modal { background: var(--color-surface); padding: 1rem; width: min(560px, 92vw); border-radius: .5rem; }
 .actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1rem; }

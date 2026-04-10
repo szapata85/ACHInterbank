@@ -1,18 +1,4 @@
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: #f5f7fa;
-  color: #1f2933;
-}
-
-a {
-  color: inherit;
-}
-
-button {
-  font: inherit;
-}
+@use './styles/tokens';
+@use './styles/base';
+@use './styles/components';
+@use './styles/utilities';
