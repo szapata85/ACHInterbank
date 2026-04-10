@@ -102,9 +102,9 @@
   display: inline-flex;
   align-items: center;
   padding: 0.35rem 0.75rem;
-  background: #f3f4f6;
+  background: #edf2f7;
   color: var(--color-text);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-weight: 600;
 }
 

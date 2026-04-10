@@ -40,7 +40,7 @@
 button.primary {
   background: var(--color-primary);
   border: none;
-  color: #fff;
+  color: var(--color-surface);
   padding: 0.5rem 1rem;
   border-radius: var(--radius-md);
   cursor: pointer;

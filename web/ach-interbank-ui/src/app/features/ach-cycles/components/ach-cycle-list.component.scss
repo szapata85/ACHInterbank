@@ -5,7 +5,7 @@
   flex-direction: column;
   gap: 0.25rem;
   font-size: 0.85rem;
-  color: #475569;
+  color: var(--color-text-muted);
 }
 
 .filters input[type='date'] {

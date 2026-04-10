@@ -1,5 +1,5 @@
 .upload-card {
-  background: #fff;
+  background: var(--color-surface);
   border-radius: 1rem;
   padding: 1.5rem;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
@@ -39,8 +39,8 @@
 .table-wrapper {
   overflow: auto;
   max-height: 460px;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
 
 .records-header h3 {
@@ -55,18 +55,18 @@ table {
 
 th,
 td {
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-border);
   padding: 0.5rem;
   text-align: left;
   white-space: nowrap;
 }
 
 th {
-  background: #f8fafc;
+  background: var(--color-surface-muted);
   font-weight: 700;
 }
 
 .muted {
-  color: #6b7280;
+  color: var(--color-text-soft);
   font-weight: 400;
 }

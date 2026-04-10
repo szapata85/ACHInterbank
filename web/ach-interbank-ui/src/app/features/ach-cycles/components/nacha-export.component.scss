@@ -14,8 +14,8 @@
 .filters select,
 .filters input[type='date'] {
   padding: 0.4rem 0.6rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
   min-width: 10rem;
 }
 
@@ -24,15 +24,15 @@
   flex-direction: column;
   gap: 0.25rem;
   font-size: 0.9rem;
-  color: #475569;
+  color: var(--color-text-muted);
 }
 
 .filters button {
   padding: 0.5rem 1rem;
-  border-radius: 4px;
-  border: 1px solid var(--button-color, #0ea5e9);
-  background: var(--button-color, #0ea5e9);
-  color: #fff;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--button-color, var(--color-primary));
+  background: var(--button-color, var(--color-primary));
+  color: var(--color-surface);
   cursor: pointer;
 }
 
@@ -41,11 +41,11 @@
 }
 
 button.primary {
-  background: var(--button-color, #0ea5e9);
-  color: #fff;
+  background: var(--button-color, var(--color-primary));
+  color: var(--color-surface);
   border: none;
   padding: 0.5rem 1rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
@@ -55,11 +55,11 @@ button.primary[disabled] {
 }
 
 button.secondary {
-  background: #fff;
-  color: var(--button-color, #0ea5e9);
-  border: 1px solid var(--button-color, #0ea5e9);
+  background: var(--color-surface);
+  color: var(--button-color, var(--color-primary));
+  border: 1px solid var(--button-color, var(--color-primary));
   padding: 0.5rem 1rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
@@ -74,7 +74,7 @@ button.secondary[disabled] {
 }
 
 a.link {
-  color: var(--button-color, #0ea5e9);
+  color: var(--button-color, var(--color-primary));
   text-decoration: none;
 }
 

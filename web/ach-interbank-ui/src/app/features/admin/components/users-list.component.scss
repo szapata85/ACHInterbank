@@ -27,7 +27,7 @@
   background: #eef2ff;
   color: #4338ca;
   padding: 0.25rem 0.5rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   margin-right: 0.35rem;
   font-size: 0.75rem;
 }
@@ -56,7 +56,7 @@
 
 button.ghost {
   background: transparent;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--color-border-strong);
   padding: 0.5rem 0.9rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
 }

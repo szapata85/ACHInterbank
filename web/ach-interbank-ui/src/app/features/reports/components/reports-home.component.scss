@@ -7,25 +7,25 @@
 
 .card {
   border: 1px solid #dbe4ee;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 1rem;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .card h3 {
   margin: 0 0 0.4rem;
-  color: #0f172a;
+  color: var(--color-text);
 }
 
 .card p {
   margin: 0 0 0.8rem;
-  color: #475569;
+  color: var(--color-text-muted);
   line-height: 1.4;
 }
 
 .link {
   text-decoration: none;
-  color: var(--button-color, #0ea5e9);
+  color: var(--button-color, var(--color-primary));
   font-weight: 600;
 }
 

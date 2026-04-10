@@ -14,7 +14,7 @@
   display: grid;
   gap: 0.4rem;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--color-text);
 }
 
 .form-grid input,
@@ -33,6 +33,6 @@
 .empty-state {
   padding: 1rem;
   border: 1px dashed #cbd5f5;
-  border-radius: 12px;
-  color: #475569;
+  border-radius: var(--radius-lg);
+  color: var(--color-text-muted);
 }

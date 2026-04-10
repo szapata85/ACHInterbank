@@ -12,21 +12,21 @@
 .row-actions .link {
   background: transparent;
   border: none;
-  color: #2563eb;
+  color: var(--color-primary);
   cursor: pointer;
   padding: 0;
 }
 
 .row-actions .danger {
-  color: #dc2626;
+  color: var(--color-danger);
 }
 
 .editor {
   margin-top: 1.5rem;
   padding: 1.5rem;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
 }
 
@@ -41,19 +41,19 @@
   flex-direction: column;
   gap: 0.4rem;
   font-weight: 600;
-  color: #374151;
+  color: #334155;
 }
 
 .helper {
   font-size: 0.75rem;
-  color: #6b7280;
+  color: var(--color-text-soft);
   font-weight: 400;
 }
 
 .form-grid input,
 .form-grid select {
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
   padding: 0.45rem 0.6rem;
 }
 
@@ -76,8 +76,8 @@
 }
 
 .parameter input {
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
   padding: 0.45rem 0.6rem;
 }
 
@@ -89,16 +89,16 @@
 }
 
 .primary {
-  background: #2563eb;
-  color: #fff;
+  background: var(--color-primary);
+  color: var(--color-surface);
   border: none;
   padding: 0.5rem 1rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .ghost {
   background: transparent;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-border-strong);
   padding: 0.5rem 1rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }

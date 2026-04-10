@@ -13,14 +13,14 @@
 
 .header p {
   margin: 0.25rem 0 0;
-  color: #6b7280;
+  color: var(--color-text-soft);
 }
 
 .card {
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   padding: 1.5rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-lg);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
@@ -39,13 +39,13 @@ label {
 input,
 select {
   padding: 0.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.5rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
 }
 
 .source-help {
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--color-text-soft);
   margin-top: 0.25rem;
 }
 
@@ -68,21 +68,21 @@ select {
   flex-wrap: wrap;
   gap: 0.5rem;
   padding: 0.75rem;
-  border: 1px dashed #d1d5db;
-  border-radius: 0.5rem;
-  background: #f9fafb;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
 }
 
 button.primary {
-  background: var(--button-color, #2563eb);
+  background: var(--button-color, var(--color-primary));
   color: white;
   border: none;
   padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
 }
 
 button.danger {
-  color: #b91c1c;
+  color: var(--color-danger-hover);
 }
 
 .actions {

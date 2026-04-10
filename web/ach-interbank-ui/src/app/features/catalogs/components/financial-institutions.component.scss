@@ -19,7 +19,7 @@
   text-transform: uppercase;
   font-size: 0.75rem;
   letter-spacing: 0.05em;
-  color: #6b7280;
+  color: var(--color-text-soft);
   margin: 0 0 0.25rem;
 }
 
@@ -29,19 +29,19 @@
 }
 
 .grid {
-  border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   overflow: hidden;
   height: 480px;
 }
 
 .ag-theme-alpine {
-  --ag-foreground-color: #111827;
-  --ag-header-foreground-color: #111827;
-  --ag-border-color: #e5e7eb;
-  --ag-secondary-border-color: #f3f4f6;
-  --ag-header-background-color: #f9fafb;
-  --ag-odd-row-background-color: #f9fafb;
+  --ag-foreground-color: var(--color-text);
+  --ag-header-foreground-color: var(--color-text);
+  --ag-border-color: var(--color-border);
+  --ag-secondary-border-color: #edf2f7;
+  --ag-header-background-color: var(--color-surface-muted);
+  --ag-odd-row-background-color: var(--color-surface-muted);
   --ag-font-size: 14px;
   --ag-font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   width: 100%;
@@ -52,10 +52,10 @@
   display: inline-flex;
   align-items: center;
   padding: 0.2rem 0.5rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 0.875rem;
-  background: #e5e7eb;
-  color: #374151;
+  background: var(--color-border);
+  color: #334155;
 
   &.success {
     background: #ecfdf3;
@@ -68,8 +68,8 @@
   }
 
   &.muted {
-    background: #f3f4f6;
-    color: #6b7280;
+    background: #edf2f7;
+    color: var(--color-text-soft);
   }
 }
 
@@ -126,7 +126,7 @@
 
 .form-grid .checkbox {
   padding: 0.75rem 0.85rem 0.65rem;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
