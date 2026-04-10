@@ -6,6 +6,7 @@ import { TransactionCreateComponent } from './components/transaction-create/tran
 import { TransactionListComponent } from './components/transaction-list/transaction-list.component';
 import { NachaUploadComponent } from './components/nacha-upload/nacha-upload.component';
 import { AchReturnsManagementComponent } from './components/ach-returns-management/ach-returns-management.component';
+import { TransactionBulkCreateComponent } from './components/transaction-bulk-create/transaction-bulk-create.component';
 
 @NgModule({
   imports: [
@@ -15,6 +16,7 @@ import { AchReturnsManagementComponent } from './components/ach-returns-manageme
     TransactionListComponent,
     NachaUploadComponent,
     AchReturnsManagementComponent,
+    TransactionBulkCreateComponent,
     TransactionsRoutingModule
   ]
 })

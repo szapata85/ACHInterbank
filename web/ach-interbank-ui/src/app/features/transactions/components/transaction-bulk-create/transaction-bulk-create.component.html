@@ -1,0 +1,134 @@
+<app-page-header
+  title="Crear transacciones masivas"
+  description="Carga un lote ACH en JSON, valida su estructura y monitorea resultados por ítem."
+></app-page-header>
+
+<section class="bulk-create">
+  <div class="panel editor">
+    <header>
+      <h2>Payload JSON</h2>
+      <p>Pega aquí el JSON del lote. Puedes revisar y validar antes de enviar.</p>
+    </header>
+
+    <textarea
+      [value]="jsonInput()"
+      (input)="onJsonInput($any($event.target).value)"
+      placeholder='{"batchReference":"BATCH-20260410-001","chunkSize":200,"transactions":[...]}'
+      rows="18"
+      spellcheck="false"
+    ></textarea>
+
+    <div class="actions">
+      <button type="button" class="ghost" (click)="validateJson()" [disabled]="isSubmitting()">Validar JSON</button>
+      <button type="button" (click)="submit()" [disabled]="isSubmitting() || !payload()">
+        {{ isSubmitting() ? 'Enviando lote…' : 'Enviar lote masivo' }}
+      </button>
+      <button type="button" class="ghost" routerLink="/transactions/list" [disabled]="isSubmitting()">Cancelar</button>
+    </div>
+
+    <p class="error" *ngIf="validationError()">{{ validationError() }}</p>
+    <ul class="warnings" *ngIf="parseWarnings().length > 0">
+      <li *ngFor="let warning of parseWarnings()">{{ warning }}</li>
+    </ul>
+  </div>
+
+  <div class="panel summary">
+    <header>
+      <h2>Resumen del lote</h2>
+      <p>Vista previa y control de calidad previo al envío.</p>
+    </header>
+
+    <ng-container *ngIf="payload(); else emptyPreview">
+      <dl>
+        <div>
+          <dt>Referencia de lote</dt>
+          <dd>{{ payload()?.batchReference }}</dd>
+        </div>
+        <div>
+          <dt>Chunk size</dt>
+          <dd>{{ payload()?.chunkSize }}</dd>
+        </div>
+        <div>
+          <dt>Transacciones detectadas</dt>
+          <dd>{{ transactionCount() }}</dd>
+        </div>
+      </dl>
+    </ng-container>
+
+    <ng-template #emptyPreview>
+      <div class="empty-state">
+        <p>No hay payload validado todavía.</p>
+        <small>Valida el JSON para habilitar el resumen y el envío.</small>
+      </div>
+    </ng-template>
+
+    <section class="execution" *ngIf="response() as result">
+      <h3>Resultado de procesamiento</h3>
+      <dl>
+        <div>
+          <dt>Recibidas</dt>
+          <dd>{{ result.totalReceived }}</dd>
+        </div>
+        <div>
+          <dt>Procesadas</dt>
+          <dd>{{ result.totalProcessed }}</dd>
+        </div>
+        <div>
+          <dt>Exitosas</dt>
+          <dd class="ok">{{ result.totalSucceeded }}</dd>
+        </div>
+        <div>
+          <dt>Fallidas</dt>
+          <dd class="ko">{{ result.totalFailed }}</dd>
+        </div>
+      </dl>
+
+      <div class="status" *ngIf="summary() as stats" [class.ok]="stats.allSuccess" [class.warn]="stats.hasPartialSuccess" [class.ko]="stats.allFailed">
+        <strong>Tasa de éxito: {{ stats.successRate }}%</strong>
+        <span *ngIf="stats.allSuccess">Procesamiento total exitoso.</span>
+        <span *ngIf="stats.hasPartialSuccess">Procesamiento parcial: revisa ítems fallidos.</span>
+        <span *ngIf="stats.allFailed">Ninguna transacción fue aceptada.</span>
+      </div>
+    </section>
+  </div>
+</section>
+
+<section class="panel results" *ngIf="response() as result">
+  <header>
+    <h2>Resultado por ítem</h2>
+    <p>Detalle de estado por fila con motivo de error cuando aplica.</p>
+  </header>
+
+  <div class="grid-wrapper" *ngIf="resultRows().length > 0; else emptyResults">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Referencia</th>
+          <th>Estado</th>
+          <th>ID transacción</th>
+          <th>Código error</th>
+          <th>Detalle</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let item of resultRows()" [class.success]="item.succeeded" [class.error-row]="!item.succeeded">
+          <td>{{ item.index + 1 }}</td>
+          <td>{{ item.reference || '-' }}</td>
+          <td>
+            <span class="badge" [class.ok]="item.succeeded" [class.ko]="!item.succeeded">{{ item.statusLabel }}</span>
+          </td>
+          <td>{{ item.transactionId ?? '-' }}</td>
+          <td>{{ item.errorCode ?? '-' }}</td>
+          <td>{{ formatError(item) }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <ng-template #emptyResults>
+    <div class="empty-state">
+      <p>No se recibieron resultados por ítem.</p>
+    </div>
+  </ng-template>
+</section>

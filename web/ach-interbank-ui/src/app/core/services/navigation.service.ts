@@ -14,6 +14,23 @@ export class NavigationService {
   }
 
   private mergeDefaultMenu(items: MenuItem[]): MenuItem[] {
+
+    const transactionsChildren: MenuItem[] = [
+      { id: -201, label: 'Listado', route: '/transactions/list', icon: 'list' },
+      { id: -202, label: 'Crear transacción', route: '/transactions/create', icon: 'add_circle' },
+      { id: -203, label: 'Carga masiva', route: '/transactions/bulk-create', icon: 'upload_file' },
+      { id: -204, label: 'Cargar NACHA-M', route: '/transactions/nacha-upload', icon: 'upload' },
+      { id: -205, label: 'Devoluciones ACH', route: '/transactions/returns', icon: 'assignment_return' }
+    ];
+
+    const transactionsGroup: MenuItem = {
+      id: -200,
+      label: 'Transacciones',
+      route: '/transactions',
+      icon: 'payments',
+      children: transactionsChildren
+    };
+
     const catalogChildren: MenuItem[] = [
       { id: -2101, label: 'Conceptos de lote', route: '/catalogs/company-entry-descriptions', icon: 'list' },
       { id: -211, label: 'Tipos de documento', route: '/catalogs/document-types', icon: 'badge' },
@@ -62,7 +79,7 @@ export class NavigationService {
     };
 
     if (!items.length) {
-      return [customerItem, reportsItem, logsGroup, catalogGroup];
+      return [transactionsGroup, customerItem, reportsItem, logsGroup, catalogGroup];
     }
 
     const hasRoute = (menu: MenuItem[], route: string): boolean =>
@@ -75,7 +92,16 @@ export class NavigationService {
       if (missingChildren.length) {
         existingCatalogGroup.children = [...existingChildren, ...missingChildren];
       }
-      let next = items;
+      const existingTransactionsGroup = items.find((item) => item.route === '/transactions' || item.label === 'Transacciones');
+      if (existingTransactionsGroup) {
+        const existingTransactionChildren = existingTransactionsGroup.children ?? [];
+        const missingTransactionChildren = transactionsChildren.filter((child) => !hasRoute(existingTransactionChildren, child.route));
+        if (missingTransactionChildren.length) {
+          existingTransactionsGroup.children = [...existingTransactionChildren, ...missingTransactionChildren];
+        }
+      }
+
+      let next = hasRoute(items, transactionsGroup.route) ? items : [...items, transactionsGroup];
       if (!hasRoute(next, customerItem.route)) {
         next = [...next, customerItem];
       }
@@ -96,7 +122,8 @@ export class NavigationService {
       return [...next, logsGroup];
     }
 
-    const withCustomer = hasRoute(items, customerItem.route) ? items : [...items, customerItem];
+    const withTransactions = hasRoute(items, transactionsGroup.route) ? items : [...items, transactionsGroup];
+    const withCustomer = hasRoute(withTransactions, customerItem.route) ? withTransactions : [...withTransactions, customerItem];
     const withReports = hasRoute(withCustomer, reportsItem.route) ? withCustomer : [...withCustomer, reportsItem];
     const withLogs = hasRoute(withReports, '/navigation-logs') || hasRoute(withReports, '/auth-logs') || hasRoute(withReports, '/audit-logs')
       ? withReports

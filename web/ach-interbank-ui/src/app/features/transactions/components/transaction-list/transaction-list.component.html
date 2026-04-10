@@ -26,7 +26,10 @@
     <button type="button" class="ghost" (click)="applyFilters()" [disabled]="loading">Aplicar</button>
   </div>
 
-  <button type="button" (click)="createNew()">Crear transacción</button>
+  <div class="action-buttons">
+    <button type="button" class="ghost" (click)="createBulk()">Carga masiva</button>
+    <button type="button" (click)="createNew()">Crear transacción</button>
+  </div>
 </div>
 
   <div class="return-filters">

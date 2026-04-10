@@ -143,6 +143,10 @@ export class TransactionListComponent implements OnInit {
     this.router.navigate(['/transactions/create']);
   }
 
+  createBulk(): void {
+    this.router.navigate(['/transactions/bulk-create']);
+  }
+
   applyFilters(): void {
     this.loadTransactions();
   }

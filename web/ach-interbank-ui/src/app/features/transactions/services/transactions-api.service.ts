@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { catchError, map, throwError } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { AccountTypeEnum, TransactionTypeEnum } from '../transactions.types';
-import { ActiveThirdPartyAccount, CompanyEntryDescriptionOption, TransactionDraft, TransactionListFilter, TransactionListItem, TransactionPolicyPreview, TransactionResponse } from '../transactions.models';
+import { ActiveThirdPartyAccount, BulkAchTransactionRequest, BulkAchTransactionResponse, CompanyEntryDescriptionOption, TransactionDraft, TransactionListFilter, TransactionListItem, TransactionPolicyPreview, TransactionResponse } from '../transactions.models';
 
 interface PagedResponse<T> {
   items: T[];
@@ -71,6 +71,19 @@ export class TransactionsApiService {
   }
 
 
+  createBulkTransaction(payload: BulkAchTransactionRequest) {
+    return this.api.post<BulkAchTransactionResponse>('transactions/bulk', payload).pipe(
+      catchError((error) => {
+        if (error.status === 400) {
+          return throwError(() => new Error(error.error?.message ?? 'El lote no cumple las validaciones requeridas.'));
+        }
+        if (error.status === 401) {
+          return throwError(() => new Error('Sesión expirada. Inicie sesión nuevamente.'));
+        }
+        return throwError(() => new Error(error.error?.message ?? 'No fue posible procesar el lote masivo.'));
+      })
+    );
+  }
 
   getActiveThirdParties(sourceAccountNumber: string, destinationInstitutionId?: number | null) {
     const params: Record<string, string | number> = {

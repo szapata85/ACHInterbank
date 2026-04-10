@@ -4,6 +4,7 @@ import { TransactionCreateComponent } from './components/transaction-create/tran
 import { TransactionListComponent } from './components/transaction-list/transaction-list.component';
 import { NachaUploadComponent } from './components/nacha-upload/nacha-upload.component';
 import { AchReturnsManagementComponent } from './components/ach-returns-management/ach-returns-management.component';
+import { TransactionBulkCreateComponent } from './components/transaction-bulk-create/transaction-bulk-create.component';
 
 const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'list' },
@@ -16,6 +17,11 @@ const routes: Routes = [
     path: 'create',
     component: TransactionCreateComponent,
     data: { title: 'Crear transacción', breadcrumb: 'Crear transacción' }
+  },
+  {
+    path: 'bulk-create',
+    component: TransactionBulkCreateComponent,
+    data: { title: 'Crear transacción masiva', breadcrumb: 'Crear transacción masiva' }
   },
   {
     path: 'nacha-upload',

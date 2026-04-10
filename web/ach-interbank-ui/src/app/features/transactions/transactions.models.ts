@@ -144,3 +144,52 @@ export interface TransactionPolicyPreview {
   idempotencyKey?: string | null;
   wouldDuplicate: boolean;
 }
+
+
+export interface BulkAchTransactionItemRequest {
+  amount: number;
+  reference: string;
+  type: TransactionTypeEnum;
+  accountType: AccountTypeEnum;
+  isPrenotification: boolean;
+  destinationInstitutionId: number;
+  sourceAccountNumber: string;
+  destinationAccountNumber: string;
+  companyName: string;
+  companyIdentification: string;
+  companyEntryDescriptionId: number;
+  sourcePersonType?: 'PN' | 'PJ';
+  recipientPersonType?: 'PN' | 'PJ';
+  recipientIdNumber?: string;
+  recipientName?: string;
+  requiresIdentityValidation?: boolean;
+  addendas?: Array<{
+    addendaType: string;
+    information: string;
+  }>;
+}
+
+export interface BulkAchTransactionRequest {
+  batchReference: string;
+  chunkSize?: number;
+  transactions: BulkAchTransactionItemRequest[];
+}
+
+export interface BulkAchTransactionItemResult {
+  index: number;
+  reference: string;
+  succeeded: boolean;
+  transactionId?: number;
+  errorCode?: string;
+  errorMessage?: string;
+}
+
+export interface BulkAchTransactionResponse {
+  batchReference: string;
+  totalReceived: number;
+  totalProcessed: number;
+  totalSucceeded: number;
+  totalFailed: number;
+  createdTransactionIds: number[];
+  itemResults: BulkAchTransactionItemResult[];
+}
