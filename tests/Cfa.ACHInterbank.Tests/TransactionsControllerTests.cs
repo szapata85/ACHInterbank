@@ -1,0 +1,52 @@
+using Cfa.ACHInterbank.Api.Controllers;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Domain.Models.ACH;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using Moq;
+using Xunit;
+
+namespace Cfa.ACHInterbank.Tests;
+
+public class TransactionsControllerTests
+{
+    [Fact]
+    public async Task CreateTransaction_ReturnsCreated_WhenSingleTransactionIsValid()
+    {
+        var txService = new Mock<IAchTransactionService>();
+        txService.Setup(s => s.RegisterTransactionAsync(
+                It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<TransactionTypeEnum>(), It.IsAny<AccountTypeEnum>(),
+                It.IsAny<bool>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(),
+                It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<List<AddendaDto>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchTransaction { Id = 25, Reference = "UNIT-001" });
+
+        var policy = new Mock<ITransactionPolicyService>();
+        var bulk = new Mock<IAchBulkTransactionService>();
+        var logger = new Mock<ILogger<TransactionsController>>();
+
+        var controller = new TransactionsController(txService.Object, policy.Object, bulk.Object, logger.Object);
+
+        var result = await controller.CreateTransaction(new AchTransactionRequest
+        {
+            Amount = 1000,
+            Reference = "UNIT-001",
+            Type = TransactionTypeEnum.Credit,
+            AccountType = AccountTypeEnum.Checking,
+            DestinationInstitutionId = 2,
+            SourceAccountNumber = "1234567890",
+            DestinationAccountNumber = "9876543210",
+            CompanyName = "EMPRESA",
+            CompanyIdentification = "900123456",
+            CompanyEntryDescriptionId = 1,
+            Addendas = [new AddendaDto { AddendaType = "05", Information = "Pago" }]
+        }, CancellationToken.None);
+
+        var created = Assert.IsType<CreatedAtActionResult>(result);
+        var payload = Assert.IsType<AchTransaction>(created.Value);
+        Assert.Equal(25, payload.Id);
+    }
+}
