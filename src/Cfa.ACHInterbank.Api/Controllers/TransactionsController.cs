@@ -14,15 +14,18 @@ public class TransactionsController : ControllerBase
     private readonly IAchTransactionService _transactionService;
     private readonly ILogger<TransactionsController> _logger;
     private readonly ITransactionPolicyService _transactionPolicyService;
+    private readonly IAchBulkTransactionService _bulkTransactionService;
 
     public TransactionsController(
         IAchTransactionService transactionService,
         ITransactionPolicyService transactionPolicyService,
+        IAchBulkTransactionService bulkTransactionService,
         ILogger<TransactionsController> logger)
     {
         _transactionService = transactionService;
         _logger = logger;
         _transactionPolicyService = transactionPolicyService;
+        _bulkTransactionService = bulkTransactionService;
     }
     /// <summary>
     /// Endpoint de la API ACH Interbank.
@@ -148,6 +151,30 @@ public class TransactionsController : ControllerBase
             return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Error interno del servidor" });
         }
     }
+
+    [HttpPost("bulk")]
+    [ProducesResponseType(typeof(BulkAchTransactionResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> CreateTransactionsBulk([FromBody] BulkAchTransactionRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var result = await _bulkTransactionService.RegisterBulkAsync(request, ct);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Validación global fallida en carga masiva ACH");
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error interno al registrar transacciones ACH masivas");
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Error interno del servidor" });
+        }
+    }
+
     /// <summary>
     /// Endpoint de la API ACH Interbank.
     /// </summary>

@@ -1,0 +1,460 @@
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories;
+using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Persistence.DataBase;
+using Microsoft.EntityFrameworkCore;
+
+namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
+
+[Scoped]
+public sealed class AchBulkTransactionService : IAchBulkTransactionService
+{
+    private const int DefaultChunkSize = 200;
+    private const int DefaultMaxItems = 2000;
+
+    private readonly AchDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IAchCustomerRepository _customerRepository;
+    private readonly ITransactionValidator _transactionValidator;
+    private readonly IBatchResolver _batchResolver;
+    private readonly ITransactionPersister _transactionPersister;
+    private readonly IPrenotificationHandler _prenotificationHandler;
+    private readonly ITransactionPolicyService? _transactionPolicyService;
+    private readonly IConfiguration _configuration;
+
+    public AchBulkTransactionService(
+        AchDbContext context,
+        IUnitOfWork unitOfWork,
+        IAchCustomerRepository customerRepository,
+        ITransactionValidator transactionValidator,
+        IBatchResolver batchResolver,
+        ITransactionPersister transactionPersister,
+        IPrenotificationHandler prenotificationHandler,
+        IConfiguration configuration,
+        ITransactionPolicyService? transactionPolicyService = null)
+    {
+        _context = context;
+        _unitOfWork = unitOfWork;
+        _customerRepository = customerRepository;
+        _transactionValidator = transactionValidator;
+        _batchResolver = batchResolver;
+        _transactionPersister = transactionPersister;
+        _prenotificationHandler = prenotificationHandler;
+        _configuration = configuration;
+        _transactionPolicyService = transactionPolicyService;
+    }
+
+    public async Task<BulkAchTransactionResponse> RegisterBulkAsync(BulkAchTransactionRequest request, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var maxItems = _configuration.GetValue<int?>("Transactions:Bulk:MaxItems") ?? DefaultMaxItems;
+        var configuredChunkSize = _configuration.GetValue<int?>("Transactions:Bulk:ChunkSize") ?? DefaultChunkSize;
+        var chunkSize = Math.Clamp(request.ChunkSize ?? configuredChunkSize, 50, 1000);
+
+        ValidateBatchRequest(request, maxItems);
+
+        var response = new BulkAchTransactionResponse
+        {
+            BatchReference = request.BatchReference.Trim(),
+            TotalReceived = request.Transactions.Count
+        };
+
+        var normalizedItems = request.Transactions
+            .Select((item, index) => new NormalizedBulkItem(index, item, MapToRequestData(item)))
+            .ToList();
+
+        ValidateDuplicatesInsideRequest(normalizedItems);
+        await ValidatePotentialPersistenceDuplicatesAsync(normalizedItems, ct);
+
+        foreach (var chunk in normalizedItems.Chunk(chunkSize))
+        {
+            ct.ThrowIfCancellationRequested();
+            var touchedBatches = new HashSet<AchBatch>(AchBatchReferenceComparer.Instance);
+            var pendingSuccesses = new List<(BulkAchTransactionItemResult Result, AchTransaction Transaction)>();
+
+            foreach (var record in chunk)
+            {
+                try
+                {
+                    _transactionValidator.ValidateRequest(record.Data);
+
+                    if (_transactionPolicyService is not null)
+                    {
+                        var preview = await _transactionPolicyService.PreviewAsync(new TransactionPolicyPreviewRequest(
+                            record.Data.Amount,
+                            record.Data.Reference,
+                            record.Data.Type,
+                            record.Data.AccountType,
+                            record.Data.IsPrenotification,
+                            record.Data.DestinationInstitutionId,
+                            record.Data.SourceAccountNumber,
+                            record.Data.DestinationAccountNumber,
+                            record.Data.CompanyIdentification,
+                            record.Data.RecipientIdNumber), ct);
+
+                        if (!preview.CanSubmit)
+                        {
+                            throw new InvalidOperationException(preview.Message ?? "La transacción incumple políticas operativas ACH.");
+                        }
+                    }
+
+                    await EnsureCustomerAndAccountsAsync(record.Data, ct);
+
+                    var batchContext = await _batchResolver.ResolveAsync(record.Data, ct);
+                    var persisted = await _transactionPersister.PersistAsync(record.Data, batchContext, ct);
+
+                    if (record.Data.IsPrenotification)
+                    {
+                        await _prenotificationHandler.HandleAsync(record.Data, persisted.Transaction, ct);
+                    }
+
+                    touchedBatches.Add(persisted.Batch);
+
+                    var itemResult = new BulkAchTransactionItemResult
+                    {
+                        Index = record.Index,
+                        Reference = record.Data.Reference,
+                        Succeeded = true
+                    };
+                    response.ItemResults.Add(itemResult);
+                    pendingSuccesses.Add((itemResult, persisted.Transaction));
+                }
+                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+                {
+                    response.ItemResults.Add(new BulkAchTransactionItemResult
+                    {
+                        Index = record.Index,
+                        Reference = record.Data.Reference,
+                        Succeeded = false,
+                        ErrorCode = "ITEM_VALIDATION_FAILED",
+                        ErrorMessage = ex.Message
+                    });
+                }
+            }
+
+            if (touchedBatches.Count > 0)
+            {
+                foreach (var batch in touchedBatches)
+                {
+                    await _transactionPersister.UpdateBatchTotalsAsync(batch, ct);
+                    await _transactionPersister.UpdateBatchServiceClassCodeAsync(batch, ct);
+                }
+
+                await _unitOfWork.CommitAsync(ct);
+
+                foreach (var pending in pendingSuccesses)
+                {
+                    pending.Result.TransactionId = pending.Transaction.Id;
+                    if (pending.Transaction.Id > 0)
+                    {
+                        response.CreatedTransactionIds.Add(pending.Transaction.Id);
+                    }
+                }
+
+                _context.ChangeTracker.Clear();
+            }
+        }
+
+        response.TotalProcessed = response.ItemResults.Count;
+        response.TotalSucceeded = response.ItemResults.Count(x => x.Succeeded);
+        response.TotalFailed = response.ItemResults.Count(x => !x.Succeeded);
+
+        return response;
+    }
+
+    private static AchTransactionRequestData MapToRequestData(BulkAchTransactionItemRequest item)
+    {
+        return new AchTransactionRequestData
+        {
+            Amount = item.Amount,
+            Reference = item.Reference,
+            Type = item.Type,
+            AccountType = item.AccountType,
+            IsPrenotification = item.IsPrenotification,
+            DestinationInstitutionId = item.DestinationInstitutionId,
+            SourceAccountNumber = item.SourceAccountNumber,
+            DestinationAccountNumber = item.DestinationAccountNumber,
+            CompanyName = item.CompanyName,
+            CompanyIdentification = item.CompanyIdentification,
+            CompanyEntryDescriptionId = item.CompanyEntryDescriptionId,
+            SourcePersonType = item.SourcePersonType,
+            RecipientPersonType = item.RecipientPersonType,
+            RecipientIdNumber = item.RecipientIdNumber,
+            RecipientName = item.RecipientName,
+            RequiresIdentityValidation = item.RequiresIdentityValidation,
+            Addendas = item.Addendas
+        };
+    }
+
+    private static void ValidateBatchRequest(BulkAchTransactionRequest request, int maxItems)
+    {
+        if (string.IsNullOrWhiteSpace(request.BatchReference))
+        {
+            throw new ArgumentException("batchReference es obligatorio.", nameof(request.BatchReference));
+        }
+
+        if (request.Transactions is null || request.Transactions.Count == 0)
+        {
+            throw new ArgumentException("El lote no contiene transacciones.", nameof(request.Transactions));
+        }
+
+        if (request.Transactions.Count > maxItems)
+        {
+            throw new ArgumentException($"El lote supera el máximo permitido de {maxItems} transacciones.", nameof(request.Transactions));
+        }
+    }
+
+    private static void ValidateDuplicatesInsideRequest(IEnumerable<NormalizedBulkItem> normalizedItems)
+    {
+        var duplicated = normalizedItems
+            .GroupBy(x => x.Data.Reference.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToArray();
+
+        if (duplicated.Length > 0)
+        {
+            throw new ArgumentException($"Referencias duplicadas dentro del lote: {string.Join(", ", duplicated.Take(10))}", "transactions");
+        }
+    }
+
+    private async Task ValidatePotentialPersistenceDuplicatesAsync(IEnumerable<NormalizedBulkItem> normalizedItems, CancellationToken ct)
+    {
+        var references = normalizedItems
+            .Select(x => x.Data.Reference.Trim())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (references.Length == 0)
+        {
+            return;
+        }
+
+        var existingReferences = await _context.AchTransactions
+            .AsNoTracking()
+            .Where(x => references.Contains(x.Reference))
+            .Select(x => x.Reference)
+            .Distinct()
+            .ToListAsync(ct);
+
+        if (existingReferences.Count > 0)
+        {
+            throw new ArgumentException($"Ya existen referencias en persistencia: {string.Join(", ", existingReferences.Take(10))}", "transactions");
+        }
+    }
+
+    private async Task EnsureCustomerAndAccountsAsync(AchTransactionRequestData request, CancellationToken ct)
+    {
+        await EnsureCustomerWithAccountAsync(
+            documentNumber: request.CompanyIdentification,
+            preferredName: request.CompanyName,
+            accountNumber: request.SourceAccountNumber,
+            defaultPersonType: ResolvePersonTypeCode(request.SourcePersonType, "PJ"),
+            defaultDocumentType: "NIT",
+            ct: ct);
+
+        if (!string.IsNullOrWhiteSpace(request.RecipientIdNumber))
+        {
+            await EnsureCustomerWithAccountAsync(
+                documentNumber: request.RecipientIdNumber,
+                preferredName: request.RecipientName,
+                accountNumber: request.DestinationAccountNumber,
+                defaultPersonType: ResolvePersonTypeCode(request.RecipientPersonType, "PN"),
+                defaultDocumentType: "CC",
+                ct: ct);
+        }
+    }
+
+    private async Task EnsureCustomerWithAccountAsync(
+        string? documentNumber,
+        string? preferredName,
+        string? accountNumber,
+        string defaultPersonType,
+        string defaultDocumentType,
+        CancellationToken ct)
+    {
+        var normalizedDocument = (documentNumber ?? string.Empty).Trim();
+        var normalizedAccount = (accountNumber ?? string.Empty).Trim();
+
+        if (string.IsNullOrWhiteSpace(normalizedDocument) || string.IsNullOrWhiteSpace(normalizedAccount))
+        {
+            return;
+        }
+
+        var resolvedDocumentType = await _customerRepository.ResolveDocumentTypeCodeAsync(defaultDocumentType, ct);
+        var resolvedPersonType = await _customerRepository.ResolvePersonTypeCodeAsync(defaultPersonType, ct);
+
+        var customer = await _customerRepository.GetByDocumentAsync(resolvedDocumentType, normalizedDocument, ct);
+        if (customer is null)
+        {
+            var legacyCustomers = await _customerRepository.GetByDocumentNumberAsync(normalizedDocument, ct);
+            if (legacyCustomers.Count == 1)
+            {
+                customer = legacyCustomers[0];
+                if (customer.DocumentType == "OTRO" && customer.DocumentType != resolvedDocumentType)
+                {
+                    customer.DocumentType = resolvedDocumentType;
+                }
+            }
+        }
+
+        if (customer is null)
+        {
+            var autoProfile = BuildAutoProfile(defaultPersonType, preferredName);
+
+            customer = new Customer
+            {
+                PersonType = resolvedPersonType,
+                DocumentType = resolvedDocumentType,
+                DocumentNumber = normalizedDocument,
+                CompanyName = autoProfile.CompanyName,
+                FirstName = autoProfile.FirstName,
+                LastName = autoProfile.LastName
+            };
+
+            customer.Accounts.Add(new CustomerAccount { AccountNumber = normalizedAccount });
+            await _customerRepository.AddAsync(customer, ct);
+            return;
+        }
+
+        if (!string.Equals(customer.PersonType, resolvedPersonType, StringComparison.OrdinalIgnoreCase))
+        {
+            customer.PersonType = resolvedPersonType;
+        }
+
+        if (!string.Equals(customer.DocumentType, resolvedDocumentType, StringComparison.OrdinalIgnoreCase)
+            && (string.Equals(customer.DocumentType, "OTRO", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(customer.DocumentType)))
+        {
+            customer.DocumentType = resolvedDocumentType;
+        }
+
+        RefreshAutoProfileIfNeeded(customer, defaultPersonType, preferredName);
+
+        if (!customer.Accounts.Any(a => a.AccountNumber == normalizedAccount))
+        {
+            customer.Accounts.Add(new CustomerAccount { AccountNumber = normalizedAccount });
+        }
+    }
+
+    private static string ResolvePersonTypeCode(string? requestedPersonType, string fallback)
+    {
+        var normalized = (requestedPersonType ?? string.Empty).Trim().ToUpperInvariant();
+        return normalized is "PN" or "PJ" ? normalized : fallback;
+    }
+
+    private static (string FirstName, string LastName, string? CompanyName) BuildAutoProfile(string personType, string? preferredName)
+    {
+        if (personType == "PJ")
+        {
+            var companyName = NormalizeText(preferredName, 200, "EMPRESA NO IDENTIFICADA");
+            return (
+                FirstName: NormalizeText(companyName, 100, "EMPRESA"),
+                LastName: "N/A",
+                CompanyName: companyName);
+        }
+
+        var naturalName = IsLikelyIdentifier(preferredName)
+            ? string.Empty
+            : NormalizeText(preferredName, 100, "CLIENTE");
+
+        return (
+            FirstName: string.IsNullOrWhiteSpace(naturalName) ? "CLIENTE" : naturalName,
+            LastName: "NO IDENTIFICADO",
+            CompanyName: null);
+    }
+
+    private static void RefreshAutoProfileIfNeeded(Customer customer, string personType, string? preferredName)
+    {
+        var canUsePreferredName = !string.IsNullOrWhiteSpace(preferredName) && !IsLikelyIdentifier(preferredName);
+        var normalizedName = canUsePreferredName ? NormalizeText(preferredName, 200) : string.Empty;
+
+        if (personType == "PJ")
+        {
+            var effectiveCompanyName = string.IsNullOrWhiteSpace(normalizedName)
+                ? NormalizeText(customer.CompanyName, 200, "EMPRESA NO IDENTIFICADA")
+                : normalizedName;
+
+            if (LooksAutoGenerated(customer.CompanyName) || string.IsNullOrWhiteSpace(customer.CompanyName))
+            {
+                customer.CompanyName = effectiveCompanyName;
+            }
+
+            if (LooksAutoGenerated(customer.FirstName) || string.IsNullOrWhiteSpace(customer.FirstName))
+            {
+                customer.FirstName = NormalizeText(effectiveCompanyName, 100, "EMPRESA");
+            }
+
+            if (LooksAutoGenerated(customer.LastName) || string.IsNullOrWhiteSpace(customer.LastName))
+            {
+                customer.LastName = "N/A";
+            }
+
+            return;
+        }
+
+        var effectiveFirstName = string.IsNullOrWhiteSpace(normalizedName)
+            ? NormalizeText(customer.FirstName, 100, "CLIENTE")
+            : NormalizeText(normalizedName, 100, "CLIENTE");
+
+        if (LooksAutoGenerated(customer.FirstName) || string.IsNullOrWhiteSpace(customer.FirstName))
+        {
+            customer.FirstName = effectiveFirstName;
+        }
+
+        if (LooksAutoGenerated(customer.LastName) || string.IsNullOrWhiteSpace(customer.LastName))
+        {
+            customer.LastName = "NO IDENTIFICADO";
+        }
+
+        if (LooksAutoGenerated(customer.CompanyName))
+        {
+            customer.CompanyName = null;
+        }
+    }
+
+    private static bool LooksAutoGenerated(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return true;
+        }
+
+        return normalized.Equals("N/A", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("CLIENTE", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("NO IDENTIFICADO", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("EMPRESA", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("EMPRESA NO IDENTIFICADA", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsLikelyIdentifier(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        return !string.IsNullOrWhiteSpace(normalized) && normalized.All(char.IsDigit);
+    }
+
+    private static string NormalizeText(string? value, int maxLength, string fallback = "")
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            normalized = fallback;
+        }
+
+        return normalized.Length <= maxLength ? normalized : normalized[..maxLength];
+    }
+
+    private sealed class AchBatchReferenceComparer : IEqualityComparer<AchBatch>
+    {
+        public static readonly AchBatchReferenceComparer Instance = new();
+        public bool Equals(AchBatch? x, AchBatch? y) => ReferenceEquals(x, y);
+        public int GetHashCode(AchBatch obj) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(obj);
+    }
+
+    private sealed record NormalizedBulkItem(int Index, BulkAchTransactionItemRequest Item, AchTransactionRequestData Data);
+}
