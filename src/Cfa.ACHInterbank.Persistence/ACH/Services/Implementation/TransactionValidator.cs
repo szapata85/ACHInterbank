@@ -15,6 +15,7 @@ public class TransactionValidator : ITransactionValidator
 {
     private readonly AchDbContext _context;
     private static readonly Regex ReturnReasonRegex = new(@"^(R\d{2}|DEV14)$", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex ReferenceRegex = new(@"^[A-Za-z0-9\-_/]{1,30}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly IReadOnlyDictionary<(TransactionTypeEnum Type, AccountTypeEnum Account, bool IsPrenotification), string> FallbackTransactionCodeMap
         = new Dictionary<(TransactionTypeEnum, AccountTypeEnum, bool), string>
         {
@@ -46,7 +47,9 @@ public class TransactionValidator : ITransactionValidator
         _context = context;
     }
 
-    public void ValidateRequest(AchTransactionRequestData request)
+    private HashSet<string>? _configuredCodesCache;
+
+    public void ValidateRequest(AchTransactionRequestData request, IReadOnlySet<int>? validCompanyEntryDescriptionIds = null)
     {
         var effectiveType = ResolveEffectiveType(request.Type, request.IsPrenotification);
 
@@ -67,7 +70,7 @@ public class TransactionValidator : ITransactionValidator
             throw new ArgumentException("La referencia es obligatoria.", nameof(request.Reference));
         }
 
-        if (!Regex.IsMatch(request.Reference.Trim(), @"^[A-Za-z0-9\-_/]{1,30}$"))
+        if (!ReferenceRegex.IsMatch(request.Reference.Trim()))
         {
             throw new ArgumentException("La referencia solo puede contener caracteres alfanuméricos y -_/ .", nameof(request.Reference));
         }
@@ -117,9 +120,11 @@ public class TransactionValidator : ITransactionValidator
             throw new ArgumentException("El concepto de lote es obligatorio.", nameof(request.CompanyEntryDescriptionId));
         }
 
-        var existsInCatalog = _context.CompanyEntryDescriptionCatalogs
-            .AsNoTracking()
-            .Any(item => item.Id == request.CompanyEntryDescriptionId && item.IsActive);
+        var existsInCatalog = validCompanyEntryDescriptionIds is not null
+            ? validCompanyEntryDescriptionIds.Contains(request.CompanyEntryDescriptionId)
+            : _context.CompanyEntryDescriptionCatalogs
+                .AsNoTracking()
+                .Any(item => item.Id == request.CompanyEntryDescriptionId && item.IsActive);
 
         if (!existsInCatalog)
         {
@@ -145,17 +150,17 @@ public class TransactionValidator : ITransactionValidator
         }
 
         var normalizedCode = fallbackCode.Trim();
-        var configuredCodes = _context.TransactionCodes
+        _configuredCodesCache ??= _context.TransactionCodes
             .AsNoTracking()
             .Select(x => x.Code)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        if (configuredCodes.Count == 0)
+        if (_configuredCodesCache.Count == 0)
         {
             return normalizedCode;
         }
 
-        return configuredCodes.Contains(normalizedCode)
+        return _configuredCodesCache.Contains(normalizedCode)
             ? normalizedCode
             : fallbackCode;
     }

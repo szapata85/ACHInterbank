@@ -66,12 +66,26 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
             .Select((item, index) => new NormalizedBulkItem(index, item, MapToRequestData(item)))
             .ToList();
 
-        ValidateDuplicatesInsideRequest(normalizedItems);
-        await ValidatePotentialPersistenceDuplicatesAsync(normalizedItems, ct);
+        var activeCompanyEntryDescriptionIds = await PreloadActiveCompanyEntryDescriptionIdsAsync(ct);
+        var duplicatedReferencesInRequest = GetDuplicateReferences(normalizedItems);
+        var existingReferencesInPersistence = await LoadExistingReferencesAsync(normalizedItems, ct);
+
+        var customerCache = await BuildCustomerCacheAsync(normalizedItems, ct);
+        var documentTypeByDefault = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["NIT"] = await _customerRepository.ResolveDocumentTypeCodeAsync("NIT", ct),
+            ["CC"] = await _customerRepository.ResolveDocumentTypeCodeAsync("CC", ct)
+        };
+        var personTypeByDefault = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["PJ"] = await _customerRepository.ResolvePersonTypeCodeAsync("PJ", ct),
+            ["PN"] = await _customerRepository.ResolvePersonTypeCodeAsync("PN", ct)
+        };
 
         foreach (var chunk in normalizedItems.Chunk(chunkSize))
         {
             ct.ThrowIfCancellationRequested();
+
             var touchedBatches = new HashSet<AchBatch>(AchBatchReferenceComparer.Instance);
             var pendingSuccesses = new List<(BulkAchTransactionItemResult Result, AchTransaction Transaction)>();
 
@@ -79,7 +93,19 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
             {
                 try
                 {
-                    _transactionValidator.ValidateRequest(record.Data);
+                    var normalizedReference = record.Data.Reference.Trim();
+
+                    if (duplicatedReferencesInRequest.Contains(normalizedReference))
+                    {
+                        throw new ArgumentException($"La referencia '{normalizedReference}' está duplicada dentro del mismo request.", nameof(record.Data.Reference));
+                    }
+
+                    if (existingReferencesInPersistence.Contains(normalizedReference))
+                    {
+                        throw new ArgumentException($"La referencia '{normalizedReference}' ya existe en persistencia.", nameof(record.Data.Reference));
+                    }
+
+                    _transactionValidator.ValidateRequest(record.Data, activeCompanyEntryDescriptionIds);
 
                     if (_transactionPolicyService is not null)
                     {
@@ -101,7 +127,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
                         }
                     }
 
-                    await EnsureCustomerAndAccountsAsync(record.Data, ct);
+                    await EnsureCustomerAndAccountsAsync(record.Data, customerCache, documentTypeByDefault, personTypeByDefault, ct);
 
                     var batchContext = await _batchResolver.ResolveAsync(record.Data, ct);
                     var persisted = await _transactionPersister.PersistAsync(record.Data, batchContext, ct);
@@ -116,9 +142,10 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
                     var itemResult = new BulkAchTransactionItemResult
                     {
                         Index = record.Index,
-                        Reference = record.Data.Reference,
+                        Reference = normalizedReference,
                         Succeeded = true
                     };
+
                     response.ItemResults.Add(itemResult);
                     pendingSuccesses.Add((itemResult, persisted.Transaction));
                 }
@@ -207,21 +234,27 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
         }
     }
 
-    private static void ValidateDuplicatesInsideRequest(IEnumerable<NormalizedBulkItem> normalizedItems)
+    private async Task<HashSet<int>> PreloadActiveCompanyEntryDescriptionIdsAsync(CancellationToken ct)
     {
-        var duplicated = normalizedItems
-            .GroupBy(x => x.Data.Reference.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Where(g => g.Count() > 1)
-            .Select(g => g.Key)
-            .ToArray();
-
-        if (duplicated.Length > 0)
-        {
-            throw new ArgumentException($"Referencias duplicadas dentro del lote: {string.Join(", ", duplicated.Take(10))}", "transactions");
-        }
+        return await _context.CompanyEntryDescriptionCatalogs
+            .AsNoTracking()
+            .Where(item => item.IsActive)
+            .Select(item => item.Id)
+            .ToHashSetAsync(ct);
     }
 
-    private async Task ValidatePotentialPersistenceDuplicatesAsync(IEnumerable<NormalizedBulkItem> normalizedItems, CancellationToken ct)
+    private static HashSet<string> GetDuplicateReferences(IEnumerable<NormalizedBulkItem> normalizedItems)
+    {
+        return normalizedItems
+            .Select(x => x.Data.Reference.Trim())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .GroupBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private async Task<HashSet<string>> LoadExistingReferencesAsync(IEnumerable<NormalizedBulkItem> normalizedItems, CancellationToken ct)
     {
         var references = normalizedItems
             .Select(x => x.Data.Reference.Trim())
@@ -231,23 +264,51 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
 
         if (references.Length == 0)
         {
-            return;
+            return [];
         }
 
-        var existingReferences = await _context.AchTransactions
+        return (await _context.AchTransactions
             .AsNoTracking()
             .Where(x => references.Contains(x.Reference))
             .Select(x => x.Reference)
             .Distinct()
-            .ToListAsync(ct);
-
-        if (existingReferences.Count > 0)
-        {
-            throw new ArgumentException($"Ya existen referencias en persistencia: {string.Join(", ", existingReferences.Take(10))}", "transactions");
-        }
+            .ToListAsync(ct))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
-    private async Task EnsureCustomerAndAccountsAsync(AchTransactionRequestData request, CancellationToken ct)
+    private async Task<CustomerCache> BuildCustomerCacheAsync(IEnumerable<NormalizedBulkItem> normalizedItems, CancellationToken ct)
+    {
+        var documentNumbers = normalizedItems
+            .SelectMany(x => new[] { x.Data.CompanyIdentification, x.Data.RecipientIdNumber })
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var customers = documentNumbers.Length == 0
+            ? []
+            : await _context.Customers
+                .Include(c => c.Accounts)
+                .Where(c => documentNumbers.Contains(c.DocumentNumber))
+                .ToListAsync(ct);
+
+        var byDocAndType = customers
+            .GroupBy(c => $"{c.DocumentType}|{c.DocumentNumber}", StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        var byDocNumber = customers
+            .GroupBy(c => c.DocumentNumber, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
+        return new CustomerCache(byDocAndType, byDocNumber);
+    }
+
+    private async Task EnsureCustomerAndAccountsAsync(
+        AchTransactionRequestData request,
+        CustomerCache cache,
+        IReadOnlyDictionary<string, string> documentTypeByDefault,
+        IReadOnlyDictionary<string, string> personTypeByDefault,
+        CancellationToken ct)
     {
         await EnsureCustomerWithAccountAsync(
             documentNumber: request.CompanyIdentification,
@@ -255,7 +316,10 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
             accountNumber: request.SourceAccountNumber,
             defaultPersonType: ResolvePersonTypeCode(request.SourcePersonType, "PJ"),
             defaultDocumentType: "NIT",
-            ct: ct);
+            cache,
+            documentTypeByDefault,
+            personTypeByDefault,
+            ct);
 
         if (!string.IsNullOrWhiteSpace(request.RecipientIdNumber))
         {
@@ -265,7 +329,10 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
                 accountNumber: request.DestinationAccountNumber,
                 defaultPersonType: ResolvePersonTypeCode(request.RecipientPersonType, "PN"),
                 defaultDocumentType: "CC",
-                ct: ct);
+                cache,
+                documentTypeByDefault,
+                personTypeByDefault,
+                ct);
         }
     }
 
@@ -275,6 +342,9 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
         string? accountNumber,
         string defaultPersonType,
         string defaultDocumentType,
+        CustomerCache cache,
+        IReadOnlyDictionary<string, string> documentTypeByDefault,
+        IReadOnlyDictionary<string, string> personTypeByDefault,
         CancellationToken ct)
     {
         var normalizedDocument = (documentNumber ?? string.Empty).Trim();
@@ -285,20 +355,18 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
             return;
         }
 
-        var resolvedDocumentType = await _customerRepository.ResolveDocumentTypeCodeAsync(defaultDocumentType, ct);
-        var resolvedPersonType = await _customerRepository.ResolvePersonTypeCodeAsync(defaultPersonType, ct);
+        var resolvedDocumentType = documentTypeByDefault[defaultDocumentType];
+        var resolvedPersonType = personTypeByDefault[defaultPersonType];
 
-        var customer = await _customerRepository.GetByDocumentAsync(resolvedDocumentType, normalizedDocument, ct);
-        if (customer is null)
+        var compositeKey = $"{resolvedDocumentType}|{normalizedDocument}";
+        cache.ByDocumentAndType.TryGetValue(compositeKey, out var customer);
+
+        if (customer is null && cache.ByDocumentNumber.TryGetValue(normalizedDocument, out var legacyCustomers) && legacyCustomers.Count == 1)
         {
-            var legacyCustomers = await _customerRepository.GetByDocumentNumberAsync(normalizedDocument, ct);
-            if (legacyCustomers.Count == 1)
+            customer = legacyCustomers[0];
+            if (customer.DocumentType == "OTRO" && customer.DocumentType != resolvedDocumentType)
             {
-                customer = legacyCustomers[0];
-                if (customer.DocumentType == "OTRO" && customer.DocumentType != resolvedDocumentType)
-                {
-                    customer.DocumentType = resolvedDocumentType;
-                }
+                customer.DocumentType = resolvedDocumentType;
             }
         }
 
@@ -318,6 +386,13 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
 
             customer.Accounts.Add(new CustomerAccount { AccountNumber = normalizedAccount });
             await _customerRepository.AddAsync(customer, ct);
+            cache.ByDocumentAndType[compositeKey] = customer;
+            if (!cache.ByDocumentNumber.TryGetValue(normalizedDocument, out var documentList))
+            {
+                documentList = [];
+                cache.ByDocumentNumber[normalizedDocument] = documentList;
+            }
+            documentList.Add(customer);
             return;
         }
 
@@ -457,4 +532,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
     }
 
     private sealed record NormalizedBulkItem(int Index, BulkAchTransactionItemRequest Item, AchTransactionRequestData Data);
+    private sealed record CustomerCache(
+        Dictionary<string, Customer> ByDocumentAndType,
+        Dictionary<string, List<Customer>> ByDocumentNumber);
 }
