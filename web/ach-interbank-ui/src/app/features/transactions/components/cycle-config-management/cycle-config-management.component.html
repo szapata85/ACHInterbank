@@ -1,0 +1,157 @@
+<app-page-header title="Configuración de ciclos" subtitle="Administración ACH"></app-page-header>
+
+<section class="panel filters">
+  <h3>Filtros</h3>
+  <form [formGroup]="filterForm" (ngSubmit)="search()" class="filter-grid">
+    <label>
+      Cámara
+      <select formControlName="clearingHouseId">
+        <option [ngValue]="null">Seleccione</option>
+        <option *ngFor="let house of clearingHouses" [ngValue]="house.id">{{ house.name }}</option>
+      </select>
+    </label>
+
+    <label>
+      Nombre de ciclo
+      <input type="text" formControlName="cycleName" placeholder="Ej. CICLO-1" (input)="applyLocalFilters()" />
+    </label>
+
+    <label>
+      Estado
+      <select formControlName="status" (change)="applyLocalFilters()">
+        <option *ngFor="let option of statusOptions" [value]="option.value">{{ option.label }}</option>
+      </select>
+    </label>
+
+    <label>
+      Vigencia
+      <select formControlName="validity" (change)="applyLocalFilters()">
+        <option *ngFor="let option of validityOptions" [value]="option.value">{{ option.label }}</option>
+      </select>
+    </label>
+
+    <label>
+      Fecha referencia
+      <input type="date" formControlName="effectiveAt" (change)="applyLocalFilters()" />
+    </label>
+
+    <div class="actions">
+      <button type="submit" class="primary" [disabled]="loading">{{ loading ? 'Consultando...' : 'Consultar' }}</button>
+      <button type="button" class="ghost" (click)="openCreateForm()">Nueva configuración</button>
+    </div>
+  </form>
+</section>
+
+<section class="panel" *ngIf="showForm">
+  <h3>{{ editingSource ? 'Versionar configuración' : 'Crear configuración' }}</h3>
+
+  <div class="warnings" *ngIf="validationWarnings.length">
+    <p *ngFor="let warning of validationWarnings">⚠ {{ warning }}</p>
+  </div>
+
+  <form [formGroup]="form" class="form-grid">
+    <label>
+      Cámara
+      <select formControlName="clearingHouseId">
+        <option [ngValue]="null">Seleccione</option>
+        <option *ngFor="let house of clearingHouses" [ngValue]="house.id">{{ house.name }}</option>
+      </select>
+    </label>
+
+    <label>
+      Nombre del ciclo
+      <input type="text" formControlName="cycleName" placeholder="Nombre del ciclo" />
+    </label>
+
+    <label>
+      Inicio ventana operativa
+      <input type="time" formControlName="startTime" />
+    </label>
+
+    <label>
+      Fin ventana operativa
+      <input type="time" formControlName="endTime" />
+    </label>
+
+    <label>
+      Cutoff
+      <input type="time" formControlName="cutoffTime" />
+    </label>
+
+    <label>
+      Vigente desde
+      <input type="date" formControlName="effectiveFrom" />
+    </label>
+
+    <div class="actions form-actions">
+      <button type="button" class="ghost" (click)="closeForm()">Cancelar</button>
+      <button type="button" class="primary" (click)="save()" [disabled]="saving">{{ saving ? 'Guardando...' : 'Guardar versión' }}</button>
+    </div>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="grid-header">
+    <h3>Resultados</h3>
+    <span class="result-count" *ngIf="hasSearched">{{ visibleItems.length }} registros</span>
+  </div>
+
+  <div class="loading" *ngIf="loading">Cargando configuraciones de ciclos...</div>
+
+  <div class="empty-state" *ngIf="!loading && !hasSearched">
+    Seleccione una cámara y consulte para visualizar configuraciones.
+  </div>
+
+  <div class="empty-state" *ngIf="!loading && hasSearched && visibleItems.length === 0">
+    No existen configuraciones para los filtros seleccionados.
+  </div>
+
+  <div class="grid-wrapper" *ngIf="!loading && visibleItems.length > 0">
+    <table>
+      <thead>
+        <tr>
+          <th>Cámara</th>
+          <th>Ciclo</th>
+          <th>Ventana operativa</th>
+          <th>Cutoff</th>
+          <th>Vigencia</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let item of visibleItems">
+          <td>{{ item.clearingHouseName || item.clearingHouseId }}</td>
+          <td>{{ item.cycleName }}</td>
+          <td>{{ item.startTime | slice:0:5 }} - {{ item.endTime | slice:0:5 }}</td>
+          <td>{{ item.cutoffTime | slice:0:5 }}</td>
+          <td>
+            {{ item.effectiveFrom | date:'yyyy-MM-dd' }}
+            <span *ngIf="item.effectiveTo"> a {{ item.effectiveTo | date:'yyyy-MM-dd' }}</span>
+            <span *ngIf="!item.effectiveTo"> - abierto</span>
+          </td>
+          <td>
+            <span class="badge" [ngClass]="statusBadge(item).css">{{ statusBadge(item).text }}</span>
+          </td>
+          <td>
+            <div class="row-actions">
+              <button type="button" (click)="edit(item)">Editar</button>
+              <button type="button" (click)="clone(item)">Clonar</button>
+              <button type="button" class="danger" (click)="askInactivate(item)" [disabled]="!item.isActive">Inactivar</button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<app-confirm-dialog
+  [open]="!!selectedForInactivation"
+  title="Inactivar configuración"
+  [message]="selectedForInactivation ? 'Se inactivará la configuración del ciclo ' + selectedForInactivation.cycleName + ' con fecha efectiva de hoy. ¿Desea continuar?' : ''"
+  confirmText="Sí, inactivar"
+  cancelText="Cancelar"
+  (confirm)="confirmInactivate()"
+  (cancel)="cancelInactivate()"
+></app-confirm-dialog>

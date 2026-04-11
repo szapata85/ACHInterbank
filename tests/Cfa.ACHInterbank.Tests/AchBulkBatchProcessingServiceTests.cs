@@ -128,7 +128,8 @@ public class AchBulkBatchProcessingServiceTests
         return new AchBulkBatchProcessingService(
             context,
             bulkTx.Object,
-            Mock.Of<ILogger<AchBulkBatchProcessingService>>());
+            Mock.Of<ILogger<AchBulkBatchProcessingService>>(),
+            Mock.Of<IBulkIngestionProgressNotifier>());
     }
 
     private static BulkAchTransactionResponse BuildResponse(int total, int success, int failed)

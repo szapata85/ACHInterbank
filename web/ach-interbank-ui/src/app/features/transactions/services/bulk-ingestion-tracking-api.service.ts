@@ -8,7 +8,8 @@ import {
   BulkFileUploadResponse,
   BulkIngestionItemStatus,
   RetryBatchRequest,
-  RetryBatchResponse
+  RetryBatchResponse,
+  CancelBatchResponse
 } from '../transactions.models';
 
 @Injectable({ providedIn: 'root' })
@@ -58,6 +59,13 @@ export class BulkIngestionTrackingApiService {
   retry(batchId: string, request: RetryBatchRequest) {
     return this.api.post<RetryBatchResponse>(`transactions/bulk-ingestion/${batchId}/retry`, request).pipe(
       catchError((error) => this.mapError(error, 'No fue posible ejecutar el reintento del lote.'))
+    );
+  }
+
+
+  cancel(batchId: string) {
+    return this.api.post<CancelBatchResponse>(`transactions/bulk-ingestion/${batchId}/cancel`, {}).pipe(
+      catchError((error) => this.mapError(error, 'No fue posible cancelar el lote.'))
     );
   }
 

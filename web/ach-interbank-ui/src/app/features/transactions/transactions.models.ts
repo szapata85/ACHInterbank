@@ -335,3 +335,53 @@ export interface RetryBatchResponse {
   jobId: string;
   status: BulkIngestionBatchStatus;
 }
+
+
+export interface BulkBatchProgressEvent {
+  batchId: string;
+  progressPercent: number;
+  message?: string | null;
+  status?: BulkIngestionBatchStatus;
+  updatedAtUtc?: string;
+}
+
+export interface CancelBatchResponse {
+  batchId: string;
+  cancelled: boolean;
+  message: string;
+}
+
+export type CycleValidityFilter = 'all' | 'current' | 'future' | 'expired';
+export type CycleStatusFilter = 'all' | 'active' | 'inactive';
+
+export interface ClearingHouseCycleConfigItem {
+  id: number;
+  clearingHouseId: number;
+  clearingHouseName?: string | null;
+  cycleName: string;
+  startTime: string;
+  endTime: string;
+  cutoffTime: string;
+  isActive: boolean;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  isCurrent: boolean;
+}
+
+export interface ClearingHouseCycleConfigFilters {
+  clearingHouseId: number;
+  effectiveAt?: string | null;
+}
+
+export interface UpsertCycleConfigRequest {
+  clearingHouseId: number;
+  cycleName: string;
+  startTime: string;
+  endTime: string;
+  cutoffTime: string;
+  effectiveFrom: string;
+}
+
+export interface InactivateCycleConfigRequest {
+  effectiveTo: string;
+}

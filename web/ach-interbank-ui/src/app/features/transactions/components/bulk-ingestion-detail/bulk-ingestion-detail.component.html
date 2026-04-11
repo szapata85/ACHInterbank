@@ -36,6 +36,9 @@
     <button type="button" (click)="retry(2)">Reintentar fallidos</button>
     <button type="button" class="secondary" (click)="retry(1)">Reintentar lote completo</button>
   </div>
+  <div class="form-actions" *ngIf="canCancel()">
+    <button type="button" class="danger" (click)="cancelBatch()">Cancelar lote</button>
+  </div>
 </section>
 
 <section class="card" *ngIf="summary()?.status?.errorSummary?.length">

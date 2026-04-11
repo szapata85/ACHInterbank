@@ -18,4 +18,5 @@ public class ClearingHouseCycleConfig
     public DateTime? EffectiveTo { get; set; }
 
     public ClearingHouse ClearingHouse { get; set; } = null!;
+    public ICollection<AchCycle> AchCycles { get; set; } = new List<AchCycle>();
 }

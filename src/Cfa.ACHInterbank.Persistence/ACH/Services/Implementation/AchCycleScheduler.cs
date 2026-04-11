@@ -69,11 +69,8 @@ public class AchCycleScheduler : IAchCycleScheduler
         if (clearingHouse == null)
             throw new InvalidOperationException("Clearing house not found");
 
-        // 🔹 Obtener ciclos desde la tabla de configuraciones de ciclos
-        List<ClearingHouseCycleConfig> cycles = await _context.ClearingHouseCycleConfigs
-            .Where(cfg => cfg.ClearingHouseId == clearingHouse.Id && cfg.IsActive)
-            .OrderBy(cfg => cfg.CutoffTime)
-            .ToListAsync();
+        // 🔹 Obtener configuración vigente por nombre para la fecha de procesamiento
+        List<ClearingHouseCycleConfig> cycles = await GetEffectiveCycleConfigurationsAsync(clearingHouse.Id, processingDate, CancellationToken.None);
 
 
 
@@ -115,12 +112,31 @@ public class AchCycleScheduler : IAchCycleScheduler
                     StartTime = cfg.StartTime,
                     EndTime = cfg.EndTime,
                     CutoffTime = cfg.CutoffTime,
-                    RescheduleOnHoliday = true
+                    RescheduleOnHoliday = true,
+                    ClearingHouseCycleConfigId = cfg.Id
                 });
             }
         }
 
         await _context.SaveChangesAsync();
+    }
+
+    private async Task<List<ClearingHouseCycleConfig>> GetEffectiveCycleConfigurationsAsync(
+        int clearingHouseId,
+        DateTime processingDate,
+        CancellationToken ct)
+    {
+        var processingUtcDate = DateTime.SpecifyKind(processingDate.Date, DateTimeKind.Utc);
+
+        return await _context.ClearingHouseCycleConfigs
+            .Where(cfg => cfg.ClearingHouseId == clearingHouseId &&
+                          cfg.IsActive &&
+                          cfg.EffectiveFrom.Date <= processingUtcDate.Date &&
+                          (!cfg.EffectiveTo.HasValue || cfg.EffectiveTo.Value.Date >= processingUtcDate.Date))
+            .GroupBy(cfg => cfg.CycleName)
+            .Select(g => g.OrderByDescending(cfg => cfg.EffectiveFrom).ThenByDescending(cfg => cfg.Id).First())
+            .OrderBy(cfg => cfg.CutoffTime)
+            .ToListAsync(ct);
     }
 
 

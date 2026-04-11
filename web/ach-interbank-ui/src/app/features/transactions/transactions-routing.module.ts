@@ -8,6 +8,7 @@ import { TransactionBulkCreateComponent } from './components/transaction-bulk-cr
 import { BulkIngestionUploadComponent } from './components/bulk-ingestion-upload/bulk-ingestion-upload.component';
 import { BulkIngestionTrackingComponent } from './components/bulk-ingestion-tracking/bulk-ingestion-tracking.component';
 import { BulkIngestionDetailComponent } from './components/bulk-ingestion-detail/bulk-ingestion-detail.component';
+import { CycleConfigManagementComponent } from './components/cycle-config-management/cycle-config-management.component';
 
 const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'list' },
@@ -46,6 +47,12 @@ const routes: Routes = [
     path: 'nacha-upload',
     component: NachaUploadComponent,
     data: { title: 'Cargar NACHA-M', breadcrumb: 'Cargar NACHA-M' }
+  },
+
+  {
+    path: 'cycle-configs',
+    component: CycleConfigManagementComponent,
+    data: { title: 'Configuración de ciclos', breadcrumb: 'Configuración de ciclos' }
   },
   {
     path: 'returns',
