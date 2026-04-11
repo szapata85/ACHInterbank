@@ -35,5 +35,12 @@ public class AchCycleConfiguration : IEntityTypeConfiguration<AchCycle>
             .WithMany(ch => ch.AchCycles)
             .HasForeignKey(cycle => cycle.ClearingHouseId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(cycle => cycle.ClearingHouseCycleConfig)
+            .WithMany(cfg => cfg.AchCycles)
+            .HasForeignKey(cycle => cycle.ClearingHouseCycleConfigId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(cycle => cycle.ClearingHouseCycleConfigId);
     }
 }

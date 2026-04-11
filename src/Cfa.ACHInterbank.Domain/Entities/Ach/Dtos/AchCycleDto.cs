@@ -10,6 +10,7 @@ public class AchCycleDto
     public TimeSpan CutoffTime { get; set; }
     public bool RescheduleOnHoliday { get; set; }
     public int ClearingHouseId { get; set; }
+    public int? ClearingHouseCycleConfigId { get; set; }
     public string? ClearingHouseName { get; set; }
     public string OperationalStatus { get; set; } = string.Empty;
     public bool AcceptsTransactions { get; set; }
@@ -26,6 +27,7 @@ public class AchCycleRequest
     public TimeSpan CutoffTime { get; set; }
     public bool RescheduleOnHoliday { get; set; }
     public int ClearingHouseId { get; set; }
+    public int? ClearingHouseCycleConfigId { get; set; }
 }
 
 public class AchCycleExportDto

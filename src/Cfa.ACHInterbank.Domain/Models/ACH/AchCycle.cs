@@ -26,6 +26,10 @@ public class AchCycle : AuditableEntity
     public int ClearingHouseId { get; set; }
     public ClearingHouse? ClearingHouse { get; set; }
 
+    // Trazabilidad: configuración de ciclo que originó este ciclo operativo
+    public int? ClearingHouseCycleConfigId { get; set; }
+    public ClearingHouseCycleConfig? ClearingHouseCycleConfig { get; set; }
+
     // relación con lotes para el archivo NACHA-M de salida
     public ICollection<AchBatch> Batches { get; set; } = new List<AchBatch>();
 
