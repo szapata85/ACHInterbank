@@ -135,8 +135,8 @@
           </td>
           <td>
             <div class="row-actions">
-              <button type="button" (click)="edit(item)">Editar</button>
-              <button type="button" (click)="clone(item)">Clonar</button>
+              <button type="button" class="ghost action-edit" (click)="edit(item)">Editar</button>
+              <button type="button" class="ghost action-clone" (click)="clone(item)">Clonar</button>
               <button type="button" class="danger" (click)="askInactivate(item)" [disabled]="!item.isActive">Inactivar</button>
             </div>
           </td>

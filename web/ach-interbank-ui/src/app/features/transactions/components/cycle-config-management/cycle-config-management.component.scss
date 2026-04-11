@@ -147,6 +147,31 @@ th {
 .row-actions {
   display: flex;
   gap: 0.35rem;
+  flex-wrap: wrap;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    min-width: 5.5rem;
+    justify-content: center;
+    color: #0f172a;
+  }
+
+  button.ghost {
+    background: #ffffff;
+    border-color: #94a3b8;
+    color: #1e293b;
+  }
+
+  button.ghost:hover {
+    background: #f1f5f9;
+    border-color: #64748b;
+    color: #0f172a;
+  }
+
+  button.ghost:focus-visible {
+    box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.28);
+  }
 }
 
 .empty-state,
