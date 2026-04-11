@@ -17,18 +17,18 @@ public class AchBulkFileIngestionService : IAchBulkFileIngestionService
     private readonly AchDbContext _context;
     private readonly IEnumerable<IBulkFileParser> _parsers;
     private readonly IBulkFileStructuralValidator _structuralValidator;
-    private readonly IAchBulkJobScheduler _jobScheduler;
+    private readonly IBulkIngestionWorkDispatcher _workDispatcher;
 
     public AchBulkFileIngestionService(
         AchDbContext context,
         IEnumerable<IBulkFileParser> parsers,
         IBulkFileStructuralValidator structuralValidator,
-        IAchBulkJobScheduler jobScheduler)
+        IBulkIngestionWorkDispatcher workDispatcher)
     {
         _context = context;
         _parsers = parsers;
         _structuralValidator = structuralValidator;
-        _jobScheduler = jobScheduler;
+        _workDispatcher = workDispatcher;
     }
 
     public async Task<BulkFileUploadResponse> UploadAndParseAsync(
@@ -142,7 +142,7 @@ public class AchBulkFileIngestionService : IAchBulkFileIngestionService
             _context.BulkIngestionAttempts.Add(attempt);
             await _context.SaveChangesAsync(ct);
 
-            var jobId = await _jobScheduler.EnqueueBatchAsync(batch.Id, attempt.Id, ct);
+            var jobId = await _workDispatcher.DispatchProcessingAsync(batch.Id, attempt.Id, ct);
             batch.LastJobId = jobId;
             batch.LastJobMessage = "Lote encolado para procesamiento asíncrono.";
             attempt.JobId = jobId;

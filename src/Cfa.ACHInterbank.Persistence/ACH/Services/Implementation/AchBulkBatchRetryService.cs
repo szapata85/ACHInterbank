@@ -13,12 +13,12 @@ public class AchBulkBatchRetryService : IAchBulkBatchRetryService
     private const int MaxRetryAttempts = 3;
 
     private readonly AchDbContext _context;
-    private readonly IAchBulkJobScheduler _jobScheduler;
+    private readonly IBulkIngestionWorkDispatcher _workDispatcher;
 
-    public AchBulkBatchRetryService(AchDbContext context, IAchBulkJobScheduler jobScheduler)
+    public AchBulkBatchRetryService(AchDbContext context, IBulkIngestionWorkDispatcher workDispatcher)
     {
         _context = context;
-        _jobScheduler = jobScheduler;
+        _workDispatcher = workDispatcher;
     }
 
     public async Task<RetryBatchResponse> RetryAsync(Guid batchId, RetryBatchRequest request, string triggeredBy, CancellationToken ct = default)
@@ -87,7 +87,7 @@ public class AchBulkBatchRetryService : IAchBulkBatchRetryService
         _context.BulkIngestionAttempts.Add(attempt);
         await _context.SaveChangesAsync(ct);
 
-        var jobId = await _jobScheduler.EnqueueBatchAsync(batchId, attempt.Id, ct);
+        var jobId = await _workDispatcher.DispatchProcessingAsync(batchId, attempt.Id, ct);
         attempt.JobId = jobId;
         batch.LastJobId = jobId;
         await _context.SaveChangesAsync(ct);

@@ -14,15 +14,18 @@ public class AchBulkBatchProcessingService : IAchBulkBatchProcessingService
     private readonly AchDbContext _context;
     private readonly IAchBulkTransactionService _bulkTransactionService;
     private readonly ILogger<AchBulkBatchProcessingService> _logger;
+    private readonly IBulkIngestionProgressNotifier _progressNotifier;
 
     public AchBulkBatchProcessingService(
         AchDbContext context,
         IAchBulkTransactionService bulkTransactionService,
-        ILogger<AchBulkBatchProcessingService> logger)
+        ILogger<AchBulkBatchProcessingService> logger,
+        IBulkIngestionProgressNotifier progressNotifier)
     {
         _context = context;
         _bulkTransactionService = bulkTransactionService;
         _logger = logger;
+        _progressNotifier = progressNotifier;
     }
 
     public async Task ProcessBatchAsync(Guid batchId, long? attemptId = null, string? jobId = null, CancellationToken ct = default)
@@ -56,6 +59,7 @@ public class AchBulkBatchProcessingService : IAchBulkBatchProcessingService
             attempt.JobId = jobId;
         }
         await _context.SaveChangesAsync(ct);
+        await _progressNotifier.NotifyBatchProgressAsync(batch.Id, 0m, "Procesamiento iniciado.", ct);
 
         var readyItems = await _context.BulkIngestionItems
             .Where(i => i.BatchId == batchId && i.Status == BulkIngestionItemStatusEnum.Ready)
@@ -76,6 +80,8 @@ public class AchBulkBatchProcessingService : IAchBulkBatchProcessingService
             batch.Status = BulkIngestionBatchStatusEnum.Failed;
             batch.ProcessingFinishedAtUtc = DateTime.UtcNow;
             batch.LastJobMessage = "No existen ítems listos para procesamiento.";
+            await _progressNotifier.NotifyBatchProgressAsync(batch.Id, 100m, batch.LastJobMessage, ct);
+
             if (attempt is not null)
             {
                 attempt.Status = BulkIngestionAttemptStatusEnum.Failed;
@@ -121,6 +127,7 @@ public class AchBulkBatchProcessingService : IAchBulkBatchProcessingService
             batch.Status = BulkIngestionBatchStatusEnum.Failed;
             batch.ProcessingFinishedAtUtc = DateTime.UtcNow;
             batch.LastJobMessage = "No existen ítems ejecutables tras normalización.";
+            await _progressNotifier.NotifyBatchProgressAsync(batch.Id, 100m, batch.LastJobMessage, ct);
             if (attempt is not null)
             {
                 attempt.Status = BulkIngestionAttemptStatusEnum.Failed;
@@ -186,6 +193,7 @@ public class AchBulkBatchProcessingService : IAchBulkBatchProcessingService
             {
                 batch.SummaryErrorsJson = JsonSerializer.Serialize(processingErrors);
             }
+            await _progressNotifier.NotifyBatchProgressAsync(batch.Id, 100m, batch.LastJobMessage, ct);
             if (attempt is not null)
             {
                 attempt.TotalProcessed = result.TotalProcessed;
@@ -219,6 +227,7 @@ public class AchBulkBatchProcessingService : IAchBulkBatchProcessingService
             batch.ProcessingFinishedAtUtc = DateTime.UtcNow;
             batch.LastJobMessage = ex.Message.Length > 1900 ? ex.Message[..1900] : ex.Message;
             batch.SummaryErrorsJson = JsonSerializer.Serialize(new[] { "Error no controlado durante el procesamiento asíncrono del lote." });
+            await _progressNotifier.NotifyBatchProgressAsync(batch.Id, 100m, "Procesamiento finalizó con error.", ct);
             if (attempt is not null)
             {
                 attempt.Status = BulkIngestionAttemptStatusEnum.Failed;

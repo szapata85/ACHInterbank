@@ -12,7 +12,7 @@ describe('BulkIngestionDetailComponent', () => {
   let api: jasmine.SpyObj<BulkIngestionTrackingApiService>;
 
   beforeEach(async () => {
-    api = jasmine.createSpyObj<BulkIngestionTrackingApiService>('BulkIngestionTrackingApiService', ['getSummary', 'getBatchItems', 'retry']);
+    api = jasmine.createSpyObj<BulkIngestionTrackingApiService>('BulkIngestionTrackingApiService', ['getSummary', 'getBatchItems', 'retry', 'cancel']);
     api.getSummary.and.returnValue(of({
       batchId: 'batch-1',
       status: {
@@ -42,6 +42,7 @@ describe('BulkIngestionDetailComponent', () => {
     }));
 
     api.retry.and.returnValue(of({ batchId: 'batch-1', attemptId: 11, attemptNumber: 2, jobId: 'job-1', status: 9 }));
+    api.cancel.and.returnValue(of({ batchId: 'batch-1', cancelled: true, message: 'ok' }));
 
     await TestBed.configureTestingModule({
       imports: [BulkIngestionDetailComponent, RouterTestingModule],
@@ -70,5 +71,11 @@ describe('BulkIngestionDetailComponent', () => {
     component.retry(1);
 
     expect(api.retry).toHaveBeenCalled();
+  });
+
+  it('should trigger cancel for cancellable states', () => {
+    component.cancelBatch();
+
+    expect(api.cancel).toHaveBeenCalledWith('batch-1');
   });
 });

@@ -16,17 +16,20 @@ public class BulkIngestionController : ControllerBase
     private readonly IAchBulkFileIngestionService _bulkFileIngestionService;
     private readonly IAchBulkBatchQueryService _queryService;
     private readonly IAchBulkBatchRetryService _retryService;
+    private readonly IBulkIngestionLifecycleService _lifecycleService;
     private readonly ILogger<BulkIngestionController> _logger;
 
     public BulkIngestionController(
         IAchBulkFileIngestionService bulkFileIngestionService,
         IAchBulkBatchQueryService queryService,
         IAchBulkBatchRetryService retryService,
+        IBulkIngestionLifecycleService lifecycleService,
         ILogger<BulkIngestionController> logger)
     {
         _bulkFileIngestionService = bulkFileIngestionService;
         _queryService = queryService;
         _retryService = retryService;
+        _lifecycleService = lifecycleService;
         _logger = logger;
     }
 
@@ -147,6 +150,36 @@ public class BulkIngestionController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    [HttpPost("{batchId:guid}/cancel")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Cancel(Guid batchId, CancellationToken ct)
+    {
+        var cancelled = await _lifecycleService.RequestCancellationAsync(
+            batchId,
+            User?.Identity?.Name ?? "system",
+            ct);
+
+        if (!cancelled)
+        {
+            var batch = await _queryService.GetBatchAsync(batchId, ct);
+            if (batch is null)
+            {
+                return NotFound(new { message = $"No existe el lote {batchId}." });
+            }
+
+            return BadRequest(new { message = "El lote no se puede cancelar en su estado actual." });
+        }
+
+        return Ok(new
+        {
+            batchId,
+            cancelled = true,
+            message = "Cancelación solicitada correctamente."
+        });
     }
 }
 

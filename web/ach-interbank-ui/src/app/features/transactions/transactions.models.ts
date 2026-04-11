@@ -335,3 +335,18 @@ export interface RetryBatchResponse {
   jobId: string;
   status: BulkIngestionBatchStatus;
 }
+
+
+export interface BulkBatchProgressEvent {
+  batchId: string;
+  progressPercent: number;
+  message?: string | null;
+  status?: BulkIngestionBatchStatus;
+  updatedAtUtc?: string;
+}
+
+export interface CancelBatchResponse {
+  batchId: string;
+  cancelled: boolean;
+  message: string;
+}

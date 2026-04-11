@@ -100,6 +100,16 @@ export class BulkIngestionDetailComponent {
     });
   }
 
+  cancelBatch(): void {
+    this.api.cancel(this.batchId()).pipe(take(1)).subscribe({
+      next: () => {
+        this.notifications.success('Cancelación del lote registrada.');
+        this.loadAll();
+      },
+      error: (error: Error) => this.notifications.error(error.message)
+    });
+  }
+
   statusLabel(status: BulkIngestionBatchStatus | BulkIngestionItemStatus): string {
     const map: Record<number, string> = {
       1: 'Cargado / Listo',
@@ -120,5 +130,15 @@ export class BulkIngestionDetailComponent {
   canRetry(): boolean {
     const status = this.summary()?.status.status;
     return status === BulkIngestionBatchStatus.PartiallyProcessed || status === BulkIngestionBatchStatus.Failed;
+  }
+
+  canCancel(): boolean {
+    const status = this.summary()?.status.status;
+    return status === BulkIngestionBatchStatus.Uploaded
+      || status === BulkIngestionBatchStatus.Parsed
+      || status === BulkIngestionBatchStatus.Validated
+      || status === BulkIngestionBatchStatus.Queued
+      || status === BulkIngestionBatchStatus.Processing
+      || status === BulkIngestionBatchStatus.Retrying;
   }
 }
