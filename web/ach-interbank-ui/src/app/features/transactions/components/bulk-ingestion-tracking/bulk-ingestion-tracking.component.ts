@@ -97,19 +97,22 @@ export class BulkIngestionTrackingComponent {
   statusLabel(status: BulkIngestionBatchStatus): string {
     const map: Record<number, string> = {
       1: 'Cargado',
-      2: 'Validado',
-      3: 'En cola',
-      4: 'Procesando',
-      5: 'Completado',
-      6: 'Completado con errores',
-      7: 'Fallido'
+      2: 'Parseado',
+      3: 'Validado',
+      4: 'En cola',
+      5: 'Procesando',
+      6: 'Parcialmente procesado',
+      7: 'Completado',
+      8: 'Fallido',
+      9: 'Reintentando',
+      10: 'Cancelado'
     };
 
     return map[status] ?? `Estado ${status}`;
   }
 
   canRetry(status: BulkIngestionBatchStatus): boolean {
-    return status === BulkIngestionBatchStatus.CompletedWithErrors || status === BulkIngestionBatchStatus.Failed;
+    return status === BulkIngestionBatchStatus.PartiallyProcessed || status === BulkIngestionBatchStatus.Failed;
   }
 
   private refreshSingle(batchId: string): void {

@@ -230,25 +230,27 @@ export interface BulkIngestionResponse {
 
 export enum BulkIngestionBatchStatus {
   Uploaded = 1,
-  Validated = 2,
-  Queued = 3,
-  Processing = 4,
-  Completed = 5,
-  CompletedWithErrors = 6,
-  Failed = 7
+  Parsed = 2,
+  Validated = 3,
+  Queued = 4,
+  Processing = 5,
+  PartiallyProcessed = 6,
+  Completed = 7,
+  Failed = 8,
+  Retrying = 9,
+  Cancelled = 10
 }
 
 export enum BulkIngestionItemStatus {
-  Pending = 1,
-  Succeeded = 2,
-  Failed = 3,
-  Skipped = 4,
-  Invalid = 5
+  Ready = 1,
+  StructuralError = 2,
+  ProcessingError = 3,
+  Processed = 4
 }
 
 export enum BulkIngestionRetryScope {
-  FailedOnly = 1,
-  Full = 2
+  Full = 1,
+  FailedOnly = 2
 }
 
 export interface BulkFileUploadResponse {

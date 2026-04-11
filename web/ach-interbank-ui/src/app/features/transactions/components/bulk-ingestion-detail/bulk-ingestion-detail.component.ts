@@ -102,13 +102,16 @@ export class BulkIngestionDetailComponent {
 
   statusLabel(status: BulkIngestionBatchStatus | BulkIngestionItemStatus): string {
     const map: Record<number, string> = {
-      1: 'Cargado / Pendiente',
-      2: 'Validado / Exitoso',
-      3: 'En cola / Fallido',
-      4: 'Procesando / Omitido',
-      5: 'Completado / Inválido',
-      6: 'Completado con errores',
-      7: 'Fallido'
+      1: 'Cargado / Listo',
+      2: 'Parseado / Error estructural',
+      3: 'Validado / Error funcional',
+      4: 'En cola / Procesado',
+      5: 'Procesando',
+      6: 'Parcialmente procesado',
+      7: 'Completado',
+      8: 'Fallido',
+      9: 'Reintentando',
+      10: 'Cancelado'
     };
 
     return map[status] ?? `Estado ${status}`;
@@ -116,6 +119,6 @@ export class BulkIngestionDetailComponent {
 
   canRetry(): boolean {
     const status = this.summary()?.status.status;
-    return status === BulkIngestionBatchStatus.CompletedWithErrors || status === BulkIngestionBatchStatus.Failed;
+    return status === BulkIngestionBatchStatus.PartiallyProcessed || status === BulkIngestionBatchStatus.Failed;
   }
 }

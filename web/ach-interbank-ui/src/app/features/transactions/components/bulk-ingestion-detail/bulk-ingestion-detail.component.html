@@ -33,8 +33,8 @@
   </div>
 
   <div class="form-actions" *ngIf="canRetry()">
-    <button type="button" (click)="retry(1)">Reintentar fallidos</button>
-    <button type="button" class="secondary" (click)="retry(2)">Reintentar lote completo</button>
+    <button type="button" (click)="retry(2)">Reintentar fallidos</button>
+    <button type="button" class="secondary" (click)="retry(1)">Reintentar lote completo</button>
   </div>
 </section>
 
@@ -82,11 +82,10 @@
       <label for="itemStatus">Estado ítem</label>
       <select id="itemStatus" (change)="applyStatusFilter($any($event.target).value)">
         <option value="">Todos</option>
-        <option value="1">Pendiente</option>
-        <option value="2">Exitoso</option>
-        <option value="3">Fallido</option>
-        <option value="4">Omitido</option>
-        <option value="5">Inválido</option>
+        <option value="1">Listo</option>
+        <option value="2">Error estructural</option>
+        <option value="3">Error funcional</option>
+        <option value="4">Procesado</option>
       </select>
     </div>
   </div>

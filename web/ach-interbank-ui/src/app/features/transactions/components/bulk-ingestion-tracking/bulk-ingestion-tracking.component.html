@@ -18,12 +18,15 @@
     <select id="statusFilter" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event)">
       <option value="ALL">Todos</option>
       <option value="1">Cargado</option>
-      <option value="2">Validado</option>
-      <option value="3">En cola</option>
-      <option value="4">Procesando</option>
-      <option value="5">Completado</option>
-      <option value="6">Completado con errores</option>
-      <option value="7">Fallido</option>
+      <option value="2">Parseado</option>
+      <option value="3">Validado</option>
+      <option value="4">En cola</option>
+      <option value="5">Procesando</option>
+      <option value="6">Parcialmente procesado</option>
+      <option value="7">Completado</option>
+      <option value="8">Fallido</option>
+      <option value="9">Reintentando</option>
+      <option value="10">Cancelado</option>
     </select>
   </div>
 </section>
