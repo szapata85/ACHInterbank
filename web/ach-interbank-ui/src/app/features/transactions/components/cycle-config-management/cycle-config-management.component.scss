@@ -53,27 +53,8 @@ select {
   justify-content: flex-end;
 }
 
-button {
-  border: 1px solid #334155;
-  background: #fff;
-  border-radius: 8px;
-  padding: 0.45rem 0.8rem;
-  cursor: pointer;
-}
-
-button.primary {
-  background: #0f172a;
-  border-color: #0f172a;
-  color: #fff;
-}
-
-button.ghost {
-  border-color: #94a3b8;
-}
-
 button.danger {
-  border-color: #b91c1c;
-  color: #b91c1c;
+  min-width: 5.5rem;
 }
 
 button:disabled {
@@ -150,27 +131,7 @@ th {
   flex-wrap: wrap;
 
   button {
-    display: inline-flex;
-    align-items: center;
     min-width: 5.5rem;
-    justify-content: center;
-    color: #0f172a;
-  }
-
-  button.ghost {
-    background: #ffffff;
-    border-color: #94a3b8;
-    color: #1e293b;
-  }
-
-  button.ghost:hover {
-    background: #f1f5f9;
-    border-color: #64748b;
-    color: #0f172a;
-  }
-
-  button.ghost:focus-visible {
-    box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.28);
   }
 }
 

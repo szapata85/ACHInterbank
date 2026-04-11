@@ -10,19 +10,6 @@
   align-items: center;
   margin: 1rem 0;
   gap: 1rem;
-
-  button {
-    border: 1px solid var(--button-color, var(--color-primary));
-    background: var(--button-color, var(--color-primary));
-    color: var(--color-surface);
-    padding: 0.5rem 1rem;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-  }
-
-  button:hover {
-    background: var(--button-color, var(--color-primary-hover));
-  }
 }
 
 .filters {
@@ -52,12 +39,7 @@
   }
 
   .ghost {
-    background: transparent;
-    color: var(--button-color, var(--color-primary));
-  }
-
-  .ghost:hover {
-    background: #eff6ff;
+    color: var(--color-primary);
   }
 }
 
@@ -166,9 +148,7 @@
   flex-wrap: wrap;
 
   .ghost {
-    background: transparent;
-    color: var(--button-color, var(--color-primary));
-    border: 1px solid #bfdbfe;
+    border-color: #bfdbfe;
   }
 }
 

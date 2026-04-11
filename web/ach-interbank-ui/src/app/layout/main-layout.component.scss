@@ -89,9 +89,9 @@
 .logout {
   width: 100%;
   margin-top: 0.75rem;
-  border-color: rgba(255, 255, 255, 0.2);
-  background: transparent;
-  color: #e2e8f0;
+  --btn-border: rgba(255, 255, 255, 0.26);
+  --btn-bg: transparent;
+  --btn-color: #e2e8f0;
 }
 
 .brand {
@@ -382,18 +382,9 @@
   font-weight: 700;
 }
 
-button {
-  border: 1px solid var(--button-color, var(--color-primary));
-  background: var(--button-color, var(--color-primary));
-  color: var(--color-surface);
-  padding: 0.45rem 0.85rem;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: opacity 0.2s ease;
-}
-
-button:hover {
-  opacity: 0.9;
+.logout:hover {
+  --btn-bg: rgba(148, 163, 184, 0.15);
+  --btn-border: rgba(226, 232, 240, 0.45);
 }
 
 .content {
