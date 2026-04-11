@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Configuration;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -101,6 +102,10 @@ public static class DependencyInjectionService
 
         // Servicio que sincroniza DB → Quartz
         services.AddHostedService<SchedulerSyncService>();
+        services.AddTransient<ProcessBulkIngestionBatchJob>();
+        services.AddScoped<IBulkFileParser, ACH.Services.Implementation.BulkParsers.JsonBulkFileParser>();
+        services.AddScoped<IBulkFileParser, ACH.Services.Implementation.BulkParsers.CsvBulkFileParser>();
+        services.AddScoped<IBulkFileParser, ACH.Services.Implementation.BulkParsers.ExcelBulkFileParser>();
 
 
 
