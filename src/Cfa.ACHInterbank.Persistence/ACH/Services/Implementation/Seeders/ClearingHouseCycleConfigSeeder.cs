@@ -65,7 +65,7 @@ public class ClearingHouseCycleConfigSeeder : IDbSeeder
 
             // Vigentes (reducción de cantidad de ciclos).
             new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 1", StartTime = new TimeSpan(19, 0, 0), EndTime = new TimeSpan(9, 0, 0), CutoffTime = new TimeSpan(9, 0, 0), IsActive = true, EffectiveFrom = UtcDate(2025, 1, 1) },
-            new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 2", StartTime = new TimeSpan(9, 1, 0), EndTime = new TimeSpan(13, 0, 0), CutoffTime = new TimeSpan(13, 0, 0), IsActive = true, EffectiveFrom = UtcDate(2025, 1, 1) },
+            new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 2", StartTime = new TimeSpan(9, 1, 0), EndTime = new TimeSpan(13, 0, 0), CutoffTime = new TimeSpan(13, 0, 0), IsActive = false, EffectiveFrom = UtcDate(2025, 1, 1), EffectiveTo = UtcDate(2026, 6, 30) },
             new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 3", StartTime = new TimeSpan(13, 1, 0), EndTime = new TimeSpan(18, 0, 0), CutoffTime = new TimeSpan(18, 0, 0), IsActive = true, EffectiveFrom = UtcDate(2025, 1, 1) },
 
             // Futura con cambios de horario.

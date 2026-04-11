@@ -40,5 +40,13 @@ public class ClearingHouseCycleConfigSeederTests
         Assert.Contains(all, c => c.EffectiveFrom.Year >= 2026);
         Assert.True(all.Where(c => c.ClearingHouseId == 1).Select(c => c.CycleName).Distinct().Count() >= 5);
         Assert.True(all.Where(c => c.ClearingHouseId == 2).Select(c => c.CycleName).Distinct().Count() >= 3);
+
+        var referenceDate = new DateTime(2026, 8, 1);
+        var cenitCycle2Current = all.Where(c => c.ClearingHouseId == 2 &&
+                                                c.CycleName == "Ciclo 2" &&
+                                                c.EffectiveFrom.Date <= referenceDate.Date &&
+                                                (!c.EffectiveTo.HasValue || c.EffectiveTo.Value.Date >= referenceDate.Date));
+
+        Assert.Single(cenitCycle2Current);
     }
 }
