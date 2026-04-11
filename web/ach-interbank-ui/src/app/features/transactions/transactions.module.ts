@@ -10,6 +10,7 @@ import { TransactionBulkCreateComponent } from './components/transaction-bulk-cr
 import { BulkIngestionUploadComponent } from './components/bulk-ingestion-upload/bulk-ingestion-upload.component';
 import { BulkIngestionTrackingComponent } from './components/bulk-ingestion-tracking/bulk-ingestion-tracking.component';
 import { BulkIngestionDetailComponent } from './components/bulk-ingestion-detail/bulk-ingestion-detail.component';
+import { CycleConfigManagementComponent } from './components/cycle-config-management/cycle-config-management.component';
 
 @NgModule({
   imports: [
@@ -23,6 +24,7 @@ import { BulkIngestionDetailComponent } from './components/bulk-ingestion-detail
     BulkIngestionUploadComponent,
     BulkIngestionTrackingComponent,
     BulkIngestionDetailComponent,
+    CycleConfigManagementComponent,
     TransactionsRoutingModule
   ]
 })
