@@ -1,0 +1,80 @@
+<app-page-header
+  title="Seguimiento de lotes masivos"
+  description="Monitor de ejecución, estado operacional y reintentos para lotes ACH por archivo."
+></app-page-header>
+
+<section class="card toolbar">
+  <div class="search-row">
+    <div class="field">
+      <label for="batchId">Batch ID</label>
+      <input id="batchId" type="text" [ngModel]="batchIdInput()" (ngModelChange)="batchIdInput.set($event)" placeholder="GUID del lote" />
+    </div>
+    <button type="button" (click)="searchByBatchId()" [disabled]="isLoading()">Agregar al seguimiento</button>
+    <button type="button" class="ghost" (click)="refreshFromRecent()" [disabled]="isLoading()">Actualizar</button>
+  </div>
+
+  <div class="field">
+    <label for="statusFilter">Estado</label>
+    <select id="statusFilter" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event)">
+      <option value="ALL">Todos</option>
+      <option value="1">Cargado</option>
+      <option value="2">Validado</option>
+      <option value="3">En cola</option>
+      <option value="4">Procesando</option>
+      <option value="5">Completado</option>
+      <option value="6">Completado con errores</option>
+      <option value="7">Fallido</option>
+    </select>
+  </div>
+</section>
+
+<section class="kpi-grid">
+  <article class="card"><small>Lotes</small><strong>{{ totals().batches }}</strong></article>
+  <article class="card"><small>Registros</small><strong>{{ totals().records }}</strong></article>
+  <article class="card"><small>Exitosos</small><strong class="ok">{{ totals().succeeded }}</strong></article>
+  <article class="card"><small>Fallidos</small><strong class="ko">{{ totals().failed }}</strong></article>
+</section>
+
+<section class="table-wrapper" *ngIf="filteredRows().length; else empty">
+  <table>
+    <thead>
+      <tr>
+        <th>Referencia</th>
+        <th>Estado</th>
+        <th>Fecha carga</th>
+        <th>Total</th>
+        <th>Progreso</th>
+        <th>Éxitos</th>
+        <th>Fallos</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let row of filteredRows()">
+        <td>
+          <strong>{{ row.batchReference }}</strong>
+          <div><small>{{ row.batchId }}</small></div>
+        </td>
+        <td><span class="badge">{{ statusLabel(row.status) }}</span></td>
+        <td>{{ row.uploadedAtUtc | date: 'yyyy-MM-dd HH:mm' }}</td>
+        <td>{{ row.totalRecords }}</td>
+        <td>{{ row.progressPercent | number: '1.0-2' }}%</td>
+        <td class="ok">{{ row.totalSucceeded }}</td>
+        <td class="ko">{{ row.totalFailed }}</td>
+        <td>
+          <div class="actions">
+            <button type="button" class="ghost" (click)="openDetail(row.batchId)">Detalle</button>
+            <button type="button" class="secondary" *ngIf="canRetry(row.status)" (click)="retryFailed(row.batchId)">Reintentar</button>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<ng-template #empty>
+  <section class="empty-state">
+    <p>No hay lotes en seguimiento aún.</p>
+    <small>Agregue un Batch ID o registre lotes desde la pantalla de carga.</small>
+  </section>
+</ng-template>

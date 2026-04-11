@@ -7,6 +7,9 @@ import { TransactionListComponent } from './components/transaction-list/transact
 import { NachaUploadComponent } from './components/nacha-upload/nacha-upload.component';
 import { AchReturnsManagementComponent } from './components/ach-returns-management/ach-returns-management.component';
 import { TransactionBulkCreateComponent } from './components/transaction-bulk-create/transaction-bulk-create.component';
+import { BulkIngestionUploadComponent } from './components/bulk-ingestion-upload/bulk-ingestion-upload.component';
+import { BulkIngestionTrackingComponent } from './components/bulk-ingestion-tracking/bulk-ingestion-tracking.component';
+import { BulkIngestionDetailComponent } from './components/bulk-ingestion-detail/bulk-ingestion-detail.component';
 
 @NgModule({
   imports: [
@@ -17,6 +20,9 @@ import { TransactionBulkCreateComponent } from './components/transaction-bulk-cr
     NachaUploadComponent,
     AchReturnsManagementComponent,
     TransactionBulkCreateComponent,
+    BulkIngestionUploadComponent,
+    BulkIngestionTrackingComponent,
+    BulkIngestionDetailComponent,
     TransactionsRoutingModule
   ]
 })

@@ -1,0 +1,126 @@
+<app-page-header
+  title="Detalle de lote"
+  description="Visibilidad completa del estado de procesamiento, errores agregados e ítems de transacción."
+></app-page-header>
+
+<section class="card" *ngIf="summary() as data">
+  <div class="summary-grid">
+    <article>
+      <small>Batch ID</small>
+      <strong>{{ data.batchId }}</strong>
+    </article>
+    <article>
+      <small>Referencia</small>
+      <strong>{{ data.status.batchReference }}</strong>
+    </article>
+    <article>
+      <small>Estado</small>
+      <strong>{{ statusLabel(data.status.status) }}</strong>
+    </article>
+    <article>
+      <small>Progreso</small>
+      <strong>{{ data.status.progressPercent | number: '1.0-2' }}%</strong>
+    </article>
+  </div>
+
+  <div class="totals-grid">
+    <article><small>Total</small><strong>{{ data.status.totalRecords }}</strong></article>
+    <article><small>Válidos</small><strong>{{ data.status.totalValid }}</strong></article>
+    <article><small>Procesados</small><strong>{{ data.status.totalProcessed }}</strong></article>
+    <article><small>Éxitos</small><strong class="ok">{{ data.status.totalSucceeded }}</strong></article>
+    <article><small>Fallidos</small><strong class="ko">{{ data.status.totalFailed }}</strong></article>
+    <article><small>Reintentos</small><strong>{{ data.status.retryCount }}</strong></article>
+  </div>
+
+  <div class="form-actions" *ngIf="canRetry()">
+    <button type="button" (click)="retry(1)">Reintentar fallidos</button>
+    <button type="button" class="secondary" (click)="retry(2)">Reintentar lote completo</button>
+  </div>
+</section>
+
+<section class="card" *ngIf="summary()?.status?.errorSummary?.length">
+  <h3>Errores agregados</h3>
+  <ul>
+    <li *ngFor="let err of summary()?.status?.errorSummary">{{ err }}</li>
+  </ul>
+</section>
+
+<section class="card" *ngIf="summary()?.attempts?.length">
+  <h3>Histórico de intentos</h3>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Tipo</th>
+          <th>Scope</th>
+          <th>Estado</th>
+          <th>Disparado por</th>
+          <th>Fecha</th>
+          <th>Resultado</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let attempt of summary()?.attempts">
+          <td>{{ attempt.attemptNumber }}</td>
+          <td>{{ attempt.triggerType }}</td>
+          <td>{{ attempt.scope }}</td>
+          <td>{{ attempt.status }}</td>
+          <td>{{ attempt.triggeredBy }}</td>
+          <td>{{ attempt.triggeredAtUtc | date: 'yyyy-MM-dd HH:mm' }}</td>
+          <td>{{ attempt.resultMessage || '-' }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <div class="toolbar">
+    <h3>Ítems del lote</h3>
+    <div class="field">
+      <label for="itemStatus">Estado ítem</label>
+      <select id="itemStatus" (change)="applyStatusFilter($any($event.target).value)">
+        <option value="">Todos</option>
+        <option value="1">Pendiente</option>
+        <option value="2">Exitoso</option>
+        <option value="3">Fallido</option>
+        <option value="4">Omitido</option>
+        <option value="5">Inválido</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="table-wrapper" *ngIf="itemsPage()?.items?.length; else noItems">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Referencia</th>
+          <th>Estado</th>
+          <th>ID transacción</th>
+          <th>Mensaje</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let item of itemsPage()?.items">
+          <td>{{ item.itemIndex }}</td>
+          <td>{{ item.reference }}</td>
+          <td><span class="badge">{{ statusLabel(item.status) }}</span></td>
+          <td>{{ item.transactionId ?? '-' }}</td>
+          <td>{{ item.message || '-' }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <ng-template #noItems>
+    <div class="empty-state">No hay ítems para los filtros seleccionados.</div>
+  </ng-template>
+
+  <div class="pagination">
+    <button class="ghost" type="button" (click)="changePage(-1)" [disabled]="page() <= 1 || isLoading()">Anterior</button>
+    <span>Página {{ page() }} de {{ totalPages() }}</span>
+    <button class="ghost" type="button" (click)="changePage(1)" [disabled]="page() >= totalPages() || isLoading()">Siguiente</button>
+  </div>
+</section>

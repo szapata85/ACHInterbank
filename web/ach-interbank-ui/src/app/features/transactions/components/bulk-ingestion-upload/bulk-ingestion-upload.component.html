@@ -1,0 +1,61 @@
+<app-page-header
+  title="Carga masiva por archivo"
+  description="Carga lotes ACH con archivos JSON, CSV o Excel con validaciones y trazabilidad empresarial."
+></app-page-header>
+
+<section class="card upload-layout">
+  <div class="form-grid">
+    <div>
+      <label for="batchReference">Referencia del lote (opcional)</label>
+      <input id="batchReference" type="text" [ngModel]="batchReference()" (ngModelChange)="batchReference.set($event)" placeholder="BATCH-20260411-001" />
+      <small>Si se omite, el backend generará una referencia automática.</small>
+    </div>
+
+    <div>
+      <label for="clientRequestId">ID cliente (opcional)</label>
+      <input id="clientRequestId" type="text" [ngModel]="clientRequestId()" (ngModelChange)="clientRequestId.set($event)" placeholder="REQ-OPS-0001" />
+      <small>Permite correlación operacional e idempotencia.</small>
+    </div>
+  </div>
+
+  <div class="file-zone">
+    <label for="bulkFile">Archivo de lote</label>
+    <input id="bulkFile" type="file" [accept]="acceptedFormats" (change)="onFileChange($event)" />
+    <small>Formatos: JSON, CSV, XLSX, XLS. Tamaño máximo: 20MB.</small>
+  </div>
+
+  <div class="summary" *ngIf="selectedFile() as file">
+    <h3>Resumen de carga</h3>
+    <dl>
+      <div><dt>Nombre</dt><dd>{{ file.name }}</dd></div>
+      <div><dt>Tamaño</dt><dd>{{ (file.size / 1024 / 1024).toFixed(2) }} MB</dd></div>
+      <div><dt>Tipo detectado</dt><dd>{{ fileExtension() || '-' }}</dd></div>
+      <div>
+        <dt>Validación</dt>
+        <dd>
+          <span class="badge" [class.ok]="isValidFile()" [class.ko]="!isValidFile()">
+            {{ isValidFile() ? 'Archivo válido' : 'Archivo inválido' }}
+          </span>
+        </dd>
+      </div>
+    </dl>
+  </div>
+
+  <p class="error" *ngIf="errorMessage()">{{ errorMessage() }}</p>
+
+  <div class="form-actions">
+    <button type="button" (click)="upload()" [disabled]="isSubmitting()">
+      {{ isSubmitting() ? 'Registrando lote…' : 'Enviar archivo' }}
+    </button>
+    <button type="button" class="ghost" (click)="goToTracking()">Ver seguimiento</button>
+  </div>
+</section>
+
+<section class="card success" *ngIf="successBatchId() as batchId">
+  <h3>Lote registrado exitosamente</h3>
+  <p>Batch ID: <strong>{{ batchId }}</strong></p>
+  <div class="form-actions">
+    <button type="button" (click)="goToDetail()">Abrir detalle de lote</button>
+    <button type="button" class="ghost" (click)="goToTracking()">Ir a seguimiento</button>
+  </div>
+</section>

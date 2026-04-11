@@ -144,7 +144,11 @@ export class TransactionListComponent implements OnInit {
   }
 
   createBulk(): void {
-    this.router.navigate(['/transactions/bulk-create']);
+    this.router.navigate(['/transactions/bulk-ingestion/upload']);
+  }
+
+  openBulkTracking(): void {
+    this.router.navigate(['/transactions/bulk-ingestion/tracking']);
   }
 
   applyFilters(): void {

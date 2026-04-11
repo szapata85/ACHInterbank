@@ -1,0 +1,28 @@
+.summary-grid,
+.totals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.8rem;
+
+  article {
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: #f8fafc;
+    display: grid;
+    gap: 0.3rem;
+  }
+}
+
+.ok {
+  color: #166534;
+}
+
+.ko {
+  color: #991b1b;
+}
+
+h3 {
+  margin: 0 0 0.75rem;
+}

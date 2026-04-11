@@ -19,6 +19,8 @@ export class NavigationService {
       { id: -201, label: 'Listado', route: '/transactions/list', icon: 'list' },
       { id: -202, label: 'Crear transacción', route: '/transactions/create', icon: 'add_circle' },
       { id: -203, label: 'Carga masiva', route: '/transactions/bulk-create', icon: 'upload_file' },
+      { id: -2031, label: 'Carga masiva por archivo', route: '/transactions/bulk-ingestion/upload', icon: 'file_upload' },
+      { id: -2032, label: 'Seguimiento lotes', route: '/transactions/bulk-ingestion/tracking', icon: 'monitoring' },
       { id: -204, label: 'Cargar NACHA-M', route: '/transactions/nacha-upload', icon: 'upload' },
       { id: -205, label: 'Devoluciones ACH', route: '/transactions/returns', icon: 'assignment_return' }
     ];

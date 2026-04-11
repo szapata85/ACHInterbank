@@ -226,3 +226,110 @@ export interface BulkIngestionResponse {
   status?: string;
   immediateResult?: BulkAchTransactionResponse;
 }
+
+
+export enum BulkIngestionBatchStatus {
+  Uploaded = 1,
+  Validated = 2,
+  Queued = 3,
+  Processing = 4,
+  Completed = 5,
+  CompletedWithErrors = 6,
+  Failed = 7
+}
+
+export enum BulkIngestionItemStatus {
+  Pending = 1,
+  Succeeded = 2,
+  Failed = 3,
+  Skipped = 4,
+  Invalid = 5
+}
+
+export enum BulkIngestionRetryScope {
+  FailedOnly = 1,
+  Full = 2
+}
+
+export interface BulkFileUploadResponse {
+  batchId: string;
+  batchReference: string;
+  status: BulkIngestionBatchStatus;
+  fileType: number;
+  totalRecords: number;
+  totalValid: number;
+  totalInvalid: number;
+  uploadedAtUtc: string;
+  message: string;
+}
+
+export interface BulkBatchStatusDto {
+  batchId: string;
+  batchReference: string;
+  status: BulkIngestionBatchStatus;
+  totalRecords: number;
+  totalValid: number;
+  totalInvalid: number;
+  totalProcessed: number;
+  totalSucceeded: number;
+  totalFailed: number;
+  progressPercent: number;
+  uploadedAtUtc: string;
+  processingStartedAtUtc?: string | null;
+  processingFinishedAtUtc?: string | null;
+  retryCount: number;
+  lastJobId?: string | null;
+  lastJobMessage: string;
+  errorSummary: string[];
+}
+
+export interface BulkBatchItemDto {
+  itemId: number;
+  itemIndex: number;
+  reference: string;
+  status: BulkIngestionItemStatus;
+  message: string;
+  transactionId?: number | null;
+}
+
+export interface BulkBatchItemsPageDto {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: BulkBatchItemDto[];
+}
+
+export interface BulkBatchAttemptDto {
+  attemptId: number;
+  attemptNumber: number;
+  triggerType: string;
+  scope: string;
+  triggeredBy: string;
+  triggeredAtUtc: string;
+  status: string;
+  jobId?: string | null;
+  startedAtUtc?: string | null;
+  finishedAtUtc?: string | null;
+  totalProcessed: number;
+  totalSucceeded: number;
+  totalFailed: number;
+  resultMessage: string;
+}
+
+export interface BulkBatchProcessingSummaryDto {
+  batchId: string;
+  status: BulkBatchStatusDto;
+  attempts: BulkBatchAttemptDto[];
+}
+
+export interface RetryBatchRequest {
+  scope: BulkIngestionRetryScope;
+}
+
+export interface RetryBatchResponse {
+  batchId: string;
+  attemptId: number;
+  attemptNumber: number;
+  jobId: string;
+  status: BulkIngestionBatchStatus;
+}
