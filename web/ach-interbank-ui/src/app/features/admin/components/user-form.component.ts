@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { AbstractControl, AsyncValidatorFn, FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { UsersApiService, RolesApiService } from '../services/users-api.service';
@@ -25,6 +25,7 @@ export class UserFormComponent implements OnInit {
   private readonly usersApi = inject(UsersApiService);
   private readonly rolesApi = inject(RolesApiService);
   private readonly passwordRulesService = inject(PasswordRulesService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   roles: RoleSummary[] = [];
   isEdit = false;
@@ -46,12 +47,18 @@ export class UserFormComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.rolesApi.getRoles().subscribe((roles) => (this.roles = roles));
+    this.rolesApi.getRoles().subscribe((roles) => {
+      this.roles = roles;
+      this.cdr.markForCheck();
+    });
 
     this.userId = this.route.snapshot.paramMap.get('id');
     if (this.userId) {
       this.isEdit = true;
-      this.usersApi.getUser(this.userId).subscribe((user) => this.patchForm(user));
+      this.usersApi.getUser(this.userId).subscribe((user) => {
+        this.patchForm(user);
+        this.cdr.markForCheck();
+      });
     } else {
       const passwordControl = this.form.get('password');
       passwordControl?.setValidators([Validators.required, this.passwordStrengthValidator]);
@@ -61,6 +68,7 @@ export class UserFormComponent implements OnInit {
     this.passwordRulesService.rules$.subscribe((rules) => {
       this.passwordRules = rules;
       this.form.get('password')?.updateValueAndValidity({ emitEvent: false });
+      this.cdr.markForCheck();
     });
   }
 
@@ -87,7 +95,10 @@ export class UserFormComponent implements OnInit {
       ? this.usersApi.updateUser(this.userId, payload)
       : this.usersApi.createUser(payload);
 
-    request$.subscribe(() => this.router.navigate(['/users']));
+    request$.subscribe(() => {
+      this.cdr.markForCheck();
+      this.router.navigate(['/users']);
+    });
   }
 
   get userNameError(): string | null {

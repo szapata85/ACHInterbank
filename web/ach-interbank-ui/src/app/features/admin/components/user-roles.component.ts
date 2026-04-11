@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { RolesApiService, UsersApiService } from '../services/users-api.service';
 import { RoleSummary, UserSummary } from '../models/user.model';
@@ -18,6 +18,7 @@ export class UserRolesComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly usersApi = inject(UsersApiService);
   private readonly rolesApi = inject(RolesApiService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   roles: RoleSummary[] = [];
   user?: UserSummary;
@@ -30,10 +31,14 @@ export class UserRolesComponent implements OnInit {
       return;
     }
 
-    this.rolesApi.getRoles().subscribe((roles) => (this.roles = roles));
+    this.rolesApi.getRoles().subscribe((roles) => {
+      this.roles = roles;
+      this.cdr.markForCheck();
+    });
     this.usersApi.getUser(userId).subscribe((user) => {
       this.user = user;
       this.selectedRoleIds = new Set(user.roles.map((r) => r.id));
+      this.cdr.markForCheck();
     });
   }
 
@@ -51,6 +56,7 @@ export class UserRolesComponent implements OnInit {
     }
 
     this.usersApi.assignRoles(this.user.id, Array.from(this.selectedRoleIds)).subscribe(() => {
+      this.cdr.markForCheck();
       this.router.navigate(['/users']);
     });
   }

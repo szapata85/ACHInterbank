@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AchCyclesApiService, ClearingHousesApiService } from '../services/ach-cycles-api.service';
@@ -20,6 +20,7 @@ export class AchCycleFormComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly api = inject(AchCyclesApiService);
   private readonly clearingHouseApi = inject(ClearingHousesApiService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   clearingHouses: ClearingHouseOption[] = [];
   isEdit = false;
@@ -34,12 +35,18 @@ export class AchCycleFormComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.clearingHouseApi.list().subscribe((items) => (this.clearingHouses = items));
+    this.clearingHouseApi.list().subscribe((items) => {
+      this.clearingHouses = items;
+      this.cdr.markForCheck();
+    });
 
     this.cycleId = this.route.snapshot.paramMap.get('id');
     if (this.cycleId) {
       this.isEdit = true;
-      this.api.getById(this.cycleId).subscribe((cycle) => this.patch(cycle));
+      this.api.getById(this.cycleId).subscribe((cycle) => {
+        this.patch(cycle);
+        this.cdr.markForCheck();
+      });
     }
   }
 
@@ -64,6 +71,9 @@ export class AchCycleFormComponent implements OnInit {
       ? this.api.update(this.cycleId, payload)
       : this.api.create(payload);
 
-    request$.subscribe(() => this.router.navigate(['/ach-cycles']));
+    request$.subscribe(() => {
+      this.cdr.markForCheck();
+      this.router.navigate(['/ach-cycles']);
+    });
   }
 }

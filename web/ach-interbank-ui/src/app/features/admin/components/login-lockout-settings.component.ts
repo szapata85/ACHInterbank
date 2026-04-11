@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { SharedModule } from '../../../shared/shared.module';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -18,6 +18,7 @@ export class LoginLockoutSettingsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly service = inject(LoginLockoutSettingsService);
   private readonly notifications = inject(NotificationService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   readonly form = this.fb.group({
     maxFailedAttempts: [5, [Validators.required, Validators.min(1), Validators.max(20)]],
@@ -27,6 +28,7 @@ export class LoginLockoutSettingsComponent {
   constructor() {
     this.service.settings$.pipe(take(1)).subscribe((settings) => {
       this.form.patchValue(settings, { emitEvent: false });
+      this.cdr.markForCheck();
     });
   }
 
@@ -46,6 +48,7 @@ export class LoginLockoutSettingsComponent {
       .subscribe(() => {
         this.form.markAsPristine();
         this.notifications.success('Configuración de bloqueo guardada.');
+        this.cdr.markForCheck();
       });
   }
 }

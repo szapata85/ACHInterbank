@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AliasesApiService } from '../services/aliases-api.service';
@@ -19,6 +19,7 @@ export class AliasFormComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly api = inject(AliasesApiService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   isEdit = false;
   aliasId: string | null = null;
@@ -35,7 +36,10 @@ export class AliasFormComponent implements OnInit {
     this.aliasId = this.route.snapshot.paramMap.get('id');
     if (this.aliasId) {
       this.isEdit = true;
-      this.api.getById(this.aliasId).subscribe((alias) => this.patch(alias));
+      this.api.getById(this.aliasId).subscribe((alias) => {
+        this.patch(alias);
+        this.cdr.markForCheck();
+      });
     }
   }
 
@@ -60,6 +64,9 @@ export class AliasFormComponent implements OnInit {
       ? this.api.update(this.aliasId, payload)
       : this.api.create(payload);
 
-    request$.subscribe(() => this.router.navigate(['/aliases']));
+    request$.subscribe(() => {
+      this.cdr.markForCheck();
+      this.router.navigate(['/aliases']);
+    });
   }
 }
