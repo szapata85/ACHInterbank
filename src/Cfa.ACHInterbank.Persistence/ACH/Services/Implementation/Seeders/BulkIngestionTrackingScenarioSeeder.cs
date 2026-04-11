@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
@@ -389,9 +390,9 @@ public sealed class BulkIngestionTrackingScenarioSeeder : IDbSeeder
             BulkIngestionBatchStatusEnum.Queued => index % 5 == 0 ? BulkIngestionItemStatusEnum.StructuralError : BulkIngestionItemStatusEnum.Ready,
             BulkIngestionBatchStatusEnum.Processing => index <= 10
                 ? BulkIngestionItemStatusEnum.Processed
-                : index % 4 == 0 ? BulkIngestionItemStatusEnum.ProcessingError : BulkIngestionItemStatusEnum.Ready,
+                : (index % 4) == 0 ? BulkIngestionItemStatusEnum.ProcessingError : BulkIngestionItemStatusEnum.Ready,
             BulkIngestionBatchStatusEnum.Completed => BulkIngestionItemStatusEnum.Processed,
-            BulkIngestionBatchStatusEnum.PartiallyProcessed => index % 6 switch
+            BulkIngestionBatchStatusEnum.PartiallyProcessed => (index % 6) switch
             {
                 0 => BulkIngestionItemStatusEnum.StructuralError,
                 1 => BulkIngestionItemStatusEnum.ProcessingError,

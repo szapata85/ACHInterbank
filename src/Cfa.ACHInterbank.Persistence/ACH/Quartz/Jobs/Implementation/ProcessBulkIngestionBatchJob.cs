@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Microsoft.Extensions.Logging;
 using Quartz;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
