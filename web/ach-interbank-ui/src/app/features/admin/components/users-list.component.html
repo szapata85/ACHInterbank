@@ -9,6 +9,9 @@
   <button type="submit">Filtrar</button>
 </form>
 
+<div class="empty-state" *ngIf="loadError">{{ loadError }}</div>
+<div class="empty-state" *ngIf="!loading && hasLoaded && !loadError && users.length === 0">No hay usuarios para los filtros aplicados.</div>
+
 <app-table
   [columns]="columns"
   [data]="users"

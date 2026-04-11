@@ -1,5 +1,6 @@
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   ElementRef,
   HostListener,
@@ -46,6 +47,7 @@ export class NavigationMenuComponent implements OnInit {
   private readonly notificationService = inject(NotificationService);
   private readonly rolesApi = inject(RolesApiService);
   private readonly permissionsService = inject(PermissionsService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   menuItems: NavigationMenuItem[] = [];
   flatItems: FlatMenuItem[] = [];
@@ -56,6 +58,8 @@ export class NavigationMenuComponent implements OnInit {
   private gridApi?: GridApi;
   loading = false;
   saving = false;
+  hasLoaded = false;
+  loadError: string | null = null;
   deletingId: number | null = null;
   iconMenuOpen = false;
 
@@ -136,23 +140,31 @@ export class NavigationMenuComponent implements OnInit {
 
   loadMenuItems(): void {
     this.loading = true;
+    this.hasLoaded = false;
+    this.loadError = null;
     this.gridApi?.showLoadingOverlay();
+    this.cdr.markForCheck();
     this.navigationService.getMenuItems().subscribe({
       next: (items) => {
         this.menuItems = items;
         this.flatItems = this.flatten(items);
         this.gridApi?.setGridOption('rowData', this.tableData);
         this.loading = false;
+        this.hasLoaded = true;
         if (!items.length) {
           this.gridApi?.showNoRowsOverlay();
         } else {
           this.gridApi?.hideOverlay();
         }
+        this.cdr.markForCheck();
       },
       error: () => {
-        this.notificationService.error('No fue posible cargar el menú de navegación');
+        this.loadError = 'No fue posible cargar el menú de navegación';
+        this.notificationService.error(this.loadError);
         this.loading = false;
+        this.hasLoaded = true;
         this.gridApi?.hideOverlay();
+        this.cdr.markForCheck();
       }
     });
   }
@@ -161,6 +173,7 @@ export class NavigationMenuComponent implements OnInit {
     this.rolesApi.getRoles().subscribe((roles) => {
       this.roles = roles;
       this.roleLookup = new Map(roles.map((role) => [role.id, role.name]));
+      this.cdr.markForCheck();
     });
   }
 
@@ -168,6 +181,7 @@ export class NavigationMenuComponent implements OnInit {
     this.permissionsService.getPermissions().subscribe((permissions) => {
       this.permissions = permissions;
       this.permissionLookup = new Map(permissions.map((permission) => [permission.id, permission.name]));
+      this.cdr.markForCheck();
     });
   }
 
@@ -262,10 +276,12 @@ export class NavigationMenuComponent implements OnInit {
         this.saving = false;
         this.startCreate();
         this.loadMenuItems();
+        this.cdr.markForCheck();
       },
       error: () => {
         this.notificationService.error('No fue posible guardar el elemento del menú');
         this.saving = false;
+        this.cdr.markForCheck();
       }
     });
   }
@@ -283,11 +299,13 @@ export class NavigationMenuComponent implements OnInit {
         this.deletingId = null;
         this.refreshActionCells();
         this.loadMenuItems();
+        this.cdr.markForCheck();
       },
       error: () => {
         this.notificationService.error('No fue posible eliminar el elemento');
         this.deletingId = null;
         this.refreshActionCells();
+        this.cdr.markForCheck();
       }
     });
   }

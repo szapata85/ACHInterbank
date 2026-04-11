@@ -9,6 +9,7 @@
 </div>
 
 <div *ngIf="loading" class="loading">Cargando alias...</div>
+<div *ngIf="!loading && loadError" class="loading">{{ loadError }}</div>
 
 <table class="table" *ngIf="!loading">
   <thead>

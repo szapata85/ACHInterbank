@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, TemplateRef, ViewChild, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, TemplateRef, ViewChild, inject } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
 import { Router } from '@angular/router';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -22,6 +22,7 @@ export class UsersListComponent implements OnInit {
   private readonly rolesApi = inject(RolesApiService);
   private readonly router = inject(Router);
   private readonly notifications = inject(NotificationService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   @ViewChild('rowActions', { static: true }) rowActionsTemplate!: TemplateRef<any>;
   @ViewChild('headerActions', { static: true }) headerActionsTemplate!: TemplateRef<any>;
@@ -46,6 +47,8 @@ export class UsersListComponent implements OnInit {
   roles: RoleSummary[] = [];
   total = 0;
   loading = false;
+  hasLoaded = false;
+  loadError: string | null = null;
   confirmUser: UserSummary | null = null;
 
   ngOnInit(): void {
@@ -56,6 +59,8 @@ export class UsersListComponent implements OnInit {
   loadUsers(): void {
     const filter: UserFilter = this.filterForm.value;
     this.loading = true;
+    this.loadError = null;
+    this.cdr.markForCheck();
     this.usersApi.getUsers(filter).subscribe({
       next: (response) => {
         this.users = response.items.map((x) => ({
@@ -65,16 +70,24 @@ export class UsersListComponent implements OnInit {
         }));
         this.total = response.total;
         this.loading = false;
+        this.hasLoaded = true;
+        this.cdr.markForCheck();
       },
       error: () => {
-        this.notifications.error('No fue posible cargar los usuarios');
+        this.loadError = 'No fue posible cargar los usuarios';
+        this.notifications.error(this.loadError);
         this.loading = false;
+        this.hasLoaded = true;
+        this.cdr.markForCheck();
       }
     });
   }
 
   loadRoles(): void {
-    this.rolesApi.getRoles().subscribe((roles) => (this.roles = roles));
+    this.rolesApi.getRoles().subscribe((roles) => {
+      this.roles = roles;
+      this.cdr.markForCheck();
+    });
   }
 
   changePage(page: number): void {
@@ -111,10 +124,12 @@ export class UsersListComponent implements OnInit {
         this.notifications.success('Usuario desactivado');
         this.confirmUser = null;
         this.loadUsers();
+        this.cdr.markForCheck();
       },
       error: () => {
         this.notifications.error('No fue posible desactivar al usuario');
         this.confirmUser = null;
+        this.cdr.markForCheck();
       }
     });
   }
