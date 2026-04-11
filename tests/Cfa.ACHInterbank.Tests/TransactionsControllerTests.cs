@@ -26,9 +26,10 @@ public class TransactionsControllerTests
 
         var policy = new Mock<ITransactionPolicyService>();
         var bulk = new Mock<IAchBulkTransactionService>();
+        var ingestion = new Mock<IAchBulkIngestionService>();
         var logger = new Mock<ILogger<TransactionsController>>();
 
-        var controller = new TransactionsController(txService.Object, policy.Object, bulk.Object, logger.Object);
+        var controller = new TransactionsController(txService.Object, policy.Object, bulk.Object, ingestion.Object, logger.Object);
 
         var result = await controller.CreateTransaction(new AchTransactionRequest
         {
@@ -48,5 +49,27 @@ public class TransactionsControllerTests
         var created = Assert.IsType<CreatedAtActionResult>(result);
         var payload = Assert.IsType<AchTransaction>(created.Value);
         Assert.Equal(25, payload.Id);
+    }
+
+    [Fact]
+    public async Task SubmitBulkIngestion_ReturnsBadRequest_WhenSourceIsUnsupported()
+    {
+        var txService = new Mock<IAchTransactionService>();
+        var policy = new Mock<ITransactionPolicyService>();
+        var bulk = new Mock<IAchBulkTransactionService>();
+        var ingestion = new Mock<IAchBulkIngestionService>();
+        ingestion.Setup(x => x.SubmitAsync(It.IsAny<BulkIngestionRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new NotSupportedException("CSV no soportado"));
+        var logger = new Mock<ILogger<TransactionsController>>();
+
+        var controller = new TransactionsController(txService.Object, policy.Object, bulk.Object, ingestion.Object, logger.Object);
+
+        var response = await controller.SubmitBulkIngestion(new BulkIngestionRequest
+        {
+            BatchReference = "BATCH-1",
+            SourceType = BulkIngestionSourceType.CsvFile
+        }, CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(response);
     }
 }

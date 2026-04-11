@@ -3,23 +3,23 @@ import { RouterTestingModule } from '@angular/router/testing';
 import { of, throwError } from 'rxjs';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { BulkAchTransactionResponse } from '../../transactions.models';
-import { TransactionsApiService } from '../../services/transactions-api.service';
+import { BulkIngestionApiService } from '../../services/bulk-ingestion-api.service';
 import { TransactionBulkCreateComponent } from './transaction-bulk-create.component';
 
 describe('TransactionBulkCreateComponent', () => {
   let fixture: ComponentFixture<TransactionBulkCreateComponent>;
   let component: TransactionBulkCreateComponent;
-  let api: jasmine.SpyObj<TransactionsApiService>;
+  let api: jasmine.SpyObj<BulkIngestionApiService>;
   let notifications: jasmine.SpyObj<NotificationService>;
 
   beforeEach(async () => {
-    api = jasmine.createSpyObj<TransactionsApiService>('TransactionsApiService', ['createBulkTransaction']);
+    api = jasmine.createSpyObj<BulkIngestionApiService>('BulkIngestionApiService', ['submit']);
     notifications = jasmine.createSpyObj<NotificationService>('NotificationService', ['success', 'warning', 'error']);
 
     await TestBed.configureTestingModule({
       imports: [TransactionBulkCreateComponent, RouterTestingModule],
       providers: [
-        { provide: TransactionsApiService, useValue: api },
+        { provide: BulkIngestionApiService, useValue: api },
         { provide: NotificationService, useValue: notifications }
       ]
     }).compileComponents();
@@ -78,7 +78,7 @@ describe('TransactionBulkCreateComponent', () => {
       ]
     };
 
-    api.createBulkTransaction.and.returnValue(of(result));
+    api.submit.and.returnValue(of({ processingMode: 1, status: "COMPLETED", immediateResult: result }));
     component.onJsonInput(JSON.stringify({
       batchReference: 'TEST-BATCH',
       transactions: [
@@ -115,7 +115,7 @@ describe('TransactionBulkCreateComponent', () => {
     component.submit();
     fixture.detectChanges();
 
-    expect(api.createBulkTransaction).toHaveBeenCalled();
+    expect(api.submit).toHaveBeenCalled();
     expect(component.response()?.totalSucceeded).toBe(2);
     expect(notifications.success).toHaveBeenCalled();
 
@@ -125,7 +125,7 @@ describe('TransactionBulkCreateComponent', () => {
   });
 
   it('should handle submit error', () => {
-    api.createBulkTransaction.and.returnValue(throwError(() => new Error('API error')));
+    api.submit.and.returnValue(throwError(() => new Error('API error')));
 
     component.onJsonInput(JSON.stringify({
       batchReference: 'TEST-BATCH',

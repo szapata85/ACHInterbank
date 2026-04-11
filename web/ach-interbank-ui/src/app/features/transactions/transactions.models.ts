@@ -193,3 +193,36 @@ export interface BulkAchTransactionResponse {
   createdTransactionIds: number[];
   itemResults: BulkAchTransactionItemResult[];
 }
+
+
+export enum BulkIngestionSourceType {
+  InlineTransactions = 1,
+  JsonFile = 2,
+  CsvFile = 3,
+  ExcelFile = 4
+}
+
+export enum BulkIngestionProcessingMode {
+  Synchronous = 1,
+  AsynchronousJob = 2
+}
+
+export interface BulkIngestionRequest {
+  batchReference: string;
+  sourceType: BulkIngestionSourceType;
+  processingMode: BulkIngestionProcessingMode;
+  chunkSize?: number;
+  transactions?: BulkAchTransactionItemRequest[];
+  fileName?: string;
+  contentType?: string;
+  contentBase64?: string;
+  clientRequestId?: string;
+  retryCount?: number;
+}
+
+export interface BulkIngestionResponse {
+  processingMode: BulkIngestionProcessingMode;
+  jobId?: string;
+  status?: string;
+  immediateResult?: BulkAchTransactionResponse;
+}

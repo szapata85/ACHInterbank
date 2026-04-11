@@ -7,9 +7,11 @@ import {
   BulkAchTransactionItemRequest,
   BulkAchTransactionItemResult,
   BulkAchTransactionRequest,
-  BulkAchTransactionResponse
+  BulkAchTransactionResponse,
+  BulkIngestionProcessingMode,
+  BulkIngestionSourceType
 } from '../../transactions.models';
-import { TransactionsApiService } from '../../services/transactions-api.service';
+import { BulkIngestionApiService } from '../../services/bulk-ingestion-api.service';
 
 @Component({
   selector: 'app-transaction-bulk-create',
@@ -20,7 +22,7 @@ import { TransactionsApiService } from '../../services/transactions-api.service'
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TransactionBulkCreateComponent {
-  private readonly api = inject(TransactionsApiService);
+  private readonly ingestionApi = inject(BulkIngestionApiService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
 
@@ -93,10 +95,25 @@ export class TransactionBulkCreateComponent {
     this.isSubmitting.set(true);
     this.validationError.set(null);
 
-    this.api.createBulkTransaction(currentPayload)
+    this.ingestionApi.submit({
+      batchReference: currentPayload.batchReference,
+      sourceType: BulkIngestionSourceType.InlineTransactions,
+      processingMode: BulkIngestionProcessingMode.Synchronous,
+      chunkSize: currentPayload.chunkSize,
+      transactions: currentPayload.transactions
+    })
       .pipe(take(1))
       .subscribe({
-        next: (result) => {
+        next: (submission) => {
+          const result = submission.immediateResult;
+          if (!result) {
+            this.validationError.set('La plataforma aceptó la solicitud pero no entregó resultado síncrono.');
+            this.isSubmitting.set(false);
+            this.notifications.warning(this.validationError());
+            this.cdr.markForCheck();
+            return;
+          }
+
           this.response.set(result);
           this.isSubmitting.set(false);
 

@@ -15,17 +15,20 @@ public class TransactionsController : ControllerBase
     private readonly ILogger<TransactionsController> _logger;
     private readonly ITransactionPolicyService _transactionPolicyService;
     private readonly IAchBulkTransactionService _bulkTransactionService;
+    private readonly IAchBulkIngestionService _bulkIngestionService;
 
     public TransactionsController(
         IAchTransactionService transactionService,
         ITransactionPolicyService transactionPolicyService,
         IAchBulkTransactionService bulkTransactionService,
+        IAchBulkIngestionService bulkIngestionService,
         ILogger<TransactionsController> logger)
     {
         _transactionService = transactionService;
         _logger = logger;
         _transactionPolicyService = transactionPolicyService;
         _bulkTransactionService = bulkTransactionService;
+        _bulkIngestionService = bulkIngestionService;
     }
     /// <summary>
     /// Endpoint de la API ACH Interbank.
@@ -148,6 +151,36 @@ public class TransactionsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error interno al registrar transacción");
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Error interno del servidor" });
+        }
+    }
+
+
+
+    [HttpPost("bulk/submit")]
+    [ProducesResponseType(typeof(BulkIngestionResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> SubmitBulkIngestion([FromBody] BulkIngestionRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var result = await _bulkIngestionService.SubmitAsync(request, ct);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Validación global fallida en submit de ingestión ACH");
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (NotSupportedException ex)
+        {
+            _logger.LogWarning(ex, "Origen masivo no soportado");
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error interno al submit de ingestión ACH masiva");
             return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Error interno del servidor" });
         }
     }
