@@ -69,9 +69,14 @@ public class AchCycleScheduler : IAchCycleScheduler
         if (clearingHouse == null)
             throw new InvalidOperationException("Clearing house not found");
 
-        // 🔹 Obtener ciclos desde la tabla de configuraciones de ciclos
+        // 🔹 Obtener ciclos vigentes por nombre en la fecha de procesamiento
         List<ClearingHouseCycleConfig> cycles = await _context.ClearingHouseCycleConfigs
-            .Where(cfg => cfg.ClearingHouseId == clearingHouse.Id && cfg.IsActive)
+            .Where(cfg => cfg.ClearingHouseId == clearingHouse.Id &&
+                          cfg.IsActive &&
+                          cfg.EffectiveFrom.Date <= processingDate.Date &&
+                          (!cfg.EffectiveTo.HasValue || cfg.EffectiveTo.Value.Date >= processingDate.Date))
+            .GroupBy(cfg => cfg.CycleName)
+            .Select(g => g.OrderByDescending(cfg => cfg.EffectiveFrom).ThenByDescending(cfg => cfg.Id).First())
             .OrderBy(cfg => cfg.CutoffTime)
             .ToListAsync();
 
