@@ -77,6 +77,8 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
         var effectiveFrom = NormalizeRequiredUtcDate(dto.EffectiveFrom);
         var cycleName = dto.CycleName.Trim();
 
+        await EnsureNoHistoricalOverlapAsync(dto.ClearingHouseId, cycleName, effectiveFrom, ct);
+
         var overlappingConfigs = await _context.ClearingHouseCycleConfigs
             .Where(c => c.ClearingHouseId == dto.ClearingHouseId && c.CycleName == cycleName &&
                         c.EffectiveFrom.Date <= effectiveFrom.Date &&
@@ -179,10 +181,61 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
             throw new InvalidOperationException("La hora de inicio y fin del ciclo no pueden ser iguales.");
         }
 
+        if (dto.CutoffTime == TimeSpan.Zero)
+        {
+            throw new InvalidOperationException("La hora de corte es requerida.");
+        }
+
         if (dto.CutoffTime < TimeSpan.Zero || dto.CutoffTime > new TimeSpan(23, 59, 59))
         {
             throw new InvalidOperationException("La hora de corte está fuera del rango permitido.");
         }
+
+        if (!IsTimeWithinWindow(dto.StartTime, dto.EndTime, dto.CutoffTime))
+        {
+            throw new InvalidOperationException("La hora de corte debe estar dentro de la ventana operativa configurada.");
+        }
+    }
+
+    private async Task EnsureNoHistoricalOverlapAsync(int clearingHouseId, string cycleName, DateTime effectiveFrom, CancellationToken ct)
+    {
+        var conflictingHistoricalVersion = await _context.ClearingHouseCycleConfigs
+            .AsNoTracking()
+            .AnyAsync(c => c.ClearingHouseId == clearingHouseId &&
+                           c.CycleName == cycleName &&
+                           !c.IsActive &&
+                           c.EffectiveFrom.Date <= effectiveFrom.Date &&
+                           c.EffectiveTo.HasValue &&
+                           c.EffectiveTo.Value.Date >= effectiveFrom.Date,
+                ct);
+
+        if (conflictingHistoricalVersion)
+        {
+            throw new InvalidOperationException("Existe traslape con una configuración histórica cerrada para esa vigencia.");
+        }
+
+        var duplicatedEffectiveFrom = await _context.ClearingHouseCycleConfigs
+            .AsNoTracking()
+            .AnyAsync(c => c.ClearingHouseId == clearingHouseId &&
+                           c.CycleName == cycleName &&
+                           c.EffectiveFrom.Date == effectiveFrom.Date,
+                ct);
+
+        if (duplicatedEffectiveFrom)
+        {
+            throw new InvalidOperationException("Ya existe una versión del ciclo con la misma vigencia inicial.");
+        }
+    }
+
+    private static bool IsTimeWithinWindow(TimeSpan start, TimeSpan end, TimeSpan value)
+    {
+        if (start < end)
+        {
+            return value >= start && value <= end;
+        }
+
+        // Ventana que cruza medianoche.
+        return value >= start || value <= end;
     }
 
     private static DateTime NormalizeRequiredUtcDate(DateTime date)

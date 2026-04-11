@@ -19,28 +19,60 @@ public class ClearingHouseCycleConfigSeeder : IDbSeeder
 
     public async Task SeedAsync()
     {
-        if (!_context.ClearingHouseCycleConfigs.Any())
+        if (_context.ClearingHouseCycleConfigs.Any())
         {
-            _context.ChangeTracker.AutoDetectChangesEnabled = false;
-
-            _context.ClearingHouseCycleConfigs.AddRange(
-                //ACH Colombia
-                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 1", StartTime = new TimeSpan(19, 01, 0), EndTime = new TimeSpan(8, 30, 0), CutoffTime = new TimeSpan(8, 30, 0), IsActive = true, EffectiveFrom = DateTime.SpecifyKind(new DateTime(2025, 1, 1), DateTimeKind.Utc) },
-                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 2", StartTime = new TimeSpan(8, 31, 0), EndTime = new TimeSpan(11, 00, 0), CutoffTime = new TimeSpan(11, 00, 0), IsActive = true, EffectiveFrom = DateTime.SpecifyKind(new DateTime(2025, 1, 1), DateTimeKind.Utc) },
-                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 3", StartTime = new TimeSpan(11, 01, 0), EndTime = new TimeSpan(14, 00, 0), CutoffTime = new TimeSpan(14, 00, 0), IsActive = true, EffectiveFrom = DateTime.SpecifyKind(new DateTime(2025, 1, 1), DateTimeKind.Utc) },
-                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 4", StartTime = new TimeSpan(14, 01, 0), EndTime = new TimeSpan(16, 00, 0), CutoffTime = new TimeSpan(16, 00, 0), IsActive = true, EffectiveFrom = DateTime.SpecifyKind(new DateTime(2025, 1, 1), DateTimeKind.Utc) },
-                new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 5", StartTime = new TimeSpan(16, 01, 0), EndTime = new TimeSpan(18, 00, 0), CutoffTime = new TimeSpan(18, 00, 0), IsActive = true, EffectiveFrom = DateTime.SpecifyKind(new DateTime(2025, 1, 1), DateTimeKind.Utc) },
-
-                //CENIT
-                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 1", StartTime = new TimeSpan(19, 01, 0), EndTime = new TimeSpan(8, 30, 0), CutoffTime = new TimeSpan(8, 30, 0), IsActive = true, EffectiveFrom = DateTime.SpecifyKind(new DateTime(2025, 1, 1), DateTimeKind.Utc) },
-                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 2", StartTime = new TimeSpan(8, 31, 0), EndTime = new TimeSpan(11, 00, 0), CutoffTime = new TimeSpan(11, 00, 0), IsActive = true, EffectiveFrom = DateTime.SpecifyKind(new DateTime(2025, 1, 1), DateTimeKind.Utc) },
-                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 3", StartTime = new TimeSpan(11, 01, 0), EndTime = new TimeSpan(14, 00, 0), CutoffTime = new TimeSpan(14, 00, 0), IsActive = true, EffectiveFrom = DateTime.SpecifyKind(new DateTime(2025, 1, 1), DateTimeKind.Utc) },
-                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 4", StartTime = new TimeSpan(14, 01, 0), EndTime = new TimeSpan(16, 00, 0), CutoffTime = new TimeSpan(16, 00, 0), IsActive = true, EffectiveFrom = DateTime.SpecifyKind(new DateTime(2025, 1, 1), DateTimeKind.Utc) },
-                new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 5", StartTime = new TimeSpan(16, 01, 0), EndTime = new TimeSpan(18, 00, 0), CutoffTime = new TimeSpan(18, 00, 0), IsActive = true, EffectiveFrom = DateTime.SpecifyKind(new DateTime(2025, 1, 1), DateTimeKind.Utc) }
-            );
-
-            await _context.SaveChangesAsync();
-            _context.ChangeTracker.AutoDetectChangesEnabled = true;
+            return;
         }
+
+        _context.ChangeTracker.AutoDetectChangesEnabled = false;
+
+        _context.ClearingHouseCycleConfigs.AddRange(BuildAchColombiaSeed());
+        _context.ClearingHouseCycleConfigs.AddRange(BuildCenitSeed());
+
+        await _context.SaveChangesAsync();
+        _context.ChangeTracker.AutoDetectChangesEnabled = true;
     }
+
+    private static IEnumerable<ClearingHouseCycleConfig> BuildAchColombiaSeed()
+    {
+        // Escenarios cubiertos: vigentes, futuros, inactivos, cambio de cantidad de ciclos y cambio de horarios.
+        return new[]
+        {
+            // Históricos inactivos (cantidad previa de ciclos).
+            new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 1", StartTime = new TimeSpan(19, 01, 0), EndTime = new TimeSpan(8, 30, 0), CutoffTime = new TimeSpan(8, 30, 0), IsActive = false, EffectiveFrom = UtcDate(2024, 1, 1), EffectiveTo = UtcDate(2024, 12, 31) },
+            new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 2", StartTime = new TimeSpan(8, 31, 0), EndTime = new TimeSpan(11, 00, 0), CutoffTime = new TimeSpan(11, 00, 0), IsActive = false, EffectiveFrom = UtcDate(2024, 1, 1), EffectiveTo = UtcDate(2024, 12, 31) },
+            new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 3", StartTime = new TimeSpan(11, 01, 0), EndTime = new TimeSpan(15, 00, 0), CutoffTime = new TimeSpan(15, 00, 0), IsActive = false, EffectiveFrom = UtcDate(2024, 1, 1), EffectiveTo = UtcDate(2024, 12, 31) },
+
+            // Vigentes (cantidad incrementada y horarios ajustados).
+            new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 1", StartTime = new TimeSpan(19, 01, 0), EndTime = new TimeSpan(8, 15, 0), CutoffTime = new TimeSpan(8, 15, 0), IsActive = true, EffectiveFrom = UtcDate(2025, 1, 1) },
+            new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 2", StartTime = new TimeSpan(8, 16, 0), EndTime = new TimeSpan(10, 45, 0), CutoffTime = new TimeSpan(10, 45, 0), IsActive = true, EffectiveFrom = UtcDate(2025, 1, 1) },
+            new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 3", StartTime = new TimeSpan(10, 46, 0), EndTime = new TimeSpan(13, 15, 0), CutoffTime = new TimeSpan(13, 15, 0), IsActive = true, EffectiveFrom = UtcDate(2025, 1, 1) },
+            new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 4", StartTime = new TimeSpan(13, 16, 0), EndTime = new TimeSpan(15, 30, 0), CutoffTime = new TimeSpan(15, 30, 0), IsActive = true, EffectiveFrom = UtcDate(2025, 1, 1) },
+            new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 5", StartTime = new TimeSpan(15, 31, 0), EndTime = new TimeSpan(18, 0, 0), CutoffTime = new TimeSpan(18, 0, 0), IsActive = true, EffectiveFrom = UtcDate(2025, 1, 1) },
+
+            // Futura (nueva ventana/horarios).
+            new ClearingHouseCycleConfig { ClearingHouseId = 1, CycleName = "Ciclo 6", StartTime = new TimeSpan(18, 1, 0), EndTime = new TimeSpan(19, 0, 0), CutoffTime = new TimeSpan(19, 0, 0), IsActive = true, EffectiveFrom = UtcDate(2027, 1, 1) }
+        };
+    }
+
+    private static IEnumerable<ClearingHouseCycleConfig> BuildCenitSeed()
+    {
+        return new[]
+        {
+            // Históricos inactivos.
+            new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 1", StartTime = new TimeSpan(19, 0, 0), EndTime = new TimeSpan(8, 45, 0), CutoffTime = new TimeSpan(8, 45, 0), IsActive = false, EffectiveFrom = UtcDate(2024, 1, 1), EffectiveTo = UtcDate(2024, 12, 31) },
+            new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 2", StartTime = new TimeSpan(8, 46, 0), EndTime = new TimeSpan(12, 0, 0), CutoffTime = new TimeSpan(12, 0, 0), IsActive = false, EffectiveFrom = UtcDate(2024, 1, 1), EffectiveTo = UtcDate(2024, 12, 31) },
+
+            // Vigentes (reducción de cantidad de ciclos).
+            new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 1", StartTime = new TimeSpan(19, 0, 0), EndTime = new TimeSpan(9, 0, 0), CutoffTime = new TimeSpan(9, 0, 0), IsActive = true, EffectiveFrom = UtcDate(2025, 1, 1) },
+            new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 2", StartTime = new TimeSpan(9, 1, 0), EndTime = new TimeSpan(13, 0, 0), CutoffTime = new TimeSpan(13, 0, 0), IsActive = true, EffectiveFrom = UtcDate(2025, 1, 1) },
+            new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 3", StartTime = new TimeSpan(13, 1, 0), EndTime = new TimeSpan(18, 0, 0), CutoffTime = new TimeSpan(18, 0, 0), IsActive = true, EffectiveFrom = UtcDate(2025, 1, 1) },
+
+            // Futura con cambios de horario.
+            new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 2", StartTime = new TimeSpan(9, 15, 0), EndTime = new TimeSpan(13, 15, 0), CutoffTime = new TimeSpan(13, 15, 0), IsActive = true, EffectiveFrom = UtcDate(2026, 7, 1) }
+        };
+    }
+
+    private static DateTime UtcDate(int year, int month, int day)
+        => DateTime.SpecifyKind(new DateTime(year, month, day), DateTimeKind.Utc);
 }
