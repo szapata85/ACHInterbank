@@ -273,7 +273,7 @@ public sealed class BulkTransactionScenarioSeeder : IDbSeeder
             return index % 6 == 0 ? TransactionTypeEnum.Prenotification : TransactionTypeEnum.Credit;
         }
 
-        return index % 5 switch
+        return (index % 5) switch
         {
             0 => TransactionTypeEnum.Credit,
             1 => TransactionTypeEnum.Debit,
