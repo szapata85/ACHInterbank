@@ -114,5 +114,6 @@ describe('CycleConfigManagementComponent', () => {
     component.search();
 
     expect(notifications.error).toHaveBeenCalled();
+    expect(component.loadError).toContain('No fue posible consultar configuraciones de ciclos');
   });
 });
