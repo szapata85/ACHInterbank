@@ -10,4 +10,8 @@ public interface IContrapartidaDispatchJobService
         string triggeredBy,
         int chunkSize,
         CancellationToken ct = default);
+
+    Task<ContrapartidaBatchRetryResult> RetryBatchAsync(
+        ContrapartidaDispatchRetryRequest request,
+        CancellationToken ct = default);
 }
