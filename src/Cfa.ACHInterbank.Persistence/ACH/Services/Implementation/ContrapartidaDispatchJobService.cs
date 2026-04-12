@@ -272,6 +272,22 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
         var safeTriggeredBy = string.IsNullOrWhiteSpace(request.TriggeredBy) ? "manual:unknown" : request.TriggeredBy.Trim();
         var chunkSize = Math.Clamp(request.ChunkSize, 10, 2000);
+        var retryJobId = $"manual-retry:{request.SourceBatchId:N}";
+
+        var conflictingRetryInProgress = await _context.ContrapartidaDispatchBatches
+            .AsNoTracking()
+            .AnyAsync(x => x.JobId == retryJobId && x.Status == ContrapartidaDispatchBatchStatusEnum.Processing, ct);
+        if (conflictingRetryInProgress)
+        {
+            throw new InvalidOperationException("Ya existe un reintento manual en ejecución para este batch origen.");
+        }
+
+        var cycle = await _context.AchCycles
+            .AsNoTracking()
+            .Include(c => c.ClearingHouseCycleConfig)
+            .FirstOrDefaultAsync(x => x.Id == sourceBatch.AchCycleId && x.ClearingHouseId == sourceBatch.ClearingHouseId, ct)
+            ?? throw new InvalidOperationException($"No existe ciclo {sourceBatch.AchCycleId} para cámara {sourceBatch.ClearingHouseId}.");
+        ValidateCycleOperationalWindow(cycle, DateTime.Now);
 
         var sourceItemIds = await _context.ContrapartidaDispatchAttempts
             .AsNoTracking()
@@ -314,7 +330,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                     {
                         return false;
                     }
-                    return true;
+                    return i.State != ContrapartidaDispatchItemStateEnum.ReportingContrapartida
+                        && i.State != ContrapartidaDispatchItemStateEnum.Retrying;
                 }
 
                 if (i.State == ContrapartidaDispatchItemStateEnum.ReportedToContrapartida)
@@ -338,6 +355,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             ClearingHouseId = sourceBatch.ClearingHouseId,
             TriggerType = ContrapartidaDispatchBatchTriggerTypeEnum.ManualRetry,
             RequestedBy = safeTriggeredBy,
+            JobId = retryJobId,
             TriggeredAtUtc = DateTime.UtcNow,
             StartedAtUtc = DateTime.UtcNow,
             Status = ContrapartidaDispatchBatchStatusEnum.Processing,
@@ -380,10 +398,6 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             {
                 continue;
             }
-
-            var cycle = await _context.AchCycles
-                .AsNoTracking()
-                .FirstAsync(x => x.Id == sourceBatch.AchCycleId && x.ClearingHouseId == sourceBatch.ClearingHouseId, ct);
 
             var txIds = claimed.Select(x => x.AchTransactionId).ToArray();
             var txs = await _context.AchTransactions
