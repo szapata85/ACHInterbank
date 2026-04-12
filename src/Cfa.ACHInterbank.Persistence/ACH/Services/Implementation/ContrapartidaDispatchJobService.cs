@@ -6,7 +6,6 @@ using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -22,20 +21,20 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
     private readonly AchDbContext _context;
     private readonly IWscfaachSoapClient _soapClient;
-    private readonly IContrapartidaSoapPayloadMapper _payloadMapper;
+    private readonly IProcContrapartidasRequestMapper _procContrapartidasRequestMapper;
     private readonly IContrapartidaSoapResponseParser _responseParser;
     private readonly ILogger<ContrapartidaDispatchJobService> _logger;
 
     public ContrapartidaDispatchJobService(
         AchDbContext context,
         IWscfaachSoapClient soapClient,
-        IContrapartidaSoapPayloadMapper payloadMapper,
+        IProcContrapartidasRequestMapper procContrapartidasRequestMapper,
         IContrapartidaSoapResponseParser responseParser,
         ILogger<ContrapartidaDispatchJobService> logger)
     {
         _context = context;
         _soapClient = soapClient;
-        _payloadMapper = payloadMapper;
+        _procContrapartidasRequestMapper = procContrapartidasRequestMapper;
         _responseParser = responseParser;
         _logger = logger;
     }
@@ -122,10 +121,10 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
             try
             {
-                var parameters = _payloadMapper.BuildProcContrapartidasPayload(cycle, transactions, DateTime.Now);
-                requestPayload = JsonSerializer.Serialize(parameters);
+                var contract = _procContrapartidasRequestMapper.Map(cycle, transactions, DateTime.Now);
+                requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(contract);
 
-                responsePayload = await _soapClient.ProcContrapartidasAsync(parameters, ct);
+                responsePayload = await _soapClient.ProcContrapartidasAsync(requestPayload, ct);
                 parseResult = _responseParser.Parse(responsePayload);
             }
             catch (Exception ex)
