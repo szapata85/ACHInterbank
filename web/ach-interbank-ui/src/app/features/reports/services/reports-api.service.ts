@@ -152,6 +152,37 @@ export interface CycleReportResponse {
   pageSize: number;
 }
 
+
+export interface ReconciliationReportFilter {
+  date?: string;
+  clearingHouseId?: number;
+  achCycleId?: string;
+}
+
+export interface ReconciliationReportResponse {
+  totals: {
+    sentCount: number;
+    sentAmount: number;
+    receivedCount: number;
+    receivedAmount: number;
+    returnedCount: number;
+    returnedAmount: number;
+  };
+  differences: {
+    sentVsReceivedCountDiff: number;
+    sentVsReceivedAmountDiff: number;
+    sentVsReturnedCountDiff: number;
+    sentVsReturnedAmountDiff: number;
+    receivedVsReturnedCountDiff: number;
+    receivedVsReturnedAmountDiff: number;
+  };
+  inconsistencies: {
+    code: string;
+    description: string;
+    affectedCount: number;
+  }[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class ReportsApiService {
   private readonly http = inject(HttpClient);
@@ -275,6 +306,22 @@ export class ReportsApiService {
     });
   }
 
+
+  getReconciliation(filter: ReconciliationReportFilter): Observable<ReconciliationReportResponse> {
+    return this.http.get<ReconciliationReportResponse>(
+      this.api.resolveUrl('api/reports/reconciliation'),
+      { params: this.buildReconciliationParams(filter) }
+    );
+  }
+
+  downloadReconciliationPdf(filter: ReconciliationReportFilter): Observable<HttpResponse<Blob>> {
+    return this.http.get(this.api.resolveUrl('api/reports/reconciliation/pdf'), {
+      params: this.buildReconciliationParams(filter),
+      observe: 'response',
+      responseType: 'blob'
+    });
+  }
+
   private buildTransactionMovementParams(filter: TransactionMovementReportFilter): Record<string, string> {
     const params: Record<string, string> = {};
 
@@ -326,6 +373,17 @@ export class ReportsApiService {
     if (filter.name) params.name = filter.name;
     if (filter.page != null) params.page = String(filter.page);
     if (filter.pageSize != null) params.pageSize = String(filter.pageSize);
+
+    return params;
+  }
+
+
+  private buildReconciliationParams(filter: ReconciliationReportFilter): Record<string, string> {
+    const params: Record<string, string> = {};
+
+    if (filter.date) params.date = filter.date;
+    if (filter.clearingHouseId != null) params.clearingHouseId = String(filter.clearingHouseId);
+    if (filter.achCycleId) params.achCycleId = filter.achCycleId;
 
     return params;
   }

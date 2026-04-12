@@ -17,17 +17,20 @@ public class QuestPdfReportGenerator : IReportGenerator
     private readonly IAchTransactionReportService _transactionReportService;
     private readonly IAchReturnRejectionReportService _returnRejectionReportService;
     private readonly IAchNachaCycleReportService _nachaCycleReportService;
+    private readonly IAchReconciliationReportService _reconciliationReportService;
 
     public QuestPdfReportGenerator(
         IAchTraceabilityService traceabilityService,
         IAchTransactionReportService transactionReportService,
         IAchReturnRejectionReportService returnRejectionReportService,
-        IAchNachaCycleReportService nachaCycleReportService)
+        IAchNachaCycleReportService nachaCycleReportService,
+        IAchReconciliationReportService reconciliationReportService)
     {
         _traceabilityService = traceabilityService;
         _transactionReportService = transactionReportService;
         _returnRejectionReportService = returnRejectionReportService;
         _nachaCycleReportService = nachaCycleReportService;
+        _reconciliationReportService = reconciliationReportService;
         Settings.License = LicenseType.Community;
     }
 
@@ -143,6 +146,28 @@ public class QuestPdfReportGenerator : IReportGenerator
             Content = document.GeneratePdf(),
             ContentType = "application/pdf",
             FileName = $"ACH_Cycles_{generatedAt:yyyyMMdd_HHmmss}.pdf"
+        };
+    }
+
+
+    public async Task<GeneratedReportFile> GenerateReconciliationPdfAsync(AchReconciliationReportFilter filter, CancellationToken ct = default)
+    {
+        var response = await _reconciliationReportService.GetReconciliationAsync(filter, ct);
+        var generatedAt = DateTime.UtcNow;
+        var document = new AchReconciliationReportDocument(new AchReconciliationReportDocumentModel
+        {
+            Filter = filter,
+            Totals = response.Totals,
+            Differences = response.Differences,
+            Inconsistencies = response.Inconsistencies,
+            GeneratedAtUtc = generatedAt
+        });
+
+        return new GeneratedReportFile
+        {
+            Content = document.GeneratePdf(),
+            ContentType = "application/pdf",
+            FileName = $"ACH_Reconciliation_{generatedAt:yyyyMMdd_HHmmss}.pdf"
         };
     }
 

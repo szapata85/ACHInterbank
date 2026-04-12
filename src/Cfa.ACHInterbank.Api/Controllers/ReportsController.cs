@@ -19,6 +19,7 @@ public class ReportsController : ControllerBase
     private readonly IAchTransactionReportService _transactionReportService;
     private readonly IAchReturnRejectionReportService _returnRejectionReportService;
     private readonly IAchNachaCycleReportService _nachaCycleReportService;
+    private readonly IAchReconciliationReportService _reconciliationReportService;
     private readonly ILogger<ReportsController> _logger;
 
     public ReportsController(
@@ -26,12 +27,14 @@ public class ReportsController : ControllerBase
         IAchTransactionReportService transactionReportService,
         IAchReturnRejectionReportService returnRejectionReportService,
         IAchNachaCycleReportService nachaCycleReportService,
+        IAchReconciliationReportService reconciliationReportService,
         ILogger<ReportsController> logger)
     {
         _reportGenerator = reportGenerator;
         _transactionReportService = transactionReportService;
         _returnRejectionReportService = returnRejectionReportService;
         _nachaCycleReportService = nachaCycleReportService;
+        _reconciliationReportService = reconciliationReportService;
         _logger = logger;
     }
 
@@ -351,6 +354,47 @@ public class ReportsController : ControllerBase
                 Name = name,
                 Page = 1,
                 PageSize = 5000
+            },
+            ct);
+
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+
+    [HttpGet("reconciliation")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetReconciliation(
+        [FromQuery] DateTime? date,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] string? achCycleId,
+        CancellationToken ct = default)
+    {
+        var response = await _reconciliationReportService.GetReconciliationAsync(
+            new AchReconciliationReportFilter
+            {
+                Date = date,
+                ClearingHouseId = clearingHouseId,
+                AchCycleId = achCycleId
+            },
+            ct);
+
+        return Ok(response);
+    }
+
+    [HttpGet("reconciliation/pdf")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetReconciliationPdf(
+        [FromQuery] DateTime? date,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] string? achCycleId,
+        CancellationToken ct = default)
+    {
+        var file = await _reportGenerator.GenerateReconciliationPdfAsync(
+            new AchReconciliationReportFilter
+            {
+                Date = date,
+                ClearingHouseId = clearingHouseId,
+                AchCycleId = achCycleId
             },
             ct);
 
