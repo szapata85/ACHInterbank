@@ -183,6 +183,55 @@ export interface ReconciliationReportResponse {
   }[];
 }
 
+
+export interface AuditReportFilter {
+  user?: string;
+  action?: string;
+  entity?: string;
+  fromUtc?: string;
+  toUtc?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface AuditReportResponse {
+  items: {
+    user: string;
+    action: string;
+    entity: string;
+    entityId: string;
+    dateUtc: string;
+  }[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
+export interface HistoryReportFilter {
+  fromUtc?: string;
+  toUtc?: string;
+  transactionId?: number;
+  toState?: 'Pending' | 'ReturnedByOperator' | 'ReturnedByEpr' | 'AppliedTacitly' | 'Certified';
+  source?: 'Operator' | 'Epr' | 'System' | 'Claims';
+  page?: number;
+  pageSize?: number;
+}
+
+export interface HistoryReportResponse {
+  items: {
+    transactionId: number;
+    fromState: string;
+    toState: string;
+    source: string;
+    reasonCode?: string;
+    dateUtc: string;
+    changedBy?: string;
+  }[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ReportsApiService {
   private readonly http = inject(HttpClient);
@@ -322,6 +371,37 @@ export class ReportsApiService {
     });
   }
 
+
+  getAudit(filter: AuditReportFilter): Observable<AuditReportResponse> {
+    return this.http.get<AuditReportResponse>(
+      this.api.resolveUrl('api/reports/audit'),
+      { params: this.buildAuditParams(filter) }
+    );
+  }
+
+  downloadAuditPdf(filter: AuditReportFilter): Observable<HttpResponse<Blob>> {
+    return this.http.get(this.api.resolveUrl('api/reports/audit/pdf'), {
+      params: this.buildAuditParams(filter),
+      observe: 'response',
+      responseType: 'blob'
+    });
+  }
+
+  getHistory(filter: HistoryReportFilter): Observable<HistoryReportResponse> {
+    return this.http.get<HistoryReportResponse>(
+      this.api.resolveUrl('api/reports/history'),
+      { params: this.buildHistoryParams(filter) }
+    );
+  }
+
+  downloadHistoryPdf(filter: HistoryReportFilter): Observable<HttpResponse<Blob>> {
+    return this.http.get(this.api.resolveUrl('api/reports/history/pdf'), {
+      params: this.buildHistoryParams(filter),
+      observe: 'response',
+      responseType: 'blob'
+    });
+  }
+
   private buildTransactionMovementParams(filter: TransactionMovementReportFilter): Record<string, string> {
     const params: Record<string, string> = {};
 
@@ -384,6 +464,35 @@ export class ReportsApiService {
     if (filter.date) params.date = filter.date;
     if (filter.clearingHouseId != null) params.clearingHouseId = String(filter.clearingHouseId);
     if (filter.achCycleId) params.achCycleId = filter.achCycleId;
+
+    return params;
+  }
+
+
+  private buildAuditParams(filter: AuditReportFilter): Record<string, string> {
+    const params: Record<string, string> = {};
+
+    if (filter.user) params.user = filter.user;
+    if (filter.action) params.action = filter.action;
+    if (filter.entity) params.entity = filter.entity;
+    if (filter.fromUtc) params.fromUtc = filter.fromUtc;
+    if (filter.toUtc) params.toUtc = filter.toUtc;
+    if (filter.page != null) params.page = String(filter.page);
+    if (filter.pageSize != null) params.pageSize = String(filter.pageSize);
+
+    return params;
+  }
+
+  private buildHistoryParams(filter: HistoryReportFilter): Record<string, string> {
+    const params: Record<string, string> = {};
+
+    if (filter.fromUtc) params.fromUtc = filter.fromUtc;
+    if (filter.toUtc) params.toUtc = filter.toUtc;
+    if (filter.transactionId != null) params.transactionId = String(filter.transactionId);
+    if (filter.toState) params.toState = filter.toState;
+    if (filter.source) params.source = filter.source;
+    if (filter.page != null) params.page = String(filter.page);
+    if (filter.pageSize != null) params.pageSize = String(filter.pageSize);
 
     return params;
   }

@@ -20,6 +20,7 @@ public class ReportsController : ControllerBase
     private readonly IAchReturnRejectionReportService _returnRejectionReportService;
     private readonly IAchNachaCycleReportService _nachaCycleReportService;
     private readonly IAchReconciliationReportService _reconciliationReportService;
+    private readonly IAchAuditHistoryReportService _auditHistoryReportService;
     private readonly ILogger<ReportsController> _logger;
 
     public ReportsController(
@@ -28,6 +29,7 @@ public class ReportsController : ControllerBase
         IAchReturnRejectionReportService returnRejectionReportService,
         IAchNachaCycleReportService nachaCycleReportService,
         IAchReconciliationReportService reconciliationReportService,
+        IAchAuditHistoryReportService auditHistoryReportService,
         ILogger<ReportsController> logger)
     {
         _reportGenerator = reportGenerator;
@@ -35,6 +37,7 @@ public class ReportsController : ControllerBase
         _returnRejectionReportService = returnRejectionReportService;
         _nachaCycleReportService = nachaCycleReportService;
         _reconciliationReportService = reconciliationReportService;
+        _auditHistoryReportService = auditHistoryReportService;
         _logger = logger;
     }
 
@@ -395,6 +398,115 @@ public class ReportsController : ControllerBase
                 Date = date,
                 ClearingHouseId = clearingHouseId,
                 AchCycleId = achCycleId
+            },
+            ct);
+
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+
+    [HttpGet("audit")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetAudit(
+        [FromQuery] string? user,
+        [FromQuery] string? action,
+        [FromQuery] string? entity,
+        [FromQuery] DateTime? fromUtc,
+        [FromQuery] DateTime? toUtc,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken ct = default)
+    {
+        var response = await _auditHistoryReportService.GetAuditAsync(
+            new AchAuditReportFilter
+            {
+                User = user,
+                Action = action,
+                Entity = entity,
+                FromUtc = fromUtc,
+                ToUtc = toUtc,
+                Page = page,
+                PageSize = pageSize
+            },
+            ct);
+
+        return Ok(response);
+    }
+
+    [HttpGet("audit/pdf")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetAuditPdf(
+        [FromQuery] string? user,
+        [FromQuery] string? action,
+        [FromQuery] string? entity,
+        [FromQuery] DateTime? fromUtc,
+        [FromQuery] DateTime? toUtc,
+        CancellationToken ct = default)
+    {
+        var file = await _reportGenerator.GenerateAuditPdfAsync(
+            new AchAuditReportFilter
+            {
+                User = user,
+                Action = action,
+                Entity = entity,
+                FromUtc = fromUtc,
+                ToUtc = toUtc,
+                Page = 1,
+                PageSize = 5000
+            },
+            ct);
+
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+    [HttpGet("history")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetHistory(
+        [FromQuery] DateTime? fromUtc,
+        [FromQuery] DateTime? toUtc,
+        [FromQuery] int? transactionId,
+        [FromQuery] AchTransferStateEnum? toState,
+        [FromQuery] AchStateEventSourceEnum? source,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken ct = default)
+    {
+        var response = await _auditHistoryReportService.GetHistoryAsync(
+            new AchHistoryReportFilter
+            {
+                FromUtc = fromUtc,
+                ToUtc = toUtc,
+                TransactionId = transactionId,
+                ToState = toState,
+                Source = source,
+                Page = page,
+                PageSize = pageSize
+            },
+            ct);
+
+        return Ok(response);
+    }
+
+    [HttpGet("history/pdf")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetHistoryPdf(
+        [FromQuery] DateTime? fromUtc,
+        [FromQuery] DateTime? toUtc,
+        [FromQuery] int? transactionId,
+        [FromQuery] AchTransferStateEnum? toState,
+        [FromQuery] AchStateEventSourceEnum? source,
+        CancellationToken ct = default)
+    {
+        var file = await _reportGenerator.GenerateHistoryPdfAsync(
+            new AchHistoryReportFilter
+            {
+                FromUtc = fromUtc,
+                ToUtc = toUtc,
+                TransactionId = transactionId,
+                ToState = toState,
+                Source = source,
+                Page = 1,
+                PageSize = 5000
             },
             ct);
 

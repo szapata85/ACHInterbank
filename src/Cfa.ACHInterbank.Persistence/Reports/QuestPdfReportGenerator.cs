@@ -18,19 +18,22 @@ public class QuestPdfReportGenerator : IReportGenerator
     private readonly IAchReturnRejectionReportService _returnRejectionReportService;
     private readonly IAchNachaCycleReportService _nachaCycleReportService;
     private readonly IAchReconciliationReportService _reconciliationReportService;
+    private readonly IAchAuditHistoryReportService _auditHistoryReportService;
 
     public QuestPdfReportGenerator(
         IAchTraceabilityService traceabilityService,
         IAchTransactionReportService transactionReportService,
         IAchReturnRejectionReportService returnRejectionReportService,
         IAchNachaCycleReportService nachaCycleReportService,
-        IAchReconciliationReportService reconciliationReportService)
+        IAchReconciliationReportService reconciliationReportService,
+        IAchAuditHistoryReportService auditHistoryReportService)
     {
         _traceabilityService = traceabilityService;
         _transactionReportService = transactionReportService;
         _returnRejectionReportService = returnRejectionReportService;
         _nachaCycleReportService = nachaCycleReportService;
         _reconciliationReportService = reconciliationReportService;
+        _auditHistoryReportService = auditHistoryReportService;
         Settings.License = LicenseType.Community;
     }
 
@@ -168,6 +171,45 @@ public class QuestPdfReportGenerator : IReportGenerator
             Content = document.GeneratePdf(),
             ContentType = "application/pdf",
             FileName = $"ACH_Reconciliation_{generatedAt:yyyyMMdd_HHmmss}.pdf"
+        };
+    }
+
+
+    public async Task<GeneratedReportFile> GenerateAuditPdfAsync(AchAuditReportFilter filter, CancellationToken ct = default)
+    {
+        var response = await _auditHistoryReportService.GetAuditAsync(filter, ct);
+        var generatedAt = DateTime.UtcNow;
+        var document = new AchAuditReportDocument(new AchAuditReportDocumentModel
+        {
+            Filter = filter,
+            Rows = response.Items,
+            GeneratedAtUtc = generatedAt
+        });
+
+        return new GeneratedReportFile
+        {
+            Content = document.GeneratePdf(),
+            ContentType = "application/pdf",
+            FileName = $"ACH_Audit_{generatedAt:yyyyMMdd_HHmmss}.pdf"
+        };
+    }
+
+    public async Task<GeneratedReportFile> GenerateHistoryPdfAsync(AchHistoryReportFilter filter, CancellationToken ct = default)
+    {
+        var response = await _auditHistoryReportService.GetHistoryAsync(filter, ct);
+        var generatedAt = DateTime.UtcNow;
+        var document = new AchHistoryReportDocument(new AchHistoryReportDocumentModel
+        {
+            Filter = filter,
+            Rows = response.Items,
+            GeneratedAtUtc = generatedAt
+        });
+
+        return new GeneratedReportFile
+        {
+            Content = document.GeneratePdf(),
+            ContentType = "application/pdf",
+            FileName = $"ACH_History_{generatedAt:yyyyMMdd_HHmmss}.pdf"
         };
     }
 

@@ -12,4 +12,6 @@ public interface IReportGenerator
     Task<GeneratedReportFile> GenerateNachaFilesPdfAsync(AchNachaFileReportFilter filter, CancellationToken ct = default);
     Task<GeneratedReportFile> GenerateCyclesPdfAsync(AchCycleReportFilter filter, CancellationToken ct = default);
     Task<GeneratedReportFile> GenerateReconciliationPdfAsync(AchReconciliationReportFilter filter, CancellationToken ct = default);
+    Task<GeneratedReportFile> GenerateAuditPdfAsync(AchAuditReportFilter filter, CancellationToken ct = default);
+    Task<GeneratedReportFile> GenerateHistoryPdfAsync(AchHistoryReportFilter filter, CancellationToken ct = default);
 }
