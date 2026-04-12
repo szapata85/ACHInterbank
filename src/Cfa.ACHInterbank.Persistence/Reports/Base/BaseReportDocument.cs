@@ -1,3 +1,4 @@
+using Cfa.ACHInterbank.Application.Reports.Models;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -6,14 +7,17 @@ namespace Cfa.ACHInterbank.Persistence.Reports.Base;
 
 public abstract class BaseReportDocument<TModel> : IDocument
 {
-    protected BaseReportDocument(TModel model)
+    private readonly PdfBrandingOptions _branding;
+
+    protected BaseReportDocument(TModel model, PdfBrandingOptions? branding = null)
     {
         Model = model;
+        _branding = branding ?? new PdfBrandingOptions();
     }
 
     protected TModel Model { get; }
 
-    protected virtual string CompanyName => "ACH Interbank";
+    protected virtual string CompanyName => _branding.CompanyName;
 
     protected virtual string Title => "Reporte";
 
@@ -42,10 +46,29 @@ public abstract class BaseReportDocument<TModel> : IDocument
     {
         container.Column(column =>
         {
-            column.Spacing(2);
-            column.Item().Text(CompanyName);
-            column.Item().Text(Title);
-            column.Item().Text($"Generado UTC: {GeneratedAtUtc:yyyy-MM-dd HH:mm:ss}");
+            column.Spacing(4);
+
+            if (TryReadLogoBytes(_branding.LogoDataUri, out var logoBytes))
+            {
+                column.Item().Row(row =>
+                {
+                    row.ConstantItem(120).Height(36).Image(logoBytes);
+                    row.RelativeItem().Column(meta =>
+                    {
+                        meta.Item().Text(CompanyName).SemiBold();
+                        meta.Item().Text(Title);
+                        meta.Item().Text($"Generado UTC: {GeneratedAtUtc:yyyy-MM-dd HH:mm:ss}");
+                    });
+                });
+            }
+            else
+            {
+                column.Item().Text(CompanyName).SemiBold();
+                column.Item().Text(Title);
+                column.Item().Text($"Generado UTC: {GeneratedAtUtc:yyyy-MM-dd HH:mm:ss}");
+            }
+
+            column.Item().LineHorizontal(1).LineColor(ResolveColor(_branding.AccentColorHex));
         });
     }
 
@@ -53,7 +76,7 @@ public abstract class BaseReportDocument<TModel> : IDocument
     {
         container.Row(row =>
         {
-            row.RelativeItem().Text($"{CompanyName} · Confidencial");
+            row.RelativeItem().Text($"{CompanyName} · {_branding.FooterText}");
             row.ConstantItem(120).AlignRight().Text(text =>
             {
                 text.Span("Página ");
@@ -62,5 +85,45 @@ public abstract class BaseReportDocument<TModel> : IDocument
                 text.TotalPages();
             });
         });
+    }
+
+    private static bool TryReadLogoBytes(string? logoDataUri, out byte[] bytes)
+    {
+        bytes = [];
+
+        if (string.IsNullOrWhiteSpace(logoDataUri))
+        {
+            return false;
+        }
+
+        var marker = "base64,";
+        var markerIndex = logoDataUri.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+
+        if (markerIndex < 0)
+        {
+            return false;
+        }
+
+        var encoded = logoDataUri[(markerIndex + marker.Length)..].Trim();
+
+        if (encoded.Length == 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            bytes = Convert.FromBase64String(encoded);
+            return bytes.Length > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string ResolveColor(string? hex)
+    {
+        return string.IsNullOrWhiteSpace(hex) ? Colors.Blue.Medium : hex.Trim();
     }
 }

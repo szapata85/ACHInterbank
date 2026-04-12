@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Persistence.Reports.Base;
 using Cfa.ACHInterbank.Persistence.Reports.Components;
 using Cfa.ACHInterbank.Persistence.Reports.Models;
+using Cfa.ACHInterbank.Application.Reports.Models;
 using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 
@@ -8,7 +9,7 @@ namespace Cfa.ACHInterbank.Persistence.Reports.Documents;
 
 internal sealed class AchCycleReportDocument : BaseReportDocument<AchCycleReportDocumentModel>
 {
-    public AchCycleReportDocument(AchCycleReportDocumentModel model) : base(model)
+    public AchCycleReportDocument(AchCycleReportDocumentModel model, PdfBrandingOptions? branding = null) : base(model, branding)
     {
     }
 

@@ -19,6 +19,7 @@ public class QuestPdfReportGenerator : IReportGenerator
     private readonly IAchNachaCycleReportService _nachaCycleReportService;
     private readonly IAchReconciliationReportService _reconciliationReportService;
     private readonly IAchAuditHistoryReportService _auditHistoryReportService;
+    private readonly IReportBrandingProvider _brandingProvider;
 
     public QuestPdfReportGenerator(
         IAchTraceabilityService traceabilityService,
@@ -26,7 +27,8 @@ public class QuestPdfReportGenerator : IReportGenerator
         IAchReturnRejectionReportService returnRejectionReportService,
         IAchNachaCycleReportService nachaCycleReportService,
         IAchReconciliationReportService reconciliationReportService,
-        IAchAuditHistoryReportService auditHistoryReportService)
+        IAchAuditHistoryReportService auditHistoryReportService,
+        IReportBrandingProvider brandingProvider)
     {
         _traceabilityService = traceabilityService;
         _transactionReportService = transactionReportService;
@@ -34,11 +36,13 @@ public class QuestPdfReportGenerator : IReportGenerator
         _nachaCycleReportService = nachaCycleReportService;
         _reconciliationReportService = reconciliationReportService;
         _auditHistoryReportService = auditHistoryReportService;
+        _brandingProvider = brandingProvider;
         Settings.License = LicenseType.Community;
     }
 
     public async Task<GeneratedReportFile> GenerateTraceabilityPdfAsync(TraceabilityReportFilter filter, CancellationToken ct = default)
     {
+        var branding = await _brandingProvider.GetAsync(ct);
         var rows = await _traceabilityService.GetTraceabilityReportAsync(
             filter.FromUtc,
             filter.ToUtc,
@@ -52,7 +56,7 @@ public class QuestPdfReportGenerator : IReportGenerator
             Filter = filter,
             Rows = rows,
             GeneratedAtUtc = generatedAt
-        });
+        }, branding);
 
         return new GeneratedReportFile
         {
@@ -89,6 +93,7 @@ public class QuestPdfReportGenerator : IReportGenerator
         AchReturnRejectionReportFilter filter,
         CancellationToken ct)
     {
+        var branding = await _brandingProvider.GetAsync(ct);
         var response = filePrefix == "Returns"
             ? await _returnRejectionReportService.GetReturnsAsync(filter, ct)
             : await _returnRejectionReportService.GetRejectionsAsync(filter, ct);
@@ -101,7 +106,7 @@ public class QuestPdfReportGenerator : IReportGenerator
             Rows = response.Items,
             Totals = response.Totals,
             GeneratedAtUtc = generatedAt
-        });
+        }, branding);
 
         return new GeneratedReportFile
         {
@@ -114,6 +119,7 @@ public class QuestPdfReportGenerator : IReportGenerator
 
     public async Task<GeneratedReportFile> GenerateNachaFilesPdfAsync(AchNachaFileReportFilter filter, CancellationToken ct = default)
     {
+        var branding = await _brandingProvider.GetAsync(ct);
         var response = await _nachaCycleReportService.GetNachaFilesAsync(filter, ct);
         var generatedAt = DateTime.UtcNow;
         var document = new AchNachaFileReportDocument(new AchNachaFileReportDocumentModel
@@ -122,7 +128,7 @@ public class QuestPdfReportGenerator : IReportGenerator
             Rows = response.Items,
             Totals = response.Totals,
             GeneratedAtUtc = generatedAt
-        });
+        }, branding);
 
         return new GeneratedReportFile
         {
@@ -134,6 +140,7 @@ public class QuestPdfReportGenerator : IReportGenerator
 
     public async Task<GeneratedReportFile> GenerateCyclesPdfAsync(AchCycleReportFilter filter, CancellationToken ct = default)
     {
+        var branding = await _brandingProvider.GetAsync(ct);
         var response = await _nachaCycleReportService.GetCyclesAsync(filter, ct);
         var generatedAt = DateTime.UtcNow;
         var document = new AchCycleReportDocument(new AchCycleReportDocumentModel
@@ -142,7 +149,7 @@ public class QuestPdfReportGenerator : IReportGenerator
             Rows = response.Items,
             Totals = response.Totals,
             GeneratedAtUtc = generatedAt
-        });
+        }, branding);
 
         return new GeneratedReportFile
         {
@@ -155,6 +162,7 @@ public class QuestPdfReportGenerator : IReportGenerator
 
     public async Task<GeneratedReportFile> GenerateReconciliationPdfAsync(AchReconciliationReportFilter filter, CancellationToken ct = default)
     {
+        var branding = await _brandingProvider.GetAsync(ct);
         var response = await _reconciliationReportService.GetReconciliationAsync(filter, ct);
         var generatedAt = DateTime.UtcNow;
         var document = new AchReconciliationReportDocument(new AchReconciliationReportDocumentModel
@@ -164,7 +172,7 @@ public class QuestPdfReportGenerator : IReportGenerator
             Differences = response.Differences,
             Inconsistencies = response.Inconsistencies,
             GeneratedAtUtc = generatedAt
-        });
+        }, branding);
 
         return new GeneratedReportFile
         {
@@ -177,6 +185,7 @@ public class QuestPdfReportGenerator : IReportGenerator
 
     public async Task<GeneratedReportFile> GenerateAuditPdfAsync(AchAuditReportFilter filter, CancellationToken ct = default)
     {
+        var branding = await _brandingProvider.GetAsync(ct);
         var response = await _auditHistoryReportService.GetAuditAsync(filter, ct);
         var generatedAt = DateTime.UtcNow;
         var document = new AchAuditReportDocument(new AchAuditReportDocumentModel
@@ -184,7 +193,7 @@ public class QuestPdfReportGenerator : IReportGenerator
             Filter = filter,
             Rows = response.Items,
             GeneratedAtUtc = generatedAt
-        });
+        }, branding);
 
         return new GeneratedReportFile
         {
@@ -196,6 +205,7 @@ public class QuestPdfReportGenerator : IReportGenerator
 
     public async Task<GeneratedReportFile> GenerateHistoryPdfAsync(AchHistoryReportFilter filter, CancellationToken ct = default)
     {
+        var branding = await _brandingProvider.GetAsync(ct);
         var response = await _auditHistoryReportService.GetHistoryAsync(filter, ct);
         var generatedAt = DateTime.UtcNow;
         var document = new AchHistoryReportDocument(new AchHistoryReportDocumentModel
@@ -203,7 +213,7 @@ public class QuestPdfReportGenerator : IReportGenerator
             Filter = filter,
             Rows = response.Items,
             GeneratedAtUtc = generatedAt
-        });
+        }, branding);
 
         return new GeneratedReportFile
         {
@@ -219,6 +229,7 @@ public class QuestPdfReportGenerator : IReportGenerator
         AchTransactionReportFilter filter,
         CancellationToken ct)
     {
+        var branding = await _brandingProvider.GetAsync(ct);
         var response = filePrefix == "Sent"
             ? await _transactionReportService.GetSentTransactionsAsync(filter, ct)
             : await _transactionReportService.GetReceivedTransactionsAsync(filter, ct);
@@ -231,7 +242,7 @@ public class QuestPdfReportGenerator : IReportGenerator
             Rows = response.Items,
             Totals = response.Totals,
             GeneratedAtUtc = generatedAt
-        });
+        }, branding);
 
         return new GeneratedReportFile
         {

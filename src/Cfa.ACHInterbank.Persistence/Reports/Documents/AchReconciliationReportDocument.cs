@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Persistence.Reports.Base;
 using Cfa.ACHInterbank.Persistence.Reports.Components;
 using Cfa.ACHInterbank.Persistence.Reports.Models;
+using Cfa.ACHInterbank.Application.Reports.Models;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -9,7 +10,7 @@ namespace Cfa.ACHInterbank.Persistence.Reports.Documents;
 
 internal sealed class AchReconciliationReportDocument : BaseReportDocument<AchReconciliationReportDocumentModel>
 {
-    public AchReconciliationReportDocument(AchReconciliationReportDocumentModel model) : base(model)
+    public AchReconciliationReportDocument(AchReconciliationReportDocumentModel model, PdfBrandingOptions? branding = null) : base(model, branding)
     {
     }
 
