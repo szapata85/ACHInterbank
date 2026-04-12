@@ -16,15 +16,18 @@ public class QuestPdfReportGenerator : IReportGenerator
     private readonly IAchTraceabilityService _traceabilityService;
     private readonly IAchTransactionReportService _transactionReportService;
     private readonly IAchReturnRejectionReportService _returnRejectionReportService;
+    private readonly IAchNachaCycleReportService _nachaCycleReportService;
 
     public QuestPdfReportGenerator(
         IAchTraceabilityService traceabilityService,
         IAchTransactionReportService transactionReportService,
-        IAchReturnRejectionReportService returnRejectionReportService)
+        IAchReturnRejectionReportService returnRejectionReportService,
+        IAchNachaCycleReportService nachaCycleReportService)
     {
         _traceabilityService = traceabilityService;
         _transactionReportService = transactionReportService;
         _returnRejectionReportService = returnRejectionReportService;
+        _nachaCycleReportService = nachaCycleReportService;
         Settings.License = LicenseType.Community;
     }
 
@@ -99,6 +102,47 @@ public class QuestPdfReportGenerator : IReportGenerator
             Content = document.GeneratePdf(),
             ContentType = "application/pdf",
             FileName = $"ACH_{filePrefix}_{generatedAt:yyyyMMdd_HHmmss}.pdf"
+        };
+    }
+
+
+    public async Task<GeneratedReportFile> GenerateNachaFilesPdfAsync(AchNachaFileReportFilter filter, CancellationToken ct = default)
+    {
+        var response = await _nachaCycleReportService.GetNachaFilesAsync(filter, ct);
+        var generatedAt = DateTime.UtcNow;
+        var document = new AchNachaFileReportDocument(new AchNachaFileReportDocumentModel
+        {
+            Filter = filter,
+            Rows = response.Items,
+            Totals = response.Totals,
+            GeneratedAtUtc = generatedAt
+        });
+
+        return new GeneratedReportFile
+        {
+            Content = document.GeneratePdf(),
+            ContentType = "application/pdf",
+            FileName = $"ACH_NachaFiles_{generatedAt:yyyyMMdd_HHmmss}.pdf"
+        };
+    }
+
+    public async Task<GeneratedReportFile> GenerateCyclesPdfAsync(AchCycleReportFilter filter, CancellationToken ct = default)
+    {
+        var response = await _nachaCycleReportService.GetCyclesAsync(filter, ct);
+        var generatedAt = DateTime.UtcNow;
+        var document = new AchCycleReportDocument(new AchCycleReportDocumentModel
+        {
+            Filter = filter,
+            Rows = response.Items,
+            Totals = response.Totals,
+            GeneratedAtUtc = generatedAt
+        });
+
+        return new GeneratedReportFile
+        {
+            Content = document.GeneratePdf(),
+            ContentType = "application/pdf",
+            FileName = $"ACH_Cycles_{generatedAt:yyyyMMdd_HHmmss}.pdf"
         };
     }
 

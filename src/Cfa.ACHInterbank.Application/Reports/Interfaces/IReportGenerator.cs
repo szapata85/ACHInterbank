@@ -9,4 +9,6 @@ public interface IReportGenerator
     Task<GeneratedReportFile> GenerateReceivedTransactionsPdfAsync(AchTransactionReportFilter filter, CancellationToken ct = default);
     Task<GeneratedReportFile> GenerateReturnsPdfAsync(AchReturnRejectionReportFilter filter, CancellationToken ct = default);
     Task<GeneratedReportFile> GenerateRejectionsPdfAsync(AchReturnRejectionReportFilter filter, CancellationToken ct = default);
+    Task<GeneratedReportFile> GenerateNachaFilesPdfAsync(AchNachaFileReportFilter filter, CancellationToken ct = default);
+    Task<GeneratedReportFile> GenerateCyclesPdfAsync(AchCycleReportFilter filter, CancellationToken ct = default);
 }

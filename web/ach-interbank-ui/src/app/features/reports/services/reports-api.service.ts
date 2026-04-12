@@ -89,6 +89,69 @@ export interface ReturnRejectionReportResponse {
   pageSize: number;
 }
 
+
+export interface NachaFileReportFilter {
+  date?: string;
+  clearingHouseId?: number;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface NachaFileReportRow {
+  fileName: string;
+  generatedAtUtc: string;
+  clearingHouseName: string;
+  exportKind: string;
+  totalRecords: number;
+  totalTransactions: number;
+}
+
+export interface NachaFileReportResponse {
+  items: NachaFileReportRow[];
+  totals: {
+    totalFiles: number;
+    totalRecords: number;
+    totalTransactions: number;
+  };
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface CycleReportFilter {
+  date?: string;
+  clearingHouseId?: number;
+  name?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface CycleReportRow {
+  cycleId: string;
+  cycleName: string;
+  processingDate: string;
+  startTime: string;
+  endTime: string;
+  cutoffTime: string;
+  schedule: string;
+  status: string;
+  clearingHouseName: string;
+  totalTransactions: number;
+  totalAmount: number;
+}
+
+export interface CycleReportResponse {
+  items: CycleReportRow[];
+  totals: {
+    totalCycles: number;
+    totalTransactions: number;
+    totalAmount: number;
+  };
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ReportsApiService {
   private readonly http = inject(HttpClient);
@@ -181,6 +244,37 @@ export class ReportsApiService {
     });
   }
 
+
+  getNachaFiles(filter: NachaFileReportFilter): Observable<NachaFileReportResponse> {
+    return this.http.get<NachaFileReportResponse>(
+      this.api.resolveUrl('api/reports/nacha-files'),
+      { params: this.buildNachaFileParams(filter) }
+    );
+  }
+
+  downloadNachaFilesPdf(filter: NachaFileReportFilter): Observable<HttpResponse<Blob>> {
+    return this.http.get(this.api.resolveUrl('api/reports/nacha-files/pdf'), {
+      params: this.buildNachaFileParams(filter),
+      observe: 'response',
+      responseType: 'blob'
+    });
+  }
+
+  getCyclesReport(filter: CycleReportFilter): Observable<CycleReportResponse> {
+    return this.http.get<CycleReportResponse>(
+      this.api.resolveUrl('api/reports/cycles'),
+      { params: this.buildCycleParams(filter) }
+    );
+  }
+
+  downloadCyclesPdf(filter: CycleReportFilter): Observable<HttpResponse<Blob>> {
+    return this.http.get(this.api.resolveUrl('api/reports/cycles/pdf'), {
+      params: this.buildCycleParams(filter),
+      observe: 'response',
+      responseType: 'blob'
+    });
+  }
+
   private buildTransactionMovementParams(filter: TransactionMovementReportFilter): Record<string, string> {
     const params: Record<string, string> = {};
 
@@ -206,6 +300,30 @@ export class ReportsApiService {
     if (filter.clearingHouseId != null) params.clearingHouseId = String(filter.clearingHouseId);
     if (filter.state) params.state = filter.state;
     if (filter.reference) params.reference = filter.reference;
+    if (filter.page != null) params.page = String(filter.page);
+    if (filter.pageSize != null) params.pageSize = String(filter.pageSize);
+
+    return params;
+  }
+
+
+  private buildNachaFileParams(filter: NachaFileReportFilter): Record<string, string> {
+    const params: Record<string, string> = {};
+
+    if (filter.date) params.date = filter.date;
+    if (filter.clearingHouseId != null) params.clearingHouseId = String(filter.clearingHouseId);
+    if (filter.page != null) params.page = String(filter.page);
+    if (filter.pageSize != null) params.pageSize = String(filter.pageSize);
+
+    return params;
+  }
+
+  private buildCycleParams(filter: CycleReportFilter): Record<string, string> {
+    const params: Record<string, string> = {};
+
+    if (filter.date) params.date = filter.date;
+    if (filter.clearingHouseId != null) params.clearingHouseId = String(filter.clearingHouseId);
+    if (filter.name) params.name = filter.name;
     if (filter.page != null) params.page = String(filter.page);
     if (filter.pageSize != null) params.pageSize = String(filter.pageSize);
 
