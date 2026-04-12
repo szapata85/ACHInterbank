@@ -83,14 +83,14 @@ small,
   font-weight: 600;
 }
 
-/* Buttons */
+/* Buttons
+   Base = neutral surface button (legible by default).
+   Variants (.primary, .secondary, etc.) override CSS variables explicitly. */
 button,
-.btn,
-button.primary,
-.primary {
-  --btn-bg: var(--color-primary);
-  --btn-border: var(--color-primary);
-  --btn-color: var(--color-primary-contrast);
+.btn {
+  --btn-bg: var(--color-surface);
+  --btn-border: var(--color-border-strong);
+  --btn-color: var(--color-text);
   --btn-shadow: transparent;
   --btn-pad-x: 1rem;
   --btn-pad-y: 0.5rem;
@@ -117,11 +117,10 @@ button.primary,
 }
 
 button:hover,
-.btn:hover,
-button.primary:hover,
-.primary:hover {
-  --btn-bg: var(--color-primary-hover);
-  --btn-border: var(--color-primary-hover);
+.btn:hover {
+  --btn-bg: var(--color-surface-muted);
+  --btn-border: #aebdd1;
+  --btn-color: var(--color-text);
 }
 
 button:active,
@@ -132,6 +131,21 @@ button:active,
 button:focus-visible,
 .btn:focus-visible {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.24);
+}
+
+button.primary,
+.primary,
+.btn-primary {
+  --btn-bg: var(--color-primary);
+  --btn-border: var(--color-primary);
+  --btn-color: var(--color-primary-contrast);
+}
+
+button.primary:hover,
+.primary:hover,
+.btn-primary:hover {
+  --btn-bg: var(--color-primary-hover);
+  --btn-border: var(--color-primary-hover);
 }
 
 button.secondary,
@@ -262,6 +276,7 @@ button[aria-busy='true'] {
 button:disabled,
 button[disabled],
 .btn:disabled {
+  --btn-color: var(--color-text-soft);
   opacity: 0.55;
   cursor: not-allowed;
   box-shadow: none;
