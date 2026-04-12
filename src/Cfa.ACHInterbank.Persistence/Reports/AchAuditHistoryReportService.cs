@@ -85,12 +85,14 @@ public sealed class AchAuditHistoryReportService : IAchAuditHistoryReportService
 
         if (filter.FromUtc.HasValue)
         {
-            query = query.Where(x => x.CreatedAt >= filter.FromUtc.Value);
+            var fromUtc = new DateTimeOffset(filter.FromUtc.Value, TimeSpan.Zero);
+            query = query.Where(x => x.CreatedAt >= fromUtc);
         }
 
         if (filter.ToUtc.HasValue)
         {
-            query = query.Where(x => x.CreatedAt <= filter.ToUtc.Value);
+            var toUtc = new DateTimeOffset(filter.ToUtc.Value, TimeSpan.Zero);
+            query = query.Where(x => x.CreatedAt <= toUtc);
         }
 
         if (filter.TransactionId.HasValue)
@@ -120,8 +122,8 @@ public sealed class AchAuditHistoryReportService : IAchAuditHistoryReportService
                 ToState = x.ToState,
                 Source = x.Source,
                 ReasonCode = x.ReasonCode,
-                DateUtc = x.CreatedAt,
-                ChangedBy = x.CreatedBy
+                DateUtc = x.CreatedAt.UtcDateTime,
+                ChangedBy = null
             })
             .ToListAsync(ct);
 
