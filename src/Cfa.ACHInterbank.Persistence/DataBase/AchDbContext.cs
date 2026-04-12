@@ -4,6 +4,7 @@ using Cfa.ACHInterbank.Domain.Entities.Branding;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Services;
 using Cfa.ACHInterbank.Domain.Entities.User;
+using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Microsoft.AspNetCore.Http;
@@ -101,6 +102,12 @@ public class AchDbContext : DbContext
     public DbSet<NavigationLog> NavigationLogs => Set<NavigationLog>();
     public DbSet<LoginLockoutSetting> LoginLockoutSettings => Set<LoginLockoutSetting>();
     public DbSet<SoapIntegrationSetting> SoapIntegrationSettings => Set<SoapIntegrationSetting>();
+    public DbSet<IntegrationMethod> IntegrationMethods => Set<IntegrationMethod>();
+    public DbSet<IntegrationMethodParameter> IntegrationMethodParameters => Set<IntegrationMethodParameter>();
+    public DbSet<IntegrationSourceCatalogField> IntegrationSourceCatalogFields => Set<IntegrationSourceCatalogField>();
+    public DbSet<IntegrationMappingSet> IntegrationMappingSets => Set<IntegrationMappingSet>();
+    public DbSet<IntegrationMappingRule> IntegrationMappingRules => Set<IntegrationMappingRule>();
+    public DbSet<IntegrationMappingSetHistory> IntegrationMappingSetHistory => Set<IntegrationMappingSetHistory>();
 
 
 

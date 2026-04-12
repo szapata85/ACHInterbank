@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.External.Connections;
+using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -67,6 +68,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
         while (!ct.IsCancellationRequested)
         {
+            var mappingMetadata = await ResolvePublishedMappingMetadataAsync(ct);
             var pendingItemIds = await _context.ContrapartidaDispatchItems
                 .AsNoTracking()
                 .Where(i => i.AchCycleId == cycleId && i.ClearingHouseId == clearingHouseId)
@@ -95,7 +97,10 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 TriggeredAtUtc = DateTime.UtcNow,
                 StartedAtUtc = DateTime.UtcNow,
                 Status = ContrapartidaDispatchBatchStatusEnum.Processing,
-                TotalItems = pendingItemIds.Count
+                TotalItems = pendingItemIds.Count,
+                MappingSetId = mappingMetadata.MappingSetId,
+                MappingVersion = mappingMetadata.MappingVersion,
+                MappingSnapshotHash = mappingMetadata.MappingSnapshotHash
             };
             await _context.ContrapartidaDispatchBatches.AddAsync(batch, ct);
             await _context.SaveChangesAsync(ct);
@@ -362,6 +367,10 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             TotalItems = selectedItemIds.Count,
             SummaryMessage = $"Retry manual scope={request.Scope}"
         };
+        var mappingMetadata = await ResolvePublishedMappingMetadataAsync(ct);
+        processingBatch.MappingSetId = mappingMetadata.MappingSetId;
+        processingBatch.MappingVersion = mappingMetadata.MappingVersion;
+        processingBatch.MappingSnapshotHash = mappingMetadata.MappingSnapshotHash;
 
         await _context.ContrapartidaDispatchBatches.AddAsync(processingBatch, ct);
         await _context.SaveChangesAsync(ct);
@@ -569,5 +578,37 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         var delay = TimeSpan.FromMinutes(Math.Pow(2, exponent));
         var capped = delay > TimeSpan.FromMinutes(30) ? TimeSpan.FromMinutes(30) : delay;
         return DateTime.UtcNow.Add(capped);
+    }
+
+    private async Task<(Guid? MappingSetId, int? MappingVersion, string MappingSnapshotHash)> ResolvePublishedMappingMetadataAsync(CancellationToken ct)
+    {
+        var method = await _context.Set<IntegrationMethod>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Code == "WSCFAACH.Proc_Contrapartidas", ct);
+
+        if (method is null)
+        {
+            return (null, null, string.Empty);
+        }
+
+        var published = await _context.Set<IntegrationMappingSet>()
+            .AsNoTracking()
+            .Where(x => x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published)
+            .OrderByDescending(x => x.Version)
+            .FirstOrDefaultAsync(ct);
+
+        if (published is null)
+        {
+            return (null, null, string.Empty);
+        }
+
+        var snapshotHash = await _context.Set<IntegrationMappingSetHistory>()
+            .AsNoTracking()
+            .Where(x => x.MappingSetId == published.Id)
+            .OrderByDescending(x => x.PerformedAtUtc)
+            .Select(x => x.SnapshotHash)
+            .FirstOrDefaultAsync(ct) ?? string.Empty;
+
+        return (published.Id, published.Version, snapshotHash);
     }
 }

@@ -58,6 +58,9 @@ public class ContrapartidaDispatchBatch : AuditableEntity
 
     public string RequestedBy { get; set; } = string.Empty;
     public string? JobId { get; set; }
+    public Guid? MappingSetId { get; set; }
+    public int? MappingVersion { get; set; }
+    public string MappingSnapshotHash { get; set; } = string.Empty;
     public string RequestPayloadXml { get; set; } = string.Empty;
     public string ResponsePayloadXml { get; set; } = string.Empty;
     public string SummaryMessage { get; set; } = string.Empty;

@@ -33,6 +33,10 @@ public class ContrapartidaDispatchBatchConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.JobId)
             .HasMaxLength(150);
 
+        builder.Property(x => x.MappingSnapshotHash)
+            .HasMaxLength(128)
+            .IsRequired();
+
         builder.Property(x => x.RequestPayloadXml);
         builder.Property(x => x.ResponsePayloadXml);
 
@@ -41,6 +45,7 @@ public class ContrapartidaDispatchBatchConfiguration : IEntityTypeConfiguration<
 
         builder.HasIndex(x => new { x.ClearingHouseId, x.AchCycleId, x.TriggeredAtUtc });
         builder.HasIndex(x => x.Status);
+        builder.HasIndex(x => new { x.MappingSetId, x.MappingVersion });
 
         builder.HasOne(x => x.AchCycle)
             .WithMany()
