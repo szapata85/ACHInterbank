@@ -56,22 +56,19 @@ const routes: Routes = [
       },
       {
         path: 'integraciones',
-        redirectTo: 'soap-integrations',
-        pathMatch: 'full'
-      },
-      {
-        path: 'soap-integrations',
         canActivate: [roleGuard, permissionGuard],
         data: {
           roles: ['Admin'],
           permissions: ['CanManageUsers'],
-          breadcrumb: 'Integraciones SOAP',
-          title: 'Mapeo de endpoints y métodos SOAP'
+          breadcrumb: 'Integraciones',
+          title: 'Integraciones'
         },
-        loadComponent: () =>
-          import('./features/admin/components/soap-integration-settings.component').then(
-            (m) => m.SoapIntegrationSettingsComponent
-          )
+        loadChildren: () => import('./features/integrations/integrations.module').then((m) => m.IntegrationsModule)
+      },
+      {
+        path: 'soap-integrations',
+        redirectTo: 'integraciones/soap-settings',
+        pathMatch: 'full'
       },
       {
         path: 'navigation',

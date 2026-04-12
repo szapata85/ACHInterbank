@@ -1,0 +1,143 @@
+<div class="editor-page" *ngIf="mappingSet as set">
+  <section class="summary-cards">
+    <article class="card"><span>Total parámetros</span><strong>{{ coverage.total }}</strong></article>
+    <article class="card"><span>Cubiertos</span><strong>{{ coverage.covered }}</strong></article>
+    <article class="card"><span>Faltantes</span><strong>{{ coverage.missing }}</strong></article>
+    <article class="card"><span>Inválidos</span><strong>{{ coverage.invalid }}</strong></article>
+  </section>
+
+  <header class="header card">
+    <div>
+      <h3>{{ set.name }}</h3>
+      <p>{{ set.methodCode }} · estado <span class="badge" [class]="set.status.toLowerCase()">{{ set.status }}</span></p>
+    </div>
+    <div class="actions">
+      <button type="button" (click)="runValidation()">Validar</button>
+      <button type="button" (click)="runPreview()">Preview</button>
+      <button type="button" (click)="clone()">Clonar</button>
+      <button type="button" class="primary" [disabled]="set.status !== 'Draft'" (click)="publish()">Publicar</button>
+    </div>
+  </header>
+
+  <section class="layout-grid">
+    <aside class="card left">
+      <h4>Parámetros destino</h4>
+      <ul>
+        <li *ngFor="let p of parameters" [class.active]="p.id === selectedParameterId" (click)="selectParameter(p.id)">
+          <div>
+            <strong>{{ p.displayName }}</strong>
+            <small>{{ p.parameterPath }}</small>
+          </div>
+          <div class="chips">
+            <span class="chip type">{{ p.dataType }}</span>
+            <span class="chip req" *ngIf="p.required">Req</span>
+            <span class="chip status" [class.covered]="getParameterStatus(p.id) === 'covered'" [class.missing]="getParameterStatus(p.id) === 'missing'">
+              {{ getParameterStatus(p.id) === 'covered' ? 'OK' : 'Pendiente' }}
+            </span>
+          </div>
+        </li>
+      </ul>
+    </aside>
+
+    <main class="card center">
+      <h4>Regla principal del parámetro</h4>
+      <form [formGroup]="ruleForm" class="rule-form">
+        <label>
+          SourceKind
+          <select formControlName="sourceKind">
+            <option value="Transaction">Transaction</option>
+            <option value="Addenda">Addenda</option>
+            <option value="Batch">Batch</option>
+            <option value="Cycle">Cycle</option>
+            <option value="ClearingHouse">ClearingHouse</option>
+            <option value="Constant">Constant</option>
+            <option value="Expression">Expression</option>
+          </select>
+        </label>
+
+        <label>
+          Campo catálogo origen
+          <select formControlName="sourceCatalogFieldId">
+            <option [ngValue]="null">-- seleccionar --</option>
+            <option *ngFor="let field of getSourceOptionsByKind(ruleForm.value.sourceKind)" [ngValue]="field.id">
+              {{ field.displayName }} ({{ field.fieldPath }})
+            </option>
+          </select>
+        </label>
+
+        <label>
+          SourceFieldPath (override)
+          <input formControlName="sourceFieldPath" type="text" placeholder="transaction.traceNumber" />
+        </label>
+
+        <label>
+          FixedValue
+          <input formControlName="fixedValue" type="text" />
+        </label>
+
+        <label>
+          DefaultValue
+          <input formControlName="defaultValue" type="text" />
+        </label>
+
+        <label>
+          Transformation
+          <select formControlName="transformationCode">
+            <option value="">-- sin transformación --</option>
+            <option *ngFor="let t of transformations" [value]="t.code">{{ t.displayName }}</option>
+          </select>
+        </label>
+
+        <label>
+          FormatMask
+          <input formControlName="formatMask" type="text" placeholder="depende de transformación" />
+        </label>
+
+        <label>
+          Prioridad
+          <input formControlName="priority" type="number" min="1" />
+        </label>
+
+        <label>
+          RequiredOverride
+          <select formControlName="requiredOverride">
+            <option [ngValue]="null">Sin override</option>
+            <option [ngValue]="true">true</option>
+            <option [ngValue]="false">false</option>
+          </select>
+        </label>
+
+        <label class="inline">
+          <input type="checkbox" formControlName="enabled" /> Habilitada
+        </label>
+
+        <label>
+          ConditionExpression
+          <input formControlName="conditionExpression" type="text" placeholder="solo si SourceKind = Expression" />
+        </label>
+
+        <div class="rule-actions">
+          <button type="button" class="primary" (click)="saveRule()">Guardar regla</button>
+        </div>
+      </form>
+    </main>
+
+    <aside class="card right">
+      <h4>Validación y preview</h4>
+      <div class="panel-block">
+        <h5>Resultado validación</h5>
+        <p *ngIf="!validationResult">Ejecuta "Validar" para ver observaciones.</p>
+        <ul *ngIf="validationResult as vr">
+          <li *ngFor="let issue of vr.issues" [class.error]="issue.severity === 'Error'" [class.warn]="issue.severity !== 'Error'">
+            <strong>{{ issue.code }}</strong>: {{ issue.message }}
+          </li>
+        </ul>
+      </div>
+      <div class="panel-block">
+        <h5>Preview payload</h5>
+        <p *ngIf="!previewResult">Ejecuta "Preview" para ver simulación.</p>
+        <pre *ngIf="previewResult">{{ previewResult.rawPreviewJson }}</pre>
+      </div>
+    </aside>
+  </section>
+</div>

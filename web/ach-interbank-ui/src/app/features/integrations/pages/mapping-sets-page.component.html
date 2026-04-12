@@ -1,0 +1,55 @@
+<div class="mapping-list-page">
+  <section class="cards">
+    <article class="card metric"><span>Total</span><strong>{{ stats.total }}</strong></article>
+    <article class="card metric"><span>Draft</span><strong>{{ stats.draft }}</strong></article>
+    <article class="card metric"><span>Published</span><strong>{{ stats.published }}</strong></article>
+    <article class="card metric"><span>Archived</span><strong>{{ stats.archived }}</strong></article>
+  </section>
+
+  <section class="card controls">
+    <h3>Nuevo MappingSet Draft</h3>
+    <form [formGroup]="createDraftForm" class="draft-form" (ngSubmit)="createDraft()">
+      <label>
+        Método SOAP
+        <select formControlName="methodId" (change)="onMethodChange()">
+          <option *ngFor="let method of methods" [ngValue]="method.id">{{ method.code }} — {{ method.displayName }}</option>
+        </select>
+      </label>
+      <label>
+        Nombre del MappingSet
+        <input type="text" formControlName="name" placeholder="Ej: Contrapartidas Colombia vNext" />
+      </label>
+      <label>
+        Notas
+        <input type="text" formControlName="notes" placeholder="Opcional" />
+      </label>
+      <button type="submit" class="primary">Crear Draft</button>
+    </form>
+  </section>
+
+  <section class="card table-card">
+    <h3>Versiones y estados</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Método</th>
+          <th>Versión</th>
+          <th>Estado</th>
+          <th>Publicado por</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let set of mappingSets">
+          <td>{{ set.name }}</td>
+          <td>{{ set.methodCode }}</td>
+          <td>{{ set.version || 'Draft' }}</td>
+          <td><span class="badge" [class]="set.status.toLowerCase()">{{ set.status }}</span></td>
+          <td>{{ set.publishedBy || '—' }}</td>
+          <td><button type="button" (click)="openEditor(set)">Abrir editor</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</div>
