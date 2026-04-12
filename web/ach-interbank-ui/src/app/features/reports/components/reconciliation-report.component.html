@@ -1,0 +1,33 @@
+<app-page-header title="Conciliación" subtitle="Comparativo enviados, recibidos y devueltos"></app-page-header>
+
+<section class="panel">
+  <form class="filters" [formGroup]="form" (ngSubmit)="search()">
+    <input type="date" formControlName="date" />
+    <app-clearing-house-select
+      formControlName="clearingHouseId"
+      [allowAll]="true"
+      allLabel="Todas las cámaras">
+    </app-clearing-house-select>
+    <input type="text" placeholder="Ciclo" formControlName="achCycleId" />
+    <div class="actions">
+      <button type="submit">Consultar</button>
+      <button type="button" class="primary" (click)="exportPdf()">Exportar PDF</button>
+    </div>
+  </form>
+
+  <div *ngIf="loading" class="state">Cargando...</div>
+  <div *ngIf="error" class="state error">{{ error }}</div>
+
+  <div *ngIf="data" class="cards">
+    <article class="card"><h4>Enviados</h4><p>{{ data.totals.sentCount }} / {{ data.totals.sentAmount | number:'1.2-2' }}</p></article>
+    <article class="card"><h4>Recibidos</h4><p>{{ data.totals.receivedCount }} / {{ data.totals.receivedAmount | number:'1.2-2' }}</p></article>
+    <article class="card"><h4>Devueltos</h4><p>{{ data.totals.returnedCount }} / {{ data.totals.returnedAmount | number:'1.2-2' }}</p></article>
+  </div>
+
+  <div *ngIf="data" class="diffs">
+    <h4>Diferencias</h4>
+    <p>Enviados vs Recibidos: {{ data.differences.sentVsReceivedCountDiff }} / {{ data.differences.sentVsReceivedAmountDiff | number:'1.2-2' }}</p>
+    <p>Enviados vs Devueltos: {{ data.differences.sentVsReturnedCountDiff }} / {{ data.differences.sentVsReturnedAmountDiff | number:'1.2-2' }}</p>
+    <p>Recibidos vs Devueltos: {{ data.differences.receivedVsReturnedCountDiff }} / {{ data.differences.receivedVsReturnedAmountDiff | number:'1.2-2' }}</p>
+  </div>
+</section>

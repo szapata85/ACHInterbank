@@ -1,0 +1,10 @@
+.panel { display:grid; gap:1rem; }
+.filters { display:flex; gap:.75rem; padding:1rem; border:1px solid var(--color-border); border-radius:var(--radius-lg); background:#fff; flex-wrap:wrap; }
+.filters input { height:2.4rem; padding:0 .6rem; border:1px solid var(--color-border-strong); border-radius:var(--radius-sm); }
+.actions { display:flex; gap:.5rem; }
+.actions button { height:2.4rem; padding:0 .9rem; border-radius:var(--radius-sm); border:1px solid var(--color-border-strong); }
+.actions .primary { background:var(--color-primary); color:#fff; border-color:var(--color-primary); }
+.cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap:.75rem; }
+.card { background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-lg); padding:1rem; }
+.diffs { background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-lg); padding:1rem; }
+.state.error { background:#fee2e2; color:#991b1b; padding:.75rem; border-radius:var(--radius-sm); }

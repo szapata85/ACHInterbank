@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
 import { FormArray, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { take } from 'rxjs';
@@ -22,6 +22,7 @@ export class SoapIntegrationSettingsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly service = inject(SoapIntegrationSettingsService);
   private readonly notifications = inject(NotificationService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   readonly form = this.fb.group({
     wscfaachMappings: this.fb.array<FormGroup>([]),
@@ -40,6 +41,7 @@ export class SoapIntegrationSettingsComponent {
     this.service.settings$.pipe(take(1)).subscribe((settings) => {
       this.setMappings(this.wscfaachMappings, settings.wscfaachMappings);
       this.setMappings(this.wsAxonMappings, settings.wsAxonRespuestaTransaccionesMappings);
+      this.cdr.markForCheck();
     });
   }
 
@@ -58,6 +60,7 @@ export class SoapIntegrationSettingsComponent {
       .subscribe(() => {
         this.form.markAsPristine();
         this.notifications.success('Configuración SOAP guardada.');
+        this.cdr.markForCheck();
       });
   }
 

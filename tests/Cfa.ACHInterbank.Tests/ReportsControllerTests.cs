@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Api.Controllers;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.Reports.Interfaces;
 using Cfa.ACHInterbank.Application.Reports.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
@@ -33,7 +34,7 @@ public class ReportsControllerTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(expected);
 
-        var controller = new ReportsController(generator.Object, NullLogger<ReportsController>.Instance);
+        var controller = CreateController(generator.Object);
 
         var result = await controller.GetTraceabilityPdf(
             fromUtc: null,
@@ -54,7 +55,7 @@ public class ReportsControllerTests
     public async Task GetTraceabilityPdf_ReturnsBadRequest_WhenFromIsGreaterThanTo()
     {
         var generator = new Mock<IReportGenerator>(MockBehavior.Strict);
-        var controller = new ReportsController(generator.Object, NullLogger<ReportsController>.Instance);
+        var controller = CreateController(generator.Object);
 
         var result = await controller.GetTraceabilityPdf(
             fromUtc: new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc),
@@ -71,7 +72,7 @@ public class ReportsControllerTests
     public async Task GetTraceabilityPdf_ReturnsBadRequest_WhenRangeExceedsLimit()
     {
         var generator = new Mock<IReportGenerator>(MockBehavior.Strict);
-        var controller = new ReportsController(generator.Object, NullLogger<ReportsController>.Instance);
+        var controller = CreateController(generator.Object);
 
         var result = await controller.GetTraceabilityPdf(
             fromUtc: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
@@ -98,7 +99,7 @@ public class ReportsControllerTests
                 return new GeneratedReportFile();
             });
 
-        var controller = new ReportsController(generator.Object, NullLogger<ReportsController>.Instance);
+        var controller = CreateController(generator.Object);
 
         var result = await controller.GetTraceabilityPdf(
             fromUtc: DateTime.UtcNow.AddDays(-1),
@@ -124,7 +125,7 @@ public class ReportsControllerTests
                 FileName = "fast.pdf"
             });
 
-        var controller = new ReportsController(generator.Object, NullLogger<ReportsController>.Instance);
+        var controller = CreateController(generator.Object);
         var stopwatch = Stopwatch.StartNew();
 
         var result = await controller.GetTraceabilityPdf(
@@ -138,5 +139,27 @@ public class ReportsControllerTests
 
         Assert.IsType<FileContentResult>(result);
         Assert.True(stopwatch.ElapsedMilliseconds < 1_000, $"Expected fast execution, got {stopwatch.ElapsedMilliseconds}ms");
+    }
+
+    private static ReportsController CreateController(IReportGenerator generator)
+    {
+        var transaction = new Mock<IAchTransactionReportService>().Object;
+        var returns = new Mock<IAchReturnRejectionReportService>().Object;
+        var nachaCycle = new Mock<IAchNachaCycleReportService>().Object;
+        var reconciliation = new Mock<IAchReconciliationReportService>().Object;
+        var auditHistory = new Mock<IAchAuditHistoryReportService>().Object;
+        var clearingHouse = new Mock<IClearingHouseService>();
+        clearingHouse.Setup(x => x.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Domain.Entities.Ach.Dtos.ClearingHouseDto { Id = 1, Name = "ACH", Code = "ACH", OriginCode = "000" });
+
+        return new ReportsController(
+            generator,
+            transaction,
+            returns,
+            nachaCycle,
+            reconciliation,
+            auditHistory,
+            clearingHouse.Object,
+            NullLogger<ReportsController>.Instance);
     }
 }

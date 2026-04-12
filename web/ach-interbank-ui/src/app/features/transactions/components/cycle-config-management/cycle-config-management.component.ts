@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { NotificationService } from '../../../../core/services/notification.service';
@@ -25,11 +25,13 @@ export class CycleConfigManagementComponent implements OnInit {
   private readonly cycleConfigApi = inject(ClearingHouseCycleConfigsApiService);
   private readonly clearingHouseApi = inject(ClearingHousesApiService);
   private readonly notifications = inject(NotificationService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   loading = false;
   saving = false;
   showForm = false;
   hasSearched = false;
+  loadError: string | null = null;
   editingSource: ClearingHouseCycleConfigItem | null = null;
   selectedForInactivation: ClearingHouseCycleConfigItem | null = null;
 
@@ -149,22 +151,30 @@ export class CycleConfigManagementComponent implements OnInit {
 
     this.loading = true;
     this.hasSearched = true;
+    this.loadError = null;
+    this.cdr.markForCheck();
 
     this.cycleConfigApi
       .getByClearingHouse({
         clearingHouseId,
         effectiveAt: this.filterForm.controls.effectiveAt.value || null
       })
-      .pipe(finalize(() => (this.loading = false)))
+      .pipe(finalize(() => {
+        this.loading = false;
+        this.cdr.markForCheck();
+      }))
       .subscribe({
         next: (items) => {
           this.allItems = items;
           this.applyLocalFilters();
+          this.cdr.markForCheck();
         },
         error: () => {
-          this.notifications.error('No fue posible consultar configuraciones de ciclos.');
+          this.loadError = 'No fue posible consultar configuraciones de ciclos.';
+          this.notifications.error(this.loadError);
           this.allItems = [];
           this.visibleItems = [];
+          this.cdr.markForCheck();
         }
       });
   }
@@ -205,15 +215,20 @@ export class CycleConfigManagementComponent implements OnInit {
     this.saving = true;
     this.cycleConfigApi
       .createVersion(payload)
-      .pipe(finalize(() => (this.saving = false)))
+      .pipe(finalize(() => {
+        this.saving = false;
+        this.cdr.markForCheck();
+      }))
       .subscribe({
         next: () => {
           this.notifications.success('Configuración versionada correctamente.');
           this.closeForm();
           this.search();
+          this.cdr.markForCheck();
         },
         error: () => {
           this.notifications.error('No fue posible guardar la configuración de ciclo.');
+          this.cdr.markForCheck();
         }
       });
   }
@@ -239,10 +254,12 @@ export class CycleConfigManagementComponent implements OnInit {
         this.notifications.success('Configuración inactivada correctamente.');
         this.selectedForInactivation = null;
         this.search();
+        this.cdr.markForCheck();
       },
       error: () => {
         this.notifications.error('No fue posible inactivar la configuración.');
         this.selectedForInactivation = null;
+        this.cdr.markForCheck();
       }
     });
   }
@@ -269,9 +286,11 @@ export class CycleConfigManagementComponent implements OnInit {
     this.clearingHouseApi.list().subscribe({
       next: (items) => {
         this.clearingHouses = items.map((x) => ({ id: x.id, name: x.name }));
+        this.cdr.markForCheck();
       },
       error: () => {
         this.notifications.error('No fue posible cargar cámaras de compensación.');
+        this.cdr.markForCheck();
       }
     });
   }

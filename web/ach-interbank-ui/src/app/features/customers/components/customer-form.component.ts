@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { SharedModule } from '../../../shared/shared.module';
@@ -26,6 +26,7 @@ export class CustomerFormComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly api = inject(CustomersApiService);
   private readonly notifications = inject(NotificationService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   isEdit = false;
   customerId: string | null = null;
@@ -80,8 +81,14 @@ export class CustomerFormComponent implements OnInit {
     if (this.customerId) {
       this.isEdit = true;
       this.api.getById(this.customerId).subscribe({
-        next: (customer) => this.patch(customer),
-        error: () => this.notifications.error('No fue posible cargar el cliente seleccionado')
+        next: (customer) => {
+          this.patch(customer);
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.notifications.error('No fue posible cargar el cliente seleccionado');
+          this.cdr.markForCheck();
+        }
       });
     }
   }
@@ -139,8 +146,14 @@ export class CustomerFormComponent implements OnInit {
       : this.api.create(payload);
 
     request$.subscribe({
-      next: () => this.router.navigate(['/customers']),
-      error: () => this.notifications.error('No fue posible guardar el cliente')
+      next: () => {
+        this.cdr.markForCheck();
+        this.router.navigate(['/customers']);
+      },
+      error: () => {
+        this.notifications.error('No fue posible guardar el cliente');
+        this.cdr.markForCheck();
+      }
     });
   }
 }

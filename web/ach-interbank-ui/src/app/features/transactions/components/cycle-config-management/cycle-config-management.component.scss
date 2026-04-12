@@ -53,27 +53,8 @@ select {
   justify-content: flex-end;
 }
 
-button {
-  border: 1px solid #334155;
-  background: #fff;
-  border-radius: 8px;
-  padding: 0.45rem 0.8rem;
-  cursor: pointer;
-}
-
-button.primary {
-  background: #0f172a;
-  border-color: #0f172a;
-  color: #fff;
-}
-
-button.ghost {
-  border-color: #94a3b8;
-}
-
 button.danger {
-  border-color: #b91c1c;
-  color: #b91c1c;
+  min-width: 5.5rem;
 }
 
 button:disabled {
@@ -147,6 +128,11 @@ th {
 .row-actions {
   display: flex;
   gap: 0.35rem;
+  flex-wrap: wrap;
+
+  button {
+    min-width: 5.5rem;
+  }
 }
 
 .empty-state,

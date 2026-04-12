@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { CatalogsApiService } from '../services/catalogs-api.service';
 import { CatalogItem } from '../models/catalog.model';
 import { SharedModule } from '../../../shared/shared.module';
@@ -14,6 +14,7 @@ import { RouterModule } from '@angular/router';
 })
 export class CatalogsListComponent implements OnInit {
   private readonly api = inject(CatalogsApiService);
+  private readonly cdr = inject(ChangeDetectorRef);
   banks: CatalogItem[] = [];
   readonly adminCatalogs = [
     { label: 'Conceptos de lote', route: '/catalogs/company-entry-descriptions' },
@@ -27,6 +28,9 @@ export class CatalogsListComponent implements OnInit {
   ];
 
   ngOnInit(): void {
-    this.api.listBanks().subscribe((banks) => (this.banks = banks));
+    this.api.listBanks().subscribe((banks) => {
+      this.banks = banks;
+      this.cdr.markForCheck();
+    });
   }
 }

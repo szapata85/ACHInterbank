@@ -85,18 +85,15 @@ input[type='text'] {
 }
 
 button.small {
-  padding: 0.35rem 0.6rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border-strong);
-  background: var(--color-surface-muted);
+  --btn-bg: var(--color-surface-muted);
+  --btn-border: var(--color-border-strong);
+  --btn-color: var(--color-text);
 }
 
 button.danger {
-  padding: 0.35rem 0.6rem;
-  border-radius: var(--radius-md);
-  border: 1px solid #fecaca;
-  background: #fef2f2;
-  color: var(--color-danger-hover);
+  --btn-bg: #fef2f2;
+  --btn-border: #fecaca;
+  --btn-color: var(--color-danger-hover);
 }
 
 .actions {
@@ -106,9 +103,5 @@ button.danger {
 }
 
 button.primary {
-  background: var(--button-color, var(--color-primary));
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: var(--radius-md);
+  min-width: 140px;
 }

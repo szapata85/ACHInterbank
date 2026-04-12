@@ -10,6 +10,7 @@ import { CurrencyColPipe } from './pipes/currency-col.pipe';
 import { DateFormatPipe } from './pipes/date-format.pipe';
 import { UnauthorizedComponent } from './components/status/unauthorized.component';
 import { NotFoundComponent } from './components/status/not-found.component';
+import { ClearingHouseSelectComponent } from './components/clearing-house-select.component';
 
 @NgModule({
   imports: [
@@ -22,6 +23,7 @@ import { NotFoundComponent } from './components/status/not-found.component';
     PageHeaderComponent,
     UnauthorizedComponent,
     NotFoundComponent,
+    ClearingHouseSelectComponent,
     CurrencyColPipe,
     DateFormatPipe
   ],
@@ -35,6 +37,7 @@ import { NotFoundComponent } from './components/status/not-found.component';
     PageHeaderComponent,
     UnauthorizedComponent,
     NotFoundComponent,
+    ClearingHouseSelectComponent,
     CurrencyColPipe,
     DateFormatPipe
   ]

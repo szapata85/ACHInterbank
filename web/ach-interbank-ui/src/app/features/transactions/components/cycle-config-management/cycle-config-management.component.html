@@ -97,16 +97,17 @@
   </div>
 
   <div class="loading" *ngIf="loading">Cargando configuraciones de ciclos...</div>
+  <div class="empty-state" *ngIf="!loading && loadError">{{ loadError }}</div>
 
-  <div class="empty-state" *ngIf="!loading && !hasSearched">
+  <div class="empty-state" *ngIf="!loading && !loadError && !hasSearched">
     Seleccione una cámara y consulte para visualizar configuraciones.
   </div>
 
-  <div class="empty-state" *ngIf="!loading && hasSearched && visibleItems.length === 0">
+  <div class="empty-state" *ngIf="!loading && !loadError && hasSearched && visibleItems.length === 0">
     No existen configuraciones para los filtros seleccionados.
   </div>
 
-  <div class="grid-wrapper" *ngIf="!loading && visibleItems.length > 0">
+  <div class="grid-wrapper" *ngIf="!loading && !loadError && visibleItems.length > 0">
     <table>
       <thead>
         <tr>
@@ -135,8 +136,8 @@
           </td>
           <td>
             <div class="row-actions">
-              <button type="button" (click)="edit(item)">Editar</button>
-              <button type="button" (click)="clone(item)">Clonar</button>
+              <button type="button" class="ghost action-edit" (click)="edit(item)">Editar</button>
+              <button type="button" class="ghost action-clone" (click)="clone(item)">Clonar</button>
               <button type="button" class="danger" (click)="askInactivate(item)" [disabled]="!item.isActive">Inactivar</button>
             </div>
           </td>

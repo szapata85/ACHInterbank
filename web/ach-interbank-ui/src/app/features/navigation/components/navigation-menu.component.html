@@ -111,6 +111,7 @@
       </div>
 
       <div class="ag-grid-wrapper">
+        <div class="empty-state" *ngIf="loadError">{{ loadError }}</div>
         <ag-grid-angular
           class="ag-theme-alpine"
           [columnDefs]="columnDefs"

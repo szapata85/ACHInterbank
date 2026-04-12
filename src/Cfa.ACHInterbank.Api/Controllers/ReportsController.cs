@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.Reports.Interfaces;
 using Cfa.ACHInterbank.Application.Reports.Models;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -16,12 +17,546 @@ public class ReportsController : ControllerBase
     private static readonly TimeSpan ReportGenerationTimeout = TimeSpan.FromSeconds(30);
 
     private readonly IReportGenerator _reportGenerator;
+    private readonly IAchTransactionReportService _transactionReportService;
+    private readonly IAchReturnRejectionReportService _returnRejectionReportService;
+    private readonly IAchNachaCycleReportService _nachaCycleReportService;
+    private readonly IAchReconciliationReportService _reconciliationReportService;
+    private readonly IAchAuditHistoryReportService _auditHistoryReportService;
+    private readonly IClearingHouseService _clearingHouseService;
     private readonly ILogger<ReportsController> _logger;
 
-    public ReportsController(IReportGenerator reportGenerator, ILogger<ReportsController> logger)
+    public ReportsController(
+        IReportGenerator reportGenerator,
+        IAchTransactionReportService transactionReportService,
+        IAchReturnRejectionReportService returnRejectionReportService,
+        IAchNachaCycleReportService nachaCycleReportService,
+        IAchReconciliationReportService reconciliationReportService,
+        IAchAuditHistoryReportService auditHistoryReportService,
+        IClearingHouseService clearingHouseService,
+        ILogger<ReportsController> logger)
     {
         _reportGenerator = reportGenerator;
+        _transactionReportService = transactionReportService;
+        _returnRejectionReportService = returnRejectionReportService;
+        _nachaCycleReportService = nachaCycleReportService;
+        _reconciliationReportService = reconciliationReportService;
+        _auditHistoryReportService = auditHistoryReportService;
+        _clearingHouseService = clearingHouseService;
         _logger = logger;
+    }
+
+    [HttpGet("transactions/sent")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetSentTransactions(
+        [FromQuery] DateTime? date,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] string? achCycleId,
+        [FromQuery] AchTransferStateEnum? state,
+        [FromQuery] string? reference,
+        [FromQuery] int? bankId,
+        [FromQuery] TransactionTypeEnum? transactionType,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken ct = default)
+    {
+        var clearingHouseValidation = await ValidateClearingHouseIdAsync(clearingHouseId, ct);
+        if (clearingHouseValidation is not null) return clearingHouseValidation;
+
+        var response = await _transactionReportService.GetSentTransactionsAsync(
+            new AchTransactionReportFilter
+            {
+                Date = date,
+                ClearingHouseId = clearingHouseId,
+                AchCycleId = achCycleId,
+                State = state,
+                Reference = reference,
+                BankId = bankId,
+                TransactionType = transactionType,
+                Page = page,
+                PageSize = pageSize
+            },
+            ct);
+
+        return Ok(response);
+    }
+
+    [HttpGet("transactions/received")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetReceivedTransactions(
+        [FromQuery] DateTime? date,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] string? achCycleId,
+        [FromQuery] AchTransferStateEnum? state,
+        [FromQuery] string? reference,
+        [FromQuery] int? bankId,
+        [FromQuery] TransactionTypeEnum? transactionType,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken ct = default)
+    {
+        var clearingHouseValidation = await ValidateClearingHouseIdAsync(clearingHouseId, ct);
+        if (clearingHouseValidation is not null) return clearingHouseValidation;
+
+        var response = await _transactionReportService.GetReceivedTransactionsAsync(
+            new AchTransactionReportFilter
+            {
+                Date = date,
+                ClearingHouseId = clearingHouseId,
+                AchCycleId = achCycleId,
+                State = state,
+                Reference = reference,
+                BankId = bankId,
+                TransactionType = transactionType,
+                Page = page,
+                PageSize = pageSize
+            },
+            ct);
+
+        return Ok(response);
+    }
+
+    [HttpGet("transactions/sent/pdf")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetSentTransactionsPdf(
+        [FromQuery] DateTime? date,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] string? achCycleId,
+        [FromQuery] AchTransferStateEnum? state,
+        [FromQuery] string? reference,
+        [FromQuery] int? bankId,
+        [FromQuery] TransactionTypeEnum? transactionType,
+        CancellationToken ct = default)
+    {
+        var clearingHouseValidation = await ValidateClearingHouseIdAsync(clearingHouseId, ct);
+        if (clearingHouseValidation is not null) return clearingHouseValidation;
+
+        var file = await _reportGenerator.GenerateSentTransactionsPdfAsync(
+            new AchTransactionReportFilter
+            {
+                Date = date,
+                ClearingHouseId = clearingHouseId,
+                AchCycleId = achCycleId,
+                State = state,
+                Reference = reference,
+                BankId = bankId,
+                TransactionType = transactionType,
+                Page = 1,
+                PageSize = 5000
+            },
+            ct);
+
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+    [HttpGet("transactions/received/pdf")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetReceivedTransactionsPdf(
+        [FromQuery] DateTime? date,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] string? achCycleId,
+        [FromQuery] AchTransferStateEnum? state,
+        [FromQuery] string? reference,
+        [FromQuery] int? bankId,
+        [FromQuery] TransactionTypeEnum? transactionType,
+        CancellationToken ct = default)
+    {
+        var clearingHouseValidation = await ValidateClearingHouseIdAsync(clearingHouseId, ct);
+        if (clearingHouseValidation is not null) return clearingHouseValidation;
+
+        var file = await _reportGenerator.GenerateReceivedTransactionsPdfAsync(
+            new AchTransactionReportFilter
+            {
+                Date = date,
+                ClearingHouseId = clearingHouseId,
+                AchCycleId = achCycleId,
+                State = state,
+                Reference = reference,
+                BankId = bankId,
+                TransactionType = transactionType,
+                Page = 1,
+                PageSize = 5000
+            },
+            ct);
+
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+
+    [HttpGet("returns")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetReturns(
+        [FromQuery] DateTime? date,
+        [FromQuery] string? causal,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] AchTransferStateEnum? state,
+        [FromQuery] string? reference,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken ct = default)
+    {
+        var clearingHouseValidation = await ValidateClearingHouseIdAsync(clearingHouseId, ct);
+        if (clearingHouseValidation is not null) return clearingHouseValidation;
+
+        var response = await _returnRejectionReportService.GetReturnsAsync(
+            new AchReturnRejectionReportFilter
+            {
+                Date = date,
+                Causal = causal,
+                ClearingHouseId = clearingHouseId,
+                State = state,
+                Reference = reference,
+                Page = page,
+                PageSize = pageSize
+            },
+            ct);
+
+        return Ok(response);
+    }
+
+    [HttpGet("rejections")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetRejections(
+        [FromQuery] DateTime? date,
+        [FromQuery] string? causal,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] AchTransferStateEnum? state,
+        [FromQuery] string? reference,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken ct = default)
+    {
+        var clearingHouseValidation = await ValidateClearingHouseIdAsync(clearingHouseId, ct);
+        if (clearingHouseValidation is not null) return clearingHouseValidation;
+
+        var response = await _returnRejectionReportService.GetRejectionsAsync(
+            new AchReturnRejectionReportFilter
+            {
+                Date = date,
+                Causal = causal,
+                ClearingHouseId = clearingHouseId,
+                State = state,
+                Reference = reference,
+                Page = page,
+                PageSize = pageSize
+            },
+            ct);
+
+        return Ok(response);
+    }
+
+    [HttpGet("returns/pdf")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetReturnsPdf(
+        [FromQuery] DateTime? date,
+        [FromQuery] string? causal,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] AchTransferStateEnum? state,
+        [FromQuery] string? reference,
+        CancellationToken ct = default)
+    {
+        var clearingHouseValidation = await ValidateClearingHouseIdAsync(clearingHouseId, ct);
+        if (clearingHouseValidation is not null) return clearingHouseValidation;
+
+        var file = await _reportGenerator.GenerateReturnsPdfAsync(
+            new AchReturnRejectionReportFilter
+            {
+                Date = date,
+                Causal = causal,
+                ClearingHouseId = clearingHouseId,
+                State = state,
+                Reference = reference,
+                Page = 1,
+                PageSize = 5000
+            },
+            ct);
+
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+    [HttpGet("rejections/pdf")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetRejectionsPdf(
+        [FromQuery] DateTime? date,
+        [FromQuery] string? causal,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] AchTransferStateEnum? state,
+        [FromQuery] string? reference,
+        CancellationToken ct = default)
+    {
+        var clearingHouseValidation = await ValidateClearingHouseIdAsync(clearingHouseId, ct);
+        if (clearingHouseValidation is not null) return clearingHouseValidation;
+
+        var file = await _reportGenerator.GenerateRejectionsPdfAsync(
+            new AchReturnRejectionReportFilter
+            {
+                Date = date,
+                Causal = causal,
+                ClearingHouseId = clearingHouseId,
+                State = state,
+                Reference = reference,
+                Page = 1,
+                PageSize = 5000
+            },
+            ct);
+
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+
+    [HttpGet("nacha-files")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetNachaFiles(
+        [FromQuery] DateTime? date,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken ct = default)
+    {
+        var clearingHouseValidation = await ValidateClearingHouseIdAsync(clearingHouseId, ct);
+        if (clearingHouseValidation is not null) return clearingHouseValidation;
+
+        var response = await _nachaCycleReportService.GetNachaFilesAsync(
+            new AchNachaFileReportFilter
+            {
+                Date = date,
+                ClearingHouseId = clearingHouseId,
+                Page = page,
+                PageSize = pageSize
+            },
+            ct);
+
+        return Ok(response);
+    }
+
+    [HttpGet("nacha-files/pdf")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetNachaFilesPdf(
+        [FromQuery] DateTime? date,
+        [FromQuery] int? clearingHouseId,
+        CancellationToken ct = default)
+    {
+        var clearingHouseValidation = await ValidateClearingHouseIdAsync(clearingHouseId, ct);
+        if (clearingHouseValidation is not null) return clearingHouseValidation;
+
+        var file = await _reportGenerator.GenerateNachaFilesPdfAsync(
+            new AchNachaFileReportFilter
+            {
+                Date = date,
+                ClearingHouseId = clearingHouseId,
+                Page = 1,
+                PageSize = 5000
+            },
+            ct);
+
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+    [HttpGet("cycles")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetCycles(
+        [FromQuery] DateTime? date,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] string? name,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken ct = default)
+    {
+        var clearingHouseValidation = await ValidateClearingHouseIdAsync(clearingHouseId, ct);
+        if (clearingHouseValidation is not null) return clearingHouseValidation;
+
+        var response = await _nachaCycleReportService.GetCyclesAsync(
+            new AchCycleReportFilter
+            {
+                Date = date,
+                ClearingHouseId = clearingHouseId,
+                Name = name,
+                Page = page,
+                PageSize = pageSize
+            },
+            ct);
+
+        return Ok(response);
+    }
+
+    [HttpGet("cycles/pdf")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetCyclesPdf(
+        [FromQuery] DateTime? date,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] string? name,
+        CancellationToken ct = default)
+    {
+        var clearingHouseValidation = await ValidateClearingHouseIdAsync(clearingHouseId, ct);
+        if (clearingHouseValidation is not null) return clearingHouseValidation;
+
+        var file = await _reportGenerator.GenerateCyclesPdfAsync(
+            new AchCycleReportFilter
+            {
+                Date = date,
+                ClearingHouseId = clearingHouseId,
+                Name = name,
+                Page = 1,
+                PageSize = 5000
+            },
+            ct);
+
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+
+    [HttpGet("reconciliation")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetReconciliation(
+        [FromQuery] DateTime? date,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] string? achCycleId,
+        CancellationToken ct = default)
+    {
+        var clearingHouseValidation = await ValidateClearingHouseIdAsync(clearingHouseId, ct);
+        if (clearingHouseValidation is not null) return clearingHouseValidation;
+
+        var response = await _reconciliationReportService.GetReconciliationAsync(
+            new AchReconciliationReportFilter
+            {
+                Date = date,
+                ClearingHouseId = clearingHouseId,
+                AchCycleId = achCycleId
+            },
+            ct);
+
+        return Ok(response);
+    }
+
+    [HttpGet("reconciliation/pdf")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetReconciliationPdf(
+        [FromQuery] DateTime? date,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] string? achCycleId,
+        CancellationToken ct = default)
+    {
+        var clearingHouseValidation = await ValidateClearingHouseIdAsync(clearingHouseId, ct);
+        if (clearingHouseValidation is not null) return clearingHouseValidation;
+
+        var file = await _reportGenerator.GenerateReconciliationPdfAsync(
+            new AchReconciliationReportFilter
+            {
+                Date = date,
+                ClearingHouseId = clearingHouseId,
+                AchCycleId = achCycleId
+            },
+            ct);
+
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+
+    [HttpGet("audit")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetAudit(
+        [FromQuery] string? user,
+        [FromQuery] string? action,
+        [FromQuery] string? entity,
+        [FromQuery] DateTime? fromUtc,
+        [FromQuery] DateTime? toUtc,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken ct = default)
+    {
+        var response = await _auditHistoryReportService.GetAuditAsync(
+            new AchAuditReportFilter
+            {
+                User = user,
+                Action = action,
+                Entity = entity,
+                FromUtc = fromUtc,
+                ToUtc = toUtc,
+                Page = page,
+                PageSize = pageSize
+            },
+            ct);
+
+        return Ok(response);
+    }
+
+    [HttpGet("audit/pdf")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetAuditPdf(
+        [FromQuery] string? user,
+        [FromQuery] string? action,
+        [FromQuery] string? entity,
+        [FromQuery] DateTime? fromUtc,
+        [FromQuery] DateTime? toUtc,
+        CancellationToken ct = default)
+    {
+        var file = await _reportGenerator.GenerateAuditPdfAsync(
+            new AchAuditReportFilter
+            {
+                User = user,
+                Action = action,
+                Entity = entity,
+                FromUtc = fromUtc,
+                ToUtc = toUtc,
+                Page = 1,
+                PageSize = 5000
+            },
+            ct);
+
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+    [HttpGet("history")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetHistory(
+        [FromQuery] DateTime? fromUtc,
+        [FromQuery] DateTime? toUtc,
+        [FromQuery] int? transactionId,
+        [FromQuery] AchTransferStateEnum? toState,
+        [FromQuery] AchStateEventSourceEnum? source,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken ct = default)
+    {
+        var response = await _auditHistoryReportService.GetHistoryAsync(
+            new AchHistoryReportFilter
+            {
+                FromUtc = fromUtc,
+                ToUtc = toUtc,
+                TransactionId = transactionId,
+                ToState = toState,
+                Source = source,
+                Page = page,
+                PageSize = pageSize
+            },
+            ct);
+
+        return Ok(response);
+    }
+
+    [HttpGet("history/pdf")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetHistoryPdf(
+        [FromQuery] DateTime? fromUtc,
+        [FromQuery] DateTime? toUtc,
+        [FromQuery] int? transactionId,
+        [FromQuery] AchTransferStateEnum? toState,
+        [FromQuery] AchStateEventSourceEnum? source,
+        CancellationToken ct = default)
+    {
+        var file = await _reportGenerator.GenerateHistoryPdfAsync(
+            new AchHistoryReportFilter
+            {
+                FromUtc = fromUtc,
+                ToUtc = toUtc,
+                TransactionId = transactionId,
+                ToState = toState,
+                Source = source,
+                Page = 1,
+                PageSize = 5000
+            },
+            ct);
+
+        return File(file.Content, file.ContentType, file.FileName);
     }
 
     [HttpGet("traceability/pdf")]
@@ -164,5 +699,26 @@ public class ReportsController : ControllerBase
         }
 
         return (normalizedFrom, normalizedTo, null);
+    }
+
+    private async Task<IActionResult?> ValidateClearingHouseIdAsync(int? clearingHouseId, CancellationToken ct)
+    {
+        if (!clearingHouseId.HasValue)
+        {
+            return null;
+        }
+
+        if (clearingHouseId.Value <= 0)
+        {
+            return BadRequest(new { message = "ClearingHouseId debe ser mayor a cero." });
+        }
+
+        var exists = await _clearingHouseService.GetByIdAsync(clearingHouseId.Value, ct);
+        if (exists is null)
+        {
+            return BadRequest(new { message = "La cámara seleccionada no existe." });
+        }
+
+        return null;
     }
 }

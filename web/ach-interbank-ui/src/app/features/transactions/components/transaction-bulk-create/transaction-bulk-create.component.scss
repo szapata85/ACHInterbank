@@ -51,27 +51,6 @@
   display: flex;
   gap: 0.65rem;
   flex-wrap: wrap;
-
-  button {
-    border: none;
-    border-radius: var(--radius-md);
-    padding: 0.62rem 1rem;
-    font-weight: 700;
-    cursor: pointer;
-    background: var(--button-color, linear-gradient(135deg, var(--color-primary), #0f766e));
-    color: #fff;
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-  }
-
-  .ghost {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    color: var(--color-text);
-  }
 }
 
 .summary dl,

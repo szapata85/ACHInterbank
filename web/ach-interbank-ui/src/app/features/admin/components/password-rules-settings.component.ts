@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { SharedModule } from '../../../shared/shared.module';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -18,6 +18,7 @@ export class PasswordRulesSettingsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly service = inject(PasswordRulesService);
   private readonly notifications = inject(NotificationService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   readonly form = this.fb.group({
     minLength: [6, [Validators.required, Validators.min(1)]],
@@ -30,6 +31,7 @@ export class PasswordRulesSettingsComponent {
   constructor() {
     this.service.rules$.pipe(take(1)).subscribe((rules) => {
       this.form.patchValue(rules, { emitEvent: false });
+      this.cdr.markForCheck();
     });
   }
 
@@ -52,6 +54,7 @@ export class PasswordRulesSettingsComponent {
       .subscribe(() => {
         this.form.markAsPristine();
         this.notifications.success('Reglas de contraseña guardadas.');
+        this.cdr.markForCheck();
       });
   }
 }

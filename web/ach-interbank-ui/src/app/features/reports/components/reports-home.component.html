@@ -1,13 +1,20 @@
-<app-page-header
-  title="Reportes"
-  subtitle="Generación de documentos y salidas operativas"
-></app-page-header>
+<app-page-header title="Reportes ACH" subtitle="Módulo corporativo de reportes y trazabilidad"></app-page-header>
 
 <section class="cards">
-  <article class="card">
-    <h3>Reporte de trazabilidad ACH</h3>
-    <p>Permite generar un PDF con el estado y la evolución de transacciones ACH por rango de fechas.</p>
-    <a routerLink="/reports/traceability" class="link">Abrir reporte</a>
+  <article class="card" *ngFor="let item of [
+    {title:'Enviados',desc:'Transacciones enviadas',route:'/reports/sent'},
+    {title:'Recibidos',desc:'Transacciones recibidas',route:'/reports/received'},
+    {title:'Devoluciones',desc:'Operaciones devueltas',route:'/reports/returns'},
+    {title:'Rechazos',desc:'Operaciones rechazadas',route:'/reports/rejections'},
+    {title:'Archivos',desc:'Archivos NACHA exportados',route:'/reports/files'},
+    {title:'Ciclos',desc:'Ciclos y estado operativo',route:'/reports/cycles'},
+    {title:'Conciliación',desc:'Comparativo y diferencias',route:'/reports/reconciliation'},
+    {title:'Auditoría',desc:'Trazabilidad por usuario/acción',route:'/reports/audit'},
+    {title:'Histórico',desc:'Eventos por rango de fechas',route:'/reports/history'},
+    {title:'Trazabilidad ACH',desc:'Reporte PDF de trazabilidad',route:'/reports/traceability'}
+  ]">
+    <h3>{{ item.title }}</h3>
+    <p>{{ item.desc }}</p>
+    <a [routerLink]="item.route" class="link">Abrir</a>
   </article>
 </section>
-

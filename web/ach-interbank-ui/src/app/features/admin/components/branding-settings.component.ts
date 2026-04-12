@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, inject } from '@angular/core';
 import { SharedModule } from '../../../shared/shared.module';
 import { BrandingService } from '../../../core/services/branding.service';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -17,6 +17,7 @@ import { Subscription } from 'rxjs';
 export class BrandingSettingsComponent implements OnDestroy {
   private readonly brandingService = inject(BrandingService);
   private readonly notifications = inject(NotificationService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   readonly branding$ = this.brandingService.branding$;
   private readonly brandingSubscription: Subscription;
@@ -44,6 +45,7 @@ export class BrandingSettingsComponent implements OnDestroy {
       this.privateBackground = branding.privateBackground ?? null;
       this.sidebarBackground = branding.sidebarBackground ?? null;
       this.buttonColor = branding.buttonColor ?? null;
+      this.cdr.markForCheck();
     });
   }
 
@@ -107,6 +109,7 @@ export class BrandingSettingsComponent implements OnDestroy {
       } else {
         this.privateLogoPreview = value;
       }
+      this.cdr.markForCheck();
     };
     reader.readAsDataURL(file);
   }
@@ -117,6 +120,7 @@ export class BrandingSettingsComponent implements OnDestroy {
     } else {
       this.privateLogoPreview = null;
     }
+    this.cdr.markForCheck();
   }
 
   changeBackground(event: Event, type: 'public' | 'private' | 'sidebar'): void {
@@ -129,6 +133,7 @@ export class BrandingSettingsComponent implements OnDestroy {
     } else {
       this.sidebarBackground = value;
     }
+    this.cdr.markForCheck();
   }
 
   clearBackground(type: 'public' | 'private' | 'sidebar'): void {
@@ -143,14 +148,17 @@ export class BrandingSettingsComponent implements OnDestroy {
         this.sidebarBackground = null;
         break;
     }
+    this.cdr.markForCheck();
   }
 
   changeButtonColor(event: Event): void {
     this.buttonColor = (event.target as HTMLInputElement).value;
+    this.cdr.markForCheck();
   }
 
   clearButtonColor(): void {
     this.buttonColor = null;
+    this.cdr.markForCheck();
   }
 
   reset(): void {
@@ -161,6 +169,7 @@ export class BrandingSettingsComponent implements OnDestroy {
     this.privateBackground = current.privateBackground ?? null;
     this.sidebarBackground = current.sidebarBackground ?? null;
     this.buttonColor = current.buttonColor ?? null;
+    this.cdr.markForCheck();
   }
 
   save(): void {
@@ -176,15 +185,22 @@ export class BrandingSettingsComponent implements OnDestroy {
     this.isSaving = true;
     this.brandingService
       .updateBranding(payload)
-      .pipe(finalize(() => (this.isSaving = false)))
+      .pipe(finalize(() => {
+        this.isSaving = false;
+        this.cdr.markForCheck();
+      }))
       .subscribe({
         next: () => {
           this.notifications.success('Identidad actualizada');
+          this.cdr.markForCheck();
           if (typeof window !== 'undefined') {
             window.location.reload();
           }
         },
-        error: () => this.notifications.error('No fue posible actualizar la identidad')
+        error: () => {
+          this.notifications.error('No fue posible actualizar la identidad');
+          this.cdr.markForCheck();
+        }
       });
   }
 
