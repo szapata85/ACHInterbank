@@ -3,6 +3,7 @@ using System.Xml;
 using System.Xml.Linq;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.Integrations.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 
@@ -12,6 +13,12 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public sealed class ProcContrapartidasRequestMapper : IProcContrapartidasRequestMapper
 {
     private static readonly XNamespace ActionNamespace = "http://tempuri.org/";
+    private readonly IProcContrapartidasFunctionalMappingResolver _functionalResolver;
+
+    public ProcContrapartidasRequestMapper(IProcContrapartidasFunctionalMappingResolver functionalResolver)
+    {
+        _functionalResolver = functionalResolver;
+    }
 
     public ProcContrapartidasRequestContract Map(
         AchCycle cycle,
@@ -26,6 +33,23 @@ public sealed class ProcContrapartidasRequestMapper : IProcContrapartidasRequest
         if (transactions.Count == 0)
         {
             throw new InvalidOperationException("Proc_Contrapartidas requiere al menos una transacción.");
+        }
+
+        try
+        {
+            var configurable = _functionalResolver
+                .TryResolveAsync(cycle, transactions, executionDateTime)
+                .ConfigureAwait(false)
+                .GetAwaiter()
+                .GetResult();
+            if (configurable is not null)
+            {
+                return configurable;
+            }
+        }
+        catch
+        {
+            // fallback controlado temporal al mapper hardcoded para no romper la operación actual
         }
 
         var txContracts = transactions
