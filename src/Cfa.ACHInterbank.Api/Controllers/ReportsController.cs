@@ -17,15 +17,18 @@ public class ReportsController : ControllerBase
 
     private readonly IReportGenerator _reportGenerator;
     private readonly IAchTransactionReportService _transactionReportService;
+    private readonly IAchReturnRejectionReportService _returnRejectionReportService;
     private readonly ILogger<ReportsController> _logger;
 
     public ReportsController(
         IReportGenerator reportGenerator,
         IAchTransactionReportService transactionReportService,
+        IAchReturnRejectionReportService returnRejectionReportService,
         ILogger<ReportsController> logger)
     {
         _reportGenerator = reportGenerator;
         _transactionReportService = transactionReportService;
+        _returnRejectionReportService = returnRejectionReportService;
         _logger = logger;
     }
 
@@ -145,6 +148,115 @@ public class ReportsController : ControllerBase
                 Reference = reference,
                 BankId = bankId,
                 TransactionType = transactionType,
+                Page = 1,
+                PageSize = 5000
+            },
+            ct);
+
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+
+    [HttpGet("returns")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetReturns(
+        [FromQuery] DateTime? date,
+        [FromQuery] string? causal,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] AchTransferStateEnum? state,
+        [FromQuery] string? reference,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken ct = default)
+    {
+        var response = await _returnRejectionReportService.GetReturnsAsync(
+            new AchReturnRejectionReportFilter
+            {
+                Date = date,
+                Causal = causal,
+                ClearingHouseId = clearingHouseId,
+                State = state,
+                Reference = reference,
+                Page = page,
+                PageSize = pageSize
+            },
+            ct);
+
+        return Ok(response);
+    }
+
+    [HttpGet("rejections")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetRejections(
+        [FromQuery] DateTime? date,
+        [FromQuery] string? causal,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] AchTransferStateEnum? state,
+        [FromQuery] string? reference,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken ct = default)
+    {
+        var response = await _returnRejectionReportService.GetRejectionsAsync(
+            new AchReturnRejectionReportFilter
+            {
+                Date = date,
+                Causal = causal,
+                ClearingHouseId = clearingHouseId,
+                State = state,
+                Reference = reference,
+                Page = page,
+                PageSize = pageSize
+            },
+            ct);
+
+        return Ok(response);
+    }
+
+    [HttpGet("returns/pdf")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetReturnsPdf(
+        [FromQuery] DateTime? date,
+        [FromQuery] string? causal,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] AchTransferStateEnum? state,
+        [FromQuery] string? reference,
+        CancellationToken ct = default)
+    {
+        var file = await _reportGenerator.GenerateReturnsPdfAsync(
+            new AchReturnRejectionReportFilter
+            {
+                Date = date,
+                Causal = causal,
+                ClearingHouseId = clearingHouseId,
+                State = state,
+                Reference = reference,
+                Page = 1,
+                PageSize = 5000
+            },
+            ct);
+
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+    [HttpGet("rejections/pdf")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetRejectionsPdf(
+        [FromQuery] DateTime? date,
+        [FromQuery] string? causal,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] AchTransferStateEnum? state,
+        [FromQuery] string? reference,
+        CancellationToken ct = default)
+    {
+        var file = await _reportGenerator.GenerateRejectionsPdfAsync(
+            new AchReturnRejectionReportFilter
+            {
+                Date = date,
+                Causal = causal,
+                ClearingHouseId = clearingHouseId,
+                State = state,
+                Reference = reference,
                 Page = 1,
                 PageSize = 5000
             },

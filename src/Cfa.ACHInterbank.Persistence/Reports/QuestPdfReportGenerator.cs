@@ -15,13 +15,16 @@ public class QuestPdfReportGenerator : IReportGenerator
 {
     private readonly IAchTraceabilityService _traceabilityService;
     private readonly IAchTransactionReportService _transactionReportService;
+    private readonly IAchReturnRejectionReportService _returnRejectionReportService;
 
     public QuestPdfReportGenerator(
         IAchTraceabilityService traceabilityService,
-        IAchTransactionReportService transactionReportService)
+        IAchTransactionReportService transactionReportService,
+        IAchReturnRejectionReportService returnRejectionReportService)
     {
         _traceabilityService = traceabilityService;
         _transactionReportService = transactionReportService;
+        _returnRejectionReportService = returnRejectionReportService;
         Settings.License = LicenseType.Community;
     }
 
@@ -58,6 +61,45 @@ public class QuestPdfReportGenerator : IReportGenerator
     public async Task<GeneratedReportFile> GenerateReceivedTransactionsPdfAsync(AchTransactionReportFilter filter, CancellationToken ct = default)
     {
         return await GenerateTransactionMovementPdfAsync("Reporte de transacciones recibidas", "Received", filter, ct);
+    }
+
+
+    public async Task<GeneratedReportFile> GenerateReturnsPdfAsync(AchReturnRejectionReportFilter filter, CancellationToken ct = default)
+    {
+        return await GenerateReturnRejectionPdfAsync("Reporte de devoluciones", "Returns", filter, ct);
+    }
+
+    public async Task<GeneratedReportFile> GenerateRejectionsPdfAsync(AchReturnRejectionReportFilter filter, CancellationToken ct = default)
+    {
+        return await GenerateReturnRejectionPdfAsync("Reporte de rechazos", "Rejections", filter, ct);
+    }
+
+    private async Task<GeneratedReportFile> GenerateReturnRejectionPdfAsync(
+        string title,
+        string filePrefix,
+        AchReturnRejectionReportFilter filter,
+        CancellationToken ct)
+    {
+        var response = filePrefix == "Returns"
+            ? await _returnRejectionReportService.GetReturnsAsync(filter, ct)
+            : await _returnRejectionReportService.GetRejectionsAsync(filter, ct);
+
+        var generatedAt = DateTime.UtcNow;
+        var document = new AchReturnRejectionReportDocument(new AchReturnRejectionReportDocumentModel
+        {
+            Title = title,
+            Filter = filter,
+            Rows = response.Items,
+            Totals = response.Totals,
+            GeneratedAtUtc = generatedAt
+        });
+
+        return new GeneratedReportFile
+        {
+            Content = document.GeneratePdf(),
+            ContentType = "application/pdf",
+            FileName = $"ACH_{filePrefix}_{generatedAt:yyyyMMdd_HHmmss}.pdf"
+        };
     }
 
     private async Task<GeneratedReportFile> GenerateTransactionMovementPdfAsync(

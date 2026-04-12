@@ -51,6 +51,44 @@ export interface TransactionMovementReportResponse {
   pageSize: number;
 }
 
+
+export interface ReturnRejectionReportFilter {
+  date?: string;
+  causal?: string;
+  clearingHouseId?: number;
+  state?: 'Pending' | 'ReturnedByOperator' | 'ReturnedByEpr' | 'AppliedTacitly' | 'Certified';
+  reference?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface ReturnRejectionReportRow {
+  transactionId: number;
+  effectiveEntryDate: string;
+  reference: string;
+  amount: number;
+  state: string;
+  causalCode: string;
+  causalDescription: string;
+  clearingHouseName: string;
+  achCycleId: string;
+  achCycleName: string;
+  originalTraceRef: string;
+  originalTransactionId?: number;
+  originalTransactionReference?: string;
+}
+
+export interface ReturnRejectionReportResponse {
+  items: ReturnRejectionReportRow[];
+  totals: {
+    totalRecords: number;
+    totalAmount: number;
+  };
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ReportsApiService {
   private readonly http = inject(HttpClient);
@@ -112,6 +150,37 @@ export class ReportsApiService {
     });
   }
 
+
+  getReturns(filter: ReturnRejectionReportFilter): Observable<ReturnRejectionReportResponse> {
+    return this.http.get<ReturnRejectionReportResponse>(
+      this.api.resolveUrl('api/reports/returns'),
+      { params: this.buildReturnRejectionParams(filter) }
+    );
+  }
+
+  getRejections(filter: ReturnRejectionReportFilter): Observable<ReturnRejectionReportResponse> {
+    return this.http.get<ReturnRejectionReportResponse>(
+      this.api.resolveUrl('api/reports/rejections'),
+      { params: this.buildReturnRejectionParams(filter) }
+    );
+  }
+
+  downloadReturnsPdf(filter: ReturnRejectionReportFilter): Observable<HttpResponse<Blob>> {
+    return this.http.get(this.api.resolveUrl('api/reports/returns/pdf'), {
+      params: this.buildReturnRejectionParams(filter),
+      observe: 'response',
+      responseType: 'blob'
+    });
+  }
+
+  downloadRejectionsPdf(filter: ReturnRejectionReportFilter): Observable<HttpResponse<Blob>> {
+    return this.http.get(this.api.resolveUrl('api/reports/rejections/pdf'), {
+      params: this.buildReturnRejectionParams(filter),
+      observe: 'response',
+      responseType: 'blob'
+    });
+  }
+
   private buildTransactionMovementParams(filter: TransactionMovementReportFilter): Record<string, string> {
     const params: Record<string, string> = {};
 
@@ -122,6 +191,21 @@ export class ReportsApiService {
     if (filter.reference) params.reference = filter.reference;
     if (filter.bankId != null) params.bankId = String(filter.bankId);
     if (filter.transactionType) params.transactionType = filter.transactionType;
+    if (filter.page != null) params.page = String(filter.page);
+    if (filter.pageSize != null) params.pageSize = String(filter.pageSize);
+
+    return params;
+  }
+
+
+  private buildReturnRejectionParams(filter: ReturnRejectionReportFilter): Record<string, string> {
+    const params: Record<string, string> = {};
+
+    if (filter.date) params.date = filter.date;
+    if (filter.causal) params.causal = filter.causal;
+    if (filter.clearingHouseId != null) params.clearingHouseId = String(filter.clearingHouseId);
+    if (filter.state) params.state = filter.state;
+    if (filter.reference) params.reference = filter.reference;
     if (filter.page != null) params.page = String(filter.page);
     if (filter.pageSize != null) params.pageSize = String(filter.pageSize);
 
