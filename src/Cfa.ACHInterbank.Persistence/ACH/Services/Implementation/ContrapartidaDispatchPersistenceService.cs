@@ -17,22 +17,32 @@ public sealed class ContrapartidaDispatchPersistenceService : IContrapartidaDisp
         _context = context;
     }
 
-    public async Task<ContrapartidaDispatchItem> EnsurePendingDispatchAsync(AchTransaction transaction, CancellationToken ct = default)
+    public async Task<ContrapartidaDispatchItem> EnsurePendingDispatchAsync(
+        AchTransaction transaction,
+        int clearingHouseId,
+        CancellationToken ct = default)
     {
-        var existing = await _context.ContrapartidaDispatchItems
-            .FirstOrDefaultAsync(x => x.AchTransactionId == transaction.Id, ct);
+        ContrapartidaDispatchItem? existing = null;
+        if (transaction.Id > 0)
+        {
+            existing = await _context.ContrapartidaDispatchItems
+                .FirstOrDefaultAsync(x => x.AchTransactionId == transaction.Id, ct);
+        }
+        else
+        {
+            existing = _context.ContrapartidaDispatchItems.Local
+                .FirstOrDefault(x => ReferenceEquals(x.AchTransaction, transaction));
+        }
 
         if (existing is not null)
         {
             return existing;
         }
 
-        var clearingHouseId = transaction.AchCycle?.ClearingHouseId
-            ?? await _context.AchCycles
-                .Where(c => c.Id == transaction.AchCycleId)
-                .Select(c => (int?)c.ClearingHouseId)
-                .FirstOrDefaultAsync(ct)
-            ?? throw new InvalidOperationException($"No se encontró cámara para el ciclo {transaction.AchCycleId}.");
+        if (clearingHouseId <= 0)
+        {
+            throw new InvalidOperationException($"No se encontró cámara válida para el ciclo {transaction.AchCycleId}.");
+        }
 
         var item = new ContrapartidaDispatchItem
         {

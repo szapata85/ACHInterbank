@@ -17,4 +17,5 @@ public record TransactionBatchContext
     public string ServiceClassCode { get; init; } = "200";
     public int SourceInstitutionId { get; init; }
     public int DestinationInstitutionId { get; init; }
+    public int ClearingHouseId { get; init; }
 }

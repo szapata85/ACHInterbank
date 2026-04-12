@@ -130,7 +130,10 @@ public class AchTransactionService : IAchTransactionService
 
             await _transactionPersister.UpdateBatchTotalsAsync(persisted.Batch, ct);
             await _transactionPersister.UpdateBatchServiceClassCodeAsync(persisted.Batch, ct);
-            await _contrapartidaDispatchPersistenceService.EnsurePendingDispatchAsync(persisted.Transaction, ct);
+            await _contrapartidaDispatchPersistenceService.EnsurePendingDispatchAsync(
+                persisted.Transaction,
+                batchContext.ClearingHouseId,
+                ct);
 
             await _unitOfWork.CommitAsync(ct);
             await dbTransaction.CommitAsync(ct);

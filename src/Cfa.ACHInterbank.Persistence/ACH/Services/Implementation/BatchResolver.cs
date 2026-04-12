@@ -155,7 +155,8 @@ public class BatchResolver : IBatchResolver
             ReturnSlaDeadlineAtUtc = await CalculateReturnSlaDeadlineAtUtcAsync(cycle, ct),
             ServiceClassCode = "200",
             SourceInstitutionId = source.Id,
-            DestinationInstitutionId = dest.Id
+            DestinationInstitutionId = dest.Id,
+            ClearingHouseId = cycle.ClearingHouseId
         };
     }
 
