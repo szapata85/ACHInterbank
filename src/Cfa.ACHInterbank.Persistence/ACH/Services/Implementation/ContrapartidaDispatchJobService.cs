@@ -22,14 +22,14 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
     private readonly AchDbContext _context;
     private readonly IWscfaachSoapClient _soapClient;
     private readonly IProcContrapartidasRequestMapper _procContrapartidasRequestMapper;
-    private readonly IContrapartidaSoapResponseParser _responseParser;
+    private readonly IProcContrapartidasResponseParser _responseParser;
     private readonly ILogger<ContrapartidaDispatchJobService> _logger;
 
     public ContrapartidaDispatchJobService(
         AchDbContext context,
         IWscfaachSoapClient soapClient,
         IProcContrapartidasRequestMapper procContrapartidasRequestMapper,
-        IContrapartidaSoapResponseParser responseParser,
+        IProcContrapartidasResponseParser responseParser,
         ILogger<ContrapartidaDispatchJobService> logger)
     {
         _context = context;
@@ -82,6 +82,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             }
 
             chunks++;
+            var chunkPartialCount = 0;
+
             var batch = new ContrapartidaDispatchBatch
             {
                 AchCycleId = cycle.Id,
@@ -116,7 +118,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
             string requestPayload = string.Empty;
             string responsePayload = string.Empty;
-            ContrapartidaSoapResponseParseResult? parseResult = null;
+            ProcContrapartidasParsedResponse? parseResult = null;
             var startedAtUtc = DateTime.UtcNow;
 
             try
@@ -134,12 +136,16 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                     cycle.Id,
                     cycle.ClearingHouseId);
 
-                parseResult = new ContrapartidaSoapResponseParseResult(
-                    ResponseCode: "SOAP_EXCEPTION",
+                parseResult = new ProcContrapartidasParsedResponse(
                     IsSuccess: false,
-                    IsPartial: false,
-                    ItemResults: new Dictionary<int, ContrapartidaSoapItemResult>(),
-                    Message: ex.Message);
+                    IsSoapFault: false,
+                    IsRetryable: true,
+                    IsFunctionalRejection: false,
+                    ErrorCode: "SOAP_EXCEPTION",
+                    ErrorMessage: ex.Message,
+                    RawResponse: ex.ToString(),
+                    ResponseCode: "SOAP_EXCEPTION",
+                    ItemResults: new Dictionary<int, ProcContrapartidasParsedItemResponse>());
                 responsePayload = ex.ToString();
             }
 
@@ -153,8 +159,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 var hasItemResult = parseResult.ItemResults.TryGetValue(txId, out var txResult);
 
                 var isSuccess = hasItemResult ? txResult!.IsSuccess : parseResult.IsSuccess;
-                var itemCode = hasItemResult ? txResult!.ResponseCode : parseResult.ResponseCode;
-                var itemMessage = hasItemResult ? txResult!.Message : parseResult.Message;
+                var itemCode = hasItemResult ? txResult!.ResponseCode : parseResult.ErrorCode;
+                var itemMessage = hasItemResult ? txResult!.Message : parseResult.ErrorMessage;
 
                 var attempt = new ContrapartidaDispatchAttempt
                 {
@@ -165,12 +171,12 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                     FinishedAtUtc = finishedAtUtc,
                     Result = isSuccess
                         ? ContrapartidaDispatchAttemptResultEnum.Success
-                        : parseResult.IsPartial
+                        : (hasItemResult && txResult is not null && !txResult.IsSuccess && parseResult.ItemResults.Count > 0 && parseResult.ItemResults.Values.Any(x => x.IsSuccess))
                             ? ContrapartidaDispatchAttemptResultEnum.Partial
                             : ContrapartidaDispatchAttemptResultEnum.Failed,
                     CorrelationId = $"{batch.Id:N}-{item.Id}",
                     TriggeredBy = safeTriggeredBy,
-                    RetryEligible = !isSuccess,
+                    RetryEligible = !isSuccess && (hasItemResult ? txResult!.IsRetryable : parseResult.IsRetryable),
                     ExternalResponseCode = itemCode,
                     ExternalResponseMessage = itemMessage ?? string.Empty,
                     ErrorCode = isSuccess ? string.Empty : itemCode,
@@ -198,12 +204,16 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 }
                 else
                 {
-                    item.State = ContrapartidaDispatchItemStateEnum.RetryPending;
-                    item.NextAttemptAtUtc = DateTime.UtcNow.AddMinutes(5);
+                    var retryable = hasItemResult ? txResult!.IsRetryable : parseResult.IsRetryable;
+                    item.State = retryable
+                        ? ContrapartidaDispatchItemStateEnum.RetryPending
+                        : ContrapartidaDispatchItemStateEnum.ContrapartidaReportFailed;
+                    item.NextAttemptAtUtc = retryable ? DateTime.UtcNow.AddMinutes(5) : null;
                     failed++;
-                    if (parseResult.IsPartial)
+                    if (hasItemResult && parseResult.ItemResults.Count > 0 && parseResult.ItemResults.Values.Any(x => x.IsSuccess))
                     {
                         partial++;
+                        chunkPartialCount++;
                     }
                 }
 
@@ -212,7 +222,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
             batch.TotalSucceeded = dispatchItems.Count(x => x.State == ContrapartidaDispatchItemStateEnum.ReportedToContrapartida);
             batch.TotalFailed = dispatchItems.Count(x => x.State != ContrapartidaDispatchItemStateEnum.ReportedToContrapartida);
-            batch.TotalPartial = parseResult.IsPartial ? batch.TotalFailed : 0;
+            batch.TotalPartial = chunkPartialCount;
             batch.FinishedAtUtc = finishedAtUtc;
             batch.Status = batch.TotalFailed == 0
                 ? ContrapartidaDispatchBatchStatusEnum.Completed
