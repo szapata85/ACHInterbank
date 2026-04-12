@@ -1,0 +1,19 @@
+.compare-page { display:grid; gap:1rem; }
+.card { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:1rem; }
+.header { display:flex; justify-content:space-between; gap:1rem; align-items:flex-end; }
+.header p { margin:.35rem 0 0; color:#6b7280; }
+.selectors { display:flex; gap:.6rem; align-items:flex-end; }
+.selectors label { display:grid; gap:.25rem; font-weight:600; }
+.selectors select { min-width:240px; }
+.meta-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:.75rem; }
+.filters { display:flex; align-items:center; gap:.5rem; margin-bottom:1rem; }
+.group { margin-bottom:1rem; }
+.group h4 { margin:0 0 .4rem; text-transform:capitalize; }
+table { width:100%; border-collapse:collapse; }
+th,td { border:1px solid #e5e7eb; padding:.45rem; text-align:left; }
+.badge { border-radius:999px; padding:.15rem .55rem; font-size:.75rem; font-weight:700; }
+.change-added { background:#e8f8ef; color:#157347; }
+.change-removed { background:#ffe4e6; color:#9b1c1c; }
+.change-modified { background:#fff4d6; color:#9a6700; }
+.change-equal { background:#f3f4f6; color:#374151; }
+button.primary { background:#0b4a8b; color:#fff; border:none; border-radius:8px; padding:.45rem .8rem; }

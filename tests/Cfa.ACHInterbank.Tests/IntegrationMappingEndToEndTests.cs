@@ -141,6 +141,27 @@ public class IntegrationMappingEndToEndTests
         Assert.NotEqual(Guid.Empty, published.Id);
     }
 
+    [Fact]
+    public async Task MappingSet_Compare_ReturnsRuleDiffsAndMetadata()
+    {
+        await using var fixture = await IntegrationFixture.CreateAsync();
+        var left = await fixture.CreateDraftWithRulesAsync("Compare Left");
+        var right = await fixture.CreateDraftWithRulesAsync("Compare Right");
+
+        var firstRule = right.Rules.First();
+        await fixture.MappingSetService.UpsertRulesAsync(
+            right.Id,
+            new UpsertIntegrationMappingRulesRequest("tester", [
+                new UpsertIntegrationMappingRuleRequest(firstRule.Id, fixture.MethodId, firstRule.ParameterId, firstRule.SourceKind, firstRule.SourceCatalogFieldId, firstRule.SourceFieldPath, firstRule.FixedValue, "NEW-DEFAULT", firstRule.TransformationCode, firstRule.FormatMask, firstRule.Priority + 1, firstRule.RequiredOverride, firstRule.Enabled, firstRule.ConditionExpression)
+            ]));
+
+        var compare = await fixture.MappingSetService.CompareAsync(new CompareIntegrationMappingSetsRequest(left.Id, right.Id));
+
+        Assert.Equal(left.Id, compare.Left.MappingSetId);
+        Assert.Equal(right.Id, compare.Right.MappingSetId);
+        Assert.Contains(compare.Rules, x => x.ChangeType is "Modified" or "Equal");
+    }
+
     private sealed class IntegrationFixture : IAsyncDisposable
     {
         private readonly SqliteConnection _connection;

@@ -142,3 +142,33 @@ public sealed record IntegrationMappingSetHistoryDto(
     string PerformedBy,
     DateTime PerformedAtUtc,
     string SnapshotHash);
+
+public sealed record CompareIntegrationMappingSetsRequest(
+    Guid LeftMappingSetId,
+    Guid RightMappingSetId);
+
+public sealed record IntegrationMappingSetComparisonMetadataDto(
+    Guid MappingSetId,
+    string Name,
+    int Version,
+    IntegrationMappingSetStatusEnum Status,
+    DateTime? PublishedAtUtc,
+    string PublishedBy,
+    string Notes);
+
+public sealed record IntegrationMappingSetRuleComparisonDto(
+    long? LeftRuleId,
+    long? RightRuleId,
+    long ParameterId,
+    string ParameterPath,
+    string ParameterGroup,
+    string ChangeType,
+    IReadOnlyCollection<string> ChangedFields,
+    string PotentialImpact,
+    IntegrationMappingRuleDto? Left,
+    IntegrationMappingRuleDto? Right);
+
+public sealed record IntegrationMappingSetComparisonResultDto(
+    IntegrationMappingSetComparisonMetadataDto Left,
+    IntegrationMappingSetComparisonMetadataDto Right,
+    IReadOnlyCollection<IntegrationMappingSetRuleComparisonDto> Rules);

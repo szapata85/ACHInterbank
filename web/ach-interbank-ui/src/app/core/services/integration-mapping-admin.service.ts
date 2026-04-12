@@ -147,6 +147,35 @@ export interface MappingSetHistoryItem {
   snapshotHash: string;
 }
 
+export interface MappingSetComparisonMetadata {
+  mappingSetId: string;
+  name: string;
+  version: number;
+  status: MappingSetStatus;
+  publishedAtUtc?: string | null;
+  publishedBy: string;
+  notes: string;
+}
+
+export interface MappingSetRuleComparison {
+  leftRuleId?: number | null;
+  rightRuleId?: number | null;
+  parameterId: number;
+  parameterPath: string;
+  parameterGroup: 'ciclo-camara' | 'transaccion' | 'lote' | 'addenda' | 'configuracion' | string;
+  changeType: 'Added' | 'Removed' | 'Modified' | 'Equal' | string;
+  changedFields: string[];
+  potentialImpact: string;
+  left?: IntegrationMappingRule | null;
+  right?: IntegrationMappingRule | null;
+}
+
+export interface MappingSetComparisonResult {
+  left: MappingSetComparisonMetadata;
+  right: MappingSetComparisonMetadata;
+  rules: MappingSetRuleComparison[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class IntegrationMappingAdminService {
   private readonly api = inject(ApiService);
@@ -216,5 +245,9 @@ export class IntegrationMappingAdminService {
 
   getHistory(id: string): Observable<MappingSetHistoryItem[]> {
     return this.api.get<MappingSetHistoryItem[]>(`api/integrations/mappingsets/${id}/history`);
+  }
+
+  compare(leftMappingSetId: string, rightMappingSetId: string): Observable<MappingSetComparisonResult> {
+    return this.api.post<MappingSetComparisonResult>('api/integrations/mappingsets/compare', { leftMappingSetId, rightMappingSetId });
   }
 }

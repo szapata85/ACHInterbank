@@ -80,4 +80,9 @@ public class IntegrationMappingSetsController : ControllerBase
     [Authorize(Policy = "CanManageUsers")]
     public async Task<IActionResult> History(Guid id, CancellationToken ct)
         => Ok(await _service.GetHistoryAsync(id, ct));
+
+    [HttpPost("compare")]
+    [Authorize(Policy = "CanManageUsers")]
+    public async Task<IActionResult> Compare([FromBody] CompareIntegrationMappingSetsRequest request, CancellationToken ct)
+        => Ok(await _service.CompareAsync(request, ct));
 }

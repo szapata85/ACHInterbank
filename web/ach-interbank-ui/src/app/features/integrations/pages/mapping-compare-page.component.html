@@ -1,0 +1,76 @@
+<div class="compare-page">
+  <header class="card header">
+    <div>
+      <h3>Comparador de versiones · {{ methodCode }}</h3>
+      <p>Audita cambios por parámetro, origen y prioridad antes de publicar.</p>
+    </div>
+    <div class="selectors">
+      <label>
+        Versión izquierda
+        <select [(ngModel)]="leftId">
+          <option *ngFor="let ms of mappingSets" [value]="ms.id">v{{ ms.version }} · {{ ms.name }} ({{ ms.status }})</option>
+        </select>
+      </label>
+      <label>
+        Versión derecha
+        <select [(ngModel)]="rightId">
+          <option *ngFor="let ms of mappingSets" [value]="ms.id">v{{ ms.version }} · {{ ms.name }} ({{ ms.status }})</option>
+        </select>
+      </label>
+      <button type="button" class="primary" (click)="runCompare()">Comparar</button>
+    </div>
+  </header>
+
+  <section class="card" *ngIf="comparison as cmp">
+    <div class="meta-grid">
+      <article>
+        <h4>Izquierda</h4>
+        <p><strong>{{ cmp.left.name }}</strong> · v{{ cmp.left.version }} · {{ cmp.left.status }}</p>
+        <p>Publicado: {{ cmp.left.publishedAtUtc || 'N/A' }} · {{ cmp.left.publishedBy || 'N/A' }}</p>
+        <small>{{ cmp.left.notes }}</small>
+      </article>
+      <article>
+        <h4>Derecha</h4>
+        <p><strong>{{ cmp.right.name }}</strong> · v{{ cmp.right.version }} · {{ cmp.right.status }}</p>
+        <p>Publicado: {{ cmp.right.publishedAtUtc || 'N/A' }} · {{ cmp.right.publishedBy || 'N/A' }}</p>
+        <small>{{ cmp.right.notes }}</small>
+      </article>
+    </div>
+
+    <div class="filters">
+      <label>Filtro de cambios</label>
+      <select [(ngModel)]="changeFilter">
+        <option value="All">Todos</option>
+        <option value="Added">Agregado</option>
+        <option value="Removed">Eliminado</option>
+        <option value="Modified">Modificado</option>
+        <option value="Equal">Igual</option>
+      </select>
+    </div>
+
+    <div class="group" *ngFor="let group of ['ciclo-camara','transaccion','lote','addenda','configuracion']">
+      <h4>{{ group }}</h4>
+      <table>
+        <thead>
+          <tr>
+            <th>Parámetro</th>
+            <th>Cambio</th>
+            <th>Campos modificados</th>
+            <th>Impacto potencial</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of groupedRules[group]">
+            <td>{{ row.parameterPath }}</td>
+            <td><span class="badge" [ngClass]="getChangeBadgeClass(row.changeType)">{{ row.changeType }}</span></td>
+            <td>{{ row.changedFields.join(', ') || 'N/A' }}</td>
+            <td>{{ row.potentialImpact }}</td>
+          </tr>
+          <tr *ngIf="(groupedRules[group] || []).length === 0">
+            <td colspan="4">Sin cambios para este grupo.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

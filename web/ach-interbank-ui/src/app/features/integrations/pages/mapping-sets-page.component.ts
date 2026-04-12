@@ -68,6 +68,17 @@ export class MappingSetsPageComponent implements OnInit {
     this.loadMappingSets();
   }
 
+  openCompare(): void {
+    const methodId = this.selectedMethodId;
+    const method = this.methods.find((x) => x.id === methodId);
+    if (!method) {
+      this.notifications.error('Selecciona un método para comparar versiones.');
+      return;
+    }
+
+    this.router.navigate(['/integraciones/mappings/compare', method.code]);
+  }
+
   openEditor(mapping: IntegrationMappingSet): void {
     this.router.navigate(['/integraciones/mappings', mapping.methodCode, mapping.id]);
   }

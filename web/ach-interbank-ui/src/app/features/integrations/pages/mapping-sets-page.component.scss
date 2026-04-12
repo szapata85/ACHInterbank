@@ -6,6 +6,7 @@
 .draft-form { display:grid; grid-template-columns:2fr 2fr 2fr auto; gap:.75rem; align-items:end; }
 .draft-form label { display:grid; gap:.35rem; font-weight:600; color:#374151; }
 .draft-form input,.draft-form select { padding:.5rem; border:1px solid #d1d5db; border-radius:8px; }
+.table-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:.5rem; }
 .table-card table { width:100%; border-collapse:collapse; }
 .table-card th,.table-card td { border-bottom:1px solid #eef2f7; text-align:left; padding:.6rem; }
 .badge { padding:.2rem .5rem; border-radius:999px; font-size:.75rem; font-weight:700; }

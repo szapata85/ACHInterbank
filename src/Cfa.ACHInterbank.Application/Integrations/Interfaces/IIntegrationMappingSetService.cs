@@ -15,4 +15,5 @@ public interface IIntegrationMappingSetService
     Task<IntegrationMappingSetDto> PublishAsync(Guid id, PublishIntegrationMappingSetRequest request, CancellationToken ct = default);
     Task<IntegrationMappingSetDto> CloneAsync(Guid id, CloneIntegrationMappingSetRequest request, CancellationToken ct = default);
     Task<IReadOnlyCollection<IntegrationMappingSetHistoryDto>> GetHistoryAsync(Guid id, CancellationToken ct = default);
+    Task<IntegrationMappingSetComparisonResultDto> CompareAsync(CompareIntegrationMappingSetsRequest request, CancellationToken ct = default);
 }
