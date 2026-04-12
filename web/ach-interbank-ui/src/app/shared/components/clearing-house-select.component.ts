@@ -6,7 +6,7 @@ import { ClearingHousesApiService } from '../../features/ach-cycles/services/ach
 interface ClearingHouseOption {
   id: number;
   name: string;
-  code: string;
+  code?: string;
 }
 
 @Component({
@@ -21,7 +21,7 @@ interface ClearingHouseOption {
       <option [ngValue]="null">{{ placeholder }}</option>
       <option *ngIf="allowAll" [ngValue]="allValue">{{ allLabel }}</option>
       <option *ngFor="let option of options" [ngValue]="option.id">
-        {{ option.name }} ({{ option.code }})
+        {{ option.code ? option.name + ' (' + option.code + ')' : option.name }}
       </option>
       <option *ngIf="loading" [ngValue]="null" disabled>Cargando cámaras...</option>
       <option *ngIf="hasError" [ngValue]="null" disabled>Error al cargar cámaras</option>
