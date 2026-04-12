@@ -14,10 +14,14 @@ namespace Cfa.ACHInterbank.Persistence.Reports;
 public class QuestPdfReportGenerator : IReportGenerator
 {
     private readonly IAchTraceabilityService _traceabilityService;
+    private readonly IAchTransactionReportService _transactionReportService;
 
-    public QuestPdfReportGenerator(IAchTraceabilityService traceabilityService)
+    public QuestPdfReportGenerator(
+        IAchTraceabilityService traceabilityService,
+        IAchTransactionReportService transactionReportService)
     {
         _traceabilityService = traceabilityService;
+        _transactionReportService = transactionReportService;
         Settings.License = LicenseType.Community;
     }
 
@@ -43,6 +47,44 @@ public class QuestPdfReportGenerator : IReportGenerator
             Content = document.GeneratePdf(),
             ContentType = "application/pdf",
             FileName = $"ACH_Traceability_{generatedAt:yyyyMMdd_HHmmss}.pdf"
+        };
+    }
+
+    public async Task<GeneratedReportFile> GenerateSentTransactionsPdfAsync(AchTransactionReportFilter filter, CancellationToken ct = default)
+    {
+        return await GenerateTransactionMovementPdfAsync("Reporte de transacciones enviadas", "Sent", filter, ct);
+    }
+
+    public async Task<GeneratedReportFile> GenerateReceivedTransactionsPdfAsync(AchTransactionReportFilter filter, CancellationToken ct = default)
+    {
+        return await GenerateTransactionMovementPdfAsync("Reporte de transacciones recibidas", "Received", filter, ct);
+    }
+
+    private async Task<GeneratedReportFile> GenerateTransactionMovementPdfAsync(
+        string title,
+        string filePrefix,
+        AchTransactionReportFilter filter,
+        CancellationToken ct)
+    {
+        var response = filePrefix == "Sent"
+            ? await _transactionReportService.GetSentTransactionsAsync(filter, ct)
+            : await _transactionReportService.GetReceivedTransactionsAsync(filter, ct);
+
+        var generatedAt = DateTime.UtcNow;
+        var document = new AchTransactionMovementReportDocument(new AchTransactionMovementReportDocumentModel
+        {
+            Title = title,
+            Filter = filter,
+            Rows = response.Items,
+            Totals = response.Totals,
+            GeneratedAtUtc = generatedAt
+        });
+
+        return new GeneratedReportFile
+        {
+            Content = document.GeneratePdf(),
+            ContentType = "application/pdf",
+            FileName = $"ACH_{filePrefix}_{generatedAt:yyyyMMdd_HHmmss}.pdf"
         };
     }
 }

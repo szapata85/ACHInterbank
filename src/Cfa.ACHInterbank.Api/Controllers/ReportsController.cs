@@ -16,12 +16,141 @@ public class ReportsController : ControllerBase
     private static readonly TimeSpan ReportGenerationTimeout = TimeSpan.FromSeconds(30);
 
     private readonly IReportGenerator _reportGenerator;
+    private readonly IAchTransactionReportService _transactionReportService;
     private readonly ILogger<ReportsController> _logger;
 
-    public ReportsController(IReportGenerator reportGenerator, ILogger<ReportsController> logger)
+    public ReportsController(
+        IReportGenerator reportGenerator,
+        IAchTransactionReportService transactionReportService,
+        ILogger<ReportsController> logger)
     {
         _reportGenerator = reportGenerator;
+        _transactionReportService = transactionReportService;
         _logger = logger;
+    }
+
+    [HttpGet("transactions/sent")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetSentTransactions(
+        [FromQuery] DateTime? date,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] string? achCycleId,
+        [FromQuery] AchTransferStateEnum? state,
+        [FromQuery] string? reference,
+        [FromQuery] int? bankId,
+        [FromQuery] TransactionTypeEnum? transactionType,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken ct = default)
+    {
+        var response = await _transactionReportService.GetSentTransactionsAsync(
+            new AchTransactionReportFilter
+            {
+                Date = date,
+                ClearingHouseId = clearingHouseId,
+                AchCycleId = achCycleId,
+                State = state,
+                Reference = reference,
+                BankId = bankId,
+                TransactionType = transactionType,
+                Page = page,
+                PageSize = pageSize
+            },
+            ct);
+
+        return Ok(response);
+    }
+
+    [HttpGet("transactions/received")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetReceivedTransactions(
+        [FromQuery] DateTime? date,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] string? achCycleId,
+        [FromQuery] AchTransferStateEnum? state,
+        [FromQuery] string? reference,
+        [FromQuery] int? bankId,
+        [FromQuery] TransactionTypeEnum? transactionType,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken ct = default)
+    {
+        var response = await _transactionReportService.GetReceivedTransactionsAsync(
+            new AchTransactionReportFilter
+            {
+                Date = date,
+                ClearingHouseId = clearingHouseId,
+                AchCycleId = achCycleId,
+                State = state,
+                Reference = reference,
+                BankId = bankId,
+                TransactionType = transactionType,
+                Page = page,
+                PageSize = pageSize
+            },
+            ct);
+
+        return Ok(response);
+    }
+
+    [HttpGet("transactions/sent/pdf")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetSentTransactionsPdf(
+        [FromQuery] DateTime? date,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] string? achCycleId,
+        [FromQuery] AchTransferStateEnum? state,
+        [FromQuery] string? reference,
+        [FromQuery] int? bankId,
+        [FromQuery] TransactionTypeEnum? transactionType,
+        CancellationToken ct = default)
+    {
+        var file = await _reportGenerator.GenerateSentTransactionsPdfAsync(
+            new AchTransactionReportFilter
+            {
+                Date = date,
+                ClearingHouseId = clearingHouseId,
+                AchCycleId = achCycleId,
+                State = state,
+                Reference = reference,
+                BankId = bankId,
+                TransactionType = transactionType,
+                Page = 1,
+                PageSize = 5000
+            },
+            ct);
+
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+    [HttpGet("transactions/received/pdf")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetReceivedTransactionsPdf(
+        [FromQuery] DateTime? date,
+        [FromQuery] int? clearingHouseId,
+        [FromQuery] string? achCycleId,
+        [FromQuery] AchTransferStateEnum? state,
+        [FromQuery] string? reference,
+        [FromQuery] int? bankId,
+        [FromQuery] TransactionTypeEnum? transactionType,
+        CancellationToken ct = default)
+    {
+        var file = await _reportGenerator.GenerateReceivedTransactionsPdfAsync(
+            new AchTransactionReportFilter
+            {
+                Date = date,
+                ClearingHouseId = clearingHouseId,
+                AchCycleId = achCycleId,
+                State = state,
+                Reference = reference,
+                BankId = bankId,
+                TransactionType = transactionType,
+                Page = 1,
+                PageSize = 5000
+            },
+            ct);
+
+        return File(file.Content, file.ContentType, file.FileName);
     }
 
     [HttpGet("traceability/pdf")]
