@@ -1,0 +1,58 @@
+<app-page-header [title]="config.title" [subtitle]="config.subtitle"></app-page-header>
+
+<section class="panel">
+  <form [formGroup]="form" class="filters" (ngSubmit)="search(1)">
+    <input *ngIf="showDateFilter" type="date" formControlName="date" />
+    <input *ngIf="showDateFilter" type="number" placeholder="Cámara" formControlName="clearingHouseId" />
+    <input *ngIf="config.key === 'sent' || config.key === 'received'" type="text" placeholder="Ciclo" formControlName="achCycleId" />
+
+    <select *ngIf="showStateFilter" formControlName="state">
+      <option *ngFor="let st of states" [value]="st">{{ st || 'Todos los estados' }}</option>
+    </select>
+
+    <input *ngIf="showReferenceFilter" type="text" placeholder="Referencia" formControlName="reference" />
+    <input *ngIf="showCausalFilter" type="text" placeholder="Causal" formControlName="causal" />
+
+    <input *ngIf="showNameFilter" type="text" placeholder="Nombre ciclo" formControlName="name" />
+
+    <ng-container *ngIf="showAuditFilters">
+      <input type="text" placeholder="Usuario" formControlName="user" />
+      <input type="text" placeholder="Acción" formControlName="action" />
+      <input type="text" placeholder="Entidad" formControlName="entity" />
+      <input type="date" formControlName="fromUtc" />
+      <input type="date" formControlName="toUtc" />
+    </ng-container>
+
+    <ng-container *ngIf="showHistoryFilters">
+      <input type="date" formControlName="fromUtc" />
+      <input type="date" formControlName="toUtc" />
+      <input type="number" placeholder="ID transacción" formControlName="transactionId" />
+      <select formControlName="toState">
+        <option value="">Todos los estados destino</option>
+        <option *ngFor="let st of states" [value]="st" [hidden]="!st">{{ st }}</option>
+      </select>
+      <select formControlName="source">
+        <option *ngFor="let src of sources" [value]="src">{{ src || 'Todas las fuentes' }}</option>
+      </select>
+    </ng-container>
+
+    <div class="actions">
+      <button type="submit">Buscar</button>
+      <button type="button" (click)="clear()">Limpiar</button>
+      <button type="button" class="primary" (click)="exportPdf()">Exportar PDF</button>
+    </div>
+  </form>
+
+  <div *ngIf="loadError" class="state error">{{ loadError }}</div>
+  <div *ngIf="!loading && hasLoaded && !loadError && rows.length === 0" class="state empty">No hay datos para los filtros seleccionados.</div>
+
+  <app-table
+    [columns]="config.columns"
+    [data]="rows"
+    [loading]="loading"
+    [page]="page"
+    [pageSize]="pageSize"
+    [total]="total"
+    (pageChange)="search($event)">
+  </app-table>
+</section>
