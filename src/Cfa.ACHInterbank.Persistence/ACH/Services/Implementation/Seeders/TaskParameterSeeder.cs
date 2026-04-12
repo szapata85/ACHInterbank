@@ -73,6 +73,28 @@ public class TaskParameterSeeder : IDbSeeder
             });
         }
 
+        if (contrapartidasTask is not null
+            && !_context.TaskParameters.Any(p => p.TaskDefinitionId == contrapartidasTask.Id && p.Key == "ChunkSize"))
+        {
+            _context.TaskParameters.Add(new TaskParameter
+            {
+                TaskDefinitionId = contrapartidasTask.Id,
+                Key = "ChunkSize",
+                Value = "300"
+            });
+        }
+
+        if (contrapartidasTask is not null
+            && !_context.TaskParameters.Any(p => p.TaskDefinitionId == contrapartidasTask.Id && p.Key == "MaxCyclesPerRun"))
+        {
+            _context.TaskParameters.Add(new TaskParameter
+            {
+                TaskDefinitionId = contrapartidasTask.Id,
+                Key = "MaxCyclesPerRun",
+                Value = "20"
+            });
+        }
+
         await _context.SaveChangesAsync();
     }
 }

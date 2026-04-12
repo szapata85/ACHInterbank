@@ -1,44 +1,44 @@
-using Cfa.ACHInterbank.Application.External.Connections;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
-using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System.Text.RegularExpressions;
-using System.Xml.Linq;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
 
 public class AchContrapartidasByCycleHandler : ITaskHandler
 {
     private readonly AchDbContext _db;
-    private readonly IWscfaachSoapClient _soapClient;
+    private readonly IContrapartidaDispatchJobService _dispatchJobService;
     private readonly ILogger<AchContrapartidasByCycleHandler> _log;
 
     public string Code => "AchContrapartidasByCycle";
 
     public AchContrapartidasByCycleHandler(
         AchDbContext db,
-        IWscfaachSoapClient soapClient,
+        IContrapartidaDispatchJobService dispatchJobService,
         ILogger<AchContrapartidasByCycleHandler> log)
     {
         _db = db;
-        _soapClient = soapClient;
+        _dispatchJobService = dispatchJobService;
         _log = log;
     }
 
     public async Task<string> ExecuteAsync(TaskDefinition task, CancellationToken cancellationToken)
     {
         var now = DateTime.Now;
-        var maxTransactions = ParsePositiveInt(task, "MaxTransactionsPerCycle", 1000);
+        var chunkSize = ParsePositiveInt(task, "ChunkSize", 300);
+        var maxCyclesPerRun = ParsePositiveInt(task, "MaxCyclesPerRun", 20);
 
         var activeCycles = await _db.AchCycles
             .AsNoTracking()
             .Include(c => c.ClearingHouse)
+            .Include(c => c.ClearingHouseCycleConfig)
             .Where(c => IsWithinCycleWindow(now, c.ProcessingDate, c.StartTime, c.EndTime))
             .OrderBy(c => c.ClearingHouseId)
             .ThenBy(c => c.CutoffTime)
+            .Take(maxCyclesPerRun)
             .ToListAsync(cancellationToken);
 
         if (!activeCycles.Any())
@@ -46,108 +46,40 @@ public class AchContrapartidasByCycleHandler : ITaskHandler
             return $"Sin ciclos activos para ejecutar contrapartidas. FechaHora={now:O}";
         }
 
-        var cycleIds = activeCycles.Select(c => c.Id).ToList();
-
-        var transactions = await _db.AchTransactions
-            .AsNoTracking()
-            .Where(t => cycleIds.Contains(t.AchCycleId))
-            .Where(t => t.State == AchTransferStateEnum.Pending)
-            .OrderBy(t => t.Id)
-            .ToListAsync(cancellationToken);
-
-        var txByCycle = transactions
-            .GroupBy(t => t.AchCycleId)
-            .ToDictionary(g => g.Key, g => g.Take(maxTransactions).ToList());
-
-        var sent = 0;
-        var skipped = 0;
-        var errors = 0;
+        var summaries = new List<string>(activeCycles.Count);
+        var totalProcessed = 0;
+        var totalSucceeded = 0;
+        var totalFailed = 0;
+        var totalPartial = 0;
 
         foreach (var cycle in activeCycles)
         {
-            if (!txByCycle.TryGetValue(cycle.Id, out var cycleTx) || cycleTx.Count == 0)
-            {
-                skipped++;
-                continue;
-            }
-
             try
             {
-                var parameters = BuildRequestParameters(cycle, cycleTx, now);
-                var response = await _soapClient.ProcContrapartidasAsync(parameters, cancellationToken);
-                var responseCode = ExtractResponseCode(response);
-                var normalizedCode = NormalizeResponseCode(responseCode);
-                var isSuccess = string.Equals(normalizedCode, "R96", StringComparison.OrdinalIgnoreCase);
+                var result = await _dispatchJobService.ProcessCycleAsync(
+                    cycle.Id,
+                    cycle.ClearingHouseId,
+                    triggeredBy: $"task:{Code}",
+                    chunkSize,
+                    cancellationToken);
 
-                var txIds = cycleTx.Select(t => t.Id).ToList();
-                await _db.AchTransactions
-                    .Where(t => txIds.Contains(t.Id))
-                    .ExecuteUpdateAsync(
-                        setters => setters
-                            .SetProperty(t => t.ContrapartidasResponseCode, normalizedCode),
-                        cancellationToken);
-
-                if (!isSuccess)
-                {
-                    _log.LogWarning(
-                        "Proc_Contrapartidas devolvió código de error {ResponseCode} para ciclo {CycleId} ({CycleName}) cámara {ClearingHouseCode}.",
-                        normalizedCode,
-                        cycle.Id,
-                        cycle.CycleName,
-                        cycle.ClearingHouse?.Code);
-                }
-
-                sent++;
+                totalProcessed += result.Processed;
+                totalSucceeded += result.Succeeded;
+                totalFailed += result.Failed;
+                totalPartial += result.Partial;
+                summaries.Add(result.Summary);
             }
             catch (Exception ex)
             {
-                errors++;
                 _log.LogError(ex,
-                    "Error enviando Proc_Contrapartidas para ciclo {CycleId} ({CycleName}) cámara {ClearingHouseCode}.",
+                    "Error ejecutando contrapartidas para ciclo {CycleId} cámara {ClearingHouseId}",
                     cycle.Id,
-                    cycle.CycleName,
-                    cycle.ClearingHouse?.Code);
+                    cycle.ClearingHouseId);
+                summaries.Add($"Ciclo {cycle.Id} cámara {cycle.ClearingHouseId}: ERROR={ex.Message}");
             }
         }
 
-        return $"Proc_Contrapartidas ejecutado por ciclo/cámara. CiclosActivos={activeCycles.Count}. Enviados={sent}. SinTransacciones={skipped}. Errores={errors}. FechaHora={now:O}";
-    }
-
-    private static IReadOnlyDictionary<string, object?> BuildRequestParameters(
-        Domain.Models.ACH.AchCycle cycle,
-        IReadOnlyCollection<Domain.Models.ACH.AchTransaction> transactions,
-        DateTime executionDateTime)
-    {
-        var txPayload = transactions.Select(t => new Dictionary<string, object?>
-        {
-            ["TransactionId"] = t.Id,
-            ["AchCycleId"] = t.AchCycleId,
-            ["Amount"] = t.Amount,
-            ["Type"] = t.Type.ToString(),
-            ["TransactionCode"] = t.TransactionCode,
-            ["TraceNumber"] = t.TraceNumber,
-            ["Reference"] = t.Reference,
-            ["OriginatingDFI"] = t.OriginatingDFI,
-            ["ReceivingDFI"] = t.ReceivingDFI,
-            ["CompanyIdentification"] = t.CompanyIdentification,
-            ["EffectiveEntryDate"] = t.EffectiveEntryDate,
-            ["DestinationInstitutionId"] = t.DestinationInstitutionId,
-            ["SourceInstitutionId"] = t.SourceInstitutionId
-        }).ToList();
-
-        return new Dictionary<string, object?>
-        {
-            ["ClearingHouseId"] = cycle.ClearingHouseId,
-            ["ClearingHouseCode"] = cycle.ClearingHouse?.Code,
-            ["CycleId"] = cycle.Id,
-            ["CycleName"] = cycle.CycleName,
-            ["ProcessingDate"] = cycle.ProcessingDate,
-            ["StartTime"] = cycle.StartTime,
-            ["EndTime"] = cycle.EndTime,
-            ["CutoffTime"] = cycle.CutoffTime,
-            ["ExecutionDateTime"] = executionDateTime,
-            ["Transactions"] = txPayload
-        };
+        return $"Proc_Contrapartidas ejecutado. Ciclos={activeCycles.Count}, Processed={totalProcessed}, Success={totalSucceeded}, Failed={totalFailed}, Partial={totalPartial}. Detalle=[{string.Join(" | ", summaries)}]";
     }
 
     private static bool IsWithinCycleWindow(DateTime now, DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
@@ -168,55 +100,5 @@ public class AchContrapartidasByCycleHandler : ITaskHandler
     {
         var raw = task.Parameters.FirstOrDefault(p => p.Key == key)?.Value;
         return int.TryParse(raw, out var parsed) && parsed > 0 ? parsed : defaultValue;
-    }
-
-    private static string ExtractResponseCode(string response)
-    {
-        if (string.IsNullOrWhiteSpace(response))
-        {
-            return "UNKNOWN";
-        }
-
-        try
-        {
-            var xml = XDocument.Parse(response);
-            var knownNodes = new[]
-            {
-                "Codigo", "CodigoRespuesta", "ResponseCode", "Code", "Estado", "ResultCode"
-            };
-
-            foreach (var nodeName in knownNodes)
-            {
-                var value = xml
-                    .Descendants()
-                    .FirstOrDefault(e => string.Equals(e.Name.LocalName, nodeName, StringComparison.OrdinalIgnoreCase))
-                    ?.Value;
-
-                if (!string.IsNullOrWhiteSpace(value))
-                {
-                    return value.Trim();
-                }
-            }
-        }
-        catch
-        {
-            // fallback a regex cuando la respuesta no sea XML válido
-        }
-
-        var match = Regex.Match(response, @"\b[A-Za-z][A-Za-z0-9]{1,9}\b", RegexOptions.IgnoreCase);
-        return match.Success
-            ? match.Value.Trim()
-            : "UNKNOWN";
-    }
-
-    private static string NormalizeResponseCode(string? responseCode)
-    {
-        if (string.IsNullOrWhiteSpace(responseCode))
-        {
-            return "UNKNOWN";
-        }
-
-        var value = responseCode.Trim().ToUpperInvariant();
-        return value.Length <= 10 ? value : value[..10];
     }
 }
