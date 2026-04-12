@@ -53,5 +53,6 @@ public class AchTransaction : AuditableEntity
 
     public ICollection<AchTransactionAddenda> Addendas { get; set; } = new List<AchTransactionAddenda>();
     public ICollection<AchTransactionStateEvent> StateEvents { get; set; } = new List<AchTransactionStateEvent>();
+    public ContrapartidaDispatchItem? ContrapartidaDispatchItem { get; set; }
 }
 

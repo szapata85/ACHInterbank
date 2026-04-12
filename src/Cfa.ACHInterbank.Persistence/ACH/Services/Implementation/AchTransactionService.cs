@@ -23,6 +23,7 @@ public class AchTransactionService : IAchTransactionService
     private readonly ITransactionPersister _transactionPersister;
     private readonly IPrenotificationHandler _prenotificationHandler;
     private readonly ITransactionPolicyService? _transactionPolicyService;
+    private readonly IContrapartidaDispatchPersistenceService _contrapartidaDispatchPersistenceService;
 
     public AchTransactionService(
         AchDbContext context,
@@ -33,6 +34,7 @@ public class AchTransactionService : IAchTransactionService
         IBatchResolver batchResolver,
         ITransactionPersister transactionPersister,
         IPrenotificationHandler prenotificationHandler,
+        IContrapartidaDispatchPersistenceService contrapartidaDispatchPersistenceService,
         ITransactionPolicyService? transactionPolicyService = null)
     {
         _context = context;
@@ -43,6 +45,7 @@ public class AchTransactionService : IAchTransactionService
         _batchResolver = batchResolver;
         _transactionPersister = transactionPersister;
         _prenotificationHandler = prenotificationHandler;
+        _contrapartidaDispatchPersistenceService = contrapartidaDispatchPersistenceService;
         _transactionPolicyService = transactionPolicyService;
     }
 
@@ -127,6 +130,7 @@ public class AchTransactionService : IAchTransactionService
 
             await _transactionPersister.UpdateBatchTotalsAsync(persisted.Batch, ct);
             await _transactionPersister.UpdateBatchServiceClassCodeAsync(persisted.Batch, ct);
+            await _contrapartidaDispatchPersistenceService.EnsurePendingDispatchAsync(persisted.Transaction, ct);
 
             await _unitOfWork.CommitAsync(ct);
             await dbTransaction.CommitAsync(ct);

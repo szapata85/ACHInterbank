@@ -78,6 +78,9 @@ public class AchDbContext : DbContext
     public DbSet<ReturnReason> ReturnReasons => Set<ReturnReason>();
     public DbSet<AchReturnGenerated> AchReturnsGenerated => Set<AchReturnGenerated>();
     public DbSet<AchFileExport> AchFileExports => Set<AchFileExport>();
+    public DbSet<ContrapartidaDispatchBatch> ContrapartidaDispatchBatches => Set<ContrapartidaDispatchBatch>();
+    public DbSet<ContrapartidaDispatchItem> ContrapartidaDispatchItems => Set<ContrapartidaDispatchItem>();
+    public DbSet<ContrapartidaDispatchAttempt> ContrapartidaDispatchAttempts => Set<ContrapartidaDispatchAttempt>();
 
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();

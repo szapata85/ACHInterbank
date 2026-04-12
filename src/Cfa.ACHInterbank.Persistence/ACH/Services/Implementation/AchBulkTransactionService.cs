@@ -25,6 +25,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
     private readonly IPrenotificationHandler _prenotificationHandler;
     private readonly ITransactionPolicyService? _transactionPolicyService;
     private readonly IConfiguration _configuration;
+    private readonly IContrapartidaDispatchPersistenceService _contrapartidaDispatchPersistenceService;
 
     public AchBulkTransactionService(
         AchDbContext context,
@@ -35,6 +36,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
         ITransactionPersister transactionPersister,
         IPrenotificationHandler prenotificationHandler,
         IConfiguration configuration,
+        IContrapartidaDispatchPersistenceService contrapartidaDispatchPersistenceService,
         ITransactionPolicyService? transactionPolicyService = null)
     {
         _context = context;
@@ -45,6 +47,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
         _transactionPersister = transactionPersister;
         _prenotificationHandler = prenotificationHandler;
         _configuration = configuration;
+        _contrapartidaDispatchPersistenceService = contrapartidaDispatchPersistenceService;
         _transactionPolicyService = transactionPolicyService;
     }
 
@@ -140,6 +143,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
                     }
 
                     touchedBatches.Add(persisted.Batch);
+                    await _contrapartidaDispatchPersistenceService.EnsurePendingDispatchAsync(persisted.Transaction, ct);
 
                     var itemResult = new BulkAchTransactionItemResult
                     {
