@@ -1,6 +1,6 @@
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { SharedModule } from '../../shared/shared.module';
 import { IntegrationsRoutingModule } from './integrations-routing.module';
@@ -10,6 +10,6 @@ import { MappingEditorPageComponent } from './pages/mapping-editor-page.componen
 
 @NgModule({
   declarations: [IntegrationWorkspaceComponent, MappingSetsPageComponent, MappingEditorPageComponent],
-  imports: [CommonModule, ReactiveFormsModule, RouterModule, SharedModule, IntegrationsRoutingModule]
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterModule, SharedModule, IntegrationsRoutingModule]
 })
 export class IntegrationsModule {}

@@ -83,18 +83,44 @@ export interface ValidationIssue {
   code: string;
   message: string;
   path: string;
+  category: 'Structural' | 'Functional' | string;
+}
+
+export interface ParameterValidationStatus {
+  parameterId: number;
+  parameterPath: string;
+  required: boolean;
+  status: 'valid' | 'incomplete' | 'invalid' | 'inactive' | string;
+  resolutionKind: 'default-fixed' | 'source-field' | 'expression' | 'none' | string;
+  hints: string[];
+}
+
+export interface CoverageSummary {
+  totalParameters: number;
+  validParameters: number;
+  incompleteParameters: number;
+  invalidParameters: number;
+  inactiveParameters: number;
+  coveredByDefaultOrFixed: number;
+  coveredBySourceField: number;
 }
 
 export interface ValidationResult {
   mappingSetId: string;
   isValid: boolean;
   issues: ValidationIssue[];
+  coverage: CoverageSummary;
+  parameters: ParameterValidationStatus[];
 }
 
 export interface PreviewItem {
+  parameterId: number;
   parameterPath: string;
   resolvedFrom: string;
   previewValue?: string | null;
+  sourceSection: 'ciclo-camara' | 'transaccion' | 'lote' | 'addenda' | 'configuracion' | string;
+  resolutionKind: 'default-fixed' | 'source-field' | 'expression' | string;
+  appliedTransformation?: string | null;
   priority: number;
   enabled: boolean;
 }
@@ -103,7 +129,9 @@ export interface PreviewResult {
   mappingSetId: string;
   methodId: number;
   methodCode: string;
+  contextMode: string;
   items: PreviewItem[];
+  payloadPreviewJson: string;
   rawPreviewJson: string;
 }
 
@@ -169,8 +197,13 @@ export class IntegrationMappingAdminService {
     return this.api.post<ValidationResult>(`api/integrations/mappingsets/${id}/validate`, { includeWarnings: true });
   }
 
-  preview(id: string): Observable<PreviewResult> {
-    return this.api.post<PreviewResult>(`api/integrations/mappingsets/${id}/preview`, { maxItems: 5 });
+  preview(id: string, options?: { sampleTransactionId?: number | null; sampleCycleId?: string | null; useControlledSample?: boolean; maxItems?: number }): Observable<PreviewResult> {
+    return this.api.post<PreviewResult>(`api/integrations/mappingsets/${id}/preview`, {
+      sampleTransactionId: options?.sampleTransactionId ?? null,
+      sampleCycleId: options?.sampleCycleId ?? null,
+      useControlledSample: options?.useControlledSample ?? true,
+      maxItems: options?.maxItems ?? 15
+    });
   }
 
   publish(id: string, publishedBy: string, publishNote?: string): Observable<IntegrationMappingSet> {

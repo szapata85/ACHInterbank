@@ -48,7 +48,8 @@ public sealed record ValidateIntegrationMappingSetRequest(
 public sealed record PreviewIntegrationMappingSetRequest(
     int? SampleTransactionId = null,
     string? SampleCycleId = null,
-    int MaxItems = 3);
+    int MaxItems = 3,
+    bool UseControlledSample = false);
 
 public sealed record IntegrationMappingRuleDto(
     long Id,
@@ -84,17 +85,41 @@ public sealed record IntegrationMappingValidationIssueDto(
     string Severity,
     string Code,
     string Message,
-    string Path);
+    string Path,
+    string Category);
+
+public sealed record IntegrationMappingParameterValidationDto(
+    long ParameterId,
+    string ParameterPath,
+    bool Required,
+    string Status,
+    string ResolutionKind,
+    IReadOnlyCollection<string> Hints);
+
+public sealed record IntegrationMappingCoverageSummaryDto(
+    int TotalParameters,
+    int ValidParameters,
+    int IncompleteParameters,
+    int InvalidParameters,
+    int InactiveParameters,
+    int CoveredByDefaultOrFixed,
+    int CoveredBySourceField);
 
 public sealed record IntegrationMappingValidationResultDto(
     Guid MappingSetId,
     bool IsValid,
-    IReadOnlyCollection<IntegrationMappingValidationIssueDto> Issues);
+    IReadOnlyCollection<IntegrationMappingValidationIssueDto> Issues,
+    IntegrationMappingCoverageSummaryDto Coverage,
+    IReadOnlyCollection<IntegrationMappingParameterValidationDto> Parameters);
 
 public sealed record IntegrationMappingPreviewItemDto(
+    long ParameterId,
     string ParameterPath,
     string ResolvedFrom,
     string? PreviewValue,
+    string SourceSection,
+    string ResolutionKind,
+    string? AppliedTransformation,
     int Priority,
     bool Enabled);
 
@@ -102,7 +127,9 @@ public sealed record IntegrationMappingPreviewResultDto(
     Guid MappingSetId,
     int MethodId,
     string MethodCode,
+    string ContextMode,
     IReadOnlyCollection<IntegrationMappingPreviewItemDto> Items,
+    string PayloadPreviewJson,
     string RawPreviewJson);
 
 public sealed record IntegrationMappingSetHistoryDto(

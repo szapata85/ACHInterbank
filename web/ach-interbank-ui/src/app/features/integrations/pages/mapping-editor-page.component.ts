@@ -9,6 +9,7 @@ import {
   IntegrationMethodParameter,
   IntegrationSourceCatalogField,
   IntegrationTransformationCatalog,
+  ParameterValidationStatus,
   PreviewResult,
   ValidationResult
 } from '../../../core/services/integration-mapping-admin.service';
@@ -37,6 +38,10 @@ export class MappingEditorPageComponent implements OnInit {
   selectedParameterId?: number;
   validationResult?: ValidationResult;
   previewResult?: PreviewResult;
+
+  previewUseControlledSample = true;
+  previewSampleTransactionId?: number;
+  previewSampleCycleId?: string;
 
   readonly ruleForm = this.fb.group({
     id: [null as number | null],
@@ -67,24 +72,54 @@ export class MappingEditorPageComponent implements OnInit {
       .sort((a, b) => a.priority - b.priority);
   }
 
+  get selectedParameter(): IntegrationMethodParameter | undefined {
+    return this.parameters.find((x) => x.id === this.selectedParameterId);
+  }
+
   get coverage() {
-    const total = this.parameters.length;
-    const covered = this.parameters.filter((p) => this.mappingSet?.rules.some((r) => r.parameterId === p.id && r.enabled)).length;
-    const missing = total - covered;
-    const invalid = this.validationResult?.issues.filter((x) => x.severity === 'Error').length ?? 0;
-    return { total, covered, missing, invalid };
+    const fallback = {
+      totalParameters: this.parameters.length,
+      validParameters: 0,
+      incompleteParameters: this.parameters.length,
+      invalidParameters: 0,
+      inactiveParameters: 0,
+      coveredByDefaultOrFixed: 0,
+      coveredBySourceField: 0
+    };
+
+    return this.validationResult?.coverage ?? fallback;
+  }
+
+  get selectedParameterHints(): string[] {
+    const status = this.getValidationStatus(this.selectedParameterId);
+    return status?.hints ?? ['Selecciona una estrategia de origen y ejecuta validación para ver asistencia guiada.'];
+  }
+
+  get groupedPreview() {
+    const grouped = {
+      'ciclo-camara': [] as NonNullable<PreviewResult['items']>,
+      transaccion: [] as NonNullable<PreviewResult['items']>,
+      lote: [] as NonNullable<PreviewResult['items']>,
+      addenda: [] as NonNullable<PreviewResult['items']>,
+      configuracion: [] as NonNullable<PreviewResult['items']>
+    };
+
+    for (const item of this.previewResult?.items ?? []) {
+      const key = (item.sourceSection || 'configuracion') as keyof typeof grouped;
+      if (grouped[key]) grouped[key].push(item);
+      else grouped.configuracion.push(item);
+    }
+
+    return grouped;
   }
 
   loadAll(): void {
-    if (!this.mappingSetId) {
-      return;
-    }
+    if (!this.mappingSetId) return;
 
     this.loading = true;
     this.api.getMappingSetById(this.mappingSetId).subscribe({
       next: (set) => {
         this.mappingSet = set;
-        this.selectedParameterId = this.selectedParameterId ?? this.parameters[0]?.id;
 
         forkJoin({
           parameters: this.api.getMethodParameters(set.methodId),
@@ -151,9 +186,7 @@ export class MappingEditorPageComponent implements OnInit {
   }
 
   saveRule(): void {
-    if (!this.mappingSet || !this.selectedParameterId) {
-      return;
-    }
+    if (!this.mappingSet || !this.selectedParameterId) return;
 
     const payload = {
       id: this.ruleForm.value.id,
@@ -175,40 +208,67 @@ export class MappingEditorPageComponent implements OnInit {
     this.api.upsertRules(this.mappingSet.id, 'ui-admin', [payload]).subscribe({
       next: (updated) => {
         this.mappingSet = updated;
-        this.notifications.success('Regla guardada.');
+        this.notifications.success('Regla guardada. Ejecuta validación para confirmar consistencia.');
         this.populateFormFromSelectedRule();
       },
       error: () => this.notifications.error('No fue posible guardar la regla.')
     });
   }
 
-  runValidation(): void {
+  runValidation(onDone?: (isValid: boolean) => void): void {
     if (!this.mappingSet) return;
+
     this.api.validate(this.mappingSet.id).subscribe({
       next: (result) => {
         this.validationResult = result;
-        this.notifications.success(result.isValid ? 'MappingSet válido.' : 'Se encontraron observaciones de validación.');
+        const message = result.isValid
+          ? 'MappingSet válido y completo. Puedes publicar.'
+          : 'Se encontraron observaciones estructurales/funcionales. Corrígelas antes de publicar.';
+        this.notifications.success(message);
+        onDone?.(result.isValid);
       },
-      error: () => this.notifications.error('No fue posible validar el MappingSet.')
+      error: () => {
+        this.notifications.error('No fue posible validar el MappingSet.');
+        onDone?.(false);
+      }
     });
   }
 
   runPreview(): void {
     if (!this.mappingSet) return;
-    this.api.preview(this.mappingSet.id).subscribe({
-      next: (result) => (this.previewResult = result),
-      error: () => this.notifications.error('No fue posible generar preview.')
-    });
+
+    this.api
+      .preview(this.mappingSet.id, {
+        sampleTransactionId: this.previewSampleTransactionId,
+        sampleCycleId: this.previewSampleCycleId,
+        useControlledSample: this.previewUseControlledSample,
+        maxItems: 200
+      })
+      .subscribe({
+        next: (result) => {
+          this.previewResult = result;
+          this.notifications.success(`Preview generado usando contexto: ${result.contextMode}.`);
+        },
+        error: () => this.notifications.error('No fue posible generar preview.')
+      });
   }
 
   publish(): void {
     if (!this.mappingSet) return;
-    this.api.publish(this.mappingSet.id, 'ui-admin', 'Publicado desde SPA').subscribe({
-      next: (updated) => {
-        this.mappingSet = updated;
-        this.notifications.success('MappingSet publicado correctamente.');
-      },
-      error: () => this.notifications.error('No se pudo publicar. Revisa validación y cobertura.')
+
+    this.runValidation((isValid) => {
+      if (!isValid) {
+        this.notifications.error('Publicación bloqueada: MappingSet inválido o incompleto.');
+        return;
+      }
+
+      this.api.publish(this.mappingSet!.id, 'ui-admin', 'Publicado desde SPA').subscribe({
+        next: (updated) => {
+          this.mappingSet = updated;
+          this.notifications.success('MappingSet publicado correctamente.');
+        },
+        error: () => this.notifications.error('No se pudo publicar. Revisa validación y cobertura.')
+      });
     });
   }
 
@@ -225,13 +285,42 @@ export class MappingEditorPageComponent implements OnInit {
     });
   }
 
-  getParameterStatus(parameterId: number): 'covered' | 'missing' {
-    const hasActive = !!this.mappingSet?.rules.some((x) => x.parameterId === parameterId && x.enabled);
-    return hasActive ? 'covered' : 'missing';
+  getValidationStatus(parameterId?: number): ParameterValidationStatus | undefined {
+    if (!parameterId) return undefined;
+    return this.validationResult?.parameters.find((x) => x.parameterId === parameterId);
+  }
+
+  getParameterStatus(parameterId: number): 'valid' | 'incomplete' | 'invalid' | 'inactive' | 'unknown' {
+    return (this.getValidationStatus(parameterId)?.status as any) ?? 'unknown';
+  }
+
+  getStatusLabel(parameterId: number): string {
+    const status = this.getParameterStatus(parameterId);
+    const resolution = this.getValidationStatus(parameterId)?.resolutionKind;
+
+    if (status === 'valid' && resolution === 'default-fixed') return 'Cubierto default/fixed';
+    if (status === 'valid' && resolution === 'source-field') return 'Resuelto por campo';
+    if (status === 'valid') return 'Válido';
+    if (status === 'incomplete') return 'Incompleto';
+    if (status === 'invalid') return 'Inválido';
+    if (status === 'inactive') return 'Inactivo';
+    return 'Sin validar';
+  }
+
+  getStatusClass(parameterId: number): string {
+    return `status-${this.getParameterStatus(parameterId)}`;
+  }
+
+  getParameterIssues(parameterPath: string): ValidationResult['issues'] {
+    return (this.validationResult?.issues ?? []).filter((x) => x.path === parameterPath);
   }
 
   getSourceOptionsByKind(kind: string | null | undefined): IntegrationSourceCatalogField[] {
     if (!kind) return [];
     return this.sourceCatalog.filter((x) => x.sourceKind === kind);
+  }
+
+  trackByParameterId(_: number, parameter: IntegrationMethodParameter): number {
+    return parameter.id;
   }
 }

@@ -1,15 +1,19 @@
 <div class="editor-page" *ngIf="mappingSet as set">
   <section class="summary-cards">
-    <article class="card"><span>Total parámetros</span><strong>{{ coverage.total }}</strong></article>
-    <article class="card"><span>Cubiertos</span><strong>{{ coverage.covered }}</strong></article>
-    <article class="card"><span>Faltantes</span><strong>{{ coverage.missing }}</strong></article>
-    <article class="card"><span>Inválidos</span><strong>{{ coverage.invalid }}</strong></article>
+    <article class="card"><span>Total parámetros</span><strong>{{ coverage.totalParameters }}</strong></article>
+    <article class="card"><span>Válidos</span><strong>{{ coverage.validParameters }}</strong></article>
+    <article class="card"><span>Incompletos</span><strong>{{ coverage.incompleteParameters }}</strong></article>
+    <article class="card"><span>Inválidos</span><strong>{{ coverage.invalidParameters }}</strong></article>
+    <article class="card"><span>Inactivos</span><strong>{{ coverage.inactiveParameters }}</strong></article>
+    <article class="card"><span>Default/Fixed</span><strong>{{ coverage.coveredByDefaultOrFixed }}</strong></article>
+    <article class="card"><span>Por campo</span><strong>{{ coverage.coveredBySourceField }}</strong></article>
   </section>
 
   <header class="header card">
     <div>
       <h3>{{ set.name }}</h3>
       <p>{{ set.methodCode }} · estado <span class="badge" [class]="set.status.toLowerCase()">{{ set.status }}</span></p>
+      <small class="context">Primero valida estructura + lógica, luego preview y por último publica.</small>
     </div>
     <div class="actions">
       <button type="button" (click)="runValidation()">Validar</button>
@@ -22,8 +26,9 @@
   <section class="layout-grid">
     <aside class="card left">
       <h4>Parámetros destino</h4>
+      <p class="helper">Indicadores visuales obligatorios: válido, incompleto, inválido, inactivo y tipo de cobertura.</p>
       <ul>
-        <li *ngFor="let p of parameters" [class.active]="p.id === selectedParameterId" (click)="selectParameter(p.id)">
+        <li *ngFor="let p of parameters; trackBy: trackByParameterId" [class.active]="p.id === selectedParameterId" (click)="selectParameter(p.id)">
           <div>
             <strong>{{ p.displayName }}</strong>
             <small>{{ p.parameterPath }}</small>
@@ -31,9 +36,7 @@
           <div class="chips">
             <span class="chip type">{{ p.dataType }}</span>
             <span class="chip req" *ngIf="p.required">Req</span>
-            <span class="chip status" [class.covered]="getParameterStatus(p.id) === 'covered'" [class.missing]="getParameterStatus(p.id) === 'missing'">
-              {{ getParameterStatus(p.id) === 'covered' ? 'OK' : 'Pendiente' }}
-            </span>
+            <span class="chip status" [ngClass]="getStatusClass(p.id)">{{ getStatusLabel(p.id) }}</span>
           </div>
         </li>
       </ul>
@@ -41,6 +44,7 @@
 
     <main class="card center">
       <h4>Regla principal del parámetro</h4>
+      <p class="helper" *ngIf="selectedParameter as sp">{{ sp.parameterPath }} · {{ sp.dataType }} · cardinalidad {{ sp.cardinality }}</p>
       <form [formGroup]="ruleForm" class="rule-form">
         <label>
           SourceKind
@@ -72,12 +76,12 @@
 
         <label>
           FixedValue
-          <input formControlName="fixedValue" type="text" />
+          <input formControlName="fixedValue" type="text" placeholder="valor fijo para cobertura" />
         </label>
 
         <label>
           DefaultValue
-          <input formControlName="defaultValue" type="text" />
+          <input formControlName="defaultValue" type="text" placeholder="valor fallback" />
         </label>
 
         <label>
@@ -90,7 +94,7 @@
 
         <label>
           FormatMask
-          <input formControlName="formatMask" type="text" placeholder="depende de transformación" />
+          <input formControlName="formatMask" type="text" placeholder="DateFormat: yyyyMMdd / PadLeft: 10" />
         </label>
 
         <label>
@@ -120,23 +124,67 @@
           <button type="button" class="primary" (click)="saveRule()">Guardar regla</button>
         </div>
       </form>
+
+      <section class="guided-hints">
+        <h5>Asistencia guiada</h5>
+        <ul>
+          <li *ngFor="let hint of selectedParameterHints">{{ hint }}</li>
+        </ul>
+      </section>
     </main>
 
     <aside class="card right">
       <h4>Validación y preview</h4>
       <div class="panel-block">
-        <h5>Resultado validación</h5>
-        <p *ngIf="!validationResult">Ejecuta "Validar" para ver observaciones.</p>
+        <h5>Validación estructural y funcional</h5>
+        <p *ngIf="!validationResult">Ejecuta "Validar" para revisar reglas obligatorias de publicación.</p>
         <ul *ngIf="validationResult as vr">
           <li *ngFor="let issue of vr.issues" [class.error]="issue.severity === 'Error'" [class.warn]="issue.severity !== 'Error'">
-            <strong>{{ issue.code }}</strong>: {{ issue.message }}
+            <strong>{{ issue.category }} · {{ issue.code }}</strong>: {{ issue.message }}
           </li>
         </ul>
       </div>
+
+      <div class="panel-block preview-controls">
+        <h5>Contexto de preview</h5>
+        <label class="inline"><input type="checkbox" [(ngModel)]="previewUseControlledSample" /> Usar datos de ejemplo controlados</label>
+        <label>
+          TransactionId (real)
+          <input type="number" [(ngModel)]="previewSampleTransactionId" [disabled]="previewUseControlledSample" />
+        </label>
+        <label>
+          CycleId (real)
+          <input type="text" [(ngModel)]="previewSampleCycleId" [disabled]="previewUseControlledSample" />
+        </label>
+      </div>
+
       <div class="panel-block">
-        <h5>Preview payload</h5>
-        <p *ngIf="!previewResult">Ejecuta "Preview" para ver simulación.</p>
-        <pre *ngIf="previewResult">{{ previewResult.rawPreviewJson }}</pre>
+        <h5>Preview por parámetro (origen exacto)</h5>
+        <p *ngIf="!previewResult">Ejecuta "Preview" para ver resolución por parámetro y payload.</p>
+        <div *ngIf="previewResult as pr" class="preview-groups">
+          <small class="context">Contexto: {{ pr.contextMode }}</small>
+          <details open>
+            <summary>Ciclo/Cámara</summary>
+            <ul><li *ngFor="let item of groupedPreview['ciclo-camara']">{{ item.parameterPath }} ← {{ item.resolvedFrom }} = <strong>{{ item.previewValue || '∅' }}</strong></li></ul>
+          </details>
+          <details open>
+            <summary>Transacción</summary>
+            <ul><li *ngFor="let item of groupedPreview.transaccion">{{ item.parameterPath }} ← {{ item.resolvedFrom }} = <strong>{{ item.previewValue || '∅' }}</strong></li></ul>
+          </details>
+          <details>
+            <summary>Lote</summary>
+            <ul><li *ngFor="let item of groupedPreview.lote">{{ item.parameterPath }} ← {{ item.resolvedFrom }} = <strong>{{ item.previewValue || '∅' }}</strong></li></ul>
+          </details>
+          <details>
+            <summary>Addenda</summary>
+            <ul><li *ngFor="let item of groupedPreview.addenda">{{ item.parameterPath }} ← {{ item.resolvedFrom }} = <strong>{{ item.previewValue || '∅' }}</strong></li></ul>
+          </details>
+        </div>
+      </div>
+
+      <div class="panel-block">
+        <h5>Preview payload completo</h5>
+        <pre *ngIf="previewResult">{{ previewResult.payloadPreviewJson }}</pre>
       </div>
     </aside>
   </section>

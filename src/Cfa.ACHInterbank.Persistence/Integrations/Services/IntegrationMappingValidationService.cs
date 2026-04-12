@@ -33,6 +33,7 @@ public class IntegrationMappingValidationService : IIntegrationMappingValidation
         var parameters = await _context.Set<IntegrationMethodParameter>()
             .AsNoTracking()
             .Where(x => x.MethodId == set.MethodId && x.IsActive)
+            .OrderBy(x => x.SortOrder)
             .ToListAsync(ct);
 
         var rules = await _context.Set<IntegrationMappingRule>()
@@ -46,103 +47,242 @@ public class IntegrationMappingValidationService : IIntegrationMappingValidation
             .ToDictionaryAsync(x => x.Id, ct);
 
         var issues = new List<IntegrationMappingValidationIssueDto>();
+        var parameterSummaries = new List<IntegrationMappingParameterValidationDto>();
 
-        foreach (var requiredParameter in parameters.Where(p => p.Required))
+        foreach (var parameter in parameters)
         {
-            var paramRules = rules.Where(r => r.ParameterId == requiredParameter.Id).ToList();
-            if (paramRules.Count == 0)
+            var paramRules = rules
+                .Where(r => r.ParameterId == parameter.Id)
+                .OrderBy(r => r.Priority)
+                .ThenBy(r => r.Id)
+                .ToList();
+
+            var paramIssuesBefore = issues.Count;
+
+            if (parameter.Required && paramRules.Count == 0)
             {
-                issues.Add(new("Error", "REQUIRED_PARAMETER_MISSING", $"Falta regla para parámetro obligatorio {requiredParameter.ParameterPath}.", requiredParameter.ParameterPath));
-                continue;
+                issues.Add(new("Error", "REQUIRED_PARAMETER_MISSING", $"Falta regla para parámetro obligatorio {parameter.ParameterPath}.", parameter.ParameterPath, "Structural"));
             }
 
-            if (!paramRules.Any(r => r.Enabled))
+            if (parameter.Required && paramRules.Count > 0 && !paramRules.Any(r => r.Enabled))
             {
-                issues.Add(new("Error", "REQUIRED_PARAMETER_INACTIVE", $"Todas las reglas del parámetro obligatorio {requiredParameter.ParameterPath} están inactivas.", requiredParameter.ParameterPath));
-            }
-        }
-
-        var duplicateConflicts = rules
-            .Where(r => r.Enabled)
-            .GroupBy(r => new { r.ParameterId, r.Priority })
-            .Where(g => g.Count() > 1);
-        foreach (var conflict in duplicateConflicts)
-        {
-            issues.Add(new("Error", "CONFLICTING_PRIORITY", $"Existen reglas habilitadas con misma prioridad para ParameterId={conflict.Key.ParameterId}.", $"ParameterId:{conflict.Key.ParameterId}"));
-        }
-
-        foreach (var rule in rules)
-        {
-            var parameter = parameters.FirstOrDefault(p => p.Id == rule.ParameterId);
-            if (parameter is null)
-            {
-                issues.Add(new("Error", "UNKNOWN_PARAMETER", $"Regla {rule.Id} referencia parámetro inexistente.", $"Rule:{rule.Id}"));
-                continue;
+                issues.Add(new("Error", "REQUIRED_PARAMETER_INACTIVE", $"Todas las reglas del parámetro obligatorio {parameter.ParameterPath} están inactivas.", parameter.ParameterPath, "Structural"));
             }
 
-            var hasSource = rule.SourceCatalogFieldId.HasValue || !string.IsNullOrWhiteSpace(rule.SourceFieldPath);
-            var hasFixed = !string.IsNullOrWhiteSpace(rule.FixedValue);
+            var enabledRules = paramRules.Where(r => r.Enabled).ToList();
 
-            if (rule.SourceKind == IntegrationSourceKindEnum.Constant && !hasFixed && string.IsNullOrWhiteSpace(rule.DefaultValue))
+            var duplicateByPriority = enabledRules
+                .GroupBy(r => r.Priority)
+                .Where(g => g.Count() > 1);
+
+            foreach (var duplicate in duplicateByPriority)
             {
-                issues.Add(new("Error", "CONSTANT_WITHOUT_VALUE", $"Regla {rule.Id} tipo Constant requiere FixedValue o DefaultValue.", parameter.ParameterPath));
+                issues.Add(new("Error", "CONFLICTING_RULES_DUPLICATE_PRIORITY", $"Existen reglas conflictivas con prioridad {duplicate.Key} para {parameter.ParameterPath}.", parameter.ParameterPath, "Functional"));
             }
 
-            if (rule.SourceKind != IntegrationSourceKindEnum.Constant && rule.SourceKind != IntegrationSourceKindEnum.Expression && !hasSource)
+            if (enabledRules.Count > 1 && !enabledRules.Any(r => r.Priority == 1))
             {
-                issues.Add(new("Error", "SOURCE_NOT_DEFINED", $"Regla {rule.Id} no define origen.", parameter.ParameterPath));
+                issues.Add(new(includeWarnings ? "Warning" : "Error", "PRIORITY_RESULT_INCONSISTENT", $"{parameter.ParameterPath} tiene múltiples reglas habilitadas sin prioridad 1.", parameter.ParameterPath, "Functional"));
             }
 
-            if (!string.IsNullOrWhiteSpace(rule.TransformationCode) && !AllowedTransformations.Contains(rule.TransformationCode))
+            foreach (var rule in paramRules)
             {
-                issues.Add(new("Error", "TRANSFORMATION_NOT_ALLOWED", $"Transformación {rule.TransformationCode} no permitida.", parameter.ParameterPath));
-            }
+                var hasSource = rule.SourceCatalogFieldId.HasValue || !string.IsNullOrWhiteSpace(rule.SourceFieldPath);
+                var hasFixed = !string.IsNullOrWhiteSpace(rule.FixedValue);
 
-            if (!string.IsNullOrWhiteSpace(rule.ConditionExpression) && rule.SourceKind != IntegrationSourceKindEnum.Expression)
-            {
-                issues.Add(new("Error", "CONDITION_NOT_ALLOWED", $"ConditionExpression solo está habilitado para SourceKind=Expression (regla {rule.Id}).", parameter.ParameterPath));
-            }
-
-            if (rule.SourceCatalogFieldId.HasValue && catalog.TryGetValue(rule.SourceCatalogFieldId.Value, out var sourceField))
-            {
-                if (!AreTypesCompatible(sourceField.DataType, parameter.DataType))
+                if (rule.SourceKind == IntegrationSourceKindEnum.Constant && !hasFixed && string.IsNullOrWhiteSpace(rule.DefaultValue))
                 {
-                    issues.Add(new("Error", "TYPE_INCOMPATIBLE", $"Incompatibilidad de tipos origen={sourceField.DataType} destino={parameter.DataType}.", parameter.ParameterPath));
+                    issues.Add(new("Error", "CONSTANT_WITHOUT_VALUE", $"Regla {rule.Id} tipo Constant requiere FixedValue o DefaultValue.", parameter.ParameterPath, "Structural"));
                 }
 
-                if (sourceField.Cardinality != IntegrationParameterCardinalityEnum.Scalar
-                    && parameter.Cardinality == IntegrationParameterCardinalityEnum.Scalar
-                    && !string.Equals(rule.TransformationCode, "Concat", StringComparison.OrdinalIgnoreCase))
+                if (rule.SourceKind != IntegrationSourceKindEnum.Constant && rule.SourceKind != IntegrationSourceKindEnum.Expression && !hasSource)
                 {
-                    issues.Add(new("Error", "CARDINALITY_INCONSISTENT", $"Cardinalidad inconsistente en regla {rule.Id}: origen {sourceField.Cardinality}, destino {parameter.Cardinality}.", parameter.ParameterPath));
+                    issues.Add(new("Error", "SOURCE_NOT_DEFINED", $"Regla {rule.Id} no define origen.", parameter.ParameterPath, "Structural"));
+                }
+
+                if (!string.IsNullOrWhiteSpace(rule.TransformationCode) && !AllowedTransformations.Contains(rule.TransformationCode))
+                {
+                    issues.Add(new("Error", "TRANSFORMATION_INVALID", $"Transformación {rule.TransformationCode} no permitida.", parameter.ParameterPath, "Functional"));
+                }
+
+                if (!IsFormatMaskValid(rule.TransformationCode, rule.FormatMask))
+                {
+                    issues.Add(new("Error", "FORMAT_INVALID", $"FormatMask inválido para transformación {rule.TransformationCode}.", parameter.ParameterPath, "Functional"));
+                }
+
+                if (!string.IsNullOrWhiteSpace(rule.ConditionExpression) && rule.SourceKind != IntegrationSourceKindEnum.Expression)
+                {
+                    issues.Add(new("Error", "CONDITION_NOT_ALLOWED", $"ConditionExpression solo aplica para SourceKind=Expression (regla {rule.Id}).", parameter.ParameterPath, "Structural"));
+                }
+
+                if (rule.SourceCatalogFieldId.HasValue && catalog.TryGetValue(rule.SourceCatalogFieldId.Value, out var sourceField))
+                {
+                    if (!AreTypesCompatible(sourceField.DataType, parameter.DataType))
+                    {
+                        issues.Add(new("Error", "TYPE_INCOMPATIBLE", $"Incompatibilidad de tipos origen={sourceField.DataType} destino={parameter.DataType}.", parameter.ParameterPath, "Functional"));
+                    }
+
+                    if (sourceField.Cardinality != IntegrationParameterCardinalityEnum.Scalar
+                        && parameter.Cardinality == IntegrationParameterCardinalityEnum.Scalar
+                        && !string.Equals(rule.TransformationCode, "Concat", StringComparison.OrdinalIgnoreCase))
+                    {
+                        issues.Add(new("Error", "CARDINALITY_INCOMPATIBLE", $"Cardinalidad incompatible origen={sourceField.Cardinality}, destino={parameter.Cardinality}.", parameter.ParameterPath, "Functional"));
+                    }
+                }
+                else if (rule.SourceCatalogFieldId.HasValue)
+                {
+                    issues.Add(new("Error", "SOURCE_FIELD_NOT_FOUND", $"SourceCatalogFieldId {rule.SourceCatalogFieldId.Value} no existe.", parameter.ParameterPath, "Structural"));
+                }
+
+                if (parameter.Required && !rule.Enabled)
+                {
+                    issues.Add(new("Error", "REQUIRED_MAPPING_DISABLED", $"Regla {rule.Id} está inactiva para parámetro requerido {parameter.ParameterPath}.", parameter.ParameterPath, "Structural"));
                 }
             }
-            else if (rule.SourceCatalogFieldId.HasValue)
-            {
-                issues.Add(new("Error", "SOURCE_FIELD_NOT_FOUND", $"SourceCatalogFieldId {rule.SourceCatalogFieldId.Value} no existe.", parameter.ParameterPath));
-            }
+
+            var paramIssues = issues.Skip(paramIssuesBefore).ToList();
+            var hasErrors = paramIssues.Any(x => x.Severity.Equals("Error", StringComparison.OrdinalIgnoreCase));
+            var resolutionKind = ResolveResolutionKind(enabledRules);
+            var status = ResolveParameterStatus(parameter, paramRules, hasErrors, resolutionKind);
+
+            var hints = BuildHints(parameter, paramRules, paramIssues, resolutionKind);
+            parameterSummaries.Add(new IntegrationMappingParameterValidationDto(parameter.Id, parameter.ParameterPath, parameter.Required, status, resolutionKind, hints));
         }
 
-        if (includeWarnings)
-        {
-            var ambiguous = rules
-                .Where(r => r.Enabled)
-                .GroupBy(r => r.ParameterId)
-                .Where(g => g.Count() > 1 && !g.Any(x => x.Priority == 1));
+        var coverage = new IntegrationMappingCoverageSummaryDto(
+            parameters.Count,
+            parameterSummaries.Count(x => x.Status == "valid"),
+            parameterSummaries.Count(x => x.Status == "incomplete"),
+            parameterSummaries.Count(x => x.Status == "invalid"),
+            parameterSummaries.Count(x => x.Status == "inactive"),
+            parameterSummaries.Count(x => x.ResolutionKind == "default-fixed"),
+            parameterSummaries.Count(x => x.ResolutionKind == "source-field"));
 
-            foreach (var item in ambiguous)
-            {
-                issues.Add(new("Warning", "AMBIGUOUS_PRIORITY", $"ParameterId={item.Key} tiene múltiples reglas habilitadas sin prioridad 1.", $"ParameterId:{item.Key}"));
-            }
-        }
-
-        var isValid = !issues.Any(i => i.Severity.Equals("Error", StringComparison.OrdinalIgnoreCase));
+        var isValid = !issues.Any(i => i.Severity.Equals("Error", StringComparison.OrdinalIgnoreCase))
+                      && coverage.IncompleteParameters == 0;
 
         var persisted = await _context.Set<IntegrationMappingSet>().FirstAsync(x => x.Id == mappingSetId, ct);
-        persisted.ValidationSummaryJson = JsonSerializer.Serialize(new { isValid, issues });
+        persisted.ValidationSummaryJson = JsonSerializer.Serialize(new { isValid, coverage, issues, parameters = parameterSummaries });
         await _context.SaveChangesAsync(ct);
 
-        return new IntegrationMappingValidationResultDto(mappingSetId, isValid, issues);
+        return new IntegrationMappingValidationResultDto(mappingSetId, isValid, issues, coverage, parameterSummaries);
+    }
+
+    private static bool IsFormatMaskValid(string? transformationCode, string? formatMask)
+    {
+        if (string.IsNullOrWhiteSpace(transformationCode))
+        {
+            return string.IsNullOrWhiteSpace(formatMask);
+        }
+
+        if (string.IsNullOrWhiteSpace(formatMask))
+        {
+            return !RequiresFormat(transformationCode);
+        }
+
+        return transformationCode switch
+        {
+            "DateFormat" => formatMask.Contains('y', StringComparison.OrdinalIgnoreCase)
+                             || formatMask.Contains('d', StringComparison.OrdinalIgnoreCase),
+            "NumericFormat" => formatMask.Contains('0') || formatMask.Contains('#'),
+            "PadLeft" or "PadRight" => int.TryParse(formatMask, out var n) && n > 0,
+            "Substring" => formatMask.Contains(':'),
+            _ => true
+        };
+    }
+
+    private static bool RequiresFormat(string transformationCode)
+        => transformationCode is "DateFormat" or "NumericFormat" or "PadLeft" or "PadRight" or "Substring";
+
+    private static string ResolveResolutionKind(IReadOnlyCollection<IntegrationMappingRule> enabledRules)
+    {
+        var winner = enabledRules.OrderBy(x => x.Priority).ThenBy(x => x.Id).FirstOrDefault();
+        if (winner is null)
+        {
+            return "none";
+        }
+
+        if (!string.IsNullOrWhiteSpace(winner.FixedValue) || !string.IsNullOrWhiteSpace(winner.DefaultValue))
+        {
+            return "default-fixed";
+        }
+
+        if (winner.SourceKind == IntegrationSourceKindEnum.Constant)
+        {
+            return "default-fixed";
+        }
+
+        if (winner.SourceKind == IntegrationSourceKindEnum.Expression)
+        {
+            return "expression";
+        }
+
+        return "source-field";
+    }
+
+    private static string ResolveParameterStatus(
+        IntegrationMethodParameter parameter,
+        IReadOnlyCollection<IntegrationMappingRule> paramRules,
+        bool hasErrors,
+        string resolutionKind)
+    {
+        if (hasErrors)
+        {
+            return "invalid";
+        }
+
+        if (paramRules.Count == 0)
+        {
+            return parameter.Required ? "incomplete" : "inactive";
+        }
+
+        if (!paramRules.Any(r => r.Enabled))
+        {
+            return parameter.Required ? "incomplete" : "inactive";
+        }
+
+        if (resolutionKind == "none")
+        {
+            return "incomplete";
+        }
+
+        return "valid";
+    }
+
+    private static IReadOnlyCollection<string> BuildHints(
+        IntegrationMethodParameter parameter,
+        IReadOnlyCollection<IntegrationMappingRule> rules,
+        IReadOnlyCollection<IntegrationMappingValidationIssueDto> issues,
+        string resolutionKind)
+    {
+        var hints = new List<string>();
+
+        if (parameter.Required)
+        {
+            hints.Add("Parámetro obligatorio: debe quedar cubierto antes de publicar.");
+        }
+
+        if (rules.Count == 0)
+        {
+            hints.Add("Crea una regla inicial desde el panel central.");
+        }
+
+        if (!rules.Any(x => x.Enabled) && rules.Count > 0)
+        {
+            hints.Add("Activa al menos una regla para que el valor se resuelva.");
+        }
+
+        if (resolutionKind == "default-fixed")
+        {
+            hints.Add("Actualmente se resuelve por default/fixed. Verifica si debe venir de datos transaccionales.");
+        }
+
+        if (issues.Any())
+        {
+            hints.Add("Corrige las observaciones del panel de validación para continuar.");
+        }
+
+        return hints;
     }
 
     private static bool AreTypesCompatible(string sourceType, string destinationType)

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Cfa.ACHInterbank.Application.Integrations.Dtos;
 using Cfa.ACHInterbank.Application.Integrations.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -39,48 +40,76 @@ public class IntegrationMappingPreviewService : IIntegrationMappingPreviewServic
         var parameters = await _context.Set<IntegrationMethodParameter>()
             .AsNoTracking()
             .Where(x => x.MethodId == set.MethodId && x.IsActive)
-            .ToDictionaryAsync(x => x.Id, ct);
+            .OrderBy(x => x.SortOrder)
+            .ToListAsync(ct);
 
-        var tx = await LoadSampleTransactionAsync(request, ct);
+        var (tx, contextMode) = await LoadSampleTransactionAsync(request, ct);
         var cycle = tx?.AchCycle;
         var batch = tx?.AchBatch;
         var clearingHouse = cycle?.ClearingHouse;
         var addenda = tx?.Addendas.OrderBy(a => a.SequenceNumber).FirstOrDefault();
 
         var previewItems = new List<IntegrationMappingPreviewItemDto>();
+        var payload = new Dictionary<string, string?>();
 
-        foreach (var rule in rules)
+        foreach (var parameter in parameters)
         {
-            if (!parameters.TryGetValue(rule.ParameterId, out var parameter))
+            var winner = rules
+                .Where(x => x.ParameterId == parameter.Id)
+                .OrderBy(x => x.Priority)
+                .ThenBy(x => x.Id)
+                .FirstOrDefault();
+
+            if (winner is null)
             {
                 continue;
             }
 
-            var resolved = ResolvePreviewValue(rule, tx, addenda, batch, cycle, clearingHouse);
+            var resolved = ResolvePreviewValue(winner, tx, addenda, batch, cycle, clearingHouse);
+            resolved = ApplyTransformation(winner.TransformationCode, winner.FormatMask, resolved);
 
+            var resolvedFrom = ResolveFromLabel(winner);
+            var section = ResolveSection(winner.SourceKind);
+            var resolutionKind = ResolveResolutionKind(winner);
+
+            payload[parameter.ParameterPath] = resolved;
             previewItems.Add(new IntegrationMappingPreviewItemDto(
+                parameter.Id,
                 parameter.ParameterPath,
-                ResolveFromLabel(rule),
+                resolvedFrom,
                 resolved,
-                rule.Priority,
-                rule.Enabled));
+                section,
+                resolutionKind,
+                winner.TransformationCode,
+                winner.Priority,
+                winner.Enabled));
         }
 
-        var json = JsonSerializer.Serialize(previewItems);
-        return new IntegrationMappingPreviewResultDto(mappingSetId, method.Id, method.Code, previewItems, json);
+        var limitedItems = previewItems.Take(Math.Max(1, request.MaxItems)).ToList();
+        var rawJson = JsonSerializer.Serialize(limitedItems);
+        var payloadJson = JsonSerializer.Serialize(payload.OrderBy(x => x.Key).ToDictionary(x => x.Key, x => x.Value));
+
+        return new IntegrationMappingPreviewResultDto(mappingSetId, method.Id, method.Code, contextMode, previewItems, payloadJson, rawJson);
     }
 
-    private async Task<AchTransaction?> LoadSampleTransactionAsync(PreviewIntegrationMappingSetRequest request, CancellationToken ct)
+    private async Task<(AchTransaction? tx, string contextMode)> LoadSampleTransactionAsync(PreviewIntegrationMappingSetRequest request, CancellationToken ct)
     {
+        if (request.UseControlledSample)
+        {
+            return (BuildControlledSample(), "controlled-sample");
+        }
+
         if (request.SampleTransactionId.HasValue)
         {
-            return await _context.AchTransactions
+            var txById = await _context.AchTransactions
                 .AsNoTracking()
                 .Include(t => t.Addendas)
                 .Include(t => t.AchBatch)
                 .Include(t => t.AchCycle)
                     .ThenInclude(c => c!.ClearingHouse)
                 .FirstOrDefaultAsync(t => t.Id == request.SampleTransactionId.Value, ct);
+
+            return (txById, "real-transaction");
         }
 
         var query = _context.AchTransactions
@@ -97,18 +126,115 @@ public class IntegrationMappingPreviewService : IIntegrationMappingPreviewServic
             query = query.Where(t => t.AchCycleId == request.SampleCycleId);
         }
 
-        return await query.FirstOrDefaultAsync(ct);
+        var tx = await query.FirstOrDefaultAsync(ct);
+        return tx is null ? (BuildControlledSample(), "controlled-sample") : (tx, "real-latest");
     }
+
+    private static AchTransaction BuildControlledSample()
+        => new()
+        {
+            Id = 999001,
+            Amount = 1234.56m,
+            Type = TransactionTypeEnum.Credit,
+            TransactionCode = "22",
+            TraceNumber = "000123456789012",
+            Reference = "PREVIEW-TRACE",
+            OriginatingDFI = "021000021",
+            ReceivingDFI = "031100209",
+            CompanyIdentification = "COMPANY123",
+            EffectiveEntryDate = DateTime.UtcNow.Date,
+            SourceInstitutionId = 100,
+            DestinationInstitutionId = 200,
+            AchBatch = new AchBatch { Id = 7001 },
+            AchCycle = new AchCycle
+            {
+                Id = "CYCLE-PREVIEW",
+                CycleName = "Ciclo Preview",
+                ProcessingDate = DateTime.UtcNow.Date,
+                StartTime = TimeSpan.FromHours(8),
+                EndTime = TimeSpan.FromHours(18),
+                CutoffTime = TimeSpan.FromHours(16),
+                ClearingHouse = new ClearingHouse { Id = 12, Code = "ACH-TEST", Name = "ACH Demo", OriginCode = "ORG" }
+            },
+            Addendas =
+            [
+                new AchTransactionAddenda
+                {
+                    SequenceNumber = 1,
+                    AddendaType = "05",
+                    BusinessType = AchAddendaBusinessType.Credit,
+                    Information = "Pago de prueba",
+                    Purpose = "Preview",
+                    Reference = "ADD-001",
+                    CollectorId = "COL-1",
+                    ReceiverCustomerCode = "RC-1",
+                    ServiceDescription = "Servicio demo"
+                }
+            ]
+        };
 
     private static string ResolveFromLabel(IntegrationMappingRule rule)
     {
+        if (!string.IsNullOrWhiteSpace(rule.FixedValue))
+        {
+            return "FixedValue";
+        }
+
+        if (rule.SourceKind == IntegrationSourceKindEnum.Constant)
+        {
+            return "Default/Constant";
+        }
+
         return rule.SourceKind switch
         {
-            IntegrationSourceKindEnum.Constant => "Constant",
-            IntegrationSourceKindEnum.Expression => "Expression",
+            IntegrationSourceKindEnum.Expression => $"Expression:{rule.ConditionExpression ?? "rule"}",
             _ => string.IsNullOrWhiteSpace(rule.SourceFieldPath)
                 ? $"CatalogField:{rule.SourceCatalogFieldId?.ToString() ?? "n/a"}"
                 : rule.SourceFieldPath
+        };
+    }
+
+    private static string ResolveSection(IntegrationSourceKindEnum sourceKind)
+        => sourceKind switch
+        {
+            IntegrationSourceKindEnum.Cycle or IntegrationSourceKindEnum.ClearingHouse => "ciclo-camara",
+            IntegrationSourceKindEnum.Transaction => "transaccion",
+            IntegrationSourceKindEnum.Batch => "lote",
+            IntegrationSourceKindEnum.Addenda => "addenda",
+            _ => "configuracion"
+        };
+
+    private static string ResolveResolutionKind(IntegrationMappingRule winner)
+    {
+        if (!string.IsNullOrWhiteSpace(winner.FixedValue) || !string.IsNullOrWhiteSpace(winner.DefaultValue))
+        {
+            return "default-fixed";
+        }
+
+        if (winner.SourceKind == IntegrationSourceKindEnum.Expression)
+        {
+            return "expression";
+        }
+
+        return "source-field";
+    }
+
+    private static string? ApplyTransformation(string? transformationCode, string? formatMask, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || string.IsNullOrWhiteSpace(transformationCode))
+        {
+            return value;
+        }
+
+        return transformationCode switch
+        {
+            "Trim" => value.Trim(),
+            "Uppercase" => value.ToUpperInvariant(),
+            "Lowercase" => value.ToLowerInvariant(),
+            "PadLeft" when int.TryParse(formatMask, out var left) => value.PadLeft(left, '0'),
+            "PadRight" when int.TryParse(formatMask, out var right) => value.PadRight(right, '0'),
+            "NullIfEmpty" => string.IsNullOrWhiteSpace(value) ? null : value,
+            _ => value
         };
     }
 
