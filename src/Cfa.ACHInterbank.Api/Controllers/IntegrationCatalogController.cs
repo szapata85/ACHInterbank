@@ -17,22 +17,22 @@ public class IntegrationCatalogController : ControllerBase
     }
 
     [HttpGet("methods")]
-    [Authorize(Policy = "CanManageUsers")]
+    [Authorize(Policy = "CanManageAch")]
     public async Task<IActionResult> GetMethods(CancellationToken ct)
         => Ok(await _catalogService.GetMethodsAsync(ct));
 
     [HttpGet("methods/{methodId:int}/parameters")]
-    [Authorize(Policy = "CanManageUsers")]
+    [Authorize(Policy = "CanManageAch")]
     public async Task<IActionResult> GetParametersByMethod(int methodId, CancellationToken ct)
         => Ok(await _catalogService.GetMethodParametersAsync(methodId, ct));
 
     [HttpGet("source-catalog")]
-    [Authorize(Policy = "CanManageUsers")]
+    [Authorize(Policy = "CanManageAch")]
     public async Task<IActionResult> GetSourceCatalog([FromQuery] int? methodId, CancellationToken ct)
         => Ok(await _catalogService.GetSourceCatalogAsync(methodId, ct));
 
     [HttpGet("transformations")]
-    [Authorize(Policy = "CanManageUsers")]
+    [Authorize(Policy = "CanManageAch")]
     public async Task<IActionResult> GetTransformations(CancellationToken ct)
         => Ok(await _catalogService.GetTransformationsAsync(ct));
 }
