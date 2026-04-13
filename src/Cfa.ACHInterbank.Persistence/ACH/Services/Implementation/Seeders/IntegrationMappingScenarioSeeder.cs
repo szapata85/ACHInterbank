@@ -141,16 +141,19 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
     {
         var rules = BuildDefaultValidRules(methodId, mappingSetId, parameters);
 
-        AddPathRule("ClearingHouseId", IntegrationSourceKindEnum.ClearingHouse, "clearinghouse.id", "1");
-        AddPathRule("ClearingHouseCode", IntegrationSourceKindEnum.ClearingHouse, "clearinghouse.code", "ACH");
-        AddPathRule("CycleId", IntegrationSourceKindEnum.Cycle, "cycle.id", "CYCLE");
-        AddPathRule("CycleName", IntegrationSourceKindEnum.Cycle, "cycle.cycleName", "CYCLE-NAME");
-        AddPathRule("Transactions[].TransactionId", IntegrationSourceKindEnum.Transaction, "transaction.id", "1");
-        AddPathRule("Transactions[].Amount", IntegrationSourceKindEnum.Transaction, "transaction.amount", "100");
-        AddPathRule("Transactions[].Reference", IntegrationSourceKindEnum.Transaction, "transaction.reference", "REF");
-        AddPathRule("Transactions[].AchBatchId", IntegrationSourceKindEnum.Batch, "batch.id", "1");
-        AddPathRule("Transactions[].Addendas[].AddendaType", IntegrationSourceKindEnum.Addenda, "addenda.addendaType", "05");
-        AddPathRule("Transactions[].Addendas[].Information", IntegrationSourceKindEnum.Addenda, "addenda.information", "INFO");
+        AddPathRule("OFNIT", IntegrationSourceKindEnum.Transaction, "transaction.companyidentification", "900123456");
+        AddPathRule("OFEMP", IntegrationSourceKindEnum.ClearingHouse, "clearinghouse.code", "ACH");
+        AddPathRule("OFCTA", IntegrationSourceKindEnum.Transaction, "transaction.originatingdfi", "000010070");
+        AddPathRule("OFDD", IntegrationSourceKindEnum.Constant, "constant.value", "C");
+        AddPathRule("OFFECHEFEC", IntegrationSourceKindEnum.Cycle, "cycle.processingdate", DateTime.UtcNow.ToString("yyyyMMdd"));
+        AddPathRule("OFMONCRE", IntegrationSourceKindEnum.Transaction, "transaction.amount", "0");
+        AddPathRule("OFMONDEB", IntegrationSourceKindEnum.Constant, "constant.value", "0");
+        AddPathRule("OFIDARCH", IntegrationSourceKindEnum.Batch, "batch.id", "1");
+        AddPathRule("OFIDLOT", IntegrationSourceKindEnum.Batch, "batch.id", "1");
+        AddPathRule("OFIDTX", IntegrationSourceKindEnum.Transaction, "transaction.reference", "REF-1");
+        AddPathRule("OFIDEBAPLI", IntegrationSourceKindEnum.Transaction, "transaction.id", "1");
+        AddPathRule("OFIDCAMCOMPE", IntegrationSourceKindEnum.ClearingHouse, "clearinghouse.id", "1");
+        AddPathRule("OFDIRECCIONIP", IntegrationSourceKindEnum.Constant, "constant.value", "0.0.0.0");
 
         return rules;
 
@@ -180,7 +183,7 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
     private static List<IntegrationMappingRule> BuildInvalidRules(int methodId, Guid mappingSetId, IReadOnlyCollection<IntegrationMethodParameter> parameters)
     {
         var rules = BuildDefaultValidRules(methodId, mappingSetId, parameters);
-        var requiredTxId = parameters.FirstOrDefault(x => x.ParameterPath == "Transactions[].TransactionId");
+        var requiredTxId = parameters.FirstOrDefault(x => x.ParameterPath == "OFIDTX");
         if (requiredTxId is not null)
         {
             rules.RemoveAll(x => x.ParameterId == requiredTxId.Id);
@@ -189,14 +192,14 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
                 MappingSetId = mappingSetId,
                 MethodId = methodId,
                 ParameterId = requiredTxId.Id,
-                SourceKind = IntegrationSourceKindEnum.Transaction,
+                SourceKind = IntegrationSourceKindEnum.Constant,
                 SourceFieldPath = "",
                 Priority = 1,
                 Enabled = false
             });
         }
 
-        var amount = parameters.FirstOrDefault(x => x.ParameterPath == "Transactions[].Amount");
+        var amount = parameters.FirstOrDefault(x => x.ParameterPath == "OFMONCRE");
         if (amount is not null)
         {
             rules.Add(new IntegrationMappingRule

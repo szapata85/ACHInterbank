@@ -96,6 +96,11 @@ public class IntegrationMappingValidationService : IIntegrationMappingValidation
                     issues.Add(new("Error", "CONSTANT_WITHOUT_VALUE", $"Regla {rule.Id} tipo Constant requiere FixedValue o DefaultValue.", parameter.ParameterPath, "Structural"));
                 }
 
+                if (rule.SourceKind == IntegrationSourceKindEnum.Expression)
+                {
+                    issues.Add(new("Error", "EXPRESSION_NOT_ALLOWED", $"Regla {rule.Id} usa Expression y no está permitido en modo funcional gobernado.", parameter.ParameterPath, "Structural"));
+                }
+
                 if (rule.SourceKind != IntegrationSourceKindEnum.Constant && rule.SourceKind != IntegrationSourceKindEnum.Expression && !hasSource)
                 {
                     issues.Add(new("Error", "SOURCE_NOT_DEFINED", $"Regla {rule.Id} no define origen.", parameter.ParameterPath, "Structural"));
@@ -111,9 +116,9 @@ public class IntegrationMappingValidationService : IIntegrationMappingValidation
                     issues.Add(new("Error", "FORMAT_INVALID", $"FormatMask inválido para transformación {rule.TransformationCode}.", parameter.ParameterPath, "Functional"));
                 }
 
-                if (!string.IsNullOrWhiteSpace(rule.ConditionExpression) && rule.SourceKind != IntegrationSourceKindEnum.Expression)
+                if (!string.IsNullOrWhiteSpace(rule.ConditionExpression))
                 {
-                    issues.Add(new("Error", "CONDITION_NOT_ALLOWED", $"ConditionExpression solo aplica para SourceKind=Expression (regla {rule.Id}).", parameter.ParameterPath, "Structural"));
+                    issues.Add(new("Error", "CONDITION_NOT_ALLOWED", $"ConditionExpression no está permitido en modo funcional gobernado (regla {rule.Id}).", parameter.ParameterPath, "Structural"));
                 }
 
                 if (rule.SourceCatalogFieldId.HasValue && catalog.TryGetValue(rule.SourceCatalogFieldId.Value, out var sourceField))

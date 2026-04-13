@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Xml;
 using System.Xml.Linq;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
@@ -28,197 +27,98 @@ public sealed class ProcContrapartidasRequestMapper : IProcContrapartidasRequest
         ArgumentNullException.ThrowIfNull(cycle);
         ArgumentNullException.ThrowIfNull(transactions);
 
-        ValidateCycle(cycle);
-
         if (transactions.Count == 0)
         {
             throw new InvalidOperationException("Proc_Contrapartidas requiere al menos una transacción.");
         }
 
-        try
+        // Transición controlada: solo cae a fallback si no existe mapping publicado.
+        var configured = _functionalResolver
+            .TryResolveAsync(cycle, transactions, executionDateTime)
+            .ConfigureAwait(false)
+            .GetAwaiter()
+            .GetResult();
+
+        if (configured is not null)
         {
-            var configurable = _functionalResolver
-                .TryResolveAsync(cycle, transactions, executionDateTime)
-                .ConfigureAwait(false)
-                .GetAwaiter()
-                .GetResult();
-            if (configurable is not null)
-            {
-                return configurable;
-            }
-        }
-        catch
-        {
-            // fallback controlado temporal al mapper hardcoded para no romper la operación actual
+            return configured;
         }
 
-        var txContracts = transactions
-            .OrderBy(t => t.Id)
-            .Select(MapTransaction)
-            .ToList();
-
-        return new ProcContrapartidasRequestContract
-        {
-            ClearingHouseId = cycle.ClearingHouseId,
-            ClearingHouseCode = (cycle.ClearingHouse?.Code ?? string.Empty).Trim(),
-            CycleId = cycle.Id.Trim(),
-            CycleName = cycle.CycleName.Trim(),
-            ProcessingDate = cycle.ProcessingDate,
-            StartTime = cycle.StartTime,
-            EndTime = cycle.EndTime,
-            CutoffTime = cycle.CutoffTime,
-            ExecutionDateTime = executionDateTime,
-            Transactions = txContracts
-        };
+        return BuildTransitionalFallback(cycle, transactions.OrderBy(t => t.Id).First(), executionDateTime);
     }
 
     public string BuildSoapBody(ProcContrapartidasRequestContract request)
     {
         ArgumentNullException.ThrowIfNull(request);
-
         ValidateRequestContract(request);
 
         var body = new XElement(ActionNamespace + "Proc_Contrapartidas",
-            new XElement(ActionNamespace + "ClearingHouseId", request.ClearingHouseId),
-            new XElement(ActionNamespace + "ClearingHouseCode", request.ClearingHouseCode),
-            new XElement(ActionNamespace + "CycleId", request.CycleId),
-            new XElement(ActionNamespace + "CycleName", request.CycleName),
-            new XElement(ActionNamespace + "ProcessingDate", request.ProcessingDate.ToString("O", CultureInfo.InvariantCulture)),
-            new XElement(ActionNamespace + "StartTime", XmlConvert.ToString(request.StartTime)),
-            new XElement(ActionNamespace + "EndTime", XmlConvert.ToString(request.EndTime)),
-            new XElement(ActionNamespace + "CutoffTime", XmlConvert.ToString(request.CutoffTime)),
-            new XElement(ActionNamespace + "ExecutionDateTime", request.ExecutionDateTime.ToString("O", CultureInfo.InvariantCulture)),
-            new XElement(ActionNamespace + "Transactions",
-                request.Transactions.Select(BuildTransactionElement)));
+            new XElement(ActionNamespace + "OFNIT", request.OFNIT),
+            new XElement(ActionNamespace + "OFEMP", request.OFEMP),
+            new XElement(ActionNamespace + "OFCTA", request.OFCTA),
+            new XElement(ActionNamespace + "OFDD", request.OFDD),
+            new XElement(ActionNamespace + "OFFECHEFEC", request.OFFECHEFEC),
+            new XElement(ActionNamespace + "OFMONDEB", request.OFMONDEB.ToString(CultureInfo.InvariantCulture)),
+            new XElement(ActionNamespace + "OFMONCRE", request.OFMONCRE.ToString(CultureInfo.InvariantCulture)),
+            new XElement(ActionNamespace + "OFIDARCH", request.OFIDARCH),
+            new XElement(ActionNamespace + "OFIDLOT", request.OFIDLOT),
+            new XElement(ActionNamespace + "OFST", request.OFST),
+            new XElement(ActionNamespace + "OFIDTX", request.OFIDTX),
+            new XElement(ActionNamespace + "OFIDREVER", request.OFIDREVER),
+            new XElement(ActionNamespace + "OFIDEBAPLI", request.OFIDEBAPLI),
+            new XElement(ActionNamespace + "OFIDCAMCOMPE", request.OFIDCAMCOMPE),
+            new XElement(ActionNamespace + "OFDIRECCIONIP", request.OFDIRECCIONIP),
+            new XElement(ActionNamespace + "OFLIBRE", request.OFLIBRE),
+            new XElement(ActionNamespace + "OFLIBRE1", request.OFLIBRE1),
+            new XElement(ActionNamespace + "ANSIDLOTE", request.ANSIDLOTE),
+            new XElement(ActionNamespace + "ANSST", request.ANSST),
+            new XElement(ActionNamespace + "ANCLC", request.ANCLC),
+            new XElement(ActionNamespace + "ANSIDTX", request.ANSIDTX),
+            new XElement(ActionNamespace + "ANSIDREVER", request.ANSIDREVER));
 
         return body.ToString(SaveOptions.DisableFormatting);
     }
 
-    private static XElement BuildTransactionElement(ProcContrapartidasTransactionContract tx)
+    private static ProcContrapartidasRequestContract BuildTransitionalFallback(
+        AchCycle cycle,
+        AchTransaction tx,
+        DateTime executionDateTime)
     {
-        return new XElement(ActionNamespace + "item",
-            new XElement(ActionNamespace + "TransactionId", tx.TransactionId),
-            new XElement(ActionNamespace + "AchBatchId", tx.AchBatchId),
-            new XElement(ActionNamespace + "AchCycleId", tx.AchCycleId),
-            new XElement(ActionNamespace + "Amount", tx.Amount.ToString(CultureInfo.InvariantCulture)),
-            new XElement(ActionNamespace + "Type", tx.Type),
-            new XElement(ActionNamespace + "TransactionCode", tx.TransactionCode),
-            new XElement(ActionNamespace + "TraceNumber", tx.TraceNumber),
-            new XElement(ActionNamespace + "Reference", tx.Reference),
-            new XElement(ActionNamespace + "OriginatingDFI", tx.OriginatingDfi),
-            new XElement(ActionNamespace + "ReceivingDFI", tx.ReceivingDfi),
-            new XElement(ActionNamespace + "CompanyIdentification", tx.CompanyIdentification),
-            new XElement(ActionNamespace + "EffectiveEntryDate", tx.EffectiveEntryDate.ToString("O", CultureInfo.InvariantCulture)),
-            new XElement(ActionNamespace + "SourceInstitutionId", tx.SourceInstitutionId),
-            new XElement(ActionNamespace + "DestinationInstitutionId", tx.DestinationInstitutionId),
-            new XElement(ActionNamespace + "Addendas", tx.Addendas.Select(BuildAddendaElement)));
-    }
+        var isDebit = tx.Type.ToString().Equals("Debit", StringComparison.OrdinalIgnoreCase);
 
-    private static XElement BuildAddendaElement(ProcContrapartidasAddendaContract addenda)
-    {
-        return new XElement(ActionNamespace + "item",
-            new XElement(ActionNamespace + "SequenceNumber", addenda.SequenceNumber),
-            new XElement(ActionNamespace + "AddendaType", addenda.AddendaType),
-            new XElement(ActionNamespace + "BusinessType", addenda.BusinessType),
-            new XElement(ActionNamespace + "Information", addenda.Information),
-            new XElement(ActionNamespace + "Purpose", addenda.Purpose),
-            new XElement(ActionNamespace + "Reference", addenda.Reference),
-            new XElement(ActionNamespace + "CollectorId", addenda.CollectorId),
-            new XElement(ActionNamespace + "ReceiverCustomerCode", addenda.ReceiverCustomerCode),
-            new XElement(ActionNamespace + "ServiceDescription", addenda.ServiceDescription),
-            new XElement(ActionNamespace + "ReturnReasonCode", addenda.ReturnReasonCode),
-            new XElement(ActionNamespace + "OriginalTraceNumber", addenda.OriginalTraceNumber),
-            new XElement(ActionNamespace + "NewTraceNumber", addenda.NewTraceNumber));
-    }
-
-    private static ProcContrapartidasTransactionContract MapTransaction(AchTransaction tx)
-    {
-        ValidateTransaction(tx);
-
-        var addendas = tx.Addendas
-            .OrderBy(a => a.SequenceNumber)
-            .Select(a => new ProcContrapartidasAddendaContract
-            {
-                SequenceNumber = a.SequenceNumber ?? 0,
-                AddendaType = (a.AddendaType ?? string.Empty).Trim(),
-                BusinessType = a.BusinessType.ToString(),
-                Information = (a.Information ?? string.Empty).Trim(),
-                Purpose = (a.Purpose ?? string.Empty).Trim(),
-                Reference = (a.Reference ?? string.Empty).Trim(),
-                CollectorId = (a.CollectorId ?? string.Empty).Trim(),
-                ReceiverCustomerCode = (a.ReceiverCustomerCode ?? string.Empty).Trim(),
-                ServiceDescription = (a.ServiceDescription ?? string.Empty).Trim(),
-                ReturnReasonCode = (a.ReturnReasonCode ?? string.Empty).Trim(),
-                OriginalTraceNumber = (a.OriginalTraceNumber ?? string.Empty).Trim(),
-                NewTraceNumber = (a.NewTraceNumber ?? string.Empty).Trim()
-            })
-            .ToList();
-
-        return new ProcContrapartidasTransactionContract
+        return new ProcContrapartidasRequestContract
         {
-            TransactionId = tx.Id,
-            AchBatchId = tx.AchBatchId,
-            AchCycleId = tx.AchCycleId.Trim(),
-            Amount = tx.Amount,
-            Type = tx.Type.ToString(),
-            TransactionCode = (tx.TransactionCode ?? string.Empty).Trim(),
-            TraceNumber = (tx.TraceNumber ?? string.Empty).Trim(),
-            Reference = (tx.Reference ?? string.Empty).Trim(),
-            OriginatingDfi = (tx.OriginatingDFI ?? string.Empty).Trim(),
-            ReceivingDfi = (tx.ReceivingDFI ?? string.Empty).Trim(),
-            CompanyIdentification = (tx.CompanyIdentification ?? string.Empty).Trim(),
-            EffectiveEntryDate = tx.EffectiveEntryDate,
-            SourceInstitutionId = tx.SourceInstitutionId,
-            DestinationInstitutionId = tx.DestinationInstitutionId,
-            Addendas = addendas
+            OFNIT = tx.CompanyIdentification ?? string.Empty,
+            OFEMP = (cycle.ClearingHouse?.Code ?? "ACH").Trim(),
+            OFCTA = tx.SourceAccountNumber ?? string.Empty,
+            OFDD = isDebit ? "D" : "C",
+            OFFECHEFEC = tx.EffectiveEntryDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture),
+            OFMONDEB = isDebit ? tx.Amount : 0m,
+            OFMONCRE = isDebit ? 0m : tx.Amount,
+            OFIDARCH = tx.AchBatchId,
+            OFIDLOT = tx.AchBatchId,
+            OFST = "PENDIENTE",
+            OFIDTX = tx.Reference ?? tx.Id.ToString(CultureInfo.InvariantCulture),
+            OFIDREVER = 0,
+            OFIDEBAPLI = tx.Id,
+            OFIDCAMCOMPE = cycle.ClearingHouseId,
+            OFDIRECCIONIP = "0.0.0.0",
+            OFLIBRE = executionDateTime.ToString("O", CultureInfo.InvariantCulture),
+            OFLIBRE1 = 0,
+            ANSIDLOTE = 0,
+            ANSST = string.Empty,
+            ANCLC = string.Empty,
+            ANSIDTX = string.Empty,
+            ANSIDREVER = 0
         };
-    }
-
-    private static void ValidateCycle(AchCycle cycle)
-    {
-        if (string.IsNullOrWhiteSpace(cycle.Id))
-            throw new InvalidOperationException("CycleId es obligatorio para Proc_Contrapartidas.");
-
-        if (string.IsNullOrWhiteSpace(cycle.CycleName))
-            throw new InvalidOperationException($"CycleName es obligatorio para ciclo {cycle.Id}.");
-
-        if (cycle.ClearingHouseId <= 0)
-            throw new InvalidOperationException($"ClearingHouseId inválido para ciclo {cycle.Id}.");
-    }
-
-    private static void ValidateTransaction(AchTransaction tx)
-    {
-        if (tx.Id <= 0)
-            throw new InvalidOperationException("TransactionId inválido para Proc_Contrapartidas.");
-
-        if (tx.AchBatchId <= 0)
-            throw new InvalidOperationException($"AchBatchId inválido para transacción {tx.Id}.");
-
-        if (string.IsNullOrWhiteSpace(tx.AchCycleId))
-            throw new InvalidOperationException($"AchCycleId obligatorio para transacción {tx.Id}.");
-
-        if (string.IsNullOrWhiteSpace(tx.TraceNumber))
-            throw new InvalidOperationException($"TraceNumber obligatorio para transacción {tx.Id}.");
-
-        if (string.IsNullOrWhiteSpace(tx.TransactionCode))
-            throw new InvalidOperationException($"TransactionCode obligatorio para transacción {tx.Id}.");
-
-        if (string.IsNullOrWhiteSpace(tx.OriginatingDFI) || string.IsNullOrWhiteSpace(tx.ReceivingDFI))
-            throw new InvalidOperationException($"DFI origen/destino obligatorios para transacción {tx.Id}.");
-
-        if (string.IsNullOrWhiteSpace(tx.CompanyIdentification))
-            throw new InvalidOperationException($"CompanyIdentification obligatorio para transacción {tx.Id}.");
     }
 
     private static void ValidateRequestContract(ProcContrapartidasRequestContract request)
     {
-        if (request.Transactions.Count == 0)
-            throw new InvalidOperationException("Proc_Contrapartidas no permite transacciones vacías.");
-
-        if (string.IsNullOrWhiteSpace(request.CycleId) || string.IsNullOrWhiteSpace(request.CycleName))
-            throw new InvalidOperationException("CycleId/CycleName son obligatorios para Proc_Contrapartidas.");
-
-        if (request.ClearingHouseId <= 0)
-            throw new InvalidOperationException("ClearingHouseId inválido en Proc_Contrapartidas.");
+        if (string.IsNullOrWhiteSpace(request.OFNIT)) throw new InvalidOperationException("OFNIT es obligatorio.");
+        if (string.IsNullOrWhiteSpace(request.OFEMP)) throw new InvalidOperationException("OFEMP es obligatorio.");
+        if (string.IsNullOrWhiteSpace(request.OFCTA)) throw new InvalidOperationException("OFCTA es obligatorio.");
+        if (string.IsNullOrWhiteSpace(request.OFIDTX)) throw new InvalidOperationException("OFIDTX es obligatorio.");
+        if (request.OFIDLOT <= 0) throw new InvalidOperationException("OFIDLOT debe ser mayor a cero.");
     }
 }

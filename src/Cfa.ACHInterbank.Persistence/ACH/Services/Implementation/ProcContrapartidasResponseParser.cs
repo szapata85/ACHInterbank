@@ -38,6 +38,32 @@ public sealed class ProcContrapartidasResponseParser : IProcContrapartidasRespon
         try
         {
             var xml = XDocument.Parse(raw);
+            var ansStatus = xml.Descendants().FirstOrDefault(e => e.Name.LocalName.Equals("ANSST", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
+            var ansCode = xml.Descendants().FirstOrDefault(e => e.Name.LocalName.Equals("ANCLC", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
+            var ansTx = xml.Descendants().FirstOrDefault(e => e.Name.LocalName.Equals("ANSIDTX", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
+            if (!string.IsNullOrWhiteSpace(ansStatus) || !string.IsNullOrWhiteSpace(ansCode))
+            {
+                var normalized = NormalizeResponseCode(ansStatus ?? ansCode);
+                var successByContract = SuccessCodes.Contains(normalized) || string.Equals(ansCode, "00", StringComparison.OrdinalIgnoreCase);
+                var item = !string.IsNullOrWhiteSpace(ansTx)
+                    ? new Dictionary<int, ProcContrapartidasParsedItemResponse>
+                    {
+                        [1] = new ProcContrapartidasParsedItemResponse(1, successByContract, !successByContract && RetryableCodes.Contains(normalized), normalized, ansCode ?? ansStatus ?? string.Empty)
+                    }
+                    : new Dictionary<int, ProcContrapartidasParsedItemResponse>();
+
+                return new ProcContrapartidasParsedResponse(
+                    IsSuccess: successByContract,
+                    IsSoapFault: false,
+                    IsRetryable: !successByContract && RetryableCodes.Contains(normalized),
+                    IsFunctionalRejection: !successByContract,
+                    ErrorCode: successByContract ? string.Empty : (ansCode ?? normalized),
+                    ErrorMessage: successByContract ? string.Empty : $"Proc_Contrapartidas rechazo: ANSST={ansStatus}, ANCLC={ansCode}",
+                    RawResponse: raw,
+                    ResponseCode: normalized,
+                    ItemResults: item);
+            }
+
             if (TryParseSoapFault(xml, out var faultCode, out var faultMessage, out var faultDetail))
             {
                 var retryableFault = IsRetryableSoapFault(faultCode, faultMessage);

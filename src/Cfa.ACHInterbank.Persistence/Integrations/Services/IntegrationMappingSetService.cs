@@ -128,6 +128,16 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
 
         foreach (var rule in request.Rules)
         {
+            if (rule.SourceKind == IntegrationSourceKindEnum.Expression)
+            {
+                throw new InvalidOperationException("SourceKind=Expression no está permitido en el motor funcional gobernado.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(rule.ConditionExpression))
+            {
+                throw new InvalidOperationException("ConditionExpression no está permitido en el motor funcional gobernado.");
+            }
+
             IntegrationMappingRule entity;
             if (rule.Id.HasValue)
             {
