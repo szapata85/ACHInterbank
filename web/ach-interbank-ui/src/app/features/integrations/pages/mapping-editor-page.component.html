@@ -26,15 +26,17 @@
   <section class="layout-grid">
     <aside class="card left">
       <h4>Parámetros destino</h4>
-      <p class="helper">Indicadores visuales obligatorios: válido, incompleto, inválido, inactivo y tipo de cobertura.</p>
+      <p class="helper">Configura cada campo funcional y valida cobertura antes de publicar.</p>
       <ul>
         <li *ngFor="let p of parameters; trackBy: trackByParameterId" [class.active]="p.id === selectedParameterId" (click)="selectParameter(p.id)">
           <div>
             <strong>{{ p.displayName }}</strong>
             <small>{{ p.parameterPath }}</small>
+            <small>{{ p.descriptionEs }}</small>
           </div>
           <div class="chips">
             <span class="chip type">{{ p.dataType }}</span>
+            <span class="chip type">{{ p.category }}</span>
             <span class="chip req" *ngIf="p.required">Req</span>
             <span class="chip status" [ngClass]="getStatusClass(p.id)">{{ getStatusLabel(p.id) }}</span>
           </div>
@@ -43,24 +45,26 @@
     </aside>
 
     <main class="card center">
-      <h4>Regla principal del parámetro</h4>
-      <p class="helper" *ngIf="selectedParameter as sp">{{ sp.parameterPath }} · {{ sp.dataType }} · cardinalidad {{ sp.cardinality }}</p>
+      <h4>Configuración funcional del campo</h4>
+      <p class="helper" *ngIf="selectedParameter as sp">
+        {{ sp.displayName }} · {{ sp.descriptionEs }}<br />
+        <strong>Ejemplo:</strong> {{ sp.exampleValue }} · <strong>Ayuda:</strong> {{ sp.uiHelpText }}
+      </p>
       <form [formGroup]="ruleForm" class="rule-form">
         <label>
-          SourceKind
+          Origen funcional
           <select formControlName="sourceKind">
-            <option value="Transaction">Transaction</option>
-            <option value="Addenda">Addenda</option>
-            <option value="Batch">Batch</option>
-            <option value="Cycle">Cycle</option>
-            <option value="ClearingHouse">ClearingHouse</option>
-            <option value="Constant">Constant</option>
-            <option value="Expression">Expression</option>
+            <option value="Transaction">Dato de transacción</option>
+            <option value="Addenda">Dato complementario</option>
+            <option value="Batch">Dato de lote</option>
+            <option value="Cycle">Dato de ciclo</option>
+            <option value="ClearingHouse">Dato de cámara</option>
+            <option value="Constant">Valor fijo</option>
           </select>
         </label>
 
         <label>
-          Campo catálogo origen
+          Campo de origen sugerido
           <select formControlName="sourceCatalogFieldId">
             <option [ngValue]="null">-- seleccionar --</option>
             <option *ngFor="let field of getSourceOptionsByKind(ruleForm.value.sourceKind)" [ngValue]="field.id">
@@ -70,22 +74,22 @@
         </label>
 
         <label>
-          SourceFieldPath (override)
-          <input formControlName="sourceFieldPath" type="text" placeholder="transaction.traceNumber" />
+          Ruta técnica (opcional, avanzado)
+          <input formControlName="sourceFieldPath" type="text" placeholder="transaction.reference" />
         </label>
 
         <label>
-          FixedValue
-          <input formControlName="fixedValue" type="text" placeholder="valor fijo para cobertura" />
+          Valor fijo
+          <input formControlName="fixedValue" type="text" placeholder="Ejemplo: PENDIENTE" />
         </label>
 
         <label>
-          DefaultValue
-          <input formControlName="defaultValue" type="text" placeholder="valor fallback" />
+          Valor por defecto
+          <input formControlName="defaultValue" type="text" placeholder="Se usa si el origen no trae dato" />
         </label>
 
         <label>
-          Transformation
+          Transformación
           <select formControlName="transformationCode">
             <option value="">-- sin transformación --</option>
             <option *ngFor="let t of transformations" [value]="t.code">{{ t.displayName }}</option>
@@ -93,8 +97,8 @@
         </label>
 
         <label>
-          FormatMask
-          <input formControlName="formatMask" type="text" placeholder="DateFormat: yyyyMMdd / PadLeft: 10" />
+          Máscara (si aplica)
+          <input formControlName="formatMask" type="text" placeholder="Ej: yyyyMMdd o 10" />
         </label>
 
         <label>
@@ -103,7 +107,7 @@
         </label>
 
         <label>
-          RequiredOverride
+          Forzar obligatoriedad
           <select formControlName="requiredOverride">
             <option [ngValue]="null">Sin override</option>
             <option [ngValue]="true">true</option>
@@ -113,11 +117,6 @@
 
         <label class="inline">
           <input type="checkbox" formControlName="enabled" /> Habilitada
-        </label>
-
-        <label>
-          ConditionExpression
-          <input formControlName="conditionExpression" type="text" placeholder="solo si SourceKind = Expression" />
         </label>
 
         <div class="rule-actions">
@@ -149,22 +148,22 @@
         <h5>Contexto de preview</h5>
         <label class="inline"><input type="checkbox" [(ngModel)]="previewUseControlledSample" /> Usar datos de ejemplo controlados</label>
         <label>
-          TransactionId (real)
+          Id de transacción (real)
           <input type="number" [(ngModel)]="previewSampleTransactionId" [disabled]="previewUseControlledSample" />
         </label>
         <label>
-          CycleId (real)
+          Id de ciclo (real)
           <input type="text" [(ngModel)]="previewSampleCycleId" [disabled]="previewUseControlledSample" />
         </label>
       </div>
 
       <div class="panel-block">
-        <h5>Preview por parámetro (origen exacto)</h5>
+        <h5>Preview por campo funcional</h5>
         <p *ngIf="!previewResult">Ejecuta "Preview" para ver resolución por parámetro y payload.</p>
         <div *ngIf="previewResult as pr" class="preview-groups">
           <small class="context">Contexto: {{ pr.contextMode }}</small>
           <details open>
-            <summary>Ciclo/Cámara</summary>
+            <summary>Ciclo / Cámara</summary>
             <ul><li *ngFor="let item of groupedPreview['ciclo-camara']">{{ item.parameterPath }} ← {{ item.resolvedFrom }} = <strong>{{ item.previewValue || '∅' }}</strong></li></ul>
           </details>
           <details open>
@@ -183,8 +182,18 @@
       </div>
 
       <div class="panel-block">
-        <h5>Preview payload completo</h5>
+        <h5>Payload técnico resultante</h5>
         <pre *ngIf="previewResult">{{ previewResult.payloadPreviewJson }}</pre>
+      </div>
+
+      <div class="panel-block">
+        <h5>Historial de cambios</h5>
+        <ul *ngIf="historyItems.length > 0">
+          <li *ngFor="let h of historyItems">
+            v{{ h.version || 'Borrador' }} · {{ h.action }} · {{ h.performedBy }} · {{ h.performedAtUtc }}
+          </li>
+        </ul>
+        <p *ngIf="historyItems.length === 0">No hay historial disponible para este MappingSet.</p>
       </div>
     </aside>
   </section>

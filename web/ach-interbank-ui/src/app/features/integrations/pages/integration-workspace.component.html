@@ -1,12 +1,15 @@
 <div class="integration-workspace">
   <div class="workspace-header">
-    <h2>Integraciones</h2>
-    <p>Administra configuración técnica SOAP y mapping funcional versionado de métodos empresariales.</p>
+    <h2>Integraciones ACH</h2>
+    <p>
+      Configura de forma guiada qué datos envía el sistema a los servicios ACH.
+      La configuración técnica SOAP está separada de la configuración funcional para usuarios de negocio.
+    </p>
   </div>
 
   <nav class="workspace-nav">
+    <a routerLink="/integraciones/mappings" routerLinkActive="active">Configuración funcional</a>
     <a routerLink="/integraciones/soap-settings" routerLinkActive="active">Configuración técnica SOAP</a>
-    <a routerLink="/integraciones/mappings" routerLinkActive="active">Mapping funcional</a>
   </nav>
 
   <section class="workspace-content">

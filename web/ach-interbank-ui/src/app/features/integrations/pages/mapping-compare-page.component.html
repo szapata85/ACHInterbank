@@ -1,8 +1,8 @@
 <div class="compare-page">
   <header class="card header">
     <div>
-      <h3>Comparador de versiones · {{ methodCode }}</h3>
-      <p>Audita cambios por parámetro, origen y prioridad antes de publicar.</p>
+      <h3>Comparador de versiones · {{ methodCode.replace('WSCFAACH.', '') }}</h3>
+      <p>Revisa diferencias funcionales antes de publicar una nueva versión.</p>
     </div>
     <div class="selectors">
       <label>
@@ -48,8 +48,8 @@
       </select>
     </div>
 
-    <div class="group" *ngFor="let group of ['ciclo-camara','transaccion','lote','addenda','configuracion']">
-      <h4>{{ group }}</h4>
+    <div class="group" *ngFor="let group of ['ciclo-camara','transaccion','lote','addenda','respuesta-esperada','configuracion']">
+      <h4>{{ getGroupLabel(group) }}</h4>
       <table>
         <thead>
           <tr>

@@ -7,8 +7,8 @@
     </nav>
     <h2>Integraciones SOAP ACH</h2>
     <p class="subtitle">
-      Parametriza endpoint, SOAP Action y el mapeo de parámetros de entrada de cada método en
-      <strong>WscfaachSoapClient</strong> y <strong>WsAxonRespuestaTransaccionesSoapClient</strong>.
+      Configuración técnica avanzada. Esta pantalla está orientada a soporte técnico para endpoint, SOAP Action
+      y parámetros de entrada de cada método.
     </p>
   </header>
 
@@ -25,7 +25,7 @@
             <h4>Configuración técnica</h4>
             <div class="technical-fields">
               <label>
-                Método
+                Método técnico
                 <input type="text" formControlName="methodName" readonly />
               </label>
               <label class="field-wide">
@@ -54,11 +54,11 @@
             <div class="mapping-list">
               <div class="mapping-row" *ngFor="let inputMapping of getInputMappings(mapping).controls; let j = index" [formGroupName]="j">
                 <label>
-                  Parámetro entrada
+                  Parámetro de entrada
                   <input type="text" formControlName="inputName" placeholder="ej: usuario" />
                 </label>
                 <label>
-                  Parámetro SOAP destino
+                  Parámetro SOAP destino (técnico)
                   <input type="text" formControlName="soapParameterName" placeholder="ej: Usuario" />
                 </label>
                 <label>
@@ -86,7 +86,7 @@
             <h4>Configuración técnica</h4>
             <div class="technical-fields">
               <label>
-                Método
+                Método técnico
                 <input type="text" formControlName="methodName" readonly />
               </label>
               <label class="field-wide">
@@ -115,11 +115,11 @@
             <div class="mapping-list">
               <div class="mapping-row" *ngFor="let inputMapping of getInputMappings(mapping).controls; let j = index" [formGroupName]="j">
                 <label>
-                  Parámetro entrada
+                  Parámetro de entrada
                   <input type="text" formControlName="inputName" placeholder="ej: respuesta" />
                 </label>
                 <label>
-                  Parámetro SOAP destino
+                  Parámetro SOAP destino (técnico)
                   <input type="text" formControlName="soapParameterName" placeholder="ej: Respuesta" />
                 </label>
                 <label>

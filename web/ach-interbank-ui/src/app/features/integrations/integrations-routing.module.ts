@@ -23,14 +23,14 @@ const routes: Routes = [
         data: { breadcrumb: 'Mapping funcional', title: 'Mapping funcional de integraciones' }
       },
       {
-        path: 'mappings/:methodCode/:mappingSetId',
-        component: MappingEditorPageComponent,
-        data: { breadcrumb: 'Editor de mapping', title: 'Editor de MappingSet' }
-      },
-      {
         path: 'mappings/compare/:methodCode',
         component: MappingComparePageComponent,
         data: { breadcrumb: 'Comparador de versiones', title: 'Comparador de versiones MappingSet' }
+      },
+      {
+        path: 'mappings/:methodCode/:mappingSetId',
+        component: MappingEditorPageComponent,
+        data: { breadcrumb: 'Editor guiado de mapping', title: 'Configuración funcional del MappingSet' }
       }
     ]
   }

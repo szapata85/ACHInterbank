@@ -13,7 +13,8 @@ import {
   IntegrationTransformationCatalog,
   ParameterValidationStatus,
   PreviewResult,
-  ValidationResult
+  ValidationResult,
+  MappingSetHistoryItem
 } from '../../../core/services/integration-mapping-admin.service';
 import { NotificationService } from '../../../core/services/notification.service';
 
@@ -42,6 +43,7 @@ export class MappingEditorPageComponent implements OnInit {
   selectedParameterId?: number;
   validationResult?: ValidationResult;
   previewResult?: PreviewResult;
+  historyItems: MappingSetHistoryItem[] = [];
 
   previewUseControlledSample = true;
   previewSampleTransactionId?: number;
@@ -136,6 +138,7 @@ export class MappingEditorPageComponent implements OnInit {
             this.transformations = transformations;
             this.selectedParameterId = this.selectedParameterId ?? parameters[0]?.id;
             this.populateFormFromSelectedRule();
+            this.loadHistory();
           },
           error: () => this.notifications.error('No fue posible cargar catálogos del editor.'),
           complete: () => (this.loading = false)
@@ -289,6 +292,14 @@ export class MappingEditorPageComponent implements OnInit {
     });
   }
 
+  loadHistory(): void {
+    if (!this.mappingSet) return;
+    this.api.getHistory(this.mappingSet.id).subscribe({
+      next: (items) => (this.historyItems = items ?? []),
+      error: () => (this.historyItems = [])
+    });
+  }
+
   getValidationStatus(parameterId?: number): ParameterValidationStatus | undefined {
     if (!parameterId) return undefined;
     return this.validationResult?.parameters.find((x) => x.parameterId === parameterId);
@@ -302,8 +313,8 @@ export class MappingEditorPageComponent implements OnInit {
     const status = this.getParameterStatus(parameterId);
     const resolution = this.getValidationStatus(parameterId)?.resolutionKind;
 
-    if (status === 'valid' && resolution === 'default-fixed') return 'Cubierto default/fixed';
-    if (status === 'valid' && resolution === 'source-field') return 'Resuelto por campo';
+    if (status === 'valid' && resolution === 'default-fixed') return 'Cubierto por valor fijo';
+    if (status === 'valid' && resolution === 'source-field') return 'Resuelto por origen';
     if (status === 'valid') return 'Válido';
     if (status === 'incomplete') return 'Incompleto';
     if (status === 'invalid') return 'Inválido';
@@ -322,6 +333,18 @@ export class MappingEditorPageComponent implements OnInit {
   getSourceOptionsByKind(kind: string | null | undefined): IntegrationSourceCatalogField[] {
     if (!kind) return [];
     return this.sourceCatalog.filter((x) => x.sourceKind === kind);
+  }
+
+  getSourceKindLabel(kind: string | null | undefined): string {
+    switch (kind) {
+      case 'Transaction': return 'Dato de transacción';
+      case 'Batch': return 'Dato de lote';
+      case 'Cycle': return 'Dato de ciclo';
+      case 'ClearingHouse': return 'Dato de cámara';
+      case 'Constant': return 'Valor fijo';
+      case 'Addenda': return 'Dato complementario';
+      default: return 'No definido';
+    }
   }
 
   trackByParameterId(_: number, parameter: IntegrationMethodParameter): number {

@@ -7,21 +7,23 @@
   </section>
 
   <section class="card controls">
-    <h3>Nuevo borrador de mapeo</h3>
+    <h3>Nuevo borrador de configuración funcional</h3>
     <form [formGroup]="createDraftForm" class="draft-form" (ngSubmit)="createDraft()">
       <label>
-        Método SOAP
+        Integración
         <select formControlName="methodId" (change)="onMethodChange()">
-          <option *ngFor="let method of methods" [ngValue]="method.id">{{ method.code }} — {{ method.displayName }}</option>
+          <option *ngFor="let method of methods" [ngValue]="method.id">
+            {{ method.displayName }} — {{ method.code }}
+          </option>
         </select>
       </label>
       <label>
-        Nombre del borrador
-        <input type="text" formControlName="name" placeholder="Ej: Contrapartidas Colombia vNext" />
+        Nombre de versión de trabajo
+        <input type="text" formControlName="name" placeholder="Ej: Contrapartidas - Ajuste operativo abril" />
       </label>
       <label>
-        Notas
-        <input type="text" formControlName="notes" placeholder="Opcional" />
+        Comentario del borrador
+        <input type="text" formControlName="notes" placeholder="Qué se está ajustando en esta versión" />
       </label>
       <button type="submit" class="primary" [disabled]="createDraftForm.invalid || creatingDraft">
         {{ creatingDraft ? 'Creando…' : 'Crear borrador' }}
@@ -38,7 +40,7 @@
       <thead>
         <tr>
           <th>Nombre</th>
-          <th>Método</th>
+          <th>Integración</th>
           <th>Versión</th>
           <th>Estado</th>
           <th>Publicado por</th>
@@ -48,7 +50,10 @@
       <tbody>
         <tr *ngFor="let set of mappingSets">
           <td>{{ set.name }}</td>
-          <td>{{ set.methodCode }}</td>
+          <td>
+            {{ set.methodCode.replace('WSCFAACH.', '') }}
+            <small class="tech-code">{{ set.methodCode }}</small>
+          </td>
           <td>{{ set.version || 'Borrador' }}</td>
           <td><span class="badge" [class]="set.status.toLowerCase()">{{ getStatusLabel(set.status) }}</span></td>
           <td>{{ set.publishedBy || '—' }}</td>

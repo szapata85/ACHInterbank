@@ -84,7 +84,8 @@ export class MappingComparePageComponent implements OnInit {
       transaccion: [],
       lote: [],
       addenda: [],
-      configuracion: []
+      configuracion: [],
+      'respuesta-esperada': []
     };
 
     for (const rule of this.filteredRules) {
@@ -125,6 +126,17 @@ export class MappingComparePageComponent implements OnInit {
         return 'Archivado';
       default:
         return status;
+    }
+  }
+
+  getGroupLabel(group: string): string {
+    switch (group) {
+      case 'ciclo-camara': return 'Ciclo / Cámara';
+      case 'transaccion': return 'Transacción';
+      case 'lote': return 'Lote';
+      case 'addenda': return 'Complementario';
+      case 'respuesta-esperada': return 'Respuesta esperada';
+      default: return 'Configuración';
     }
   }
 }

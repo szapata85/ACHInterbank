@@ -17,7 +17,12 @@ export interface IntegrationMethodParameter {
   methodId: number;
   parameterPath: string;
   displayName: string;
+  descriptionEs: string;
+  category: string;
+  exampleValue: string;
+  uiHelpText: string;
   dataType: string;
+  direction: 'Input' | 'Output';
   cardinality: 'Scalar' | 'Object' | 'Collection';
   required: boolean;
   sortOrder: number;
