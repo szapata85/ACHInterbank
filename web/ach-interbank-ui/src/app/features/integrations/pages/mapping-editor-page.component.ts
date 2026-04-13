@@ -48,6 +48,11 @@ export class MappingEditorPageComponent implements OnInit {
   previewUseControlledSample = true;
   previewSampleTransactionId?: number;
   previewSampleCycleId?: string;
+  savingRule = false;
+  validating = false;
+  previewing = false;
+  publishing = false;
+  cloning = false;
 
   readonly ruleForm = this.fb.group({
     id: [null as number | null],
@@ -193,7 +198,7 @@ export class MappingEditorPageComponent implements OnInit {
   }
 
   saveRule(): void {
-    if (!this.mappingSet || !this.selectedParameterId) return;
+    if (!this.mappingSet || !this.selectedParameterId || this.savingRule) return;
 
     const payload = {
       id: this.ruleForm.value.id,
@@ -212,19 +217,22 @@ export class MappingEditorPageComponent implements OnInit {
       conditionExpression: this.ruleForm.value.conditionExpression
     };
 
+    this.savingRule = true;
     this.api.upsertRules(this.mappingSet.id, 'ui-admin', [payload]).subscribe({
       next: (updated) => {
         this.mappingSet = updated;
         this.notifications.success('Regla guardada. Ejecuta validación para confirmar consistencia.');
         this.populateFormFromSelectedRule();
       },
-      error: () => this.notifications.error('No fue posible guardar la regla.')
+      error: () => this.notifications.error('No fue posible guardar la regla.'),
+      complete: () => (this.savingRule = false)
     });
   }
 
   runValidation(onDone?: (isValid: boolean) => void): void {
-    if (!this.mappingSet) return;
+    if (!this.mappingSet || this.validating) return;
 
+    this.validating = true;
     this.api.validate(this.mappingSet.id).subscribe({
       next: (result) => {
         this.validationResult = result;
@@ -237,13 +245,15 @@ export class MappingEditorPageComponent implements OnInit {
       error: () => {
         this.notifications.error('No fue posible validar el MappingSet.');
         onDone?.(false);
-      }
+      },
+      complete: () => (this.validating = false)
     });
   }
 
   runPreview(): void {
-    if (!this.mappingSet) return;
+    if (!this.mappingSet || this.previewing) return;
 
+    this.previewing = true;
     this.api
       .preview(this.mappingSet.id, {
         sampleTransactionId: this.previewSampleTransactionId,
@@ -254,14 +264,15 @@ export class MappingEditorPageComponent implements OnInit {
       .subscribe({
         next: (result) => {
           this.previewResult = result;
-          this.notifications.success(`Preview generado usando contexto: ${result.contextMode}.`);
+          this.notifications.success(`Simulación generada usando contexto: ${result.contextMode}.`);
         },
-        error: () => this.notifications.error('No fue posible generar preview.')
+        error: () => this.notifications.error('No fue posible generar la simulación.'),
+        complete: () => (this.previewing = false)
       });
   }
 
   publish(): void {
-    if (!this.mappingSet) return;
+    if (!this.mappingSet || this.publishing) return;
 
     this.runValidation((isValid) => {
       if (!isValid) {
@@ -269,18 +280,21 @@ export class MappingEditorPageComponent implements OnInit {
         return;
       }
 
+      this.publishing = true;
       this.api.publish(this.mappingSet!.id, 'ui-admin', 'Publicado desde SPA').subscribe({
         next: (updated) => {
           this.mappingSet = updated;
           this.notifications.success('MappingSet publicado correctamente.');
         },
-        error: () => this.notifications.error('No se pudo publicar. Revisa validación y cobertura.')
+        error: () => this.notifications.error('No se pudo publicar. Revisa validación y cobertura.'),
+        complete: () => (this.publishing = false)
       });
     });
   }
 
   clone(): void {
-    if (!this.mappingSet) return;
+    if (!this.mappingSet || this.cloning) return;
+    this.cloning = true;
     this.api.clone(this.mappingSet.id, `${this.mappingSet.name} (clone)`, 'ui-admin').subscribe({
       next: (created) => {
         this.notifications.success('MappingSet clonado.');
@@ -288,7 +302,8 @@ export class MappingEditorPageComponent implements OnInit {
         this.mappingSetId = created.id;
         this.loadAll();
       },
-      error: () => this.notifications.error('No fue posible clonar el MappingSet.')
+      error: () => this.notifications.error('No fue posible clonar el MappingSet.'),
+      complete: () => (this.cloning = false)
     });
   }
 

@@ -34,7 +34,7 @@
   <section class="card table-card">
     <div class="table-header">
       <h3>Versiones y estados</h3>
-      <button type="button" (click)="openCompare()">Comparar versiones</button>
+      <button type="button" [disabled]="mappingSets.length < 2" (click)="openCompare()">Comparar versiones</button>
     </div>
     <table>
       <thead>
@@ -61,5 +61,8 @@
         </tr>
       </tbody>
     </table>
+    <p class="helper" *ngIf="mappingSets.length < 2">
+      Necesitas al menos dos versiones para habilitar la comparación.
+    </p>
   </section>
 </div>

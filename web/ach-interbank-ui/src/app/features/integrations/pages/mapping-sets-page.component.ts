@@ -81,6 +81,10 @@ export class MappingSetsPageComponent implements OnInit {
       this.notifications.error('Selecciona un método para comparar versiones.');
       return;
     }
+    if (this.mappingSets.length < 2) {
+      this.notifications.error('Se requieren al menos dos versiones para comparar.');
+      return;
+    }
 
     this.router.navigate(['/integraciones/mappings/compare', method.code]);
   }

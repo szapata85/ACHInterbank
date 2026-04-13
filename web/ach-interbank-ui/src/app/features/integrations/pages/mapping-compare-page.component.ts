@@ -29,6 +29,7 @@ export class MappingComparePageComponent implements OnInit {
   leftId = '';
   rightId = '';
   changeFilter: 'All' | 'Added' | 'Removed' | 'Modified' | 'Equal' = 'All';
+  loading = false;
 
   ngOnInit(): void {
     this.methodCode = this.route.snapshot.paramMap.get('methodCode') ?? '';
@@ -36,11 +37,13 @@ export class MappingComparePageComponent implements OnInit {
   }
 
   loadMappingSets(): void {
+    this.loading = true;
     this.api.getMethods().subscribe({
       next: (methods) => {
         const method = methods.find((x) => x.code.toLowerCase() === this.methodCode.toLowerCase());
         if (!method) {
           this.notifications.error('No se encontró el método para comparación.');
+          this.loading = false;
           return;
         }
 
@@ -53,10 +56,14 @@ export class MappingComparePageComponent implements OnInit {
               this.runCompare();
             }
           },
-          error: () => this.notifications.error('No fue posible cargar versiones para comparar.')
+          error: () => this.notifications.error('No fue posible cargar versiones para comparar.'),
+          complete: () => (this.loading = false)
         });
       },
-      error: () => this.notifications.error('No fue posible cargar métodos.')
+      error: () => {
+        this.notifications.error('No fue posible cargar métodos.');
+        this.loading = false;
+      }
     });
   }
 
@@ -76,6 +83,14 @@ export class MappingComparePageComponent implements OnInit {
     const rules = this.comparison?.rules ?? [];
     if (this.changeFilter === 'All') return rules;
     return rules.filter((x) => x.changeType === this.changeFilter);
+  }
+
+  get canCompare(): boolean {
+    return Boolean(this.leftId && this.rightId && this.leftId !== this.rightId);
+  }
+
+  get methodDisplayName(): string {
+    return this.methodCode.replace('WSCFAACH.', '');
   }
 
   get groupedRules(): Record<string, MappingSetRuleComparison[]> {

@@ -5,7 +5,7 @@
     <article class="card"><span>Incompletos</span><strong>{{ coverage.incompleteParameters }}</strong></article>
     <article class="card"><span>Inválidos</span><strong>{{ coverage.invalidParameters }}</strong></article>
     <article class="card"><span>Inactivos</span><strong>{{ coverage.inactiveParameters }}</strong></article>
-    <article class="card"><span>Default/Fixed</span><strong>{{ coverage.coveredByDefaultOrFixed }}</strong></article>
+    <article class="card"><span>Cubiertos por valor fijo/default</span><strong>{{ coverage.coveredByDefaultOrFixed }}</strong></article>
     <article class="card"><span>Por campo</span><strong>{{ coverage.coveredBySourceField }}</strong></article>
   </section>
 
@@ -13,13 +13,15 @@
     <div>
       <h3>{{ set.name }}</h3>
       <p>{{ set.methodCode }} · estado <span class="badge" [class]="set.status.toLowerCase()">{{ set.status }}</span></p>
-      <small class="context">Primero valida estructura + lógica, luego preview y por último publica.</small>
+      <small class="context">Primero valida estructura + lógica, luego simula y por último publica.</small>
     </div>
     <div class="actions">
-      <button type="button" (click)="runValidation()">Validar</button>
-      <button type="button" (click)="runPreview()">Preview</button>
-      <button type="button" (click)="clone()">Clonar</button>
-      <button type="button" class="primary" [disabled]="set.status !== 'Draft'" (click)="publish()">Publicar</button>
+      <button type="button" [disabled]="validating" (click)="runValidation()">{{ validating ? 'Validando…' : 'Validar' }}</button>
+      <button type="button" [disabled]="previewing" (click)="runPreview()">{{ previewing ? 'Simulando…' : 'Simular' }}</button>
+      <button type="button" [disabled]="cloning" (click)="clone()">{{ cloning ? 'Clonando…' : 'Clonar' }}</button>
+      <button type="button" class="primary" [disabled]="set.status !== 'Draft' || publishing" (click)="publish()">
+        {{ publishing ? 'Publicando…' : 'Publicar' }}
+      </button>
     </div>
   </header>
 
@@ -37,7 +39,7 @@
           <div class="chips">
             <span class="chip type">{{ p.dataType }}</span>
             <span class="chip type">{{ p.category }}</span>
-            <span class="chip req" *ngIf="p.required">Req</span>
+            <span class="chip req" *ngIf="p.required">Requerido</span>
             <span class="chip status" [ngClass]="getStatusClass(p.id)">{{ getStatusLabel(p.id) }}</span>
           </div>
         </li>
@@ -47,8 +49,8 @@
     <main class="card center">
       <h4>Configuración funcional del campo</h4>
       <p class="helper" *ngIf="selectedParameter as sp">
-        {{ sp.displayName }} · {{ sp.descriptionEs }}<br />
-        <strong>Ejemplo:</strong> {{ sp.exampleValue }} · <strong>Ayuda:</strong> {{ sp.uiHelpText }}
+        {{ sp.displayName }} · {{ sp.descriptionEs || 'Sin descripción funcional' }}<br />
+        <strong>Ejemplo:</strong> {{ sp.exampleValue || 'N/D' }} · <strong>Ayuda:</strong> {{ sp.uiHelpText || 'N/D' }}
       </p>
       <form [formGroup]="ruleForm" class="rule-form">
         <label>
@@ -120,7 +122,9 @@
         </label>
 
         <div class="rule-actions">
-          <button type="button" class="primary" (click)="saveRule()">Guardar regla</button>
+          <button type="button" class="primary" [disabled]="savingRule" (click)="saveRule()">
+            {{ savingRule ? 'Guardando…' : 'Guardar regla' }}
+          </button>
         </div>
       </form>
 
@@ -133,7 +137,7 @@
     </main>
 
     <aside class="card right">
-      <h4>Validación y preview</h4>
+      <h4>Validación y simulación</h4>
       <div class="panel-block">
         <h5>Validación estructural y funcional</h5>
         <p *ngIf="!validationResult">Ejecuta "Validar" para revisar reglas obligatorias de publicación.</p>
@@ -145,7 +149,7 @@
       </div>
 
       <div class="panel-block preview-controls">
-        <h5>Contexto de preview</h5>
+        <h5>Contexto de simulación</h5>
         <label class="inline"><input type="checkbox" [(ngModel)]="previewUseControlledSample" /> Usar datos de ejemplo controlados</label>
         <label>
           Id de transacción (real)
@@ -158,8 +162,8 @@
       </div>
 
       <div class="panel-block">
-        <h5>Preview por campo funcional</h5>
-        <p *ngIf="!previewResult">Ejecuta "Preview" para ver resolución por parámetro y payload.</p>
+        <h5>Simulación por campo funcional</h5>
+        <p *ngIf="!previewResult">Ejecuta "Simular" para ver resolución por parámetro y payload.</p>
         <div *ngIf="previewResult as pr" class="preview-groups">
           <small class="context">Contexto: {{ pr.contextMode }}</small>
           <details open>
@@ -182,7 +186,7 @@
       </div>
 
       <div class="panel-block">
-        <h5>Payload técnico resultante</h5>
+        <h5>Payload técnico resultante (referencia)</h5>
         <pre *ngIf="previewResult">{{ previewResult.payloadPreviewJson }}</pre>
       </div>
 

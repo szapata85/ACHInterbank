@@ -1,7 +1,7 @@
 <div class="compare-page">
   <header class="card header">
     <div>
-      <h3>Comparador de versiones · {{ methodCode.replace('WSCFAACH.', '') }}</h3>
+      <h3>Comparador de versiones · {{ methodDisplayName }}</h3>
       <p>Revisa diferencias funcionales antes de publicar una nueva versión.</p>
     </div>
     <div class="selectors">
@@ -17,22 +17,26 @@
           <option *ngFor="let ms of mappingSets" [value]="ms.id">v{{ ms.version }} · {{ ms.name }} ({{ getStatusLabel(ms.status) }})</option>
         </select>
       </label>
-      <button type="button" class="primary" (click)="runCompare()">Comparar</button>
+      <button type="button" class="primary" [disabled]="!canCompare" (click)="runCompare()">Comparar</button>
     </div>
   </header>
+
+  <section class="card empty" *ngIf="!loading && mappingSets.length < 2">
+    <p>No hay suficientes versiones para comparar. Crea o clona un borrador para continuar.</p>
+  </section>
 
   <section class="card" *ngIf="comparison as cmp">
     <div class="meta-grid">
       <article>
         <h4>Izquierda</h4>
         <p><strong>{{ cmp.left.name }}</strong> · v{{ cmp.left.version }} · {{ getStatusLabel(cmp.left.status) }}</p>
-        <p>Publicado: {{ cmp.left.publishedAtUtc || 'N/A' }} · {{ cmp.left.publishedBy || 'N/A' }}</p>
+        <p>Publicado: {{ cmp.left.publishedAtUtc || 'N/D' }} · {{ cmp.left.publishedBy || 'N/D' }}</p>
         <small>{{ cmp.left.notes }}</small>
       </article>
       <article>
         <h4>Derecha</h4>
         <p><strong>{{ cmp.right.name }}</strong> · v{{ cmp.right.version }} · {{ getStatusLabel(cmp.right.status) }}</p>
-        <p>Publicado: {{ cmp.right.publishedAtUtc || 'N/A' }} · {{ cmp.right.publishedBy || 'N/A' }}</p>
+        <p>Publicado: {{ cmp.right.publishedAtUtc || 'N/D' }} · {{ cmp.right.publishedBy || 'N/D' }}</p>
         <small>{{ cmp.right.notes }}</small>
       </article>
     </div>
@@ -63,7 +67,7 @@
           <tr *ngFor="let row of groupedRules[group]">
             <td>{{ row.parameterPath }}</td>
             <td><span class="badge" [ngClass]="getChangeBadgeClass(row.changeType)">{{ getChangeLabel(row.changeType) }}</span></td>
-            <td>{{ row.changedFields.join(', ') || 'N/A' }}</td>
+            <td>{{ row.changedFields.join(', ') || 'N/D' }}</td>
             <td>{{ row.potentialImpact }}</td>
           </tr>
           <tr *ngIf="(groupedRules[group] || []).length === 0">
