@@ -5,7 +5,7 @@ namespace Cfa.ACHInterbank.Application.Integrations.Interfaces;
 
 public interface IProcContrapartidasFunctionalMappingResolver
 {
-    Task<ProcContrapartidasRequestContract?> TryResolveAsync(
+    Task<ProcContrapartidasRequestResolution?> TryResolveAsync(
         AchCycle cycle,
         IReadOnlyCollection<AchTransaction> transactions,
         DateTime executionDateTime,

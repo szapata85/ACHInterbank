@@ -19,10 +19,11 @@ public sealed class ProcContrapartidasRequestMapper : IProcContrapartidasRequest
         _functionalResolver = functionalResolver;
     }
 
-    public ProcContrapartidasRequestContract Map(
+    public async Task<ProcContrapartidasRequestResolution> ResolveAsync(
         AchCycle cycle,
         IReadOnlyCollection<AchTransaction> transactions,
-        DateTime executionDateTime)
+        DateTime executionDateTime,
+        CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(cycle);
         ArgumentNullException.ThrowIfNull(transactions);
@@ -33,18 +34,21 @@ public sealed class ProcContrapartidasRequestMapper : IProcContrapartidasRequest
         }
 
         // Transición controlada: solo cae a fallback si no existe mapping publicado.
-        var configured = _functionalResolver
-            .TryResolveAsync(cycle, transactions, executionDateTime)
-            .ConfigureAwait(false)
-            .GetAwaiter()
-            .GetResult();
+        var configured = await _functionalResolver.TryResolveAsync(cycle, transactions, executionDateTime, ct);
 
         if (configured is not null)
         {
             return configured;
         }
 
-        return BuildTransitionalFallback(cycle, transactions.OrderBy(t => t.Id).First(), executionDateTime);
+        return new ProcContrapartidasRequestResolution
+        {
+            Contract = BuildTransitionalFallback(cycle, transactions.OrderBy(t => t.Id).First(), executionDateTime),
+            MappingSetId = null,
+            MappingVersion = null,
+            MappingSnapshotHash = string.Empty,
+            UsedFallback = true
+        };
     }
 
     public string BuildSoapBody(ProcContrapartidasRequestContract request)

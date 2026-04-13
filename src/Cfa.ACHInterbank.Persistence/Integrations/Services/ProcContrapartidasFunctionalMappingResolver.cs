@@ -19,7 +19,7 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
         _context = context;
     }
 
-    public async Task<ProcContrapartidasRequestContract?> TryResolveAsync(
+    public async Task<ProcContrapartidasRequestResolution?> TryResolveAsync(
         AchCycle cycle,
         IReadOnlyCollection<AchTransaction> transactions,
         DateTime executionDateTime,
@@ -85,7 +85,7 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
             resolved[parameter.ParameterPath] = ResolveValue(winner, sourceCatalog, cycle, tx, executionDateTime);
         }
 
-        return new ProcContrapartidasRequestContract
+        var contract = new ProcContrapartidasRequestContract
         {
             OFNIT = ResolveString("OFNIT"),
             OFEMP = ResolveString("OFEMP"),
@@ -109,6 +109,22 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
             ANCLC = ResolveString("ANCLC"),
             ANSIDTX = ResolveString("ANSIDTX"),
             ANSIDREVER = ResolveInt("ANSIDREVER")
+        };
+
+        var snapshotHash = await _context.Set<IntegrationMappingSetHistory>()
+            .AsNoTracking()
+            .Where(x => x.MappingSetId == published.Id)
+            .OrderByDescending(x => x.PerformedAtUtc)
+            .Select(x => x.SnapshotHash)
+            .FirstOrDefaultAsync(ct) ?? string.Empty;
+
+        return new ProcContrapartidasRequestResolution
+        {
+            Contract = contract,
+            MappingSetId = published.Id,
+            MappingVersion = published.Version,
+            MappingSnapshotHash = snapshotHash,
+            UsedFallback = false
         };
 
         string ResolveString(string key)

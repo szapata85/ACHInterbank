@@ -28,3 +28,16 @@ public sealed record ProcContrapartidasRequestContract
     public required string ANSIDTX { get; init; }
     public required int ANSIDREVER { get; init; }
 }
+
+/// <summary>
+/// Resultado de resolución funcional + contrato técnico para Proc_Contrapartidas.
+/// Mantiene trazabilidad del MappingSet aplicado.
+/// </summary>
+public sealed record ProcContrapartidasRequestResolution
+{
+    public required ProcContrapartidasRequestContract Contract { get; init; }
+    public Guid? MappingSetId { get; init; }
+    public int? MappingVersion { get; init; }
+    public string MappingSnapshotHash { get; init; } = string.Empty;
+    public bool UsedFallback { get; init; }
+}

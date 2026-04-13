@@ -5,10 +5,11 @@ namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
 
 public interface IProcContrapartidasRequestMapper
 {
-    ProcContrapartidasRequestContract Map(
+    Task<ProcContrapartidasRequestResolution> ResolveAsync(
         AchCycle cycle,
         IReadOnlyCollection<AchTransaction> transactions,
-        DateTime executionDateTime);
+        DateTime executionDateTime,
+        CancellationToken ct = default);
 
     string BuildSoapBody(ProcContrapartidasRequestContract request);
 }

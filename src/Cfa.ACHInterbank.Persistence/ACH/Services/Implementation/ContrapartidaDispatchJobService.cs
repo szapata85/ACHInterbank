@@ -68,7 +68,6 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
         while (!ct.IsCancellationRequested)
         {
-            var mappingMetadata = await ResolvePublishedMappingMetadataAsync(ct);
             var pendingItemIds = await _context.ContrapartidaDispatchItems
                 .AsNoTracking()
                 .Where(i => i.AchCycleId == cycleId && i.ClearingHouseId == clearingHouseId)
@@ -97,10 +96,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 TriggeredAtUtc = DateTime.UtcNow,
                 StartedAtUtc = DateTime.UtcNow,
                 Status = ContrapartidaDispatchBatchStatusEnum.Processing,
-                TotalItems = pendingItemIds.Count,
-                MappingSetId = mappingMetadata.MappingSetId,
-                MappingVersion = mappingMetadata.MappingVersion,
-                MappingSnapshotHash = mappingMetadata.MappingSnapshotHash
+                TotalItems = pendingItemIds.Count
             };
             await _context.ContrapartidaDispatchBatches.AddAsync(batch, ct);
             await _context.SaveChangesAsync(ct);
@@ -145,8 +141,11 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
             try
             {
-                var contract = _procContrapartidasRequestMapper.Map(cycle, transactions, DateTime.Now);
-                requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(contract);
+                var resolution = await _procContrapartidasRequestMapper.ResolveAsync(cycle, transactions, DateTime.Now, ct);
+                requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(resolution.Contract);
+                batch.MappingSetId = resolution.MappingSetId;
+                batch.MappingVersion = resolution.MappingVersion;
+                batch.MappingSnapshotHash = resolution.MappingSnapshotHash;
 
                 responsePayload = await _soapClient.ProcContrapartidasAsync(requestPayload, ct);
                 parseResult = _responseParser.Parse(responsePayload);
@@ -367,11 +366,6 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             TotalItems = selectedItemIds.Count,
             SummaryMessage = $"Retry manual scope={request.Scope}"
         };
-        var mappingMetadata = await ResolvePublishedMappingMetadataAsync(ct);
-        processingBatch.MappingSetId = mappingMetadata.MappingSetId;
-        processingBatch.MappingVersion = mappingMetadata.MappingVersion;
-        processingBatch.MappingSnapshotHash = mappingMetadata.MappingSnapshotHash;
-
         await _context.ContrapartidaDispatchBatches.AddAsync(processingBatch, ct);
         await _context.SaveChangesAsync(ct);
 
@@ -422,8 +416,11 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             ProcContrapartidasParsedResponse parseResult;
             try
             {
-                var contract = _procContrapartidasRequestMapper.Map(cycle, txs, DateTime.Now);
-                requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(contract);
+                var resolution = await _procContrapartidasRequestMapper.ResolveAsync(cycle, txs, DateTime.Now, ct);
+                requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(resolution.Contract);
+                processingBatch.MappingSetId = resolution.MappingSetId;
+                processingBatch.MappingVersion = resolution.MappingVersion;
+                processingBatch.MappingSnapshotHash = resolution.MappingSnapshotHash;
                 responsePayload = await _soapClient.ProcContrapartidasAsync(requestPayload, ct);
                 parseResult = _responseParser.Parse(responsePayload);
             }
@@ -580,35 +577,4 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         return DateTime.UtcNow.Add(capped);
     }
 
-    private async Task<(Guid? MappingSetId, int? MappingVersion, string MappingSnapshotHash)> ResolvePublishedMappingMetadataAsync(CancellationToken ct)
-    {
-        var method = await _context.Set<IntegrationMethod>()
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Code == "WSCFAACH.Proc_Contrapartidas", ct);
-
-        if (method is null)
-        {
-            return (null, null, string.Empty);
-        }
-
-        var published = await _context.Set<IntegrationMappingSet>()
-            .AsNoTracking()
-            .Where(x => x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published)
-            .OrderByDescending(x => x.Version)
-            .FirstOrDefaultAsync(ct);
-
-        if (published is null)
-        {
-            return (null, null, string.Empty);
-        }
-
-        var snapshotHash = await _context.Set<IntegrationMappingSetHistory>()
-            .AsNoTracking()
-            .Where(x => x.MappingSetId == published.Id)
-            .OrderByDescending(x => x.PerformedAtUtc)
-            .Select(x => x.SnapshotHash)
-            .FirstOrDefaultAsync(ct) ?? string.Empty;
-
-        return (published.Id, published.Version, snapshotHash);
-    }
 }
