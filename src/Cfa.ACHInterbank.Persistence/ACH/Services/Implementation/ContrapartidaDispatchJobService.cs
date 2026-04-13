@@ -145,7 +145,16 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(resolution.Contract);
                 batch.MappingSetId = resolution.MappingSetId;
                 batch.MappingVersion = resolution.MappingVersion;
-                batch.MappingSnapshotHash = resolution.MappingSnapshotHash;
+                batch.MappingSnapshotHash = resolution.UsedFallback
+                    ? "FALLBACK_TRANSITIONAL"
+                    : resolution.MappingSnapshotHash;
+                if (resolution.UsedFallback)
+                {
+                    _logger.LogWarning(
+                        "Se ejecutó Proc_Contrapartidas con fallback transicional para ciclo {CycleId} cámara {ClearingHouseId}.",
+                        cycle.Id,
+                        cycle.ClearingHouseId);
+                }
 
                 responsePayload = await _soapClient.ProcContrapartidasAsync(requestPayload, ct);
                 parseResult = _responseParser.Parse(responsePayload);
@@ -420,7 +429,16 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(resolution.Contract);
                 processingBatch.MappingSetId = resolution.MappingSetId;
                 processingBatch.MappingVersion = resolution.MappingVersion;
-                processingBatch.MappingSnapshotHash = resolution.MappingSnapshotHash;
+                processingBatch.MappingSnapshotHash = resolution.UsedFallback
+                    ? "FALLBACK_TRANSITIONAL"
+                    : resolution.MappingSnapshotHash;
+                if (resolution.UsedFallback)
+                {
+                    _logger.LogWarning(
+                        "Reintento manual ejecutó Proc_Contrapartidas con fallback transicional para ciclo {CycleId} cámara {ClearingHouseId}.",
+                        cycle.Id,
+                        cycle.ClearingHouseId);
+                }
                 responsePayload = await _soapClient.ProcContrapartidasAsync(requestPayload, ct);
                 parseResult = _responseParser.Parse(responsePayload);
             }

@@ -58,7 +58,8 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
 
         if (rules.Count == 0)
         {
-            return null;
+            throw new InvalidOperationException(
+                $"El MappingSet publicado {published.Id} (v{published.Version}) no tiene reglas habilitadas.");
         }
 
         var sourceCatalog = await _context.Set<IntegrationSourceCatalogField>()
@@ -83,6 +84,12 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
             }
 
             resolved[parameter.ParameterPath] = ResolveValue(winner, sourceCatalog, cycle, tx, executionDateTime);
+        }
+
+        if (!resolved.ContainsKey("OFIDLOT"))
+        {
+            throw new InvalidOperationException(
+                $"El MappingSet publicado {published.Id} no resolvió OFIDLOT, requerido por el contrato técnico.");
         }
 
         var contract = new ProcContrapartidasRequestContract
@@ -163,14 +170,14 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
         {
             IntegrationSourceKindEnum.Constant => rule.DefaultValue,
             IntegrationSourceKindEnum.Expression => null,
-            _ => ResolvePath(sourcePath, cycle, tx)
+            _ => ResolvePath(sourcePath, cycle, tx, executionDateTime)
         };
 
         resolved ??= rule.DefaultValue;
         return ApplyTransformation(resolved, rule.TransformationCode, rule.FormatMask);
     }
 
-    private static string? ResolvePath(string sourcePath, AchCycle cycle, AchTransaction? tx)
+    private static string? ResolvePath(string sourcePath, AchCycle cycle, AchTransaction? tx, DateTime executionDateTime)
     {
         var key = sourcePath.Trim().ToLowerInvariant();
         return key switch
@@ -185,6 +192,8 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
             "transaction.tracenumber" => tx?.TraceNumber,
             "transaction.originatingdfi" => tx?.OriginatingDFI,
             "transaction.companyidentification" => tx?.CompanyIdentification,
+            "execution.datetimeutc" => executionDateTime.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
+            "execution.dateyyyymmdd" => executionDateTime.ToString("yyyyMMdd", CultureInfo.InvariantCulture),
             _ => null
         };
     }
