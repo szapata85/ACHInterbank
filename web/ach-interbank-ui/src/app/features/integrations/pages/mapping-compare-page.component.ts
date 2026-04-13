@@ -99,4 +99,32 @@ export class MappingComparePageComponent implements OnInit {
   getChangeBadgeClass(changeType: string): string {
     return `change-${changeType.toLowerCase()}`;
   }
+
+  getChangeLabel(changeType: string): string {
+    switch (changeType) {
+      case 'Added':
+        return 'Agregado';
+      case 'Removed':
+        return 'Eliminado';
+      case 'Modified':
+        return 'Modificado';
+      case 'Equal':
+        return 'Sin cambios';
+      default:
+        return changeType;
+    }
+  }
+
+  getStatusLabel(status: string): string {
+    switch (status) {
+      case 'Draft':
+        return 'Borrador';
+      case 'Published':
+        return 'Publicado';
+      case 'Archived':
+        return 'Archivado';
+      default:
+        return status;
+    }
+  }
 }

@@ -23,6 +23,7 @@ export class MappingSetsPageComponent implements OnInit {
   loading = false;
   methods: IntegrationMethod[] = [];
   mappingSets: IntegrationMappingSet[] = [];
+  creatingDraft = false;
 
   readonly createDraftForm = this.fb.group({
     methodId: [null as number | null, Validators.required],
@@ -50,9 +51,9 @@ export class MappingSetsPageComponent implements OnInit {
     this.loading = true;
     this.api.getMethods().subscribe({
       next: (items) => {
-        this.methods = items;
-        if (!this.selectedMethodId && items.length > 0) {
-          this.createDraftForm.patchValue({ methodId: items[0].id });
+        this.methods = items ?? [];
+        if (!this.selectedMethodId && this.methods.length > 0) {
+          this.createDraftForm.patchValue({ methodId: this.methods[0].id });
         }
         this.loadMappingSets();
       },
@@ -64,7 +65,7 @@ export class MappingSetsPageComponent implements OnInit {
   loadMappingSets(): void {
     const methodId = this.selectedMethodId;
     this.api.getMappingSets(methodId ?? undefined).subscribe({
-      next: (items) => (this.mappingSets = items),
+      next: (items) => (this.mappingSets = items ?? []),
       error: () => this.notifications.error('No fue posible cargar MappingSets.')
     });
   }
@@ -75,7 +76,7 @@ export class MappingSetsPageComponent implements OnInit {
 
   openCompare(): void {
     const methodId = this.selectedMethodId;
-    const method = this.methods.find((x) => x.id === methodId);
+    const method = (this.methods ?? []).find((x) => x.id === methodId);
     if (!method) {
       this.notifications.error('Selecciona un método para comparar versiones.');
       return;
@@ -97,13 +98,32 @@ export class MappingSetsPageComponent implements OnInit {
     const methodId = this.createDraftForm.controls.methodId.value!;
     const name = this.createDraftForm.controls.name.value!.trim();
     const notes = this.createDraftForm.controls.notes.value?.trim() ?? '';
+    if (!name) {
+      this.notifications.error('El nombre del borrador es obligatorio.');
+      return;
+    }
 
+    this.creatingDraft = true;
     this.api.createDraft(methodId, name, notes, 'ui-admin').subscribe({
       next: (created) => {
-        this.notifications.success('MappingSet Draft creado.');
+        this.notifications.success('Borrador de mapeo creado.');
         this.openEditor(created);
       },
-      error: () => this.notifications.error('No fue posible crear el MappingSet Draft.')
+      error: () => this.notifications.error('No fue posible crear el borrador de mapeo.'),
+      complete: () => (this.creatingDraft = false)
     });
+  }
+
+  getStatusLabel(status: IntegrationMappingSet['status']): string {
+    switch (status) {
+      case 'Draft':
+        return 'Borrador';
+      case 'Published':
+        return 'Publicado';
+      case 'Archived':
+        return 'Archivado';
+      default:
+        return status;
+    }
   }
 }

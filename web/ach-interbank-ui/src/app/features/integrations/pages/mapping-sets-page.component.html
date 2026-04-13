@@ -1,13 +1,13 @@
 <div class="mapping-list-page">
   <section class="cards">
     <article class="card metric"><span>Total</span><strong>{{ stats.total }}</strong></article>
-    <article class="card metric"><span>Draft</span><strong>{{ stats.draft }}</strong></article>
-    <article class="card metric"><span>Published</span><strong>{{ stats.published }}</strong></article>
-    <article class="card metric"><span>Archived</span><strong>{{ stats.archived }}</strong></article>
+    <article class="card metric"><span>Borrador</span><strong>{{ stats.draft }}</strong></article>
+    <article class="card metric"><span>Publicado</span><strong>{{ stats.published }}</strong></article>
+    <article class="card metric"><span>Archivado</span><strong>{{ stats.archived }}</strong></article>
   </section>
 
   <section class="card controls">
-    <h3>Nuevo MappingSet Draft</h3>
+    <h3>Nuevo borrador de mapeo</h3>
     <form [formGroup]="createDraftForm" class="draft-form" (ngSubmit)="createDraft()">
       <label>
         Método SOAP
@@ -16,14 +16,16 @@
         </select>
       </label>
       <label>
-        Nombre del MappingSet
+        Nombre del borrador
         <input type="text" formControlName="name" placeholder="Ej: Contrapartidas Colombia vNext" />
       </label>
       <label>
         Notas
         <input type="text" formControlName="notes" placeholder="Opcional" />
       </label>
-      <button type="submit" class="primary">Crear Draft</button>
+      <button type="submit" class="primary" [disabled]="createDraftForm.invalid || creatingDraft">
+        {{ creatingDraft ? 'Creando…' : 'Crear borrador' }}
+      </button>
     </form>
   </section>
 
@@ -47,8 +49,8 @@
         <tr *ngFor="let set of mappingSets">
           <td>{{ set.name }}</td>
           <td>{{ set.methodCode }}</td>
-          <td>{{ set.version || 'Draft' }}</td>
-          <td><span class="badge" [class]="set.status.toLowerCase()">{{ set.status }}</span></td>
+          <td>{{ set.version || 'Borrador' }}</td>
+          <td><span class="badge" [class]="set.status.toLowerCase()">{{ getStatusLabel(set.status) }}</span></td>
           <td>{{ set.publishedBy || '—' }}</td>
           <td><button type="button" (click)="openEditor(set)">Abrir editor</button></td>
         </tr>

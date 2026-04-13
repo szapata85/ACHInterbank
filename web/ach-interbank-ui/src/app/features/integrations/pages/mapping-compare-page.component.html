@@ -8,13 +8,13 @@
       <label>
         Versión izquierda
         <select [(ngModel)]="leftId">
-          <option *ngFor="let ms of mappingSets" [value]="ms.id">v{{ ms.version }} · {{ ms.name }} ({{ ms.status }})</option>
+          <option *ngFor="let ms of mappingSets" [value]="ms.id">v{{ ms.version }} · {{ ms.name }} ({{ getStatusLabel(ms.status) }})</option>
         </select>
       </label>
       <label>
         Versión derecha
         <select [(ngModel)]="rightId">
-          <option *ngFor="let ms of mappingSets" [value]="ms.id">v{{ ms.version }} · {{ ms.name }} ({{ ms.status }})</option>
+          <option *ngFor="let ms of mappingSets" [value]="ms.id">v{{ ms.version }} · {{ ms.name }} ({{ getStatusLabel(ms.status) }})</option>
         </select>
       </label>
       <button type="button" class="primary" (click)="runCompare()">Comparar</button>
@@ -25,13 +25,13 @@
     <div class="meta-grid">
       <article>
         <h4>Izquierda</h4>
-        <p><strong>{{ cmp.left.name }}</strong> · v{{ cmp.left.version }} · {{ cmp.left.status }}</p>
+        <p><strong>{{ cmp.left.name }}</strong> · v{{ cmp.left.version }} · {{ getStatusLabel(cmp.left.status) }}</p>
         <p>Publicado: {{ cmp.left.publishedAtUtc || 'N/A' }} · {{ cmp.left.publishedBy || 'N/A' }}</p>
         <small>{{ cmp.left.notes }}</small>
       </article>
       <article>
         <h4>Derecha</h4>
-        <p><strong>{{ cmp.right.name }}</strong> · v{{ cmp.right.version }} · {{ cmp.right.status }}</p>
+        <p><strong>{{ cmp.right.name }}</strong> · v{{ cmp.right.version }} · {{ getStatusLabel(cmp.right.status) }}</p>
         <p>Publicado: {{ cmp.right.publishedAtUtc || 'N/A' }} · {{ cmp.right.publishedBy || 'N/A' }}</p>
         <small>{{ cmp.right.notes }}</small>
       </article>
@@ -62,7 +62,7 @@
         <tbody>
           <tr *ngFor="let row of groupedRules[group]">
             <td>{{ row.parameterPath }}</td>
-            <td><span class="badge" [ngClass]="getChangeBadgeClass(row.changeType)">{{ row.changeType }}</span></td>
+            <td><span class="badge" [ngClass]="getChangeBadgeClass(row.changeType)">{{ getChangeLabel(row.changeType) }}</span></td>
             <td>{{ row.changedFields.join(', ') || 'N/A' }}</td>
             <td>{{ row.potentialImpact }}</td>
           </tr>

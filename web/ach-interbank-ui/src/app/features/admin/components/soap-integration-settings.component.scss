@@ -1,4 +1,8 @@
-.card {
+:host {
+  display: block;
+}
+
+.soap-settings-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   padding: 1.5rem;
@@ -104,4 +108,22 @@ button.danger {
 
 button.primary {
   min-width: 140px;
+}
+
+@media (max-width: 1200px) {
+  .row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .check {
+    margin-top: 0.3rem;
+  }
+
+  .mapping-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .check-inline {
+    margin-top: 0.3rem;
+  }
 }
