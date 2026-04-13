@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using NLog.Extensions.Logging;
+using Npgsql;
 using Scalar.AspNetCore;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -123,8 +124,15 @@ public static class DependencyInjectionService
         {
             using var scope = app.Services.CreateScope();
             AchDbContext Context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
-            EnsureLegacyPostgresTableNames(Context);
-            Context.Database.Migrate();
+            try
+            {
+                EnsureLegacyPostgresTableNames(Context);
+                Context.Database.Migrate();
+            }
+            catch (PostgresException ex) when (ex.SqlState == "3D000")
+            {
+                app.Logger.LogWarning("Database does not exist ({DatabaseName}). Skipping migration at startup. Create DB first or disable Database:ApplyMigrations.", ex.DatabaseName);
+            }
         }
         else
         {
@@ -216,6 +224,13 @@ public static class DependencyInjectionService
             END $$;
             """;
 
-        context.Database.ExecuteSqlRaw(sql);
+        try
+        {
+            context.Database.ExecuteSqlRaw(sql);
+        }
+        catch (PostgresException ex) when (ex.SqlState == "3D000")
+        {
+            // DB inexistente: se maneja en ConfigureHandler para no romper el startup.
+        }
     }
 }
