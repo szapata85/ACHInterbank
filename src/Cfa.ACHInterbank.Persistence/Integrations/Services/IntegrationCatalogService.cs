@@ -56,7 +56,12 @@ public class IntegrationCatalogService : IIntegrationCatalogService
                 x.MethodId,
                 x.ParameterPath,
                 x.DisplayName,
+                x.DescriptionEs,
+                x.Category,
+                x.ExampleValue,
+                x.UiHelpText,
                 x.DataType,
+                x.Direction,
                 x.Cardinality,
                 x.Required,
                 x.SortOrder,
@@ -94,149 +99,255 @@ public class IntegrationCatalogService : IIntegrationCatalogService
 
     private async Task EnsureSeedAsync(CancellationToken ct)
     {
-        var exists = await _context.Set<IntegrationMethod>().AnyAsync(ct);
-        if (exists)
+        var contrapartidas = await EnsureMethodAsync(
+            code: "WSCFAACH.Proc_Contrapartidas",
+            displayName: "Proc_Contrapartidas",
+            soapClientCode: "WscfaachSoapClient",
+            ct);
+
+        var transacciones = await EnsureMethodAsync(
+            code: "WSCFAACH.Proc_Transacciones",
+            displayName: "Proc_Transacciones",
+            soapClientCode: "WscfaachSoapClient",
+            ct);
+
+        await EnsureParametersAsync(contrapartidas.Id, BuildProcContrapartidasTechnicalCatalog(), ct);
+        await EnsureParametersAsync(transacciones.Id, BuildProcTransaccionesTechnicalCatalog(), ct);
+        await EnsureSourceCatalogAsync(contrapartidas.Id, BuildBusinessSourceCatalog(contrapartidas.Id), ct);
+        await EnsureSourceCatalogAsync(transacciones.Id, BuildBusinessSourceCatalog(transacciones.Id), ct);
+
+        await _context.SaveChangesAsync(ct);
+    }
+
+    private async Task<IntegrationMethod> EnsureMethodAsync(string code, string displayName, string soapClientCode, CancellationToken ct)
+    {
+        var existing = await _context.Set<IntegrationMethod>()
+            .FirstOrDefaultAsync(x => x.Code == code, ct);
+
+        if (existing is null)
         {
-            return;
+            existing = new IntegrationMethod
+            {
+                Code = code,
+                DisplayName = displayName,
+                SoapClientCode = soapClientCode,
+                IsActive = true
+            };
+            _context.Set<IntegrationMethod>().Add(existing);
+            await _context.SaveChangesAsync(ct);
+        }
+        else
+        {
+            existing.DisplayName = displayName;
+            existing.SoapClientCode = soapClientCode;
+            existing.IsActive = true;
         }
 
-        var method = new IntegrationMethod
-        {
-            Code = "WSCFAACH.Proc_Contrapartidas",
-            DisplayName = "Proc_Contrapartidas",
-            SoapClientCode = "WscfaachSoapClient",
-            IsActive = true
-        };
-
-        _context.Set<IntegrationMethod>().Add(method);
-        await _context.SaveChangesAsync(ct);
-
-        var parameters = BuildProcContrapartidasParameterCatalog(method.Id);
-        var sourceCatalog = BuildProcContrapartidasSourceCatalog(method.Id);
-
-        _context.Set<IntegrationMethodParameter>().AddRange(parameters);
-        _context.Set<IntegrationSourceCatalogField>().AddRange(sourceCatalog);
-        await _context.SaveChangesAsync(ct);
+        return existing;
     }
 
-    private static IEnumerable<IntegrationMethodParameter> BuildProcContrapartidasParameterCatalog(int methodId)
+    private async Task EnsureParametersAsync(int methodId, IReadOnlyCollection<ParameterSeedSpec> specs, CancellationToken ct)
+    {
+        var existing = await _context.Set<IntegrationMethodParameter>()
+            .Where(x => x.MethodId == methodId)
+            .ToListAsync(ct);
+
+        var byKey = existing.ToDictionary(x => x.ParameterPath, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var spec in specs)
+        {
+            if (!byKey.TryGetValue(spec.TechnicalName, out var parameter))
+            {
+                parameter = new IntegrationMethodParameter
+                {
+                    MethodId = methodId,
+                    ParameterPath = spec.TechnicalName
+                };
+                _context.Set<IntegrationMethodParameter>().Add(parameter);
+            }
+
+            parameter.DisplayName = spec.DisplayNameEs;
+            parameter.DescriptionEs = spec.DescriptionEs;
+            parameter.Category = spec.Category;
+            parameter.ExampleValue = spec.ExampleValue;
+            parameter.UiHelpText = spec.UiHelpText;
+            parameter.DataType = spec.DataType;
+            parameter.Direction = spec.Direction;
+            parameter.Cardinality = IntegrationParameterCardinalityEnum.Scalar;
+            parameter.Required = spec.Required;
+            parameter.SortOrder = spec.SortOrder;
+            parameter.IsActive = true;
+        }
+
+        var allowed = specs.Select(x => x.TechnicalName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var stale in existing.Where(x => !allowed.Contains(x.ParameterPath)))
+        {
+            stale.IsActive = false;
+        }
+    }
+
+    private async Task EnsureSourceCatalogAsync(int methodId, IReadOnlyCollection<SourceSeedSpec> specs, CancellationToken ct)
+    {
+        var existing = await _context.Set<IntegrationSourceCatalogField>()
+            .Where(x => x.MethodId == methodId)
+            .ToListAsync(ct);
+
+        var byPath = existing.ToDictionary(x => x.FieldPath, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var spec in specs)
+        {
+            if (!byPath.TryGetValue(spec.FieldPath, out var field))
+            {
+                field = new IntegrationSourceCatalogField
+                {
+                    MethodId = methodId,
+                    FieldPath = spec.FieldPath
+                };
+                _context.Set<IntegrationSourceCatalogField>().Add(field);
+            }
+
+            field.SourceKind = spec.SourceKind;
+            field.EntityName = spec.EntityName;
+            field.DisplayName = spec.DisplayName;
+            field.DataType = spec.DataType;
+            field.Cardinality = IntegrationParameterCardinalityEnum.Scalar;
+            field.Nullable = spec.Nullable;
+            field.SortOrder = spec.SortOrder;
+            field.IsActive = true;
+        }
+
+        var allowed = specs.Select(x => x.FieldPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var stale in existing.Where(x => !allowed.Contains(x.FieldPath)))
+        {
+            stale.IsActive = false;
+        }
+    }
+
+    private static IReadOnlyCollection<ParameterSeedSpec> BuildProcContrapartidasTechnicalCatalog()
+    {
+        var i = 1;
+        return
+        [
+            Spec("OFNIT", "NIT origen", "Identificador tributario de la entidad origen.", "Identificación", "900123456", "Seleccione el NIT institucional a enviar.", "string", true, i++),
+            Spec("OFEMP", "Código empresa", "Código de empresa/origen definido para ACH.", "Identificación", "EMP001", "Use el código empresarial registrado en ACH.", "string", true, i++),
+            Spec("OFCTA", "Cuenta origen", "Cuenta origen del movimiento.", "Cuenta", "001234567890", "Mapee la cuenta origen del sistema.", "string", true, i++),
+            Spec("OFDD", "Débito/Crédito", "Indicador de naturaleza de operación.", "Control", "D", "Use el indicador de negocio aprobado (D/C).", "string", true, i++),
+            Spec("OFFECHEFEC", "Fecha efectiva", "Fecha efectiva de compensación.", "Fechas", "20260413", "Formatee la fecha según regla operativa ACH.", "string", true, i++),
+            Spec("OFMONDEB", "Monto débito", "Monto débito de la operación.", "Montos", "150000.25", "Debe representar solo débitos.", "decimal", true, i++),
+            Spec("OFMONCRE", "Monto crédito", "Monto crédito de la operación.", "Montos", "0", "Debe representar solo créditos.", "decimal", true, i++),
+            Spec("OFIDARCH", "Id archivo", "Identificador del archivo de envío.", "Control", "1001", "Mapee el id de archivo del lote de salida.", "int", true, i++),
+            Spec("OFIDLOT", "Id lote", "Identificador del lote ACH.", "Control", "2001", "Mapee el id del lote funcional.", "int", true, i++),
+            Spec("OFST", "Estado origen", "Estado funcional del registro origen.", "Estado", "PENDIENTE", "Utilice estado de negocio vigente.", "string", true, i++),
+            Spec("OFIDTX", "Id transacción origen", "Identificador de transacción origen.", "Identificación", "TX-2026-0001", "Use el identificador único transaccional.", "string", true, i++),
+            Spec("OFIDREVER", "Id reverso origen", "Identificador de reverso origen.", "Control", "0", "Use 0 si no aplica reverso.", "int", true, i++),
+            Spec("OFIDEBAPLI", "Id débito aplicado", "Id interno de débito aplicado.", "Control", "345", "Mapee id de aplicación de débito.", "int", true, i++),
+            Spec("OFIDCAMCOMPE", "Id cámara compensación", "Identificador de cámara compensadora.", "Control", "12", "Use id de cámara del ciclo.", "int", true, i++),
+            Spec("OFDIRECCIONIP", "Dirección IP origen", "IP de origen de la operación.", "Seguridad", "10.10.10.1", "IP del origen según trazabilidad.", "string", true, i++),
+            Spec("OFLIBRE", "Campo libre", "Campo libre de negocio (texto).", "Complementario", "Observación", "Use solo si su flujo lo requiere.", "string", true, i++),
+            Spec("OFLIBRE1", "Campo libre numérico", "Campo libre de negocio (numérico).", "Complementario", "1", "Use valor numérico controlado.", "int", true, i++),
+            Spec("ANSIDLOTE", "Id lote respuesta", "Campo contractual para identificar lote de respuesta.", "Respuesta esperada", "0", "Campo reservado por contrato legado.", "int", false, i++),
+            Spec("ANSST", "Estado respuesta", "Campo contractual de estado de respuesta.", "Respuesta esperada", "", "Campo reservado por contrato legado.", "string", false, i++),
+            Spec("ANCLC", "Código local respuesta", "Campo contractual de código local.", "Respuesta esperada", "", "Campo reservado por contrato legado.", "string", false, i++),
+            Spec("ANSIDTX", "Id transacción respuesta", "Campo contractual de id transacción de respuesta.", "Respuesta esperada", "", "Campo reservado por contrato legado.", "string", false, i++),
+            Spec("ANSIDREVER", "Id reverso respuesta", "Campo contractual de reverso de respuesta.", "Respuesta esperada", "0", "Campo reservado por contrato legado.", "int", false, i++)
+        ];
+    }
+
+    private static IReadOnlyCollection<ParameterSeedSpec> BuildProcTransaccionesTechnicalCatalog()
+    {
+        var i = 1;
+        return
+        [
+            Spec("TREG", "Tipo de registro", "Tipo de registro ACH transacción.", "Entrada transacción", "6", "Tipo de registro según layout ACH.", "string", true, i++),
+            Spec("TIPTRAN", "Tipo transacción", "Código de tipo de transacción.", "Entrada transacción", "22", "Código según tabla operativa.", "int", true, i++),
+            Spec("BCORECEP", "Banco receptor", "Código banco receptor.", "Entrada transacción", "1007", "Código bancario receptor.", "int", true, i++),
+            Spec("BCOORIG", "Banco origen", "Código banco originador.", "Entrada transacción", "1001", "Código bancario origen.", "int", true, i++),
+            Spec("NORIG", "Nombre origen", "Nombre del originador.", "Entrada transacción", "EMPRESA ORIGEN", "Nombre homologado del originador.", "string", true, i++),
+            Spec("NCTAORIG", "Cuenta origen", "Número de cuenta origen.", "Entrada transacción", "001234567890", "Cuenta origen validada.", "string", true, i++),
+            Spec("IDORIG", "Id origen", "Identificación origen.", "Entrada transacción", "900123456", "Documento/NIT origen.", "string", true, i++),
+            Spec("DESTRAN", "Descripción", "Descripción de transacción.", "Entrada transacción", "PAGO NOMINA", "Descripción visible de negocio.", "string", true, i++),
+            Spec("FECEFEC", "Fecha efectiva", "Fecha efectiva en formato entero.", "Entrada transacción", "20260413", "Fecha efectiva según especificación.", "int", true, i++),
+            Spec("NCTARECEP", "Cuenta receptor", "Cuenta destino/receptor.", "Entrada transacción", "009998887777", "Cuenta del receptor.", "string", true, i++),
+            Spec("MONTO", "Monto", "Monto de la transacción.", "Entrada transacción", "250000.75", "Monto exacto con formato numérico válido.", "double", true, i++),
+            Spec("NRECEP", "Nombre receptor", "Nombre del receptor.", "Entrada transacción", "JUAN PEREZ", "Nombre receptor en mayúsculas.", "string", true, i++),
+            Spec("IDRECEP", "Id receptor", "Identificación del receptor.", "Entrada transacción", "1099001122", "Documento receptor.", "string", true, i++),
+            Spec("DISCRE", "Discrecional", "Campo discrecional receptor.", "Entrada transacción", "", "Campo opcional según operación.", "string", true, i++),
+            Spec("CONV", "Convenio", "Código de convenio.", "Entrada transacción", "CNV01", "Convenio aplicable a la operación.", "string", true, i++),
+            Spec("PROD", "Producto", "Código de producto.", "Entrada transacción", "ACH", "Producto financiero asociado.", "string", true, i++),
+            Spec("INFPAG", "Información pago", "Información adicional de pago.", "Entrada transacción", "NOMINA ABRIL", "Texto informativo del pago.", "string", true, i++),
+            Spec("IDTRAN", "Id transacción", "Identificador numérico de transacción.", "Entrada transacción", "9876543210", "Id único de transacción.", "long", true, i++),
+            Spec("IDLOTE", "Id lote", "Identificador de lote.", "Entrada transacción", "LOTE-001", "Id de lote operacional.", "string", true, i++),
+            Spec("REGLOTE", "Registro lote", "Registro secuencial de lote.", "Entrada transacción", "1", "Número de registro en lote.", "long", true, i++),
+            Spec("IREVER", "Indicador reverso", "Indicador de reverso.", "Entrada transacción", "0", "0 normal, 1 reverso.", "int", true, i++),
+            Spec("LIBRE", "Campo libre", "Campo libre texto.", "Entrada transacción", "OBS", "Campo complementario opcional.", "string", true, i++),
+            Spec("IDCAMCOMPE", "Id cámara", "Id cámara compensadora.", "Entrada transacción", "12", "Id de cámara vigente.", "int", true, i++),
+            Spec("DIRECCIONIP", "Dirección IP", "IP de origen.", "Entrada transacción", "10.10.10.1", "IP para trazabilidad.", "string", true, i++),
+            Spec("LIBRE1", "Campo libre numérico", "Campo libre numérico.", "Entrada transacción", "1", "Campo complementario numérico.", "int", true, i++),
+            Spec("RTAACH", "Respuesta ACH", "Campo contractual de respuesta ACH.", "Respuesta esperada", "", "Campo reservado por contrato legado.", "string", true, i++),
+            Spec("RTALOC", "Respuesta local", "Campo contractual de respuesta local.", "Respuesta esperada", "", "Campo reservado por contrato legado.", "string", true, i++)
+        ];
+    }
+
+    private static IReadOnlyCollection<SourceSeedSpec> BuildBusinessSourceCatalog(int methodId)
     {
         var order = 1;
-        yield return Param(methodId, "ClearingHouseId", "Clearing House Id", "int", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "ClearingHouseCode", "Clearing House Code", "string", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "CycleId", "Cycle Id", "string", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "CycleName", "Cycle Name", "string", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "ProcessingDate", "Processing Date", "datetime", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "StartTime", "Start Time", "timespan", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "EndTime", "End Time", "timespan", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "CutoffTime", "Cutoff Time", "timespan", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "ExecutionDateTime", "Execution Date Time", "datetime", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-
-        yield return Param(methodId, "Transactions", "Transactions", "object", IntegrationParameterCardinalityEnum.Collection, true, order++);
-        yield return Param(methodId, "Transactions[].TransactionId", "Transaction Id", "int", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "Transactions[].AchBatchId", "Transaction Batch Id", "int", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "Transactions[].AchCycleId", "Transaction Cycle Id", "string", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "Transactions[].Amount", "Amount", "decimal", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "Transactions[].Type", "Type", "string", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "Transactions[].TransactionCode", "Transaction Code", "string", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "Transactions[].TraceNumber", "Trace Number", "string", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "Transactions[].Reference", "Reference", "string", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "Transactions[].OriginatingDFI", "Originating DFI", "string", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "Transactions[].ReceivingDFI", "Receiving DFI", "string", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "Transactions[].CompanyIdentification", "Company Identification", "string", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "Transactions[].EffectiveEntryDate", "Effective Entry Date", "datetime", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "Transactions[].SourceInstitutionId", "Source Institution Id", "int", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "Transactions[].DestinationInstitutionId", "Destination Institution Id", "int", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-
-        yield return Param(methodId, "Transactions[].Addendas", "Addendas", "object", IntegrationParameterCardinalityEnum.Collection, true, order++);
-        yield return Param(methodId, "Transactions[].Addendas[].SequenceNumber", "Addenda Sequence Number", "int", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "Transactions[].Addendas[].AddendaType", "Addenda Type", "string", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "Transactions[].Addendas[].BusinessType", "Business Type", "string", IntegrationParameterCardinalityEnum.Scalar, true, order++);
-        yield return Param(methodId, "Transactions[].Addendas[].Information", "Information", "string", IntegrationParameterCardinalityEnum.Scalar, false, order++);
-        yield return Param(methodId, "Transactions[].Addendas[].Purpose", "Purpose", "string", IntegrationParameterCardinalityEnum.Scalar, false, order++);
-        yield return Param(methodId, "Transactions[].Addendas[].Reference", "Addenda Reference", "string", IntegrationParameterCardinalityEnum.Scalar, false, order++);
-        yield return Param(methodId, "Transactions[].Addendas[].CollectorId", "Collector Id", "string", IntegrationParameterCardinalityEnum.Scalar, false, order++);
-        yield return Param(methodId, "Transactions[].Addendas[].ReceiverCustomerCode", "Receiver Customer Code", "string", IntegrationParameterCardinalityEnum.Scalar, false, order++);
-        yield return Param(methodId, "Transactions[].Addendas[].ServiceDescription", "Service Description", "string", IntegrationParameterCardinalityEnum.Scalar, false, order++);
-        yield return Param(methodId, "Transactions[].Addendas[].ReturnReasonCode", "Return Reason Code", "string", IntegrationParameterCardinalityEnum.Scalar, false, order++);
-        yield return Param(methodId, "Transactions[].Addendas[].OriginalTraceNumber", "Original Trace Number", "string", IntegrationParameterCardinalityEnum.Scalar, false, order++);
-        yield return Param(methodId, "Transactions[].Addendas[].NewTraceNumber", "New Trace Number", "string", IntegrationParameterCardinalityEnum.Scalar, false, order++);
+        return
+        [
+            Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.reference", "Referencia transacción", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.amount", "Monto transacción", "decimal", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.traceNumber", "Trazabilidad transacción", "string", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Batch, nameof(AchBatch), "batch.id", "Id lote", "int", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Cycle, nameof(AchCycle), "cycle.id", "Id ciclo", "string", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Cycle, nameof(AchCycle), "cycle.processingDate", "Fecha proceso ciclo", "datetime", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.ClearingHouse, nameof(ClearingHouse), "clearinghouse.id", "Id cámara", "int", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.ClearingHouse, nameof(ClearingHouse), "clearinghouse.code", "Código cámara", "string", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Constant, "Constant", "constant.value", "Valor fijo", "string", true, order++)
+        ];
     }
 
-    private static IntegrationMethodParameter Param(
-        int methodId,
-        string path,
-        string display,
+    private static ParameterSeedSpec Spec(
+        string technicalName,
+        string displayNameEs,
+        string descriptionEs,
+        string category,
+        string exampleValue,
+        string uiHelpText,
         string dataType,
-        IntegrationParameterCardinalityEnum cardinality,
         bool required,
-        int order)
-        => new()
-        {
-            MethodId = methodId,
-            ParameterPath = path,
-            DisplayName = display,
-            DataType = dataType,
-            Cardinality = cardinality,
-            Required = required,
-            SortOrder = order,
-            IsActive = true
-        };
+        int sortOrder,
+        IntegrationParameterDirectionEnum direction = IntegrationParameterDirectionEnum.Input)
+        => new(technicalName, displayNameEs, descriptionEs, category, exampleValue, uiHelpText, dataType, required, sortOrder, direction);
 
-    private static IEnumerable<IntegrationSourceCatalogField> BuildProcContrapartidasSourceCatalog(int methodId)
-    {
-        var fields = new List<(IntegrationSourceKindEnum Kind, string Entity, string Path, string Label, string Type, IntegrationParameterCardinalityEnum Card, bool Nullable)>
-        {
-            (IntegrationSourceKindEnum.Cycle, nameof(AchCycle), "cycle.id", "Cycle Id", "string", IntegrationParameterCardinalityEnum.Scalar, false),
-            (IntegrationSourceKindEnum.Cycle, nameof(AchCycle), "cycle.cycleName", "Cycle Name", "string", IntegrationParameterCardinalityEnum.Scalar, false),
-            (IntegrationSourceKindEnum.Cycle, nameof(AchCycle), "cycle.processingDate", "Processing Date", "datetime", IntegrationParameterCardinalityEnum.Scalar, false),
-            (IntegrationSourceKindEnum.Cycle, nameof(AchCycle), "cycle.startTime", "Start Time", "timespan", IntegrationParameterCardinalityEnum.Scalar, false),
-            (IntegrationSourceKindEnum.Cycle, nameof(AchCycle), "cycle.endTime", "End Time", "timespan", IntegrationParameterCardinalityEnum.Scalar, false),
-            (IntegrationSourceKindEnum.Cycle, nameof(AchCycle), "cycle.cutoffTime", "Cutoff Time", "timespan", IntegrationParameterCardinalityEnum.Scalar, false),
-            (IntegrationSourceKindEnum.ClearingHouse, nameof(ClearingHouse), "clearingHouse.id", "Clearing House Id", "int", IntegrationParameterCardinalityEnum.Scalar, false),
-            (IntegrationSourceKindEnum.ClearingHouse, nameof(ClearingHouse), "clearingHouse.code", "Clearing House Code", "string", IntegrationParameterCardinalityEnum.Scalar, false),
-            (IntegrationSourceKindEnum.Batch, nameof(AchBatch), "batch.id", "Batch Id", "int", IntegrationParameterCardinalityEnum.Scalar, false),
-            (IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.id", "Transaction Id", "int", IntegrationParameterCardinalityEnum.Scalar, false),
-            (IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.amount", "Amount", "decimal", IntegrationParameterCardinalityEnum.Scalar, false),
-            (IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.type", "Type", "string", IntegrationParameterCardinalityEnum.Scalar, false),
-            (IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.transactionCode", "Transaction Code", "string", IntegrationParameterCardinalityEnum.Scalar, false),
-            (IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.traceNumber", "Trace Number", "string", IntegrationParameterCardinalityEnum.Scalar, false),
-            (IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.reference", "Reference", "string", IntegrationParameterCardinalityEnum.Scalar, true),
-            (IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.originatingDfi", "Originating DFI", "string", IntegrationParameterCardinalityEnum.Scalar, true),
-            (IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.receivingDfi", "Receiving DFI", "string", IntegrationParameterCardinalityEnum.Scalar, true),
-            (IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.companyIdentification", "Company Identification", "string", IntegrationParameterCardinalityEnum.Scalar, true),
-            (IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.effectiveEntryDate", "Effective Entry Date", "datetime", IntegrationParameterCardinalityEnum.Scalar, false),
-            (IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.sourceInstitutionId", "Source Institution Id", "int", IntegrationParameterCardinalityEnum.Scalar, false),
-            (IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.destinationInstitutionId", "Destination Institution Id", "int", IntegrationParameterCardinalityEnum.Scalar, false),
-            (IntegrationSourceKindEnum.Addenda, nameof(AchTransactionAddenda), "addenda.sequenceNumber", "Addenda Sequence Number", "int", IntegrationParameterCardinalityEnum.Scalar, true),
-            (IntegrationSourceKindEnum.Addenda, nameof(AchTransactionAddenda), "addenda.addendaType", "Addenda Type", "string", IntegrationParameterCardinalityEnum.Scalar, true),
-            (IntegrationSourceKindEnum.Addenda, nameof(AchTransactionAddenda), "addenda.businessType", "Business Type", "string", IntegrationParameterCardinalityEnum.Scalar, false),
-            (IntegrationSourceKindEnum.Addenda, nameof(AchTransactionAddenda), "addenda.information", "Information", "string", IntegrationParameterCardinalityEnum.Scalar, true),
-            (IntegrationSourceKindEnum.Addenda, nameof(AchTransactionAddenda), "addenda.purpose", "Purpose", "string", IntegrationParameterCardinalityEnum.Scalar, true),
-            (IntegrationSourceKindEnum.Addenda, nameof(AchTransactionAddenda), "addenda.reference", "Addenda Reference", "string", IntegrationParameterCardinalityEnum.Scalar, true),
-            (IntegrationSourceKindEnum.Addenda, nameof(AchTransactionAddenda), "addenda.collectorId", "Collector Id", "string", IntegrationParameterCardinalityEnum.Scalar, true),
-            (IntegrationSourceKindEnum.Addenda, nameof(AchTransactionAddenda), "addenda.receiverCustomerCode", "Receiver Customer Code", "string", IntegrationParameterCardinalityEnum.Scalar, true),
-            (IntegrationSourceKindEnum.Addenda, nameof(AchTransactionAddenda), "addenda.serviceDescription", "Service Description", "string", IntegrationParameterCardinalityEnum.Scalar, true),
-            (IntegrationSourceKindEnum.Addenda, nameof(AchTransactionAddenda), "addenda.returnReasonCode", "Return Reason Code", "string", IntegrationParameterCardinalityEnum.Scalar, true),
-            (IntegrationSourceKindEnum.Addenda, nameof(AchTransactionAddenda), "addenda.originalTraceNumber", "Original Trace Number", "string", IntegrationParameterCardinalityEnum.Scalar, true),
-            (IntegrationSourceKindEnum.Addenda, nameof(AchTransactionAddenda), "addenda.newTraceNumber", "New Trace Number", "string", IntegrationParameterCardinalityEnum.Scalar, true),
-            (IntegrationSourceKindEnum.Constant, "Constant", "constant.value", "Constant Value", "string", IntegrationParameterCardinalityEnum.Scalar, true),
-            (IntegrationSourceKindEnum.Expression, "Expression", "expression.value", "Expression Result", "string", IntegrationParameterCardinalityEnum.Scalar, true)
-        };
+    private static SourceSeedSpec Source(
+        int methodId,
+        IntegrationSourceKindEnum sourceKind,
+        string entityName,
+        string fieldPath,
+        string displayName,
+        string dataType,
+        bool nullable,
+        int sortOrder)
+        => new(methodId, sourceKind, entityName, fieldPath, displayName, dataType, nullable, sortOrder);
 
-        var order = 1;
-        return fields.Select(f => new IntegrationSourceCatalogField
-        {
-            MethodId = methodId,
-            SourceKind = f.Kind,
-            EntityName = f.Entity,
-            FieldPath = f.Path,
-            DisplayName = f.Label,
-            DataType = f.Type,
-            Cardinality = f.Card,
-            Nullable = f.Nullable,
-            SortOrder = order++,
-            IsActive = true
-        });
-    }
+    private sealed record ParameterSeedSpec(
+        string TechnicalName,
+        string DisplayNameEs,
+        string DescriptionEs,
+        string Category,
+        string ExampleValue,
+        string UiHelpText,
+        string DataType,
+        bool Required,
+        int SortOrder,
+        IntegrationParameterDirectionEnum Direction);
+
+    private sealed record SourceSeedSpec(
+        int MethodId,
+        IntegrationSourceKindEnum SourceKind,
+        string EntityName,
+        string FieldPath,
+        string DisplayName,
+        string DataType,
+        bool Nullable,
+        int SortOrder);
 }

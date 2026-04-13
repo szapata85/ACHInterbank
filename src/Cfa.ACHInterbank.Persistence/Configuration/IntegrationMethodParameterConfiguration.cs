@@ -13,7 +13,12 @@ public class IntegrationMethodParameterConfiguration : IEntityTypeConfiguration<
 
         builder.Property(x => x.ParameterPath).HasMaxLength(250).IsRequired();
         builder.Property(x => x.DisplayName).HasMaxLength(250).IsRequired();
+        builder.Property(x => x.DescriptionEs).HasMaxLength(1000).IsRequired();
+        builder.Property(x => x.Category).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.ExampleValue).HasMaxLength(250).IsRequired();
+        builder.Property(x => x.UiHelpText).HasMaxLength(1000).IsRequired();
         builder.Property(x => x.DataType).HasMaxLength(60).IsRequired();
+        builder.Property(x => x.Direction).HasConversion<int>().IsRequired();
         builder.Property(x => x.Cardinality).HasConversion<int>().IsRequired();
         builder.Property(x => x.Required).IsRequired();
         builder.Property(x => x.SortOrder).IsRequired();

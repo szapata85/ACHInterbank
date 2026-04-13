@@ -101,15 +101,7 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
                     Endpoint = defaultWscfaachEndpoint,
                     SoapAction = "http://tempuri.org/IWSCFAACH/Proc_Contrapartidas",
                     Enabled = true,
-                    InputParameterMappings =
-                    [
-                        new SoapInputParameterMappingDto
-                        {
-                            InputName = "transaccion",
-                            SoapParameterName = "Transaccion",
-                            Required = true
-                        }
-                    ]
+                    InputParameterMappings = BuildProcContrapartidasInputMappings()
                 },
                 new SoapEndpointMethodMappingDto
                 {
@@ -117,15 +109,7 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
                     Endpoint = defaultWscfaachEndpoint,
                     SoapAction = "http://tempuri.org/IWSCFAACH/Proc_Transacciones",
                     Enabled = true,
-                    InputParameterMappings =
-                    [
-                        new SoapInputParameterMappingDto
-                        {
-                            InputName = "lote",
-                            SoapParameterName = "Lote",
-                            Required = true
-                        }
-                    ]
+                    InputParameterMappings = BuildProcTransaccionesInputMappings()
                 }
             ],
             WsAxonRespuestaTransaccionesMappings =
@@ -149,6 +133,35 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
             ]
         };
     }
+
+    private static List<SoapInputParameterMappingDto> BuildProcContrapartidasInputMappings()
+        =>
+        [
+            MapInput("OFNIT"), MapInput("OFEMP"), MapInput("OFCTA"), MapInput("OFDD"), MapInput("OFFECHEFEC"),
+            MapInput("OFMONDEB"), MapInput("OFMONCRE"), MapInput("OFIDARCH"), MapInput("OFIDLOT"), MapInput("OFST"),
+            MapInput("OFIDTX"), MapInput("OFIDREVER"), MapInput("OFIDEBAPLI"), MapInput("OFIDCAMCOMPE"), MapInput("OFDIRECCIONIP"),
+            MapInput("OFLIBRE"), MapInput("OFLIBRE1"), MapInput("ANSIDLOTE", required: false), MapInput("ANSST", required: false),
+            MapInput("ANCLC", required: false), MapInput("ANSIDTX", required: false), MapInput("ANSIDREVER", required: false)
+        ];
+
+    private static List<SoapInputParameterMappingDto> BuildProcTransaccionesInputMappings()
+        =>
+        [
+            MapInput("TREG"), MapInput("TIPTRAN"), MapInput("BCORECEP"), MapInput("BCOORIG"), MapInput("NORIG"),
+            MapInput("NCTAORIG"), MapInput("IDORIG"), MapInput("DESTRAN"), MapInput("FECEFEC"), MapInput("NCTARECEP"),
+            MapInput("MONTO"), MapInput("NRECEP"), MapInput("IDRECEP"), MapInput("DISCRE"), MapInput("CONV"),
+            MapInput("PROD"), MapInput("INFPAG"), MapInput("IDTRAN"), MapInput("IDLOTE"), MapInput("REGLOTE"),
+            MapInput("IREVER"), MapInput("LIBRE"), MapInput("IDCAMCOMPE"), MapInput("DIRECCIONIP"), MapInput("LIBRE1"),
+            MapInput("RTAACH", required: false), MapInput("RTALOC", required: false)
+        ];
+
+    private static SoapInputParameterMappingDto MapInput(string name, bool required = true)
+        => new()
+        {
+            InputName = name,
+            SoapParameterName = name,
+            Required = required
+        };
 
     private SoapIntegrationSettingsDto MapToDto(SoapIntegrationSetting settings)
     {

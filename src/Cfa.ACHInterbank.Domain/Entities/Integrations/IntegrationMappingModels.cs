@@ -27,6 +27,12 @@ public enum IntegrationParameterCardinalityEnum
     Collection = 3
 }
 
+public enum IntegrationParameterDirectionEnum
+{
+    Input = 1,
+    Output = 2
+}
+
 public class IntegrationMethod : AuditableEntity
 {
     public int Id { get; set; }
@@ -48,7 +54,12 @@ public class IntegrationMethodParameter : AuditableEntity
 
     public string ParameterPath { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
+    public string DescriptionEs { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public string ExampleValue { get; set; } = string.Empty;
+    public string UiHelpText { get; set; } = string.Empty;
     public string DataType { get; set; } = "string";
+    public IntegrationParameterDirectionEnum Direction { get; set; } = IntegrationParameterDirectionEnum.Input;
     public IntegrationParameterCardinalityEnum Cardinality { get; set; } = IntegrationParameterCardinalityEnum.Scalar;
     public bool Required { get; set; }
     public int SortOrder { get; set; }
