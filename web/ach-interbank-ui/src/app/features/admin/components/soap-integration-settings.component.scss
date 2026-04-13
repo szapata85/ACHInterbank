@@ -3,25 +3,34 @@
 }
 
 .soap-settings-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
   padding: 1.5rem;
-  border-radius: var(--radius-lg);
+  border-radius: 12px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .subtitle {
   margin: 0.25rem 0 1rem;
-  color: var(--color-text-soft);
+  color: #4b5563;
 }
 
 .form-grid {
   display: grid;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
-section h3 {
+.soap-settings-card section {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.soap-settings-card section h3 {
+  margin-top: 0;
   margin-bottom: 0.75rem;
+  color: #111827;
 }
 
 .rows {
@@ -34,21 +43,26 @@ section h3 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.75rem;
   padding: 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
 }
 
-label {
+.soap-settings-card label {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
   font-weight: 600;
+  color: #1f2937;
+  font-size: 0.92rem;
 }
 
-input[type='text'] {
+.soap-settings-card input[type='text'] {
   padding: 0.5rem;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #111827;
 }
 
 .check {
@@ -59,7 +73,7 @@ input[type='text'] {
 
 .input-mappings {
   grid-column: 1 / -1;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid #e5e7eb;
   margin-top: 0.25rem;
   padding-top: 0.75rem;
 }
@@ -77,9 +91,10 @@ input[type='text'] {
   gap: 0.5rem;
   align-items: end;
   padding: 0.5rem;
-  border: 1px dashed var(--color-border-strong);
-  border-radius: var(--radius-md);
+  border: 1px dashed #94a3b8;
+  border-radius: 8px;
   margin-bottom: 0.5rem;
+  background: #ffffff;
 }
 
 .check-inline {
@@ -88,26 +103,45 @@ input[type='text'] {
   margin-top: 1.8rem;
 }
 
+.soap-settings-card button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.5rem 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 button.small {
-  --btn-bg: var(--color-surface-muted);
-  --btn-border: var(--color-border-strong);
-  --btn-color: var(--color-text);
+  background: #f3f4f6;
+  border-color: #cbd5e1;
+  color: #1f2937;
 }
 
 button.danger {
-  --btn-bg: #fef2f2;
-  --btn-border: #fecaca;
-  --btn-color: var(--color-danger-hover);
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
 }
 
 .actions {
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 0.5rem;
+}
+
+.actions button {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #1f2937;
 }
 
 button.primary {
   min-width: 140px;
+  background: #0b4a8b;
+  border-color: #0b4a8b;
+  color: #ffffff;
 }
 
 @media (max-width: 1200px) {
@@ -125,5 +159,15 @@ button.primary {
 
   .check-inline {
     margin-top: 0.3rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .soap-settings-card {
+    padding: 1rem;
+  }
+
+  .mapping-row {
+    grid-template-columns: 1fr;
   }
 }
