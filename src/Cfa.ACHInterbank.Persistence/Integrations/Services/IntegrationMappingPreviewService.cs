@@ -66,7 +66,7 @@ public class IntegrationMappingPreviewService : IIntegrationMappingPreviewServic
                 continue;
             }
 
-            var resolved = ResolvePreviewValue(winner, tx, addenda, batch, cycle, clearingHouse);
+            var resolved = ResolvePreviewValue(winner, tx, addenda, batch, cycle, clearingHouse, DateTime.UtcNow);
             resolved = ApplyTransformation(winner.TransformationCode, winner.FormatMask, resolved);
 
             var resolvedFrom = ResolveFromLabel(winner);
@@ -245,7 +245,8 @@ public class IntegrationMappingPreviewService : IIntegrationMappingPreviewServic
         AchTransactionAddenda? addenda,
         AchBatch? batch,
         AchCycle? cycle,
-        ClearingHouse? clearingHouse)
+        ClearingHouse? clearingHouse,
+        DateTime executionDateTime)
     {
         if (!string.IsNullOrWhiteSpace(rule.FixedValue))
         {
@@ -276,6 +277,7 @@ public class IntegrationMappingPreviewService : IIntegrationMappingPreviewServic
             "transaction.originatingdfi" => tx?.OriginatingDFI,
             "transaction.receivingdfi" => tx?.ReceivingDFI,
             "transaction.companyidentification" => tx?.CompanyIdentification,
+            "transaction.sourceaccountnumber" => tx?.SourceAccountNumber,
             "transaction.effectiveentrydate" => tx?.EffectiveEntryDate.ToString("O"),
             "transaction.sourceinstitutionid" => tx?.SourceInstitutionId.ToString(),
             "transaction.destinationinstitutionid" => tx?.DestinationInstitutionId.ToString(),
@@ -300,6 +302,8 @@ public class IntegrationMappingPreviewService : IIntegrationMappingPreviewServic
             "cycle.cutofftime" => cycle?.CutoffTime.ToString(),
             "clearinghouse.id" => clearingHouse?.Id.ToString(),
             "clearinghouse.code" => clearingHouse?.Code,
+            "execution.datetimeutc" => executionDateTime.ToString("O"),
+            "execution.dateyyyymmdd" => executionDateTime.ToString("yyyyMMdd"),
             _ => null
         };
 

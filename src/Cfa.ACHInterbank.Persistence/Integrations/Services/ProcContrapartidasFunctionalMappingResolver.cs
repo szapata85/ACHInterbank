@@ -192,6 +192,9 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
             "transaction.tracenumber" => tx?.TraceNumber,
             "transaction.originatingdfi" => tx?.OriginatingDFI,
             "transaction.companyidentification" => tx?.CompanyIdentification,
+            "transaction.sourceaccountnumber" => tx?.SourceAccountNumber,
+            "transaction.effectiveentrydate" => tx?.EffectiveEntryDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture),
+            "batch.id" => tx?.AchBatchId.ToString(CultureInfo.InvariantCulture),
             "execution.datetimeutc" => executionDateTime.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
             "execution.dateyyyymmdd" => executionDateTime.ToString("yyyyMMdd", CultureInfo.InvariantCulture),
             _ => null

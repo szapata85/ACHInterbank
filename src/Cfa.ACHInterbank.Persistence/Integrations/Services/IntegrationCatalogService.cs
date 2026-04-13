@@ -293,14 +293,20 @@ public class IntegrationCatalogService : IIntegrationCatalogService
         var order = 1;
         return
         [
+            Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.id", "Id transacción", "int", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.reference", "Referencia transacción", "string", true, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.amount", "Monto transacción", "decimal", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.traceNumber", "Trazabilidad transacción", "string", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.companyIdentification", "NIT/Id empresa origen", "string", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.sourceAccountNumber", "Cuenta origen", "string", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.effectiveEntryDate", "Fecha efectiva transacción", "datetime", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Batch, nameof(AchBatch), "batch.id", "Id lote", "int", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Cycle, nameof(AchCycle), "cycle.id", "Id ciclo", "string", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Cycle, nameof(AchCycle), "cycle.processingDate", "Fecha proceso ciclo", "datetime", false, order++),
             Source(methodId, IntegrationSourceKindEnum.ClearingHouse, nameof(ClearingHouse), "clearinghouse.id", "Id cámara", "int", false, order++),
             Source(methodId, IntegrationSourceKindEnum.ClearingHouse, nameof(ClearingHouse), "clearinghouse.code", "Código cámara", "string", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Cycle, "ExecutionContext", "execution.datetimeUtc", "Fecha/hora ejecución UTC", "datetime", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Cycle, "ExecutionContext", "execution.dateYyyyMMdd", "Fecha ejecución yyyymmdd", "string", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Constant, "Constant", "constant.value", "Valor fijo", "string", true, order++)
         ];
     }
