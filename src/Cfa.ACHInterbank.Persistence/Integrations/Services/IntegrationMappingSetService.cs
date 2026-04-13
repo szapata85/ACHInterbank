@@ -83,8 +83,7 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
             Notes = request.Notes?.Trim() ?? string.Empty,
             Status = IntegrationMappingSetStatusEnum.Draft,
             IsActive = true,
-            Version = 0,
-            CreatedBy = request.CreatedBy
+            Version = 0
         };
 
         _context.Set<IntegrationMappingSet>().Add(set);
@@ -103,7 +102,6 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
         set.Name = request.Name.Trim();
         set.Notes = request.Notes?.Trim() ?? string.Empty;
         set.IsActive = request.IsActive;
-        set.UpdatedBy = request.UpdatedBy;
 
         await _context.SaveChangesAsync(ct);
         await AppendHistoryAsync(set, "UpdatedDraft", request.UpdatedBy, ct);
@@ -141,8 +139,7 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
                 entity = new IntegrationMappingRule
                 {
                     MappingSetId = set.Id,
-                    MethodId = set.MethodId,
-                    CreatedBy = request.UpdatedBy
+                    MethodId = set.MethodId
                 };
                 _context.Set<IntegrationMappingRule>().Add(entity);
             }
@@ -160,7 +157,6 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
             entity.RequiredOverride = rule.RequiredOverride;
             entity.Enabled = rule.Enabled;
             entity.ConditionExpression = string.IsNullOrWhiteSpace(rule.ConditionExpression) ? null : rule.ConditionExpression.Trim();
-            entity.UpdatedBy = request.UpdatedBy;
         }
 
         await _context.SaveChangesAsync(ct);
@@ -194,7 +190,6 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
         {
             published.Status = IntegrationMappingSetStatusEnum.Archived;
             published.IsActive = false;
-            published.UpdatedBy = request.PublishedBy;
             await AppendHistoryAsync(published, "ArchivedByNewPublication", request.PublishedBy, ct);
         }
 
@@ -211,7 +206,6 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
         set.Notes = string.IsNullOrWhiteSpace(request.PublishNote)
             ? set.Notes
             : $"{set.Notes}\n[PublishNote] {request.PublishNote.Trim()}";
-        set.UpdatedBy = request.PublishedBy;
 
         await AppendHistoryAsync(set, "Published", request.PublishedBy, ct);
         await _context.SaveChangesAsync(ct);
@@ -233,8 +227,7 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
             Notes = source.Notes,
             Status = IntegrationMappingSetStatusEnum.Draft,
             Version = 0,
-            IsActive = true,
-            CreatedBy = request.ClonedBy
+            IsActive = true
         };
 
         _context.Set<IntegrationMappingSet>().Add(clone);
@@ -255,8 +248,7 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
             Priority = r.Priority,
             RequiredOverride = r.RequiredOverride,
             Enabled = r.Enabled,
-            ConditionExpression = r.ConditionExpression,
-            CreatedBy = request.ClonedBy
+            ConditionExpression = r.ConditionExpression
         });
 
         _context.Set<IntegrationMappingRule>().AddRange(cloneRules);
@@ -415,8 +407,7 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
             PerformedBy = string.IsNullOrWhiteSpace(actor) ? "system" : actor.Trim(),
             PerformedAtUtc = DateTime.UtcNow,
             SnapshotJson = snapshot,
-            SnapshotHash = ComputeSha256(snapshot),
-            CreatedBy = actor
+            SnapshotHash = ComputeSha256(snapshot)
         };
 
         _context.Set<IntegrationMappingSetHistory>().Add(history);

@@ -63,8 +63,7 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
             Status = IntegrationMappingSetStatusEnum.Draft,
             Version = 0,
             IsActive = true,
-            Notes = "Borrador válido para configuración funcional",
-            CreatedBy = "seed"
+            Notes = "Borrador válido para configuración funcional"
         };
 
         var published = new IntegrationMappingSet
@@ -76,8 +75,7 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
             IsActive = true,
             Notes = "Versión publicada de referencia",
             PublishedAtUtc = DateTime.UtcNow,
-            PublishedBy = "seed",
-            CreatedBy = "seed"
+            PublishedBy = "seed"
         };
 
         var draftInvalid = new IntegrationMappingSet
@@ -87,8 +85,7 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
             Status = IntegrationMappingSetStatusEnum.Draft,
             Version = 0,
             IsActive = true,
-            Notes = "Borrador con errores intencionales",
-            CreatedBy = "seed"
+            Notes = "Borrador con errores intencionales"
         };
 
         var clonedDraft = new IntegrationMappingSet
@@ -98,8 +95,7 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
             Status = IntegrationMappingSetStatusEnum.Draft,
             Version = 0,
             IsActive = true,
-            Notes = "Clon de versión publicada",
-            CreatedBy = "seed"
+            Notes = "Clon de versión publicada"
         };
 
         _context.IntegrationMappingSets.AddRange(draftValid, published, draftInvalid, clonedDraft);
@@ -136,8 +132,7 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
                 SourceKind = IntegrationSourceKindEnum.Constant,
                 FixedValue = DefaultValueFor(p),
                 Priority = 1,
-                Enabled = true,
-                CreatedBy = "seed"
+                Enabled = true
             })
             .ToList();
 
@@ -176,8 +171,7 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
                 SourceFieldPath = sourcePath,
                 DefaultValue = fallback,
                 Priority = 1,
-                Enabled = true,
-                CreatedBy = "seed"
+                Enabled = true
             });
         }
     }
@@ -197,8 +191,7 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
                 SourceKind = IntegrationSourceKindEnum.Transaction,
                 SourceFieldPath = "",
                 Priority = 1,
-                Enabled = false,
-                CreatedBy = "seed"
+                Enabled = false
             });
         }
 
@@ -214,8 +207,7 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
                 SourceFieldPath = "transaction.amount",
                 TransformationCode = "NotAllowed",
                 Priority = 1,
-                Enabled = true,
-                CreatedBy = "seed"
+                Enabled = true
             });
         }
 
@@ -238,8 +230,7 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
             Priority = source.Priority,
             RequiredOverride = source.RequiredOverride,
             Enabled = source.Enabled,
-            ConditionExpression = source.ConditionExpression,
-            CreatedBy = "seed"
+            ConditionExpression = source.ConditionExpression
         };
 
     private static IntegrationMappingSetHistory BuildHistory(IntegrationMappingSet set, string action)
@@ -253,8 +244,7 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
             PerformedBy = "seed",
             PerformedAtUtc = DateTime.UtcNow,
             SnapshotJson = $"{{\"mappingSet\":\"{set.Name}\"}}",
-            SnapshotHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(set.Name))),
-            CreatedBy = "seed"
+            SnapshotHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(set.Name)))
         };
 
     private static string DefaultValueFor(IntegrationMethodParameter parameter)
@@ -286,8 +276,7 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
                 StartTime = TimeSpan.FromHours(8),
                 EndTime = TimeSpan.FromHours(17),
                 CutoffTime = TimeSpan.FromHours(16),
-                ClearingHouseId = 1,
-                CreatedBy = "seed"
+                ClearingHouseId = 1
             };
             _context.AchCycles.Add(cycle);
             await _context.SaveChangesAsync();
@@ -302,8 +291,7 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
             CompanyIdentification = "900123456",
             CompanyEntryDescription = "PAGOS",
             CompanyEntryDescriptionId = 1,
-            OriginOrOdfi = "000010070",
-            CreatedBy = "seed"
+            OriginOrOdfi = "000010070"
         };
 
         var tx = new AchTransaction
@@ -325,8 +313,7 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
             SourceInstitutionId = 1,
             DestinationInstitutionId = 2,
             SourceAccountNumber = "123456789",
-            DestinationAccountNumber = "987654321",
-            CreatedBy = "seed"
+            DestinationAccountNumber = "987654321"
         };
 
         _context.AchTransactions.Add(tx);
@@ -336,8 +323,7 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
             AddendaType = "05",
             BusinessType = AchAddendaBusinessType.Credit,
             Information = "SEED INFO",
-            SequenceNumber = 1,
-            CreatedBy = "seed"
+            SequenceNumber = 1
         });
 
         await _context.SaveChangesAsync();

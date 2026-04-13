@@ -139,7 +139,7 @@ public sealed class ProcContrapartidasRequestMapper : IProcContrapartidasRequest
             .OrderBy(a => a.SequenceNumber)
             .Select(a => new ProcContrapartidasAddendaContract
             {
-                SequenceNumber = a.SequenceNumber,
+                SequenceNumber = a.SequenceNumber ?? 0,
                 AddendaType = (a.AddendaType ?? string.Empty).Trim(),
                 BusinessType = a.BusinessType.ToString(),
                 Information = (a.Information ?? string.Empty).Trim(),
