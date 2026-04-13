@@ -25,8 +25,7 @@ describe('MappingComparePageComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [MappingComparePageComponent],
-      imports: [FormsModule],
+      imports: [FormsModule, MappingComparePageComponent],
       providers: [
         { provide: IntegrationMappingAdminService, useValue: apiMock },
         { provide: NotificationService, useValue: { error: jasmine.createSpy(), success: jasmine.createSpy() } },

@@ -10,7 +10,17 @@ import { MappingEditorPageComponent } from './pages/mapping-editor-page.componen
 import { MappingComparePageComponent } from './pages/mapping-compare-page.component';
 
 @NgModule({
-  declarations: [IntegrationWorkspaceComponent, MappingSetsPageComponent, MappingEditorPageComponent, MappingComparePageComponent],
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterModule, SharedModule, IntegrationsRoutingModule]
+  imports: [
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    RouterModule,
+    SharedModule,
+    IntegrationsRoutingModule,
+    IntegrationWorkspaceComponent,
+    MappingSetsPageComponent,
+    MappingEditorPageComponent,
+    MappingComparePageComponent
+  ]
 })
 export class IntegrationsModule {}

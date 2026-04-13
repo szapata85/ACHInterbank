@@ -1,4 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import {
   IntegrationMappingAdminService,
@@ -10,6 +12,8 @@ import { NotificationService } from '../../../core/services/notification.service
 
 @Component({
   selector: 'app-mapping-compare-page',
+  standalone: true,
+  imports: [CommonModule, FormsModule],
   templateUrl: './mapping-compare-page.component.html',
   styleUrls: ['./mapping-compare-page.component.scss']
 })

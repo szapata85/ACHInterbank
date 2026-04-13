@@ -1,11 +1,16 @@
 import { Component, OnInit, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { FormBuilder, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
+import { ReactiveFormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 import { IntegrationMappingAdminService, IntegrationMappingSet, IntegrationMethod } from '../../../core/services/integration-mapping-admin.service';
 import { NotificationService } from '../../../core/services/notification.service';
 
 @Component({
   selector: 'app-mapping-sets-page',
+  standalone: true,
+  imports: [CommonModule, ReactiveFormsModule, RouterModule],
   templateUrl: './mapping-sets-page.component.html',
   styleUrls: ['./mapping-sets-page.component.scss']
 })

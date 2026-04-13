@@ -37,8 +37,7 @@ describe('MappingEditorPageComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [MappingEditorPageComponent],
-      imports: [FormsModule, ReactiveFormsModule],
+      imports: [FormsModule, ReactiveFormsModule, MappingEditorPageComponent],
       providers: [
         { provide: IntegrationMappingAdminService, useValue: apiMock },
         { provide: NotificationService, useValue: { success: jasmine.createSpy(), error: jasmine.createSpy() } },

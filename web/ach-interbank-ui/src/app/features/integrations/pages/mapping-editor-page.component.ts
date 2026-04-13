@@ -1,6 +1,8 @@
 import { Component, OnInit, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { FormBuilder } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import {
   IntegrationMappingAdminService,
@@ -17,6 +19,8 @@ import { NotificationService } from '../../../core/services/notification.service
 
 @Component({
   selector: 'app-mapping-editor-page',
+  standalone: true,
+  imports: [CommonModule, FormsModule, ReactiveFormsModule],
   templateUrl: './mapping-editor-page.component.html',
   styleUrls: ['./mapping-editor-page.component.scss']
 })
