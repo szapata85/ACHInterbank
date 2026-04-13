@@ -1,110 +1,294 @@
-# Auditoría integral — Integraciones SOAP/mapping (2026-04-13)
+# Diseño arquitectónico definitivo — Integraciones funcionales Proc_Contrapartidas (2026-04-13)
 
-## Alcance auditado
-- WscfaachSoapClient
-- Proc_Contrapartidas (catálogo, mapping set/rules, resolver funcional, request mapper, parser de respuesta)
-- Preparación para Proc_Transacciones
-- Seed/catálogos/contratos internos
-- Angular `/integraciones`, `/integraciones/soap-settings`, `/integraciones/mappings`, compare/preview/validate/publish/clone
+## 0) Mandato de diseño (no negociable)
+Diseñar una solución donde usuarios **no técnicos** configuren de forma autónoma qué información del sistema se envía a `Proc_Contrapartidas`, con UX guiada en español, trazabilidad bancaria y preparación limpia para `Proc_Transacciones`, sin duplicar arquitectura.
 
-## Resumen ejecutivo
-El proyecto **sí tiene cimientos aprovechables** (motor de versionado, validación, preview, historial y compare), pero está **desalineado en el contrato funcional real de Proc_Contrapartidas** y en la UX principal para usuario no técnico. La implementación actual modela un payload anidado de ciclo/transacción/addenda que no coincide con el contrato real plano del servicio (OF*/ANS*), por lo que la autonomía de negocio está comprometida.
+---
 
-## Diagnóstico técnico actual
-### Lo que sí sirve
-1. Servicio de MappingSet con ciclo de vida (draft/publish/archive), clonación, historial y comparación por parámetro.
-2. Validación estructural/funcional con cobertura por parámetro y hints.
-3. Preview con contexto controlado y real.
-4. Cliente SOAP parametrizable por endpoint/action.
+## 1) Diseño arquitectónico final completo
 
-### Lo crítico mal enfocado
-1. **Contrato interno de Proc_Contrapartidas incorrecto**: usa `ClearingHouseId`, `Transactions[]`, `Addendas[]` en vez de los campos reales `OFNIT..ANSIDREVER`.
-2. **Catálogo de parámetros incorrecto**: seed solo crea método `WSCFAACH.Proc_Contrapartidas` pero con parámetros del modelo anidado, no del contrato real.
-3. **Mapper SOAP de Proc_Contrapartidas incorrecto**: construye XML anidado no alineado al input real del método.
-4. **Parser de respuesta desacoplado del output real**: parsea códigos genéricos y nodos transaccionales, no `ANSIDLOTE/ANSST/ANCLC/ANSIDTX/ANSIDREVER`.
-5. **Fallback silencioso con catch vacío** en el mapper, ocultando fallos de mapping configurable.
-6. **Sin arquitectura equivalente para Proc_Transacciones** en catálogo/motor (solo existe invocación SOAP/config técnica).
+### 1.1 Principios rectores
+1. **Dualidad de capas obligatoria**:
+   - Capa técnica interna (exactitud SOAP contractual).
+   - Capa funcional visible (lenguaje de negocio).
+2. **Single engine, multi-method**: un único motor de mapping versionado para `Proc_Contrapartidas` y `Proc_Transacciones`.
+3. **No-code controlado**: sin expresiones libres ni scripting arbitrario; solo reglas y transformaciones permitidas.
+4. **Publicación gobernada**: no se publica si no hay cobertura obligatoria + validación verde.
+5. **Trazabilidad end-to-end**: cada publicación, preview y ejecución deja huella auditable.
 
-## Diagnóstico funcional actual
-- La interfaz mezcla “configuración técnica SOAP” con “mapping funcional”, y el editor expone términos técnicos (`SourceKind`, `SourceFieldPath`, `ConditionExpression`) como experiencia principal.
-- Aunque hay textos en español, la UX sigue orientada a operador técnico; no guía por objetivo de negocio (“qué dato de mi sistema llena OFNIT”).
-- No existe experiencia orientada al contrato plano real de contrapartidas ni un “asistente por campos OF*/ANS*”.
+### 1.2 Vista por capas
 
-## Hallazgos por severidad
-### Crítico
-1. Modelo/contrato interno de Proc_Contrapartidas no coincide con contrato real del servicio.
-2. Catálogo/seed de parámetros no coincide con el contrato real.
-3. Generación de XML request de Proc_Contrapartidas no coincide con el contrato real.
-4. Parser de respuesta no parsea output contractual real.
+#### A) Capa técnica interna (backend)
+- `SoapMethodDefinition` (método SOAP técnico exacto).
+- `SoapMethodParameterDefinition` (parámetro técnico exacto: nombre, tipo, dirección input/output, requerido).
+- `SoapTransportSettings` (endpoint, action, timeout, credenciales/token strategy).
+- `IntegrationMappingSet` + `IntegrationMappingRule` + `History` (motor versionado reutilizable).
+- `IntegrationMappingValidationService` (reglas de publicabilidad).
+- `IntegrationMappingPreviewService` (simulación explicable).
+- `IntegrationPayloadResolver` (resolución dinámica de valores por parámetro).
+- `TypedContractBridge` (conversión del payload resuelto al contrato tipado por método).
+- `WscfaachSoapClient` (invocación SOAP + observabilidad).
 
-### Alto
-1. UX del editor centrada en primitivas técnicas, no en usuario no técnico.
-2. Fallback silencioso (catch vacío) degrada trazabilidad y auditabilidad.
-3. Seguridad/permisos amarrados a `CanManageUsers`, no a permisos específicos de integración ACH.
-4. Ausencia de diseño dual de método (Contrapartidas + Transacciones) en catálogo funcional reusable.
+#### B) Capa funcional visible (frontend+backend)
+- `FunctionalFieldCatalog` (fichas en español para cada parámetro técnico).
+- `BusinessSourceCatalog` (orígenes en lenguaje negocio).
+- `MappingWizardState` (progreso guiado: cobertura, pendientes, bloqueos).
+- `UserGuidanceRules` (mensajes accionables no técnicos).
 
-### Medio
-1. Nomenclatura mixta ES/EN y camel-case inconsistente para paths.
-2. `PreviewResult` calcula `limitedItems` pero retorna colección completa.
-3. `build default settings` usa mapeos de parámetros de entrada genéricos (`transaccion`, `lote`) sin reflejar contrato.
+### 1.3 Patrón canonical interno
+Para cada método SOAP:
+1. Definición técnica exacta (contrato real).
+2. Definición funcional amigable (etiqueta, descripción, ejemplo, categoría, ayudas).
+3. Reglas de mapping (fuente + transformación + fallback + prioridad controlada).
+4. Resolución y validación.
+5. Publicación y ejecución.
 
-### Bajo
-1. Textos UI todavía técnicos en títulos/labels.
-2. Estructura de navegación puede simplificarse a un flujo asistido único para negocio.
+---
 
-## Reutilización recomendada (backend)
-### Reutilizar (con refactor)
-- `IntegrationMappingSetService` (lifecycle, publish, clone, history, compare).
-- `IntegrationMappingValidationService` (núcleo de validación + hints).
-- `IntegrationMappingPreviewService` (mecánica de preview, no su modelo de parámetros actual).
-- `WscfaachSoapClient` (mecanismo de envío, resolución endpoint/action).
-- Estructura de entidades `Integration*` (sets/rules/history) y configuración EF.
+## 2) Flujo funcional para usuario no técnico (UX objetivo)
 
-### Eliminar o sustituir
-- Contratos `ProcContrapartidasRequest*` actuales.
-- `BuildProcContrapartidasParameterCatalog` y source catalog actuales.
-- Lógica del `ProcContrapartidasRequestMapper` y `ProcContrapartidasFunctionalMappingResolver` basada en Transactions/Addendas.
-- Parser de respuesta actual por parser estricto del output real.
+### 2.1 Flujo principal (wizard en español)
+**Paso 1 — Seleccionar integración funcional**
+- “Enviar contrapartidas a ACH”.
+- Mostrar versión activa y fecha de publicación.
 
-## Reutilización recomendada (frontend)
-### Reutilizar (con refactor fuerte)
-- Páginas de listado de MappingSets y compare (base de versionado/auditoría).
-- Servicios Angular `IntegrationMappingAdminService`.
-- Bloques de validación/preview, pero cambiando semántica y copy.
+**Paso 2 — Cobertura de campos obligatorios**
+- Lista por categorías funcionales (identificación, montos, control, respuesta esperada).
+- Cada campo muestra:
+  - nombre amigable
+  - descripción
+  - ejemplo
+  - estado: Pendiente / Completo / Con alerta
 
-### Borrar / reescribir / fusionar
-1. **Borrar como experiencia principal** la pantalla actual de configuración técnica SOAP dentro del flujo de negocio (dejarla en área avanzada/admin).
-2. **Reescribir** `mapping-editor-page` en modo asistido por etapas para usuarios no técnicos.
-3. **Fusionar** workspace + mappings en un “Asistente de configuración de envío a Contrapartidas”.
-4. Mantener compare/history como vistas avanzadas de auditoría (no pantalla inicial).
+**Paso 3 — Configurar origen de cada campo**
+- Opciones guiadas:
+  - “Dato de la transacción”
+  - “Dato del lote”
+  - “Dato del ciclo”
+  - “Valor fijo”
+  - “Valor por defecto si vacío”
+- Nunca mostrar `SourceKind`, `SourceFieldPath`, `ConditionExpression` como eje principal.
 
-## Propuesta final de reorientación
-1. **Modelo canónico por método SOAP**
-   - Método 1: `WSCFAACH.Proc_Contrapartidas` con parámetros EXACTOS del contrato real (OF*/ANS* input + ANS* output).
-   - Método 2: `WSCFAACH.Proc_Transacciones` con parámetros EXACTOS (TREG..RTALOC).
-2. **Motor único reusable**
-   - Mismo `IntegrationMappingSet/Rule/History` para ambos métodos.
-   - Resolver por parámetro escalar (sin imponer estructura anidada).
-3. **Separación clara técnica vs funcional**
-   - Técnica SOAP (endpoint/action/auth) en módulo admin avanzado.
-   - Funcional mapping en asistente de negocio.
-4. **UX no técnica**
-   - Pregunta guía: “¿De dónde sale OFNIT?”
-   - Catálogo de orígenes en español con ejemplos.
-   - Validación con mensajes accionables de negocio.
-5. **Trazabilidad bancaria**
-   - Auditoría fuerte en publicación, diferencias y evidencias de preview.
-   - Sin fallback silencioso.
+**Paso 4 — Reglas simples**
+- Transformación seleccionable (catálogo cerrado).
+- Sin expresiones libres.
+- Prioridad solo cuando existan múltiples reglas justificadas.
 
-## Fases de implementación sugeridas
-1. **Fase 0 (bloqueo de desvío):** congelar nuevas features en editor actual; definir contrato real como fuente única.
-2. **Fase 1 (backend contractual):** rehacer catálogo/seed/DTOs/mapper/parser de Contrapartidas al contrato real; eliminar fallback silencioso.
-3. **Fase 2 (frontend asistido):** rediseñar editor en wizard de negocio (campos OF*/ANS*).
-4. **Fase 3 (auditoría y gobierno):** permisos dedicados, evidencia preview/publish, hardening validaciones.
-5. **Fase 4 (escalado a Transacciones):** replicar por configuración de método, sin duplicar arquitectura.
+**Paso 5 — Validar**
+- Resultado de negocio:
+  - “Listo para publicar” o
+  - “Faltan 3 campos obligatorios”.
+- Acciones sugeridas por campo.
 
-## Riesgos residuales si no se corrige
-- Envíos SOAP funcionalmente incorrectos con rechazo en ambiente real.
-- Operación dependiente de perfiles técnicos (objetivo de autonomía incumplido).
-- Aumento de deuda técnica por duplicar “parches” sobre modelo incorrecto.
-- Riesgo de auditoría/compliance por trazabilidad incompleta ante incidencias.
+**Paso 6 — Preview entendible**
+- Tabla: “Campo funcional → valor resultante → de dónde salió”.
+- Panel técnico colapsable opcional para auditor.
+
+**Paso 7 — Publicar versión**
+- Nota de publicación obligatoria.
+- Confirmación explícita de impacto.
+
+**Paso 8 — Historial y comparación**
+- Comparar “qué cambió” en lenguaje de negocio.
+- Ver hash/snapshot para auditoría.
+
+### 2.2 UX anti-patrones prohibidos
+- Pantalla inicial con endpoint/SOAP Action.
+- Formulario crudo por `FieldPath` técnico.
+- Tablas densas sin guía de cobertura.
+
+---
+
+## 3) Modelo de backend definitivo
+
+### 3.1 Entidades núcleo (reusar y refinar)
+1. `IntegrationMethod` (reusar)
+   - ampliar con `ContractCode`, `BusinessUseCase`, `IsFunctionalConfigEnabled`.
+2. `IntegrationMethodParameter` (reusar)
+   - pasar a contrato **exacto** por método (`OFNIT`, `OFEMP`, etc.).
+   - nuevos campos: `Direction` (Input/Output), `TechnicalType`, `FunctionalCategory`, `IsUserConfigurable`.
+3. `IntegrationSourceCatalogField` (reusar)
+   - normalizar naming y origen de datos de negocio.
+4. `IntegrationMappingSet`, `IntegrationMappingRule`, `IntegrationMappingSetHistory` (reusar)
+   - mantener lifecycle + compare + snapshot hash.
+
+### 3.2 Entidades nuevas (agregar)
+1. `IntegrationFunctionalFieldMetadata`
+   - `MethodId`, `ParameterId`, `FriendlyNameEs`, `DescriptionEs`, `ExampleValue`, `HelpTextEs`, `UiGroup`, `UiOrder`, `SensitivityLevel`.
+2. `IntegrationBusinessSourceMetadata`
+   - `SourceCatalogFieldId`, `FriendlyNameEs`, `BusinessDescriptionEs`, `Example`, `UiGroup`, `UiOrder`, `AllowedForMethods`.
+3. `IntegrationPublishAudit`
+   - `MappingSetId`, `PublishedBy`, `PublishNote`, `ValidationSnapshotJson`, `PreviewSnapshotJson`, `PublishedAtUtc`.
+4. `IntegrationExecutionAudit`
+   - `MethodId`, `MappingSetVersion`, `ResolvedPayloadHash`, `RequestXmlHash`, `ResponseXmlHash`, `ExecutionStatus`, `ErrorCode`, `CorrelationId`.
+
+### 3.3 Contratos tipados exactos
+
+#### Proc_Contrapartidas
+- Input exacto: `OFNIT`, `OFEMP`, `OFCTA`, `OFDD`, `OFFECHEFEC`, `OFMONDEB`, `OFMONCRE`, `OFIDARCH`, `OFIDLOT`, `OFST`, `OFIDTX`, `OFIDREVER`, `OFIDEBAPLI`, `OFIDCAMCOMPE`, `OFDIRECCIONIP`, `OFLIBRE`, `OFLIBRE1`, `ANSIDLOTE`, `ANSST`, `ANCLC`, `ANSIDTX`, `ANSIDREVER`.
+- Output exacto: `ANSIDLOTE`, `ANSST`, `ANCLC`, `ANSIDTX`, `ANSIDREVER`.
+
+#### Proc_Transacciones (preparación)
+- Input/Output definidos en `SoapMethodParameterDefinition` desde ahora.
+- `IsFunctionalConfigEnabled = false` inicialmente (sin exponer wizard hasta fase correspondiente).
+
+### 3.4 Validación (reglas mínimas obligatorias)
+1. Cada campo input requerido debe tener cobertura activa.
+2. Fuente válida para tipo destino.
+3. Transformación permitida y compatible.
+4. Sin prioridades duplicadas activas por parámetro.
+5. Sin reglas huérfanas fuera del catálogo técnico.
+6. Bloqueo de publicación si falla cualquier regla de severidad Error.
+
+### 3.5 Transformaciones permitidas (catálogo cerrado)
+- `Trim`
+- `Uppercase`
+- `Lowercase`
+- `PadLeft`
+- `PadRight`
+- `Substring`
+- `Concat`
+- `DateFormat`
+- `NumericFormat`
+- `DefaultIfNull`
+- `NullIfEmpty`
+
+**No se permiten** transformaciones dinámicas fuera de catálogo ni scripts.
+
+### 3.6 Resolver dinámico + bridge tipado
+1. `IntegrationPayloadResolver` resuelve diccionario `parameterName -> value`.
+2. `TypedContractBridge` convierte ese diccionario al DTO tipado exacto de método.
+3. `SoapSerializer` genera XML exacto según contrato técnico.
+
+### 3.7 Seed técnico/funcional
+- Seed técnico: métodos + parámetros exactos + tipos + dirección.
+- Seed funcional: metadatos amigables en español (friendlyName, help, ejemplo).
+- Seed de fuentes de negocio por dominio (transacción, lote, ciclo, constantes controladas).
+
+---
+
+## 4) Modelo de frontend Angular definitivo
+
+### 4.1 Estructura de módulo `/integraciones`
+- `pages/integration-home` (selección de integración funcional)
+- `pages/mapping-wizard` (flujo guiado principal)
+- `pages/mapping-coverage` (estado por categorías)
+- `pages/mapping-preview` (resultado explicable)
+- `pages/mapping-history` (auditoría)
+- `pages/mapping-compare` (diferencias de versiones)
+- `pages/soap-settings-admin` (solo técnico/admin avanzado, fuera del flujo principal)
+
+### 4.2 Componentes clave
+- `FunctionalFieldCardComponent`
+- `SourceSelectorBusinessComponent`
+- `TransformationSelectorControlledComponent`
+- `CoverageProgressPanelComponent`
+- `ValidationIssueBusinessComponent`
+- `PublishConfirmationDialogComponent`
+
+### 4.3 Contrato UI-backend (view models)
+- `FunctionalParameterVm`
+  - `friendlyNameEs`, `descriptionEs`, `exampleValue`, `category`, `required`, `coverageStatus`.
+- `BusinessSourceVm`
+  - `sourceLabelEs`, `sourceDescriptionEs`, `example`.
+- `RuleEditorVm`
+  - opciones simplificadas, sin campos técnicos crudos por defecto.
+
+### 4.4 Navegación y permisos
+- Usuario funcional: acceso a wizard + cobertura + preview + publicar.
+- Usuario técnico/admin: acceso adicional a configuración SOAP avanzada.
+- Separar `CanManageIntegrations` de `CanManageUsers`.
+
+---
+
+## 5) Qué se reutiliza (máximo)
+
+### Backend (reusar)
+- `IntegrationMappingSetService` (draft/update/rules/publish/clone/history/compare).
+- `IntegrationMappingValidationService` (estructura base de validación).
+- `IntegrationMappingPreviewService` (esqueleto de preview).
+- `Integration*` entities + configuraciones EF.
+- `WscfaachSoapClient` como gateway de transporte.
+
+### Frontend (reusar)
+- `IntegrationMappingAdminService` como base API client.
+- páginas de compare/history (ajustando semántica de negocio).
+- infraestructura de notificaciones, guards, layout y shared components.
+
+---
+
+## 6) Qué se reemplaza
+
+1. Contratos internos actuales de `Proc_Contrapartidas` por contratos tipados exactos del servicio.
+2. Catálogo de parámetros `BuildProcContrapartidasParameterCatalog` por catálogo técnico real (`OF*`, `ANS*`).
+3. Resolver/mapper actuales basados en `Transactions/Addendas` por resolver escalar por parámetro técnico.
+4. Parser de respuesta actual por parser estricto de output real.
+5. Modelo de UI editor técnico por wizard funcional guiado.
+
+---
+
+## 7) Qué se elimina
+
+1. Catch silencioso de fallback en mapeo (`catch {}` sin trazabilidad).
+2. Exposición de campos técnicos crudos como flujo principal de negocio.
+3. Dependencia de permisos `CanManageUsers` para gobernar integraciones.
+4. Cualquier soporte de expresiones arbitrarias fuera del catálogo cerrado.
+
+---
+
+## 8) Proyección limpia hacia Proc_Transacciones (sin duplicación)
+
+### 8.1 Qué se deja listo desde ya
+- Método técnico `WSCFAACH.Proc_Transacciones` registrado en mismo metamodelo.
+- Parámetros técnicos exactos cargados en catálogo.
+- Metadatos funcionales base en español (borrador, no expuesto aún).
+- Reuso del mismo pipeline:
+  `Catalog -> MappingSet -> Validate -> Preview -> Publish -> Resolve -> TypedContractBridge -> SOAP`
+
+### 8.2 Qué NO se hace ahora
+- No habilitar wizard de usuario final para `Proc_Transacciones` en esta fase.
+- No crear un segundo motor paralelo.
+
+---
+
+## 9) Lista de archivos/módulos potencialmente afectados
+
+## 9.1 Backend — Dominio/Aplicación/Persistencia/API
+- `src/Cfa.ACHInterbank.Application/ACH/Models/ProcContrapartidasRequestModels.cs`
+- `src/Cfa.ACHInterbank.Application/ACH/Interfaces/IProcContrapartidasRequestMapper.cs`
+- `src/Cfa.ACHInterbank.Application/ACH/Interfaces/IProcContrapartidasResponseParser.cs`
+- `src/Cfa.ACHInterbank.Application/Integrations/Dtos/IntegrationCatalogDtos.cs`
+- `src/Cfa.ACHInterbank.Application/Integrations/Dtos/IntegrationMappingSetDtos.cs`
+- `src/Cfa.ACHInterbank.Domain/Entities/Integrations/IntegrationMappingModels.cs`
+- `src/Cfa.ACHInterbank.Persistence/Integrations/Services/IntegrationCatalogService.cs`
+- `src/Cfa.ACHInterbank.Persistence/Integrations/Services/IntegrationMappingSetService.cs`
+- `src/Cfa.ACHInterbank.Persistence/Integrations/Services/IntegrationMappingValidationService.cs`
+- `src/Cfa.ACHInterbank.Persistence/Integrations/Services/IntegrationMappingPreviewService.cs`
+- `src/Cfa.ACHInterbank.Persistence/Integrations/Services/ProcContrapartidasFunctionalMappingResolver.cs`
+- `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ProcContrapartidasRequestMapper.cs`
+- `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ProcContrapartidasResponseParser.cs`
+- `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/Seeders/IntegrationMappingScenarioSeeder.cs`
+- `src/Cfa.ACHInterbank.Persistence/Security/Services/SoapIntegrationSettingsService.cs`
+- `src/Cfa.ACHInterbank.Api/Controllers/IntegrationMappingSetsController.cs`
+- `src/Cfa.ACHInterbank.Api/Controllers/SoapIntegrationSettingsController.cs`
+
+## 9.2 Frontend Angular
+- `web/ach-interbank-ui/src/app/features/integrations/integrations-routing.module.ts`
+- `web/ach-interbank-ui/src/app/features/integrations/pages/integration-workspace.component.html`
+- `web/ach-interbank-ui/src/app/features/integrations/pages/mapping-sets-page.*`
+- `web/ach-interbank-ui/src/app/features/integrations/pages/mapping-editor-page.*`
+- `web/ach-interbank-ui/src/app/features/integrations/pages/mapping-compare-page.*`
+- `web/ach-interbank-ui/src/app/features/admin/components/soap-integration-settings.component.*`
+- `web/ach-interbank-ui/src/app/core/services/integration-mapping-admin.service.ts`
+- (nuevos) `web/ach-interbank-ui/src/app/features/integrations/pages/mapping-wizard/*`
+- (nuevos) `web/ach-interbank-ui/src/app/features/integrations/components/functional-*`
+
+---
+
+## 10) Decisiones finales de gobierno técnico
+1. Se conserva el motor versionado existente y se corrige su semántica contractual.
+2. Se separa por diseño la UX funcional de la configuración técnica SOAP.
+3. Se bloquea cualquier diseño de UI centrado en nombres SOAP crudos como experiencia principal.
+4. Se habilita una única arquitectura extensible por método para evitar duplicaciones futuras.
+5. Se restringe estrictamente la lógica de transformación a catálogo permitido.
+
