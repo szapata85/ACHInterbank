@@ -1,4 +1,18 @@
-<div class="editor-page" *ngIf="mappingSet as set">
+<section class="card state" *ngIf="viewState === 'loading'">
+  <h4>Cargando editor funcional…</h4>
+  <p>Estamos obteniendo MappingSet, parámetros y catálogos.</p>
+</section>
+
+<section class="card state error" *ngIf="viewState === 'error'">
+  <h4>No se pudo abrir el editor</h4>
+  <p>{{ errorMessage }}</p>
+  <div class="actions">
+    <button type="button" (click)="loadAll()">Reintentar</button>
+    <button type="button" class="primary" (click)="goToMappingList()">Volver al listado</button>
+  </div>
+</section>
+
+<div class="editor-page" *ngIf="viewState === 'ready' && mappingSet as set">
   <section class="summary-cards">
     <article class="card"><span>Total parámetros</span><strong>{{ coverage.totalParameters }}</strong></article>
     <article class="card"><span>Válidos</span><strong>{{ coverage.validParameters }}</strong></article>

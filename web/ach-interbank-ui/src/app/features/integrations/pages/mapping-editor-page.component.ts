@@ -1,10 +1,11 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { Router } from '@angular/router';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { forkJoin } from 'rxjs';
+import { Subject, forkJoin } from 'rxjs';
+import { distinctUntilChanged, map, switchMap, takeUntil } from 'rxjs/operators';
 import {
   IntegrationMappingAdminService,
   IntegrationMappingRule,
@@ -26,17 +27,20 @@ import { NotificationService } from '../../../core/services/notification.service
   templateUrl: './mapping-editor-page.component.html',
   styleUrls: ['./mapping-editor-page.component.scss']
 })
-export class MappingEditorPageComponent implements OnInit {
+export class MappingEditorPageComponent implements OnInit, OnDestroy {
   private readonly api = inject(IntegrationMappingAdminService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
+  private readonly destroy$ = new Subject<void>();
 
   mappingSetId = '';
   methodCode = '';
 
   loading = false;
+  viewState: 'loading' | 'error' | 'ready' = 'loading';
+  errorMessage = '';
   mappingSet?: IntegrationMappingSet;
   parameters: IntegrationMethodParameter[] = [];
   sourceCatalog: IntegrationSourceCatalogField[] = [];
@@ -72,14 +76,32 @@ export class MappingEditorPageComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.mappingSetId = this.route.snapshot.paramMap.get('mappingSetId') ?? '';
-    this.methodCode = this.route.snapshot.paramMap.get('methodCode') ?? '';
-    if (!this.mappingSetId || !this.methodCode) {
-      this.notifications.error('No se recibieron los datos requeridos para abrir el editor.');
-      this.router.navigate(['/integraciones/mappings']);
-      return;
-    }
-    this.loadAll();
+    this.route.paramMap
+      .pipe(
+        map((params) => ({
+          mappingSetId: params.get('mappingSetId') ?? '',
+          methodCode: params.get('methodCode') ?? ''
+        })),
+        distinctUntilChanged((a, b) => a.mappingSetId === b.mappingSetId && a.methodCode === b.methodCode),
+        takeUntil(this.destroy$)
+      )
+      .subscribe(({ mappingSetId, methodCode }) => {
+        this.mappingSetId = mappingSetId;
+        this.methodCode = methodCode;
+
+        if (!this.mappingSetId || !this.methodCode) {
+          this.viewState = 'error';
+          this.errorMessage = 'No se recibieron los datos requeridos para abrir el editor.';
+          return;
+        }
+
+        this.loadAll();
+      });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   get currentRules(): IntegrationMappingRule[] {
@@ -135,32 +157,50 @@ export class MappingEditorPageComponent implements OnInit {
     if (!this.mappingSetId) return;
 
     this.loading = true;
-    this.api.getMappingSetById(this.mappingSetId).subscribe({
-      next: (set) => {
-        this.mappingSet = set;
+    this.viewState = 'loading';
+    this.errorMessage = '';
+    this.previewResult = undefined;
+    this.validationResult = undefined;
 
-        forkJoin({
-          parameters: this.api.getMethodParameters(set.methodId),
-          sourceCatalog: this.api.getSourceCatalog(set.methodId),
-          transformations: this.api.getTransformations()
-        }).subscribe({
-          next: ({ parameters, sourceCatalog, transformations }) => {
-            this.parameters = parameters;
-            this.sourceCatalog = sourceCatalog;
-            this.transformations = transformations;
-            this.selectedParameterId = this.selectedParameterId ?? parameters[0]?.id;
-            this.populateFormFromSelectedRule();
-            this.loadHistory();
-          },
-          error: () => this.notifications.error('No fue posible cargar catálogos del editor.'),
-          complete: () => (this.loading = false)
-        });
-      },
-      error: () => {
-        this.notifications.error('No fue posible cargar el MappingSet.');
-        this.loading = false;
-      }
-    });
+    this.api
+      .getMappingSetById(this.mappingSetId)
+      .pipe(
+        switchMap((set) =>
+          forkJoin({
+            parameters: this.api.getMethodParameters(set.methodId),
+            sourceCatalog: this.api.getSourceCatalog(set.methodId),
+            transformations: this.api.getTransformations(),
+            historyItems: this.api.getHistory(set.id)
+          }).pipe(map((catalogs) => ({ set, ...catalogs })))
+        ),
+        takeUntil(this.destroy$)
+      )
+      .subscribe({
+        next: ({ set, parameters, sourceCatalog, transformations, historyItems }) => {
+          this.mappingSet = set;
+          this.parameters = parameters ?? [];
+          this.sourceCatalog = sourceCatalog ?? [];
+          this.transformations = transformations ?? [];
+          this.historyItems = historyItems ?? [];
+
+          const parameterStillExists = this.parameters.some((x) => x.id === this.selectedParameterId);
+          this.selectedParameterId = parameterStillExists ? this.selectedParameterId : this.parameters[0]?.id;
+          this.populateFormFromSelectedRule();
+          this.viewState = 'ready';
+        },
+        error: () => {
+          this.mappingSet = undefined;
+          this.parameters = [];
+          this.sourceCatalog = [];
+          this.transformations = [];
+          this.historyItems = [];
+          this.viewState = 'error';
+          this.errorMessage = 'No fue posible cargar el editor de mapping. Intenta nuevamente.';
+          this.notifications.error(this.errorMessage);
+          this.loading = false;
+        },
+        complete: () => (this.loading = false)
+      });
   }
 
   selectParameter(parameterId: number): void {
@@ -407,5 +447,9 @@ export class MappingEditorPageComponent implements OnInit {
 
   trackByParameterId(_: number, parameter: IntegrationMethodParameter): number {
     return parameter.id;
+  }
+
+  goToMappingList(): void {
+    this.router.navigate(['/integraciones/mappings']);
   }
 }

@@ -1,4 +1,8 @@
 .editor-page { display:grid; gap:1rem; }
+.state { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:1rem; }
+.state h4 { margin:0 0 .35rem; }
+.state p { margin:0; color:#4b5563; }
+.state.error { border-color:#fecaca; background:#fff7f7; }
 .summary-cards { display:grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap:.65rem; }
 .card { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:.9rem; }
 .summary-cards .card span { color:#6b7280; font-size:.82rem; }
