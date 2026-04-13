@@ -349,12 +349,39 @@ export class MappingEditorPageComponent implements OnInit {
   }
 
   getMappingSetStatusLabel(status: IntegrationMappingSet['status']): string {
-    switch (status) {
+    const normalized = this.normalizeMappingSetStatus(status);
+    switch (normalized) {
       case 'Draft': return 'Borrador';
       case 'Published': return 'Publicado';
       case 'Archived': return 'Archivado';
-      default: return status;
+      default: return normalized || 'Sin estado';
     }
+  }
+
+  getMappingSetStatusClass(status: IntegrationMappingSet['status'] | number | string | null | undefined): string {
+    return this.normalizeMappingSetStatus(status).toLowerCase();
+  }
+
+  isDraftStatus(status: IntegrationMappingSet['status'] | number | string | null | undefined): boolean {
+    return this.normalizeMappingSetStatus(status) === 'Draft';
+  }
+
+  private normalizeMappingSetStatus(status: IntegrationMappingSet['status'] | number | string | null | undefined): string {
+    if (status === null || status === undefined) return '';
+    if (typeof status === 'number') {
+      if (status === 0) return 'Draft';
+      if (status === 1) return 'Published';
+      if (status === 2) return 'Archived';
+      return String(status);
+    }
+
+    const raw = String(status).trim();
+    if (!raw) return '';
+    const lowered = raw.toLowerCase();
+    if (lowered === 'draft') return 'Draft';
+    if (lowered === 'published') return 'Published';
+    if (lowered === 'archived') return 'Archived';
+    return raw;
   }
 
   getParameterIssues(parameterPath: string): ValidationResult['issues'] {

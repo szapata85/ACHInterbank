@@ -12,14 +12,14 @@
   <header class="header card">
     <div>
       <h3>{{ set.name }}</h3>
-      <p>{{ set.methodCode }} · estado <span class="badge" [class]="set.status.toLowerCase()">{{ getMappingSetStatusLabel(set.status) }}</span></p>
+      <p>{{ set.methodCode }} · estado <span class="badge" [class]="getMappingSetStatusClass(set.status)">{{ getMappingSetStatusLabel(set.status) }}</span></p>
       <small class="context">Primero valida estructura + lógica, luego simula y por último publica.</small>
     </div>
     <div class="actions">
       <button type="button" [disabled]="validating" (click)="runValidation()">{{ validating ? 'Validando…' : 'Validar' }}</button>
       <button type="button" [disabled]="previewing" (click)="runPreview()">{{ previewing ? 'Simulando…' : 'Simular' }}</button>
       <button type="button" [disabled]="cloning" (click)="clone()">{{ cloning ? 'Clonando…' : 'Clonar' }}</button>
-      <button type="button" class="primary" [disabled]="set.status !== 'Draft' || publishing" (click)="publish()">
+      <button type="button" class="primary" [disabled]="!isDraftStatus(set.status) || publishing" (click)="publish()">
         {{ publishing ? 'Publicando…' : 'Publicar' }}
       </button>
     </div>

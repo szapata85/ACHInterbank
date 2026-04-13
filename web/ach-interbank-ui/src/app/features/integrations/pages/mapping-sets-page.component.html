@@ -56,7 +56,7 @@
               <small class="tech-code">{{ set.methodCode }}</small>
             </td>
             <td>{{ set.version || 'Borrador' }}</td>
-            <td><span class="badge" [class]="set.status.toLowerCase()">{{ getStatusLabel(set.status) }}</span></td>
+            <td><span class="badge" [class]="getStatusClass(set.status)">{{ getStatusLabel(set.status) }}</span></td>
             <td>{{ set.publishedBy || '—' }}</td>
             <td><button type="button" (click)="openEditor(set)">Abrir editor</button></td>
           </tr>

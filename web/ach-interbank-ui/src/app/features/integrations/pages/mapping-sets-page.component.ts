@@ -41,9 +41,9 @@ export class MappingSetsPageComponent implements OnInit {
 
   get stats() {
     const total = this.mappingSets.length;
-    const draft = this.mappingSets.filter((x) => x.status === 'Draft').length;
-    const published = this.mappingSets.filter((x) => x.status === 'Published').length;
-    const archived = this.mappingSets.filter((x) => x.status === 'Archived').length;
+    const draft = this.mappingSets.filter((x) => this.normalizeStatus(x.status) === 'Draft').length;
+    const published = this.mappingSets.filter((x) => this.normalizeStatus(x.status) === 'Published').length;
+    const archived = this.mappingSets.filter((x) => this.normalizeStatus(x.status) === 'Archived').length;
     return { total, draft, published, archived };
   }
 
@@ -118,8 +118,9 @@ export class MappingSetsPageComponent implements OnInit {
     });
   }
 
-  getStatusLabel(status: IntegrationMappingSet['status']): string {
-    switch (status) {
+  getStatusLabel(status: IntegrationMappingSet['status'] | number | string | null | undefined): string {
+    const normalized = this.normalizeStatus(status);
+    switch (normalized) {
       case 'Draft':
         return 'Borrador';
       case 'Published':
@@ -127,7 +128,30 @@ export class MappingSetsPageComponent implements OnInit {
       case 'Archived':
         return 'Archivado';
       default:
-        return status;
+        return normalized || 'Sin estado';
     }
   }
+
+  getStatusClass(status: IntegrationMappingSet['status'] | number | string | null | undefined): string {
+    return this.normalizeStatus(status).toLowerCase();
+  }
+
+  private normalizeStatus(status: IntegrationMappingSet['status'] | number | string | null | undefined): string {
+    if (status === null || status === undefined) return '';
+    if (typeof status === 'number') {
+      if (status === 0) return 'Draft';
+      if (status === 1) return 'Published';
+      if (status === 2) return 'Archived';
+      return String(status);
+    }
+
+    const raw = String(status).trim();
+    if (!raw) return '';
+    const lowered = raw.toLowerCase();
+    if (lowered === 'draft') return 'Draft';
+    if (lowered === 'published') return 'Published';
+    if (lowered === 'archived') return 'Archived';
+    return raw;
+  }
+
 }

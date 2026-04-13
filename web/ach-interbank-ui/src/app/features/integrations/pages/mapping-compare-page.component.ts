@@ -132,7 +132,8 @@ export class MappingComparePageComponent implements OnInit {
   }
 
   getStatusLabel(status: string): string {
-    switch (status) {
+    const normalized = this.normalizeStatus(status);
+    switch (normalized) {
       case 'Draft':
         return 'Borrador';
       case 'Published':
@@ -140,8 +141,26 @@ export class MappingComparePageComponent implements OnInit {
       case 'Archived':
         return 'Archivado';
       default:
-        return status;
+        return normalized || 'Sin estado';
     }
+  }
+
+  private normalizeStatus(status: string | number | null | undefined): string {
+    if (status === null || status === undefined) return '';
+    if (typeof status === 'number') {
+      if (status === 0) return 'Draft';
+      if (status === 1) return 'Published';
+      if (status === 2) return 'Archived';
+      return String(status);
+    }
+
+    const raw = String(status).trim();
+    if (!raw) return '';
+    const lowered = raw.toLowerCase();
+    if (lowered === 'draft') return 'Draft';
+    if (lowered === 'published') return 'Published';
+    if (lowered === 'archived') return 'Archived';
+    return raw;
   }
 
   getGroupLabel(group: string): string {
