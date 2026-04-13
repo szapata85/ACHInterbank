@@ -123,6 +123,7 @@ public static class DependencyInjectionService
         {
             using var scope = app.Services.CreateScope();
             AchDbContext Context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
+            EnsureLegacyPostgresTableNames(Context);
             Context.Database.Migrate();
         }
         else
@@ -188,5 +189,33 @@ public static class DependencyInjectionService
         return path.StartsWithSegments("/openapi", StringComparison.OrdinalIgnoreCase)
                || path.StartsWithSegments("/scalar", StringComparison.OrdinalIgnoreCase)
                || path.StartsWithSegments("/index.html", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void EnsureLegacyPostgresTableNames(AchDbContext context)
+    {
+        if (!context.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) ?? true)
+        {
+            return;
+        }
+
+        const string sql = """
+            DO $$
+            BEGIN
+                IF to_regclass('"AchBatches"') IS NULL AND to_regclass('achbatches') IS NOT NULL THEN
+                    EXECUTE 'ALTER TABLE achbatches RENAME TO "AchBatches"';
+                END IF;
+                IF to_regclass('"AchTransactions"') IS NULL AND to_regclass('achtransactions') IS NOT NULL THEN
+                    EXECUTE 'ALTER TABLE achtransactions RENAME TO "AchTransactions"';
+                END IF;
+                IF to_regclass('"AchCycles"') IS NULL AND to_regclass('achcycles') IS NOT NULL THEN
+                    EXECUTE 'ALTER TABLE achcycles RENAME TO "AchCycles"';
+                END IF;
+                IF to_regclass('"ClearingHouses"') IS NULL AND to_regclass('clearinghouses') IS NOT NULL THEN
+                    EXECUTE 'ALTER TABLE clearinghouses RENAME TO "ClearingHouses"';
+                END IF;
+            END $$;
+            """;
+
+        context.Database.ExecuteSqlRaw(sql);
     }
 }
