@@ -1,5 +1,10 @@
 <div class="soap-settings-card">
   <header class="page-header">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <span>Integraciones</span>
+      <span class="sep">/</span>
+      <span>Configuración SOAP</span>
+    </nav>
     <h2>Integraciones SOAP ACH</h2>
     <p class="subtitle">
       Parametriza endpoint, SOAP Action y el mapeo de parámetros de entrada de cada método en
@@ -8,22 +13,27 @@
   </header>
 
   <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
-    <div class="clients-grid">
-      <section class="client-card">
-        <h3>WscfaachSoapClient</h3>
-        <div formArrayName="wscfaachMappings" class="rows">
-          <div class="row" *ngFor="let mapping of wscfaachMappings.controls; let i = index" [formGroupName]="i">
+    <div class="methods-stack">
+      <div formArrayName="wscfaachMappings" class="method-list">
+        <article class="method-block" *ngFor="let mapping of wscfaachMappings.controls; let i = index" [formGroupName]="i">
+          <header class="method-block-header">
+            <h3>WscfaachSoapClient</h3>
+            <span class="method-name">{{ mapping.get('methodName')?.value }}</span>
+          </header>
+
+          <section class="sub-block technical-block">
+            <h4>Configuración técnica</h4>
             <div class="technical-fields">
               <label>
                 Método
                 <input type="text" formControlName="methodName" readonly />
               </label>
-              <label>
+              <label class="field-wide">
                 Endpoint
                 <input type="text" formControlName="endpoint" placeholder="https://..." />
                 <app-error-message [control]="mapping.get('endpoint')"></app-error-message>
               </label>
-              <label>
+              <label class="field-wide">
                 SOAP Action
                 <input type="text" formControlName="soapAction" />
                 <app-error-message [control]="mapping.get('soapAction')"></app-error-message>
@@ -33,18 +43,16 @@
                 Habilitado
               </label>
             </div>
+          </section>
 
-            <div class="input-mappings" formArrayName="inputParameterMappings">
-              <div class="mapping-header">
-                <h4>Mapeo de parámetros de entrada</h4>
-                <button type="button" class="small" (click)="addInputMapping(mapping)">+ Agregar parámetro</button>
-              </div>
+          <section class="sub-block input-mappings" formArrayName="inputParameterMappings">
+            <div class="mapping-header">
+              <h4>Mapeo de parámetros de entrada</h4>
+              <button type="button" class="small" (click)="addInputMapping(mapping)">+ Agregar parámetro</button>
+            </div>
 
-              <div
-                class="mapping-row"
-                *ngFor="let inputMapping of getInputMappings(mapping).controls; let j = index"
-                [formGroupName]="j"
-              >
+            <div class="mapping-list">
+              <div class="mapping-row" *ngFor="let inputMapping of getInputMappings(mapping).controls; let j = index" [formGroupName]="j">
                 <label>
                   Parámetro entrada
                   <input type="text" formControlName="inputName" placeholder="ej: usuario" />
@@ -63,25 +71,30 @@
                 <button type="button" class="danger" (click)="removeInputMapping(mapping, j)">Eliminar</button>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
+        </article>
+      </div>
 
-      <section class="client-card">
-        <h3>WsAxonRespuestaTransaccionesSoapClient</h3>
-        <div formArrayName="wsAxonRespuestaTransaccionesMappings" class="rows">
-          <div class="row" *ngFor="let mapping of wsAxonMappings.controls; let i = index" [formGroupName]="i">
+      <div formArrayName="wsAxonRespuestaTransaccionesMappings" class="method-list">
+        <article class="method-block" *ngFor="let mapping of wsAxonMappings.controls; let i = index" [formGroupName]="i">
+          <header class="method-block-header">
+            <h3>WsAxonRespuestaTransaccionesSoapClient</h3>
+            <span class="method-name">{{ mapping.get('methodName')?.value }}</span>
+          </header>
+
+          <section class="sub-block technical-block">
+            <h4>Configuración técnica</h4>
             <div class="technical-fields">
               <label>
                 Método
                 <input type="text" formControlName="methodName" readonly />
               </label>
-              <label>
+              <label class="field-wide">
                 Endpoint
                 <input type="text" formControlName="endpoint" placeholder="https://..." />
                 <app-error-message [control]="mapping.get('endpoint')"></app-error-message>
               </label>
-              <label>
+              <label class="field-wide">
                 SOAP Action
                 <input type="text" formControlName="soapAction" />
                 <app-error-message [control]="mapping.get('soapAction')"></app-error-message>
@@ -91,18 +104,16 @@
                 Habilitado
               </label>
             </div>
+          </section>
 
-            <div class="input-mappings" formArrayName="inputParameterMappings">
-              <div class="mapping-header">
-                <h4>Mapeo de parámetros de entrada</h4>
-                <button type="button" class="small" (click)="addInputMapping(mapping)">+ Agregar parámetro</button>
-              </div>
+          <section class="sub-block input-mappings" formArrayName="inputParameterMappings">
+            <div class="mapping-header">
+              <h4>Mapeo de parámetros de entrada</h4>
+              <button type="button" class="small" (click)="addInputMapping(mapping)">+ Agregar parámetro</button>
+            </div>
 
-              <div
-                class="mapping-row"
-                *ngFor="let inputMapping of getInputMappings(mapping).controls; let j = index"
-                [formGroupName]="j"
-              >
+            <div class="mapping-list">
+              <div class="mapping-row" *ngFor="let inputMapping of getInputMappings(mapping).controls; let j = index" [formGroupName]="j">
                 <label>
                   Parámetro entrada
                   <input type="text" formControlName="inputName" placeholder="ej: respuesta" />
@@ -121,9 +132,9 @@
                 <button type="button" class="danger" (click)="removeInputMapping(mapping, j)">Eliminar</button>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
+        </article>
+      </div>
     </div>
 
     <div class="actions">
