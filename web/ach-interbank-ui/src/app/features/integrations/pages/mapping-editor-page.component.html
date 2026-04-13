@@ -12,7 +12,7 @@
   <header class="header card">
     <div>
       <h3>{{ set.name }}</h3>
-      <p>{{ set.methodCode }} · estado <span class="badge" [class]="set.status.toLowerCase()">{{ set.status }}</span></p>
+      <p>{{ set.methodCode }} · estado <span class="badge" [class]="set.status.toLowerCase()">{{ getMappingSetStatusLabel(set.status) }}</span></p>
       <small class="context">Primero valida estructura + lógica, luego simula y por último publica.</small>
     </div>
     <div class="actions">

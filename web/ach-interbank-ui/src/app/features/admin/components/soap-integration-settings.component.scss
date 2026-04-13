@@ -43,6 +43,16 @@
   max-width: 1000px;
 }
 
+.subtitle-note {
+  margin: 0.4rem 0 0;
+  color: #475569;
+}
+
+.subtitle-note a {
+  color: #0b4a8b;
+  font-weight: 600;
+}
+
 .form-grid {
   display: grid;
   gap: 1rem;

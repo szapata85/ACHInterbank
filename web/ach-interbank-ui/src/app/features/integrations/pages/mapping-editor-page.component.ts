@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+import { Router } from '@angular/router';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import {
@@ -28,6 +29,7 @@ import { NotificationService } from '../../../core/services/notification.service
 export class MappingEditorPageComponent implements OnInit {
   private readonly api = inject(IntegrationMappingAdminService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
 
@@ -72,6 +74,11 @@ export class MappingEditorPageComponent implements OnInit {
   ngOnInit(): void {
     this.mappingSetId = this.route.snapshot.paramMap.get('mappingSetId') ?? '';
     this.methodCode = this.route.snapshot.paramMap.get('methodCode') ?? '';
+    if (!this.mappingSetId || !this.methodCode) {
+      this.notifications.error('No se recibieron los datos requeridos para abrir el editor.');
+      this.router.navigate(['/integraciones/mappings']);
+      return;
+    }
     this.loadAll();
   }
 
@@ -295,12 +302,12 @@ export class MappingEditorPageComponent implements OnInit {
   clone(): void {
     if (!this.mappingSet || this.cloning) return;
     this.cloning = true;
-    this.api.clone(this.mappingSet.id, `${this.mappingSet.name} (clone)`, 'ui-admin').subscribe({
+    this.api.clone(this.mappingSet.id, `${this.mappingSet.name} (copia)`, 'ui-admin').subscribe({
       next: (created) => {
         this.notifications.success('MappingSet clonado.');
         this.mappingSet = created;
         this.mappingSetId = created.id;
-        this.loadAll();
+        this.router.navigate(['/integraciones/mappings', created.methodCode, created.id]);
       },
       error: () => this.notifications.error('No fue posible clonar el MappingSet.'),
       complete: () => (this.cloning = false)
@@ -339,6 +346,15 @@ export class MappingEditorPageComponent implements OnInit {
 
   getStatusClass(parameterId: number): string {
     return `status-${this.getParameterStatus(parameterId)}`;
+  }
+
+  getMappingSetStatusLabel(status: IntegrationMappingSet['status']): string {
+    switch (status) {
+      case 'Draft': return 'Borrador';
+      case 'Published': return 'Publicado';
+      case 'Archived': return 'Archivado';
+      default: return status;
+    }
   }
 
   getParameterIssues(parameterPath: string): ValidationResult['issues'] {

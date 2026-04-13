@@ -48,12 +48,13 @@
         <option value="Added">Agregado</option>
         <option value="Removed">Eliminado</option>
         <option value="Modified">Modificado</option>
-        <option value="Equal">Igual</option>
+        <option value="Equal">Sin cambios</option>
       </select>
     </div>
 
     <div class="group" *ngFor="let group of ['ciclo-camara','transaccion','lote','addenda','respuesta-esperada','configuracion']">
       <h4>{{ getGroupLabel(group) }}</h4>
+      <div class="table-wrap">
       <table>
         <thead>
           <tr>
@@ -75,6 +76,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
   </section>
 </div>
