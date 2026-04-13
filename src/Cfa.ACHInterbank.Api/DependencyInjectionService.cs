@@ -131,7 +131,7 @@ public static class DependencyInjectionService
             }
             catch (PostgresException ex) when (ex.SqlState == "3D000")
             {
-                app.Logger.LogWarning("Database does not exist ({DatabaseName}). Skipping migration at startup. Create DB first or disable Database:ApplyMigrations.", ex.DatabaseName);
+                app.Logger.LogWarning("Database does not exist. Skipping migration at startup. Create DB first or disable Database:ApplyMigrations. Detail: {Detail}", ex.MessageText);
             }
         }
         else
