@@ -5,14 +5,25 @@
 .soap-settings-card {
   background: #ffffff;
   border: 1px solid #e5e7eb;
-  padding: 1.5rem;
+  padding: 1.5rem 1.75rem;
   border-radius: 12px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.page-header {
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+}
+
+.page-header h2 {
+  margin: 0;
 }
 
 .subtitle {
   margin: 0.25rem 0 1rem;
   color: #4b5563;
+  max-width: 980px;
 }
 
 .form-grid {
@@ -20,11 +31,19 @@
   gap: 1.25rem;
 }
 
-.soap-settings-card section {
+.clients-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.soap-settings-card section.client-card {
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
-  padding: 1rem;
+  padding: 1rem 1rem 1.1rem;
+  min-height: 100%;
 }
 
 .soap-settings-card section h3 {
@@ -40,12 +59,19 @@
 
 .row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: 1fr;
+  gap: 0.9rem;
   padding: 0.75rem;
   border: 1px solid #d1d5db;
   border-radius: 8px;
   background: #ffffff;
+}
+
+.technical-fields {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.9fr) minmax(240px, 1.4fr) minmax(220px, 1.4fr) minmax(120px, 0.7fr);
+  gap: 0.8rem;
+  align-items: end;
 }
 
 .soap-settings-card label {
@@ -68,14 +94,17 @@
 .check {
   flex-direction: row;
   align-items: center;
-  margin-top: 1.8rem;
+  justify-self: end;
+  gap: 0.45rem;
+  margin-bottom: 0.35rem;
+  white-space: nowrap;
 }
 
 .input-mappings {
-  grid-column: 1 / -1;
-  border-top: 1px solid #e5e7eb;
-  margin-top: 0.25rem;
-  padding-top: 0.75rem;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 0.75rem;
 }
 
 .mapping-header {
@@ -87,10 +116,10 @@
 
 .mapping-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr auto auto;
-  gap: 0.5rem;
+  grid-template-columns: minmax(170px, 1fr) minmax(170px, 1fr) minmax(150px, 0.9fr) auto auto;
+  gap: 0.65rem;
   align-items: end;
-  padding: 0.5rem;
+  padding: 0.6rem;
   border: 1px dashed #94a3b8;
   border-radius: 8px;
   margin-bottom: 0.5rem;
@@ -100,7 +129,9 @@
 .check-inline {
   flex-direction: row;
   align-items: center;
-  margin-top: 1.8rem;
+  gap: 0.45rem;
+  margin-bottom: 0.35rem;
+  white-space: nowrap;
 }
 
 .soap-settings-card button {
@@ -115,6 +146,7 @@ button.small {
   background: #f3f4f6;
   border-color: #cbd5e1;
   color: #1f2937;
+  white-space: nowrap;
 }
 
 button.danger {
@@ -128,7 +160,8 @@ button.danger {
   justify-content: flex-end;
   gap: 0.75rem;
   border-top: 1px solid #e5e7eb;
-  padding-top: 0.5rem;
+  padding-top: 0.9rem;
+  margin-top: 0.35rem;
 }
 
 .actions button {
@@ -145,20 +178,24 @@ button.primary {
 }
 
 @media (max-width: 1200px) {
-  .row {
-    grid-template-columns: 1fr 1fr;
+  .clients-grid {
+    grid-template-columns: 1fr;
   }
 
-  .check {
-    margin-top: 0.3rem;
+  .technical-fields {
+    grid-template-columns: 1fr 1fr;
   }
 
   .mapping-row {
     grid-template-columns: 1fr 1fr;
   }
 
+  .check {
+    justify-self: start;
+  }
+
   .check-inline {
-    margin-top: 0.3rem;
+    margin-bottom: 0.2rem;
   }
 }
 
@@ -167,7 +204,27 @@ button.primary {
     padding: 1rem;
   }
 
+  .technical-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .mapping-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.55rem;
+  }
+
   .mapping-row {
     grid-template-columns: 1fr;
+  }
+
+  .actions {
+    justify-content: stretch;
+  }
+
+  .actions button,
+  button.primary {
+    width: 100%;
+    min-width: 0;
   }
 }

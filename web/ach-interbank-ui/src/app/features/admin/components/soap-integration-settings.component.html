@@ -1,122 +1,130 @@
 <div class="soap-settings-card">
-  <h2>Integraciones SOAP ACH</h2>
-  <p class="subtitle">
-    Parametriza endpoint, SOAP Action y el mapeo de parámetros de entrada de cada método en
-    <strong>WscfaachSoapClient</strong> y <strong>WsAxonRespuestaTransaccionesSoapClient</strong>.
-  </p>
+  <header class="page-header">
+    <h2>Integraciones SOAP ACH</h2>
+    <p class="subtitle">
+      Parametriza endpoint, SOAP Action y el mapeo de parámetros de entrada de cada método en
+      <strong>WscfaachSoapClient</strong> y <strong>WsAxonRespuestaTransaccionesSoapClient</strong>.
+    </p>
+  </header>
 
   <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
-    <section>
-      <h3>WscfaachSoapClient</h3>
-      <div formArrayName="wscfaachMappings" class="rows">
-        <div class="row" *ngFor="let mapping of wscfaachMappings.controls; let i = index" [formGroupName]="i">
-          <label>
-            Método
-            <input type="text" formControlName="methodName" readonly />
-          </label>
-          <label>
-            Endpoint
-            <input type="text" formControlName="endpoint" placeholder="https://..." />
-            <app-error-message [control]="mapping.get('endpoint')"></app-error-message>
-          </label>
-          <label>
-            SOAP Action
-            <input type="text" formControlName="soapAction" />
-            <app-error-message [control]="mapping.get('soapAction')"></app-error-message>
-          </label>
-          <label class="check">
-            <input type="checkbox" formControlName="enabled" />
-            Habilitado
-          </label>
-
-          <div class="input-mappings" formArrayName="inputParameterMappings">
-            <div class="mapping-header">
-              <h4>Mapeo de parámetros de entrada</h4>
-              <button type="button" class="small" (click)="addInputMapping(mapping)">+ Agregar parámetro</button>
+    <div class="clients-grid">
+      <section class="client-card">
+        <h3>WscfaachSoapClient</h3>
+        <div formArrayName="wscfaachMappings" class="rows">
+          <div class="row" *ngFor="let mapping of wscfaachMappings.controls; let i = index" [formGroupName]="i">
+            <div class="technical-fields">
+              <label>
+                Método
+                <input type="text" formControlName="methodName" readonly />
+              </label>
+              <label>
+                Endpoint
+                <input type="text" formControlName="endpoint" placeholder="https://..." />
+                <app-error-message [control]="mapping.get('endpoint')"></app-error-message>
+              </label>
+              <label>
+                SOAP Action
+                <input type="text" formControlName="soapAction" />
+                <app-error-message [control]="mapping.get('soapAction')"></app-error-message>
+              </label>
+              <label class="check">
+                <input type="checkbox" formControlName="enabled" />
+                Habilitado
+              </label>
             </div>
 
-            <div
-              class="mapping-row"
-              *ngFor="let inputMapping of getInputMappings(mapping).controls; let j = index"
-              [formGroupName]="j"
-            >
-              <label>
-                Parámetro entrada
-                <input type="text" formControlName="inputName" placeholder="ej: usuario" />
-              </label>
-              <label>
-                Parámetro SOAP destino
-                <input type="text" formControlName="soapParameterName" placeholder="ej: Usuario" />
-              </label>
-              <label>
-                Valor por defecto
-                <input type="text" formControlName="defaultValue" placeholder="opcional" />
-              </label>
-              <label class="check-inline">
-                <input type="checkbox" formControlName="required" /> Requerido
-              </label>
-              <button type="button" class="danger" (click)="removeInputMapping(mapping, j)">Eliminar</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
+            <div class="input-mappings" formArrayName="inputParameterMappings">
+              <div class="mapping-header">
+                <h4>Mapeo de parámetros de entrada</h4>
+                <button type="button" class="small" (click)="addInputMapping(mapping)">+ Agregar parámetro</button>
+              </div>
 
-    <section>
-      <h3>WsAxonRespuestaTransaccionesSoapClient</h3>
-      <div formArrayName="wsAxonRespuestaTransaccionesMappings" class="rows">
-        <div class="row" *ngFor="let mapping of wsAxonMappings.controls; let i = index" [formGroupName]="i">
-          <label>
-            Método
-            <input type="text" formControlName="methodName" readonly />
-          </label>
-          <label>
-            Endpoint
-            <input type="text" formControlName="endpoint" placeholder="https://..." />
-            <app-error-message [control]="mapping.get('endpoint')"></app-error-message>
-          </label>
-          <label>
-            SOAP Action
-            <input type="text" formControlName="soapAction" />
-            <app-error-message [control]="mapping.get('soapAction')"></app-error-message>
-          </label>
-          <label class="check">
-            <input type="checkbox" formControlName="enabled" />
-            Habilitado
-          </label>
-
-          <div class="input-mappings" formArrayName="inputParameterMappings">
-            <div class="mapping-header">
-              <h4>Mapeo de parámetros de entrada</h4>
-              <button type="button" class="small" (click)="addInputMapping(mapping)">+ Agregar parámetro</button>
-            </div>
-
-            <div
-              class="mapping-row"
-              *ngFor="let inputMapping of getInputMappings(mapping).controls; let j = index"
-              [formGroupName]="j"
-            >
-              <label>
-                Parámetro entrada
-                <input type="text" formControlName="inputName" placeholder="ej: respuesta" />
-              </label>
-              <label>
-                Parámetro SOAP destino
-                <input type="text" formControlName="soapParameterName" placeholder="ej: Respuesta" />
-              </label>
-              <label>
-                Valor por defecto
-                <input type="text" formControlName="defaultValue" placeholder="opcional" />
-              </label>
-              <label class="check-inline">
-                <input type="checkbox" formControlName="required" /> Requerido
-              </label>
-              <button type="button" class="danger" (click)="removeInputMapping(mapping, j)">Eliminar</button>
+              <div
+                class="mapping-row"
+                *ngFor="let inputMapping of getInputMappings(mapping).controls; let j = index"
+                [formGroupName]="j"
+              >
+                <label>
+                  Parámetro entrada
+                  <input type="text" formControlName="inputName" placeholder="ej: usuario" />
+                </label>
+                <label>
+                  Parámetro SOAP destino
+                  <input type="text" formControlName="soapParameterName" placeholder="ej: Usuario" />
+                </label>
+                <label>
+                  Valor por defecto
+                  <input type="text" formControlName="defaultValue" placeholder="opcional" />
+                </label>
+                <label class="check-inline">
+                  <input type="checkbox" formControlName="required" /> Requerido
+                </label>
+                <button type="button" class="danger" (click)="removeInputMapping(mapping, j)">Eliminar</button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+
+      <section class="client-card">
+        <h3>WsAxonRespuestaTransaccionesSoapClient</h3>
+        <div formArrayName="wsAxonRespuestaTransaccionesMappings" class="rows">
+          <div class="row" *ngFor="let mapping of wsAxonMappings.controls; let i = index" [formGroupName]="i">
+            <div class="technical-fields">
+              <label>
+                Método
+                <input type="text" formControlName="methodName" readonly />
+              </label>
+              <label>
+                Endpoint
+                <input type="text" formControlName="endpoint" placeholder="https://..." />
+                <app-error-message [control]="mapping.get('endpoint')"></app-error-message>
+              </label>
+              <label>
+                SOAP Action
+                <input type="text" formControlName="soapAction" />
+                <app-error-message [control]="mapping.get('soapAction')"></app-error-message>
+              </label>
+              <label class="check">
+                <input type="checkbox" formControlName="enabled" />
+                Habilitado
+              </label>
+            </div>
+
+            <div class="input-mappings" formArrayName="inputParameterMappings">
+              <div class="mapping-header">
+                <h4>Mapeo de parámetros de entrada</h4>
+                <button type="button" class="small" (click)="addInputMapping(mapping)">+ Agregar parámetro</button>
+              </div>
+
+              <div
+                class="mapping-row"
+                *ngFor="let inputMapping of getInputMappings(mapping).controls; let j = index"
+                [formGroupName]="j"
+              >
+                <label>
+                  Parámetro entrada
+                  <input type="text" formControlName="inputName" placeholder="ej: respuesta" />
+                </label>
+                <label>
+                  Parámetro SOAP destino
+                  <input type="text" formControlName="soapParameterName" placeholder="ej: Respuesta" />
+                </label>
+                <label>
+                  Valor por defecto
+                  <input type="text" formControlName="defaultValue" placeholder="opcional" />
+                </label>
+                <label class="check-inline">
+                  <input type="checkbox" formControlName="required" /> Requerido
+                </label>
+                <button type="button" class="danger" (click)="removeInputMapping(mapping, j)">Eliminar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
 
     <div class="actions">
       <button type="button" routerLink="/integraciones">Cancelar</button>
