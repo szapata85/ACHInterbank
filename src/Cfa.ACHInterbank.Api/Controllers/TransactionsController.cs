@@ -67,7 +67,7 @@ public class TransactionsController : ControllerBase
     public async Task<IActionResult> PreviewPolicy(
         [FromQuery] decimal amount,
         [FromQuery] string? transactionExternalId,
-        [FromQuery] string reference,
+        [FromQuery] string? reference,
         [FromQuery] TransactionTypeEnum type,
         [FromQuery] AccountTypeEnum accountType,
         [FromQuery] bool isPrenotification,
@@ -81,7 +81,7 @@ public class TransactionsController : ControllerBase
         var preview = await _transactionPolicyService.PreviewAsync(new TransactionPolicyPreviewRequest(
             amount,
             transactionExternalId,
-            reference,
+            reference ?? string.Empty,
             type,
             accountType,
             isPrenotification,

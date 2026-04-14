@@ -62,7 +62,7 @@ public sealed class AchTransactionReportService : IAchTransactionReportService
         if (!string.IsNullOrWhiteSpace(filter.Reference))
         {
             var reference = filter.Reference.Trim();
-            query = query.Where(t => t.Reference.Contains(reference));
+            query = query.Where(t => t.Reference.Contains(reference) || t.TransactionExternalId.Contains(reference));
         }
 
         if (filter.BankId.HasValue)
@@ -96,6 +96,7 @@ public sealed class AchTransactionReportService : IAchTransactionReportService
             {
                 TransactionId = t.Id,
                 EffectiveEntryDate = t.EffectiveEntryDate,
+                TransactionExternalId = t.TransactionExternalId,
                 Reference = t.Reference,
                 Amount = t.Amount,
                 TransactionType = t.Type,
@@ -130,4 +131,3 @@ public sealed class AchTransactionReportService : IAchTransactionReportService
         };
     }
 }
-

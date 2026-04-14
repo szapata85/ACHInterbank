@@ -12,7 +12,8 @@ export interface DestinationInstitution {
 
 export interface TransactionDraft {
   amount: number;
-  reference: string;
+  transactionExternalId: string;
+  reference?: string;
   type: TransactionTypeEnum;
   accountType: AccountTypeEnum;
   isPrenotification: boolean;
@@ -39,6 +40,7 @@ export interface TransactionDraft {
 export interface TransactionResponse {
   id: number;
   amount: number;
+  transactionExternalId: string;
   reference: string;
   type: TransactionTypeEnum;
   traceNumber: string;
@@ -48,6 +50,7 @@ export interface TransactionResponse {
 export interface TransactionListItem {
   id: number;
   amount: number;
+  transactionExternalId: string;
   reference: string;
   type: TransactionTypeEnum;
   traceNumber: string;
@@ -148,7 +151,8 @@ export interface TransactionPolicyPreview {
 
 export interface BulkAchTransactionItemRequest {
   amount: number;
-  reference: string;
+  transactionExternalId?: string;
+  reference?: string;
   type: TransactionTypeEnum;
   accountType: AccountTypeEnum;
   isPrenotification: boolean;
@@ -177,6 +181,7 @@ export interface BulkAchTransactionRequest {
 
 export interface BulkAchTransactionItemResult {
   index: number;
+  transactionExternalId: string;
   reference: string;
   succeeded: boolean;
   transactionId?: number;

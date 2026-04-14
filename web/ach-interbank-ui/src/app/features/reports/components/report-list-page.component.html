@@ -15,7 +15,7 @@
       <option *ngFor="let st of states" [value]="st">{{ st || 'Todos los estados' }}</option>
     </select>
 
-    <input *ngIf="showReferenceFilter" type="text" placeholder="Referencia" formControlName="reference" />
+    <input *ngIf="showReferenceFilter" type="text" placeholder="ID operación o referencia legado" formControlName="reference" />
     <input *ngIf="showCausalFilter" type="text" placeholder="Causal" formControlName="causal" />
 
     <input *ngIf="showNameFilter" type="text" placeholder="Nombre ciclo" formControlName="name" />
