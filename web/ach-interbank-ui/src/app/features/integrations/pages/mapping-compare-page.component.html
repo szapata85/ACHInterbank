@@ -17,7 +17,7 @@
           <option *ngFor="let ms of mappingSets" [value]="ms.id">v{{ ms.version }} · {{ ms.name }} ({{ getStatusLabel(ms.status) }})</option>
         </select>
       </label>
-      <button type="button" class="primary" [disabled]="!canCompare" (click)="runCompare()">Comparar</button>
+      <button type="button" class="btn btn-primary" [disabled]="!canCompare" (click)="runCompare()">Comparar</button>
     </div>
   </header>
 

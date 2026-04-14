@@ -2,7 +2,7 @@
 
 <div class="actions">
   <button type="button" (click)="startCreate()">Nueva tarea</button>
-  <button type="button" class="ghost" (click)="load()" [disabled]="loading">Refrescar</button>
+  <button type="button" class="btn btn-outline" (click)="load()" [disabled]="loading">Refrescar</button>
 </div>
 
 <app-table
@@ -17,7 +17,7 @@
 <ng-template #rowActions let-task>
   <div class="row-actions">
     <button type="button" class="link" (click)="startEdit(task)">Editar</button>
-    <button type="button" class="link danger" (click)="remove(task)">Eliminar</button>
+    <button type="button" class="link btn-danger" (click)="remove(task)">Eliminar</button>
   </div>
 </ng-template>
 
@@ -114,18 +114,18 @@
   <div class="parameters">
     <div class="parameters-header">
       <h4>Parámetros</h4>
-      <button type="button" class="ghost" (click)="addParameter()">Agregar</button>
+      <button type="button" class="btn btn-outline" (click)="addParameter()">Agregar</button>
     </div>
 
     <div class="parameter" *ngFor="let param of parameters.controls; let i = index" [formGroup]="param">
       <input type="text" formControlName="key" placeholder="Clave" />
       <input type="text" formControlName="value" placeholder="Valor" />
-      <button type="button" class="link danger" (click)="removeParameter(i)">Quitar</button>
+      <button type="button" class="link btn-danger" (click)="removeParameter(i)">Quitar</button>
     </div>
   </div>
 
   <div class="editor-actions">
-    <button type="button" class="primary" (click)="save()" [disabled]="saving">Guardar</button>
-    <button type="button" class="ghost" (click)="cancel()">Cancelar</button>
+    <button type="button" class="btn btn-primary" (click)="save()" [disabled]="saving">Guardar</button>
+    <button type="button" class="btn btn-outline" (click)="cancel()">Cancelar</button>
   </div>
 </section>

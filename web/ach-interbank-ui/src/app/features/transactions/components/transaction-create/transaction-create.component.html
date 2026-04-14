@@ -239,7 +239,7 @@
             <input type="text" formControlName="information" required maxlength="80" />
             <app-error-message [control]="addenda.get('information')"></app-error-message>
           </label>
-          <button type="button" class="danger" (click)="removeAddenda(i)" aria-label="Eliminar addenda">
+          <button type="button" class="btn btn-danger" (click)="removeAddenda(i)" aria-label="Eliminar addenda">
             Eliminar
           </button>
         </div>
@@ -295,7 +295,7 @@
       <button type="submit" [disabled]="isSubmitting.value || form.invalid">
         {{ isSubmitting.value ? 'Registrando…' : 'Registrar transacción' }}
       </button>
-      <button type="button" class="ghost" [disabled]="isSubmitting.value" routerLink="/transactions">
+      <button type="button" class="btn btn-outline" [disabled]="isSubmitting.value" routerLink="/transactions">
         Cancelar
       </button>
     </div>

@@ -22,7 +22,7 @@
           <p class="panel-title">Acceso público</p>
           <small>Logo y color de fondo para la pantalla de inicio de sesión.</small>
         </div>
-        <button type="button" class="ghost" (click)="removeLogo('public')">Quitar</button>
+        <button type="button" class="btn btn-outline" (click)="removeLogo('public')">Quitar</button>
       </header>
 
       <div class="current">
@@ -54,7 +54,7 @@
           Fondo
           <input type="color" [value]="publicBackgroundInput" (input)="changeBackground($event, 'public')" />
         </label>
-        <button type="button" class="ghost" (click)="clearBackground('public')">Usar color por defecto</button>
+        <button type="button" class="btn btn-outline" (click)="clearBackground('public')">Usar color por defecto</button>
       </div>
 
       <div class="background-preview" [style.background]="publicBackgroundPreview"></div>
@@ -66,7 +66,7 @@
           <p class="panel-title">Portal interno</p>
           <small>Logo y color de fondo para el panel privado.</small>
         </div>
-        <button type="button" class="ghost" (click)="removeLogo('private')">Quitar</button>
+        <button type="button" class="btn btn-outline" (click)="removeLogo('private')">Quitar</button>
       </header>
 
       <div class="current">
@@ -98,7 +98,7 @@
           Fondo
           <input type="color" [value]="privateBackgroundInput" (input)="changeBackground($event, 'private')" />
         </label>
-        <button type="button" class="ghost" (click)="clearBackground('private')">Usar color por defecto</button>
+        <button type="button" class="btn btn-outline" (click)="clearBackground('private')">Usar color por defecto</button>
       </div>
 
       <div class="background-preview" [style.background]="privateBackgroundPreview"></div>
@@ -108,7 +108,7 @@
           Fondo del menú lateral
           <input type="color" [value]="sidebarBackgroundInput" (input)="changeBackground($event, 'sidebar')" />
         </label>
-        <button type="button" class="ghost" (click)="clearBackground('sidebar')">Usar color por defecto</button>
+        <button type="button" class="btn btn-outline" (click)="clearBackground('sidebar')">Usar color por defecto</button>
       </div>
 
       <div class="background-preview background-preview--sidebar" [style.background]="sidebarBackgroundPreview"></div>
@@ -121,7 +121,7 @@
         <p class="panel-title">Botones principales</p>
         <small>Define el color base de los botones destacados en toda la aplicación.</small>
       </div>
-      <button type="button" class="ghost" (click)="clearButtonColor()">Usar color por defecto</button>
+      <button type="button" class="btn btn-outline" (click)="clearButtonColor()">Usar color por defecto</button>
     </header>
 
     <div class="button-controls">
@@ -131,7 +131,7 @@
       </label>
 
       <div class="button-preview">
-        <button type="button" class="primary" [style.--button-color]="buttonColorPreview">Vista previa</button>
+        <button type="button" class="btn btn-primary" [style.--button-color]="buttonColorPreview">Vista previa</button>
         <p class="hint">Se aplica al botón principal de formularios, listados y la pantalla de ingreso.</p>
       </div>
     </div>
@@ -139,6 +139,6 @@
 
   <div class="actions">
     <button type="button" (click)="reset()">Restaurar</button>
-    <button type="button" class="primary" (click)="save()">Guardar cambios</button>
+    <button type="button" class="btn btn-primary" (click)="save()">Guardar cambios</button>
   </div>
 </div>

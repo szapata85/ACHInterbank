@@ -36,8 +36,8 @@
     </label>
 
     <div class="actions">
-      <button type="submit" class="primary" [disabled]="loading">{{ loading ? 'Consultando...' : 'Consultar' }}</button>
-      <button type="button" class="ghost" (click)="openCreateForm()">Nueva configuración</button>
+      <button type="submit" class="btn btn-primary" [disabled]="loading">{{ loading ? 'Consultando...' : 'Consultar' }}</button>
+      <button type="button" class="btn btn-outline" (click)="openCreateForm()">Nueva configuración</button>
     </div>
   </form>
 </section>
@@ -84,8 +84,8 @@
     </label>
 
     <div class="actions form-actions">
-      <button type="button" class="ghost" (click)="closeForm()">Cancelar</button>
-      <button type="button" class="primary" (click)="save()" [disabled]="saving">{{ saving ? 'Guardando...' : 'Guardar versión' }}</button>
+      <button type="button" class="btn btn-outline" (click)="closeForm()">Cancelar</button>
+      <button type="button" class="btn btn-primary" (click)="save()" [disabled]="saving">{{ saving ? 'Guardando...' : 'Guardar versión' }}</button>
     </div>
   </form>
 </section>
@@ -136,9 +136,9 @@
           </td>
           <td>
             <div class="row-actions">
-              <button type="button" class="ghost action-edit" (click)="edit(item)">Editar</button>
-              <button type="button" class="ghost action-clone" (click)="clone(item)">Clonar</button>
-              <button type="button" class="danger" (click)="askInactivate(item)" [disabled]="!item.isActive">Inactivar</button>
+              <button type="button" class="btn btn-outline action-edit" (click)="edit(item)">Editar</button>
+              <button type="button" class="btn btn-outline action-clone" (click)="clone(item)">Clonar</button>
+              <button type="button" class="btn btn-danger" (click)="askInactivate(item)" [disabled]="!item.isActive">Inactivar</button>
             </div>
           </td>
         </tr>

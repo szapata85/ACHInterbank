@@ -10,7 +10,7 @@
       <input id="batchId" type="text" [ngModel]="batchIdInput()" (ngModelChange)="batchIdInput.set($event)" placeholder="GUID del lote" />
     </div>
     <button type="button" (click)="searchByBatchId()" [disabled]="isLoading()">Agregar al seguimiento</button>
-    <button type="button" class="ghost" (click)="refreshFromRecent()" [disabled]="isLoading()">Actualizar</button>
+    <button type="button" class="btn btn-outline" (click)="refreshFromRecent()" [disabled]="isLoading()">Actualizar</button>
   </div>
 
   <div class="field">
@@ -66,8 +66,8 @@
         <td class="ko">{{ row.totalFailed }}</td>
         <td>
           <div class="actions">
-            <button type="button" class="ghost" (click)="openDetail(row.batchId)">Detalle</button>
-            <button type="button" class="secondary" *ngIf="canRetry(row.status)" (click)="retryFailed(row.batchId)">Reintentar</button>
+            <button type="button" class="btn btn-outline" (click)="openDetail(row.batchId)">Detalle</button>
+            <button type="button" class="btn btn-secondary" *ngIf="canRetry(row.status)" (click)="retryFailed(row.batchId)">Reintentar</button>
           </div>
         </td>
       </tr>

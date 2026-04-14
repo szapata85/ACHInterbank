@@ -29,7 +29,7 @@
       <span class="accounts-label">Números de cuenta</span>
       <div class="accounts-input-row">
         <input type="text" [formControl]="accountNumberInput" placeholder="Agregar número de cuenta" />
-        <button type="button" class="button ghost" (click)="addAccountNumber()">Agregar</button>
+        <button type="button" class="btn btn-outline" (click)="addAccountNumber()">Agregar</button>
       </div>
       <small *ngIf="!hasAccountNumbers">Agrega al menos un número de cuenta.</small>
       <div class="accounts-chips" *ngIf="hasAccountNumbers">
@@ -75,7 +75,7 @@
   </div>
 
   <div class="form-actions">
-    <button type="submit" class="button primary">Guardar</button>
-    <a class="button ghost" [routerLink]="['/customers']">Cancelar</a>
+    <button type="submit" class="btn btn-primary">Guardar</button>
+    <a class="btn btn-outline" [routerLink]="['/customers']">Cancelar</a>
   </div>
 </form>

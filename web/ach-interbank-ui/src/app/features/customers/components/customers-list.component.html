@@ -2,7 +2,7 @@
 </app-page-header>
 
 <ng-template #headerActions>
-  <button type="button" class="button primary" (click)="create()">Nuevo cliente</button>
+  <button type="button" class="btn btn-primary" (click)="create()">Nuevo cliente</button>
 </ng-template>
 
 <section class="card filters" [formGroup]="filtersForm">
@@ -27,7 +27,7 @@
     </select>
   </label>
   <div class="filter-actions">
-    <button type="button" class="button ghost" (click)="resetFilters()">Limpiar filtros</button>
+    <button type="button" class="btn btn-outline" (click)="resetFilters()">Limpiar filtros</button>
   </div>
 </section>
 

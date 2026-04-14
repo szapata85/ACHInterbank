@@ -9,7 +9,7 @@
   </label>
 
   <button type="button" (click)="loadTransactions()" [disabled]="loading">Consultar</button>
-  <button type="button" class="ghost" (click)="openReasonModal()" [disabled]="loading || rows.length === 0">Asignar causal / Generar</button>
+  <button type="button" class="btn btn-outline" (click)="openReasonModal()" [disabled]="loading || rows.length === 0">Asignar causal / Generar</button>
 </div>
 
 <div class="table-wrapper" *ngIf="rows.length > 0; else empty">
@@ -66,7 +66,7 @@
     <p>Transacciones seleccionadas: {{ selectedRows.size }}</p>
 
     <div class="actions">
-      <button type="button" class="ghost" (click)="closeReasonModal()" [disabled]="loading">Cancelar</button>
+      <button type="button" class="btn btn-outline" (click)="closeReasonModal()" [disabled]="loading">Cancelar</button>
       <button type="button" (click)="generateFile()" [disabled]="loading">Generar Archivo NACHA-M (.RET)</button>
     </div>
   </div>

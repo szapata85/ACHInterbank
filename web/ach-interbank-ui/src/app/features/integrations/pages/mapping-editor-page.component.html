@@ -8,7 +8,7 @@
   <p>{{ errorMessage }}</p>
   <div class="actions">
     <button type="button" (click)="loadAll()">Reintentar</button>
-    <button type="button" class="primary" (click)="goToMappingList()">Volver al listado</button>
+    <button type="button" class="btn btn-primary" (click)="goToMappingList()">Volver al listado</button>
   </div>
 </section>
 
@@ -18,7 +18,7 @@
   <p>El método seleccionado no tiene parámetros activos en catálogo. Verifica la configuración de Integraciones.</p>
   <div class="actions">
     <button type="button" (click)="loadAll()">Reintentar</button>
-    <button type="button" class="primary" (click)="goToMappingList()">Volver al listado</button>
+    <button type="button" class="btn btn-primary" (click)="goToMappingList()">Volver al listado</button>
   </div>
 </section>
 
@@ -43,7 +43,7 @@
       <button type="button" [disabled]="validating" (click)="runValidation()">{{ validating ? 'Validando…' : 'Validar' }}</button>
       <button type="button" [disabled]="previewing" (click)="runPreview()">{{ previewing ? 'Simulando…' : 'Simular' }}</button>
       <button type="button" [disabled]="cloning" (click)="clone()">{{ cloning ? 'Clonando…' : 'Clonar' }}</button>
-      <button type="button" class="primary" [disabled]="!isDraftStatus(set.status) || publishing" (click)="publish()">
+      <button type="button" class="btn btn-primary" [disabled]="!isDraftStatus(set.status) || publishing" (click)="publish()">
         {{ publishing ? 'Publicando…' : 'Publicar' }}
       </button>
     </div>
@@ -146,7 +146,7 @@
         </label>
 
         <div class="rule-actions">
-          <button type="button" class="primary" [disabled]="savingRule" (click)="saveRule()">
+          <button type="button" class="btn btn-primary" [disabled]="savingRule" (click)="saveRule()">
             {{ savingRule ? 'Guardando…' : 'Guardar regla' }}
           </button>
         </div>

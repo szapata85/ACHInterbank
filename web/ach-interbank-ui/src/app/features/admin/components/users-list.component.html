@@ -27,15 +27,15 @@
   <div class="actions">
     <button type="button" (click)="editUser(user)">Editar</button>
     <button type="button" (click)="manageRoles(user)">Roles</button>
-    <button type="button" class="danger" (click)="confirmDisable(user)" [disabled]="!user.isActive">
+    <button type="button" class="btn btn-danger" (click)="confirmDisable(user)" [disabled]="!user.isActive">
       Desactivar
     </button>
   </div>
 </ng-template>
 
 <ng-template #headerActions>
-  <button type="button" class="ghost" (click)="goToBranding()">Identidad</button>
-  <button type="button" class="primary" (click)="createUser()">Nuevo usuario</button>
+  <button type="button" class="btn btn-outline" (click)="goToBranding()">Identidad</button>
+  <button type="button" class="btn btn-primary" (click)="createUser()">Nuevo usuario</button>
 </ng-template>
 
 <app-confirm-dialog

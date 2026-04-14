@@ -6,8 +6,8 @@
       <p class="lede">Define fechas no operativas específicas por cámara de compensación.</p>
     </div>
     <div class="actions">
-      <button type="button" class="secondary" (click)="load()" [disabled]="loading || saving">Recargar</button>
-      <button type="button" class="primary" (click)="startCreate()" [disabled]="saving">Nueva fecha</button>
+      <button type="button" class="btn btn-secondary" (click)="load()" [disabled]="loading || saving">Recargar</button>
+      <button type="button" class="btn btn-primary" (click)="startCreate()" [disabled]="saving">Nueva fecha</button>
     </div>
   </div>
 
@@ -30,7 +30,7 @@
   <ng-template #empty>
     <div class="empty">
       <p>No hay fechas especiales registradas.</p>
-      <button type="button" class="primary" (click)="startCreate()" [disabled]="saving">Agregar fecha</button>
+      <button type="button" class="btn btn-primary" (click)="startCreate()" [disabled]="saving">Agregar fecha</button>
     </div>
   </ng-template>
 </section>
@@ -60,8 +60,8 @@
     </label>
 
     <div class="form-actions">
-      <button type="button" class="secondary" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
-      <button type="submit" class="primary" [disabled]="saving">{{ editing ? 'Actualizar' : 'Guardar' }}</button>
+      <button type="button" class="btn btn-secondary" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
+      <button type="submit" class="btn btn-primary" [disabled]="saving">{{ editing ? 'Actualizar' : 'Guardar' }}</button>
     </div>
   </form>
 </section>

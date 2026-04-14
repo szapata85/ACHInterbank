@@ -9,8 +9,8 @@
     <p>Por seguridad, tu sesión expirará pronto. Guarda tu trabajo o continúa la sesión.</p>
     <p class="session-timeout__countdown">Tiempo restante: {{ formatRemaining(remainingSeconds$ | async) }}</p>
     <div class="session-timeout__actions">
-      <button type="button" class="primary" (click)="extendSession()">Continuar sesión</button>
-      <button type="button" class="ghost" (click)="logout()">Cerrar sesión</button>
+      <button type="button" class="btn btn-primary" (click)="extendSession()">Continuar sesión</button>
+      <button type="button" class="btn btn-outline" (click)="logout()">Cerrar sesión</button>
     </div>
   </div>
 </div>

@@ -19,11 +19,11 @@
     ></textarea>
 
     <div class="actions">
-      <button type="button" class="ghost" (click)="validateJson()" [disabled]="isSubmitting()">Validar JSON</button>
+      <button type="button" class="btn btn-outline" (click)="validateJson()" [disabled]="isSubmitting()">Validar JSON</button>
       <button type="button" (click)="submit()" [disabled]="isSubmitting() || !payload()">
         {{ isSubmitting() ? 'Enviando lote…' : 'Enviar lote masivo' }}
       </button>
-      <button type="button" class="ghost" routerLink="/transactions/list" [disabled]="isSubmitting()">Cancelar</button>
+      <button type="button" class="btn btn-outline" routerLink="/transactions/list" [disabled]="isSubmitting()">Cancelar</button>
     </div>
 
     <p class="error" *ngIf="validationError()">{{ validationError() }}</p>

@@ -88,9 +88,9 @@ small,
    Variants (.primary, .secondary, etc.) override CSS variables explicitly. */
 button,
 .btn {
-  --btn-bg: var(--color-surface);
-  --btn-border: var(--color-border-strong);
-  --btn-color: var(--color-text);
+  --btn-bg: var(--color-primary);
+  --btn-border: var(--color-primary);
+  --btn-color: var(--color-primary-contrast);
   --btn-shadow: transparent;
   --btn-pad-x: 1rem;
   --btn-pad-y: 0.5rem;
@@ -118,9 +118,9 @@ button,
 
 button:hover,
 .btn:hover {
-  --btn-bg: var(--color-surface-muted);
-  --btn-border: #aebdd1;
-  --btn-color: var(--color-text);
+  --btn-bg: var(--color-primary-hover);
+  --btn-border: var(--color-primary-hover);
+  --btn-color: var(--color-primary-contrast);
 }
 
 button:active,
@@ -149,14 +149,16 @@ button.primary:hover,
 }
 
 button.secondary,
-.secondary {
+.secondary,
+.btn-secondary {
   --btn-bg: var(--color-secondary);
   --btn-border: var(--color-secondary);
   --btn-color: #fff;
 }
 
 button.secondary:hover,
-.secondary:hover {
+.secondary:hover,
+.btn-secondary:hover {
   --btn-bg: var(--color-secondary-hover);
   --btn-border: var(--color-secondary-hover);
 }
@@ -175,28 +177,32 @@ button.tertiary:hover,
 }
 
 button.ghost,
-.ghost {
+.ghost,
+.btn-outline {
   --btn-bg: #fff;
-  --btn-border: var(--color-border-strong);
+  --btn-border: var(--color-primary);
   --btn-color: var(--color-primary);
 }
 
 button.ghost:hover,
-.ghost:hover {
+.ghost:hover,
+.btn-outline:hover {
   --btn-bg: #eff6ff;
   --btn-border: #93c5fd;
   --btn-color: #1d4ed8;
 }
 
 button.danger,
-.danger {
+.danger,
+.btn-danger {
   --btn-bg: var(--color-danger);
   --btn-border: var(--color-danger);
   --btn-color: #fff;
 }
 
 button.danger:hover,
-.danger:hover {
+.danger:hover,
+.btn-danger:hover {
   --btn-bg: var(--color-danger-hover);
   --btn-border: var(--color-danger-hover);
 }
@@ -281,6 +287,19 @@ button[disabled],
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
+}
+
+table td button:not([class]) {
+  --btn-bg: transparent;
+  --btn-border: var(--color-primary);
+  --btn-color: var(--color-primary);
+  --btn-shadow: transparent;
+}
+
+table td button:not([class]):hover {
+  --btn-bg: #eff6ff;
+  --btn-border: #93c5fd;
+  --btn-color: #1d4ed8;
 }
 
 /* Badges */

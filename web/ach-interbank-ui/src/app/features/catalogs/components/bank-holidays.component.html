@@ -6,10 +6,10 @@
       <p class="lede">Administra los días festivos que no deben ejecutarse ciclos.</p>
     </div>
     <div class="actions">
-      <button type="button" class="secondary" (click)="search()" [disabled]="loading || saving || filterForm.invalid">
+      <button type="button" class="btn btn-secondary" (click)="search()" [disabled]="loading || saving || filterForm.invalid">
         Buscar
       </button>
-      <button type="button" class="primary" (click)="startCreate()" [disabled]="saving">Nuevo festivo</button>
+      <button type="button" class="btn btn-primary" (click)="startCreate()" [disabled]="saving">Nuevo festivo</button>
     </div>
   </div>
 
@@ -41,7 +41,7 @@
     <ng-template #empty>
       <div class="empty">
         <p>No hay festivos registrados.</p>
-        <button type="button" class="primary" (click)="startCreate()" [disabled]="saving">Agregar festivo</button>
+        <button type="button" class="btn btn-primary" (click)="startCreate()" [disabled]="saving">Agregar festivo</button>
       </div>
     </ng-template>
   </ng-container>
@@ -75,8 +75,8 @@
     </label>
 
     <div class="form-actions">
-      <button type="button" class="secondary" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
-      <button type="submit" class="primary" [disabled]="saving">{{ editing ? 'Actualizar' : 'Guardar' }}</button>
+      <button type="button" class="btn btn-secondary" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
+      <button type="submit" class="btn btn-primary" [disabled]="saving">{{ editing ? 'Actualizar' : 'Guardar' }}</button>
     </div>
   </form>
 </section>

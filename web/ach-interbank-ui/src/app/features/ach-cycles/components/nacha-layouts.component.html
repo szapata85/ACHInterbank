@@ -2,7 +2,7 @@
 
 <div class="actions">
   <button type="button" (click)="startCreate()">Nuevo layout</button>
-  <button type="button" class="ghost" (click)="load()" [disabled]="loading">Refrescar</button>
+  <button type="button" class="btn btn-outline" (click)="load()" [disabled]="loading">Refrescar</button>
 </div>
 
 <app-table
@@ -17,7 +17,7 @@
 <ng-template #rowActions let-layout>
   <div class="row-actions">
     <button type="button" class="link" (click)="startEdit(layout)">Editar</button>
-    <button type="button" class="link danger" (click)="remove(layout)">Eliminar</button>
+    <button type="button" class="link btn-danger" (click)="remove(layout)">Eliminar</button>
   </div>
 </ng-template>
 
@@ -46,7 +46,7 @@
   <div class="fields">
     <div class="fields-header">
       <h4>Campos</h4>
-      <button type="button" class="ghost" (click)="addField()">Agregar campo</button>
+      <button type="button" class="btn btn-outline" (click)="addField()">Agregar campo</button>
     </div>
     <p class="db-help" *ngIf="currentSourceName">
       Origen detectado para este código: <strong>{{ currentSourceName }}</strong>
@@ -79,12 +79,12 @@
         <input type="text" formControlName="dbColumn" placeholder="Columna DB" />
       </ng-template>
       <input type="text" formControlName="format" placeholder="Formato" />
-      <button type="button" class="link danger" (click)="removeField(i)">Quitar</button>
+      <button type="button" class="link btn-danger" (click)="removeField(i)">Quitar</button>
     </div>
   </div>
 
   <div class="editor-actions">
-    <button type="button" class="primary" (click)="save()" [disabled]="saving">Guardar</button>
-    <button type="button" class="ghost" (click)="cancel()">Cancelar</button>
+    <button type="button" class="btn btn-primary" (click)="save()" [disabled]="saving">Guardar</button>
+    <button type="button" class="btn btn-outline" (click)="cancel()">Cancelar</button>
   </div>
 </section>

@@ -25,7 +25,7 @@
         Comentario del borrador
         <input type="text" formControlName="notes" placeholder="Qué se está ajustando en esta versión" />
       </label>
-      <button type="submit" class="primary" [disabled]="createDraftForm.invalid || creatingDraft">
+      <button type="submit" class="btn btn-primary" [disabled]="createDraftForm.invalid || creatingDraft">
         {{ creatingDraft ? 'Creando…' : 'Crear borrador' }}
       </button>
     </form>

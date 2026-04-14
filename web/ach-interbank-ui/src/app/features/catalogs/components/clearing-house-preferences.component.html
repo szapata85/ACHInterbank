@@ -8,8 +8,8 @@
       </p>
     </div>
     <div class="actions">
-      <button type="button" class="secondary" (click)="loadPreferences()" [disabled]="loading || saving">Recargar</button>
-      <button type="button" class="primary" (click)="startCreate()" [disabled]="saving">Nueva relación</button>
+      <button type="button" class="btn btn-secondary" (click)="loadPreferences()" [disabled]="loading || saving">Recargar</button>
+      <button type="button" class="btn btn-primary" (click)="startCreate()" [disabled]="saving">Nueva relación</button>
     </div>
   </div>
 
@@ -32,7 +32,7 @@
   <ng-template #empty>
     <div class="empty">
       <p>No hay preferencias registradas.</p>
-      <button type="button" class="primary" (click)="loadPreferences()" [disabled]="loading">Recargar</button>
+      <button type="button" class="btn btn-primary" (click)="loadPreferences()" [disabled]="loading">Recargar</button>
     </div>
   </ng-template>
 </section>
@@ -84,7 +84,7 @@
       </label>
 
       <div class="form-actions">
-        <button type="submit" class="primary" [disabled]="saving">Crear relación</button>
+        <button type="submit" class="btn btn-primary" [disabled]="saving">Crear relación</button>
       </div>
     </form>
   </div>
@@ -120,8 +120,8 @@
       </label>
 
       <div class="form-actions">
-        <button type="button" class="secondary" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
-        <button type="submit" class="primary" [disabled]="saving">Guardar cambios</button>
+        <button type="button" class="btn btn-secondary" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
+        <button type="submit" class="btn btn-primary" [disabled]="saving">Guardar cambios</button>
       </div>
     </form>
   </div>

@@ -4,14 +4,14 @@
       <h2>Definiciones de registros NACHA</h2>
       <p>Configura el orden y la fuente de datos para cada registro, con resumen del layout asociado.</p>
     </div>
-    <button type="button" class="primary" (click)="startCreate()">Nuevo</button>
+    <button type="button" class="btn btn-primary" (click)="startCreate()">Nuevo</button>
   </div>
 
   <app-table [columns]="columns" [data]="definitions" [loading]="loading" [rowActions]="rowActions">
     <ng-template #rowActions let-item>
       <div class="actions">
         <button type="button" (click)="startEdit(item)">Editar</button>
-        <button type="button" class="danger" (click)="remove(item)">Eliminar</button>
+        <button type="button" class="btn btn-danger" (click)="remove(item)">Eliminar</button>
       </div>
     </ng-template>
   </app-table>
@@ -72,7 +72,7 @@
       <div class="layout-hint" *ngIf="form.get('recordCode')?.value as code">
         <strong>Layout asociado:</strong> {{ layoutsByCode[code]?.recordType || 'No configurado' }}
         <span *ngIf="layoutsByCode[code]">({{ layoutsByCode[code].fields?.length || 0 }} campos)</span>
-        <button type="button" class="ghost" (click)="manageLayout()">Administrar campos del layout</button>
+        <button type="button" class="btn btn-outline" (click)="manageLayout()">Administrar campos del layout</button>
       </div>
 
       <label class="checkbox">
@@ -82,7 +82,7 @@
 
       <div class="form-actions">
         <button type="button" (click)="cancel()">Cancelar</button>
-        <button type="submit" class="primary" [disabled]="saving">
+        <button type="submit" class="btn btn-primary" [disabled]="saving">
           {{ saving ? 'Guardando...' : 'Guardar' }}
         </button>
       </div>

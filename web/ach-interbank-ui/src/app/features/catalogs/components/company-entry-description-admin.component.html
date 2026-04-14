@@ -38,7 +38,7 @@
 
     <div class="actions full-width">
       <button type="submit" [disabled]="saving || loading">{{ editingId ? 'Actualizar' : 'Crear' }}</button>
-      <button type="button" class="ghost" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
+      <button type="button" class="btn btn-outline" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
     </div>
   </form>
 </section>
@@ -65,7 +65,7 @@
         <td class="actions-col">
           <div class="row-actions">
             <button type="button" class="link" (click)="edit(row)">Editar</button>
-            <button type="button" class="link danger" (click)="remove(row)">Eliminar</button>
+            <button type="button" class="link btn-danger" (click)="remove(row)">Eliminar</button>
           </div>
         </td>
       </tr>

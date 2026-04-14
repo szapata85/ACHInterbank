@@ -6,8 +6,8 @@
       <p class="lede">Administra las instituciones configuradas en ACH, incluyendo su estado y datos de enrutamiento.</p>
     </div>
     <div class="actions">
-      <button type="button" class="secondary" (click)="loadInstitutions()" [disabled]="loading || saving">Recargar</button>
-      <button type="button" class="primary" (click)="startCreate()" [disabled]="saving">Nueva institución</button>
+      <button type="button" class="btn btn-secondary" (click)="loadInstitutions()" [disabled]="loading || saving">Recargar</button>
+      <button type="button" class="btn btn-primary" (click)="startCreate()" [disabled]="saving">Nueva institución</button>
     </div>
   </div>
 
@@ -31,7 +31,7 @@
   <ng-template #empty>
     <div class="empty">
       <p>No hay instituciones registradas.</p>
-      <button type="button" class="primary" (click)="startCreate()" [disabled]="saving">Agregar primera institución</button>
+      <button type="button" class="btn btn-primary" (click)="startCreate()" [disabled]="saving">Agregar primera institución</button>
     </div>
   </ng-template>
 </section>
@@ -77,8 +77,8 @@
     </label>
 
     <div class="form-actions">
-      <button type="button" class="secondary" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
-      <button type="submit" class="primary" [disabled]="saving">{{ editing ? 'Actualizar' : 'Guardar' }}</button>
+      <button type="button" class="btn btn-secondary" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
+      <button type="submit" class="btn btn-primary" [disabled]="saving">{{ editing ? 'Actualizar' : 'Guardar' }}</button>
     </div>
   </form>
 </section>
