@@ -13,7 +13,7 @@ public class ContrapartidaDispatchBatchConfiguration : IEntityTypeConfiguration<
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.AchCycleId)
-            .HasMaxLength(32)
+            .HasMaxLength(40)
             .IsRequired();
 
         builder.Property(x => x.Status)
