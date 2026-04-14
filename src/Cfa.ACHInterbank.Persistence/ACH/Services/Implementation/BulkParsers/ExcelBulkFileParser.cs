@@ -16,10 +16,15 @@ public class ExcelBulkFileParser : IBulkFileParser
     {
         using var document = SpreadsheetDocument.Open(stream, false);
         var workbookPart = document.WorkbookPart ?? throw new ArgumentException("El archivo Excel no contiene workbook válido.");
-        var firstSheet = workbookPart.Workbook.Sheets?.Elements<Sheet>().FirstOrDefault()
+        var sheets = workbookPart.Workbook?.Sheets?.Elements<Sheet>();
+        var firstSheet = sheets?.FirstOrDefault()
             ?? throw new ArgumentException("El archivo Excel no contiene hojas.");
+        if (string.IsNullOrWhiteSpace(firstSheet.Id))
+        {
+            throw new ArgumentException("La hoja principal de Excel no tiene un identificador válido.");
+        }
 
-        var worksheetPart = (WorksheetPart)workbookPart.GetPartById(firstSheet.Id!);
+        var worksheetPart = (WorksheetPart)workbookPart.GetPartById(firstSheet.Id);
         var rows = worksheetPart.Worksheet.Descendants<Row>().ToList();
         if (rows.Count == 0)
         {
@@ -90,7 +95,7 @@ public class ExcelBulkFileParser : IBulkFileParser
                 return rawValue;
             }
 
-            return workbookPart.SharedStringTablePart?.SharedStringTable
+            return workbookPart.SharedStringTablePart?.SharedStringTable?
                 .Elements<SharedStringItem>()
                 .ElementAtOrDefault(index)
                 ?.InnerText;
