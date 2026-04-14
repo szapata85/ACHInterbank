@@ -72,8 +72,8 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
             .ToList();
 
         var activeCompanyEntryDescriptionIds = await PreloadActiveCompanyEntryDescriptionIdsAsync(ct);
-        var duplicatedReferencesInRequest = GetDuplicateReferences(normalizedItems);
-        var existingReferencesInPersistence = await LoadExistingReferencesAsync(normalizedItems, ct);
+        var duplicatedOperationalIdsInRequest = GetDuplicateOperationalIds(normalizedItems);
+        var existingOperationalIdsInPersistence = await LoadExistingOperationalIdsAsync(normalizedItems, ct);
 
         var customerCache = await BuildCustomerCacheAsync(normalizedItems, ct);
         var documentTypeByDefault = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -101,12 +101,12 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
                     var normalizedReference = record.Data.Reference.Trim();
                     var normalizedOperationalId = ResolveOperationalId(record.Data);
 
-                    if (duplicatedReferencesInRequest.Contains(normalizedOperationalId))
+                    if (duplicatedOperationalIdsInRequest.Contains(normalizedOperationalId))
                     {
                         throw new ArgumentException($"El identificador operativo '{normalizedOperationalId}' está duplicado dentro del mismo request.", nameof(record.Data.TransactionExternalId));
                     }
 
-                    if (existingReferencesInPersistence.Contains(normalizedOperationalId))
+                    if (existingOperationalIdsInPersistence.Contains(normalizedOperationalId))
                     {
                         throw new ArgumentException($"El identificador operativo '{normalizedOperationalId}' ya existe en persistencia.", nameof(record.Data.TransactionExternalId));
                     }
@@ -166,7 +166,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
                     response.ItemResults.Add(new BulkAchTransactionItemResult
                     {
                         Index = record.Index,
-                        TransactionExternalId = record.Data.TransactionExternalId?.Trim() ?? string.Empty,
+                        TransactionExternalId = ResolveOperationalId(record.Data),
                         Reference = record.Data.Reference,
                         Succeeded = false,
                         ErrorCode = "ITEM_VALIDATION_FAILED",
@@ -257,7 +257,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
             .ToHashSetAsync(ct);
     }
 
-    private static HashSet<string> GetDuplicateReferences(IEnumerable<NormalizedBulkItem> normalizedItems)
+    private static HashSet<string> GetDuplicateOperationalIds(IEnumerable<NormalizedBulkItem> normalizedItems)
     {
         return normalizedItems
             .Select(ResolveOperationalId)
@@ -268,24 +268,24 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
-    private async Task<HashSet<string>> LoadExistingReferencesAsync(IEnumerable<NormalizedBulkItem> normalizedItems, CancellationToken ct)
+    private async Task<HashSet<string>> LoadExistingOperationalIdsAsync(IEnumerable<NormalizedBulkItem> normalizedItems, CancellationToken ct)
     {
-        var references = normalizedItems
+        var operationalIds = normalizedItems
             .Select(ResolveOperationalId)
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        if (references.Length == 0)
+        if (operationalIds.Length == 0)
         {
             return [];
         }
 
         return (await _context.AchTransactions
             .AsNoTracking()
-            .Where(x => references.Contains(x.TransactionExternalId)
-                || ((x.TransactionExternalId == null || x.TransactionExternalId == "") && references.Contains(x.Reference)))
-            .Select(x => x.TransactionExternalId == null || x.TransactionExternalId == "" ? x.Reference : x.TransactionExternalId)
+            .Where(x => operationalIds.Contains(x.TransactionExternalId)
+                || (string.IsNullOrWhiteSpace(x.TransactionExternalId) && operationalIds.Contains(x.Reference)))
+            .Select(x => string.IsNullOrWhiteSpace(x.TransactionExternalId) ? x.Reference : x.TransactionExternalId)
             .Distinct()
             .ToListAsync(ct))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);

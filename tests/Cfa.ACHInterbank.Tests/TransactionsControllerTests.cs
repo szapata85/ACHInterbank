@@ -72,4 +72,92 @@ public class TransactionsControllerTests
 
         Assert.IsType<BadRequestObjectResult>(response);
     }
+
+    [Fact]
+    public async Task CreateTransaction_AllowsOperationalIdWithoutLegacyReference()
+    {
+        var txService = new Mock<IAchTransactionService>();
+        txService.Setup(s => s.RegisterTransactionAsync(
+                It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<TransactionTypeEnum>(), It.IsAny<AccountTypeEnum>(),
+                It.IsAny<bool>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(),
+                It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<List<AddendaDto>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchTransaction { Id = 26, TransactionExternalId = "TX-OP-026", Reference = string.Empty });
+
+        var policy = new Mock<ITransactionPolicyService>();
+        var bulk = new Mock<IAchBulkTransactionService>();
+        var ingestion = new Mock<IAchBulkIngestionService>();
+        var logger = new Mock<ILogger<TransactionsController>>();
+        var controller = new TransactionsController(txService.Object, policy.Object, bulk.Object, ingestion.Object, logger.Object);
+
+        var result = await controller.CreateTransaction(new AchTransactionRequest
+        {
+            Amount = 1000,
+            TransactionExternalId = "TX-OP-026",
+            Reference = string.Empty,
+            Type = TransactionTypeEnum.Credit,
+            AccountType = AccountTypeEnum.Checking,
+            DestinationInstitutionId = 2,
+            SourceAccountNumber = "1234567890",
+            DestinationAccountNumber = "9876543210",
+            CompanyName = "EMPRESA",
+            CompanyIdentification = "900123456",
+            CompanyEntryDescriptionId = 1
+        }, CancellationToken.None);
+
+        Assert.IsType<CreatedAtActionResult>(result);
+        txService.Verify(s => s.RegisterTransactionAsync(
+            It.IsAny<decimal>(),
+            string.Empty,
+            It.IsAny<TransactionTypeEnum>(),
+            It.IsAny<AccountTypeEnum>(),
+            It.IsAny<bool>(),
+            It.IsAny<int>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<int>(),
+            It.IsAny<string?>(),
+            It.IsAny<string?>(),
+            It.IsAny<string?>(),
+            It.IsAny<string?>(),
+            "TX-OP-026",
+            It.IsAny<bool>(),
+            It.IsAny<List<AddendaDto>?>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateTransaction_ReturnsBadRequest_WhenOperationalIdAndReferenceAreMissing()
+    {
+        var txService = new Mock<IAchTransactionService>();
+        var policy = new Mock<ITransactionPolicyService>();
+        var bulk = new Mock<IAchBulkTransactionService>();
+        var ingestion = new Mock<IAchBulkIngestionService>();
+        var logger = new Mock<ILogger<TransactionsController>>();
+        var controller = new TransactionsController(txService.Object, policy.Object, bulk.Object, ingestion.Object, logger.Object);
+
+        var result = await controller.CreateTransaction(new AchTransactionRequest
+        {
+            Amount = 1000,
+            TransactionExternalId = " ",
+            Reference = " ",
+            Type = TransactionTypeEnum.Credit,
+            AccountType = AccountTypeEnum.Checking,
+            DestinationInstitutionId = 2,
+            SourceAccountNumber = "1234567890",
+            DestinationAccountNumber = "9876543210",
+            CompanyName = "EMPRESA",
+            CompanyIdentification = "900123456",
+            CompanyEntryDescriptionId = 1
+        }, CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        txService.Verify(s => s.RegisterTransactionAsync(
+            It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<TransactionTypeEnum>(), It.IsAny<AccountTypeEnum>(),
+            It.IsAny<bool>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<List<AddendaDto>?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
 }
