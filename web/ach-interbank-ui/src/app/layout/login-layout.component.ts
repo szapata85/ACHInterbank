@@ -17,14 +17,11 @@ export class LoginLayoutComponent implements OnDestroy {
 
   @HostBinding('style.--public-bg')
   public publicBackground: string | null = this.brandingService.getBrandingSnapshot().publicBackground ?? null;
-  @HostBinding('style.--button-color')
-  public buttonColor: string | null = this.brandingService.getBrandingSnapshot().buttonColor ?? null;
 
   readonly branding$ = this.brandingService.branding$;
 
   private brandingSubscription: Subscription = this.brandingService.branding$.subscribe((branding) => {
     this.publicBackground = branding.publicBackground ?? null;
-    this.buttonColor = branding.buttonColor ?? null;
   });
 
   ngOnDestroy(): void {

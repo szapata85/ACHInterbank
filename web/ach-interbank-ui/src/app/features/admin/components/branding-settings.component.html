@@ -131,7 +131,14 @@
       </label>
 
       <div class="button-preview">
-        <button type="button" class="btn btn-primary" [style.--button-color]="buttonColorPreview">Vista previa</button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          [style.--color-primary]="buttonColorPreview"
+          [style.--color-primary-hover]="buttonColorPreview"
+        >
+          Vista previa
+        </button>
         <p class="hint">Se aplica al botón principal de formularios, listados y la pantalla de ingreso.</p>
       </div>
     </div>

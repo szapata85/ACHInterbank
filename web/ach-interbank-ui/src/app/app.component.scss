@@ -50,21 +50,3 @@
   gap: 0.75rem;
   justify-content: flex-end;
 }
-
-.session-timeout__actions .primary {
-  background: var(--color-primary);
-  color: var(--color-surface);
-  border: none;
-  padding: 0.55rem 1rem;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.session-timeout__actions .ghost {
-  background: transparent;
-  color: var(--color-text);
-  border: 1px solid var(--color-border-strong);
-  padding: 0.55rem 1rem;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}

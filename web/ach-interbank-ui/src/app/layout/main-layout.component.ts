@@ -42,8 +42,6 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   public privateBackground: string | null = this.brandingService.getBrandingSnapshot().privateBackground ?? null;
   @HostBinding('style.--sidebar-bg')
   public sidebarBackground: string | null = this.brandingService.getBrandingSnapshot().sidebarBackground ?? null;
-  @HostBinding('style.--button-color')
-  public buttonColor: string | null = this.brandingService.getBrandingSnapshot().buttonColor ?? null;
 
   readonly user$ = this.authService.user$;
   readonly branding$ = this.brandingService.branding$;
@@ -78,7 +76,6 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.brandingSubscription = this.brandingService.branding$.subscribe((branding) => {
       this.privateBackground = branding.privateBackground ?? null;
       this.sidebarBackground = branding.sidebarBackground ?? null;
-      this.buttonColor = branding.buttonColor ?? null;
       this.cdr.markForCheck();
     });
   }

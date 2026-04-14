@@ -193,9 +193,6 @@ export class BrandingSettingsComponent implements OnDestroy {
         next: () => {
           this.notifications.success('Identidad actualizada');
           this.cdr.markForCheck();
-          if (typeof window !== 'undefined') {
-            window.location.reload();
-          }
         },
         error: () => {
           this.notifications.error('No fue posible actualizar la identidad');
