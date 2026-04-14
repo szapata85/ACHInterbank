@@ -128,15 +128,21 @@ public class AchCycleScheduler : IAchCycleScheduler
     {
         var processingUtcDate = DateTime.SpecifyKind(processingDate.Date, DateTimeKind.Utc);
 
-        return await _context.ClearingHouseCycleConfigs
+        // Nota: evitamos GroupBy(...).Select(First()) directo sobre EF/Npgsql
+        // porque puede disparar fallos de traducción/proyección (p.ej. EmptyProjectionMember).
+        var candidates = await _context.ClearingHouseCycleConfigs
+            .AsNoTracking()
             .Where(cfg => cfg.ClearingHouseId == clearingHouseId &&
                           cfg.IsActive &&
                           cfg.EffectiveFrom.Date <= processingUtcDate.Date &&
                           (!cfg.EffectiveTo.HasValue || cfg.EffectiveTo.Value.Date >= processingUtcDate.Date))
-            .GroupBy(cfg => cfg.CycleName)
+            .ToListAsync(ct);
+
+        return candidates
+            .GroupBy(cfg => cfg.CycleName, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.OrderByDescending(cfg => cfg.EffectiveFrom).ThenByDescending(cfg => cfg.Id).First())
             .OrderBy(cfg => cfg.CutoffTime)
-            .ToListAsync(ct);
+            .ToList();
     }
 
 
