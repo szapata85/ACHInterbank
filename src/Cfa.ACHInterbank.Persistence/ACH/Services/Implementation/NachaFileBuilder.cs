@@ -671,12 +671,58 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private static string BuildType7Record(AchBatch batch, AchTransaction transaction, AchTransactionAddenda addenda)
     {
+        ValidateAddendaCompatibility(transaction, addenda);
         return addenda.BusinessType switch
         {
             AchAddendaBusinessType.Debit => BuildDebitType7Record(transaction, addenda),
             AchAddendaBusinessType.Return => BuildReturnType7Record(transaction, addenda),
             _ => BuildCreditType7Record(batch, transaction, addenda)
         };
+    }
+
+    private static void ValidateAddendaCompatibility(AchTransaction transaction, AchTransactionAddenda addenda)
+    {
+        var txType = transaction.Type;
+        var addendaType = (addenda.AddendaType ?? string.Empty).Trim();
+
+        switch (addenda.BusinessType)
+        {
+            case AchAddendaBusinessType.Credit:
+                if (addendaType != "05")
+                {
+                    throw new InvalidOperationException($"La transacción {transaction.Id} con addenda de crédito debe utilizar AddendaType=05.");
+                }
+
+                if (txType is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal)
+                {
+                    throw new InvalidOperationException($"La transacción {transaction.Id} ({txType}) no puede serializar addenda de crédito.");
+                }
+                break;
+
+            case AchAddendaBusinessType.Debit:
+                if (addendaType != "05")
+                {
+                    throw new InvalidOperationException($"La transacción {transaction.Id} con addenda de débito debe utilizar AddendaType=05.");
+                }
+
+                if (txType is TransactionTypeEnum.Credit)
+                {
+                    throw new InvalidOperationException($"La transacción {transaction.Id} ({txType}) no puede serializar addenda de débito.");
+                }
+                break;
+
+            case AchAddendaBusinessType.Return:
+                if (addendaType != "99")
+                {
+                    throw new InvalidOperationException($"La transacción {transaction.Id} con addenda de devolución debe utilizar AddendaType=99.");
+                }
+
+                if (txType is not (TransactionTypeEnum.Return or TransactionTypeEnum.Reversal))
+                {
+                    throw new InvalidOperationException($"La transacción {transaction.Id} ({txType}) no puede serializar addenda de devolución.");
+                }
+                break;
+        }
     }
 
     private static string BuildCreditType7Record(AchBatch batch, AchTransaction transaction, AchTransactionAddenda addenda)
@@ -932,17 +978,6 @@ public class NachaFileBuilder : INachaFileBuilder
         IReadOnlyCollection<AchTransaction> batchTransactions,
         IReadOnlyCollection<CompanyEntryDescriptionCatalogItem> catalog)
     {
-        bool isPseOrigin = batchTransactions.Any(tx =>
-            string.Equals(tx.SourceInstitution?.Name, "PSE", StringComparison.OrdinalIgnoreCase));
-
-        bool isDianDestination = batchTransactions.Any(tx =>
-            tx.DestinationInstitution?.Name?.Contains("DIAN", StringComparison.OrdinalIgnoreCase) == true);
-
-        if (isPseOrigin || isDianDestination)
-        {
-            return "CCD";
-        }
-
         string description = (batch.CompanyEntryDescription ?? string.Empty).Trim().ToUpperInvariant();
         var termMatch = catalog.FirstOrDefault(item => string.Equals(item.Term, description, StringComparison.OrdinalIgnoreCase));
         if (termMatch is not null)

@@ -209,7 +209,86 @@ public class AchTransactionNachaTests
 
         Assert.Equal("05", records[3].Substring(1, 2));
         Assert.Equal("PAGOS PSE ", records[3].Substring(20, 10));
+        Assert.Equal(new string('0', 53), records[3].Substring(30, 53));
         Assert.Equal("0000001", records[3].Substring(87, 7));
+    }
+
+    [Fact]
+    public async Task BuildNachaFileByCycleAsync_Throws_WhenAddendaBusinessTypeIsIncompatibleWithTransactionType()
+    {
+        using var connection = CreateOpenConnection();
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+
+        using (var arrangeContext = CreateContext(connection))
+        {
+            SeedCoreEntities(arrangeContext);
+            SeedNachaLayouts(arrangeContext);
+
+            var cycle = await arrangeContext.AchCycles.AsNoTracking().SingleAsync(c => c.Id == cycleId);
+            var batch = new AchBatch
+            {
+                AchCycleId = cycleId,
+                EffectiveEntryDate = cycle.ProcessingDate,
+                BatchSequenceNumber = 1,
+                ServiceClassCode = "220",
+                CompanyName = "EMPRESA DEMO",
+                CompanyIdentification = "123456780",
+                CompanyEntryDescription = "PAGOS PSE",
+                CompanyEntryDescriptionId = 1,
+                OriginOrOdfi = "12345678"
+            };
+
+            var tx = new AchTransaction
+            {
+                Amount = 500m,
+                TransactionExternalId = "TX-OP-001",
+                Reference = "LEG-REF-001",
+                Type = TransactionTypeEnum.Credit,
+                TransactionCode = "22",
+                ServiceClassCode = "220",
+                CompanyEntryDescriptionId = 1,
+                CompanyName = "EMPRESA DEMO",
+                CompanyIdentification = "123456780",
+                OriginatingDFI = "123456780",
+                ReceivingDFI = "765432100",
+                TraceNumber = "123456780000001",
+                TraceSequenceNumber = 1,
+                EffectiveEntryDate = cycle.ProcessingDate,
+                AddendaRecordIndicator = true,
+                SourceAccountNumber = "111122223333",
+                DestinationAccountNumber = "999988887777",
+                SourceInstitutionId = 1,
+                DestinationInstitutionId = 2,
+                AchCycleId = cycleId,
+                AchBatch = batch,
+                Addendas =
+                [
+                    new AchTransactionAddenda
+                    {
+                        AddendaType = "05",
+                        BusinessType = AchAddendaBusinessType.Return,
+                        ReturnReasonCode = "R01",
+                        OriginalTraceNumber = "123456780000001",
+                        NewTraceNumber = "765432100000001",
+                        SequenceNumber = 1
+                    }
+                ]
+            };
+
+            arrangeContext.AchBatches.Add(batch);
+            arrangeContext.AchTransactions.Add(tx);
+            await arrangeContext.SaveChangesAsync();
+        }
+
+        using var executionContext = CreateContext(connection);
+        var holidayService = new Mock<IBankHoliday>();
+        holidayService.Setup(h => h.GetHolidays(It.IsAny<int>())).Returns([]);
+        var recordDataProvider = new Mock<INachaRecordDataProvider>();
+        var semanticValidator = new Mock<INachaSemanticValidator>();
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object, semanticValidator.Object);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None));
+        Assert.Contains("devolución", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
