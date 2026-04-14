@@ -12,7 +12,17 @@
   </div>
 </section>
 
-<div class="editor-page" *ngIf="viewState === 'ready' && mappingSet as set">
+<ng-container *ngIf="viewState === 'ready' && mappingSet as set">
+<section class="card state" *ngIf="parameters.length === 0">
+  <h4>No hay parámetros configurables</h4>
+  <p>El método seleccionado no tiene parámetros activos en catálogo. Verifica la configuración de Integraciones.</p>
+  <div class="actions">
+    <button type="button" (click)="loadAll()">Reintentar</button>
+    <button type="button" class="primary" (click)="goToMappingList()">Volver al listado</button>
+  </div>
+</section>
+
+<div class="editor-page" *ngIf="parameters.length > 0">
   <section class="summary-cards">
     <article class="card"><span>Total parámetros</span><strong>{{ coverage.totalParameters }}</strong></article>
     <article class="card"><span>Válidos</span><strong>{{ coverage.validParameters }}</strong></article>
@@ -216,3 +226,4 @@
     </aside>
   </section>
 </div>
+</ng-container>

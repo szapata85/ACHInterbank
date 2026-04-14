@@ -4,8 +4,8 @@ import { FormBuilder } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { Router } from '@angular/router';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { Subject, forkJoin } from 'rxjs';
-import { distinctUntilChanged, map, switchMap, takeUntil } from 'rxjs/operators';
+import { Subject, forkJoin, of } from 'rxjs';
+import { catchError, distinctUntilChanged, finalize, map, switchMap, takeUntil, timeout } from 'rxjs/operators';
 import {
   IntegrationMappingAdminService,
   IntegrationMappingRule,
@@ -156,6 +156,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   loadAll(): void {
     if (!this.mappingSetId) return;
 
+    console.debug('[mapping-editor] loadAll:start', { mappingSetId: this.mappingSetId, methodCode: this.methodCode });
     this.loading = true;
     this.viewState = 'loading';
     this.errorMessage = '';
@@ -165,18 +166,33 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
     this.api
       .getMappingSetById(this.mappingSetId)
       .pipe(
+        timeout(15000),
         switchMap((set) =>
           forkJoin({
-            parameters: this.api.getMethodParameters(set.methodId),
-            sourceCatalog: this.api.getSourceCatalog(set.methodId),
-            transformations: this.api.getTransformations(),
-            historyItems: this.api.getHistory(set.id)
+            parameters: this.api.getMethodParameters(set.methodId).pipe(timeout(15000)),
+            sourceCatalog: this.api.getSourceCatalog(set.methodId).pipe(timeout(15000)),
+            transformations: this.api.getTransformations().pipe(timeout(15000)),
+            historyItems: this.api.getHistory(set.id).pipe(
+              timeout(10000),
+              catchError((historyError) => {
+                console.warn('[mapping-editor] history load failed, continuing without history', historyError);
+                return of([] as MappingSetHistoryItem[]);
+              })
+            )
           }).pipe(map((catalogs) => ({ set, ...catalogs })))
         ),
+        finalize(() => (this.loading = false)),
         takeUntil(this.destroy$)
       )
       .subscribe({
         next: ({ set, parameters, sourceCatalog, transformations, historyItems }) => {
+          console.debug('[mapping-editor] loadAll:success', {
+            mappingSetId: set.id,
+            parameters: parameters?.length ?? 0,
+            sourceCatalog: sourceCatalog?.length ?? 0,
+            transformations: transformations?.length ?? 0,
+            historyItems: historyItems?.length ?? 0
+          });
           this.mappingSet = set;
           this.parameters = parameters ?? [];
           this.sourceCatalog = sourceCatalog ?? [];
@@ -189,6 +205,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
           this.viewState = 'ready';
         },
         error: () => {
+          console.error('[mapping-editor] loadAll:error', { mappingSetId: this.mappingSetId, methodCode: this.methodCode });
           this.mappingSet = undefined;
           this.parameters = [];
           this.sourceCatalog = [];
@@ -197,9 +214,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
           this.viewState = 'error';
           this.errorMessage = 'No fue posible cargar el editor de mapping. Intenta nuevamente.';
           this.notifications.error(this.errorMessage);
-          this.loading = false;
-        },
-        complete: () => (this.loading = false)
+        }
       });
   }
 
