@@ -8,6 +8,15 @@ public class AchTransaction : AuditableEntity
     public int Id { get; set; }
 
     public decimal Amount { get; set; }
+    /// <summary>
+    /// Identificador operativo/idempotencia de la instrucción del cliente.
+    /// Nuevo campo canónico para correlación técnica.
+    /// </summary>
+    public string TransactionExternalId { get; set; } = string.Empty;
+    /// <summary>
+    /// LEGACY: referencia histórica transicional.
+    /// No usar como campo funcional principal de negocio.
+    /// </summary>
     public string Reference { get; set; } = null!;
     public TransactionTypeEnum Type { get; set; }
 
@@ -55,4 +64,3 @@ public class AchTransaction : AuditableEntity
     public ICollection<AchTransactionStateEvent> StateEvents { get; set; } = new List<AchTransactionStateEvent>();
     public ContrapartidaDispatchItem? ContrapartidaDispatchItem { get; set; }
 }
-

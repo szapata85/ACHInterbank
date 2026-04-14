@@ -15,6 +15,7 @@ public class TransactionValidator : ITransactionValidator
 {
     private readonly AchDbContext _context;
     private static readonly Regex ReturnReasonRegex = new(@"^(R\d{2}|DEV14)$", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex ExternalIdRegex = new(@"^[A-Za-z0-9\-_/.]{1,64}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex ReferenceRegex = new(@"^[A-Za-z0-9\-_/]{1,30}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly IReadOnlyDictionary<(TransactionTypeEnum Type, AccountTypeEnum Account, bool IsPrenotification), string> FallbackTransactionCodeMap
         = new Dictionary<(TransactionTypeEnum, AccountTypeEnum, bool), string>
@@ -65,14 +66,20 @@ public class TransactionValidator : ITransactionValidator
             throw new ArgumentException("El monto debe ser mayor a cero.", nameof(request.Amount));
         }
 
-        if (string.IsNullOrWhiteSpace(request.Reference))
+        var normalizedExternalId = request.TransactionExternalId?.Trim();
+        if (!string.IsNullOrWhiteSpace(normalizedExternalId) && !ExternalIdRegex.IsMatch(normalizedExternalId))
         {
-            throw new ArgumentException("La referencia es obligatoria.", nameof(request.Reference));
+            throw new ArgumentException("transactionExternalId solo puede contener caracteres alfanuméricos y -_/.", nameof(request.TransactionExternalId));
         }
 
-        if (!ReferenceRegex.IsMatch(request.Reference.Trim()))
+        if (!string.IsNullOrWhiteSpace(request.Reference) && !ReferenceRegex.IsMatch(request.Reference.Trim()))
         {
             throw new ArgumentException("La referencia solo puede contener caracteres alfanuméricos y -_/ .", nameof(request.Reference));
+        }
+
+        if (string.IsNullOrWhiteSpace(normalizedExternalId) && string.IsNullOrWhiteSpace(request.Reference))
+        {
+            throw new ArgumentException("Debe enviar transactionExternalId o reference (legado).", nameof(request.TransactionExternalId));
         }
 
         ValidateAccountNumber(request.SourceAccountNumber, nameof(request.SourceAccountNumber));

@@ -16,6 +16,7 @@ public class AchTraceabilityEventDto
 public class AchTraceabilityDetailDto
 {
     public int TransactionId { get; set; }
+    public string TransactionExternalId { get; set; } = string.Empty;
     public string Reference { get; set; } = string.Empty;
     public string TraceNumber { get; set; } = string.Empty;
     public string OriginalTraceRef { get; set; } = string.Empty;
@@ -46,6 +47,7 @@ public class AchTraceabilityDetailDto
 public class AchTraceabilityReportRowDto
 {
     public int TransactionId { get; set; }
+    public string TransactionExternalId { get; set; } = string.Empty;
     public string Reference { get; set; } = string.Empty;
     public string TraceNumber { get; set; } = string.Empty;
     public string TransactionCode { get; set; } = string.Empty;

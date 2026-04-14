@@ -81,7 +81,9 @@ public class AchBulkFileIngestionService : IAchBulkFileIngestionService
                 : null;
 
             var reference = validation.IsValid
-                ? validation.NormalizedItem?.Reference ?? string.Empty
+                ? (validation.NormalizedItem?.TransactionExternalId?.Trim()
+                    ?? validation.NormalizedItem?.Reference
+                    ?? string.Empty)
                 : parsedItem.Fields.GetValueOrDefault("reference")?.Trim() ?? string.Empty;
 
             if (!validation.IsValid && !string.IsNullOrWhiteSpace(validation.ErrorMessage))

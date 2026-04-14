@@ -30,6 +30,7 @@ public class TransactionPolicyServiceTests
         var service = CreateService(context, routing.Object);
         var preview = await service.PreviewAsync(new TransactionPolicyPreviewRequest(
             1000m,
+            null,
             "REF-001",
             TransactionTypeEnum.Credit,
             AccountTypeEnum.Checking,
@@ -88,6 +89,7 @@ public class TransactionPolicyServiceTests
         var service = CreateService(context, routing.Object);
         var preview = await service.PreviewAsync(new TransactionPolicyPreviewRequest(
             1500m,
+            null,
             "REF-002",
             TransactionTypeEnum.Credit,
             AccountTypeEnum.Checking,

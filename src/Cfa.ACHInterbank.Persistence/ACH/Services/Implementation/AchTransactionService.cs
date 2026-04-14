@@ -65,6 +65,7 @@ public class AchTransactionService : IAchTransactionService
         string? recipientPersonType = null,
         string? recipientIdNumber = null,
         string? recipientName = null,
+        string? transactionExternalId = null,
         bool requiresIdentityValidation = false,
         IEnumerable<AddendaDto>? addendas = null,
         CancellationToken ct = default)
@@ -72,6 +73,7 @@ public class AchTransactionService : IAchTransactionService
         var request = new AchTransactionRequestData
         {
             Amount = amount,
+            TransactionExternalId = transactionExternalId,
             Reference = reference,
             Type = type,
             AccountType = accountType,
@@ -95,6 +97,7 @@ public class AchTransactionService : IAchTransactionService
         {
             var preview = await _transactionPolicyService.PreviewAsync(new TransactionPolicyPreviewRequest(
                 request.Amount,
+                request.TransactionExternalId,
                 request.Reference,
                 request.Type,
                 request.AccountType,
@@ -458,6 +461,7 @@ public class AchTransactionService : IAchTransactionService
             {
                 Id = t.Id,
                 Amount = t.Amount,
+                TransactionExternalId = t.TransactionExternalId,
                 Reference = t.Reference,
                 Type = t.Type,
                 TraceNumber = t.TraceNumber,

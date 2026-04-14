@@ -639,10 +639,13 @@ public class NachaFileBuilder : INachaFileBuilder
                     ? AchAddendaBusinessType.Debit
                     : AchAddendaBusinessType.Credit,
                 Purpose = tx.AchBatch?.CompanyEntryDescription,
-                Reference = string.IsNullOrWhiteSpace(tx.Reference) ? new string('0', 53) : tx.Reference,
+                // Transición: no propagar referencia legado de transacción como semántica funcional.
+                Reference = new string('0', 53),
                 CollectorId = tx.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal ? tx.CompanyIdentification : null,
                 ReceiverCustomerCode = tx.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal ? tx.RecipientIdNumber : null,
-                ServiceDescription = tx.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal ? tx.Reference : null,
+                ServiceDescription = tx.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal
+                    ? tx.AchBatch?.CompanyEntryDescription
+                    : null,
                 SequenceNumber = 1
             }
         };
@@ -930,12 +933,10 @@ public class NachaFileBuilder : INachaFileBuilder
         IReadOnlyCollection<CompanyEntryDescriptionCatalogItem> catalog)
     {
         bool isPseOrigin = batchTransactions.Any(tx =>
-            string.Equals(tx.SourceInstitution?.Name, "PSE", StringComparison.OrdinalIgnoreCase) ||
-            (tx.Reference?.Contains("PSE", StringComparison.OrdinalIgnoreCase) ?? false));
+            string.Equals(tx.SourceInstitution?.Name, "PSE", StringComparison.OrdinalIgnoreCase));
 
         bool isDianDestination = batchTransactions.Any(tx =>
-            tx.DestinationInstitution?.Name?.Contains("DIAN", StringComparison.OrdinalIgnoreCase) == true ||
-            (tx.Reference?.Contains("DIAN", StringComparison.OrdinalIgnoreCase) ?? false));
+            tx.DestinationInstitution?.Name?.Contains("DIAN", StringComparison.OrdinalIgnoreCase) == true);
 
         if (isPseOrigin || isDianDestination)
         {

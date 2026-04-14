@@ -5,6 +5,7 @@ namespace Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 public class CreateTransactionDto
 {
     public decimal Amount { get; set; }
+    public string? TransactionExternalId { get; set; }
     public string Reference { get; set; } = null!;
     public TransactionTypeEnum Type { get; set; }
 
