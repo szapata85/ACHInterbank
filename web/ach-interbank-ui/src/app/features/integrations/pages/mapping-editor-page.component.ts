@@ -424,9 +424,10 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   private normalizeMappingSetStatus(status: IntegrationMappingSet['status'] | number | string | null | undefined): string {
     if (status === null || status === undefined) return '';
     if (typeof status === 'number') {
+      if (status === 1) return 'Draft';
+      if (status === 2) return 'Published';
+      if (status === 3) return 'Archived';
       if (status === 0) return 'Draft';
-      if (status === 1) return 'Published';
-      if (status === 2) return 'Archived';
       return String(status);
     }
 
@@ -445,11 +446,12 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
 
   getSourceOptionsByKind(kind: string | null | undefined): IntegrationSourceCatalogField[] {
     if (!kind) return [];
-    return this.sourceCatalog.filter((x) => x.sourceKind === kind);
+    const normalizedKind = this.normalizeSourceKind(kind);
+    return this.sourceCatalog.filter((x) => this.normalizeSourceKind(x.sourceKind as any) === normalizedKind);
   }
 
   getSourceKindLabel(kind: string | null | undefined): string {
-    switch (kind) {
+    switch (this.normalizeSourceKind(kind)) {
       case 'Transaction': return 'Dato de transacción';
       case 'Batch': return 'Dato de lote';
       case 'Cycle': return 'Dato de ciclo';
@@ -458,6 +460,32 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
       case 'Addenda': return 'Dato complementario';
       default: return 'No definido';
     }
+  }
+
+  private normalizeSourceKind(kind: string | number | null | undefined): string {
+    if (kind === null || kind === undefined) return '';
+    if (typeof kind === 'number') {
+      if (kind === 1) return 'Transaction';
+      if (kind === 2) return 'Addenda';
+      if (kind === 3) return 'Batch';
+      if (kind === 4) return 'Cycle';
+      if (kind === 5) return 'ClearingHouse';
+      if (kind === 6) return 'Constant';
+      if (kind === 7) return 'Expression';
+      return String(kind);
+    }
+
+    const raw = String(kind).trim();
+    if (!raw) return '';
+    const lowered = raw.toLowerCase();
+    if (lowered === 'transaction') return 'Transaction';
+    if (lowered === 'addenda') return 'Addenda';
+    if (lowered === 'batch') return 'Batch';
+    if (lowered === 'cycle') return 'Cycle';
+    if (lowered === 'clearinghouse') return 'ClearingHouse';
+    if (lowered === 'constant') return 'Constant';
+    if (lowered === 'expression') return 'Expression';
+    return raw;
   }
 
   trackByParameterId(_: number, parameter: IntegrationMethodParameter): number {
