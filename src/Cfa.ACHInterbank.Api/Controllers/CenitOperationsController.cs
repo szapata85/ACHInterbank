@@ -89,7 +89,7 @@ public class CenitOperationsController : ControllerBase
         var latestExecutionId = cenitCycleExecutionId
             ?? await _dbContext.Set<CenitCycleExecution>()
                 .AsNoTracking()
-                .OrderByDescending(x => x.ExecutedAtUtc)
+                .OrderByDescending(x => x.StartedAtUtc)
                 .Select(x => (long?)x.Id)
                 .FirstOrDefaultAsync(ct);
 
