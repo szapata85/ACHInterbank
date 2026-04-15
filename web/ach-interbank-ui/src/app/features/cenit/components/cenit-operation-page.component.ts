@@ -1,14 +1,19 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { CenitOperationsApiService } from '../services/cenit-operations-api.service';
 import { CenitNetPositionRow, CenitOptimizationDecisionRow, CenitQueueRow, CenitTraceabilityRow } from '../models/cenit.models';
 import { CycleReportRow } from '../../reports/services/reports-api.service';
+import { SharedModule } from '../../../shared/shared.module';
 
 type OperationView = 'ciclos' | 'cola' | 'neteo' | 'optimizacion' | 'devoluciones' | 'trazabilidad';
 
 @Component({
   selector: 'app-cenit-operation-page',
+  standalone: true,
+  imports: [CommonModule, FormsModule, SharedModule],
   templateUrl: './cenit-operation-page.component.html',
   styleUrls: ['./cenit-operation-page.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush

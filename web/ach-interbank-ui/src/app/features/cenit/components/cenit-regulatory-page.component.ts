@@ -1,4 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { CenitRegulatoryApiService } from '../services/cenit-regulatory-api.service';
@@ -10,6 +12,7 @@ import {
   CenitReturnPolicy,
   CenitTransactionTypePolicy
 } from '../models/cenit.models';
+import { SharedModule } from '../../../shared/shared.module';
 
 type RegulatoryView =
   | 'causales-devolucion'
@@ -20,6 +23,8 @@ type RegulatoryView =
 
 @Component({
   selector: 'app-cenit-regulatory-page',
+  standalone: true,
+  imports: [CommonModule, FormsModule, SharedModule],
   templateUrl: './cenit-regulatory-page.component.html',
   styleUrls: ['./cenit-regulatory-page.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush

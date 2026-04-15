@@ -1,4 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 
 interface CenitSectionLink {
   titulo: string;
@@ -8,6 +10,8 @@ interface CenitSectionLink {
 
 @Component({
   selector: 'app-cenit-home',
+  standalone: true,
+  imports: [CommonModule, RouterModule],
   templateUrl: './cenit-home.component.html',
   styleUrls: ['./cenit-home.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
