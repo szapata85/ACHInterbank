@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { SharedModule } from '../../../shared/shared.module';
 
 interface CenitSectionLink {
   titulo: string;
@@ -11,7 +12,7 @@ interface CenitSectionLink {
 @Component({
   selector: 'app-cenit-home',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, SharedModule],
   templateUrl: './cenit-home.component.html',
   styleUrls: ['./cenit-home.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
