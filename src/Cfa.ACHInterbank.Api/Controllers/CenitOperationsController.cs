@@ -198,14 +198,24 @@ public class CenitOperationsController : ControllerBase
         var returnCodeDescriptions = await _dbContext.Set<AchReturnCode>()
             .AsNoTracking()
             .Where(x => x.IsActive)
-            .Select(x => new { x.Code, x.Description })
-            .ToDictionaryAsync(x => NormalizeCode(x.Code), x => x.Description, ct);
+            .Select(x => new
+            {
+                Code = NormalizeCode(x.Code),
+                Description = x.Description ?? string.Empty
+            })
+            .Where(x => x.Code is not null)
+            .ToDictionaryAsync(x => x.Code!, x => x.Description, ct);
 
         var rejectionCodeDescriptions = await _dbContext.Set<AchFileRejectionCode>()
             .AsNoTracking()
             .Where(x => x.IsActive)
-            .Select(x => new { x.Code, x.Description })
-            .ToDictionaryAsync(x => NormalizeCode(x.Code), x => x.Description, ct);
+            .Select(x => new
+            {
+                Code = NormalizeCode(x.Code),
+                Description = x.Description ?? string.Empty
+            })
+            .Where(x => x.Code is not null)
+            .ToDictionaryAsync(x => x.Code!, x => x.Description, ct);
 
         var query = _dbContext.AchTransactions
             .AsNoTracking()
@@ -239,7 +249,7 @@ public class CenitOperationsController : ControllerBase
                 x.AchCycleId,
                 AchCycleName = x.AchCycle.CycleName,
                 x.EffectiveEntryDate,
-                ClearingHouseName = x.AchCycle.ClearingHouse.Name,
+                ClearingHouseName = x.AchCycle.ClearingHouse != null ? x.AchCycle.ClearingHouse.Name ?? string.Empty : string.Empty,
                 BatchId = x.AchBatchId,
                 BatchSequenceNumber = x.AchBatch.BatchSequenceNumber,
                 x.ReturnReasonCode,
