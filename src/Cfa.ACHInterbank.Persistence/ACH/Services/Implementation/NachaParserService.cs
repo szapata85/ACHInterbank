@@ -17,6 +17,15 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public class NachaParserService : INachaParserService
 {
+    // Frontera explícita:
+    // - Regulatory: causal formal Dxx / rechazo regulatorio gobernado por catálogo.
+    // - Technical: integridad estructural NACHA (longitud, offsets, campos reservados, etc.).
+    private enum ValidationBoundary
+    {
+        Regulatory,
+        Technical
+    }
+
     private readonly AchDbContext _context;
     private readonly ILogger<NachaParserService> _logger;
     private readonly IAchStateTransitionService _stateTransitionService;
@@ -186,7 +195,7 @@ public class NachaParserService : INachaParserService
                         }
                         else if (!IsPaddingRecord(line))
                         {
-                            throw new InvalidOperationException(GetRegulatoryError("D02", "Los registros de relleno después del Registro Tipo 9 deben contener únicamente el carácter '9' en sus 106 posiciones."));
+                            ThrowRegulatory("D02", "Los registros de relleno después del Registro Tipo 9 deben contener únicamente el carácter '9' en sus 106 posiciones.");
                         }
                         break;
                 }
@@ -232,18 +241,18 @@ public class NachaParserService : INachaParserService
     {
         if (batch is null)
         {
-            throw new InvalidOperationException("Error Fatal ID 7: no se encontró lote (registro tipo 5) para validar el Número de Secuencia del registro tipo 6.");
+            ThrowTechnical("Error Fatal ID 7: no se encontró lote (registro tipo 5) para validar el Número de Secuencia del registro tipo 6.");
         }
 
         var rawSequence = (entry.SequenceNumber ?? string.Empty).Trim();
         if (rawSequence.Length != 15 || rawSequence.Any(c => !char.IsDigit(c)))
         {
-            throw new InvalidOperationException("Error Fatal ID 7: el Número de Secuencia del registro tipo 6 (posiciones 88-102) debe contener exactamente 15 dígitos numéricos.");
+            ThrowTechnical("Error Fatal ID 7: el Número de Secuencia del registro tipo 6 (posiciones 88-102) debe contener exactamente 15 dígitos numéricos.");
         }
 
         if (!seenSequenceNumbers.Add(rawSequence))
         {
-            throw new InvalidOperationException(GetRegulatoryError("D04", $"Número de secuencia duplicado en el archivo ({rawSequence})."));
+            ThrowRegulatory("D04", $"Número de secuencia duplicado en el archivo ({rawSequence}).");
         }
 
         var originSegment = rawSequence[..8];
@@ -273,7 +282,7 @@ public class NachaParserService : INachaParserService
 
         if (lastConsecutiveByBatch.TryGetValue(batch.BatchNumber, out var previousConsecutive) && consecutiveValue <= previousConsecutive)
         {
-            throw new InvalidOperationException(GetRegulatoryError("D04", $"La secuencia del lote no es ascendente. Anterior={previousConsecutive:0000000}, actual={consecutiveValue:0000000}."));
+            ThrowRegulatory("D04", $"La secuencia del lote no es ascendente. Anterior={previousConsecutive:0000000}, actual={consecutiveValue:0000000}.");
         }
 
         lastConsecutiveByBatch[batch.BatchNumber] = consecutiveValue;
@@ -286,7 +295,7 @@ public class NachaParserService : INachaParserService
 
         if (existsInPreviousCycle)
         {
-            throw new InvalidOperationException(GetRegulatoryError("D01", $"Número de secuencia duplicado para la fecha de proceso {processingDate:yyyy-MM-dd} ({rawSequence})."));
+            ThrowRegulatory("D01", $"Número de secuencia duplicado para la fecha de proceso {processingDate:yyyy-MM-dd} ({rawSequence}).");
         }
     }
 
@@ -302,7 +311,7 @@ public class NachaParserService : INachaParserService
 
         if (headers.Count != controls.Count)
         {
-            throw new InvalidOperationException(GetRegulatoryError("D04", "La cantidad de registros tipo 5 no coincide con los registros tipo 8 del archivo."));
+            ThrowRegulatory("D04", "La cantidad de registros tipo 5 no coincide con los registros tipo 8 del archivo.");
         }
 
         for (int index = 0; index < headers.Count; index++)
@@ -332,7 +341,7 @@ public class NachaParserService : INachaParserService
     {
         if (header is null || metrics is null)
         {
-            throw new InvalidOperationException(GetRegulatoryError("D06", "Se recibió un registro tipo 8 sin un registro tipo 5 asociado."));
+            ThrowRegulatory("D06", "Se recibió un registro tipo 8 sin un registro tipo 5 asociado.");
         }
 
         var serviceClassCode = (control.BatchTranClassCode ?? string.Empty).Trim();
@@ -394,12 +403,12 @@ public class NachaParserService : INachaParserService
         var controls = fileControls.ToList();
         if (controls.Count != 1)
         {
-            throw new InvalidOperationException(GetRegulatoryError("D06", "El archivo debe contener exactamente un Registro Tipo 9 de control de archivo."));
+            ThrowRegulatory("D06", "El archivo debe contener exactamente un Registro Tipo 9 de control de archivo.");
         }
 
         if (fileControlLineIndex < 0)
         {
-            throw new InvalidOperationException(GetRegulatoryError("D06", "No se pudo ubicar el Registro Tipo 9 dentro del archivo."));
+            ThrowRegulatory("D06", "No se pudo ubicar el Registro Tipo 9 dentro del archivo.");
         }
 
         var control = controls[0];
@@ -455,7 +464,7 @@ public class NachaParserService : INachaParserService
         {
             if (!IsPaddingRecord(lines[index]))
             {
-                throw new InvalidOperationException(GetRegulatoryError("D02", "Los registros de relleno posteriores al Registro Tipo 9 deben contener únicamente el carácter '9' en sus 106 posiciones."));
+                ThrowRegulatory("D02", "Los registros de relleno posteriores al Registro Tipo 9 deben contener únicamente el carácter '9' en sus 106 posiciones.");
             }
         }
 
@@ -1336,6 +1345,16 @@ public class NachaParserService : INachaParserService
         }
 
         return $"{dxxCode}: {fallbackMessage}";
+    }
+
+    private void ThrowRegulatory(string dxxCode, string fallbackMessage)
+    {
+        throw new InvalidOperationException($"[{ValidationBoundary.Regulatory}] {GetRegulatoryError(dxxCode, fallbackMessage)}");
+    }
+
+    private static void ThrowTechnical(string message)
+    {
+        throw new InvalidOperationException($"[{ValidationBoundary.Technical}] {message}");
     }
 
     private static string BuildParserPayload(EntryDetail entry, IReadOnlyList<AddendaRecord> relatedAddenda)

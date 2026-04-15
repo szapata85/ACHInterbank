@@ -54,7 +54,7 @@ public class RegulatoryCatalogSeeder : IDbSeeder
 
     private static IEnumerable<AchReturnCode> BuildReturnCodes()
     {
-        var codes = new[] { "R01", "R02", "R03", "R04", "R06", "R07", "R08", "R09", "R10", "R12", "R13", "R14", "R15", "R16", "R17", "R20", "R23", "R29", "R31" };
+        var codes = new[] { "R01", "R02", "R03", "R04", "R06", "R07", "R08", "R09", "R10", "R12", "R13", "R14", "R15", "R16", "R17", "R20", "R23", "R29", "R31", "DEV14" };
         return codes.Select(code => new AchReturnCode
         {
             Code = code,
@@ -64,7 +64,12 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             AppliesToPrenotification = code is "R03" or "R29",
             AppliesToReturn = true,
             RequiresAddenda = true,
-            MaxDaysAllowed = code is "R31" ? 15 : 1,
+            MaxDaysAllowed = code switch
+            {
+                "DEV14" => 60,
+                "R31" => 15,
+                _ => 1
+            },
             IsActive = true,
             RegulatorySource = "CENIT"
         });
@@ -101,7 +106,7 @@ public class RegulatoryCatalogSeeder : IDbSeeder
     {
         return new[]
         {
-            new AchReturnPolicy { TransactionType = "Debit", AllowedReturnCodesCsv = "R01,R02,R03,R04,R06,R07,R08,R09,R10,R12,R13,R14,R15,R16,R17,R20,R23,R29,R31", MaxDays = 15, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true },
+            new AchReturnPolicy { TransactionType = "Debit", AllowedReturnCodesCsv = "R01,R02,R03,R04,R06,R07,R08,R09,R10,R12,R13,R14,R15,R16,R17,R20,R23,R29,R31,DEV14", MaxDays = 60, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true },
             new AchReturnPolicy { TransactionType = "Credit", AllowedReturnCodesCsv = "R03,R04,R20,R23,R31", MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true },
             new AchReturnPolicy { TransactionType = "Prenotification", AllowedReturnCodesCsv = "R03,R29", MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = false, RequiresAddenda = true },
             new AchReturnPolicy { TransactionType = "Return", AllowedReturnCodesCsv = "R01,R02,R03,R09,R10", MaxDays = 15, RequiredOriginalTransactionState = "ReturnedByEpr", AllowsReturnOfReturn = true, RequiresAddenda = true }

@@ -14,7 +14,8 @@ public class AchReturnsService(
     TimeProvider? timeProvider = null,
     IAchRegulatoryCatalogService? regulatoryCatalogService = null) : IAchReturnsService
 {
-    private readonly IAchRegulatoryCatalogService? _regulatoryCatalogService = regulatoryCatalogService;
+    private readonly IAchRegulatoryCatalogService _regulatoryCatalogService = regulatoryCatalogService
+                                                                           ?? throw new InvalidOperationException("IAchRegulatoryCatalogService es requerido para gobernanza regulatoria de devoluciones.");
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
     private const int MaxCyclesForReturn = 4;
     private const string ImmediateDestinationAchColombia = "000101006";
@@ -123,8 +124,6 @@ public class AchReturnsService(
             throw new InvalidOperationException("No se permite mezclar transacciones de ciclos distintos en el mismo archivo de devolución.");
         }
 
-        var reasonList = await context.ReturnReasons.AsNoTracking().ToListAsync(ct);
-        var reasons = reasonList.ToDictionary(r => r.Code, StringComparer.OrdinalIgnoreCase);
         var cycleOrder = await GetCycleOrderAsync(cycle.ClearingHouseId, ct);
         cycleOrder.TryGetValue(request.CycleId, out var selectedCycleOrder);
 
@@ -158,12 +157,8 @@ public class AchReturnsService(
                 throw new InvalidOperationException($"La transacción {tx.Id} excede la ventana máxima de 4 ciclos para devolución.");
             }
 
-            if (!reasons.TryGetValue(item.ReturnReasonCode, out var reason) || (!reason.Code.StartsWith("R", StringComparison.OrdinalIgnoreCase) && !string.Equals(reason.Code, "DEV14", StringComparison.OrdinalIgnoreCase)))
-            {
-                throw new InvalidOperationException($"La causal {item.ReturnReasonCode} no es válida para devolución ACH.");
-            }
-
-            await ValidateReturnPolicyAsync(tx, reason.Code, now, ct);
+            var reasonCode = item.ReturnReasonCode.Trim().ToUpperInvariant();
+            await ValidateReturnPolicyAsync(tx, reasonCode, now, ct);
 
             var amount = tx.IsPrenotification ? 0m : tx.Amount;
             var newSequence = await GenerateNewReturnSequenceAsync(tx.ReceivingDFI, now.Date, ct);
@@ -172,14 +167,14 @@ public class AchReturnsService(
             var originEntity = NormalizeDigits(tx.ReceivingDFI, 8);
 
             entryLines.Add(BuildType6ReturnLine(tx, receiverEntity, amount, newSequence));
-            addendaLines.Add(BuildType7ReturnAddendaLine(reason.Code, originalSequence, newSequence, newSequence[^7..]));
+            addendaLines.Add(BuildType7ReturnAddendaLine(reasonCode, originalSequence, newSequence, newSequence[^7..]));
             returnEntries.Add(new ReturnEntrySnapshot(tx.TransactionCode, amount, receiverEntity));
 
             generatedRows.Add(new AchReturnGenerated
             {
                 OriginalTransactionId = tx.Id,
                 ReturnCycleId = request.CycleId,
-                ReturnReasonCode = reason.Code.ToUpperInvariant(),
+                ReturnReasonCode = reasonCode,
                 Amount = amount,
                 NewSequenceNumber = newSequence,
                 OriginalSequenceNumber = originalSequence,
@@ -280,11 +275,6 @@ public class AchReturnsService(
 
     private async Task ValidateReturnPolicyAsync(AchTransaction transaction, string reasonCode, DateTime nowUtc, CancellationToken ct)
     {
-        if (_regulatoryCatalogService is null)
-        {
-            return;
-        }
-
         var returnCodeValidation = await _regulatoryCatalogService.ValidateReturnCodeAsync(
             reasonCode,
             transaction.Type,

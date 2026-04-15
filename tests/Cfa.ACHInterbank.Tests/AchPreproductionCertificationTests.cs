@@ -104,7 +104,7 @@ public class AchPreproductionCertificationTests
         await SeedReturnCertificationScenarioAsync(context);
 
         var fixedNow = new DateTimeOffset(2026, 03, 23, 11, 45, 00, TimeSpan.Zero);
-        var service = new AchReturnsService(context, new FixedTimeProvider(fixedNow));
+        var service = new AchReturnsService(context, new FixedTimeProvider(fixedNow), new AchRegulatoryCatalogService(context));
 
         var response = await service.GenerateReturnsFileAsync(
             new GenerateReturnsFileRequest("cycle-ret", [new ReturnSelectionItemDto(501, "DEV14")]),
@@ -361,13 +361,24 @@ public class AchPreproductionCertificationTests
             AchCycleId = "cycle-ret"
         });
 
-        context.ReturnReasons.Add(new ReturnReason
+        context.AchReturnCodes.Add(new AchReturnCode
         {
-            Id = 14,
             Code = "DEV14",
             Description = "No consentimiento",
-            Category = "R",
-            IsForReturn = true
+            AppliesToDebit = true,
+            AppliesToReturn = true,
+            RequiresAddenda = true,
+            MaxDaysAllowed = 60,
+            IsActive = true
+        });
+        context.AchReturnPolicies.Add(new AchReturnPolicy
+        {
+            TransactionType = "Debit",
+            AllowedReturnCodesCsv = "DEV14",
+            MaxDays = 60,
+            RequiredOriginalTransactionState = "Pending",
+            RequiresAddenda = true,
+            IsActive = true
         });
 
         await context.SaveChangesAsync();

@@ -14,4 +14,7 @@ public interface IAchRegulatoryCatalogService
     Task<IReadOnlyList<AchReturnCode>> GetReturnCodesAsync(CancellationToken ct);
     Task<IReadOnlyList<AchFileRejectionCode>> GetFileRejectionCodesAsync(CancellationToken ct);
     Task<IReadOnlyList<AchTransactionTypePolicy>> GetTransactionTypePoliciesAsync(CancellationToken ct);
+    Task<IReadOnlyList<AchReturnPolicy>> GetReturnPoliciesAsync(CancellationToken ct);
+    Task<IReadOnlyList<AchReturnOfReturnPolicy>> GetReturnOfReturnPoliciesAsync(CancellationToken ct);
+    Task<IReadOnlyList<AchPrenotificationPolicy>> GetPrenotificationPoliciesAsync(CancellationToken ct);
 }

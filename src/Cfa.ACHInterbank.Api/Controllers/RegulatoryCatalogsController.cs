@@ -25,4 +25,16 @@ public class RegulatoryCatalogsController : ControllerBase
     [HttpGet("transaction-type-policies")]
     public async Task<IActionResult> GetTransactionTypePolicies(CancellationToken ct)
         => Ok(await _catalogService.GetTransactionTypePoliciesAsync(ct));
+
+    [HttpGet("return-policies")]
+    public async Task<IActionResult> GetReturnPolicies(CancellationToken ct)
+        => Ok(await _catalogService.GetReturnPoliciesAsync(ct));
+
+    [HttpGet("return-of-return-policies")]
+    public async Task<IActionResult> GetReturnOfReturnPolicies(CancellationToken ct)
+        => Ok(await _catalogService.GetReturnOfReturnPoliciesAsync(ct));
+
+    [HttpGet("prenotification-policies")]
+    public async Task<IActionResult> GetPrenotificationPolicies(CancellationToken ct)
+        => Ok(await _catalogService.GetPrenotificationPoliciesAsync(ct));
 }

@@ -156,6 +156,15 @@ public class AchRegulatoryCatalogService : IAchRegulatoryCatalogService
     public async Task<IReadOnlyList<AchTransactionTypePolicy>> GetTransactionTypePoliciesAsync(CancellationToken ct)
         => await _context.AchTransactionTypePolicies.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.PriorityOrder).ToListAsync(ct);
 
+    public async Task<IReadOnlyList<AchReturnPolicy>> GetReturnPoliciesAsync(CancellationToken ct)
+        => await _context.AchReturnPolicies.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.TransactionType).ToListAsync(ct);
+
+    public async Task<IReadOnlyList<AchReturnOfReturnPolicy>> GetReturnOfReturnPoliciesAsync(CancellationToken ct)
+        => await _context.AchReturnOfReturnPolicies.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.OriginalReturnCode).ToListAsync(ct);
+
+    public async Task<IReadOnlyList<AchPrenotificationPolicy>> GetPrenotificationPoliciesAsync(CancellationToken ct)
+        => await _context.AchPrenotificationPolicies.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.TransactionType).ToListAsync(ct);
+
     private static string MapType(TransactionTypeEnum type) => type switch
     {
         TransactionTypeEnum.Credit => "Credit",

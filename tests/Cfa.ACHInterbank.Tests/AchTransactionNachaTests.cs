@@ -478,7 +478,7 @@ public class AchTransactionNachaTests
 
         using var executionContext = CreateContext(connection);
         var persistedTransactionId = await executionContext.AchTransactions.Select(t => t.Id).SingleAsync();
-        var service = new AchReturnsService(executionContext);
+        var service = new AchReturnsService(executionContext, regulatoryCatalogService: new AchRegulatoryCatalogService(executionContext));
         var response = await service.GenerateReturnsFileAsync(
             new GenerateReturnsFileRequest(
                 cycleId,
@@ -566,7 +566,7 @@ public class AchTransactionNachaTests
 
         using var executionContext = CreateContext(connection);
         var persistedTransactionId = await executionContext.AchTransactions.Select(t => t.Id).SingleAsync();
-        var service = new AchReturnsService(executionContext);
+        var service = new AchReturnsService(executionContext, regulatoryCatalogService: new AchRegulatoryCatalogService(executionContext));
         var response = await service.GenerateReturnsFileAsync(
             new GenerateReturnsFileRequest(
                 cycleId,
@@ -860,6 +860,12 @@ public class AchTransactionNachaTests
         alternativeSource.CalculateCheckDigit();
 
         context.FinancialInstitutions.AddRange(sourceInstitution, destinationInstitution, alternativeSource);
+        context.AchReturnCodes.AddRange(
+            new AchReturnCode { Code = "R01", Description = "Fondos insuficientes", AppliesToCredit = true, AppliesToDebit = true, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 15, IsActive = true },
+            new AchReturnCode { Code = "DEV14", Description = "No consentimiento", AppliesToCredit = false, AppliesToDebit = true, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 60, IsActive = true });
+        context.AchReturnPolicies.AddRange(
+            new AchReturnPolicy { TransactionType = "Credit", AllowedReturnCodesCsv = "R01", MaxDays = 15, RequiredOriginalTransactionState = "Pending", RequiresAddenda = true, IsActive = true },
+            new AchReturnPolicy { TransactionType = "Debit", AllowedReturnCodesCsv = "R01,DEV14", MaxDays = 60, RequiredOriginalTransactionState = "Pending", RequiresAddenda = true, IsActive = true });
         context.Customers.Add(new Customer
         {
             FirstName = "Test",
