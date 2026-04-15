@@ -1,0 +1,105 @@
+export interface CenitReturnCode {
+  code: string;
+  description: string;
+  appliesToDebit: boolean;
+  appliesToCredit: boolean;
+  appliesToPrenotification: boolean;
+  appliesToReturn: boolean;
+  requiresAddenda: boolean;
+  maxDaysAllowed?: number | null;
+  isActive: boolean;
+  regulatorySource?: string;
+}
+
+export interface CenitFileRejectionCode {
+  code: string;
+  description: string;
+  severity: string;
+  appliesToStage: string;
+  isRetryable: boolean;
+  isActive: boolean;
+}
+
+export interface CenitTransactionTypePolicy {
+  transactionType: string;
+  priorityOrder: number;
+  isMonetary: boolean;
+  requiresPrenotification: boolean;
+  canBeReturned: boolean;
+  canBeReturnedAgain: boolean;
+  isActive: boolean;
+}
+
+export interface CenitReturnPolicy {
+  transactionType: string;
+  allowedReturnCodesCsv: string;
+  maxDays: number;
+  requiredOriginalTransactionState: string;
+  allowsReturnOfReturn: boolean;
+  requiresAddenda: boolean;
+  isActive: boolean;
+}
+
+export interface CenitReturnOfReturnPolicy {
+  originalReturnCode: string;
+  allowedNewReturnCodesCsv: string;
+  maxDays: number;
+  requiredOriginalState: string;
+  isUniquePerTransaction: boolean;
+  isActive: boolean;
+}
+
+export interface CenitPrenotificationPolicy {
+  transactionType: string;
+  isRequired: boolean;
+  requiresAddenda: boolean;
+  blocksMonetaryTransactionIfMissing: boolean;
+  isActive: boolean;
+}
+
+export interface CenitTraceabilityRow {
+  transactionId: number;
+  effectiveEntryDate: string;
+  transactionExternalId: string;
+  reference: string;
+  amount: number;
+  state: string;
+  causalCode: string;
+  causalDescription: string;
+  clearingHouseName: string;
+  achCycleId: string;
+  achCycleName: string;
+  originalTraceRef: string;
+}
+
+export interface CenitSimplePage<T> {
+  items: T[];
+}
+
+export interface CenitCycleRow {
+  cycleId: string;
+  cycleName: string;
+  processingDate: string;
+  status: string;
+  clearingHouseName: string;
+  totalTransactions: number;
+  totalAmount: number;
+}
+
+export interface CenitNetPositionRow {
+  financialInstitutionName?: string;
+  financialInstitutionId?: number;
+  netAmount?: number;
+  availableLiquidity?: number;
+  positionType?: string;
+}
+
+export interface CenitOptimizationDecisionRow {
+  achTransactionId: number;
+  decisionType: string;
+  decisionReason: string;
+  priority: number;
+  fromCycleId: string;
+  toCycleId?: string | null;
+  decidedAtUtc: string;
+}

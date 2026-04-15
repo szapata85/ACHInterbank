@@ -1,0 +1,29 @@
+<app-page-header title="Centro CENIT" subtitle="Supervisión regulatoria y operación ACH en un solo módulo"></app-page-header>
+
+<section class="cenit-section">
+  <header>
+    <h2>Regulatorio</h2>
+    <p>Consulta de catálogos y políticas normativas para auditoría.</p>
+  </header>
+  <div class="cards">
+    <article class="card" *ngFor="let item of regulatorio">
+      <h3>{{ item.titulo }}</h3>
+      <p>{{ item.descripcion }}</p>
+      <a [routerLink]="item.ruta" class="link">Abrir consulta</a>
+    </article>
+  </div>
+</section>
+
+<section class="cenit-section">
+  <header>
+    <h2>Operación CENIT</h2>
+    <p>Monitoreo de ciclos, cola, neteo, optimización y trazabilidad.</p>
+  </header>
+  <div class="cards">
+    <article class="card" *ngFor="let item of operacion">
+      <h3>{{ item.titulo }}</h3>
+      <p>{{ item.descripcion }}</p>
+      <a [routerLink]="item.ruta" class="link">Abrir consulta</a>
+    </article>
+  </div>
+</section>
