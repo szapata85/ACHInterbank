@@ -132,6 +132,7 @@ export class CenitOperationPageComponent implements OnInit {
       'ID ciclo': row.achCycleId,
       Cámara: row.clearingHouseName,
       Estado: row.state,
+      'Tipo causal': row.causalKind || '-',
       Decisión: row.decisionType || '-',
       Causal: `${row.causalCode} ${row.causalDescription}`.trim(),
       'Fecha valor': row.effectiveEntryDate,

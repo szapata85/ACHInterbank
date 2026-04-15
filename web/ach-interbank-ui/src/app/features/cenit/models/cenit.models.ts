@@ -66,6 +66,7 @@ export interface CenitTraceabilityRow {
   state: string;
   causalCode: string;
   causalDescription: string;
+  causalKind?: string;
   clearingHouseName: string;
   achCycleId: string;
   achCycleName: string;

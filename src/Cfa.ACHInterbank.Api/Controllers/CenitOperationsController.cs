@@ -194,6 +194,18 @@ public class CenitOperationsController : ControllerBase
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
+        var returnCodeDescriptions = await _dbContext.AchReturnCodes
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .Select(x => new { x.Code, x.Description })
+            .ToDictionaryAsync(x => NormalizeCode(x.Code), x => x.Description, ct);
+
+        var rejectionCodeDescriptions = await _dbContext.AchFileRejectionCodes
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .Select(x => new { x.Code, x.Description })
+            .ToDictionaryAsync(x => NormalizeCode(x.Code), x => x.Description, ct);
+
         var query = _dbContext.AchTransactions
             .AsNoTracking()
             .Include(x => x.AchCycle)
@@ -229,8 +241,8 @@ public class CenitOperationsController : ControllerBase
                 ClearingHouseName = x.AchCycle.ClearingHouse.Name,
                 BatchId = x.AchBatchId,
                 BatchSequenceNumber = x.AchBatch.BatchSequenceNumber,
-                CausalCode = string.IsNullOrWhiteSpace(x.ReturnReasonCode) ? x.ContrapartidasResponseCode : x.ReturnReasonCode,
-                CausalDescription = string.Empty,
+                x.ReturnReasonCode,
+                x.ContrapartidasResponseCode,
                 x.OriginalTraceRef,
                 x.StateChangedAtUtc,
                 DecisionType = _dbContext.LiquidityOptimizationDecisions
@@ -246,6 +258,68 @@ public class CenitOperationsController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(new { items, total, page, pageSize });
+        var enrichedItems = items.Select(x =>
+        {
+            var regulatoryCode = NormalizeCode(x.ReturnReasonCode);
+            var technicalCode = NormalizeCode(x.ContrapartidasResponseCode);
+            var hasRegulatoryCode = !string.IsNullOrWhiteSpace(regulatoryCode);
+            var hasTechnicalCode = !string.IsNullOrWhiteSpace(technicalCode);
+
+            var causalCode = hasRegulatoryCode ? regulatoryCode : technicalCode;
+            var causalKind = hasRegulatoryCode ? "Regulatoria" : hasTechnicalCode ? "Técnica" : "Sin causal";
+            var causalDescription = hasRegulatoryCode
+                ? ResolveRegulatoryDescription(regulatoryCode!, returnCodeDescriptions)
+                : hasTechnicalCode
+                    ? ResolveTechnicalDescription(technicalCode!, rejectionCodeDescriptions)
+                    : "Sin causal registrada para la transacción.";
+
+            return new
+            {
+                x.Id,
+                x.TransactionExternalId,
+                x.Reference,
+                x.Amount,
+                x.State,
+                x.AchCycleId,
+                x.AchCycleName,
+                x.EffectiveEntryDate,
+                x.ClearingHouseName,
+                x.BatchId,
+                x.BatchSequenceNumber,
+                CausalCode = causalCode,
+                CausalDescription = causalDescription,
+                CausalKind = causalKind,
+                x.OriginalTraceRef,
+                x.StateChangedAtUtc,
+                x.DecisionType,
+                x.SourceFileReference
+            };
+        });
+
+        return Ok(new { items = enrichedItems, total, page, pageSize });
+    }
+
+    private static string? NormalizeCode(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return null;
+        }
+
+        return code.Trim().ToUpperInvariant();
+    }
+
+    private static string ResolveRegulatoryDescription(string code, IReadOnlyDictionary<string, string> dictionary)
+    {
+        return dictionary.TryGetValue(code, out var description)
+            ? description
+            : $"Causal regulatoria no catalogada ({code}).";
+    }
+
+    private static string ResolveTechnicalDescription(string code, IReadOnlyDictionary<string, string> dictionary)
+    {
+        return dictionary.TryGetValue(code, out var description)
+            ? description
+            : $"Causal técnica no catalogada ({code}).";
     }
 }
