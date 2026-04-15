@@ -25,6 +25,7 @@ public class AchTransactionService : IAchTransactionService
     private readonly ITransactionPolicyService? _transactionPolicyService;
     private readonly IContrapartidaDispatchPersistenceService _contrapartidaDispatchPersistenceService;
     private readonly ICenitCycleQueueService? _cenitCycleQueueService;
+    private readonly IAchRegulatoryCatalogService? _catalogService;
 
     public AchTransactionService(
         AchDbContext context,
@@ -37,6 +38,7 @@ public class AchTransactionService : IAchTransactionService
         IPrenotificationHandler prenotificationHandler,
         IContrapartidaDispatchPersistenceService contrapartidaDispatchPersistenceService,
         ICenitCycleQueueService? cenitCycleQueueService = null,
+        IAchRegulatoryCatalogService? catalogService = null,
         ITransactionPolicyService? transactionPolicyService = null)
     {
         _context = context;
@@ -49,6 +51,7 @@ public class AchTransactionService : IAchTransactionService
         _prenotificationHandler = prenotificationHandler;
         _contrapartidaDispatchPersistenceService = contrapartidaDispatchPersistenceService;
         _cenitCycleQueueService = cenitCycleQueueService;
+        _catalogService = catalogService;
         _transactionPolicyService = transactionPolicyService;
     }
 
@@ -96,6 +99,14 @@ public class AchTransactionService : IAchTransactionService
         };
 
         _transactionValidator.ValidateRequest(request);
+        if (_catalogService is not null)
+        {
+            var prenoteRequired = await _catalogService.IsPrenotificationRequiredAsync(request.Type, ct);
+            if (prenoteRequired && !request.IsPrenotification)
+            {
+                throw new InvalidOperationException($"La política regulatoria exige prenotificación para tipo {request.Type}.");
+            }
+        }
         if (_transactionPolicyService is not null)
         {
             var preview = await _transactionPolicyService.PreviewAsync(new TransactionPolicyPreviewRequest(

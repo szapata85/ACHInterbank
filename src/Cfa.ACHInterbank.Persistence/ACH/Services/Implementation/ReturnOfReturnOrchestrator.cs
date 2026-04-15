@@ -10,16 +10,13 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
 {
-    private static readonly HashSet<string> AllowedReasonCodes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "R01", "R02", "R03", "R09", "R10", "D01", "D02", "D03"
-    };
-
     private readonly AchDbContext _context;
+    private readonly IAchRegulatoryCatalogService _catalogService;
 
-    public ReturnOfReturnOrchestrator(AchDbContext context)
+    public ReturnOfReturnOrchestrator(AchDbContext context, IAchRegulatoryCatalogService catalogService)
     {
         _context = context;
+        _catalogService = catalogService;
     }
 
     public async Task<ReturnOfReturnFlow> RegisterAsync(AchTransaction sourceReturn, AchTransaction returnOfReturn, string reasonCode, CancellationToken ct)
@@ -32,10 +29,6 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
         {
             throw new InvalidOperationException("La devolución de devolución debe tener tipo Return.");
         }
-        if (!AllowedReasonCodes.Contains(reasonCode))
-        {
-            throw new InvalidOperationException($"La causal {reasonCode} no está habilitada para devolución de devolución.");
-        }
         if (sourceReturn.State is not (AchTransferStateEnum.ReturnedByOperator or AchTransferStateEnum.ReturnedByEpr or AchTransferStateEnum.Certified))
         {
             throw new InvalidOperationException("La devolución origen no se encuentra en estado elegible para devolución de devolución.");
@@ -45,9 +38,22 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
             throw new InvalidOperationException("El plazo operativo para devolución de devolución expiró.");
         }
 
-        var duplicated = await _context.ReturnOfReturnFlows
-            .AnyAsync(x => x.SourceReturnTransactionId == sourceReturn.Id
-                           || x.ReturnOfReturnTransactionId == returnOfReturn.Id, ct);
+        var originalCode = string.IsNullOrWhiteSpace(sourceReturn.ReturnReasonCode) ? "R01" : sourceReturn.ReturnReasonCode;
+        var currentDate = DateTime.UtcNow.Date;
+        var validation = await _catalogService.ValidateReturnOfReturnAsync(
+            originalCode,
+            reasonCode,
+            sourceReturn.State.ToString(),
+            sourceReturn.EffectiveEntryDate.Date,
+            currentDate,
+            ct);
+        if (!validation.IsAllowed)
+        {
+            throw new InvalidOperationException(validation.Reason ?? "La política de devolución de devolución no permite esta operación.");
+        }
+
+        var duplicated = validation.IsUniquePerTransaction && await _context.ReturnOfReturnFlows
+            .AnyAsync(x => x.SourceReturnTransactionId == sourceReturn.Id || x.ReturnOfReturnTransactionId == returnOfReturn.Id, ct);
         if (duplicated)
         {
             throw new InvalidOperationException("Ya existe un flujo de devolución de devolución para la transacción indicada.");

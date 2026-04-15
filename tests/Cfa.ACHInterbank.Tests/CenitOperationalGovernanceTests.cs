@@ -91,7 +91,8 @@ public class CenitOperationalGovernanceTests
         await using var context = CreateContext(connection);
 
         var setup = await SeedCycleExecutionScenarioAsync(context, "Ciclo 2", availableLiquidity: 0m);
-        var sut = new LiquidityOptimizationService(context, new TransactionPriorityPolicy());
+        var catalog = new AchRegulatoryCatalogService(context);
+        var sut = new LiquidityOptimizationService(context, new TransactionPriorityPolicy(catalog));
 
         var decisions = await sut.OptimizeCycleAsync(setup.Execution, CancellationToken.None);
 
@@ -109,7 +110,8 @@ public class CenitOperationalGovernanceTests
         await using var context = CreateContext(connection);
 
         var setup = await SeedCycleExecutionScenarioAsync(context, "Ciclo 4", availableLiquidity: 0m);
-        var sut = new LiquidityOptimizationService(context, new TransactionPriorityPolicy());
+        var catalog = new AchRegulatoryCatalogService(context);
+        var sut = new LiquidityOptimizationService(context, new TransactionPriorityPolicy(catalog));
 
         var decisions = await sut.OptimizeCycleAsync(setup.Execution, CancellationToken.None);
 
@@ -131,7 +133,7 @@ public class CenitOperationalGovernanceTests
         context.AchTransactions.AddRange(source, ror);
         await context.SaveChangesAsync();
 
-        var sut = new ReturnOfReturnOrchestrator(context);
+        var sut = new ReturnOfReturnOrchestrator(context, new AchRegulatoryCatalogService(context));
         await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RegisterAsync(source, ror, "R01", CancellationToken.None));
     }
 
@@ -148,7 +150,7 @@ public class CenitOperationalGovernanceTests
         context.ReturnOfReturnFlows.Add(new ReturnOfReturnFlow { SourceReturnTransactionId = 21, ReturnOfReturnTransactionId = 22, ReasonCode = "R01" });
         await context.SaveChangesAsync();
 
-        var sut = new ReturnOfReturnOrchestrator(context);
+        var sut = new ReturnOfReturnOrchestrator(context, new AchRegulatoryCatalogService(context));
         await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RegisterAsync(source, ror, "R01", CancellationToken.None));
     }
 
@@ -167,6 +169,9 @@ public class CenitOperationalGovernanceTests
         context.AchTransactions.Add(tx);
         var execution = new CenitCycleExecution { Id = 500, AchCycleId = "c1", Status = "Running" };
         var netting = new CenitNettingExecution { Id = 600, CenitCycleExecutionId = 500, TotalCredit = 0, TotalDebit = 0 };
+        context.AchTransactionTypePolicies.AddRange(
+            new AchTransactionTypePolicy { TransactionType = "Credit", PriorityOrder = 80, IsMonetary = true, IsActive = true },
+            new AchTransactionTypePolicy { TransactionType = "Return", PriorityOrder = 100, IsMonetary = true, IsActive = true });
         context.CenitCycleExecutions.Add(execution);
         context.CenitNettingExecutions.Add(netting);
         context.CenitNetPositions.Add(new CenitNetPosition { CenitNettingExecutionId = 600, FinancialInstitutionId = 1, DebitAmount = 0, CreditAmount = 0, NetAmount = 0, AvailableLiquidity = availableLiquidity, SimulatedLiquidity = availableLiquidity, LiquiditySourceType = "Simulated" });

@@ -337,7 +337,7 @@ public class TransactionValidator : ITransactionValidator
             : AchAddendaBusinessType.Credit;
     }
 
-    private static string? NormalizeReturnReason(string? value)
+    private string? NormalizeReturnReason(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -348,6 +348,11 @@ public class TransactionValidator : ITransactionValidator
         if (!ReturnReasonRegex.IsMatch(normalized))
         {
             throw new ArgumentException("El código de retorno debe cumplir el formato ^R\\d{2}$ o DEV14.", nameof(value));
+        }
+
+        if (!_context.AchReturnCodes.AsNoTracking().Any(x => x.IsActive && x.Code == normalized))
+        {
+            throw new ArgumentException($"El código de retorno {normalized} no existe en el catálogo regulatorio.", nameof(value));
         }
 
         return normalized;

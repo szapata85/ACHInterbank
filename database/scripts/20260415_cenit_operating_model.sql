@@ -123,3 +123,80 @@ ALTER TABLE "LiquidityOptimizationDecisions"
     ADD COLUMN IF NOT EXISTS "ClearingHouseCode" varchar(16) NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS "SourceFileReference" varchar(120) NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS "LiquidityModelUsed" varchar(20) NOT NULL DEFAULT 'Simulated';
+
+CREATE TABLE IF NOT EXISTS "AchReturnCodes" (
+    "Id" SERIAL PRIMARY KEY,
+    "Code" varchar(10) NOT NULL UNIQUE,
+    "Description" varchar(200) NOT NULL,
+    "AppliesToDebit" boolean NOT NULL,
+    "AppliesToCredit" boolean NOT NULL,
+    "AppliesToPrenotification" boolean NOT NULL,
+    "AppliesToReturn" boolean NOT NULL,
+    "RequiresAddenda" boolean NOT NULL,
+    "MaxDaysAllowed" integer NULL,
+    "IsActive" boolean NOT NULL DEFAULT true,
+    "RegulatorySource" varchar(20) NOT NULL DEFAULT 'CENIT',
+    "CreatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    "UpdatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now())
+);
+
+CREATE TABLE IF NOT EXISTS "AchFileRejectionCodes" (
+    "Id" SERIAL PRIMARY KEY,
+    "Code" varchar(10) NOT NULL UNIQUE,
+    "Description" varchar(200) NOT NULL,
+    "Severity" varchar(20) NOT NULL,
+    "AppliesToStage" varchar(30) NOT NULL,
+    "IsRetryable" boolean NOT NULL,
+    "IsActive" boolean NOT NULL DEFAULT true,
+    "CreatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    "UpdatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now())
+);
+
+CREATE TABLE IF NOT EXISTS "AchTransactionTypePolicies" (
+    "Id" SERIAL PRIMARY KEY,
+    "TransactionType" varchar(30) NOT NULL UNIQUE,
+    "PriorityOrder" integer NOT NULL,
+    "IsMonetary" boolean NOT NULL,
+    "RequiresPrenotification" boolean NOT NULL,
+    "CanBeReturned" boolean NOT NULL,
+    "CanBeReturnedAgain" boolean NOT NULL,
+    "IsActive" boolean NOT NULL DEFAULT true,
+    "CreatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    "UpdatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now())
+);
+
+CREATE TABLE IF NOT EXISTS "AchReturnPolicies" (
+    "Id" SERIAL PRIMARY KEY,
+    "TransactionType" varchar(30) NOT NULL,
+    "AllowedReturnCodesCsv" varchar(500) NOT NULL,
+    "MaxDays" integer NOT NULL,
+    "RequiredOriginalTransactionState" varchar(40) NOT NULL DEFAULT '',
+    "AllowsReturnOfReturn" boolean NOT NULL,
+    "RequiresAddenda" boolean NOT NULL,
+    "IsActive" boolean NOT NULL DEFAULT true,
+    "CreatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    "UpdatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now())
+);
+
+CREATE TABLE IF NOT EXISTS "AchReturnOfReturnPolicies" (
+    "Id" SERIAL PRIMARY KEY,
+    "OriginalReturnCode" varchar(10) NOT NULL,
+    "AllowedNewReturnCodesCsv" varchar(500) NOT NULL,
+    "MaxDays" integer NOT NULL,
+    "RequiredOriginalState" varchar(40) NOT NULL,
+    "IsUniquePerTransaction" boolean NOT NULL,
+    "IsActive" boolean NOT NULL DEFAULT true,
+    "CreatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    "UpdatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now())
+);
+
+CREATE TABLE IF NOT EXISTS "AchPrenotificationPolicies" (
+    "Id" SERIAL PRIMARY KEY,
+    "TransactionType" varchar(30) NOT NULL UNIQUE,
+    "IsRequired" boolean NOT NULL,
+    "RequiresAddenda" boolean NOT NULL,
+    "BlocksMonetaryTransactionIfMissing" boolean NOT NULL,
+    "IsActive" boolean NOT NULL DEFAULT true,
+    "CreatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    "UpdatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now())
+);

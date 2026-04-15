@@ -8,21 +8,21 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public class TransactionPriorityPolicy : ITransactionPriorityPolicy
 {
+    private readonly IAchRegulatoryCatalogService _catalogService;
+
+    public TransactionPriorityPolicy(IAchRegulatoryCatalogService catalogService)
+    {
+        _catalogService = catalogService;
+    }
+
     public int ResolvePriority(AchTransaction transaction)
     {
-        if (transaction.IsPrenotification && transaction.Type == TransactionTypeEnum.Debit)
+        var catalogPriority = _catalogService.GetPriorityAsync(transaction.Type, CancellationToken.None).GetAwaiter().GetResult();
+        if (catalogPriority > 0)
         {
-            return 100;
+            return catalogPriority;
         }
 
-        return transaction.Type switch
-        {
-            TransactionTypeEnum.Return => 90,
-            TransactionTypeEnum.Credit => 80,
-            TransactionTypeEnum.Debit => 70,
-            TransactionTypeEnum.Reversal => 60,
-            TransactionTypeEnum.Prenotification => 50,
-            _ => 10
-        };
+        return 10;
     }
 }

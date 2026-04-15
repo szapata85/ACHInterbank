@@ -20,16 +20,19 @@ public class NachaParserService : INachaParserService
     private readonly AchDbContext _context;
     private readonly ILogger<NachaParserService> _logger;
     private readonly IAchStateTransitionService _stateTransitionService;
+    private readonly IAchRegulatoryCatalogService? _catalogService;
     private HashSet<string>? _configuredTransactionCodes;
 
     public NachaParserService(
         AchDbContext context,
         ILogger<NachaParserService> logger,
-        IAchStateTransitionService stateTransitionService)
+        IAchStateTransitionService stateTransitionService,
+        IAchRegulatoryCatalogService? catalogService = null)
     {
         _context = context;
         _logger = logger;
         _stateTransitionService = stateTransitionService;
+        _catalogService = catalogService;
     }
 
     public async Task<IReadOnlyList<NachaValidationFailure>> ParseAndSaveAsync(Stream nachaStream, string FileName, CancellationToken ct = default)
@@ -93,7 +96,13 @@ public class NachaParserService : INachaParserService
 
                         if (NachaHeadersExists)
                         {
-                            throw new ArgumentException("El Archivo NACHA ya existe!");
+                            var dxx = _catalogService is null
+                                ? null
+                                : await _catalogService.ResolveFileRejectionCodeAsync("Validation", "D01", ct);
+                            var message = dxx is null
+                                ? "El Archivo NACHA ya existe!"
+                                : $"{dxx.Code}: {dxx.Description}";
+                            throw new ArgumentException(message);
                         }
 
                         headers.Add(currentHeader);
@@ -1158,6 +1167,21 @@ public class NachaParserService : INachaParserService
             if (string.IsNullOrWhiteSpace(reasonCode) || string.IsNullOrWhiteSpace(originalTraceRef))
             {
                 continue;
+            }
+
+            if (_catalogService is not null)
+            {
+                var rule = await _catalogService.ValidateReturnCodeAsync(
+                    reasonCode,
+                    TransactionTypeEnum.Return,
+                    entry.EffectiveEntryDate ?? DateTime.UtcNow.Date,
+                    DateTime.UtcNow.Date,
+                    ct);
+                if (!rule.IsAllowed)
+                {
+                    _logger.LogWarning("Causal de devolución {ReasonCode} descartada por catálogo regulatorio: {Reason}", reasonCode, rule.Reason);
+                    continue;
+                }
             }
 
             var transaction = await FindTransactionByTraceReferenceAsync(originalTraceRef, ct);

@@ -89,6 +89,12 @@ public class AchDbContext : DbContext
     public DbSet<CenitNettingDetail> CenitNettingDetails => Set<CenitNettingDetail>();
     public DbSet<LiquidityOptimizationDecision> LiquidityOptimizationDecisions => Set<LiquidityOptimizationDecision>();
     public DbSet<ReturnOfReturnFlow> ReturnOfReturnFlows => Set<ReturnOfReturnFlow>();
+    public DbSet<AchReturnCode> AchReturnCodes => Set<AchReturnCode>();
+    public DbSet<AchFileRejectionCode> AchFileRejectionCodes => Set<AchFileRejectionCode>();
+    public DbSet<AchTransactionTypePolicy> AchTransactionTypePolicies => Set<AchTransactionTypePolicy>();
+    public DbSet<AchReturnPolicy> AchReturnPolicies => Set<AchReturnPolicy>();
+    public DbSet<AchReturnOfReturnPolicy> AchReturnOfReturnPolicies => Set<AchReturnOfReturnPolicy>();
+    public DbSet<AchPrenotificationPolicy> AchPrenotificationPolicies => Set<AchPrenotificationPolicy>();
 
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();

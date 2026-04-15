@@ -27,6 +27,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
     private readonly IConfiguration _configuration;
     private readonly IContrapartidaDispatchPersistenceService _contrapartidaDispatchPersistenceService;
     private readonly ICenitCycleQueueService? _cenitCycleQueueService;
+    private readonly IAchRegulatoryCatalogService? _catalogService;
 
     public AchBulkTransactionService(
         AchDbContext context,
@@ -39,6 +40,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
         IConfiguration configuration,
         IContrapartidaDispatchPersistenceService contrapartidaDispatchPersistenceService,
         ICenitCycleQueueService? cenitCycleQueueService = null,
+        IAchRegulatoryCatalogService? catalogService = null,
         ITransactionPolicyService? transactionPolicyService = null)
     {
         _context = context;
@@ -51,6 +53,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
         _configuration = configuration;
         _contrapartidaDispatchPersistenceService = contrapartidaDispatchPersistenceService;
         _cenitCycleQueueService = cenitCycleQueueService;
+        _catalogService = catalogService;
         _transactionPolicyService = transactionPolicyService;
     }
 
@@ -115,6 +118,14 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
                     }
 
                     _transactionValidator.ValidateRequest(record.Data, activeCompanyEntryDescriptionIds);
+                    if (_catalogService is not null)
+                    {
+                        var prenoteRequired = await _catalogService.IsPrenotificationRequiredAsync(record.Data.Type, ct);
+                        if (prenoteRequired && !record.Data.IsPrenotification)
+                        {
+                            throw new ArgumentException($"La política regulatoria exige prenotificación para tipo {record.Data.Type}.", nameof(record.Data.IsPrenotification));
+                        }
+                    }
 
                     if (_transactionPolicyService is not null)
                     {

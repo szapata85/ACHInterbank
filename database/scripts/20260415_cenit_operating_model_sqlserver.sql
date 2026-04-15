@@ -145,3 +145,86 @@ IF COL_LENGTH('dbo.LiquidityOptimizationDecisions', 'ClearingHouseId') IS NULL A
 IF COL_LENGTH('dbo.LiquidityOptimizationDecisions', 'ClearingHouseCode') IS NULL ALTER TABLE dbo.LiquidityOptimizationDecisions ADD ClearingHouseCode varchar(16) NOT NULL CONSTRAINT DF_LiquidityOptimizationDecisions_ClearingHouseCode DEFAULT '';
 IF COL_LENGTH('dbo.LiquidityOptimizationDecisions', 'SourceFileReference') IS NULL ALTER TABLE dbo.LiquidityOptimizationDecisions ADD SourceFileReference varchar(120) NOT NULL CONSTRAINT DF_LiquidityOptimizationDecisions_SourceFileReference DEFAULT '';
 IF COL_LENGTH('dbo.LiquidityOptimizationDecisions', 'LiquidityModelUsed') IS NULL ALTER TABLE dbo.LiquidityOptimizationDecisions ADD LiquidityModelUsed varchar(20) NOT NULL CONSTRAINT DF_LiquidityOptimizationDecisions_LiquidityModelUsed DEFAULT 'Simulated';
+
+IF OBJECT_ID('dbo.AchReturnCodes', 'U') IS NULL
+CREATE TABLE dbo.AchReturnCodes (
+    Id int IDENTITY(1,1) PRIMARY KEY,
+    Code varchar(10) NOT NULL UNIQUE,
+    Description varchar(200) NOT NULL,
+    AppliesToDebit bit NOT NULL,
+    AppliesToCredit bit NOT NULL,
+    AppliesToPrenotification bit NOT NULL,
+    AppliesToReturn bit NOT NULL,
+    RequiresAddenda bit NOT NULL,
+    MaxDaysAllowed int NULL,
+    IsActive bit NOT NULL DEFAULT 1,
+    RegulatorySource varchar(20) NOT NULL DEFAULT 'CENIT',
+    CreatedAt datetime2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAt datetime2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+IF OBJECT_ID('dbo.AchFileRejectionCodes', 'U') IS NULL
+CREATE TABLE dbo.AchFileRejectionCodes (
+    Id int IDENTITY(1,1) PRIMARY KEY,
+    Code varchar(10) NOT NULL UNIQUE,
+    Description varchar(200) NOT NULL,
+    Severity varchar(20) NOT NULL,
+    AppliesToStage varchar(30) NOT NULL,
+    IsRetryable bit NOT NULL,
+    IsActive bit NOT NULL DEFAULT 1,
+    CreatedAt datetime2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAt datetime2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+IF OBJECT_ID('dbo.AchTransactionTypePolicies', 'U') IS NULL
+CREATE TABLE dbo.AchTransactionTypePolicies (
+    Id int IDENTITY(1,1) PRIMARY KEY,
+    TransactionType varchar(30) NOT NULL UNIQUE,
+    PriorityOrder int NOT NULL,
+    IsMonetary bit NOT NULL,
+    RequiresPrenotification bit NOT NULL,
+    CanBeReturned bit NOT NULL,
+    CanBeReturnedAgain bit NOT NULL,
+    IsActive bit NOT NULL DEFAULT 1,
+    CreatedAt datetime2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAt datetime2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+IF OBJECT_ID('dbo.AchReturnPolicies', 'U') IS NULL
+CREATE TABLE dbo.AchReturnPolicies (
+    Id int IDENTITY(1,1) PRIMARY KEY,
+    TransactionType varchar(30) NOT NULL,
+    AllowedReturnCodesCsv varchar(500) NOT NULL,
+    MaxDays int NOT NULL,
+    RequiredOriginalTransactionState varchar(40) NOT NULL,
+    AllowsReturnOfReturn bit NOT NULL,
+    RequiresAddenda bit NOT NULL,
+    IsActive bit NOT NULL DEFAULT 1,
+    CreatedAt datetime2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAt datetime2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+IF OBJECT_ID('dbo.AchReturnOfReturnPolicies', 'U') IS NULL
+CREATE TABLE dbo.AchReturnOfReturnPolicies (
+    Id int IDENTITY(1,1) PRIMARY KEY,
+    OriginalReturnCode varchar(10) NOT NULL,
+    AllowedNewReturnCodesCsv varchar(500) NOT NULL,
+    MaxDays int NOT NULL,
+    RequiredOriginalState varchar(40) NOT NULL,
+    IsUniquePerTransaction bit NOT NULL,
+    IsActive bit NOT NULL DEFAULT 1,
+    CreatedAt datetime2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAt datetime2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+IF OBJECT_ID('dbo.AchPrenotificationPolicies', 'U') IS NULL
+CREATE TABLE dbo.AchPrenotificationPolicies (
+    Id int IDENTITY(1,1) PRIMARY KEY,
+    TransactionType varchar(30) NOT NULL UNIQUE,
+    IsRequired bit NOT NULL,
+    RequiresAddenda bit NOT NULL,
+    BlocksMonetaryTransactionIfMissing bit NOT NULL,
+    IsActive bit NOT NULL DEFAULT 1,
+    CreatedAt datetime2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAt datetime2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
