@@ -8,6 +8,7 @@ public interface IAchRegulatoryCatalogService
     Task<int> GetPriorityAsync(TransactionTypeEnum transactionType, CancellationToken ct);
     Task<bool> IsPrenotificationRequiredAsync(TransactionTypeEnum transactionType, CancellationToken ct);
     Task<(bool IsAllowed, string? Reason)> ValidateReturnCodeAsync(string returnCode, TransactionTypeEnum transactionType, DateTime originalDate, DateTime currentDate, CancellationToken ct);
+    Task<(bool IsAllowed, string? Reason)> ValidateReturnPolicyAsync(TransactionTypeEnum transactionType, string returnCode, DateTime originalDate, DateTime currentDate, bool hasAddenda, string originalState, CancellationToken ct);
     Task<(bool IsAllowed, string? Reason, bool IsUniquePerTransaction)> ValidateReturnOfReturnAsync(string originalReturnCode, string newReturnCode, string originalState, DateTime originalDate, DateTime currentDate, CancellationToken ct);
     Task<AchFileRejectionCode?> ResolveFileRejectionCodeAsync(string stage, string code, CancellationToken ct);
     Task<IReadOnlyList<AchReturnCode>> GetReturnCodesAsync(CancellationToken ct);

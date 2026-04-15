@@ -66,6 +66,44 @@ public class AchRegulatoryCatalogService : IAchRegulatoryCatalogService
             : (false, $"Código {code} no aplica al tipo {transactionType}.");
     }
 
+    public async Task<(bool IsAllowed, string? Reason)> ValidateReturnPolicyAsync(TransactionTypeEnum transactionType, string returnCode, DateTime originalDate, DateTime currentDate, bool hasAddenda, string originalState, CancellationToken ct)
+    {
+        var mappedType = MapType(transactionType);
+        var policy = await _context.AchReturnPolicies
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.IsActive && x.TransactionType == mappedType, ct);
+
+        if (policy is null)
+        {
+            return (false, $"No existe política de devolución activa para tipo {mappedType}.");
+        }
+
+        var allowedCodes = policy.AllowedReturnCodesCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (!allowedCodes.Contains(returnCode.Trim().ToUpperInvariant(), StringComparer.OrdinalIgnoreCase))
+        {
+            return (false, $"La causal {returnCode} no está permitida por la política del tipo {mappedType}.");
+        }
+
+        if (policy.RequiresAddenda && !hasAddenda)
+        {
+            return (false, $"La política del tipo {mappedType} exige addenda para devoluciones.");
+        }
+
+        var days = (currentDate.Date - originalDate.Date).Days;
+        if (days > policy.MaxDays)
+        {
+            return (false, $"La política del tipo {mappedType} permite máximo {policy.MaxDays} días para devolución.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(policy.RequiredOriginalTransactionState)
+            && !string.Equals(policy.RequiredOriginalTransactionState, originalState, StringComparison.OrdinalIgnoreCase))
+        {
+            return (false, $"La política del tipo {mappedType} exige estado origen {policy.RequiredOriginalTransactionState}.");
+        }
+
+        return (true, null);
+    }
+
     public async Task<(bool IsAllowed, string? Reason, bool IsUniquePerTransaction)> ValidateReturnOfReturnAsync(string originalReturnCode, string newReturnCode, string originalState, DateTime originalDate, DateTime currentDate, CancellationToken ct)
     {
         var policy = await _context.AchReturnOfReturnPolicies

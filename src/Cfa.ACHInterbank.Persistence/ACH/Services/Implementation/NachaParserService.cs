@@ -22,6 +22,7 @@ public class NachaParserService : INachaParserService
     private readonly IAchStateTransitionService _stateTransitionService;
     private readonly IAchRegulatoryCatalogService? _catalogService;
     private HashSet<string>? _configuredTransactionCodes;
+    private Dictionary<string, AchFileRejectionCode> _rejectionCatalog = new(StringComparer.OrdinalIgnoreCase);
 
     public NachaParserService(
         AchDbContext context,
@@ -42,6 +43,10 @@ public class NachaParserService : INachaParserService
         try
         {
             _context.ChangeTracker.AutoDetectChangesEnabled = false;
+            _rejectionCatalog = await _context.AchFileRejectionCodes
+                .AsNoTracking()
+                .Where(x => x.IsActive)
+                .ToDictionaryAsync(x => x.Code, StringComparer.OrdinalIgnoreCase, ct);
 
             using var reader = new StreamReader(nachaStream);
             string? linefull = await reader.ReadLineAsync();
@@ -96,13 +101,7 @@ public class NachaParserService : INachaParserService
 
                         if (NachaHeadersExists)
                         {
-                            var dxx = _catalogService is null
-                                ? null
-                                : await _catalogService.ResolveFileRejectionCodeAsync("Validation", "D01", ct);
-                            var message = dxx is null
-                                ? "El Archivo NACHA ya existe!"
-                                : $"{dxx.Code}: {dxx.Description}";
-                            throw new ArgumentException(message);
+                            throw new ArgumentException(GetRegulatoryError("D01", "El Archivo NACHA ya existe!"));
                         }
 
                         headers.Add(currentHeader);
@@ -303,7 +302,7 @@ public class NachaParserService : INachaParserService
 
         if (headers.Count != controls.Count)
         {
-            throw new InvalidOperationException("Error Fatal D18: la cantidad de registros tipo 5 no coincide con los registros tipo 8 del archivo.");
+            throw new InvalidOperationException(GetRegulatoryError("D04", "La cantidad de registros tipo 5 no coincide con los registros tipo 8 del archivo."));
         }
 
         for (int index = 0; index < headers.Count; index++)
@@ -319,12 +318,12 @@ public class NachaParserService : INachaParserService
 
             if (!int.TryParse(control.BatchNumber?.Trim(), out var controlBatchNumber))
             {
-                throw new InvalidOperationException("Error Fatal D18: el Número de Lote del registro tipo 8 debe ser numérico en posiciones 100-106.");
+                throw new InvalidOperationException(GetRegulatoryError("D04", "El Número de Lote del registro tipo 8 debe ser numérico en posiciones 100-106."));
             }
 
             if (controlBatchNumber != expectedBatchNumber || controlBatchNumber != header.BatchNumber)
             {
-                throw new InvalidOperationException($"Error Fatal D18: inconsistencia en Número de Lote entre registros tipo 5 y tipo 8. Se esperaba {expectedBatchNumber:0000000}, tipo 5={header.BatchNumber:0000000}, tipo 8={controlBatchNumber:0000000}.");
+                throw new InvalidOperationException(GetRegulatoryError("D04", $"Inconsistencia en Número de Lote entre registros tipo 5 y tipo 8. Se esperaba {expectedBatchNumber:0000000}, tipo 5={header.BatchNumber:0000000}, tipo 8={controlBatchNumber:0000000}."));
             }
         }
     }
@@ -333,7 +332,7 @@ public class NachaParserService : INachaParserService
     {
         if (header is null || metrics is null)
         {
-            throw new InvalidOperationException("Error Fatal D18: se recibió un registro tipo 8 sin un registro tipo 5 asociado.");
+            throw new InvalidOperationException(GetRegulatoryError("D06", "Se recibió un registro tipo 8 sin un registro tipo 5 asociado."));
         }
 
         var serviceClassCode = (control.BatchTranClassCode ?? string.Empty).Trim();
@@ -344,12 +343,12 @@ public class NachaParserService : INachaParserService
 
         if ((control.EntryAddendaCount ?? 0) != metrics.EntryAddendaCount)
         {
-            throw new InvalidOperationException($"Error Fatal 51: el conteo físico de registros tipo 6 y 7 del lote ({metrics.EntryAddendaCount}) no coincide con el valor reportado en el registro tipo 8 ({control.EntryAddendaCount ?? 0}).");
+            throw new InvalidOperationException(GetRegulatoryError("D04", $"El conteo físico de registros tipo 6 y 7 del lote ({metrics.EntryAddendaCount}) no coincide con el valor reportado en el registro tipo 8 ({control.EntryAddendaCount ?? 0})."));
         }
 
         if ((control.EntryHash ?? 0) != metrics.EntryHash)
         {
-            throw new InvalidOperationException($"Error Fatal 52: el Total de Control del lote ({metrics.EntryHash:0000000000}) no coincide con el valor reportado en el registro tipo 8 ({control.EntryHash ?? 0:0000000000}).");
+            throw new InvalidOperationException(GetRegulatoryError("D05", $"El Total de Control del lote ({metrics.EntryHash:0000000000}) no coincide con el valor reportado en el registro tipo 8 ({control.EntryHash ?? 0:0000000000})."));
         }
 
         if (control.TotalDebitAmount != metrics.TotalDebitAmount)
@@ -698,7 +697,7 @@ public class NachaParserService : INachaParserService
     {
         if (metrics is null)
         {
-            throw new InvalidOperationException("Error Fatal D18: se recibió un registro tipo 6 sin un registro tipo 5 asociado.");
+            throw new InvalidOperationException(GetRegulatoryError("D06", "Se recibió un registro tipo 6 sin un registro tipo 5 asociado."));
         }
 
         metrics.RegisterEntry(entry, CreditCodes, DebitCodes);
@@ -1190,6 +1189,23 @@ public class NachaParserService : INachaParserService
                 continue;
             }
 
+            if (_catalogService is not null)
+            {
+                var policy = await _catalogService.ValidateReturnPolicyAsync(
+                    transaction.Type,
+                    reasonCode,
+                    transaction.EffectiveEntryDate.Date,
+                    DateTime.UtcNow.Date,
+                    relatedAddenda.Any(),
+                    transaction.State.ToString(),
+                    ct);
+                if (!policy.IsAllowed)
+                {
+                    _logger.LogWarning("Transición de devolución descartada por política: {Reason}", policy.Reason);
+                    continue;
+                }
+            }
+
             try
             {
                 await _stateTransitionService.TransitionAsync(
@@ -1310,6 +1326,16 @@ public class NachaParserService : INachaParserService
             entrySequence = failure.EntrySequence,
             message = failure.Reason
         });
+    }
+
+    private string GetRegulatoryError(string dxxCode, string fallbackMessage)
+    {
+        if (_rejectionCatalog.TryGetValue(dxxCode, out var catalog))
+        {
+            return $"{catalog.Code}: {catalog.Description}. {fallbackMessage}";
+        }
+
+        return $"{dxxCode}: {fallbackMessage}";
     }
 
     private static string BuildParserPayload(EntryDetail entry, IReadOnlyList<AddendaRecord> relatedAddenda)

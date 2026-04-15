@@ -15,9 +15,9 @@ public class TransactionPriorityPolicy : ITransactionPriorityPolicy
         _catalogService = catalogService;
     }
 
-    public int ResolvePriority(AchTransaction transaction)
+    public async Task<int> ResolvePriorityAsync(AchTransaction transaction, CancellationToken ct)
     {
-        var catalogPriority = _catalogService.GetPriorityAsync(transaction.Type, CancellationToken.None).GetAwaiter().GetResult();
+        var catalogPriority = await _catalogService.GetPriorityAsync(transaction.Type, ct);
         if (catalogPriority > 0)
         {
             return catalogPriority;

@@ -45,7 +45,13 @@ public class LiquidityOptimizationService : ILiquidityOptimizationService
 
         var decisions = new List<LiquidityOptimizationDecision>(transactions.Count);
 
-        foreach (var tx in transactions.OrderByDescending(_priorityPolicy.ResolvePriority))
+        var priorityMap = new Dictionary<int, int>();
+        foreach (var transaction in transactions)
+        {
+            priorityMap[transaction.Id] = await _priorityPolicy.ResolvePriorityAsync(transaction, ct);
+        }
+
+        foreach (var tx in transactions.OrderByDescending(t => priorityMap[t.Id]))
         {
             balances.TryGetValue(tx.SourceInstitutionId, out var liquidity);
             var hasLiquidity = liquidity >= tx.Amount;
@@ -108,7 +114,7 @@ public class LiquidityOptimizationService : ILiquidityOptimizationService
                 DecisionType = decision,
                 DecisionReason = reason,
                 LiquidityModelUsed = "Simulated",
-                Priority = _priorityPolicy.ResolvePriority(tx),
+                Priority = priorityMap[tx.Id],
                 FromCycleId = cycle.Id,
                 ToCycleId = nextCycleId,
                 DecidedAtUtc = DateTime.UtcNow

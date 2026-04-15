@@ -55,6 +55,27 @@ public class AchRegulatoryCatalogServiceTests
     }
 
     [Fact]
+    public async Task ReturnPolicy_ValidatesAllowedCodeAndAddenda()
+    {
+        await using var context = await CreateContextAsync();
+        context.AchReturnPolicies.Add(new AchReturnPolicy
+        {
+            TransactionType = "Debit",
+            AllowedReturnCodesCsv = "R01,R02",
+            MaxDays = 5,
+            RequiredOriginalTransactionState = "Pending",
+            RequiresAddenda = true,
+            IsActive = true
+        });
+        await context.SaveChangesAsync();
+
+        var sut = new AchRegulatoryCatalogService(context);
+        var result = await sut.ValidateReturnPolicyAsync(TransactionTypeEnum.Debit, "R03", DateTime.UtcNow.Date, DateTime.UtcNow.Date, hasAddenda: false, originalState: "Pending", CancellationToken.None);
+
+        Assert.False(result.IsAllowed);
+    }
+
+    [Fact]
     public async Task Priority_IsReadFromCatalog()
     {
         await using var context = await CreateContextAsync();

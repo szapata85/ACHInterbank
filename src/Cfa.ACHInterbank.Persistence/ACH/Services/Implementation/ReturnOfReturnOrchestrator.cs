@@ -40,6 +40,19 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
 
         var originalCode = string.IsNullOrWhiteSpace(sourceReturn.ReturnReasonCode) ? "R01" : sourceReturn.ReturnReasonCode;
         var currentDate = DateTime.UtcNow.Date;
+        var returnPolicy = await _catalogService.ValidateReturnPolicyAsync(
+            TransactionTypeEnum.Return,
+            reasonCode,
+            sourceReturn.EffectiveEntryDate.Date,
+            currentDate,
+            hasAddenda: true,
+            sourceReturn.State.ToString(),
+            ct);
+        if (!returnPolicy.IsAllowed)
+        {
+            throw new InvalidOperationException(returnPolicy.Reason ?? "La política de devolución no permite esta operación.");
+        }
+
         var validation = await _catalogService.ValidateReturnOfReturnAsync(
             originalCode,
             reasonCode,
