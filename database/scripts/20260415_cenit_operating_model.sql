@@ -1,0 +1,103 @@
+-- CENIT operating governance model (PostgreSQL)
+CREATE TABLE IF NOT EXISTS "CenitCycleExecutions" (
+    "Id" BIGSERIAL PRIMARY KEY,
+    "AchCycleId" varchar(40) NOT NULL UNIQUE,
+    "StartedAtUtc" timestamp with time zone NOT NULL,
+    "CompletedAtUtc" timestamp with time zone NULL,
+    "Status" varchar(30) NOT NULL,
+    "Summary" varchar(500) NOT NULL DEFAULT '',
+    "CreatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    "UpdatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    CONSTRAINT "FK_CenitCycleExecutions_AchCycles_AchCycleId" FOREIGN KEY ("AchCycleId") REFERENCES "AchCycles" ("Id") ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS "CenitNettingExecutions" (
+    "Id" BIGSERIAL PRIMARY KEY,
+    "CenitCycleExecutionId" bigint NOT NULL UNIQUE,
+    "CalculatedAtUtc" timestamp with time zone NOT NULL,
+    "TotalDebit" numeric(18,2) NOT NULL,
+    "TotalCredit" numeric(18,2) NOT NULL,
+    "CreatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    "UpdatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    CONSTRAINT "FK_CenitNettingExecutions_CenitCycleExecutions_CenitCycleExecutionId" FOREIGN KEY ("CenitCycleExecutionId") REFERENCES "CenitCycleExecutions" ("Id") ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS "CenitNetPositions" (
+    "Id" BIGSERIAL PRIMARY KEY,
+    "CenitNettingExecutionId" bigint NOT NULL,
+    "FinancialInstitutionId" integer NOT NULL,
+    "DebitAmount" numeric(18,2) NOT NULL,
+    "CreditAmount" numeric(18,2) NOT NULL,
+    "NetAmount" numeric(18,2) NOT NULL,
+    "AvailableLiquidity" numeric(18,2) NOT NULL,
+    "HasInsufficientFunds" boolean NOT NULL,
+    "CreatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    "UpdatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    CONSTRAINT "FK_CenitNetPositions_CenitNettingExecutions_CenitNettingExecutionId" FOREIGN KEY ("CenitNettingExecutionId") REFERENCES "CenitNettingExecutions" ("Id") ON DELETE CASCADE,
+    CONSTRAINT "FK_CenitNetPositions_FinancialInstitutions_FinancialInstitutionId" FOREIGN KEY ("FinancialInstitutionId") REFERENCES "FinancialInstitutions" ("Id") ON DELETE RESTRICT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "IX_CenitNetPositions_CenitNettingExecutionId_FinancialInstitutionId" ON "CenitNetPositions" ("CenitNettingExecutionId", "FinancialInstitutionId");
+
+CREATE TABLE IF NOT EXISTS "CenitNettingDetails" (
+    "Id" BIGSERIAL PRIMARY KEY,
+    "CenitNettingExecutionId" bigint NOT NULL,
+    "AchTransactionId" integer NOT NULL,
+    "SourceInstitutionId" integer NOT NULL,
+    "DestinationInstitutionId" integer NOT NULL,
+    "Amount" numeric(18,2) NOT NULL,
+    "IncludedInSettlement" boolean NOT NULL,
+    "DecisionReason" varchar(150) NOT NULL,
+    "CreatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    "UpdatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    CONSTRAINT "FK_CenitNettingDetails_CenitNettingExecutions_CenitNettingExecutionId" FOREIGN KEY ("CenitNettingExecutionId") REFERENCES "CenitNettingExecutions" ("Id") ON DELETE CASCADE,
+    CONSTRAINT "FK_CenitNettingDetails_AchTransactions_AchTransactionId" FOREIGN KEY ("AchTransactionId") REFERENCES "AchTransactions" ("Id") ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS "CenitCycleQueues" (
+    "Id" BIGSERIAL PRIMARY KEY,
+    "AchTransactionId" integer NOT NULL,
+    "TargetAchCycleId" varchar(40) NOT NULL,
+    "OriginalAchCycleId" varchar(40) NULL,
+    "QueueReason" varchar(120) NOT NULL,
+    "Status" varchar(30) NOT NULL,
+    "EnqueuedAtUtc" timestamp with time zone NOT NULL,
+    "DequeuedAtUtc" timestamp with time zone NULL,
+    "CenitCycleExecutionId" bigint NULL,
+    "CreatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    "UpdatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    CONSTRAINT "FK_CenitCycleQueues_AchTransactions_AchTransactionId" FOREIGN KEY ("AchTransactionId") REFERENCES "AchTransactions" ("Id") ON DELETE RESTRICT,
+    CONSTRAINT "FK_CenitCycleQueues_AchCycles_TargetAchCycleId" FOREIGN KEY ("TargetAchCycleId") REFERENCES "AchCycles" ("Id") ON DELETE RESTRICT,
+    CONSTRAINT "FK_CenitCycleQueues_CenitCycleExecutions_CenitCycleExecutionId" FOREIGN KEY ("CenitCycleExecutionId") REFERENCES "CenitCycleExecutions" ("Id") ON DELETE NO ACTION
+);
+CREATE INDEX IF NOT EXISTS "IX_CenitCycleQueues_TargetAchCycleId_Status" ON "CenitCycleQueues" ("TargetAchCycleId", "Status");
+
+CREATE TABLE IF NOT EXISTS "LiquidityOptimizationDecisions" (
+    "Id" BIGSERIAL PRIMARY KEY,
+    "CenitCycleExecutionId" bigint NOT NULL,
+    "AchTransactionId" integer NOT NULL,
+    "DecisionType" varchar(30) NOT NULL,
+    "Priority" integer NOT NULL,
+    "DecisionReason" varchar(200) NOT NULL,
+    "DecidedAtUtc" timestamp with time zone NOT NULL,
+    "FromCycleId" varchar(40) NOT NULL,
+    "ToCycleId" varchar(40) NULL,
+    "CreatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    "UpdatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    CONSTRAINT "FK_LiquidityOptimizationDecisions_CenitCycleExecutions_CenitCycleExecutionId" FOREIGN KEY ("CenitCycleExecutionId") REFERENCES "CenitCycleExecutions" ("Id") ON DELETE CASCADE,
+    CONSTRAINT "FK_LiquidityOptimizationDecisions_AchTransactions_AchTransactionId" FOREIGN KEY ("AchTransactionId") REFERENCES "AchTransactions" ("Id") ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS "ReturnOfReturnFlows" (
+    "Id" BIGSERIAL PRIMARY KEY,
+    "SourceReturnTransactionId" integer NOT NULL,
+    "ReturnOfReturnTransactionId" integer NOT NULL,
+    "ReasonCode" varchar(20) NOT NULL,
+    "Status" varchar(30) NOT NULL,
+    "OrchestratedAtUtc" timestamp with time zone NOT NULL,
+    "CenitCycleExecutionId" bigint NULL,
+    "CreatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    "UpdatedAt" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    CONSTRAINT "FK_ReturnOfReturnFlows_Source" FOREIGN KEY ("SourceReturnTransactionId") REFERENCES "AchTransactions" ("Id") ON DELETE RESTRICT,
+    CONSTRAINT "FK_ReturnOfReturnFlows_Return" FOREIGN KEY ("ReturnOfReturnTransactionId") REFERENCES "AchTransactions" ("Id") ON DELETE RESTRICT,
+    CONSTRAINT "FK_ReturnOfReturnFlows_CenitCycleExecutions" FOREIGN KEY ("CenitCycleExecutionId") REFERENCES "CenitCycleExecutions" ("Id") ON DELETE SET NULL
+);

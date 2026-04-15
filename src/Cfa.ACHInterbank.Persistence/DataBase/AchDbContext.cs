@@ -82,6 +82,13 @@ public class AchDbContext : DbContext
     public DbSet<ContrapartidaDispatchBatch> ContrapartidaDispatchBatches => Set<ContrapartidaDispatchBatch>();
     public DbSet<ContrapartidaDispatchItem> ContrapartidaDispatchItems => Set<ContrapartidaDispatchItem>();
     public DbSet<ContrapartidaDispatchAttempt> ContrapartidaDispatchAttempts => Set<ContrapartidaDispatchAttempt>();
+    public DbSet<CenitCycleQueue> CenitCycleQueues => Set<CenitCycleQueue>();
+    public DbSet<CenitCycleExecution> CenitCycleExecutions => Set<CenitCycleExecution>();
+    public DbSet<CenitNettingExecution> CenitNettingExecutions => Set<CenitNettingExecution>();
+    public DbSet<CenitNetPosition> CenitNetPositions => Set<CenitNetPosition>();
+    public DbSet<CenitNettingDetail> CenitNettingDetails => Set<CenitNettingDetail>();
+    public DbSet<LiquidityOptimizationDecision> LiquidityOptimizationDecisions => Set<LiquidityOptimizationDecision>();
+    public DbSet<ReturnOfReturnFlow> ReturnOfReturnFlows => Set<ReturnOfReturnFlow>();
 
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();

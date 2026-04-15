@@ -12,13 +12,17 @@ public class AchCycleScheduler : IAchCycleScheduler
     private readonly AchDbContext _context;
     private readonly IBankHoliday _holidayService;
     private readonly IServiceProvider _provider;
+    private readonly ICenitOperatingCalendarPolicy _cenitCalendarPolicy;
 
     public AchCycleScheduler(AchDbContext context,
-                             IBankHoliday holidayService, IServiceProvider provider)
+                             IBankHoliday holidayService,
+                             IServiceProvider provider,
+                             ICenitOperatingCalendarPolicy cenitCalendarPolicy)
     {
         _context = context;
         _holidayService = holidayService;
         _provider = provider;
+        _cenitCalendarPolicy = cenitCalendarPolicy;
     }
 
     public async Task ScheduleCyclesForClearingHouseAsync(int clearingHouseId)
@@ -71,6 +75,8 @@ public class AchCycleScheduler : IAchCycleScheduler
 
         // 🔹 Obtener configuración vigente por nombre para la fecha de procesamiento
         List<ClearingHouseCycleConfig> cycles = await GetEffectiveCycleConfigurationsAsync(clearingHouse.Id, processingDate, CancellationToken.None);
+
+        await _cenitCalendarPolicy.ValidateCycleConsistencyAsync(clearingHouse.Id, processingDate, CancellationToken.None);
 
 
 

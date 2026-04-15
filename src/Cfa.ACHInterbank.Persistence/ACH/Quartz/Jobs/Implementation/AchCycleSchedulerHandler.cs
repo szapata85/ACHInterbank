@@ -58,6 +58,22 @@ public class AchCycleSchedulerHandler : ITaskHandler
 
                 // ⚠️ Delega la validación al scheduler interno
                 await scheduler.ScheduleCyclesForClearingHouseAsync(id, processingDate);
+
+                var db = scope.ServiceProvider.GetRequiredService<AchDbContext>();
+                var executionService = scope.ServiceProvider.GetRequiredService<ICenitCycleExecutionService>();
+                var cenitCyclesToRun = await db.AchCycles
+                    .Include(x => x.ClearingHouse)
+                    .Where(x => x.ClearingHouseId == id
+                                && x.ProcessingDate.Date == processingDate.Date
+                                && x.ClearingHouse != null
+                                && x.ClearingHouse.Code == "CENIT"
+                                && x.EndTime <= DateTime.UtcNow.TimeOfDay)
+                    .ToListAsync(token);
+
+                foreach (var cycle in cenitCyclesToRun)
+                {
+                    await executionService.StartExecutionAsync(cycle, token);
+                }
                 Interlocked.Increment(ref ok);
             }
             catch (Exception ex)
@@ -71,4 +87,3 @@ public class AchCycleSchedulerHandler : ITaskHandler
         return $"Scheduler paralelo ejecutado. Cámaras: {clearingHouseIds.Count}. Éxitos: {ok}. Fallos: {fail}.";
     }
 }
-
