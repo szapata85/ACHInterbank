@@ -1,6 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, of } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { Observable, map } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import {
   CycleReportFilter,
@@ -32,13 +31,7 @@ export class CenitOperationsApiService {
       params.status = status;
     }
 
-    return this.api
-      .get<CenitSimplePage<CenitQueueRow>>('api/cenit/queues', { params })
-      .pipe(catchError(() => of({ items: [] })));
-  }
-
-  getDeferredTransactions(page = 1, pageSize = 50): Observable<CenitSimplePage<CenitQueueRow>> {
-    return this.getQueueTransactions('Queued', page, pageSize);
+    return this.api.get<CenitSimplePage<CenitQueueRow>>('api/cenit/queues', { params });
   }
 
   getOptimizationDecisions(decisionType = ''): Observable<CenitSimplePage<CenitOptimizationDecisionRow>> {
@@ -47,19 +40,22 @@ export class CenitOperationsApiService {
       params.decisionType = decisionType;
     }
 
-    return this.api
-      .get<CenitSimplePage<CenitOptimizationDecisionRow>>('api/cenit/optimization-decisions', { params })
-      .pipe(catchError(() => of({ items: [] })));
+    return this.api.get<CenitSimplePage<CenitOptimizationDecisionRow>>('api/cenit/optimization-decisions', { params });
   }
 
   getNetPositions(): Observable<CenitSimplePage<CenitNetPositionRow>> {
-    return this.api.get<CenitSimplePage<CenitNetPositionRow>>('api/cenit/net-positions').pipe(catchError(() => of({ items: [] })));
+    return this.api.get<CenitSimplePage<CenitNetPositionRow>>('api/cenit/net-positions');
   }
 
-  getTraceability(filter: ReturnRejectionReportFilter): Observable<CenitTraceabilityRow[]> {
+  getReturns(filter: ReturnRejectionReportFilter): Observable<CenitTraceabilityRow[]> {
     return this.reportsApi.getReturns(filter).pipe(
       map((response) => (response.items ?? []).map((row) => this.toTraceabilityRow(row)))
     );
+  }
+
+  getOperationalTraceability(page = 1, pageSize = 50): Observable<CenitSimplePage<CenitTraceabilityRow>> {
+    const params: Record<string, number> = { page, pageSize };
+    return this.api.get<CenitSimplePage<CenitTraceabilityRow>>('api/cenit/traceability', { params });
   }
 
   private toTraceabilityRow(row: ReturnRejectionReportRow): CenitTraceabilityRow {

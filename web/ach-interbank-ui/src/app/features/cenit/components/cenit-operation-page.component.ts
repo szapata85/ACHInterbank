@@ -92,20 +92,20 @@ export class CenitOperationPageComponent implements OnInit {
         return;
       case 'devoluciones':
         this.api
-          .getDeferredTransactions(1, 50)
+          .getReturns({ page: 1, pageSize: 50 })
           .pipe(finalize(() => (this.loading = false)))
           .subscribe({
-            next: (response) => (this.rows = (response.items ?? []).map((x) => this.mapQueue(x))),
-            error: () => (this.error = 'No fue posible consultar devoluciones/diferidas.')
+            next: (items) => (this.rows = items.map((x) => this.mapTrace(x))),
+            error: () => (this.error = 'No fue posible consultar devoluciones.')
           });
         return;
       case 'trazabilidad':
         this.api
-          .getTraceability({ page: 1, pageSize: 50 })
+          .getOperationalTraceability(1, 50)
           .pipe(finalize(() => (this.loading = false)))
           .subscribe({
-            next: (items) => (this.rows = items.map((x) => this.mapTrace(x))),
-            error: () => (this.error = 'No fue posible consultar trazabilidad/devoluciones.')
+            next: (response) => (this.rows = (response.items ?? []).map((x) => this.mapTrace(x))),
+            error: () => (this.error = 'No fue posible consultar trazabilidad operativa.')
           });
         return;
     }
@@ -132,8 +132,11 @@ export class CenitOperationPageComponent implements OnInit {
       'ID ciclo': row.achCycleId,
       Cámara: row.clearingHouseName,
       Estado: row.state,
+      Decisión: row.decisionType || '-',
       Causal: `${row.causalCode} ${row.causalDescription}`.trim(),
       'Fecha valor': row.effectiveEntryDate,
+      Lote: row.batchSequenceNumber ? `${row.batchSequenceNumber} (#${row.batchId ?? '-'})` : '-',
+      Archivo: row.sourceFileReference || '-',
       Monto: this.formatAmount(row.amount)
     };
   }
@@ -143,7 +146,7 @@ export class CenitOperationPageComponent implements OnInit {
       Entidad: row.financialInstitutionName || String(row.financialInstitutionId ?? '-'),
       Posición: this.formatAmount(row.netAmount ?? 0),
       Liquidez: this.formatAmount(row.availableLiquidity ?? 0),
-      Tipo: row.positionType || '-'
+      Tipo: row.liquiditySourceType || '-'
     };
   }
 
@@ -186,7 +189,7 @@ export class CenitOperationPageComponent implements OnInit {
       cola: { titulo: 'Cola y transacciones diferidas', subtitulo: 'Visibilidad de operaciones pendientes por causal/estado.' },
       neteo: { titulo: 'Posiciones netas por entidad', subtitulo: 'Consolidado operativo para compensación.' },
       optimizacion: { titulo: 'Decisiones de optimización', subtitulo: 'Trazabilidad de reglas de liquidez y priorización.' },
-      devoluciones: { titulo: 'Transacciones diferidas', subtitulo: 'Operaciones en cola con diferimiento por regla operativa.' },
+      devoluciones: { titulo: 'Devoluciones', subtitulo: 'Consulta de devoluciones con causal regulatoria y estado.' },
       trazabilidad: { titulo: 'Trazabilidad CENIT/ACH', subtitulo: 'Ciclo, lote, archivo, causal y decisión operativa.' }
     };
 

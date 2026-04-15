@@ -181,4 +181,71 @@ public class CenitOperationsController : ControllerBase
 
         return Ok(new { items, total, page, pageSize });
     }
+
+    [HttpGet("traceability")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<IActionResult> GetTraceabilityAsync(
+        [FromQuery] string? state,
+        [FromQuery] string? achCycleId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 200);
+
+        var query = _dbContext.AchTransactions
+            .AsNoTracking()
+            .Include(x => x.AchCycle)
+                .ThenInclude(x => x.ClearingHouse)
+            .Include(x => x.AchBatch)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(state))
+        {
+            query = query.Where(x => x.State.ToString() == state);
+        }
+
+        if (!string.IsNullOrWhiteSpace(achCycleId))
+        {
+            query = query.Where(x => x.AchCycleId == achCycleId);
+        }
+
+        var total = await query.CountAsync(ct);
+        var items = await query
+            .OrderByDescending(x => x.StateChangedAtUtc)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(x => new
+            {
+                x.Id,
+                x.TransactionExternalId,
+                x.Reference,
+                x.Amount,
+                State = x.State.ToString(),
+                x.AchCycleId,
+                AchCycleName = x.AchCycle.CycleName,
+                x.EffectiveEntryDate,
+                ClearingHouseName = x.AchCycle.ClearingHouse.Name,
+                BatchId = x.AchBatchId,
+                BatchSequenceNumber = x.AchBatch.BatchSequenceNumber,
+                CausalCode = string.IsNullOrWhiteSpace(x.ReturnReasonCode) ? x.ContrapartidasResponseCode : x.ReturnReasonCode,
+                CausalDescription = string.Empty,
+                x.OriginalTraceRef,
+                x.StateChangedAtUtc,
+                DecisionType = _dbContext.LiquidityOptimizationDecisions
+                    .Where(d => d.AchTransactionId == x.Id)
+                    .OrderByDescending(d => d.DecidedAtUtc)
+                    .Select(d => d.DecisionType)
+                    .FirstOrDefault(),
+                SourceFileReference = _dbContext.LiquidityOptimizationDecisions
+                    .Where(d => d.AchTransactionId == x.Id)
+                    .OrderByDescending(d => d.DecidedAtUtc)
+                    .Select(d => d.SourceFileReference)
+                    .FirstOrDefault()
+            })
+            .ToListAsync(ct);
+
+        return Ok(new { items, total, page, pageSize });
+    }
 }

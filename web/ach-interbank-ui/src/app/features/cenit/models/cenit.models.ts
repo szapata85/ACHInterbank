@@ -70,6 +70,10 @@ export interface CenitTraceabilityRow {
   achCycleId: string;
   achCycleName: string;
   originalTraceRef: string;
+  batchId?: number;
+  batchSequenceNumber?: number;
+  decisionType?: string;
+  sourceFileReference?: string;
 }
 
 export interface CenitQueueRow {
@@ -110,7 +114,7 @@ export interface CenitNetPositionRow {
   financialInstitutionId?: number;
   netAmount?: number;
   availableLiquidity?: number;
-  positionType?: string;
+  liquiditySourceType?: string;
 }
 
 export interface CenitOptimizationDecisionRow {
