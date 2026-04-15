@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/cor
 import { ActivatedRoute } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { CenitOperationsApiService } from '../services/cenit-operations-api.service';
-import { CenitNetPositionRow, CenitOptimizationDecisionRow, CenitTraceabilityRow } from '../models/cenit.models';
+import { CenitNetPositionRow, CenitOptimizationDecisionRow, CenitQueueRow, CenitTraceabilityRow } from '../models/cenit.models';
 import { CycleReportRow } from '../../reports/services/reports-api.service';
 
 type OperationView = 'ciclos' | 'cola' | 'neteo' | 'optimizacion' | 'devoluciones' | 'trazabilidad';
@@ -65,10 +65,10 @@ export class CenitOperationPageComponent implements OnInit {
         return;
       case 'cola':
         this.api
-          .getQueueTransactions({ page: 1, pageSize: 50 })
+          .getQueueTransactions('', 1, 50)
           .pipe(finalize(() => (this.loading = false)))
           .subscribe({
-            next: (items) => (this.rows = items.map((x) => this.mapTrace(x))),
+            next: (response) => (this.rows = (response.items ?? []).map((x) => this.mapQueue(x))),
             error: () => (this.error = 'No fue posible consultar la cola operativa.')
           });
         return;
@@ -91,6 +91,14 @@ export class CenitOperationPageComponent implements OnInit {
           });
         return;
       case 'devoluciones':
+        this.api
+          .getDeferredTransactions(1, 50)
+          .pipe(finalize(() => (this.loading = false)))
+          .subscribe({
+            next: (response) => (this.rows = (response.items ?? []).map((x) => this.mapQueue(x))),
+            error: () => (this.error = 'No fue posible consultar devoluciones/diferidas.')
+          });
+        return;
       case 'trazabilidad':
         this.api
           .getTraceability({ page: 1, pageSize: 50 })
@@ -139,6 +147,23 @@ export class CenitOperationPageComponent implements OnInit {
     };
   }
 
+  private mapQueue(row: CenitQueueRow): Record<string, string> {
+    return {
+      'ID cola': String(row.id),
+      Estado: row.status,
+      Motivo: row.queueReason,
+      Transacción: String(row.transactionId),
+      'ID externo': row.transactionExternalId || '-',
+      Referencia: row.reference || '-',
+      Tipo: row.transactionType,
+      'Estado transacción': row.transactionState,
+      'Ciclo original': row.originalAchCycleId || '-',
+      'Ciclo destino': `${row.targetCycleName} (${row.targetAchCycleId})`,
+      Encolado: row.enqueuedAtUtc,
+      Desencolado: row.dequeuedAtUtc || '-'
+    };
+  }
+
   private mapOptimization(row: CenitOptimizationDecisionRow): Record<string, string> {
     return {
       Transacción: String(row.achTransactionId),
@@ -161,7 +186,7 @@ export class CenitOperationPageComponent implements OnInit {
       cola: { titulo: 'Cola y transacciones diferidas', subtitulo: 'Visibilidad de operaciones pendientes por causal/estado.' },
       neteo: { titulo: 'Posiciones netas por entidad', subtitulo: 'Consolidado operativo para compensación.' },
       optimizacion: { titulo: 'Decisiones de optimización', subtitulo: 'Trazabilidad de reglas de liquidez y priorización.' },
-      devoluciones: { titulo: 'Devoluciones y rechazos por causal', subtitulo: 'Seguimiento de causales y estado de retorno.' },
+      devoluciones: { titulo: 'Transacciones diferidas', subtitulo: 'Operaciones en cola con diferimiento por regla operativa.' },
       trazabilidad: { titulo: 'Trazabilidad CENIT/ACH', subtitulo: 'Ciclo, lote, archivo, causal y decisión operativa.' }
     };
 

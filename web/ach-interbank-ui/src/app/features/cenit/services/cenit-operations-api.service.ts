@@ -10,6 +10,7 @@ import {
   ReturnRejectionReportRow
 } from '../../reports/services/reports-api.service';
 import {
+  CenitQueueRow,
   CenitNetPositionRow,
   CenitOptimizationDecisionRow,
   CenitSimplePage,
@@ -25,21 +26,29 @@ export class CenitOperationsApiService {
     return this.reportsApi.getCyclesReport(filter).pipe(map((response) => response.items ?? []));
   }
 
-  getQueueTransactions(filter: ReturnRejectionReportFilter): Observable<CenitTraceabilityRow[]> {
-    return this.reportsApi.getRejections(filter).pipe(
-      map((response) => (response.items ?? []).map((row) => this.toTraceabilityRow(row)))
-    );
-  }
+  getQueueTransactions(status = '', page = 1, pageSize = 50): Observable<CenitSimplePage<CenitQueueRow>> {
+    const params: Record<string, string | number> = { page, pageSize };
+    if (status) {
+      params.status = status;
+    }
 
-  getDeferredTransactions(filter: ReturnRejectionReportFilter): Observable<CenitTraceabilityRow[]> {
-    return this.reportsApi.getReturns(filter).pipe(
-      map((response) => (response.items ?? []).map((row) => this.toTraceabilityRow(row)))
-    );
-  }
-
-  getOptimizationDecisions(): Observable<CenitSimplePage<CenitOptimizationDecisionRow>> {
     return this.api
-      .get<CenitSimplePage<CenitOptimizationDecisionRow>>('api/cenit/optimization-decisions')
+      .get<CenitSimplePage<CenitQueueRow>>('api/cenit/queues', { params })
+      .pipe(catchError(() => of({ items: [] })));
+  }
+
+  getDeferredTransactions(page = 1, pageSize = 50): Observable<CenitSimplePage<CenitQueueRow>> {
+    return this.getQueueTransactions('Queued', page, pageSize);
+  }
+
+  getOptimizationDecisions(decisionType = ''): Observable<CenitSimplePage<CenitOptimizationDecisionRow>> {
+    const params: Record<string, string> = {};
+    if (decisionType) {
+      params.decisionType = decisionType;
+    }
+
+    return this.api
+      .get<CenitSimplePage<CenitOptimizationDecisionRow>>('api/cenit/optimization-decisions', { params })
       .pipe(catchError(() => of({ items: [] })));
   }
 

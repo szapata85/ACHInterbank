@@ -72,6 +72,25 @@ export interface CenitTraceabilityRow {
   originalTraceRef: string;
 }
 
+export interface CenitQueueRow {
+  id: number;
+  status: string;
+  queueReason: string;
+  enqueuedAtUtc: string;
+  dequeuedAtUtc?: string | null;
+  targetAchCycleId: string;
+  targetCycleName: string;
+  originalAchCycleId?: string | null;
+  transactionId: number;
+  transactionExternalId?: string | null;
+  reference?: string | null;
+  amount: number;
+  transactionType: string;
+  transactionState: string;
+  effectiveEntryDate: string;
+  cenitCycleExecutionId?: number | null;
+}
+
 export interface CenitSimplePage<T> {
   items: T[];
 }
