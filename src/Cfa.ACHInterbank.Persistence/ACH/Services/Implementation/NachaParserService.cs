@@ -186,7 +186,7 @@ public class NachaParserService : INachaParserService
                         }
                         else if (!IsPaddingRecord(line))
                         {
-                            throw new InvalidOperationException("Error Fatal 64: los registros de relleno después del Registro Tipo 9 deben contener únicamente el carácter '9' en sus 106 posiciones.");
+                            throw new InvalidOperationException(GetRegulatoryError("D02", "Los registros de relleno después del Registro Tipo 9 deben contener únicamente el carácter '9' en sus 106 posiciones."));
                         }
                         break;
                 }
@@ -243,7 +243,7 @@ public class NachaParserService : INachaParserService
 
         if (!seenSequenceNumbers.Add(rawSequence))
         {
-            throw new InvalidOperationException($"Error Fatal ID 7: número de secuencia duplicado en el archivo ({rawSequence}).");
+            throw new InvalidOperationException(GetRegulatoryError("D04", $"Número de secuencia duplicado en el archivo ({rawSequence})."));
         }
 
         var originSegment = rawSequence[..8];
@@ -273,7 +273,7 @@ public class NachaParserService : INachaParserService
 
         if (lastConsecutiveByBatch.TryGetValue(batch.BatchNumber, out var previousConsecutive) && consecutiveValue <= previousConsecutive)
         {
-            throw new InvalidOperationException($"Error Fatal ID 7: la secuencia del lote no es ascendente. Anterior={previousConsecutive:0000000}, actual={consecutiveValue:0000000}.");
+            throw new InvalidOperationException(GetRegulatoryError("D04", $"La secuencia del lote no es ascendente. Anterior={previousConsecutive:0000000}, actual={consecutiveValue:0000000}."));
         }
 
         lastConsecutiveByBatch[batch.BatchNumber] = consecutiveValue;
@@ -286,11 +286,11 @@ public class NachaParserService : INachaParserService
 
         if (existsInPreviousCycle)
         {
-            throw new InvalidOperationException($"Error Fatal ID 7: número de secuencia duplicado para la fecha de proceso {processingDate:yyyy-MM-dd} ({rawSequence}).");
+            throw new InvalidOperationException(GetRegulatoryError("D01", $"Número de secuencia duplicado para la fecha de proceso {processingDate:yyyy-MM-dd} ({rawSequence})."));
         }
     }
 
-    private static void ValidateBatchSequenceAndControlConsistency(IEnumerable<BatchHeader> batchHeaders, IEnumerable<BatchControl> batchControls)
+    private void ValidateBatchSequenceAndControlConsistency(IEnumerable<BatchHeader> batchHeaders, IEnumerable<BatchControl> batchControls)
     {
         var headers = batchHeaders.ToList();
         var controls = batchControls.ToList();
@@ -328,7 +328,7 @@ public class NachaParserService : INachaParserService
         }
     }
 
-    private static void ValidateCurrentBatchControl(BatchHeader? header, BatchRuntimeMetrics? metrics, BatchControl control)
+    private void ValidateCurrentBatchControl(BatchHeader? header, BatchRuntimeMetrics? metrics, BatchControl control)
     {
         if (header is null || metrics is null)
         {
@@ -377,7 +377,7 @@ public class NachaParserService : INachaParserService
         }
     }
 
-    private static void ValidateFileControlConsistency(
+    private void ValidateFileControlConsistency(
         IEnumerable<BatchHeader> batchHeaders,
         IEnumerable<BatchControl> batchControls,
         IEnumerable<FileControl> fileControls,
@@ -394,12 +394,12 @@ public class NachaParserService : INachaParserService
         var controls = fileControls.ToList();
         if (controls.Count != 1)
         {
-            throw new InvalidOperationException("Error Fatal 58/59: el archivo debe contener exactamente un Registro Tipo 9 de control de archivo.");
+            throw new InvalidOperationException(GetRegulatoryError("D06", "El archivo debe contener exactamente un Registro Tipo 9 de control de archivo."));
         }
 
         if (fileControlLineIndex < 0)
         {
-            throw new InvalidOperationException("Error Fatal 58/59: no se pudo ubicar el Registro Tipo 9 dentro del archivo.");
+            throw new InvalidOperationException(GetRegulatoryError("D06", "No se pudo ubicar el Registro Tipo 9 dentro del archivo."));
         }
 
         var control = controls[0];
@@ -407,33 +407,33 @@ public class NachaParserService : INachaParserService
         var expectedBatchCount = headers.Count;
         if (fileMetrics.BatchCount != expectedBatchCount)
         {
-            throw new InvalidOperationException($"Error Fatal 58/59: la cantidad de lotes calculada durante el recorrido del archivo ({fileMetrics.BatchCount}) no coincide con los registros tipo 5 ({expectedBatchCount}).");
+            throw new InvalidOperationException(GetRegulatoryError("D04", $"La cantidad de lotes calculada durante el recorrido del archivo ({fileMetrics.BatchCount}) no coincide con los registros tipo 5 ({expectedBatchCount})."));
         }
 
         if (control.BatchCount != expectedBatchCount)
         {
-            throw new InvalidOperationException($"Error Fatal 58/59: la cantidad de lotes del Registro Tipo 9 ({control.BatchCount}) no coincide con la cantidad de registros tipo 5 ({expectedBatchCount}).");
+            throw new InvalidOperationException(GetRegulatoryError("D04", $"La cantidad de lotes del Registro Tipo 9 ({control.BatchCount}) no coincide con la cantidad de registros tipo 5 ({expectedBatchCount})."));
         }
 
         if (lines.Count % 10 != 0)
         {
-            throw new InvalidOperationException($"Error Fatal 58/59: el archivo debe ocupar un número entero de bloques de 10 registros y se recibieron {lines.Count} registros.");
+            throw new InvalidOperationException(GetRegulatoryError("D02", $"El archivo debe ocupar un número entero de bloques de 10 registros y se recibieron {lines.Count} registros."));
         }
 
         var expectedBlockCount = lines.Count / 10;
         if (control.BlockCount != expectedBlockCount)
         {
-            throw new InvalidOperationException($"Error Fatal 58/59: el número de bloques físicos del Registro Tipo 9 ({control.BlockCount}) no coincide con los bloques del archivo ({expectedBlockCount}).");
+            throw new InvalidOperationException(GetRegulatoryError("D04", $"El número de bloques físicos del Registro Tipo 9 ({control.BlockCount}) no coincide con los bloques del archivo ({expectedBlockCount})."));
         }
 
         if (control.EntryAddendaCount != fileMetrics.EntryAddendaCount)
         {
-            throw new InvalidOperationException($"Error Fatal 60: el conteo total de registros tipo 6 y 7 del archivo ({fileMetrics.EntryAddendaCount}) no coincide con el Registro Tipo 9 ({control.EntryAddendaCount}).");
+            throw new InvalidOperationException(GetRegulatoryError("D04", $"El conteo total de registros tipo 6 y 7 del archivo ({fileMetrics.EntryAddendaCount}) no coincide con el Registro Tipo 9 ({control.EntryAddendaCount})."));
         }
 
         if (control.EntryHash != fileMetrics.EntryHash)
         {
-            throw new InvalidOperationException($"Error Fatal 61: el Hash Total del archivo ({fileMetrics.EntryHash:0000000000}) no coincide con el Registro Tipo 9 ({control.EntryHash:0000000000}).");
+            throw new InvalidOperationException(GetRegulatoryError("D05", $"El Hash Total del archivo ({fileMetrics.EntryHash:0000000000}) no coincide con el Registro Tipo 9 ({control.EntryHash:0000000000})."));
         }
 
         if (control.TotalDebitAmount != fileMetrics.TotalDebitAmount)
@@ -455,27 +455,27 @@ public class NachaParserService : INachaParserService
         {
             if (!IsPaddingRecord(lines[index]))
             {
-                throw new InvalidOperationException("Error Fatal 64: los registros de relleno posteriores al Registro Tipo 9 deben contener únicamente el carácter '9' en sus 106 posiciones.");
+                throw new InvalidOperationException(GetRegulatoryError("D02", "Los registros de relleno posteriores al Registro Tipo 9 deben contener únicamente el carácter '9' en sus 106 posiciones."));
             }
         }
 
         var aggregatedBatchCount = batchControlList.Count;
         if (aggregatedBatchCount != control.BatchCount)
         {
-            throw new InvalidOperationException($"Error Fatal 58/59: la cantidad de registros tipo 8 ({aggregatedBatchCount}) no coincide con la cantidad de lotes reportada en el Registro Tipo 9 ({control.BatchCount}).");
+            throw new InvalidOperationException(GetRegulatoryError("D04", $"La cantidad de registros tipo 8 ({aggregatedBatchCount}) no coincide con la cantidad de lotes reportada en el Registro Tipo 9 ({control.BatchCount})."));
         }
 
         var aggregatedEntryAddendaCount = batchControlList.Sum(batchControl => batchControl.EntryAddendaCount ?? 0);
         if (aggregatedEntryAddendaCount != control.EntryAddendaCount)
         {
-            throw new InvalidOperationException($"Error Fatal 60: la sumatoria de conteos de los registros tipo 8 ({aggregatedEntryAddendaCount}) no coincide con el Registro Tipo 9 ({control.EntryAddendaCount}).");
+            throw new InvalidOperationException(GetRegulatoryError("D04", $"La sumatoria de conteos de los registros tipo 8 ({aggregatedEntryAddendaCount}) no coincide con el Registro Tipo 9 ({control.EntryAddendaCount})."));
         }
 
         const long maxHash = 10_000_000_000L;
         var aggregatedHash = batchControlList.Aggregate(0L, (current, batchControl) => (current + (batchControl.EntryHash ?? 0)) % maxHash);
         if (aggregatedHash != control.EntryHash)
         {
-            throw new InvalidOperationException($"Error Fatal 61: la sumatoria de hashes de los registros tipo 8 ({aggregatedHash:0000000000}) no coincide con el Registro Tipo 9 ({control.EntryHash:0000000000}).");
+            throw new InvalidOperationException(GetRegulatoryError("D05", $"La sumatoria de hashes de los registros tipo 8 ({aggregatedHash:0000000000}) no coincide con el Registro Tipo 9 ({control.EntryHash:0000000000})."));
         }
 
         var aggregatedDebit = batchControlList.Sum(batchControl => batchControl.TotalDebitAmount);
@@ -693,7 +693,7 @@ public class NachaParserService : INachaParserService
         }).ToList();
     }
 
-    private static void UpdateBatchMetricsForEntry(BatchRuntimeMetrics? metrics, EntryDetail entry)
+    private void UpdateBatchMetricsForEntry(BatchRuntimeMetrics? metrics, EntryDetail entry)
     {
         if (metrics is null)
         {

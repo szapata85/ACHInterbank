@@ -9,8 +9,12 @@ using System.Text;
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
-public class AchReturnsService(AchDbContext context, TimeProvider? timeProvider = null) : IAchReturnsService
+public class AchReturnsService(
+    AchDbContext context,
+    TimeProvider? timeProvider = null,
+    IAchRegulatoryCatalogService? regulatoryCatalogService = null) : IAchReturnsService
 {
+    private readonly IAchRegulatoryCatalogService? _regulatoryCatalogService = regulatoryCatalogService;
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
     private const int MaxCyclesForReturn = 4;
     private const string ImmediateDestinationAchColombia = "000101006";
@@ -24,15 +28,6 @@ public class AchReturnsService(AchDbContext context, TimeProvider? timeProvider 
     {
         "26", "27", "28", "36", "37", "38", "55", "56", "57"
     };
-    private static readonly IReadOnlyDictionary<string, int> ReturnReasonMaxDays = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
-    {
-        ["DEV14"] = 60,
-        ["R07"] = 5,
-        ["R10"] = 5,
-        ["R13"] = 5,
-        ["R29"] = 5
-    };
-
     public async Task<IReadOnlyList<ReturnEligibleTransactionDto>> GetTransactionsByCycleAsync(string cycleId, CancellationToken ct = default)
     {
         var cycle = await context.AchCycles.AsNoTracking().FirstOrDefaultAsync(c => c.Id == cycleId, ct)
@@ -168,7 +163,7 @@ public class AchReturnsService(AchDbContext context, TimeProvider? timeProvider 
                 throw new InvalidOperationException($"La causal {item.ReturnReasonCode} no es válida para devolución ACH.");
             }
 
-            ValidateReturnWindow(tx, reason.Code, now);
+            await ValidateReturnPolicyAsync(tx, reason.Code, now, ct);
 
             var amount = tx.IsPrenotification ? 0m : tx.Amount;
             var newSequence = await GenerateNewReturnSequenceAsync(tx.ReceivingDFI, now.Date, ct);
@@ -283,17 +278,37 @@ public class AchReturnsService(AchDbContext context, TimeProvider? timeProvider 
     }
 
 
-    private static void ValidateReturnWindow(AchTransaction transaction, string reasonCode, DateTime nowUtc)
+    private async Task ValidateReturnPolicyAsync(AchTransaction transaction, string reasonCode, DateTime nowUtc, CancellationToken ct)
     {
-        if (!ReturnReasonMaxDays.TryGetValue(reasonCode, out var maxDays))
+        if (_regulatoryCatalogService is null)
         {
             return;
         }
 
-        var elapsedDays = (nowUtc.Date - transaction.EffectiveEntryDate.Date).TotalDays;
-        if (elapsedDays > maxDays)
+        var returnCodeValidation = await _regulatoryCatalogService.ValidateReturnCodeAsync(
+            reasonCode,
+            transaction.Type,
+            transaction.EffectiveEntryDate.Date,
+            nowUtc.Date,
+            ct);
+        if (!returnCodeValidation.IsAllowed)
         {
-            throw new InvalidOperationException($"La causal {reasonCode} excede la ventana máxima de {maxDays} días para la transacción {transaction.Id}.");
+            throw new InvalidOperationException(returnCodeValidation.Reason
+                                                ?? $"La causal {reasonCode} no está permitida para la transacción {transaction.Id}.");
+        }
+
+        var returnPolicyValidation = await _regulatoryCatalogService.ValidateReturnPolicyAsync(
+            transaction.Type,
+            reasonCode,
+            transaction.EffectiveEntryDate.Date,
+            nowUtc.Date,
+            hasAddenda: true,
+            transaction.State.ToString(),
+            ct);
+        if (!returnPolicyValidation.IsAllowed)
+        {
+            throw new InvalidOperationException(returnPolicyValidation.Reason
+                                                ?? $"La política regulatoria no permite devolver la transacción {transaction.Id}.");
         }
     }
 

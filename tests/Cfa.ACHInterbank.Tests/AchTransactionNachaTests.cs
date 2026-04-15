@@ -584,6 +584,66 @@ public class AchTransactionNachaTests
     }
 
     [Fact]
+    public async Task GenerateReturnsFileAsync_WhenCatalogPolicyRejectsReason_ThrowsRegulatoryMessage()
+    {
+        using var connection = CreateOpenConnection();
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+
+        using (var arrangeContext = CreateContext(connection))
+        {
+            SeedCoreEntities(arrangeContext);
+            SeedNachaLayouts(arrangeContext);
+
+            var cycle = await arrangeContext.AchCycles.SingleAsync(c => c.Id == cycleId);
+            arrangeContext.AchTransactions.Add(new AchTransaction
+            {
+                Amount = 100m,
+                Reference = "PAGO-REG-CAT",
+                Type = TransactionTypeEnum.Credit,
+                TransactionCode = "22",
+                OriginatingDFI = "12345678",
+                ReceivingDFI = "76543210",
+                TraceNumber = "123456780001111",
+                TraceSequenceNumber = 1111,
+                EffectiveEntryDate = cycle.ProcessingDate,
+                AddendaRecordIndicator = true,
+                CompanyName = "Empresa Demo",
+                CompanyIdentification = "123456780",
+                SourceAccountNumber = "111122223333",
+                DestinationAccountNumber = "999988887777",
+                AchCycleId = cycle.Id,
+                SourceInstitutionId = 1,
+                DestinationInstitutionId = 2
+            });
+            arrangeContext.ReturnReasons.Add(new ReturnReason
+            {
+                Id = 1100,
+                Code = "R01",
+                Description = "Fondos insuficientes",
+                Category = "R",
+                IsForReturn = true
+            });
+
+            await arrangeContext.SaveChangesAsync();
+        }
+
+        using var executionContext = CreateContext(connection);
+        var persistedTransactionId = await executionContext.AchTransactions.Select(t => t.Id).SingleAsync();
+        var catalog = new Mock<IAchRegulatoryCatalogService>();
+        catalog
+            .Setup(x => x.ValidateReturnCodeAsync("R01", TransactionTypeEnum.Credit, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, "La causal R01 no está permitida para Credit."));
+
+        var service = new AchReturnsService(executionContext, regulatoryCatalogService: catalog.Object);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GenerateReturnsFileAsync(
+            new GenerateReturnsFileRequest(cycleId, [new ReturnSelectionItemDto(persistedTransactionId, "R01")]),
+            CancellationToken.None));
+
+        Assert.Contains("R01 no está permitida", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task ParseAndSaveAsync_WhenBatchControlCountDoesNotMatch_ThrowsFatal51()
     {
         using var connection = CreateOpenConnection();
@@ -599,7 +659,7 @@ public class AchTransactionNachaTests
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => parser.ParseAndSaveAsync(stream, "fatal51.ach", CancellationToken.None));
 
-        Assert.Contains("Error Fatal 51", ex.Message);
+        Assert.Contains("D04", ex.Message);
     }
 
     [Fact]
@@ -618,7 +678,7 @@ public class AchTransactionNachaTests
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => parser.ParseAndSaveAsync(stream, "fatal52.ach", CancellationToken.None));
 
-        Assert.Contains("Error Fatal 52", ex.Message);
+        Assert.Contains("D05", ex.Message);
     }
 
     [Fact]
@@ -656,7 +716,7 @@ public class AchTransactionNachaTests
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => parser.ParseAndSaveAsync(stream, "fatal60.ach", CancellationToken.None));
 
-        Assert.Contains("Error Fatal 60", ex.Message);
+        Assert.Contains("D04", ex.Message);
     }
 
     [Fact]
@@ -674,7 +734,7 @@ public class AchTransactionNachaTests
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => parser.ParseAndSaveAsync(stream, "fatal64.ach", CancellationToken.None));
 
-        Assert.Contains("Error Fatal 64", ex.Message);
+        Assert.Contains("D02", ex.Message);
     }
 
     private static SqliteConnection CreateOpenConnection()
