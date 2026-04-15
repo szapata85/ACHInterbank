@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -29,7 +30,7 @@ public class CenitOperationsController : ControllerBase
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var query = _dbContext.CenitCycleQueues
+        var query = _dbContext.Set<CenitCycleQueue>()
             .AsNoTracking()
             .Include(x => x.AchTransaction)
             .Include(x => x.TargetAchCycle)
@@ -86,7 +87,7 @@ public class CenitOperationsController : ControllerBase
         pageSize = Math.Clamp(pageSize, 1, 200);
 
         var latestExecutionId = cenitCycleExecutionId
-            ?? await _dbContext.CenitCycleExecutions
+            ?? await _dbContext.Set<CenitCycleExecution>()
                 .AsNoTracking()
                 .OrderByDescending(x => x.ExecutedAtUtc)
                 .Select(x => (long?)x.Id)
@@ -97,7 +98,7 @@ public class CenitOperationsController : ControllerBase
             return Ok(new { items = Array.Empty<object>(), total = 0, page, pageSize, cenitCycleExecutionId = (long?)null });
         }
 
-        var query = _dbContext.CenitNetPositions
+        var query = _dbContext.Set<CenitNetPosition>()
             .AsNoTracking()
             .Include(x => x.FinancialInstitution)
             .Where(x => x.CenitNettingExecution.CenitCycleExecutionId == latestExecutionId.Value);
@@ -138,7 +139,7 @@ public class CenitOperationsController : ControllerBase
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var query = _dbContext.LiquidityOptimizationDecisions
+        var query = _dbContext.Set<LiquidityOptimizationDecision>()
             .AsNoTracking()
             .Include(x => x.AchTransaction)
             .AsQueryable();
@@ -194,13 +195,13 @@ public class CenitOperationsController : ControllerBase
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var returnCodeDescriptions = await _dbContext.AchReturnCodes
+        var returnCodeDescriptions = await _dbContext.Set<AchReturnCode>()
             .AsNoTracking()
             .Where(x => x.IsActive)
             .Select(x => new { x.Code, x.Description })
             .ToDictionaryAsync(x => NormalizeCode(x.Code), x => x.Description, ct);
 
-        var rejectionCodeDescriptions = await _dbContext.AchFileRejectionCodes
+        var rejectionCodeDescriptions = await _dbContext.Set<AchFileRejectionCode>()
             .AsNoTracking()
             .Where(x => x.IsActive)
             .Select(x => new { x.Code, x.Description })
@@ -245,12 +246,12 @@ public class CenitOperationsController : ControllerBase
                 x.ContrapartidasResponseCode,
                 x.OriginalTraceRef,
                 x.StateChangedAtUtc,
-                DecisionType = _dbContext.LiquidityOptimizationDecisions
+                DecisionType = _dbContext.Set<LiquidityOptimizationDecision>()
                     .Where(d => d.AchTransactionId == x.Id)
                     .OrderByDescending(d => d.DecidedAtUtc)
                     .Select(d => d.DecisionType)
                     .FirstOrDefault(),
-                SourceFileReference = _dbContext.LiquidityOptimizationDecisions
+                SourceFileReference = _dbContext.Set<LiquidityOptimizationDecision>()
                     .Where(d => d.AchTransactionId == x.Id)
                     .OrderByDescending(d => d.DecidedAtUtc)
                     .Select(d => d.SourceFileReference)

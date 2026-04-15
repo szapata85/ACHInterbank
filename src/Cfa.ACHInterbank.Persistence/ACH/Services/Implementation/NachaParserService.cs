@@ -1179,10 +1179,11 @@ public class NachaParserService : INachaParserService
 
             if (_catalogService is not null)
             {
+                var processingDate = ResolveNachaFileDate(entry.NachaHeader?.FileCreationDate) ?? DateTime.UtcNow.Date;
                 var rule = await _catalogService.ValidateReturnCodeAsync(
                     reasonCode,
                     TransactionTypeEnum.Return,
-                    entry.EffectiveEntryDate ?? DateTime.UtcNow.Date,
+                    processingDate,
                     DateTime.UtcNow.Date,
                     ct);
                 if (!rule.IsAllowed)
@@ -1232,6 +1233,20 @@ public class NachaParserService : INachaParserService
                     transaction.Id,
                     originalTraceRef);
             }
+        }
+
+        static DateTime? ResolveNachaFileDate(string? rawDate)
+        {
+            if (string.IsNullOrWhiteSpace(rawDate))
+            {
+                return null;
+            }
+
+            var value = rawDate.Trim();
+            var formats = new[] { "yyMMdd", "yyyyMMdd" };
+            return DateTime.TryParseExact(value, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+                ? parsed.Date
+                : null;
         }
     }
 
