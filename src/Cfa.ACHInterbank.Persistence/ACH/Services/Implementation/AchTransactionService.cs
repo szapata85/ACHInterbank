@@ -24,6 +24,7 @@ public class AchTransactionService : IAchTransactionService
     private readonly IPrenotificationHandler _prenotificationHandler;
     private readonly ITransactionPolicyService? _transactionPolicyService;
     private readonly IContrapartidaDispatchPersistenceService _contrapartidaDispatchPersistenceService;
+    private readonly ICenitCycleQueueService? _cenitCycleQueueService;
 
     public AchTransactionService(
         AchDbContext context,
@@ -35,6 +36,7 @@ public class AchTransactionService : IAchTransactionService
         ITransactionPersister transactionPersister,
         IPrenotificationHandler prenotificationHandler,
         IContrapartidaDispatchPersistenceService contrapartidaDispatchPersistenceService,
+        ICenitCycleQueueService? cenitCycleQueueService = null,
         ITransactionPolicyService? transactionPolicyService = null)
     {
         _context = context;
@@ -46,6 +48,7 @@ public class AchTransactionService : IAchTransactionService
         _transactionPersister = transactionPersister;
         _prenotificationHandler = prenotificationHandler;
         _contrapartidaDispatchPersistenceService = contrapartidaDispatchPersistenceService;
+        _cenitCycleQueueService = cenitCycleQueueService;
         _transactionPolicyService = transactionPolicyService;
     }
 
@@ -125,6 +128,15 @@ public class AchTransactionService : IAchTransactionService
 
             var batchContext = await _batchResolver.ResolveAsync(request, ct);
             var persisted = await _transactionPersister.PersistAsync(request, batchContext, ct);
+
+            if (batchContext.MustQueueForTargetCycle && _cenitCycleQueueService is not null)
+            {
+                await _cenitCycleQueueService.EnqueueAsync(
+                    persisted.Transaction,
+                    DateTime.UtcNow,
+                    batchContext.QueueReason,
+                    ct);
+            }
 
             if (isPrenotification)
             {

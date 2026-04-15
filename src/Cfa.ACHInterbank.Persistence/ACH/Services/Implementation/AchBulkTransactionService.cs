@@ -26,6 +26,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
     private readonly ITransactionPolicyService? _transactionPolicyService;
     private readonly IConfiguration _configuration;
     private readonly IContrapartidaDispatchPersistenceService _contrapartidaDispatchPersistenceService;
+    private readonly ICenitCycleQueueService? _cenitCycleQueueService;
 
     public AchBulkTransactionService(
         AchDbContext context,
@@ -37,6 +38,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
         IPrenotificationHandler prenotificationHandler,
         IConfiguration configuration,
         IContrapartidaDispatchPersistenceService contrapartidaDispatchPersistenceService,
+        ICenitCycleQueueService? cenitCycleQueueService = null,
         ITransactionPolicyService? transactionPolicyService = null)
     {
         _context = context;
@@ -48,6 +50,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
         _prenotificationHandler = prenotificationHandler;
         _configuration = configuration;
         _contrapartidaDispatchPersistenceService = contrapartidaDispatchPersistenceService;
+        _cenitCycleQueueService = cenitCycleQueueService;
         _transactionPolicyService = transactionPolicyService;
     }
 
@@ -138,6 +141,15 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
 
                     var batchContext = await _batchResolver.ResolveAsync(record.Data, ct);
                     var persisted = await _transactionPersister.PersistAsync(record.Data, batchContext, ct);
+
+                    if (batchContext.MustQueueForTargetCycle && _cenitCycleQueueService is not null)
+                    {
+                        await _cenitCycleQueueService.EnqueueAsync(
+                            persisted.Transaction,
+                            DateTime.UtcNow,
+                            batchContext.QueueReason,
+                            ct);
+                    }
 
                     if (record.Data.IsPrenotification)
                     {

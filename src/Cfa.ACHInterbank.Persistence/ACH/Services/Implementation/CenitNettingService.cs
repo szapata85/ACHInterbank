@@ -18,6 +18,17 @@ public class CenitNettingService : ICenitNettingService
 
     public async Task<CenitNettingExecution> CalculateAsync(CenitCycleExecution execution, CancellationToken ct)
     {
+        var cycle = await _context.AchCycles
+            .AsNoTracking()
+            .Include(x => x.ClearingHouse)
+            .FirstAsync(x => x.Id == execution.AchCycleId, ct);
+        var sourceFileReference = await _context.AchFileExports
+            .AsNoTracking()
+            .Where(x => x.AchCycleId == execution.AchCycleId)
+            .OrderByDescending(x => x.GeneratedAtUtc)
+            .Select(x => x.FileName)
+            .FirstOrDefaultAsync(ct) ?? string.Empty;
+
         var txs = await _context.AchTransactions
             .AsNoTracking()
             .Where(x => x.AchCycleId == execution.AchCycleId)
@@ -44,6 +55,9 @@ public class CenitNettingService : ICenitNettingService
                 DebitAmount = g.Sum(x => x.Debit),
                 CreditAmount = g.Sum(x => x.Credit),
                 NetAmount = g.Sum(x => x.Credit) - g.Sum(x => x.Debit),
+                ExternalLiquidity = null,
+                SimulatedLiquidity = g.Sum(x => x.Credit),
+                LiquiditySourceType = "Simulated",
                 AvailableLiquidity = g.Sum(x => x.Credit),
                 HasInsufficientFunds = g.Sum(x => x.Credit) - g.Sum(x => x.Debit) < 0
             })
@@ -54,6 +68,11 @@ public class CenitNettingService : ICenitNettingService
             AchTransactionId = tx.Id,
             SourceInstitutionId = tx.SourceInstitutionId,
             DestinationInstitutionId = tx.DestinationInstitutionId,
+            AchBatchId = tx.AchBatchId,
+            ValueDate = tx.EffectiveEntryDate.Date,
+            ClearingHouseId = cycle.ClearingHouseId,
+            ClearingHouseCode = cycle.ClearingHouse?.Code ?? string.Empty,
+            SourceFileReference = sourceFileReference,
             Amount = tx.Amount,
             IncludedInSettlement = true,
             DecisionReason = "IncludedInMultilateralNetting"

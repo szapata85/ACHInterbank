@@ -122,3 +122,26 @@ CREATE TABLE dbo.ReturnOfReturnFlows (
     CONSTRAINT FK_ReturnOfReturnFlows_Execution FOREIGN KEY (CenitCycleExecutionId) REFERENCES dbo.CenitCycleExecutions(Id)
 );
 END
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ReturnOfReturnFlows_SourceReturnTransactionId' AND object_id = OBJECT_ID('dbo.ReturnOfReturnFlows'))
+    CREATE UNIQUE INDEX IX_ReturnOfReturnFlows_SourceReturnTransactionId ON dbo.ReturnOfReturnFlows (SourceReturnTransactionId);
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ReturnOfReturnFlows_ReturnOfReturnTransactionId' AND object_id = OBJECT_ID('dbo.ReturnOfReturnFlows'))
+    CREATE UNIQUE INDEX IX_ReturnOfReturnFlows_ReturnOfReturnTransactionId ON dbo.ReturnOfReturnFlows (ReturnOfReturnTransactionId);
+
+IF COL_LENGTH('dbo.CenitNetPositions', 'ExternalLiquidity') IS NULL ALTER TABLE dbo.CenitNetPositions ADD ExternalLiquidity decimal(18,2) NULL;
+IF COL_LENGTH('dbo.CenitNetPositions', 'SimulatedLiquidity') IS NULL ALTER TABLE dbo.CenitNetPositions ADD SimulatedLiquidity decimal(18,2) NOT NULL CONSTRAINT DF_CenitNetPositions_SimulatedLiquidity DEFAULT 0;
+IF COL_LENGTH('dbo.CenitNetPositions', 'LiquiditySourceType') IS NULL ALTER TABLE dbo.CenitNetPositions ADD LiquiditySourceType varchar(20) NOT NULL CONSTRAINT DF_CenitNetPositions_LiquiditySourceType DEFAULT 'Simulated';
+
+IF COL_LENGTH('dbo.CenitNettingDetails', 'AchBatchId') IS NULL ALTER TABLE dbo.CenitNettingDetails ADD AchBatchId int NOT NULL CONSTRAINT DF_CenitNettingDetails_AchBatchId DEFAULT 0;
+IF COL_LENGTH('dbo.CenitNettingDetails', 'ValueDate') IS NULL ALTER TABLE dbo.CenitNettingDetails ADD ValueDate datetime2 NOT NULL CONSTRAINT DF_CenitNettingDetails_ValueDate DEFAULT SYSUTCDATETIME();
+IF COL_LENGTH('dbo.CenitNettingDetails', 'ClearingHouseId') IS NULL ALTER TABLE dbo.CenitNettingDetails ADD ClearingHouseId int NOT NULL CONSTRAINT DF_CenitNettingDetails_ClearingHouseId DEFAULT 0;
+IF COL_LENGTH('dbo.CenitNettingDetails', 'ClearingHouseCode') IS NULL ALTER TABLE dbo.CenitNettingDetails ADD ClearingHouseCode varchar(16) NOT NULL CONSTRAINT DF_CenitNettingDetails_ClearingHouseCode DEFAULT '';
+IF COL_LENGTH('dbo.CenitNettingDetails', 'SourceFileReference') IS NULL ALTER TABLE dbo.CenitNettingDetails ADD SourceFileReference varchar(120) NOT NULL CONSTRAINT DF_CenitNettingDetails_SourceFileReference DEFAULT '';
+
+IF COL_LENGTH('dbo.LiquidityOptimizationDecisions', 'AchBatchId') IS NULL ALTER TABLE dbo.LiquidityOptimizationDecisions ADD AchBatchId int NOT NULL CONSTRAINT DF_LiquidityOptimizationDecisions_AchBatchId DEFAULT 0;
+IF COL_LENGTH('dbo.LiquidityOptimizationDecisions', 'ValueDate') IS NULL ALTER TABLE dbo.LiquidityOptimizationDecisions ADD ValueDate datetime2 NOT NULL CONSTRAINT DF_LiquidityOptimizationDecisions_ValueDate DEFAULT SYSUTCDATETIME();
+IF COL_LENGTH('dbo.LiquidityOptimizationDecisions', 'ClearingHouseId') IS NULL ALTER TABLE dbo.LiquidityOptimizationDecisions ADD ClearingHouseId int NOT NULL CONSTRAINT DF_LiquidityOptimizationDecisions_ClearingHouseId DEFAULT 0;
+IF COL_LENGTH('dbo.LiquidityOptimizationDecisions', 'ClearingHouseCode') IS NULL ALTER TABLE dbo.LiquidityOptimizationDecisions ADD ClearingHouseCode varchar(16) NOT NULL CONSTRAINT DF_LiquidityOptimizationDecisions_ClearingHouseCode DEFAULT '';
+IF COL_LENGTH('dbo.LiquidityOptimizationDecisions', 'SourceFileReference') IS NULL ALTER TABLE dbo.LiquidityOptimizationDecisions ADD SourceFileReference varchar(120) NOT NULL CONSTRAINT DF_LiquidityOptimizationDecisions_SourceFileReference DEFAULT '';
+IF COL_LENGTH('dbo.LiquidityOptimizationDecisions', 'LiquidityModelUsed') IS NULL ALTER TABLE dbo.LiquidityOptimizationDecisions ADD LiquidityModelUsed varchar(20) NOT NULL CONSTRAINT DF_LiquidityOptimizationDecisions_LiquidityModelUsed DEFAULT 'Simulated';

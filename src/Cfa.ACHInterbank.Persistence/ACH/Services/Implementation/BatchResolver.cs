@@ -95,11 +95,19 @@ public class BatchResolver : IBatchResolver
         string achCycleId = await _routing.ResolveClearingHouseForTransactionAsync(request.DestinationInstitutionId, now, ct);
         var cycle = await _context.AchCycles
             .AsNoTracking()
+            .Include(c => c.ClearingHouse)
             .FirstOrDefaultAsync(c => c.Id == achCycleId, ct)
             ?? throw new InvalidOperationException("No se encontró el ciclo ACH para la transacción.");
         DateTime effectiveEntryDate = cycle.ProcessingDate.Date;
 
-        EnsureCycleIsOpenForTransactions(cycle, now);
+        var (windowStart, windowEnd) = BuildCycleWindow(cycle.ProcessingDate, cycle.StartTime, cycle.EndTime);
+        bool isOutsideWindow = now < windowStart || now > windowEnd;
+        var isCenit = string.Equals(cycle.ClearingHouse?.Code, "CENIT", StringComparison.OrdinalIgnoreCase);
+
+        if (isOutsideWindow && !isCenit)
+        {
+            EnsureCycleIsOpenForTransactions(cycle, now);
+        }
 
         if (request.Type == TransactionTypeEnum.Debit && IsCycleFive(cycle.CycleName))
         {
@@ -156,7 +164,11 @@ public class BatchResolver : IBatchResolver
             ServiceClassCode = "200",
             SourceInstitutionId = source.Id,
             DestinationInstitutionId = dest.Id,
-            ClearingHouseId = cycle.ClearingHouseId
+            ClearingHouseId = cycle.ClearingHouseId,
+            MustQueueForTargetCycle = isCenit && isOutsideWindow,
+            QueueReason = isCenit && isOutsideWindow
+                ? "OutsideOperatingWindowRoutedToNextCycle"
+                : string.Empty
         };
     }
 

@@ -18,4 +18,6 @@ public record TransactionBatchContext
     public int SourceInstitutionId { get; init; }
     public int DestinationInstitutionId { get; init; }
     public int ClearingHouseId { get; init; }
+    public bool MustQueueForTargetCycle { get; init; }
+    public string QueueReason { get; init; } = string.Empty;
 }

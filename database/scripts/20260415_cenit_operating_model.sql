@@ -101,3 +101,25 @@ CREATE TABLE IF NOT EXISTS "ReturnOfReturnFlows" (
     CONSTRAINT "FK_ReturnOfReturnFlows_Return" FOREIGN KEY ("ReturnOfReturnTransactionId") REFERENCES "AchTransactions" ("Id") ON DELETE RESTRICT,
     CONSTRAINT "FK_ReturnOfReturnFlows_CenitCycleExecutions" FOREIGN KEY ("CenitCycleExecutionId") REFERENCES "CenitCycleExecutions" ("Id") ON DELETE SET NULL
 );
+CREATE UNIQUE INDEX IF NOT EXISTS "IX_ReturnOfReturnFlows_SourceReturnTransactionId" ON "ReturnOfReturnFlows" ("SourceReturnTransactionId");
+CREATE UNIQUE INDEX IF NOT EXISTS "IX_ReturnOfReturnFlows_ReturnOfReturnTransactionId" ON "ReturnOfReturnFlows" ("ReturnOfReturnTransactionId");
+
+ALTER TABLE "CenitNetPositions"
+    ADD COLUMN IF NOT EXISTS "ExternalLiquidity" numeric(18,2) NULL,
+    ADD COLUMN IF NOT EXISTS "SimulatedLiquidity" numeric(18,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "LiquiditySourceType" varchar(20) NOT NULL DEFAULT 'Simulated';
+
+ALTER TABLE "CenitNettingDetails"
+    ADD COLUMN IF NOT EXISTS "AchBatchId" integer NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "ValueDate" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    ADD COLUMN IF NOT EXISTS "ClearingHouseId" integer NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "ClearingHouseCode" varchar(16) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS "SourceFileReference" varchar(120) NOT NULL DEFAULT '';
+
+ALTER TABLE "LiquidityOptimizationDecisions"
+    ADD COLUMN IF NOT EXISTS "AchBatchId" integer NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "ValueDate" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
+    ADD COLUMN IF NOT EXISTS "ClearingHouseId" integer NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "ClearingHouseCode" varchar(16) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS "SourceFileReference" varchar(120) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS "LiquidityModelUsed" varchar(20) NOT NULL DEFAULT 'Simulated';

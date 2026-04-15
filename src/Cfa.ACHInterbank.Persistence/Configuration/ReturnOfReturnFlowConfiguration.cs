@@ -12,6 +12,8 @@ public class ReturnOfReturnFlowConfiguration : IEntityTypeConfiguration<ReturnOf
         builder.HasKey(x => x.Id);
         builder.Property(x => x.ReasonCode).HasMaxLength(20).IsRequired();
         builder.Property(x => x.Status).HasMaxLength(30).IsRequired();
+        builder.HasIndex(x => x.SourceReturnTransactionId).IsUnique();
+        builder.HasIndex(x => x.ReturnOfReturnTransactionId).IsUnique();
 
         builder.HasOne(x => x.SourceReturnTransaction)
             .WithMany()

@@ -12,6 +12,9 @@ public class LiquidityOptimizationDecisionConfiguration : IEntityTypeConfigurati
         builder.HasKey(x => x.Id);
         builder.Property(x => x.DecisionType).HasMaxLength(30).IsRequired();
         builder.Property(x => x.DecisionReason).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.ClearingHouseCode).HasMaxLength(16).IsRequired();
+        builder.Property(x => x.SourceFileReference).HasMaxLength(120);
+        builder.Property(x => x.LiquidityModelUsed).HasMaxLength(20).IsRequired();
         builder.Property(x => x.FromCycleId).HasMaxLength(40).IsRequired();
         builder.Property(x => x.ToCycleId).HasMaxLength(40);
         builder.HasIndex(x => new { x.CenitCycleExecutionId, x.DecisionType });

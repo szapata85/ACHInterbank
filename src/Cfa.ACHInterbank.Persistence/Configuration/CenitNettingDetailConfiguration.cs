@@ -12,6 +12,8 @@ public class CenitNettingDetailConfiguration : IEntityTypeConfiguration<CenitNet
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Amount).HasPrecision(18, 2);
         builder.Property(x => x.DecisionReason).HasMaxLength(150).IsRequired();
+        builder.Property(x => x.ClearingHouseCode).HasMaxLength(16).IsRequired();
+        builder.Property(x => x.SourceFileReference).HasMaxLength(120);
 
         builder.HasOne(x => x.CenitNettingExecution)
             .WithMany(x => x.Details)

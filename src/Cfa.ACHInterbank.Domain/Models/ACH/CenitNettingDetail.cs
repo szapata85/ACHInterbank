@@ -13,6 +13,11 @@ public class CenitNettingDetail : AuditableEntity
 
     public int SourceInstitutionId { get; set; }
     public int DestinationInstitutionId { get; set; }
+    public int AchBatchId { get; set; }
+    public DateTime ValueDate { get; set; }
+    public int ClearingHouseId { get; set; }
+    public string ClearingHouseCode { get; set; } = string.Empty;
+    public string SourceFileReference { get; set; } = string.Empty;
 
     public decimal Amount { get; set; }
     public bool IncludedInSettlement { get; set; }

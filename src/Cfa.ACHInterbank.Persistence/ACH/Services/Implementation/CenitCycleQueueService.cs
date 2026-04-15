@@ -25,6 +25,13 @@ public class CenitCycleQueueService : ICenitCycleQueueService
             .Select(x => x.ClearingHouseId)
             .FirstAsync(ct);
         var targetCycle = await _calendarPolicy.ResolveTargetCycleAsync(clearingHouseId, receivedAtUtc, ct);
+        var existing = await _context.CenitCycleQueues
+            .FirstOrDefaultAsync(x => x.AchTransactionId == transaction.Id && x.Status == "Queued", ct);
+        if (existing is not null)
+        {
+            return existing;
+        }
+
         var queue = new CenitCycleQueue
         {
             AchTransactionId = transaction.Id,

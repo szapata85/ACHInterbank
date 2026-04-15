@@ -13,6 +13,9 @@ public class CenitNetPositionConfiguration : IEntityTypeConfiguration<CenitNetPo
         builder.Property(x => x.DebitAmount).HasPrecision(18, 2);
         builder.Property(x => x.CreditAmount).HasPrecision(18, 2);
         builder.Property(x => x.NetAmount).HasPrecision(18, 2);
+        builder.Property(x => x.ExternalLiquidity).HasPrecision(18, 2);
+        builder.Property(x => x.SimulatedLiquidity).HasPrecision(18, 2);
+        builder.Property(x => x.LiquiditySourceType).HasMaxLength(20).IsRequired();
         builder.Property(x => x.AvailableLiquidity).HasPrecision(18, 2);
         builder.HasIndex(x => new { x.CenitNettingExecutionId, x.FinancialInstitutionId }).IsUnique();
 
