@@ -195,27 +195,35 @@ public class CenitOperationsController : ControllerBase
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var returnCodeDescriptions = await _dbContext.Set<AchReturnCode>()
+        var returnCodeRows = await _dbContext.Set<AchReturnCode>()
             .AsNoTracking()
             .Where(x => x.IsActive)
-            .Select(x => new
-            {
-                Code = NormalizeCode(x.Code),
-                Description = x.Description ?? string.Empty
-            })
-            .Where(x => x.Code is not null)
-            .ToDictionaryAsync(x => x.Code!, x => x.Description, ct);
+            .Select(x => new { x.Code, x.Description })
+            .ToListAsync(ct);
 
-        var rejectionCodeDescriptions = await _dbContext.Set<AchFileRejectionCode>()
-            .AsNoTracking()
-            .Where(x => x.IsActive)
+        var returnCodeDescriptions = returnCodeRows
             .Select(x => new
             {
                 Code = NormalizeCode(x.Code),
                 Description = x.Description ?? string.Empty
             })
             .Where(x => x.Code is not null)
-            .ToDictionaryAsync(x => x.Code!, x => x.Description, ct);
+            .ToDictionary(x => x.Code!, x => x.Description, StringComparer.OrdinalIgnoreCase);
+
+        var rejectionCodeRows = await _dbContext.Set<AchFileRejectionCode>()
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .Select(x => new { x.Code, x.Description })
+            .ToListAsync(ct);
+
+        var rejectionCodeDescriptions = rejectionCodeRows
+            .Select(x => new
+            {
+                Code = NormalizeCode(x.Code),
+                Description = x.Description ?? string.Empty
+            })
+            .Where(x => x.Code is not null)
+            .ToDictionary(x => x.Code!, x => x.Description, StringComparer.OrdinalIgnoreCase);
 
         var query = _dbContext.AchTransactions
             .AsNoTracking()
