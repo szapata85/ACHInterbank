@@ -465,14 +465,6 @@ public class AchTransactionNachaTests
             };
 
             arrangeContext.AchTransactions.Add(transaction);
-            arrangeContext.ReturnReasons.Add(new ReturnReason
-            {
-                Id = 999,
-                Code = "R01",
-                Description = "Fondos insuficientes",
-                Category = "R",
-                IsForReturn = true
-            });
             await arrangeContext.SaveChangesAsync();
         }
 
@@ -552,15 +544,6 @@ public class AchTransactionNachaTests
                 DestinationInstitutionId = 2
             });
 
-            arrangeContext.ReturnReasons.Add(new ReturnReason
-            {
-                Id = 1000,
-                Code = "DEV14",
-                Description = "No consentimiento",
-                Category = "R",
-                IsForReturn = true
-            });
-
             await arrangeContext.SaveChangesAsync();
         }
 
@@ -615,15 +598,6 @@ public class AchTransactionNachaTests
                 SourceInstitutionId = 1,
                 DestinationInstitutionId = 2
             });
-            arrangeContext.ReturnReasons.Add(new ReturnReason
-            {
-                Id = 1100,
-                Code = "R01",
-                Description = "Fondos insuficientes",
-                Category = "R",
-                IsForReturn = true
-            });
-
             await arrangeContext.SaveChangesAsync();
         }
 
