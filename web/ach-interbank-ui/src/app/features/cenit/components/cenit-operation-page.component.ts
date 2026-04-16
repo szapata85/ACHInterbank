@@ -7,6 +7,7 @@ import { CenitOperationsApiService } from '../services/cenit-operations-api.serv
 import { CenitNetPositionRow, CenitOptimizationDecisionRow, CenitQueueRow, CenitTraceabilityRow } from '../models/cenit.models';
 import { CycleReportRow } from '../../reports/services/reports-api.service';
 import { SharedModule } from '../../../shared/shared.module';
+import { ColDef } from 'ag-grid-community';
 
 type OperationView = 'ciclos' | 'cola' | 'neteo' | 'optimizacion' | 'devoluciones' | 'trazabilidad';
 
@@ -52,6 +53,16 @@ export class CenitOperationPageComponent implements OnInit {
 
   get headers(): string[] {
     return this.filteredRows[0] ? Object.keys(this.filteredRows[0]) : [];
+  }
+
+  get columnasTabla(): ColDef<Record<string, string>>[] {
+    return this.headers.map((header) => ({
+      field: header,
+      headerName: header,
+      sortable: true,
+      filter: 'agTextColumnFilter',
+      tooltipValueGetter: (params) => (params.value == null ? '' : String(params.value))
+    }));
   }
 
   private load(): void {

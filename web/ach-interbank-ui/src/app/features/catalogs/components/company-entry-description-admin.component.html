@@ -44,33 +44,15 @@
 </section>
 
 <section class="card">
-  <table class="table" *ngIf="rows.length > 0; else emptyState">
-    <thead>
-      <tr>
-        <th>Id</th>
-        <th>Término</th>
-        <th>Descripción</th>
-        <th>SEC</th>
-        <th>Estado</th>
-        <th class="actions-col">Acciones</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let row of rows">
-        <td>{{ row.id }}</td>
-        <td>{{ row.term }}</td>
-        <td>{{ row.description }}</td>
-        <td>{{ row.standardEntryClassCode }}</td>
-        <td>{{ row.isActive ? 'Activo' : 'Inactivo' }}</td>
-        <td class="actions-col">
-          <div class="row-actions">
-            <button type="button" class="link" (click)="edit(row)">Editar</button>
-            <button type="button" class="link btn-danger" (click)="remove(row)">Eliminar</button>
-          </div>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+  <ui-grilla-empresarial
+    [columnas]="columnas"
+    [datos]="filasGrilla"
+    [cargando]="loading"
+    [error]="false"
+    [tamanoPagina]="10"
+    [mensajeVacio]="'No hay registros.'"
+    [mensajeCargando]="'Cargando información...'"
+  ></ui-grilla-empresarial>
 
   <ng-template #emptyState>
     <p class="muted" *ngIf="loading">Cargando...</p>

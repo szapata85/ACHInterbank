@@ -11,33 +11,17 @@
 <div *ngIf="loading" class="loading">Cargando alias...</div>
 <div *ngIf="!loading && loadError" class="loading">{{ loadError }}</div>
 
-<table class="table" *ngIf="!loading">
-  <thead>
-    <tr>
-      <th>Alias</th>
-      <th>Cuenta</th>
-      <th>Titular</th>
-      <th>Documento</th>
-      <th>Teléfono</th>
-      <th>Estado</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr *ngIf="aliases.length === 0">
-      <td colspan="7" class="muted">No hay registros para mostrar</td>
-    </tr>
-    <tr *ngFor="let item of aliases">
-      <td>{{ item.alias }}</td>
-      <td>{{ item.accountNumber }}</td>
-      <td>{{ item.ownerName || '-' }}</td>
-      <td>{{ item.documentNumber || '-' }}</td>
-      <td>{{ item.phoneNumber || '-' }}</td>
-      <td>{{ item.status }}</td>
-      <td><button type="button" (click)="edit(item)">Editar</button></td>
-    </tr>
-  </tbody>
-</table>
+<ui-grilla-empresarial
+  *ngIf="!loading"
+  [columnas]="columnas"
+  [datos]="filasGrilla"
+  [cargando]="loading"
+  [error]="false"
+  [paginacion]="true"
+  [tamanoPagina]="filterForm.value.pageSize || 10"
+  [mensajeVacio]="'No hay registros para mostrar'"
+  [mensajeCargando]="'Cargando información...'"
+></ui-grilla-empresarial>
 
 <div class="pagination">
   <button (click)="changePage(filterForm.value.page! - 1)" [disabled]="filterForm.value.page === 1">Anterior</button>

@@ -6,6 +6,7 @@ import { CustomersApiService } from '../services/customers-api.service';
 import { CustomerSummary } from '../models/customer.model';
 import { NotificationService } from '../../../core/services/notification.service';
 import { FormBuilder } from '@angular/forms';
+import { ColDef } from 'ag-grid-community';
 
 @Component({
   selector: 'app-customers-list',
@@ -25,6 +26,41 @@ export class CustomersListComponent implements OnInit {
   customers: CustomerSummary[] = [];
   filteredCustomers: CustomerSummary[] = [];
   loading = false;
+
+  readonly columnas: ColDef[] = [
+    { field: 'documento', headerName: 'Documento', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'nombre', headerName: 'Nombre', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'cuenta', headerName: 'Cuenta', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'tipoPersona', headerName: 'Tipo persona', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'razonSocial', headerName: 'Razón social', sortable: true, filter: 'agTextColumnFilter' },
+    {
+      field: 'acciones',
+      headerName: 'Acciones',
+      sortable: false,
+      filter: false,
+      cellRenderer: (params: any) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.classList.add('link');
+        button.innerText = 'Editar';
+        button.addEventListener('click', () => this.edit(params.data._original));
+        return button;
+      },
+      maxWidth: 140
+    }
+  ];
+
+  get filasGrilla(): any[] {
+    return this.filteredCustomers.map((customer) => ({
+      documento: `${customer.documentType} ${customer.documentNumber}`.trim(),
+      nombre: customer.fullName,
+      cuenta: (customer.accountNumbers?.length ? customer.accountNumbers.join(', ') : customer.accountNumber) || '-',
+      tipoPersona: customer.personType,
+      razonSocial: customer.companyName || '-',
+      acciones: 'Editar',
+      _original: customer
+    }));
+  }
 
   readonly filtersForm = this.fb.group({
     document: [''],

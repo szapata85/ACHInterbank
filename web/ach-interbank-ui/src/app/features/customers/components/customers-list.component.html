@@ -32,31 +32,13 @@
 </section>
 
 <section class="card">
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Documento</th>
-        <th>Nombre</th>
-        <th>Cuenta</th>
-        <th>Tipo persona</th>
-        <th>Razón social</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let customer of filteredCustomers">
-        <td>{{ customer.documentType }} {{ customer.documentNumber }}</td>
-        <td>{{ customer.fullName }}</td>
-        <td>{{ (customer.accountNumbers?.length ? customer.accountNumbers.join(", ") : customer.accountNumber) || "-" }}</td>
-        <td>{{ customer.personType }}</td>
-        <td>{{ customer.companyName || '-' }}</td>
-        <td>
-          <button type="button" class="link" (click)="edit(customer)">Editar</button>
-        </td>
-      </tr>
-      <tr *ngIf="!filteredCustomers.length && !loading">
-        <td colspan="6">No hay clientes registrados para los filtros seleccionados.</td>
-      </tr>
-    </tbody>
-  </table>
+  <ui-grilla-empresarial
+    [columnas]="columnas"
+    [datos]="filasGrilla"
+    [cargando]="loading"
+    [error]="false"
+    [tamanoPagina]="20"
+    [mensajeVacio]="'No hay clientes registrados para los filtros seleccionados.'"
+    [mensajeCargando]="'Cargando información...'"
+  ></ui-grilla-empresarial>
 </section>

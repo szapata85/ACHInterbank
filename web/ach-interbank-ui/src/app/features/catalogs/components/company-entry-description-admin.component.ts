@@ -4,6 +4,7 @@ import { SharedModule } from '../../../shared/shared.module';
 import { NotificationService } from '../../../core/services/notification.service';
 import { CompanyEntryDescriptionItem } from '../models/company-entry-description.model';
 import { CompanyEntryDescriptionsApiService } from '../services/company-entry-descriptions-api.service';
+import { ColDef } from 'ag-grid-community';
 
 @Component({
   selector: 'app-company-entry-description-admin',
@@ -23,6 +24,48 @@ export class CompanyEntryDescriptionAdminComponent implements OnInit {
   loading = false;
   saving = false;
   editingId: number | null = null;
+
+  readonly columnas: ColDef[] = [
+    { field: 'id', headerName: 'Id', sortable: true, filter: 'agNumberColumnFilter', maxWidth: 110 },
+    { field: 'term', headerName: 'Término', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'description', headerName: 'Descripción', sortable: true, filter: 'agTextColumnFilter', flex: 1 },
+    { field: 'sec', headerName: 'SEC', sortable: true, filter: 'agTextColumnFilter', maxWidth: 120 },
+    { field: 'estado', headerName: 'Estado', sortable: true, filter: 'agTextColumnFilter', maxWidth: 120 },
+    {
+      field: 'acciones',
+      headerName: 'Acciones',
+      sortable: false,
+      filter: false,
+      maxWidth: 150,
+      cellRenderer: (params: any) => {
+        const container = document.createElement('div');
+        const editar = document.createElement('button');
+        editar.type = 'button';
+        editar.classList.add('link');
+        editar.innerText = 'Editar';
+        editar.addEventListener('click', () => this.edit(params.data._original));
+        const eliminar = document.createElement('button');
+        eliminar.type = 'button';
+        eliminar.classList.add('link');
+        eliminar.innerText = 'Eliminar';
+        eliminar.addEventListener('click', () => this.remove(params.data._original));
+        container.append(editar, eliminar);
+        return container;
+      }
+    }
+  ];
+
+  get filasGrilla(): any[] {
+    return this.rows.map((row) => ({
+      id: row.id,
+      term: row.term,
+      description: row.description,
+      sec: row.standardEntryClassCode,
+      estado: row.isActive ? 'Activo' : 'Inactivo',
+      acciones: 'Editar/Eliminar',
+      _original: row
+    }));
+  }
 
   readonly form = this.fb.group({
     term: ['', [Validators.required, Validators.maxLength(12)]],

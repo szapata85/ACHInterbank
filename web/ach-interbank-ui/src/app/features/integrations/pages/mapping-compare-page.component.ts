@@ -9,11 +9,13 @@ import {
   MappingSetRuleComparison
 } from '../../../core/services/integration-mapping-admin.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { SharedModule } from '../../../shared/shared.module';
+import { ColDef } from 'ag-grid-community';
 
 @Component({
   selector: 'app-mapping-compare-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SharedModule],
   templateUrl: './mapping-compare-page.component.html',
   styleUrls: ['./mapping-compare-page.component.scss']
 })
@@ -30,6 +32,22 @@ export class MappingComparePageComponent implements OnInit {
   rightId = '';
   changeFilter: 'All' | 'Added' | 'Removed' | 'Modified' | 'Equal' = 'All';
   loading = false;
+
+  readonly columnasComparacion: ColDef[] = [
+    { field: 'parametro', headerName: 'Parámetro', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'cambio', headerName: 'Cambio', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'camposModificados', headerName: 'Campos modificados', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'impacto', headerName: 'Impacto potencial', sortable: true, filter: 'agTextColumnFilter' }
+  ];
+
+  filasGrupo(group: string): any[] {
+    return (this.groupedRules[group] || []).map((row) => ({
+      parametro: row.parameterPath,
+      cambio: this.getChangeLabel(row.changeType),
+      camposModificados: row.changedFields.join(', ') || 'N/D',
+      impacto: row.potentialImpact
+    }));
+  }
 
   ngOnInit(): void {
     this.methodCode = this.route.snapshot.paramMap.get('methodCode') ?? '';

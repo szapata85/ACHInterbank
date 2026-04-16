@@ -55,27 +55,15 @@
     <div class="group" *ngFor="let group of ['ciclo-camara','transaccion','lote','addenda','respuesta-esperada','configuracion']">
       <h4>{{ getGroupLabel(group) }}</h4>
       <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Parámetro</th>
-            <th>Cambio</th>
-            <th>Campos modificados</th>
-            <th>Impacto potencial</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let row of groupedRules[group]">
-            <td>{{ row.parameterPath }}</td>
-            <td><span class="badge" [ngClass]="getChangeBadgeClass(row.changeType)">{{ getChangeLabel(row.changeType) }}</span></td>
-            <td>{{ row.changedFields.join(', ') || 'N/D' }}</td>
-            <td>{{ row.potentialImpact }}</td>
-          </tr>
-          <tr *ngIf="(groupedRules[group] || []).length === 0">
-            <td colspan="4">Sin cambios para este grupo.</td>
-          </tr>
-        </tbody>
-      </table>
+        <ui-grilla-empresarial
+          [columnas]="columnasComparacion"
+          [datos]="filasGrupo(group)"
+          [cargando]="loading"
+          [error]="false"
+          [tamanoPagina]="10"
+          [mensajeVacio]="'Sin cambios para este grupo.'"
+          [mensajeCargando]="'Cargando información...'"
+        ></ui-grilla-empresarial>
       </div>
     </div>
   </section>

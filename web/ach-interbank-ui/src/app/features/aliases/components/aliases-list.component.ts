@@ -6,6 +6,7 @@ import { AliasFilter, AliasSummary } from '../models/alias.model';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
 import { RouterModule } from '@angular/router';
+import { ColDef } from 'ag-grid-community';
 
 @Component({
   selector: 'app-aliases-list',
@@ -38,6 +39,43 @@ export class AliasesListComponent implements OnInit {
   loading = false;
   hasLoaded = false;
   loadError: string | null = null;
+
+  readonly columnas: ColDef[] = [
+    { field: 'alias', headerName: 'Alias', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'cuenta', headerName: 'Cuenta', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'titular', headerName: 'Titular', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'documento', headerName: 'Documento', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'telefono', headerName: 'Teléfono', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'estado', headerName: 'Estado', sortable: true, filter: 'agTextColumnFilter' },
+    {
+      field: 'acciones',
+      headerName: 'Acciones',
+      sortable: false,
+      filter: false,
+      maxWidth: 130,
+      cellRenderer: (params: any) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.innerText = 'Editar';
+        button.classList.add('link');
+        button.addEventListener('click', () => this.edit(params.data._original));
+        return button;
+      }
+    }
+  ];
+
+  get filasGrilla(): any[] {
+    return this.aliases.map((item) => ({
+      alias: item.alias,
+      cuenta: item.accountNumber,
+      titular: item.ownerName || '-',
+      documento: item.documentNumber || '-',
+      telefono: item.phoneNumber || '-',
+      estado: item.status,
+      acciones: 'Editar',
+      _original: item
+    }));
+  }
 
   ngOnInit(): void {
     this.load();

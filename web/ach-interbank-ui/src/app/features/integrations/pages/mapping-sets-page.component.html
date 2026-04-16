@@ -37,34 +37,15 @@
       <button type="button" [disabled]="mappingSets.length < 2" (click)="openCompare()">Comparar versiones</button>
     </div>
     <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Integración</th>
-            <th>Versión</th>
-            <th>Estado</th>
-            <th>Publicado por</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let set of mappingSets">
-            <td>{{ set.name }}</td>
-            <td>
-              {{ set.methodCode.replace('WSCFAACH.', '') }}
-              <small class="tech-code">{{ set.methodCode }}</small>
-            </td>
-            <td>{{ set.version || 'Borrador' }}</td>
-            <td><span class="badge" [class]="getStatusClass(set.status)">{{ getStatusLabel(set.status) }}</span></td>
-            <td>{{ set.publishedBy || '—' }}</td>
-            <td><button type="button" (click)="openEditor(set)">Abrir editor</button></td>
-          </tr>
-          <tr *ngIf="mappingSets.length === 0">
-            <td colspan="6">No hay versiones para la integración seleccionada.</td>
-          </tr>
-        </tbody>
-      </table>
+      <ui-grilla-empresarial
+        [columnas]="columnas"
+        [datos]="filasGrilla"
+        [cargando]="loading"
+        [error]="false"
+        [tamanoPagina]="10"
+        [mensajeVacio]="'No hay versiones para la integración seleccionada.'"
+        [mensajeCargando]="'Cargando información...'"
+      ></ui-grilla-empresarial>
     </div>
     <p class="helper" *ngIf="mappingSets.length < 2">
       Necesitas al menos dos versiones para habilitar la comparación.

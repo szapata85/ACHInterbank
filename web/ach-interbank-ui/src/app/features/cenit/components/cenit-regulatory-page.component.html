@@ -12,16 +12,13 @@
 <section class="state" *ngIf="!loading && !error && !hasRows">No hay registros para mostrar.</section>
 
 <section class="table-wrapper" *ngIf="!loading && !error && hasRows">
-  <table>
-    <thead>
-      <tr>
-        <th *ngFor="let header of headers">{{ header }}</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let row of filteredRows">
-        <td *ngFor="let header of headers">{{ row[header] }}</td>
-      </tr>
-    </tbody>
-  </table>
+  <ui-grilla-empresarial
+    [columnas]="columnasTabla"
+    [datos]="filteredRows"
+    [cargando]="loading"
+    [error]="false"
+    [tamanoPagina]="20"
+    [mensajeVacio]="'No se encontraron resultados'"
+    [mensajeCargando]="'Cargando información...'"
+  ></ui-grilla-empresarial>
 </section>

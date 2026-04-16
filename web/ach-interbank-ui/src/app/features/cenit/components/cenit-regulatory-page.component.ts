@@ -13,6 +13,7 @@ import {
   CenitTransactionTypePolicy
 } from '../models/cenit.models';
 import { SharedModule } from '../../../shared/shared.module';
+import { ColDef } from 'ag-grid-community';
 
 type RegulatoryView =
   | 'causales-devolucion'
@@ -64,6 +65,16 @@ export class CenitRegulatoryPageComponent implements OnInit {
 
   get headers(): string[] {
     return this.filteredRows[0] ? Object.keys(this.filteredRows[0]) : [];
+  }
+
+  get columnasTabla(): ColDef<Record<string, string>>[] {
+    return this.headers.map((header) => ({
+      field: header,
+      headerName: header,
+      sortable: true,
+      filter: 'agTextColumnFilter',
+      tooltipValueGetter: (params) => (params.value == null ? '' : String(params.value))
+    }));
   }
 
   private load(): void {

@@ -6,11 +6,13 @@ import { ReactiveFormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { IntegrationMappingAdminService, IntegrationMappingSet, IntegrationMethod } from '../../../core/services/integration-mapping-admin.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { SharedModule } from '../../../shared/shared.module';
+import { ColDef } from 'ag-grid-community';
 
 @Component({
   selector: 'app-mapping-sets-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, SharedModule],
   templateUrl: './mapping-sets-page.component.html',
   styleUrls: ['./mapping-sets-page.component.scss']
 })
@@ -24,6 +26,41 @@ export class MappingSetsPageComponent implements OnInit {
   methods: IntegrationMethod[] = [];
   mappingSets: IntegrationMappingSet[] = [];
   creatingDraft = false;
+
+  readonly columnas: ColDef[] = [
+    { field: 'nombre', headerName: 'Nombre', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'integracion', headerName: 'Integración', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'version', headerName: 'Versión', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'estado', headerName: 'Estado', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'publicadoPor', headerName: 'Publicado por', sortable: true, filter: 'agTextColumnFilter' },
+    {
+      field: 'acciones',
+      headerName: 'Acciones',
+      sortable: false,
+      filter: false,
+      maxWidth: 150,
+      cellRenderer: (params: any) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.innerText = 'Abrir editor';
+        button.classList.add('link');
+        button.addEventListener('click', () => this.openEditor(params.data._original));
+        return button;
+      }
+    }
+  ];
+
+  get filasGrilla(): any[] {
+    return this.mappingSets.map((set) => ({
+      nombre: set.name,
+      integracion: set.methodCode.replace('WSCFAACH.', ''),
+      version: set.version || 'Borrador',
+      estado: this.getStatusLabel(set.status),
+      publicadoPor: set.publishedBy || '—',
+      acciones: 'Abrir editor',
+      _original: set
+    }));
+  }
 
   readonly createDraftForm = this.fb.group({
     methodId: [null as number | null, Validators.required],

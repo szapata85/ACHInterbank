@@ -5,6 +5,7 @@ import { SharedModule } from '../../../shared/shared.module';
 import { NotificationService } from '../../../core/services/notification.service';
 import { CatalogTypesApiService } from '../services/catalog-types-api.service';
 import { CatalogTypeItem } from '../models/catalog-type.model';
+import { ColDef } from 'ag-grid-community';
 
 @Component({
   selector: 'app-catalog-types-admin',
@@ -29,6 +30,44 @@ export class CatalogTypesAdminComponent implements OnInit {
   loading = false;
   saving = false;
   editingCode: string | null = null;
+
+  readonly columnas: ColDef[] = [
+    { field: 'code', headerName: 'Código', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'name', headerName: 'Nombre', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'description', headerName: 'Descripción', sortable: true, filter: 'agTextColumnFilter', flex: 1 },
+    {
+      field: 'acciones',
+      headerName: 'Acciones',
+      sortable: false,
+      filter: false,
+      maxWidth: 140,
+      cellRenderer: (params: any) => {
+        const container = document.createElement('div');
+        const editar = document.createElement('button');
+        editar.type = 'button';
+        editar.classList.add('link');
+        editar.innerText = 'Editar';
+        editar.addEventListener('click', () => this.edit(params.data._original));
+        const eliminar = document.createElement('button');
+        eliminar.type = 'button';
+        eliminar.classList.add('link');
+        eliminar.innerText = 'Eliminar';
+        eliminar.addEventListener('click', () => this.remove(params.data._original));
+        container.append(editar, eliminar);
+        return container;
+      }
+    }
+  ];
+
+  get filasGrilla(): any[] {
+    return this.rows.map((row) => ({
+      code: row.code,
+      name: row.name,
+      description: row.description || '-',
+      acciones: 'Editar/Eliminar',
+      _original: row
+    }));
+  }
 
   readonly form = this.fb.group({
     code: ['', [Validators.required, Validators.maxLength(30)]],
