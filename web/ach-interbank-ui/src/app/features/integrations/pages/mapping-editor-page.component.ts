@@ -39,6 +39,13 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   mappingSetId = '';
   methodCode = '';
 
+  readonly migas = [
+    { etiqueta: 'Inicio', ruta: '/' },
+    { etiqueta: 'Integraciones', ruta: '/integraciones' },
+    { etiqueta: 'Configuración funcional', ruta: '/integraciones/mappings' },
+    { etiqueta: 'Editor de configuración' }
+  ];
+
   loading = false;
   viewState: 'loading' | 'error' | 'ready' = 'loading';
   errorMessage = '';
@@ -496,6 +503,27 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
 
   get usarMuestraControlada(): boolean {
     return Boolean(this.previewForm.controls.usarMuestraControlada.value);
+  }
+
+
+  get totalErroresValidacion(): number {
+    return (this.validationResult?.issues ?? []).filter((x) => (x.severity || '').toLowerCase() === 'error').length;
+  }
+
+  get totalAdvertenciasValidacion(): number {
+    return (this.validationResult?.issues ?? []).filter((x) => (x.severity || '').toLowerCase() !== 'error').length;
+  }
+
+  get estadoPublicacion(): string {
+    return this.getMappingSetStatusLabel(this.mappingSet?.status as any);
+  }
+
+  irAComparacion(): void {
+    if (!this.mappingSet?.methodCode) {
+      this.notifications.error('No se encontró el método para abrir comparación de versiones.');
+      return;
+    }
+    this.router.navigate(['/integraciones/mappings/compare', this.mappingSet.methodCode]);
   }
 
   trackByParameterId(_: number, parameter: IntegrationMethodParameter): number {

@@ -1,229 +1,224 @@
-<section class="card state" *ngIf="viewState === 'loading'">
-  <h4>Cargando editor funcional…</h4>
-  <p>Estamos obteniendo la configuración de integración, parámetros y catálogos.</p>
-</section>
+<section class="editor-shell">
+  <ui-migas-pan [items]="migas"></ui-migas-pan>
 
-<section class="card state error" *ngIf="viewState === 'error'">
-  <h4>No se pudo abrir el editor</h4>
-  <p>{{ errorMessage }}</p>
-  <div class="actions">
-    <button type="button" (click)="loadAll()">Reintentar</button>
-    <button type="button" class="btn btn-primary" (click)="goToMappingList()">Volver al listado</button>
-  </div>
-</section>
+  <ui-encabezado-pagina
+    [titulo]="mappingSet?.name || 'Editor de configuración funcional'"
+    descripcion="Defina reglas de origen, transformación y valores de respaldo para publicar con control operativo."
+  ></ui-encabezado-pagina>
 
-<ng-container *ngIf="viewState === 'ready' && mappingSet as set">
-<section class="card state" *ngIf="parameters.length === 0">
-  <h4>No hay parámetros configurables</h4>
-  <p>El método seleccionado no tiene parámetros activos en catálogo. Verifica la configuración de Integraciones.</p>
-  <div class="actions">
-    <button type="button" (click)="loadAll()">Reintentar</button>
-    <button type="button" class="btn btn-primary" (click)="goToMappingList()">Volver al listado</button>
-  </div>
-</section>
+  <ui-alerta
+    *ngIf="mappingSet"
+    tipo="info"
+    [titulo]="'Estado actual: ' + estadoPublicacion"
+    mensaje="Primero guarde y valide; después ejecute vista previa y finalmente publique si no existen bloqueos."
+  ></ui-alerta>
 
-<div class="editor-page" *ngIf="parameters.length > 0">
-  <section class="summary-cards">
-    <article class="card"><span>Total parámetros</span><strong>{{ coverage.totalParameters }}</strong></article>
-    <article class="card"><span>Válidos</span><strong>{{ coverage.validParameters }}</strong></article>
-    <article class="card"><span>Incompletos</span><strong>{{ coverage.incompleteParameters }}</strong></article>
-    <article class="card"><span>Inválidos</span><strong>{{ coverage.invalidParameters }}</strong></article>
-    <article class="card"><span>Inactivos</span><strong>{{ coverage.inactiveParameters }}</strong></article>
-    <article class="card"><span>Cubiertos por valor fijo/default</span><strong>{{ coverage.coveredByDefaultOrFixed }}</strong></article>
-    <article class="card"><span>Por campo</span><strong>{{ coverage.coveredBySourceField }}</strong></article>
+  <section class="card state" *ngIf="viewState === 'loading'">
+    <h4>Cargando editor funcional…</h4>
+    <p>Estamos obteniendo la configuración, parámetros y catálogos de apoyo.</p>
   </section>
 
-  <header class="header card">
-    <div>
-      <h3>{{ set.name }}</h3>
-      <p>{{ set.methodCode }} · estado <span class="badge" [class]="getMappingSetStatusClass(set.status)">{{ getMappingSetStatusLabel(set.status) }}</span></p>
-      <small class="context">Primero valida estructura + lógica, luego simula y por último publica.</small>
-    </div>
+  <section class="card state error" *ngIf="viewState === 'error'">
+    <h4>No se pudo abrir el editor</h4>
+    <p>{{ errorMessage }}</p>
     <div class="actions">
-      <button type="button" [disabled]="validating" (click)="runValidation()">{{ validating ? 'Validando…' : 'Validar' }}</button>
-      <button type="button" [disabled]="previewing" (click)="runPreview()">{{ previewing ? 'Simulando…' : 'Simular' }}</button>
-      <button type="button" [disabled]="cloning" (click)="clone()">{{ cloning ? 'Clonando…' : 'Clonar' }}</button>
-      <button type="button" class="btn btn-primary" [disabled]="!isDraftStatus(set.status) || publishing" (click)="publish()">
-        {{ publishing ? 'Publicando…' : 'Publicar' }}
-      </button>
+      <ui-boton texto="Reintentar" variante="contorno" (accion)="loadAll()"></ui-boton>
+      <ui-boton texto="Volver al listado" (accion)="goToMappingList()"></ui-boton>
     </div>
-  </header>
-
-  <section class="layout-grid">
-    <aside class="card left">
-      <h4>Parámetros destino</h4>
-      <p class="helper">Configura cada campo funcional y valida cobertura antes de publicar.</p>
-      <ul>
-        <li *ngFor="let p of parameters; trackBy: trackByParameterId" [class.active]="p.id === selectedParameterId" (click)="selectParameter(p.id)">
-          <div>
-            <strong>{{ p.displayName }}</strong>
-            <small>{{ p.parameterPath }}</small>
-            <small>{{ p.descriptionEs }}</small>
-          </div>
-          <div class="chips">
-            <span class="chip type">{{ p.dataType }}</span>
-            <span class="chip type">{{ p.category }}</span>
-            <span class="chip req" *ngIf="p.required">Requerido</span>
-            <span class="chip status" [ngClass]="getStatusClass(p.id)">{{ getStatusLabel(p.id) }}</span>
-          </div>
-        </li>
-      </ul>
-    </aside>
-
-    <main class="card center">
-      <h4>Configuración funcional del campo</h4>
-      <p class="helper" *ngIf="selectedParameter as sp">
-        {{ sp.displayName }} · {{ sp.descriptionEs || 'Sin descripción funcional' }}<br />
-        <strong>Ejemplo:</strong> {{ sp.exampleValue || 'N/D' }} · <strong>Ayuda:</strong> {{ sp.uiHelpText || 'N/D' }}
-      </p>
-      <form [formGroup]="ruleForm" class="rule-form">
-        <label>
-          Origen funcional
-          <select formControlName="sourceKind">
-            <option value="Transaction">Dato de transacción</option>
-            <option value="Addenda">Dato complementario</option>
-            <option value="Batch">Dato de lote</option>
-            <option value="Cycle">Dato de ciclo</option>
-            <option value="ClearingHouse">Dato de cámara</option>
-            <option value="Constant">Valor fijo</option>
-          </select>
-        </label>
-
-        <label>
-          Campo de origen sugerido
-          <select formControlName="sourceCatalogFieldId">
-            <option [ngValue]="null">-- seleccionar --</option>
-            <option *ngFor="let field of getSourceOptionsByKind(ruleForm.value.sourceKind)" [ngValue]="field.id">
-              {{ field.displayName }} ({{ field.fieldPath }})
-            </option>
-          </select>
-        </label>
-
-        <label>
-          Ruta técnica (opcional, avanzado)
-          <input formControlName="sourceFieldPath" type="text" placeholder="transaction.reference" />
-        </label>
-
-        <label>
-          Valor fijo
-          <input formControlName="fixedValue" type="text" placeholder="Ejemplo: PENDIENTE" />
-        </label>
-
-        <label>
-          Valor por defecto
-          <input formControlName="defaultValue" type="text" placeholder="Se usa si el origen no trae dato" />
-        </label>
-
-        <label>
-          Transformación
-          <select formControlName="transformationCode">
-            <option value="">-- sin transformación --</option>
-            <option *ngFor="let t of transformations" [value]="t.code">{{ t.displayName }}</option>
-          </select>
-        </label>
-
-        <label>
-          Máscara (si aplica)
-          <input formControlName="formatMask" type="text" placeholder="Ej: yyyyMMdd o 10" />
-        </label>
-
-        <label>
-          Prioridad
-          <input formControlName="priority" type="number" min="1" />
-        </label>
-
-        <label>
-          Forzar obligatoriedad
-          <select formControlName="requiredOverride">
-            <option [ngValue]="null">Sin override</option>
-            <option [ngValue]="true">true</option>
-            <option [ngValue]="false">false</option>
-          </select>
-        </label>
-
-        <label class="inline">
-          <input type="checkbox" formControlName="enabled" /> Habilitada
-        </label>
-
-        <div class="rule-actions">
-          <button type="button" class="btn btn-primary" [disabled]="savingRule" (click)="saveRule()">
-            {{ savingRule ? 'Guardando…' : 'Guardar regla' }}
-          </button>
-        </div>
-      </form>
-
-      <section class="guided-hints">
-        <h5>Asistencia guiada</h5>
-        <ul>
-          <li *ngFor="let hint of selectedParameterHints">{{ hint }}</li>
-        </ul>
-      </section>
-    </main>
-
-    <aside class="card right">
-      <h4>Validación y simulación</h4>
-      <div class="panel-block">
-        <h5>Validación estructural y funcional</h5>
-        <p *ngIf="!validationResult">Ejecuta "Validar" para revisar reglas obligatorias de publicación.</p>
-        <ul *ngIf="validationResult as vr">
-          <li *ngFor="let issue of vr.issues" [class.error]="issue.severity === 'Error'" [class.warn]="issue.severity !== 'Error'">
-            <strong>{{ issue.category }} · {{ issue.code }}</strong>: {{ issue.message }}
-          </li>
-        </ul>
-      </div>
-
-      <div class="panel-block preview-controls" [formGroup]="previewForm">
-        <h5>Contexto de simulación</h5>
-        <label class="inline"><input type="checkbox" formControlName="usarMuestraControlada" /> Usar datos de ejemplo controlados</label>
-        <label>
-          Id de transacción (real)
-          <input type="number" formControlName="idTransaccionMuestra" [disabled]="usarMuestraControlada" />
-        </label>
-        <label>
-          Id de ciclo (real)
-          <input type="text" formControlName="idCicloMuestra" [disabled]="usarMuestraControlada" />
-        </label>
-      </div>
-
-      <div class="panel-block">
-        <h5>Simulación por campo funcional</h5>
-        <p *ngIf="!previewResult">Ejecuta "Simular" para ver resolución por parámetro y payload.</p>
-        <div *ngIf="previewResult as pr" class="preview-groups">
-          <small class="context">Contexto: {{ pr.contextMode }}</small>
-          <details open>
-            <summary>Ciclo / Cámara</summary>
-            <ul><li *ngFor="let item of groupedPreview['ciclo-camara']">{{ item.parameterPath }} ← {{ item.resolvedFrom }} = <strong>{{ item.previewValue || '∅' }}</strong></li></ul>
-          </details>
-          <details open>
-            <summary>Transacción</summary>
-            <ul><li *ngFor="let item of groupedPreview.transaccion">{{ item.parameterPath }} ← {{ item.resolvedFrom }} = <strong>{{ item.previewValue || '∅' }}</strong></li></ul>
-          </details>
-          <details>
-            <summary>Lote</summary>
-            <ul><li *ngFor="let item of groupedPreview.lote">{{ item.parameterPath }} ← {{ item.resolvedFrom }} = <strong>{{ item.previewValue || '∅' }}</strong></li></ul>
-          </details>
-          <details>
-            <summary>Addenda</summary>
-            <ul><li *ngFor="let item of groupedPreview.addenda">{{ item.parameterPath }} ← {{ item.resolvedFrom }} = <strong>{{ item.previewValue || '∅' }}</strong></li></ul>
-          </details>
-        </div>
-      </div>
-
-      <div class="panel-block">
-        <h5>Payload técnico resultante (referencia)</h5>
-        <pre *ngIf="previewResult">{{ previewResult.payloadPreviewJson }}</pre>
-      </div>
-
-      <div class="panel-block">
-        <h5>Historial de cambios</h5>
-        <ul *ngIf="historyItems.length > 0">
-          <li *ngFor="let h of historyItems">
-            v{{ h.version || 'Borrador' }} · {{ h.action }} · {{ h.performedBy }} · {{ h.performedAtUtc }}
-          </li>
-        </ul>
-        <p *ngIf="historyItems.length === 0">No hay historial disponible para esta configuración.</p>
-      </div>
-    </aside>
   </section>
-</div>
-</ng-container>
+
+  <ng-container *ngIf="viewState === 'ready' && mappingSet as set">
+    <section class="card state" *ngIf="parameters.length === 0">
+      <h4>No hay parámetros configurables</h4>
+      <p>El método seleccionado no tiene parámetros activos en catálogo. Verifica la configuración de integraciones.</p>
+      <div class="actions">
+        <ui-boton texto="Reintentar" variante="contorno" (accion)="loadAll()"></ui-boton>
+        <ui-boton texto="Volver al listado" (accion)="goToMappingList()"></ui-boton>
+      </div>
+    </section>
+
+    <div class="editor-page" *ngIf="parameters.length > 0">
+      <section class="summary-cards">
+        <article class="card"><span>Total parámetros</span><strong>{{ coverage.totalParameters }}</strong></article>
+        <article class="card"><span>Válidos</span><strong>{{ coverage.validParameters }}</strong></article>
+        <article class="card"><span>Incompletos</span><strong>{{ coverage.incompleteParameters }}</strong></article>
+        <article class="card"><span>Inválidos</span><strong>{{ coverage.invalidParameters }}</strong></article>
+        <article class="card"><span>Advertencias</span><strong>{{ totalAdvertenciasValidacion }}</strong></article>
+        <article class="card"><span>Errores</span><strong>{{ totalErroresValidacion }}</strong></article>
+      </section>
+
+      <section class="layout-grid">
+        <aside class="card left">
+          <h4>Destino configurable</h4>
+          <p class="helper">Seleccione un parámetro para editar su estrategia de resolución.</p>
+          <ul>
+            <li *ngFor="let p of parameters; trackBy: trackByParameterId" [class.active]="p.id === selectedParameterId" (click)="selectParameter(p.id)">
+              <div>
+                <strong>{{ p.displayName }}</strong>
+                <small>{{ p.parameterPath }}</small>
+                <small>{{ p.descriptionEs }}</small>
+              </div>
+              <div class="chips">
+                <span class="chip req" *ngIf="p.required">Requerido</span>
+                <span class="chip status" [ngClass]="getStatusClass(p.id)">{{ getStatusLabel(p.id) }}</span>
+              </div>
+            </li>
+          </ul>
+        </aside>
+
+        <main class="card center">
+          <h4>Diseñador de regla</h4>
+          <p class="helper" *ngIf="selectedParameter as sp">
+            <strong>Destino:</strong> {{ sp.displayName }} · {{ sp.descriptionEs || 'Sin descripción funcional' }}
+          </p>
+
+          <form [formGroup]="ruleForm" class="rule-form">
+            <section class="rule-group">
+              <h5>Origen</h5>
+              <label>
+                Origen funcional
+                <select formControlName="sourceKind">
+                  <option value="Transaction">Dato de transacción</option>
+                  <option value="Addenda">Dato complementario</option>
+                  <option value="Batch">Dato de lote</option>
+                  <option value="Cycle">Dato de ciclo</option>
+                  <option value="ClearingHouse">Dato de cámara</option>
+                  <option value="Constant">Valor fijo</option>
+                </select>
+              </label>
+              <label>
+                Campo de origen sugerido
+                <select formControlName="sourceCatalogFieldId">
+                  <option [ngValue]="null">-- seleccionar --</option>
+                  <option *ngFor="let field of getSourceOptionsByKind(ruleForm.value.sourceKind)" [ngValue]="field.id">
+                    {{ field.displayName }} ({{ field.fieldPath }})
+                  </option>
+                </select>
+              </label>
+              <label>
+                Ruta técnica (opcional)
+                <input formControlName="sourceFieldPath" type="text" placeholder="transaction.reference" />
+              </label>
+            </section>
+
+            <section class="rule-group">
+              <h5>Transformación y respaldo</h5>
+              <label>
+                Valor fijo
+                <input formControlName="fixedValue" type="text" placeholder="Ejemplo: PENDIENTE" />
+              </label>
+              <label>
+                Valor por defecto
+                <input formControlName="defaultValue" type="text" placeholder="Se usa si el origen no trae dato" />
+              </label>
+              <label>
+                Transformación
+                <select formControlName="transformationCode">
+                  <option value="">-- sin transformación --</option>
+                  <option *ngFor="let t of transformations" [value]="t.code">{{ t.displayName }}</option>
+                </select>
+              </label>
+              <label>
+                Máscara (si aplica)
+                <input formControlName="formatMask" type="text" placeholder="Ej: yyyyMMdd o 10" />
+              </label>
+            </section>
+
+            <section class="rule-group">
+              <h5>Control de ejecución</h5>
+              <label>
+                Prioridad
+                <input formControlName="priority" type="number" min="1" />
+              </label>
+              <label>
+                Forzar obligatoriedad
+                <select formControlName="requiredOverride">
+                  <option [ngValue]="null">Sin override</option>
+                  <option [ngValue]="true">Sí</option>
+                  <option [ngValue]="false">No</option>
+                </select>
+              </label>
+              <label class="inline">
+                <input type="checkbox" formControlName="enabled" /> Regla habilitada
+              </label>
+            </section>
+
+            <div class="rule-actions">
+              <ui-boton [texto]="savingRule ? 'Guardando…' : 'Guardar borrador'" [cargando]="savingRule" (accion)="saveRule()"></ui-boton>
+            </div>
+          </form>
+
+          <section class="guided-hints">
+            <h5>Asistencia guiada</h5>
+            <ul>
+              <li *ngFor="let hint of selectedParameterHints">{{ hint }}</li>
+            </ul>
+          </section>
+        </main>
+
+        <aside class="card right">
+          <h4>Centro de control</h4>
+          <div class="acciones-principales">
+            <ui-boton [texto]="validating ? 'Validando…' : 'Validar'" [cargando]="validating" icono="task_alt" (accion)="runValidation()"></ui-boton>
+            <ui-boton [texto]="previewing ? 'Generando vista previa…' : 'Vista previa'" [cargando]="previewing" variante="contorno" icono="visibility" (accion)="runPreview()"></ui-boton>
+            <ui-boton [texto]="publishing ? 'Publicando…' : 'Publicar'" [cargando]="publishing" [deshabilitado]="!isDraftStatus(set.status)" icono="publish" (accion)="publish()"></ui-boton>
+            <ui-boton [texto]="cloning ? 'Clonando…' : 'Clonar'" [cargando]="cloning" variante="contorno" icono="content_copy" (accion)="clone()"></ui-boton>
+            <ui-boton texto="Comparar versiones" variante="fantasma" icono="compare_arrows" (accion)="irAComparacion()"></ui-boton>
+          </div>
+
+          <div class="panel-block" [class.invalido]="totalErroresValidacion > 0" [class.advertencia]="totalErroresValidacion === 0 && totalAdvertenciasValidacion > 0">
+            <h5>Resumen de validación</h5>
+            <p *ngIf="!validationResult">Aún no se ha ejecutado una validación en esta sesión.</p>
+            <ul *ngIf="validationResult as vr">
+              <li><strong>Estado:</strong> {{ vr.isValid ? 'Apto para publicar' : 'Bloqueado para publicar' }}</li>
+              <li><strong>Errores:</strong> {{ totalErroresValidacion }}</li>
+              <li><strong>Advertencias:</strong> {{ totalAdvertenciasValidacion }}</li>
+            </ul>
+          </div>
+
+          <div class="panel-block preview-controls" [formGroup]="previewForm">
+            <h5>Entrada para vista previa</h5>
+            <label class="inline"><input type="checkbox" formControlName="usarMuestraControlada" /> Usar datos de ejemplo controlados</label>
+            <label>
+              Id de transacción real
+              <input type="number" formControlName="idTransaccionMuestra" [disabled]="usarMuestraControlada" />
+            </label>
+            <label>
+              Id de ciclo real
+              <input type="text" formControlName="idCicloMuestra" [disabled]="usarMuestraControlada" />
+            </label>
+          </div>
+
+          <div class="panel-block">
+            <h5>Resultado de vista previa</h5>
+            <p *ngIf="!previewResult">Ejecute vista previa para entender cómo se resolverá cada destino.</p>
+            <div *ngIf="previewResult as pr" class="preview-groups">
+              <small class="context">Contexto usado: {{ pr.contextMode }}</small>
+              <details open>
+                <summary>Transacción</summary>
+                <ul><li *ngFor="let item of groupedPreview.transaccion">{{ item.parameterPath }} ← {{ item.resolvedFrom }} = <strong>{{ item.previewValue || '∅' }}</strong></li></ul>
+              </details>
+              <details>
+                <summary>Ciclo / cámara</summary>
+                <ul><li *ngFor="let item of groupedPreview['ciclo-camara']">{{ item.parameterPath }} ← {{ item.resolvedFrom }} = <strong>{{ item.previewValue || '∅' }}</strong></li></ul>
+              </details>
+              <details>
+                <summary>Lote y addenda</summary>
+                <ul><li *ngFor="let item of groupedPreview.lote">{{ item.parameterPath }} ← {{ item.resolvedFrom }} = <strong>{{ item.previewValue || '∅' }}</strong></li>
+                    <li *ngFor="let item of groupedPreview.addenda">{{ item.parameterPath }} ← {{ item.resolvedFrom }} = <strong>{{ item.previewValue || '∅' }}</strong></li></ul>
+              </details>
+            </div>
+          </div>
+
+          <div class="panel-block">
+            <h5>Historial</h5>
+            <ul *ngIf="historyItems.length > 0">
+              <li *ngFor="let h of historyItems">v{{ h.version || 'Borrador' }} · {{ h.action }} · {{ h.performedBy }} · {{ h.performedAtUtc }}</li>
+            </ul>
+            <p *ngIf="historyItems.length === 0">No hay historial disponible para esta configuración.</p>
+          </div>
+        </aside>
+      </section>
+    </div>
+  </ng-container>
+</section>
