@@ -10,8 +10,7 @@ import {
 } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { SharedModule } from '../../../shared/shared.module';
-import { AgGridAngular } from 'ag-grid-angular';
-import { ColDef, GridApi, GridReadyEvent, ICellRendererParams } from 'ag-grid-community';
+import { ColDef, GridApi, ICellRendererParams } from 'ag-grid-community';
 import { NavigationMenuItem, SaveNavigationMenuItem } from '../models/navigation-menu.model';
 import { NavigationMenuService } from '../services/navigation-menu.service';
 import { RolesApiService } from '../../admin/services/users-api.service';
@@ -36,7 +35,7 @@ type NavigationRow = NavigationMenuItem & {
 @Component({
   selector: 'app-navigation-menu',
   standalone: true,
-  imports: [SharedModule, NgIf, NgFor, AgGridAngular],
+  imports: [SharedModule, NgIf, NgFor],
   templateUrl: './navigation-menu.component.html',
   styleUrls: ['./navigation-menu.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -142,7 +141,6 @@ export class NavigationMenuComponent implements OnInit {
     this.loading = true;
     this.hasLoaded = false;
     this.loadError = null;
-    this.gridApi?.showLoadingOverlay();
     this.cdr.markForCheck();
     this.navigationService.getMenuItems().subscribe({
       next: (items) => {
@@ -151,11 +149,6 @@ export class NavigationMenuComponent implements OnInit {
         this.gridApi?.setGridOption('rowData', this.tableData);
         this.loading = false;
         this.hasLoaded = true;
-        if (!items.length) {
-          this.gridApi?.showNoRowsOverlay();
-        } else {
-          this.gridApi?.hideOverlay();
-        }
         this.cdr.markForCheck();
       },
       error: () => {
@@ -163,7 +156,6 @@ export class NavigationMenuComponent implements OnInit {
         this.notificationService.error(this.loadError);
         this.loading = false;
         this.hasLoaded = true;
-        this.gridApi?.hideOverlay();
         this.cdr.markForCheck();
       }
     });
@@ -225,12 +217,9 @@ export class NavigationMenuComponent implements OnInit {
     });
   }
 
-  onGridReady(event: GridReadyEvent): void {
-    this.gridApi = event.api;
+  onGridReady(api: GridApi): void {
+    this.gridApi = api;
     this.gridApi.setGridOption('rowData', this.tableData);
-    if (!this.loading && this.flatItems.length === 0) {
-      this.loadMenuItems();
-    }
   }
 
   editItem(item: NavigationMenuItem): void {

@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, forwardRef } from '@angular/core';
-import { ControlValueAccessor, FormsModule, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { ControlValueAccessor, FormControl, NG_VALUE_ACCESSOR, ReactiveFormsModule } from '@angular/forms';
 
 export interface OpcionSelectorBuscable {
   valor: string | number;
@@ -11,7 +11,7 @@ export interface OpcionSelectorBuscable {
 @Component({
   selector: 'ui-selector-buscable',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, ReactiveFormsModule],
   providers: [
     {
       provide: NG_VALUE_ACCESSOR,
@@ -25,8 +25,7 @@ export interface OpcionSelectorBuscable {
       <div class="control">
         <input
           type="text"
-          [(ngModel)]="termino"
-          (ngModelChange)="filtrar()"
+          [formControl]="terminoControl"
           [placeholder]="placeholderBusqueda"
           [disabled]="deshabilitado || cargando"
         />
@@ -80,13 +79,17 @@ export class UiSelectorBuscableComponent implements ControlValueAccessor {
   @Input() opciones: OpcionSelectorBuscable[] = [];
   @Output() busqueda = new EventEmitter<string>();
 
-  termino = '';
+  readonly terminoControl = new FormControl<string>('', { nonNullable: true });
   valorInterno: string | number | null = null;
   deshabilitado = false;
   opcionesFiltradas: OpcionSelectorBuscable[] = [];
 
   private onChange: (value: string | number | null) => void = () => {};
   private onTouched: () => void = () => {};
+
+  constructor() {
+    this.terminoControl.valueChanges.subscribe(() => this.filtrar());
+  }
 
   ngOnChanges(): void {
     this.filtrar();
@@ -109,9 +112,9 @@ export class UiSelectorBuscableComponent implements ControlValueAccessor {
   }
 
   filtrar(): void {
-    const termino = this.termino.trim().toLocaleLowerCase();
+    const termino = this.terminoControl.value.trim().toLocaleLowerCase();
     this.opcionesFiltradas = this.opciones.filter((o) => o.etiqueta.toLocaleLowerCase().includes(termino));
-    this.busqueda.emit(this.termino);
+    this.busqueda.emit(this.terminoControl.value);
   }
 
   seleccionar(valor: string | number): void {

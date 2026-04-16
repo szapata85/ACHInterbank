@@ -8,8 +8,7 @@ import {
   OnInit,
   inject
 } from '@angular/core';
-import { AgGridModule } from 'ag-grid-angular';
-import { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
+import { ColDef } from 'ag-grid-community';
 import { FormBuilder, Validators } from '@angular/forms';
 import { Subject } from 'rxjs';
 import { finalize, takeUntil } from 'rxjs/operators';
@@ -26,7 +25,7 @@ import {
   templateUrl: './financial-institutions.component.html',
   styleUrls: ['./financial-institutions.component.scss'],
   standalone: true,
-  imports: [SharedModule, NgIf, AgGridModule],
+  imports: [SharedModule, NgIf],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class FinancialInstitutionsComponent implements OnInit, OnDestroy {
@@ -44,7 +43,6 @@ export class FinancialInstitutionsComponent implements OnInit, OnDestroy {
   saving = false;
   showForm = false;
   editing: DestinationInstitution | null = null;
-  gridApi?: GridApi<DestinationInstitution>;
   private readonly destroy$ = new Subject<void>();
 
   readonly columnDefs: ColDef<DestinationInstitution>[] = [
@@ -129,9 +127,6 @@ export class FinancialInstitutionsComponent implements OnInit, OnDestroy {
     filterParams: { suppressAndOrCondition: true }
   };
 
-  readonly noRowsTemplate = 'No hay instituciones registradas.';
-  readonly loadingTemplate = 'Cargando instituciones...';
-
   form = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(100)]],
     routingNumber: ['', [Validators.required, Validators.maxLength(9)]],
@@ -151,14 +146,8 @@ export class FinancialInstitutionsComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  onGridReady(event: GridReadyEvent<DestinationInstitution>): void {
-    this.gridApi = event.api;
-    this.updateGridOverlays();
-  }
-
   loadInstitutions(): void {
     this.loading = true;
-    this.updateGridOverlays();
     this.service
       .list(true)
       .pipe(
@@ -169,8 +158,7 @@ export class FinancialInstitutionsComponent implements OnInit, OnDestroy {
       )
       .subscribe((data) => {
         this.institutions = data;
-        this.updateGridOverlays();
-      });
+          });
   }
 
   startCreate(): void {
@@ -260,23 +248,6 @@ export class FinancialInstitutionsComponent implements OnInit, OnDestroy {
         })
       )
       .subscribe(() => this.loadInstitutions());
-  }
-
-  private updateGridOverlays(): void {
-    if (!this.gridApi) {
-      return;
-    }
-
-    if (this.loading) {
-      this.gridApi.showLoadingOverlay();
-      return;
-    }
-
-    if (!this.institutions.length) {
-      this.gridApi.showNoRowsOverlay();
-    } else {
-      this.gridApi.hideOverlay();
-    }
   }
 
   private setupCheckDigitAutoCalc(): void {

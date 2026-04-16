@@ -5,7 +5,7 @@
     <div class="card">
       <div class="card-header">
         <h2>{{ form.value.id ? 'Editar elemento' : 'Nuevo elemento' }}</h2>
-        <button type="button" class="link" (click)="startCreate()" *ngIf="form.value.id">Limpiar</button>
+        <ui-boton texto="Limpiar" variante="fantasma" (accion)="startCreate()" *ngIf="form.value.id"></ui-boton>
       </div>
 
       <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
@@ -100,31 +100,31 @@
           </select>
         </label>
 
-        <button type="submit" [disabled]="saving">{{ form.value.id ? 'Actualizar' : 'Crear' }}</button>
+        <button type="submit" class="btn btn-primary" [disabled]="saving">{{ form.value.id ? 'Actualizar' : 'Crear' }}</button>
       </form>
     </div>
 
     <div class="card">
       <div class="card-header">
         <h2>Estructura</h2>
-        <button type="button" class="link" (click)="loadMenuItems()">Refrescar</button>
+        <ui-boton texto="Refrescar" variante="contorno" icono="refresh" (accion)="loadMenuItems()"></ui-boton>
       </div>
 
       <div class="ag-grid-wrapper">
         <div class="empty-state" *ngIf="loadError">{{ loadError }}</div>
-        <ag-grid-angular
-          class="ag-theme-alpine"
-          [columnDefs]="columnDefs"
-          [defaultColDef]="defaultColDef"
-          [rowData]="tableData"
-          [context]="gridContext"
-          [domLayout]="'autoHeight'"
-          [animateRows]="true"
-          [suppressCellFocus]="true"
-          (gridReady)="onGridReady($event)"
-          [overlayLoadingTemplate]="'<span class=\'ag-overlay-loading-center\'>Cargando...</span>'"
-          [overlayNoRowsTemplate]="'No hay elementos de menú'"
-        ></ag-grid-angular>
+        <ui-grilla-empresarial
+          [columnas]="columnDefs"
+          [datos]="tableData"
+          [cargando]="loading"
+          [error]="!!loadError"
+          [mensajeError]="loadError || 'No fue posible cargar el menú de navegación'"
+          [mensajeVacio]="'No hay elementos de menú'"
+          [mensajeCargando]="'Cargando menú de navegación...'"
+          [placeholderBusqueda]="'Buscar etiqueta, ruta, rol o permiso'"
+          [paginacion]="true"
+          [tamanoPagina]="20"
+          (grillaLista)="onGridReady($event)"
+        ></ui-grilla-empresarial>
       </div>
     </div>
   </div>

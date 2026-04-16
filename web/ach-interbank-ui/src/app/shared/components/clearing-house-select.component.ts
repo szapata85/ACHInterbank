@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnInit, forwardRef, inject } from '@angular/core';
-import { ControlValueAccessor, FormsModule, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { ControlValueAccessor, FormControl, NG_VALUE_ACCESSOR, ReactiveFormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { ClearingHousesApiService } from '../../features/ach-cycles/services/ach-cycles-api.service';
 
@@ -12,19 +12,18 @@ interface ClearingHouseOption {
 @Component({
   selector: 'app-clearing-house-select',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, ReactiveFormsModule],
   template: `
     <select
       [disabled]="disabled || loading || hasError"
-      [ngModel]="value"
-      (ngModelChange)="onSelectionChange($event)">
+      [formControl]="selectionControl">
       <option [ngValue]="null">{{ placeholder }}</option>
       <option *ngIf="allowAll" [ngValue]="allValue">{{ allLabel }}</option>
       <option *ngFor="let option of options" [ngValue]="option.id">
         {{ option.code ? option.name + ' (' + option.code + ')' : option.name }}
       </option>
       <option *ngIf="loading" [ngValue]="null" disabled>Cargando cámaras...</option>
-      <option *ngIf="hasError" [ngValue]="null" disabled>Error al cargar cámaras</option>
+      <option *ngIf="hasError" [ngValue]="null" disabled>No fue posible cargar cámaras</option>
     </select>
   `,
   providers: [
@@ -45,6 +44,7 @@ export class ClearingHouseSelectComponent implements ControlValueAccessor, OnIni
   @Input() allLabel = 'Todas las cámaras';
   @Input() allValue: number | null = null;
 
+  readonly selectionControl = new FormControl<number | null>(null);
   options: ClearingHouseOption[] = [];
   loading = false;
   hasError = false;
@@ -53,6 +53,10 @@ export class ClearingHouseSelectComponent implements ControlValueAccessor, OnIni
 
   private onChange: (value: number | null) => void = () => {};
   private onTouched: () => void = () => {};
+
+  constructor() {
+    this.selectionControl.valueChanges.subscribe((value) => this.onSelectionChange(value));
+  }
 
   ngOnInit(): void {
     this.loading = true;
@@ -77,6 +81,7 @@ export class ClearingHouseSelectComponent implements ControlValueAccessor, OnIni
 
   writeValue(value: number | null): void {
     this.value = value;
+    this.selectionControl.setValue(value, { emitEvent: false });
     this.cdr.markForCheck();
   }
 
@@ -90,10 +95,15 @@ export class ClearingHouseSelectComponent implements ControlValueAccessor, OnIni
 
   setDisabledState(isDisabled: boolean): void {
     this.disabled = isDisabled;
+    if (isDisabled) {
+      this.selectionControl.disable({ emitEvent: false });
+    } else {
+      this.selectionControl.enable({ emitEvent: false });
+    }
     this.cdr.markForCheck();
   }
 
-  onSelectionChange(value: number | null): void {
+  private onSelectionChange(value: number | null): void {
     this.value = value;
     this.onChange(value);
     this.onTouched();

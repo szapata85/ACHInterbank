@@ -6,34 +6,26 @@
       <p class="lede">Administra las instituciones configuradas en ACH, incluyendo su estado y datos de enrutamiento.</p>
     </div>
     <div class="actions">
-      <button type="button" class="btn btn-secondary" (click)="loadInstitutions()" [disabled]="loading || saving">Recargar</button>
-      <button type="button" class="btn btn-primary" (click)="startCreate()" [disabled]="saving">Nueva institución</button>
+      <ui-boton texto="Recargar" variante="contorno" icono="refresh" (accion)="loadInstitutions()" [deshabilitado]="loading || saving"></ui-boton>
+      <ui-boton texto="Nueva institución" icono="add" (accion)="startCreate()" [deshabilitado]="saving"></ui-boton>
     </div>
   </div>
 
-  <div class="grid" *ngIf="institutions.length; else empty">
-    <ag-grid-angular
-      class="ag-theme-alpine"
-      [rowData]="institutions"
-      [columnDefs]="columnDefs"
-      [defaultColDef]="defaultColDef"
-      [suppressScrollOnNewData]="true"
-      [pagination]="true"
-      [paginationPageSize]="pageSize"
-      [paginationPageSizeSelector]="pageSizeOptions"
-      [context]="{ componentParent: this }"
-      [overlayNoRowsTemplate]="noRowsTemplate"
-      [overlayLoadingTemplate]="loadingTemplate"
-      (gridReady)="onGridReady($event)"
-    ></ag-grid-angular>
-  </div>
+  <ui-grilla-empresarial
+    [columnas]="columnDefs"
+    [datos]="institutions"
+    [cargando]="loading"
+    [error]="false"
+    [tamanoPagina]="pageSize"
+    [mensajeVacio]="'No hay instituciones registradas.'"
+    [mensajeCargando]="'Cargando instituciones...'"
+    [placeholderBusqueda]="'Buscar institución por nombre, ruta o estado'"
+  ></ui-grilla-empresarial>
 
-  <ng-template #empty>
-    <div class="empty">
-      <p>No hay instituciones registradas.</p>
-      <button type="button" class="btn btn-primary" (click)="startCreate()" [disabled]="saving">Agregar primera institución</button>
-    </div>
-  </ng-template>
+  <div class="empty" *ngIf="!loading && institutions.length === 0">
+    <p>No hay instituciones registradas.</p>
+    <ui-boton texto="Agregar primera institución" icono="add_circle" (accion)="startCreate()" [deshabilitado]="saving"></ui-boton>
+  </div>
 </section>
 
 <section class="card" *ngIf="showForm">
@@ -46,13 +38,13 @@
     </label>
 
     <label>
-      Routing number
+      Código de ruta
       <input type="text" formControlName="routingNumber" maxlength="9" />
       <app-error-message [control]="form.get('routingNumber')"></app-error-message>
     </label>
 
     <label>
-      Transit code
+      Código de tránsito
       <input type="text" formControlName="transitCode" maxlength="4" />
       <app-error-message [control]="form.get('transitCode')"></app-error-message>
     </label>
@@ -77,7 +69,7 @@
     </label>
 
     <div class="form-actions">
-      <button type="button" class="btn btn-secondary" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
+      <ui-boton texto="Cancelar" variante="contorno" (accion)="cancelEdit()" [deshabilitado]="saving"></ui-boton>
       <button type="submit" class="btn btn-primary" [disabled]="saving">{{ editing ? 'Actualizar' : 'Guardar' }}</button>
     </div>
   </form>
