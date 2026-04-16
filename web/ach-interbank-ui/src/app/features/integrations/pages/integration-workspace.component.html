@@ -1,11 +1,14 @@
-<div class="integration-workspace">
-  <div class="workspace-header">
-    <h2>Integraciones ACH</h2>
-    <p>
-      Configura de forma guiada qué datos envía el sistema a los servicios ACH.
-      La configuración técnica SOAP está separada de la configuración funcional para usuarios de negocio.
-    </p>
-  </div>
+<section class="integration-workspace">
+  <ui-migas-pan [items]="migas"></ui-migas-pan>
+  <ui-encabezado-pagina
+    titulo="Integraciones ACH"
+    descripcion="Configure de forma guiada las reglas funcionales y parámetros técnicos de intercambio con servicios ACH."
+  ></ui-encabezado-pagina>
+
+  <ui-alerta
+    tipo="info"
+    mensaje="Use configuración funcional para reglas operativas y configuración técnica SOAP para endpoint y contratos de consumo."
+  ></ui-alerta>
 
   <nav class="workspace-nav">
     <a routerLink="/integraciones/mappings" routerLinkActive="active">Configuración funcional</a>
@@ -15,4 +18,4 @@
   <section class="workspace-content">
     <router-outlet></router-outlet>
   </section>
-</div>
+</section>

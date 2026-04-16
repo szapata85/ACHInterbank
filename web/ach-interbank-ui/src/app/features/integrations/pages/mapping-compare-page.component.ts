@@ -1,6 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import {
   IntegrationMappingAdminService,
@@ -12,10 +12,12 @@ import { NotificationService } from '../../../core/services/notification.service
 import { SharedModule } from '../../../shared/shared.module';
 import { ColDef } from 'ag-grid-community';
 
+type TipoCambio = 'All' | 'Added' | 'Removed' | 'Modified' | 'Equal';
+
 @Component({
   selector: 'app-mapping-compare-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, SharedModule],
+  imports: [CommonModule, ReactiveFormsModule, SharedModule],
   templateUrl: './mapping-compare-page.component.html',
   styleUrls: ['./mapping-compare-page.component.scss']
 })
@@ -27,11 +29,17 @@ export class MappingComparePageComponent implements OnInit {
   methodCode = '';
   mappingSets: IntegrationMappingSet[] = [];
   comparison?: MappingSetComparisonResult;
-
-  leftId = '';
-  rightId = '';
-  changeFilter: 'All' | 'Added' | 'Removed' | 'Modified' | 'Equal' = 'All';
   loading = false;
+
+  readonly versionIzquierdaControl = new FormControl<string>('', { nonNullable: true });
+  readonly versionDerechaControl = new FormControl<string>('', { nonNullable: true });
+  readonly filtroCambioControl = new FormControl<TipoCambio>('All', { nonNullable: true });
+
+  readonly migas = [
+    { etiqueta: 'Inicio', ruta: '/' },
+    { etiqueta: 'Integraciones', ruta: '/integraciones' },
+    { etiqueta: 'Comparador de versiones' }
+  ];
 
   readonly columnasComparacion: ColDef[] = [
     { field: 'parametro', headerName: 'Parámetro', sortable: true, filter: 'agTextColumnFilter' },
@@ -40,6 +48,11 @@ export class MappingComparePageComponent implements OnInit {
     { field: 'impacto', headerName: 'Impacto potencial', sortable: true, filter: 'agTextColumnFilter' }
   ];
 
+  ngOnInit(): void {
+    this.methodCode = this.route.snapshot.paramMap.get('methodCode') ?? '';
+    this.loadMappingSets();
+  }
+
   filasGrupo(group: string): any[] {
     return (this.groupedRules[group] || []).map((row) => ({
       parametro: row.parameterPath,
@@ -47,11 +60,6 @@ export class MappingComparePageComponent implements OnInit {
       camposModificados: row.changedFields.join(', ') || 'N/D',
       impacto: row.potentialImpact
     }));
-  }
-
-  ngOnInit(): void {
-    this.methodCode = this.route.snapshot.paramMap.get('methodCode') ?? '';
-    this.loadMappingSets();
   }
 
   loadMappingSets(): void {
@@ -68,9 +76,11 @@ export class MappingComparePageComponent implements OnInit {
         this.api.getMappingSets(method.id).subscribe({
           next: (sets) => {
             this.mappingSets = [...sets].sort((a, b) => b.version - a.version);
-            this.leftId = this.mappingSets[0]?.id ?? '';
-            this.rightId = this.mappingSets[1]?.id ?? this.mappingSets[0]?.id ?? '';
-            if (this.leftId && this.rightId && this.leftId !== this.rightId) {
+            const izquierda = this.mappingSets[0]?.id ?? '';
+            const derecha = this.mappingSets[1]?.id ?? this.mappingSets[0]?.id ?? '';
+            this.versionIzquierdaControl.setValue(izquierda);
+            this.versionDerechaControl.setValue(derecha);
+            if (this.canCompare) {
               this.runCompare();
             }
           },
@@ -86,25 +96,34 @@ export class MappingComparePageComponent implements OnInit {
   }
 
   runCompare(): void {
-    if (!this.leftId || !this.rightId || this.leftId === this.rightId) {
+    const leftId = this.versionIzquierdaControl.value;
+    const rightId = this.versionDerechaControl.value;
+    if (!leftId || !rightId || leftId === rightId) {
       this.notifications.error('Selecciona dos versiones distintas del mismo método.');
       return;
     }
 
-    this.api.compare(this.leftId, this.rightId).subscribe({
+    this.api.compare(leftId, rightId).subscribe({
       next: (result) => (this.comparison = result),
       error: () => this.notifications.error('No fue posible comparar las versiones seleccionadas.')
     });
   }
 
+  limpiarFiltros(): void {
+    this.filtroCambioControl.setValue('All');
+  }
+
   get filteredRules(): MappingSetRuleComparison[] {
     const rules = this.comparison?.rules ?? [];
-    if (this.changeFilter === 'All') return rules;
-    return rules.filter((x) => x.changeType === this.changeFilter);
+    const changeFilter = this.filtroCambioControl.value;
+    if (changeFilter === 'All') return rules;
+    return rules.filter((x) => x.changeType === changeFilter);
   }
 
   get canCompare(): boolean {
-    return Boolean(this.leftId && this.rightId && this.leftId !== this.rightId);
+    const leftId = this.versionIzquierdaControl.value;
+    const rightId = this.versionDerechaControl.value;
+    return Boolean(leftId && rightId && leftId !== rightId);
   }
 
   get methodDisplayName(): string {
@@ -128,10 +147,6 @@ export class MappingComparePageComponent implements OnInit {
     }
 
     return groups;
-  }
-
-  getChangeBadgeClass(changeType: string): string {
-    return `change-${changeType.toLowerCase()}`;
   }
 
   getChangeLabel(changeType: string): string {
@@ -183,12 +198,18 @@ export class MappingComparePageComponent implements OnInit {
 
   getGroupLabel(group: string): string {
     switch (group) {
-      case 'ciclo-camara': return 'Ciclo / Cámara';
-      case 'transaccion': return 'Transacción';
-      case 'lote': return 'Lote';
-      case 'addenda': return 'Complementario';
-      case 'respuesta-esperada': return 'Respuesta esperada';
-      default: return 'Configuración';
+      case 'ciclo-camara':
+        return 'Ciclo / Cámara';
+      case 'transaccion':
+        return 'Transacción';
+      case 'lote':
+        return 'Lote';
+      case 'addenda':
+        return 'Complementario';
+      case 'respuesta-esperada':
+        return 'Respuesta esperada';
+      default:
+        return 'Configuración';
     }
   }
 }

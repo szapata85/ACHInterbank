@@ -24,6 +24,12 @@ export class SoapIntegrationSettingsComponent {
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
 
+  readonly migas = [
+    { etiqueta: 'Inicio', ruta: '/' },
+    { etiqueta: 'Integraciones', ruta: '/integraciones' },
+    { etiqueta: 'Configuración técnica SOAP' }
+  ];
+
   readonly form = this.fb.group({
     wscfaachMappings: this.fb.array<FormGroup>([]),
     wsAxonRespuestaTransaccionesMappings: this.fb.array<FormGroup>([])

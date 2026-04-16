@@ -1,19 +1,11 @@
 <div class="soap-settings-card">
   <header class="page-header">
-    <nav class="breadcrumb" aria-label="Breadcrumb">
-      <span>Integraciones</span>
-      <span class="sep">/</span>
-      <span>Configuración SOAP</span>
-    </nav>
-    <h2>Integraciones SOAP ACH</h2>
-    <p class="subtitle">
-      Configuración técnica avanzada. Esta pantalla está orientada a soporte técnico para endpoint, SOAP Action
-      y parámetros de entrada de cada método.
-    </p>
-    <p class="subtitle-note">
-      Si necesitas ajustar qué datos funcionales se envían a Proc_Contrapartidas, usa
-      <a routerLink="/integraciones/mappings">Configuración funcional</a>.
-    </p>
+    <ui-migas-pan [items]="migas"></ui-migas-pan>
+    <ui-encabezado-pagina
+      titulo="Integraciones SOAP ACH"
+      descripcion="Configuración técnica avanzada para endpoint, SOAP Action y parámetros de entrada por método."
+    ></ui-encabezado-pagina>
+    <ui-alerta tipo="info" mensaje="Si necesitas ajustar reglas funcionales, utiliza la sección de configuración funcional de integraciones."></ui-alerta>
   </header>
 
   <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">

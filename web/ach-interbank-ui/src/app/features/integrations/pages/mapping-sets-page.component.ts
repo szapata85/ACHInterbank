@@ -27,6 +27,12 @@ export class MappingSetsPageComponent implements OnInit {
   mappingSets: IntegrationMappingSet[] = [];
   creatingDraft = false;
 
+  readonly migas = [
+    { etiqueta: 'Inicio', ruta: '/' },
+    { etiqueta: 'Integraciones', ruta: '/integraciones' },
+    { etiqueta: 'Configuración funcional' }
+  ];
+
   readonly columnas: ColDef[] = [
     { field: 'nombre', headerName: 'Nombre', sortable: true, filter: 'agTextColumnFilter' },
     { field: 'integracion', headerName: 'Integración', sortable: true, filter: 'agTextColumnFilter' },
@@ -103,7 +109,7 @@ export class MappingSetsPageComponent implements OnInit {
     const methodId = this.selectedMethodId;
     this.api.getMappingSets(methodId ?? undefined).subscribe({
       next: (items) => (this.mappingSets = items ?? []),
-      error: () => this.notifications.error('No fue posible cargar MappingSets.')
+      error: () => this.notifications.error('No fue posible cargar las configuraciones funcionales.')
     });
   }
 
@@ -147,10 +153,10 @@ export class MappingSetsPageComponent implements OnInit {
     this.creatingDraft = true;
     this.api.createDraft(methodId, name, notes, 'ui-admin').subscribe({
       next: (created) => {
-        this.notifications.success('Borrador de mapeo creado.');
+        this.notifications.success('Borrador de configuración creado.');
         this.openEditor(created);
       },
-      error: () => this.notifications.error('No fue posible crear el borrador de mapeo.'),
+      error: () => this.notifications.error('No fue posible crear el borrador de configuración.'),
       complete: () => (this.creatingDraft = false)
     });
   }

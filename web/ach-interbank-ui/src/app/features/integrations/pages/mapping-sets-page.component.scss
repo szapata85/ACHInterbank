@@ -1,25 +1,70 @@
-.mapping-list-page { display: grid; gap: 1rem; }
-.cards { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: .75rem; }
-.card { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:1rem; }
-.metric span { color:#6b7280; font-size:.85rem; }
-.metric strong { display:block; font-size:1.5rem; margin-top:.25rem; }
-.draft-form { display:grid; grid-template-columns:2fr 2fr 2fr auto; gap:.75rem; align-items:end; }
-.draft-form label { display:grid; gap:.35rem; font-weight:600; color:#374151; }
-.draft-form input,.draft-form select { padding:.5rem; border:1px solid #d1d5db; border-radius:8px; }
-.table-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:.5rem; }
-.table-wrap { width:100%; overflow:auto; }
-.table-card table { width:100%; border-collapse:collapse; }
-.table-card th,.table-card td { border-bottom:1px solid #eef2f7; text-align:left; padding:.6rem; }
-.tech-code { display:block; color:#6b7280; font-size:.75rem; margin-top:.15rem; }
-.helper { color:#6b7280; margin-top:.65rem; }
-.badge { padding:.2rem .5rem; border-radius:999px; font-size:.75rem; font-weight:700; }
-.badge.draft { background:#fff7e6; color:#b45c00; }
-.badge.published { background:#e8f8ef; color:#157347; }
-.badge.archived { background:#f3f4f6; color:#4b5563; }
-button.primary { background:#0b4a8b; color:#fff; border:none; border-radius:8px; padding:.55rem .9rem; }
-button[disabled] { cursor:not-allowed; opacity:.6; }
+.mapping-list-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.metric span {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.metric strong {
+  display: block;
+  font-size: 1.5rem;
+  margin-top: 0.25rem;
+}
+
+.draft-form {
+  display: grid;
+  grid-template-columns: 2fr 2fr 2fr auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.draft-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.draft-form input,
+.draft-form select {
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+}
+
+.table-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.6rem;
+}
+
+.helper {
+  color: #6b7280;
+  margin-top: 0.65rem;
+}
 
 @media (max-width: 1100px) {
-  .cards { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .draft-form { grid-template-columns:1fr; }
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .draft-form {
+    grid-template-columns: 1fr;
+  }
 }

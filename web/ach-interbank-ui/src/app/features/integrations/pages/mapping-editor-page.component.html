@@ -1,6 +1,6 @@
 <section class="card state" *ngIf="viewState === 'loading'">
   <h4>Cargando editor funcional…</h4>
-  <p>Estamos obteniendo MappingSet, parámetros y catálogos.</p>
+  <p>Estamos obteniendo la configuración de integración, parámetros y catálogos.</p>
 </section>
 
 <section class="card state error" *ngIf="viewState === 'error'">
@@ -172,16 +172,16 @@
         </ul>
       </div>
 
-      <div class="panel-block preview-controls">
+      <div class="panel-block preview-controls" [formGroup]="previewForm">
         <h5>Contexto de simulación</h5>
-        <label class="inline"><input type="checkbox" [(ngModel)]="previewUseControlledSample" /> Usar datos de ejemplo controlados</label>
+        <label class="inline"><input type="checkbox" formControlName="usarMuestraControlada" /> Usar datos de ejemplo controlados</label>
         <label>
           Id de transacción (real)
-          <input type="number" [(ngModel)]="previewSampleTransactionId" [disabled]="previewUseControlledSample" />
+          <input type="number" formControlName="idTransaccionMuestra" [disabled]="usarMuestraControlada" />
         </label>
         <label>
           Id de ciclo (real)
-          <input type="text" [(ngModel)]="previewSampleCycleId" [disabled]="previewUseControlledSample" />
+          <input type="text" formControlName="idCicloMuestra" [disabled]="usarMuestraControlada" />
         </label>
       </div>
 
@@ -221,7 +221,7 @@
             v{{ h.version || 'Borrador' }} · {{ h.action }} · {{ h.performedBy }} · {{ h.performedAtUtc }}
           </li>
         </ul>
-        <p *ngIf="historyItems.length === 0">No hay historial disponible para este MappingSet.</p>
+        <p *ngIf="historyItems.length === 0">No hay historial disponible para esta configuración.</p>
       </div>
     </aside>
   </section>

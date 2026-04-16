@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { Router } from '@angular/router';
-import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { ReactiveFormsModule } from '@angular/forms';
 import { Subject, forkJoin, of } from 'rxjs';
 import { catchError, distinctUntilChanged, finalize, map, switchMap, takeUntil, timeout } from 'rxjs/operators';
 import {
@@ -19,11 +19,12 @@ import {
   MappingSetHistoryItem
 } from '../../../core/services/integration-mapping-admin.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { SharedModule } from '../../../shared/shared.module';
 
 @Component({
   selector: 'app-mapping-editor-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, SharedModule],
   templateUrl: './mapping-editor-page.component.html',
   styleUrls: ['./mapping-editor-page.component.scss']
 })
@@ -51,14 +52,18 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   previewResult?: PreviewResult;
   historyItems: MappingSetHistoryItem[] = [];
 
-  previewUseControlledSample = true;
-  previewSampleTransactionId?: number;
-  previewSampleCycleId?: string;
   savingRule = false;
   validating = false;
   previewing = false;
   publishing = false;
   cloning = false;
+
+
+  readonly previewForm = this.fb.group({
+    usarMuestraControlada: [true],
+    idTransaccionMuestra: [null as number | null],
+    idCicloMuestra: ['']
+  });
 
   readonly ruleForm = this.fb.group({
     id: [null as number | null],
@@ -212,7 +217,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
           this.transformations = [];
           this.historyItems = [];
           this.viewState = 'error';
-          this.errorMessage = 'No fue posible cargar el editor de mapping. Intenta nuevamente.';
+          this.errorMessage = 'No fue posible cargar el editor de configuración. Intenta nuevamente.';
           this.notifications.error(this.errorMessage);
         }
       });
@@ -299,13 +304,13 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
       next: (result) => {
         this.validationResult = result;
         const message = result.isValid
-          ? 'MappingSet válido y completo. Puedes publicar.'
+          ? 'Configuración válida y completa. Puedes publicar.'
           : 'Se encontraron observaciones estructurales/funcionales. Corrígelas antes de publicar.';
         this.notifications.success(message);
         onDone?.(result.isValid);
       },
       error: () => {
-        this.notifications.error('No fue posible validar el MappingSet.');
+        this.notifications.error('No fue posible validar la configuración.');
         onDone?.(false);
       },
       complete: () => (this.validating = false)
@@ -318,9 +323,9 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
     this.previewing = true;
     this.api
       .preview(this.mappingSet.id, {
-        sampleTransactionId: this.previewSampleTransactionId,
-        sampleCycleId: this.previewSampleCycleId,
-        useControlledSample: this.previewUseControlledSample,
+        sampleTransactionId: this.previewForm.controls.idTransaccionMuestra.value ?? undefined,
+        sampleCycleId: this.previewForm.controls.idCicloMuestra.value?.trim() || undefined,
+        useControlledSample: Boolean(this.previewForm.controls.usarMuestraControlada.value),
         maxItems: 200
       })
       .subscribe({
@@ -338,7 +343,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
 
     this.runValidation((isValid) => {
       if (!isValid) {
-        this.notifications.error('Publicación bloqueada: MappingSet inválido o incompleto.');
+        this.notifications.error('Publicación bloqueada: configuración inválida o incompleta.');
         return;
       }
 
@@ -346,7 +351,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
       this.api.publish(this.mappingSet!.id, 'ui-admin', 'Publicado desde SPA').subscribe({
         next: (updated) => {
           this.mappingSet = updated;
-          this.notifications.success('MappingSet publicado correctamente.');
+          this.notifications.success('Configuración publicada correctamente.');
         },
         error: () => this.notifications.error('No se pudo publicar. Revisa validación y cobertura.'),
         complete: () => (this.publishing = false)
@@ -359,12 +364,12 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
     this.cloning = true;
     this.api.clone(this.mappingSet.id, `${this.mappingSet.name} (copia)`, 'ui-admin').subscribe({
       next: (created) => {
-        this.notifications.success('MappingSet clonado.');
+        this.notifications.success('Configuración clonada.');
         this.mappingSet = created;
         this.mappingSetId = created.id;
         this.router.navigate(['/integraciones/mappings', created.methodCode, created.id]);
       },
-      error: () => this.notifications.error('No fue posible clonar el MappingSet.'),
+      error: () => this.notifications.error('No fue posible clonar la configuración.'),
       complete: () => (this.cloning = false)
     });
   }
@@ -486,6 +491,11 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
     if (lowered === 'constant') return 'Constant';
     if (lowered === 'expression') return 'Expression';
     return raw;
+  }
+
+
+  get usarMuestraControlada(): boolean {
+    return Boolean(this.previewForm.controls.usarMuestraControlada.value);
   }
 
   trackByParameterId(_: number, parameter: IntegrationMethodParameter): number {

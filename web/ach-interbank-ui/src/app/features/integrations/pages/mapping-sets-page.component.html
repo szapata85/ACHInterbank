@@ -1,4 +1,10 @@
-<div class="mapping-list-page">
+<section class="mapping-list-page">
+  <ui-migas-pan [items]="migas"></ui-migas-pan>
+  <ui-encabezado-pagina
+    titulo="Configuraciones funcionales por integración"
+    descripcion="Gestione borradores, validación y publicación de configuraciones de mapeo por método."
+  ></ui-encabezado-pagina>
+
   <section class="cards">
     <article class="card metric"><span>Total</span><strong>{{ stats.total }}</strong></article>
     <article class="card metric"><span>Borrador</span><strong>{{ stats.draft }}</strong></article>
@@ -6,8 +12,7 @@
     <article class="card metric"><span>Archivado</span><strong>{{ stats.archived }}</strong></article>
   </section>
 
-  <section class="card controls">
-    <h3>Nuevo borrador de configuración funcional</h3>
+  <ng-template #borradorTpl>
     <form [formGroup]="createDraftForm" class="draft-form" (ngSubmit)="createDraft()">
       <label>
         Integración
@@ -29,26 +34,23 @@
         {{ creatingDraft ? 'Creando…' : 'Crear borrador' }}
       </button>
     </form>
-  </section>
+  </ng-template>
+  <ui-tarjeta titulo="Nuevo borrador" subtitulo="Crear una versión de trabajo para ajustar reglas funcionales." [contenido]="borradorTpl"></ui-tarjeta>
 
-  <section class="card table-card">
+  <ng-template #versionesTpl>
     <div class="table-header">
-      <h3>Versiones y estados</h3>
-      <button type="button" [disabled]="mappingSets.length < 2" (click)="openCompare()">Comparar versiones</button>
+      <ui-boton texto="Comparar versiones" icono="compare_arrows" [deshabilitado]="mappingSets.length < 2" (accion)="openCompare()"></ui-boton>
     </div>
-    <div class="table-wrap">
-      <ui-grilla-empresarial
-        [columnas]="columnas"
-        [datos]="filasGrilla"
-        [cargando]="loading"
-        [error]="false"
-        [tamanoPagina]="10"
-        [mensajeVacio]="'No hay versiones para la integración seleccionada.'"
-        [mensajeCargando]="'Cargando información...'"
-      ></ui-grilla-empresarial>
-    </div>
-    <p class="helper" *ngIf="mappingSets.length < 2">
-      Necesitas al menos dos versiones para habilitar la comparación.
-    </p>
-  </section>
-</div>
+    <ui-grilla-empresarial
+      [columnas]="columnas"
+      [datos]="filasGrilla"
+      [cargando]="loading"
+      [error]="false"
+      [tamanoPagina]="10"
+      [mensajeVacio]="'No hay versiones para la integración seleccionada.'"
+      [mensajeCargando]="'Cargando configuraciones...'"
+    ></ui-grilla-empresarial>
+    <p class="helper" *ngIf="mappingSets.length < 2">Necesitas al menos dos versiones para habilitar la comparación.</p>
+  </ng-template>
+  <ui-tarjeta titulo="Versiones y estados" subtitulo="Consulta y comparación de versiones por método." [contenido]="versionesTpl"></ui-tarjeta>
+</section>
