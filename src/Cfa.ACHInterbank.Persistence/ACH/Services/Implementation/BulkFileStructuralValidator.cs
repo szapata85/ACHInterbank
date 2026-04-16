@@ -12,7 +12,7 @@ public class BulkFileStructuralValidator : IBulkFileStructuralValidator
 {
     private static readonly string[] RequiredColumns =
     [
-        "amount", "reference", "type", "accountType", "destinationInstitutionId",
+        "amount", "type", "accountType", "destinationInstitutionId",
         "sourceAccountNumber", "destinationAccountNumber", "companyName",
         "companyIdentification", "companyEntryDescriptionId"
     ];
@@ -50,10 +50,18 @@ public class BulkFileStructuralValidator : IBulkFileStructuralValidator
             return Invalid(item, "companyEntryDescriptionId inválido.");
         }
 
+        var transactionExternalId = item.Fields.GetValueOrDefault("transactionExternalId")?.Trim();
+        var legacyReference = item.Fields.GetValueOrDefault("reference")?.Trim();
+        if (string.IsNullOrWhiteSpace(transactionExternalId) && string.IsNullOrWhiteSpace(legacyReference))
+        {
+            return Invalid(item, "Debe incluir transactionExternalId o reference (legado).");
+        }
+
         var request = new BulkAchTransactionItemRequest
         {
             Amount = amount,
-            Reference = item.Fields["reference"]!.Trim(),
+            TransactionExternalId = transactionExternalId,
+            Reference = legacyReference ?? string.Empty,
             Type = type,
             AccountType = accountType,
             IsPrenotification = TryBool(item.Fields.GetValueOrDefault("isPrenotification")),

@@ -26,6 +26,8 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
     private readonly ITransactionPolicyService? _transactionPolicyService;
     private readonly IConfiguration _configuration;
     private readonly IContrapartidaDispatchPersistenceService _contrapartidaDispatchPersistenceService;
+    private readonly ICenitCycleQueueService? _cenitCycleQueueService;
+    private readonly IAchRegulatoryCatalogService? _catalogService;
 
     public AchBulkTransactionService(
         AchDbContext context,
@@ -37,6 +39,8 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
         IPrenotificationHandler prenotificationHandler,
         IConfiguration configuration,
         IContrapartidaDispatchPersistenceService contrapartidaDispatchPersistenceService,
+        ICenitCycleQueueService? cenitCycleQueueService = null,
+        IAchRegulatoryCatalogService? catalogService = null,
         ITransactionPolicyService? transactionPolicyService = null)
     {
         _context = context;
@@ -48,6 +52,8 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
         _prenotificationHandler = prenotificationHandler;
         _configuration = configuration;
         _contrapartidaDispatchPersistenceService = contrapartidaDispatchPersistenceService;
+        _cenitCycleQueueService = cenitCycleQueueService;
+        _catalogService = catalogService;
         _transactionPolicyService = transactionPolicyService;
     }
 
@@ -72,8 +78,8 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
             .ToList();
 
         var activeCompanyEntryDescriptionIds = await PreloadActiveCompanyEntryDescriptionIdsAsync(ct);
-        var duplicatedReferencesInRequest = GetDuplicateReferences(normalizedItems);
-        var existingReferencesInPersistence = await LoadExistingReferencesAsync(normalizedItems, ct);
+        var duplicatedOperationalIdsInRequest = GetDuplicateOperationalIds(normalizedItems);
+        var existingOperationalIdsInPersistence = await LoadExistingOperationalIdsAsync(normalizedItems, ct);
 
         var customerCache = await BuildCustomerCacheAsync(normalizedItems, ct);
         var documentTypeByDefault = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -99,23 +105,33 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
                 try
                 {
                     var normalizedReference = record.Data.Reference.Trim();
+                    var normalizedOperationalId = ResolveOperationalId(record.Data);
 
-                    if (duplicatedReferencesInRequest.Contains(normalizedReference))
+                    if (duplicatedOperationalIdsInRequest.Contains(normalizedOperationalId))
                     {
-                        throw new ArgumentException($"La referencia '{normalizedReference}' está duplicada dentro del mismo request.", nameof(record.Data.Reference));
+                        throw new ArgumentException($"El identificador operativo '{normalizedOperationalId}' está duplicado dentro del mismo request.", nameof(record.Data.TransactionExternalId));
                     }
 
-                    if (existingReferencesInPersistence.Contains(normalizedReference))
+                    if (existingOperationalIdsInPersistence.Contains(normalizedOperationalId))
                     {
-                        throw new ArgumentException($"La referencia '{normalizedReference}' ya existe en persistencia.", nameof(record.Data.Reference));
+                        throw new ArgumentException($"El identificador operativo '{normalizedOperationalId}' ya existe en persistencia.", nameof(record.Data.TransactionExternalId));
                     }
 
                     _transactionValidator.ValidateRequest(record.Data, activeCompanyEntryDescriptionIds);
+                    if (_catalogService is not null)
+                    {
+                        var prenoteRequired = await _catalogService.IsPrenotificationRequiredAsync(record.Data.Type, ct);
+                        if (prenoteRequired && !record.Data.IsPrenotification)
+                        {
+                            throw new ArgumentException($"La política regulatoria exige prenotificación para tipo {record.Data.Type}.", nameof(record.Data.IsPrenotification));
+                        }
+                    }
 
                     if (_transactionPolicyService is not null)
                     {
                         var preview = await _transactionPolicyService.PreviewAsync(new TransactionPolicyPreviewRequest(
                             record.Data.Amount,
+                            record.Data.TransactionExternalId,
                             record.Data.Reference,
                             record.Data.Type,
                             record.Data.AccountType,
@@ -137,6 +153,15 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
                     var batchContext = await _batchResolver.ResolveAsync(record.Data, ct);
                     var persisted = await _transactionPersister.PersistAsync(record.Data, batchContext, ct);
 
+                    if (batchContext.MustQueueForTargetCycle && _cenitCycleQueueService is not null)
+                    {
+                        await _cenitCycleQueueService.EnqueueAsync(
+                            persisted.Transaction,
+                            DateTime.UtcNow,
+                            batchContext.QueueReason,
+                            ct);
+                    }
+
                     if (record.Data.IsPrenotification)
                     {
                         await _prenotificationHandler.HandleAsync(record.Data, persisted.Transaction, ct);
@@ -151,6 +176,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
                     var itemResult = new BulkAchTransactionItemResult
                     {
                         Index = record.Index,
+                        TransactionExternalId = normalizedOperationalId,
                         Reference = normalizedReference,
                         Succeeded = true
                     };
@@ -163,6 +189,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
                     response.ItemResults.Add(new BulkAchTransactionItemResult
                     {
                         Index = record.Index,
+                        TransactionExternalId = ResolveOperationalId(record.Data),
                         Reference = record.Data.Reference,
                         Succeeded = false,
                         ErrorCode = "ITEM_VALIDATION_FAILED",
@@ -206,6 +233,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
         return new AchTransactionRequestData
         {
             Amount = item.Amount,
+            TransactionExternalId = item.TransactionExternalId,
             Reference = item.Reference,
             Type = item.Type,
             AccountType = item.AccountType,
@@ -252,10 +280,10 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
             .ToHashSetAsync(ct);
     }
 
-    private static HashSet<string> GetDuplicateReferences(IEnumerable<NormalizedBulkItem> normalizedItems)
+    private static HashSet<string> GetDuplicateOperationalIds(IEnumerable<NormalizedBulkItem> normalizedItems)
     {
         return normalizedItems
-            .Select(x => x.Data.Reference.Trim())
+            .Select(ResolveOperationalId)
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .GroupBy(x => x, StringComparer.OrdinalIgnoreCase)
             .Where(g => g.Count() > 1)
@@ -263,26 +291,36 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
-    private async Task<HashSet<string>> LoadExistingReferencesAsync(IEnumerable<NormalizedBulkItem> normalizedItems, CancellationToken ct)
+    private async Task<HashSet<string>> LoadExistingOperationalIdsAsync(IEnumerable<NormalizedBulkItem> normalizedItems, CancellationToken ct)
     {
-        var references = normalizedItems
-            .Select(x => x.Data.Reference.Trim())
+        var operationalIds = normalizedItems
+            .Select(ResolveOperationalId)
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        if (references.Length == 0)
+        if (operationalIds.Length == 0)
         {
             return [];
         }
 
         return (await _context.AchTransactions
             .AsNoTracking()
-            .Where(x => references.Contains(x.Reference))
-            .Select(x => x.Reference)
+            .Where(x => operationalIds.Contains(x.TransactionExternalId)
+                || (string.IsNullOrWhiteSpace(x.TransactionExternalId) && operationalIds.Contains(x.Reference)))
+            .Select(x => string.IsNullOrWhiteSpace(x.TransactionExternalId) ? x.Reference : x.TransactionExternalId)
             .Distinct()
             .ToListAsync(ct))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string ResolveOperationalId(NormalizedBulkItem item) => ResolveOperationalId(item.Data);
+
+    private static string ResolveOperationalId(AchTransactionRequestData data)
+    {
+        return !string.IsNullOrWhiteSpace(data.TransactionExternalId)
+            ? data.TransactionExternalId.Trim()
+            : data.Reference.Trim();
     }
 
     private async Task<CustomerCache> BuildCustomerCacheAsync(IEnumerable<NormalizedBulkItem> normalizedItems, CancellationToken ct)

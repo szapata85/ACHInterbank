@@ -129,6 +129,17 @@ const routes: Routes = [
         loadChildren: () => import('./features/reports/reports.module').then((m) => m.ReportsModule)
       },
       {
+        path: 'cenit',
+        canActivate: [roleGuard, permissionGuard],
+        data: {
+          roles: ['Admin', 'ACH.Operator'],
+          permissions: ['CanReadAch'],
+          breadcrumb: 'CENIT',
+          title: 'Backoffice CENIT'
+        },
+        loadChildren: () => import('./features/cenit/cenit.module').then((m) => m.CenitModule)
+      },
+      {
         path: 'unauthorized',
         data: { title: 'No autorizado', breadcrumb: 'Error 403' },
         loadComponent: () =>

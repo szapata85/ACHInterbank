@@ -269,6 +269,7 @@ public class IntegrationMappingPreviewService : IIntegrationMappingPreviewServic
         var raw = path switch
         {
             "transaction.id" => tx?.Id.ToString(),
+            "transaction.transactionexternalid" => tx?.TransactionExternalId,
             "transaction.amount" => tx?.Amount.ToString(),
             "transaction.type" => tx?.Type.ToString(),
             "transaction.transactioncode" => tx?.TransactionCode,

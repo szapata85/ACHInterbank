@@ -221,6 +221,24 @@ public static class DependencyInjectionService
                 IF to_regclass('"ClearingHouses"') IS NULL AND to_regclass('clearinghouses') IS NOT NULL THEN
                     EXECUTE 'ALTER TABLE clearinghouses RENAME TO "ClearingHouses"';
                 END IF;
+                IF to_regclass('"IntegrationMethods"') IS NULL AND to_regclass('integrationmethods') IS NOT NULL THEN
+                    EXECUTE 'ALTER TABLE integrationmethods RENAME TO "IntegrationMethods"';
+                END IF;
+                IF to_regclass('"IntegrationMethodParameters"') IS NULL AND to_regclass('integrationmethodparameters') IS NOT NULL THEN
+                    EXECUTE 'ALTER TABLE integrationmethodparameters RENAME TO "IntegrationMethodParameters"';
+                END IF;
+                IF to_regclass('"IntegrationSourceCatalogFields"') IS NULL AND to_regclass('integrationsourcecatalogfields') IS NOT NULL THEN
+                    EXECUTE 'ALTER TABLE integrationsourcecatalogfields RENAME TO "IntegrationSourceCatalogFields"';
+                END IF;
+                IF to_regclass('"IntegrationMappingSets"') IS NULL AND to_regclass('integrationmappingsets') IS NOT NULL THEN
+                    EXECUTE 'ALTER TABLE integrationmappingsets RENAME TO "IntegrationMappingSets"';
+                END IF;
+                IF to_regclass('"IntegrationMappingRules"') IS NULL AND to_regclass('integrationmappingrules') IS NOT NULL THEN
+                    EXECUTE 'ALTER TABLE integrationmappingrules RENAME TO "IntegrationMappingRules"';
+                END IF;
+                IF to_regclass('"IntegrationMappingSetHistory"') IS NULL AND to_regclass('integrationmappingsethistory') IS NOT NULL THEN
+                    EXECUTE 'ALTER TABLE integrationmappingsethistory RENAME TO "IntegrationMappingSetHistory"';
+                END IF;
             END $$;
             """;
 

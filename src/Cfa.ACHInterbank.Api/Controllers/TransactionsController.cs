@@ -66,7 +66,8 @@ public class TransactionsController : ControllerBase
     [ProducesResponseType(typeof(TransactionPolicyPreview), StatusCodes.Status200OK)]
     public async Task<IActionResult> PreviewPolicy(
         [FromQuery] decimal amount,
-        [FromQuery] string reference,
+        [FromQuery] string? transactionExternalId,
+        [FromQuery] string? reference,
         [FromQuery] TransactionTypeEnum type,
         [FromQuery] AccountTypeEnum accountType,
         [FromQuery] bool isPrenotification,
@@ -79,7 +80,8 @@ public class TransactionsController : ControllerBase
     {
         var preview = await _transactionPolicyService.PreviewAsync(new TransactionPolicyPreviewRequest(
             amount,
-            reference,
+            transactionExternalId,
+            reference ?? string.Empty,
             type,
             accountType,
             isPrenotification,
@@ -100,7 +102,8 @@ public class TransactionsController : ControllerBase
     {
         if (request is null) return BadRequest("El cuerpo de la solicitud no puede estar vacío.");
         if (!request.IsPrenotification && request.Amount <= 0) return BadRequest("El monto debe ser mayor a cero.");
-        if (string.IsNullOrWhiteSpace(request.Reference)) return BadRequest("La referencia es obligatoria.");
+        if (string.IsNullOrWhiteSpace(request.TransactionExternalId) && string.IsNullOrWhiteSpace(request.Reference))
+            return BadRequest("Debe enviar transactionExternalId o reference (legado).");
         if (string.IsNullOrWhiteSpace(request.SourceAccountNumber)) return BadRequest("La cuenta de origen es obligatoria.");
         if (string.IsNullOrWhiteSpace(request.DestinationAccountNumber)) return BadRequest("La cuenta de destino es obligatoria.");
         if (string.IsNullOrWhiteSpace(request.CompanyName)) return BadRequest("El nombre del usuario originador es obligatorio.");
@@ -130,6 +133,7 @@ public class TransactionsController : ControllerBase
                 recipientPersonType: request.RecipientPersonType,
                 recipientIdNumber: request.RecipientIdNumber,
                 recipientName: request.RecipientName,
+                transactionExternalId: request.TransactionExternalId,
                 requiresIdentityValidation: request.RequiresIdentityValidation,
                 addendas: request.Addendas,
                 ct: ct
@@ -229,6 +233,7 @@ public class TransactionsController : ControllerBase
 public class AchTransactionRequest
 {
     public decimal Amount { get; set; }
+    public string? TransactionExternalId { get; set; }
     public string Reference { get; set; } = string.Empty;
     public TransactionTypeEnum Type { get; set; }
     public AccountTypeEnum AccountType { get; set; } = AccountTypeEnum.Checking;

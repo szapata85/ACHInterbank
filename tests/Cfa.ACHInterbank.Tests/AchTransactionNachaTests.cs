@@ -209,7 +209,86 @@ public class AchTransactionNachaTests
 
         Assert.Equal("05", records[3].Substring(1, 2));
         Assert.Equal("PAGOS PSE ", records[3].Substring(20, 10));
+        Assert.Equal(new string('0', 53), records[3].Substring(30, 53));
         Assert.Equal("0000001", records[3].Substring(87, 7));
+    }
+
+    [Fact]
+    public async Task BuildNachaFileByCycleAsync_Throws_WhenAddendaBusinessTypeIsIncompatibleWithTransactionType()
+    {
+        using var connection = CreateOpenConnection();
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+
+        using (var arrangeContext = CreateContext(connection))
+        {
+            SeedCoreEntities(arrangeContext);
+            SeedNachaLayouts(arrangeContext);
+
+            var cycle = await arrangeContext.AchCycles.AsNoTracking().SingleAsync(c => c.Id == cycleId);
+            var batch = new AchBatch
+            {
+                AchCycleId = cycleId,
+                EffectiveEntryDate = cycle.ProcessingDate,
+                BatchSequenceNumber = 1,
+                ServiceClassCode = "220",
+                CompanyName = "EMPRESA DEMO",
+                CompanyIdentification = "123456780",
+                CompanyEntryDescription = "PAGOS PSE",
+                CompanyEntryDescriptionId = 1,
+                OriginOrOdfi = "12345678"
+            };
+
+            var tx = new AchTransaction
+            {
+                Amount = 500m,
+                TransactionExternalId = "TX-OP-001",
+                Reference = "LEG-REF-001",
+                Type = TransactionTypeEnum.Credit,
+                TransactionCode = "22",
+                ServiceClassCode = "220",
+                CompanyEntryDescriptionId = 1,
+                CompanyName = "EMPRESA DEMO",
+                CompanyIdentification = "123456780",
+                OriginatingDFI = "123456780",
+                ReceivingDFI = "765432100",
+                TraceNumber = "123456780000001",
+                TraceSequenceNumber = 1,
+                EffectiveEntryDate = cycle.ProcessingDate,
+                AddendaRecordIndicator = true,
+                SourceAccountNumber = "111122223333",
+                DestinationAccountNumber = "999988887777",
+                SourceInstitutionId = 1,
+                DestinationInstitutionId = 2,
+                AchCycleId = cycleId,
+                AchBatch = batch,
+                Addendas =
+                [
+                    new AchTransactionAddenda
+                    {
+                        AddendaType = "05",
+                        BusinessType = AchAddendaBusinessType.Return,
+                        ReturnReasonCode = "R01",
+                        OriginalTraceNumber = "123456780000001",
+                        NewTraceNumber = "765432100000001",
+                        SequenceNumber = 1
+                    }
+                ]
+            };
+
+            arrangeContext.AchBatches.Add(batch);
+            arrangeContext.AchTransactions.Add(tx);
+            await arrangeContext.SaveChangesAsync();
+        }
+
+        using var executionContext = CreateContext(connection);
+        var holidayService = new Mock<IBankHoliday>();
+        holidayService.Setup(h => h.GetHolidays(It.IsAny<int>())).Returns([]);
+        var recordDataProvider = new Mock<INachaRecordDataProvider>();
+        var semanticValidator = new Mock<INachaSemanticValidator>();
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, recordDataProvider.Object, semanticValidator.Object);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None));
+        Assert.Contains("devolución", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -386,20 +465,12 @@ public class AchTransactionNachaTests
             };
 
             arrangeContext.AchTransactions.Add(transaction);
-            arrangeContext.ReturnReasons.Add(new ReturnReason
-            {
-                Id = 999,
-                Code = "R01",
-                Description = "Fondos insuficientes",
-                Category = "R",
-                IsForReturn = true
-            });
             await arrangeContext.SaveChangesAsync();
         }
 
         using var executionContext = CreateContext(connection);
         var persistedTransactionId = await executionContext.AchTransactions.Select(t => t.Id).SingleAsync();
-        var service = new AchReturnsService(executionContext);
+        var service = new AchReturnsService(executionContext, regulatoryCatalogService: new AchRegulatoryCatalogService(executionContext));
         var response = await service.GenerateReturnsFileAsync(
             new GenerateReturnsFileRequest(
                 cycleId,
@@ -473,21 +544,12 @@ public class AchTransactionNachaTests
                 DestinationInstitutionId = 2
             });
 
-            arrangeContext.ReturnReasons.Add(new ReturnReason
-            {
-                Id = 1000,
-                Code = "DEV14",
-                Description = "No consentimiento",
-                Category = "R",
-                IsForReturn = true
-            });
-
             await arrangeContext.SaveChangesAsync();
         }
 
         using var executionContext = CreateContext(connection);
         var persistedTransactionId = await executionContext.AchTransactions.Select(t => t.Id).SingleAsync();
-        var service = new AchReturnsService(executionContext);
+        var service = new AchReturnsService(executionContext, regulatoryCatalogService: new AchRegulatoryCatalogService(executionContext));
         var response = await service.GenerateReturnsFileAsync(
             new GenerateReturnsFileRequest(
                 cycleId,
@@ -502,6 +564,57 @@ public class AchTransactionNachaTests
         Assert.Equal("123456780000456", addendaRecord.Substring(8, 15));
         Assert.Equal(15, addendaRecord.Substring(81, 15).Trim().Length);
         Assert.Equal(7, addendaRecord.Substring(99, 7).Trim().Length);
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_WhenCatalogPolicyRejectsReason_ThrowsRegulatoryMessage()
+    {
+        using var connection = CreateOpenConnection();
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+
+        using (var arrangeContext = CreateContext(connection))
+        {
+            SeedCoreEntities(arrangeContext);
+            SeedNachaLayouts(arrangeContext);
+
+            var cycle = await arrangeContext.AchCycles.SingleAsync(c => c.Id == cycleId);
+            arrangeContext.AchTransactions.Add(new AchTransaction
+            {
+                Amount = 100m,
+                Reference = "PAGO-REG-CAT",
+                Type = TransactionTypeEnum.Credit,
+                TransactionCode = "22",
+                OriginatingDFI = "12345678",
+                ReceivingDFI = "76543210",
+                TraceNumber = "123456780001111",
+                TraceSequenceNumber = 1111,
+                EffectiveEntryDate = cycle.ProcessingDate,
+                AddendaRecordIndicator = true,
+                CompanyName = "Empresa Demo",
+                CompanyIdentification = "123456780",
+                SourceAccountNumber = "111122223333",
+                DestinationAccountNumber = "999988887777",
+                AchCycleId = cycle.Id,
+                SourceInstitutionId = 1,
+                DestinationInstitutionId = 2
+            });
+            await arrangeContext.SaveChangesAsync();
+        }
+
+        using var executionContext = CreateContext(connection);
+        var persistedTransactionId = await executionContext.AchTransactions.Select(t => t.Id).SingleAsync();
+        var catalog = new Mock<IAchRegulatoryCatalogService>();
+        catalog
+            .Setup(x => x.ValidateReturnCodeAsync("R01", TransactionTypeEnum.Credit, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, "La causal R01 no está permitida para Credit."));
+
+        var service = new AchReturnsService(executionContext, regulatoryCatalogService: catalog.Object);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GenerateReturnsFileAsync(
+            new GenerateReturnsFileRequest(cycleId, [new ReturnSelectionItemDto(persistedTransactionId, "R01")]),
+            CancellationToken.None));
+
+        Assert.Contains("R01 no está permitida", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -520,7 +633,7 @@ public class AchTransactionNachaTests
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => parser.ParseAndSaveAsync(stream, "fatal51.ach", CancellationToken.None));
 
-        Assert.Contains("Error Fatal 51", ex.Message);
+        Assert.Contains("D04", ex.Message);
     }
 
     [Fact]
@@ -539,7 +652,7 @@ public class AchTransactionNachaTests
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => parser.ParseAndSaveAsync(stream, "fatal52.ach", CancellationToken.None));
 
-        Assert.Contains("Error Fatal 52", ex.Message);
+        Assert.Contains("D05", ex.Message);
     }
 
     [Fact]
@@ -577,7 +690,7 @@ public class AchTransactionNachaTests
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => parser.ParseAndSaveAsync(stream, "fatal60.ach", CancellationToken.None));
 
-        Assert.Contains("Error Fatal 60", ex.Message);
+        Assert.Contains("D04", ex.Message);
     }
 
     [Fact]
@@ -595,7 +708,7 @@ public class AchTransactionNachaTests
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => parser.ParseAndSaveAsync(stream, "fatal64.ach", CancellationToken.None));
 
-        Assert.Contains("Error Fatal 64", ex.Message);
+        Assert.Contains("D02", ex.Message);
     }
 
     private static SqliteConnection CreateOpenConnection()
@@ -721,6 +834,12 @@ public class AchTransactionNachaTests
         alternativeSource.CalculateCheckDigit();
 
         context.FinancialInstitutions.AddRange(sourceInstitution, destinationInstitution, alternativeSource);
+        context.AchReturnCodes.AddRange(
+            new AchReturnCode { Code = "R01", Description = "Fondos insuficientes", AppliesToCredit = true, AppliesToDebit = true, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 15, IsActive = true },
+            new AchReturnCode { Code = "DEV14", Description = "No consentimiento", AppliesToCredit = false, AppliesToDebit = true, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 60, IsActive = true });
+        context.AchReturnPolicies.AddRange(
+            new AchReturnPolicy { TransactionType = "Credit", AllowedReturnCodesCsv = "R01", MaxDays = 15, RequiredOriginalTransactionState = "Pending", RequiresAddenda = true, IsActive = true },
+            new AchReturnPolicy { TransactionType = "Debit", AllowedReturnCodesCsv = "R01,DEV14", MaxDays = 60, RequiredOriginalTransactionState = "Pending", RequiresAddenda = true, IsActive = true });
         context.Customers.Add(new Customer
         {
             FirstName = "Test",

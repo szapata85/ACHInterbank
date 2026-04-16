@@ -24,6 +24,8 @@ public class AchTransactionService : IAchTransactionService
     private readonly IPrenotificationHandler _prenotificationHandler;
     private readonly ITransactionPolicyService? _transactionPolicyService;
     private readonly IContrapartidaDispatchPersistenceService _contrapartidaDispatchPersistenceService;
+    private readonly ICenitCycleQueueService? _cenitCycleQueueService;
+    private readonly IAchRegulatoryCatalogService? _catalogService;
 
     public AchTransactionService(
         AchDbContext context,
@@ -35,6 +37,8 @@ public class AchTransactionService : IAchTransactionService
         ITransactionPersister transactionPersister,
         IPrenotificationHandler prenotificationHandler,
         IContrapartidaDispatchPersistenceService contrapartidaDispatchPersistenceService,
+        ICenitCycleQueueService? cenitCycleQueueService = null,
+        IAchRegulatoryCatalogService? catalogService = null,
         ITransactionPolicyService? transactionPolicyService = null)
     {
         _context = context;
@@ -46,6 +50,8 @@ public class AchTransactionService : IAchTransactionService
         _transactionPersister = transactionPersister;
         _prenotificationHandler = prenotificationHandler;
         _contrapartidaDispatchPersistenceService = contrapartidaDispatchPersistenceService;
+        _cenitCycleQueueService = cenitCycleQueueService;
+        _catalogService = catalogService;
         _transactionPolicyService = transactionPolicyService;
     }
 
@@ -65,6 +71,7 @@ public class AchTransactionService : IAchTransactionService
         string? recipientPersonType = null,
         string? recipientIdNumber = null,
         string? recipientName = null,
+        string? transactionExternalId = null,
         bool requiresIdentityValidation = false,
         IEnumerable<AddendaDto>? addendas = null,
         CancellationToken ct = default)
@@ -72,6 +79,7 @@ public class AchTransactionService : IAchTransactionService
         var request = new AchTransactionRequestData
         {
             Amount = amount,
+            TransactionExternalId = transactionExternalId,
             Reference = reference,
             Type = type,
             AccountType = accountType,
@@ -91,10 +99,19 @@ public class AchTransactionService : IAchTransactionService
         };
 
         _transactionValidator.ValidateRequest(request);
+        if (_catalogService is not null)
+        {
+            var prenoteRequired = await _catalogService.IsPrenotificationRequiredAsync(request.Type, ct);
+            if (prenoteRequired && !request.IsPrenotification)
+            {
+                throw new InvalidOperationException($"La política regulatoria exige prenotificación para tipo {request.Type}.");
+            }
+        }
         if (_transactionPolicyService is not null)
         {
             var preview = await _transactionPolicyService.PreviewAsync(new TransactionPolicyPreviewRequest(
                 request.Amount,
+                request.TransactionExternalId,
                 request.Reference,
                 request.Type,
                 request.AccountType,
@@ -122,6 +139,15 @@ public class AchTransactionService : IAchTransactionService
 
             var batchContext = await _batchResolver.ResolveAsync(request, ct);
             var persisted = await _transactionPersister.PersistAsync(request, batchContext, ct);
+
+            if (batchContext.MustQueueForTargetCycle && _cenitCycleQueueService is not null)
+            {
+                await _cenitCycleQueueService.EnqueueAsync(
+                    persisted.Transaction,
+                    DateTime.UtcNow,
+                    batchContext.QueueReason,
+                    ct);
+            }
 
             if (isPrenotification)
             {
@@ -458,6 +484,7 @@ public class AchTransactionService : IAchTransactionService
             {
                 Id = t.Id,
                 Amount = t.Amount,
+                TransactionExternalId = t.TransactionExternalId,
                 Reference = t.Reference,
                 Type = t.Type,
                 TraceNumber = t.TraceNumber,

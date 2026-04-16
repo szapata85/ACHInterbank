@@ -2112,6 +2112,10 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("TransactionExternalId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<int>("TraceSequenceNumber")
                         .HasColumnType("integer");
 
@@ -3322,7 +3326,7 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     b.Property<string>("AchCycleId")
                         .IsRequired()
-                        .HasMaxLength(32)
+                        .HasMaxLength(40)
                         .HasColumnType("character varying(32)");
 
                     b.Property<int>("ClearingHouseId")
@@ -3426,7 +3430,7 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     b.Property<string>("AchCycleId")
                         .IsRequired()
-                        .HasMaxLength(32)
+                        .HasMaxLength(40)
                         .HasColumnType("character varying(32)");
 
                     b.Property<int>("AchTransactionId")

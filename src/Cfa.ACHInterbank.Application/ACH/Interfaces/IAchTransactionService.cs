@@ -22,6 +22,7 @@ public interface IAchTransactionService
         string? recipientPersonType = null,
         string? recipientIdNumber = null,
         string? recipientName = null,
+        string? transactionExternalId = null,
         bool requiresIdentityValidation = false,
         IEnumerable<AddendaDto>? addendas = null,
         CancellationToken ct = default);

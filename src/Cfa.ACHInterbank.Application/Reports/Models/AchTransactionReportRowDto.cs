@@ -6,6 +6,7 @@ public sealed class AchTransactionReportRowDto
 {
     public int TransactionId { get; init; }
     public DateTime EffectiveEntryDate { get; init; }
+    public string TransactionExternalId { get; init; } = string.Empty;
     public string Reference { get; init; } = string.Empty;
     public decimal Amount { get; init; }
     public TransactionTypeEnum TransactionType { get; init; }
@@ -35,4 +36,3 @@ public sealed class AchTransactionReportResponseDto
     public int PageSize { get; init; }
     public int Total { get; init; }
 }
-

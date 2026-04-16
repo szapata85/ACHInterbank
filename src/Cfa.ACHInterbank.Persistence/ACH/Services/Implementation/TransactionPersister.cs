@@ -62,7 +62,8 @@ public class TransactionPersister : ITransactionPersister
         var tx = new AchTransaction
         {
             Amount = request.Amount,
-            Reference = request.Reference,
+            TransactionExternalId = ResolveOperationalId(request),
+            Reference = request.Reference?.Trim() ?? string.Empty,
             Type = effectiveType,
 
             TransactionCode = transactionCode,
@@ -131,6 +132,13 @@ public class TransactionPersister : ITransactionPersister
             Transaction = tx,
             Batch = context.Batch
         };
+    }
+
+    private static string ResolveOperationalId(AchTransactionRequestData request)
+    {
+        return !string.IsNullOrWhiteSpace(request.TransactionExternalId)
+            ? request.TransactionExternalId.Trim()
+            : request.Reference.Trim();
     }
 
     public async Task UpdateBatchTotalsAsync(AchBatch batch, CancellationToken ct = default)

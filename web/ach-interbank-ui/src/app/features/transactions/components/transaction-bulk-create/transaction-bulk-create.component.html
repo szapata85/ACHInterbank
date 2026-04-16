@@ -13,7 +13,7 @@
     <textarea
       [value]="jsonInput()"
       (input)="onJsonInput($any($event.target).value)"
-      placeholder='{"batchReference":"BATCH-20260410-001","chunkSize":200,"transactions":[...]}'
+      placeholder='{"batchReference":"BATCH-20260410-001","chunkSize":200,"transactions":[{"transactionExternalId":"OP-001", "...":"..."}]}'
       rows="18"
       spellcheck="false"
     ></textarea>
@@ -104,7 +104,8 @@
       <thead>
         <tr>
           <th>#</th>
-          <th>Referencia</th>
+          <th>ID operación</th>
+          <th>Referencia legado</th>
           <th>Estado</th>
           <th>ID transacción</th>
           <th>Código error</th>
@@ -114,6 +115,7 @@
       <tbody>
         <tr *ngFor="let item of resultRows()" [class.success]="item.succeeded" [class.error-row]="!item.succeeded">
           <td>{{ item.index + 1 }}</td>
+          <td>{{ item.transactionExternalId || '-' }}</td>
           <td>{{ item.reference || '-' }}</td>
           <td>
             <span class="badge" [class.ok]="item.succeeded" [class.ko]="!item.succeeded">{{ item.statusLabel }}</span>

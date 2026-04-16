@@ -33,10 +33,14 @@ public class CsvBulkFileParser : IBulkFileParser
         var items = new List<ParsedRawItem>();
         var rowIndex = 1;
 
-        while (!reader.EndOfStream)
+        while (true)
         {
             ct.ThrowIfCancellationRequested();
             var line = await reader.ReadLineAsync(ct);
+            if (line is null)
+            {
+                break;
+            }
             rowIndex++;
 
             if (string.IsNullOrWhiteSpace(line))

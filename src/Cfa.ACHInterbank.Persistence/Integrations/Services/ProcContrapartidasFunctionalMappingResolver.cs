@@ -187,6 +187,7 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
             "clearinghouse.id" => cycle.ClearingHouseId.ToString(CultureInfo.InvariantCulture),
             "clearinghouse.code" => cycle.ClearingHouse?.Code,
             "transaction.id" => tx?.Id.ToString(CultureInfo.InvariantCulture),
+            "transaction.transactionexternalid" => tx?.TransactionExternalId,
             "transaction.reference" => tx?.Reference,
             "transaction.amount" => tx?.Amount.ToString(CultureInfo.InvariantCulture),
             "transaction.tracenumber" => tx?.TraceNumber,
