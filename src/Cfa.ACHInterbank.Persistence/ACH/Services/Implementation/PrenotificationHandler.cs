@@ -38,12 +38,16 @@ public class PrenotificationHandler : IPrenotificationHandler
         }
 
         var recipientIdNumber = request.RecipientIdNumber?.Trim() ?? string.Empty;
-        var existingThirdParty = await _customerThirdPartyRepository.FindAsync(
-            customer.Id,
-            request.DestinationInstitutionId,
-            request.DestinationAccountNumber,
-            recipientIdNumber,
-            ct);
+        CustomerThirdParty? existingThirdParty = null;
+        if (customer.Id > 0)
+        {
+            existingThirdParty = await _customerThirdPartyRepository.FindAsync(
+                customer.Id,
+                request.DestinationInstitutionId,
+                request.DestinationAccountNumber,
+                recipientIdNumber,
+                ct);
+        }
 
         if (existingThirdParty is not null)
         {
@@ -57,6 +61,7 @@ public class PrenotificationHandler : IPrenotificationHandler
         {
             var thirdParty = new CustomerThirdParty
             {
+                Customer = customer,
                 CustomerId = customer.Id,
                 DestinationInstitutionId = request.DestinationInstitutionId,
                 DestinationAccountNumber = request.DestinationAccountNumber,

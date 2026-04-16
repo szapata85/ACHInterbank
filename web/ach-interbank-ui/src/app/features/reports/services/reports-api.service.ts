@@ -25,6 +25,7 @@ export interface TransactionMovementReportFilter {
 export interface TransactionMovementReportRow {
   transactionId: number;
   effectiveEntryDate: string;
+  transactionExternalId: string;
   reference: string;
   amount: number;
   transactionType: string;
@@ -65,6 +66,7 @@ export interface ReturnRejectionReportFilter {
 export interface ReturnRejectionReportRow {
   transactionId: number;
   effectiveEntryDate: string;
+  transactionExternalId: string;
   reference: string;
   amount: number;
   state: string;

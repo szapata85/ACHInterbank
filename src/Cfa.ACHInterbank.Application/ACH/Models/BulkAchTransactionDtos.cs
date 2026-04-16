@@ -13,6 +13,7 @@ public sealed class BulkAchTransactionRequest
 public sealed class BulkAchTransactionItemRequest
 {
     public decimal Amount { get; set; }
+    public string? TransactionExternalId { get; set; }
     public string Reference { get; set; } = string.Empty;
     public TransactionTypeEnum Type { get; set; }
     public AccountTypeEnum AccountType { get; set; } = AccountTypeEnum.Checking;
@@ -45,6 +46,7 @@ public sealed class BulkAchTransactionResponse
 public sealed class BulkAchTransactionItemResult
 {
     public int Index { get; set; }
+    public string TransactionExternalId { get; set; } = string.Empty;
     public string Reference { get; set; } = string.Empty;
     public bool Succeeded { get; set; }
     public int? TransactionId { get; set; }

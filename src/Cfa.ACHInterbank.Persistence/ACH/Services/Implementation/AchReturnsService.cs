@@ -9,8 +9,13 @@ using System.Text;
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
-public class AchReturnsService(AchDbContext context, TimeProvider? timeProvider = null) : IAchReturnsService
+public class AchReturnsService(
+    AchDbContext context,
+    TimeProvider? timeProvider = null,
+    IAchRegulatoryCatalogService? regulatoryCatalogService = null) : IAchReturnsService
 {
+    private readonly IAchRegulatoryCatalogService _regulatoryCatalogService = regulatoryCatalogService
+                                                                           ?? throw new InvalidOperationException("IAchRegulatoryCatalogService es requerido para gobernanza regulatoria de devoluciones.");
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
     private const int MaxCyclesForReturn = 4;
     private const string ImmediateDestinationAchColombia = "000101006";
@@ -24,15 +29,6 @@ public class AchReturnsService(AchDbContext context, TimeProvider? timeProvider 
     {
         "26", "27", "28", "36", "37", "38", "55", "56", "57"
     };
-    private static readonly IReadOnlyDictionary<string, int> ReturnReasonMaxDays = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
-    {
-        ["DEV14"] = 60,
-        ["R07"] = 5,
-        ["R10"] = 5,
-        ["R13"] = 5,
-        ["R29"] = 5
-    };
-
     public async Task<IReadOnlyList<ReturnEligibleTransactionDto>> GetTransactionsByCycleAsync(string cycleId, CancellationToken ct = default)
     {
         var cycle = await context.AchCycles.AsNoTracking().FirstOrDefaultAsync(c => c.Id == cycleId, ct)
@@ -128,8 +124,6 @@ public class AchReturnsService(AchDbContext context, TimeProvider? timeProvider 
             throw new InvalidOperationException("No se permite mezclar transacciones de ciclos distintos en el mismo archivo de devolución.");
         }
 
-        var reasonList = await context.ReturnReasons.AsNoTracking().ToListAsync(ct);
-        var reasons = reasonList.ToDictionary(r => r.Code, StringComparer.OrdinalIgnoreCase);
         var cycleOrder = await GetCycleOrderAsync(cycle.ClearingHouseId, ct);
         cycleOrder.TryGetValue(request.CycleId, out var selectedCycleOrder);
 
@@ -163,12 +157,8 @@ public class AchReturnsService(AchDbContext context, TimeProvider? timeProvider 
                 throw new InvalidOperationException($"La transacción {tx.Id} excede la ventana máxima de 4 ciclos para devolución.");
             }
 
-            if (!reasons.TryGetValue(item.ReturnReasonCode, out var reason) || (!reason.Code.StartsWith("R", StringComparison.OrdinalIgnoreCase) && !string.Equals(reason.Code, "DEV14", StringComparison.OrdinalIgnoreCase)))
-            {
-                throw new InvalidOperationException($"La causal {item.ReturnReasonCode} no es válida para devolución ACH.");
-            }
-
-            ValidateReturnWindow(tx, reason.Code, now);
+            var reasonCode = item.ReturnReasonCode.Trim().ToUpperInvariant();
+            await ValidateReturnPolicyAsync(tx, reasonCode, now, ct);
 
             var amount = tx.IsPrenotification ? 0m : tx.Amount;
             var newSequence = await GenerateNewReturnSequenceAsync(tx.ReceivingDFI, now.Date, ct);
@@ -177,14 +167,14 @@ public class AchReturnsService(AchDbContext context, TimeProvider? timeProvider 
             var originEntity = NormalizeDigits(tx.ReceivingDFI, 8);
 
             entryLines.Add(BuildType6ReturnLine(tx, receiverEntity, amount, newSequence));
-            addendaLines.Add(BuildType7ReturnAddendaLine(reason.Code, originalSequence, newSequence, newSequence[^7..]));
+            addendaLines.Add(BuildType7ReturnAddendaLine(reasonCode, originalSequence, newSequence, newSequence[^7..]));
             returnEntries.Add(new ReturnEntrySnapshot(tx.TransactionCode, amount, receiverEntity));
 
             generatedRows.Add(new AchReturnGenerated
             {
                 OriginalTransactionId = tx.Id,
                 ReturnCycleId = request.CycleId,
-                ReturnReasonCode = reason.Code.ToUpperInvariant(),
+                ReturnReasonCode = reasonCode,
                 Amount = amount,
                 NewSequenceNumber = newSequence,
                 OriginalSequenceNumber = originalSequence,
@@ -283,17 +273,32 @@ public class AchReturnsService(AchDbContext context, TimeProvider? timeProvider 
     }
 
 
-    private static void ValidateReturnWindow(AchTransaction transaction, string reasonCode, DateTime nowUtc)
+    private async Task ValidateReturnPolicyAsync(AchTransaction transaction, string reasonCode, DateTime nowUtc, CancellationToken ct)
     {
-        if (!ReturnReasonMaxDays.TryGetValue(reasonCode, out var maxDays))
+        var returnCodeValidation = await _regulatoryCatalogService.ValidateReturnCodeAsync(
+            reasonCode,
+            transaction.Type,
+            transaction.EffectiveEntryDate.Date,
+            nowUtc.Date,
+            ct);
+        if (!returnCodeValidation.IsAllowed)
         {
-            return;
+            throw new InvalidOperationException(returnCodeValidation.Reason
+                                                ?? $"La causal {reasonCode} no está permitida para la transacción {transaction.Id}.");
         }
 
-        var elapsedDays = (nowUtc.Date - transaction.EffectiveEntryDate.Date).TotalDays;
-        if (elapsedDays > maxDays)
+        var returnPolicyValidation = await _regulatoryCatalogService.ValidateReturnPolicyAsync(
+            transaction.Type,
+            reasonCode,
+            transaction.EffectiveEntryDate.Date,
+            nowUtc.Date,
+            hasAddenda: true,
+            transaction.State.ToString(),
+            ct);
+        if (!returnPolicyValidation.IsAllowed)
         {
-            throw new InvalidOperationException($"La causal {reasonCode} excede la ventana máxima de {maxDays} días para la transacción {transaction.Id}.");
+            throw new InvalidOperationException(returnPolicyValidation.Reason
+                                                ?? $"La política regulatoria no permite devolver la transacción {transaction.Id}.");
         }
     }
 

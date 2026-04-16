@@ -74,6 +74,7 @@ public class AchTraceabilityService : IAchTraceabilityService
         return new AchTraceabilityDetailDto
         {
             TransactionId = transaction.Id,
+            TransactionExternalId = transaction.TransactionExternalId,
             Reference = transaction.Reference,
             TraceNumber = transaction.TraceNumber,
             OriginalTraceRef = transaction.OriginalTraceRef,
@@ -175,6 +176,7 @@ public class AchTraceabilityService : IAchTraceabilityService
             .Select(t => new
             {
                 t.Id,
+                t.TransactionExternalId,
                 t.Reference,
                 t.TraceNumber,
                 t.TransactionCode,
@@ -197,6 +199,7 @@ public class AchTraceabilityService : IAchTraceabilityService
             .Select(t => new AchTraceabilityReportRowDto
             {
                 TransactionId = t.Id,
+                TransactionExternalId = t.TransactionExternalId,
                 Reference = t.Reference,
                 TraceNumber = t.TraceNumber,
                 TransactionCode = t.TransactionCode,

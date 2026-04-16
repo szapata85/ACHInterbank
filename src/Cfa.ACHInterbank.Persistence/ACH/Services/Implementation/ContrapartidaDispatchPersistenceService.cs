@@ -44,11 +44,24 @@ public sealed class ContrapartidaDispatchPersistenceService : IContrapartidaDisp
             throw new InvalidOperationException($"No se encontró cámara válida para el ciclo {transaction.AchCycleId}.");
         }
 
+        var resolvedBatch = transaction.AchBatch;
+        if (resolvedBatch is null && transaction.AchBatchId > 0)
+        {
+            resolvedBatch = _context.AchBatches.Local.FirstOrDefault(b => b.Id == transaction.AchBatchId)
+                ?? await _context.AchBatches.FirstOrDefaultAsync(b => b.Id == transaction.AchBatchId, ct);
+        }
+
+        if (resolvedBatch is null)
+        {
+            throw new InvalidOperationException("No se pudo resolver el lote ACH asociado para el dispatch a contrapartida.");
+        }
+
         var item = new ContrapartidaDispatchItem
         {
             AchTransaction = transaction,
             AchCycleId = transaction.AchCycleId,
-            AchBatchId = transaction.AchBatchId,
+            AchBatch = resolvedBatch,
+            AchBatchId = resolvedBatch.Id > 0 ? resolvedBatch.Id : transaction.AchBatchId,
             ClearingHouseId = clearingHouseId,
             State = ContrapartidaDispatchItemStateEnum.PendingContrapartidaReport,
             NextAttemptAtUtc = DateTime.UtcNow

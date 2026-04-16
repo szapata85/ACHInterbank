@@ -165,16 +165,16 @@ export class ReportListPageComponent implements OnInit {
   private buildConfig(key: ReportKey): ReportConfig {
     const base: Record<ReportKey, ReportConfig> = {
       sent: { key, title: 'Enviados', subtitle: 'Reporte de transacciones enviadas', columns: [
-        { key: 'transactionId', label: 'ID' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'reference', label: 'Referencia' }, { key: 'amount', label: 'Monto', align: 'end' }, { key: 'state', label: 'Estado' }, { key: 'sourceBankName', label: 'Banco origen' }, { key: 'destinationBankName', label: 'Banco destino' }
+        { key: 'transactionId', label: 'ID' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'ID operación' }, { key: 'reference', label: 'Referencia legado' }, { key: 'amount', label: 'Monto', align: 'end' }, { key: 'state', label: 'Estado' }, { key: 'sourceBankName', label: 'Banco origen' }, { key: 'destinationBankName', label: 'Banco destino' }
       ] },
       received: { key, title: 'Recibidos', subtitle: 'Reporte de transacciones recibidas', columns: [
-        { key: 'transactionId', label: 'ID' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'reference', label: 'Referencia' }, { key: 'amount', label: 'Monto', align: 'end' }, { key: 'state', label: 'Estado' }, { key: 'sourceBankName', label: 'Banco origen' }, { key: 'destinationBankName', label: 'Banco destino' }
+        { key: 'transactionId', label: 'ID' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'ID operación' }, { key: 'reference', label: 'Referencia legado' }, { key: 'amount', label: 'Monto', align: 'end' }, { key: 'state', label: 'Estado' }, { key: 'sourceBankName', label: 'Banco origen' }, { key: 'destinationBankName', label: 'Banco destino' }
       ] },
       returns: { key, title: 'Devoluciones', subtitle: 'Reporte de devoluciones ACH', columns: [
-        { key: 'transactionId', label: 'ID' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'reference', label: 'Referencia' }, { key: 'causalCode', label: 'Causal' }, { key: 'amount', label: 'Monto', align: 'end' }, { key: 'state', label: 'Estado' }
+        { key: 'transactionId', label: 'ID' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'ID operación' }, { key: 'reference', label: 'Referencia legado' }, { key: 'causalCode', label: 'Causal' }, { key: 'amount', label: 'Monto', align: 'end' }, { key: 'state', label: 'Estado' }
       ] },
       rejections: { key, title: 'Rechazos', subtitle: 'Reporte de rechazos ACH', columns: [
-        { key: 'transactionId', label: 'ID' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'reference', label: 'Referencia' }, { key: 'causalCode', label: 'Causal' }, { key: 'amount', label: 'Monto', align: 'end' }, { key: 'state', label: 'Estado' }
+        { key: 'transactionId', label: 'ID' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'ID operación' }, { key: 'reference', label: 'Referencia legado' }, { key: 'causalCode', label: 'Causal' }, { key: 'amount', label: 'Monto', align: 'end' }, { key: 'state', label: 'Estado' }
       ] },
       files: { key, title: 'Archivos', subtitle: 'Reporte de archivos NACHA', columns: [
         { key: 'fileName', label: 'Archivo' }, { key: 'generatedAtUtc', label: 'Fecha' }, { key: 'clearingHouseName', label: 'Cámara' }, { key: 'totalRecords', label: 'Registros', align: 'end' }, { key: 'totalTransactions', label: 'Transacciones', align: 'end' }

@@ -64,7 +64,8 @@ export class TransactionListComponent implements OnInit {
 
   private readonly allColumnDefs: ColDef<TransactionListRow>[] = [
     { field: 'id', headerName: 'ID', width: 90, maxWidth: 120, sortable: true },
-    { field: 'reference', headerName: 'Referencia', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'transactionExternalId', headerName: 'ID operación', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'reference', headerName: 'Referencia legado', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
     { field: 'typeLabel', headerName: 'Tipo', width: 160, filter: 'agSetColumnFilter' },
     { field: 'transactionNatureLabel', headerName: 'Naturaleza', width: 170, filter: 'agSetColumnFilter' },
     { field: 'returnManagementLabel', headerName: 'Gestión devolución', width: 220, filter: 'agSetColumnFilter' },
@@ -78,7 +79,8 @@ export class TransactionListComponent implements OnInit {
   ];
 
   readonly columnOptions: ColumnOption[] = [
-    { field: 'reference', label: 'Referencia' },
+    { field: 'transactionExternalId', label: 'ID operación' },
+    { field: 'reference', label: 'Referencia legado' },
     { field: 'typeLabel', label: 'Tipo' },
     { field: 'transactionNatureLabel', label: 'Naturaleza' },
     { field: 'returnManagementLabel', label: 'Gestión devolución' },
@@ -94,6 +96,7 @@ export class TransactionListComponent implements OnInit {
   readonly mandatoryColumnFields = new Set<keyof TransactionListRow>(['id']);
   visibleColumnFields = new Set<keyof TransactionListRow>([
     'id',
+    'transactionExternalId',
     'reference',
     'transactionNatureLabel',
     'typeLabel',

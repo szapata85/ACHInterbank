@@ -1,0 +1,51 @@
+.cenit-section {
+  margin-top: 1rem;
+}
+
+.cenit-section > header {
+  margin-bottom: 0.75rem;
+}
+
+.cenit-section h2 {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.cenit-section p {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-muted);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  border: 1px solid #dbe4ee;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  padding: 1rem;
+}
+
+.card h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.card p {
+  margin: 0.6rem 0 0.8rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.link {
+  color: var(--button-color, var(--color-primary));
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.link:hover {
+  text-decoration: underline;
+}

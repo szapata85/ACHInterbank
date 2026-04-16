@@ -51,7 +51,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   readonly form: FormGroup = this.fb.group({
     customerId: [null],
     amount: ['', [Validators.required]],
-    reference: ['', [Validators.required, Validators.maxLength(30)]],
+    transactionExternalId: ['', [Validators.required, Validators.maxLength(64)]],
+    reference: ['', [Validators.maxLength(30)]],
     type: [TransactionTypeEnum.Credit, Validators.required],
     accountType: [AccountTypeEnum.Checking, Validators.required],
     isPrenotification: [false],
@@ -219,7 +220,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       isPrenotification: Boolean(payload.isPrenotification),
       amount: parsedAmount,
       destinationInstitutionId: Number(payload.destinationInstitutionId),
-      reference: payload.reference.trim(),
+      transactionExternalId: payload.transactionExternalId.trim(),
+      reference: payload.reference?.trim() || undefined,
       sourceAccountNumber: this.extractDigits(payload.sourceAccountNumber).slice(0, 18),
       destinationAccountNumber: this.extractDigits(payload.destinationAccountNumber).slice(0, 18),
       recipientIdNumber: payload.recipientIdNumber?.trim() || undefined,
@@ -251,6 +253,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
             this.isSubmitting.setValue(false);
             this.form.reset({
               customerId: null,
+              transactionExternalId: '',
+              reference: '',
               type: TransactionTypeEnum.Credit,
               accountType: AccountTypeEnum.Checking,
               isPrenotification: false,
@@ -403,7 +407,11 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     const raw = this.form.getRawValue() as TransactionDraft;
     const parsedAmount = this.parseMaskedAmount(raw.amount);
 
-    if (!raw.destinationInstitutionId || !raw.sourceAccountNumber || !raw.destinationAccountNumber || !raw.reference || parsedAmount === null) {
+    if (!raw.destinationInstitutionId
+      || !raw.sourceAccountNumber
+      || !raw.destinationAccountNumber
+      || (!String(raw.transactionExternalId ?? '').trim() && !String(raw.reference ?? '').trim())
+      || parsedAmount === null) {
       this.policyPreview = null;
       this.form.updateValueAndValidity({ emitEvent: false });
       this.cdr.markForCheck();

@@ -66,6 +66,26 @@ export class NavigationService {
       icon: 'analytics'
     };
 
+    const cenitChildren: MenuItem[] = [
+      { id: -2501, label: 'Regulatorio: Devoluciones', route: '/cenit/regulatorio/causales-devolucion', icon: 'rule' },
+      { id: -2502, label: 'Regulatorio: Rechazos', route: '/cenit/regulatorio/causales-rechazo', icon: 'gavel' },
+      { id: -2503, label: 'Regulatorio: Políticas', route: '/cenit/regulatorio/politicas-transaccion', icon: 'policy' },
+      { id: -2504, label: 'Operación: Ciclos', route: '/cenit/operacion/ciclos', icon: 'schedule' },
+      { id: -2505, label: 'Operación: Cola', route: '/cenit/operacion/cola', icon: 'queue' },
+      { id: -2506, label: 'Operación: Neteo', route: '/cenit/operacion/neteo', icon: 'account_balance' },
+      { id: -2507, label: 'Operación: Optimización', route: '/cenit/operacion/optimizacion', icon: 'tune' },
+      { id: -2508, label: 'Operación: Devoluciones', route: '/cenit/operacion/devoluciones', icon: 'assignment_return' },
+      { id: -2509, label: 'Operación: Trazabilidad', route: '/cenit/operacion/trazabilidad', icon: 'travel_explore' }
+    ];
+
+    const cenitGroup: MenuItem = {
+      id: -250,
+      label: 'CENIT',
+      route: '/cenit',
+      icon: 'monitoring',
+      children: cenitChildren
+    };
+
 
     const logsChildren: MenuItem[] = [
       { id: -231, label: 'Log de auditoría', route: '/audit-logs', icon: 'fact_check' },
@@ -82,7 +102,7 @@ export class NavigationService {
     };
 
     if (!items.length) {
-      return [transactionsGroup, customerItem, reportsItem, logsGroup, catalogGroup];
+      return [transactionsGroup, customerItem, reportsItem, cenitGroup, logsGroup, catalogGroup];
     }
 
     const hasRoute = (menu: MenuItem[], route: string): boolean =>
@@ -111,6 +131,18 @@ export class NavigationService {
       if (!hasRoute(next, reportsItem.route)) {
         next = [...next, reportsItem];
       }
+      if (!hasRoute(next, cenitGroup.route)) {
+        next = [...next, cenitGroup];
+      } else {
+        const existingCenitGroup = next.find((item) => item.route === '/cenit' || item.label === 'CENIT');
+        if (existingCenitGroup) {
+          const existingCenitChildren = existingCenitGroup.children ?? [];
+          const missingCenitChildren = cenitChildren.filter((child) => !hasRoute(existingCenitChildren, child.route));
+          if (missingCenitChildren.length) {
+            existingCenitGroup.children = [...existingCenitChildren, ...missingCenitChildren];
+          }
+        }
+      }
 
       const existingLogsGroup = next.find((item) => item.route === '/audit-logs' || item.label === 'Logs');
       if (existingLogsGroup) {
@@ -128,9 +160,10 @@ export class NavigationService {
     const withTransactions = hasRoute(items, transactionsGroup.route) ? items : [...items, transactionsGroup];
     const withCustomer = hasRoute(withTransactions, customerItem.route) ? withTransactions : [...withTransactions, customerItem];
     const withReports = hasRoute(withCustomer, reportsItem.route) ? withCustomer : [...withCustomer, reportsItem];
-    const withLogs = hasRoute(withReports, '/navigation-logs') || hasRoute(withReports, '/auth-logs') || hasRoute(withReports, '/audit-logs')
-      ? withReports
-      : [...withReports, logsGroup];
+    const withCenit = hasRoute(withReports, cenitGroup.route) ? withReports : [...withReports, cenitGroup];
+    const withLogs = hasRoute(withCenit, '/navigation-logs') || hasRoute(withCenit, '/auth-logs') || hasRoute(withCenit, '/audit-logs')
+      ? withCenit
+      : [...withCenit, logsGroup];
 
     return [...withLogs, catalogGroup];
   }

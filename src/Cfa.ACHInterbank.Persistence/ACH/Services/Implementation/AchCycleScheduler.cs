@@ -12,13 +12,17 @@ public class AchCycleScheduler : IAchCycleScheduler
     private readonly AchDbContext _context;
     private readonly IBankHoliday _holidayService;
     private readonly IServiceProvider _provider;
+    private readonly ICenitOperatingCalendarPolicy _cenitCalendarPolicy;
 
     public AchCycleScheduler(AchDbContext context,
-                             IBankHoliday holidayService, IServiceProvider provider)
+                             IBankHoliday holidayService,
+                             IServiceProvider provider,
+                             ICenitOperatingCalendarPolicy cenitCalendarPolicy)
     {
         _context = context;
         _holidayService = holidayService;
         _provider = provider;
+        _cenitCalendarPolicy = cenitCalendarPolicy;
     }
 
     public async Task ScheduleCyclesForClearingHouseAsync(int clearingHouseId)
@@ -71,6 +75,8 @@ public class AchCycleScheduler : IAchCycleScheduler
 
         // 🔹 Obtener configuración vigente por nombre para la fecha de procesamiento
         List<ClearingHouseCycleConfig> cycles = await GetEffectiveCycleConfigurationsAsync(clearingHouse.Id, processingDate, CancellationToken.None);
+
+        await _cenitCalendarPolicy.ValidateCycleConsistencyAsync(clearingHouse.Id, processingDate, CancellationToken.None);
 
 
 
@@ -128,15 +134,21 @@ public class AchCycleScheduler : IAchCycleScheduler
     {
         var processingUtcDate = DateTime.SpecifyKind(processingDate.Date, DateTimeKind.Utc);
 
-        return await _context.ClearingHouseCycleConfigs
+        // Nota: evitamos GroupBy(...).Select(First()) directo sobre EF/Npgsql
+        // porque puede disparar fallos de traducción/proyección (p.ej. EmptyProjectionMember).
+        var candidates = await _context.ClearingHouseCycleConfigs
+            .AsNoTracking()
             .Where(cfg => cfg.ClearingHouseId == clearingHouseId &&
                           cfg.IsActive &&
                           cfg.EffectiveFrom.Date <= processingUtcDate.Date &&
                           (!cfg.EffectiveTo.HasValue || cfg.EffectiveTo.Value.Date >= processingUtcDate.Date))
-            .GroupBy(cfg => cfg.CycleName)
+            .ToListAsync(ct);
+
+        return candidates
+            .GroupBy(cfg => cfg.CycleName, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.OrderByDescending(cfg => cfg.EffectiveFrom).ThenByDescending(cfg => cfg.Id).First())
             .OrderBy(cfg => cfg.CutoffTime)
-            .ToListAsync(ct);
+            .ToList();
     }
 
 

@@ -190,8 +190,16 @@ export class TransactionBulkCreateComponent {
       if (!this.isBulkItemValid(item)) {
         invalidIndexes.push(index + 1);
       }
+      const candidate = item as BulkAchTransactionItemRequest;
+      if (!candidate.transactionExternalId?.trim() && candidate.reference?.trim()) {
+        warnings.push(`Fila ${index + 1}: usando referencia legado como llave operativa transicional.`);
+      }
 
-      return item as BulkAchTransactionItemRequest;
+      return {
+        ...candidate,
+        transactionExternalId: candidate.transactionExternalId?.trim() || undefined,
+        reference: candidate.reference?.trim() || undefined
+      } as BulkAchTransactionItemRequest;
     });
 
     if (invalidIndexes.length > 0) {
@@ -217,8 +225,10 @@ export class TransactionBulkCreateComponent {
     }
 
     const candidate = item as Partial<BulkAchTransactionItemRequest>;
-    return typeof candidate.reference === 'string'
-      && candidate.reference.trim().length > 0
+    const hasOperationalId = (typeof candidate.transactionExternalId === 'string' && candidate.transactionExternalId.trim().length > 0)
+      || (typeof candidate.reference === 'string' && candidate.reference.trim().length > 0);
+
+    return hasOperationalId
       && typeof candidate.sourceAccountNumber === 'string'
       && typeof candidate.destinationAccountNumber === 'string'
       && typeof candidate.companyName === 'string'

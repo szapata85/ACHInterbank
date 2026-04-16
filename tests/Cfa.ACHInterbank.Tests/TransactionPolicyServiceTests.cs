@@ -30,6 +30,7 @@ public class TransactionPolicyServiceTests
         var service = CreateService(context, routing.Object);
         var preview = await service.PreviewAsync(new TransactionPolicyPreviewRequest(
             1000m,
+            null,
             "REF-001",
             TransactionTypeEnum.Credit,
             AccountTypeEnum.Checking,
@@ -88,6 +89,7 @@ public class TransactionPolicyServiceTests
         var service = CreateService(context, routing.Object);
         var preview = await service.PreviewAsync(new TransactionPolicyPreviewRequest(
             1500m,
+            null,
             "REF-002",
             TransactionTypeEnum.Credit,
             AccountTypeEnum.Checking,
@@ -131,6 +133,66 @@ public class TransactionPolicyServiceTests
 
         var ex = Assert.Throws<ArgumentException>(() => validator.ValidateRequest(request));
         Assert.Contains("personas naturales", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PreviewAsync_DetectsDuplicateByTransactionExternalId_WithoutDependingOnLegacyReference()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateContext(connection);
+        SeedCatalog(context);
+        var cycle = SeedCycle(context, "cycle-opid", DateTime.Today, TimeSpan.Zero, new TimeSpan(23, 59, 0));
+        context.AchBatches.Add(new AchBatch
+        {
+            Id = 2,
+            AchCycleId = cycle.Id,
+            CompanyName = "EMPRESA DEMO",
+            CompanyIdentification = "900123456",
+            CompanyEntryDescription = "NOMINAS",
+            CompanyEntryDescriptionId = 1,
+            OriginOrOdfi = "12345678",
+            EffectiveEntryDate = DateTime.Today
+        });
+
+        context.AchTransactions.Add(new AchTransaction
+        {
+            Amount = 2000m,
+            TransactionExternalId = "TX-EXT-777",
+            Reference = "LEGACY-ABC",
+            Type = TransactionTypeEnum.Credit,
+            SourceAccountNumber = "1234567890",
+            DestinationAccountNumber = "9876543210",
+            AchCycleId = cycle.Id,
+            CompanyIdentification = "900123456",
+            CompanyName = "EMPRESA DEMO",
+            TransactionCode = "22",
+            OriginatingDFI = "123456780",
+            ReceivingDFI = "765432100",
+            AchBatchId = 2,
+            CompanyEntryDescriptionId = 1
+        });
+        await context.SaveChangesAsync();
+
+        var routing = new Mock<IRoutingStrategyService>();
+        routing.Setup(x => x.ResolveClearingHouseForTransactionAsync(2, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(cycle.Id);
+
+        var service = CreateService(context, routing.Object);
+        var preview = await service.PreviewAsync(new TransactionPolicyPreviewRequest(
+            2000m,
+            "TX-EXT-777",
+            "LEGACY-DISTINTA",
+            TransactionTypeEnum.Credit,
+            AccountTypeEnum.Checking,
+            false,
+            2,
+            "1234567890",
+            "9876543210",
+            "900123456",
+            null));
+
+        Assert.False(preview.CanSubmit);
+        Assert.True(preview.WouldDuplicate);
     }
 
     private static TransactionPolicyService CreateService(AchDbContext context, IRoutingStrategyService routing)

@@ -93,10 +93,12 @@ public class TransactionPolicyService : ITransactionPolicyService
         }
 
         var idempotencyKey = BuildIdempotencyKey(request, cycle.Id);
+        var operationalId = ResolveOperationalId(request.TransactionExternalId, request.Reference);
         var wouldDuplicate = await _context.AchTransactions
             .AsNoTracking()
             .AnyAsync(t => t.AchCycleId == cycle.Id
-                && t.Reference == request.Reference.Trim()
+                && (t.TransactionExternalId == operationalId
+                    || ((t.TransactionExternalId == null || t.TransactionExternalId == "") && t.Reference == operationalId))
                 && t.Amount == request.Amount
                 && t.SourceAccountNumber == request.SourceAccountNumber.Trim()
                 && t.DestinationAccountNumber == request.DestinationAccountNumber.Trim()
@@ -180,7 +182,16 @@ public class TransactionPolicyService : ITransactionPolicyService
             request.SourceAccountNumber.Trim(),
             request.DestinationAccountNumber.Trim(),
             request.Amount.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
-            request.Reference.Trim());
+            ResolveOperationalId(request.TransactionExternalId, request.Reference));
+    }
+
+    private static string ResolveOperationalId(string? transactionExternalId, string? reference)
+    {
+        if (!string.IsNullOrWhiteSpace(transactionExternalId))
+        {
+            return transactionExternalId.Trim();
+        }
+
+        return (reference ?? string.Empty).Trim();
     }
 }
-

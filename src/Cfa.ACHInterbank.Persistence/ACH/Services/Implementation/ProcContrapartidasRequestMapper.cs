@@ -102,7 +102,9 @@ public sealed class ProcContrapartidasRequestMapper : IProcContrapartidasRequest
             OFIDARCH = tx.AchBatchId,
             OFIDLOT = tx.AchBatchId,
             OFST = "PENDIENTE",
-            OFIDTX = tx.Reference ?? tx.Id.ToString(CultureInfo.InvariantCulture),
+            OFIDTX = !string.IsNullOrWhiteSpace(tx.TransactionExternalId)
+                ? tx.TransactionExternalId
+                : tx.Reference ?? tx.Id.ToString(CultureInfo.InvariantCulture),
             OFIDREVER = 0,
             OFIDEBAPLI = tx.Id,
             OFIDCAMCOMPE = cycle.ClearingHouseId,

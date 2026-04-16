@@ -27,8 +27,16 @@
           </label>
 
           <label>
-            <span>Referencia *</span>
-            <input type="text" formControlName="reference" maxlength="30" required />
+            <span>ID operación cliente *</span>
+            <input type="text" formControlName="transactionExternalId" maxlength="64" required />
+            <small class="muted">Identificador operativo/idempotencia. Debe ser único por instrucción.</small>
+            <app-error-message [control]="form.get('transactionExternalId')"></app-error-message>
+          </label>
+
+          <label>
+            <span>Referencia legado (opcional)</span>
+            <input type="text" formControlName="reference" maxlength="30" />
+            <small class="muted">Solo para coexistencia histórica. El contexto funcional viaja en addenda.</small>
             <app-error-message [control]="form.get('reference')"></app-error-message>
           </label>
 
@@ -313,8 +321,12 @@
         <dd>{{ createdResponse.value?.amount | currency: 'COP': 'symbol-narrow' }}</dd>
       </div>
       <div>
-        <dt>Referencia</dt>
-        <dd>{{ createdResponse.value?.reference }}</dd>
+        <dt>ID operación</dt>
+        <dd>{{ createdResponse.value?.transactionExternalId }}</dd>
+      </div>
+      <div>
+        <dt>Referencia legado</dt>
+        <dd>{{ createdResponse.value?.reference || '-' }}</dd>
       </div>
     </dl>
   </section>

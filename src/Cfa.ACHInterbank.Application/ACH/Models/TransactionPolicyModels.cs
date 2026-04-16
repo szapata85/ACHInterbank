@@ -4,6 +4,7 @@ namespace Cfa.ACHInterbank.Application.ACH.Models;
 
 public sealed record TransactionPolicyPreviewRequest(
     decimal Amount,
+    string? TransactionExternalId,
     string Reference,
     TransactionTypeEnum Type,
     AccountTypeEnum AccountType,

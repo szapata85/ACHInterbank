@@ -66,7 +66,7 @@ public sealed class AchReturnRejectionReportService : IAchReturnRejectionReportS
         if (!string.IsNullOrWhiteSpace(filter.Reference))
         {
             var reference = filter.Reference.Trim();
-            query = query.Where(t => t.Reference.Contains(reference));
+            query = query.Where(t => t.Reference.Contains(reference) || t.TransactionExternalId.Contains(reference));
         }
 
         var total = await query.CountAsync(ct);
@@ -80,6 +80,7 @@ public sealed class AchReturnRejectionReportService : IAchReturnRejectionReportS
             {
                 TransactionId = t.Id,
                 EffectiveEntryDate = t.EffectiveEntryDate,
+                TransactionExternalId = t.TransactionExternalId,
                 Reference = t.Reference,
                 Amount = t.Amount,
                 State = t.State,

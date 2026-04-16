@@ -6,6 +6,7 @@ public class AchTransactionListDto
 {
     public int Id { get; set; }
     public decimal Amount { get; set; }
+    public string TransactionExternalId { get; set; } = string.Empty;
     public string Reference { get; set; } = string.Empty;
     public TransactionTypeEnum Type { get; set; }
     public string TraceNumber { get; set; } = string.Empty;

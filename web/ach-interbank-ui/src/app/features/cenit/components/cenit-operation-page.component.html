@@ -1,0 +1,29 @@
+<app-page-header [title]="titulo" [subtitle]="subtitulo"></app-page-header>
+
+<section class="toolbar">
+  <label>
+    <span>Filtro rápido</span>
+    <input type="text" [(ngModel)]="filtro" placeholder="Transacción, ciclo, causal o estado" />
+  </label>
+</section>
+
+<section class="state" *ngIf="loading">Cargando información operativa...</section>
+<section class="state error" *ngIf="!loading && error">{{ error }}</section>
+<section class="state" *ngIf="!loading && !error && !hasRows">
+  No hay datos disponibles para esta vista en el rango actual.
+</section>
+
+<section class="table-wrapper" *ngIf="!loading && !error && hasRows">
+  <table>
+    <thead>
+      <tr>
+        <th *ngFor="let header of headers">{{ header }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let row of filteredRows">
+        <td *ngFor="let header of headers">{{ row[header] }}</td>
+      </tr>
+    </tbody>
+  </table>
+</section>

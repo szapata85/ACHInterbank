@@ -294,6 +294,7 @@ public class IntegrationCatalogService : IIntegrationCatalogService
         return
         [
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.id", "Id transacción", "int", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.transactionExternalId", "Id operación cliente", "string", true, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.reference", "Referencia transacción", "string", true, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.amount", "Monto transacción", "decimal", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.traceNumber", "Trazabilidad transacción", "string", false, order++),

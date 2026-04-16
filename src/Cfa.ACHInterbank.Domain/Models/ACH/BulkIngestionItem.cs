@@ -9,6 +9,9 @@ public class BulkIngestionItem : AuditableEntity
     public BulkIngestionBatch Batch { get; set; } = null!;
 
     public int ItemIndex { get; set; }
+    /// <summary>
+    /// Identificador operativo del item (coexiste con referencia legado durante migración).
+    /// </summary>
     public string Reference { get; set; } = string.Empty;
     public BulkIngestionItemStatusEnum Status { get; set; } = BulkIngestionItemStatusEnum.Ready;
     public string Message { get; set; } = string.Empty;

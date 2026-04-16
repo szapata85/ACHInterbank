@@ -6,6 +6,13 @@ namespace Cfa.ACHInterbank.Application.ACH.Models;
 public record AchTransactionRequestData
 {
     public decimal Amount { get; init; }
+    /// <summary>
+    /// Identificador operativo/idempotencia canónico.
+    /// </summary>
+    public string? TransactionExternalId { get; init; }
+    /// <summary>
+    /// LEGACY transicional.
+    /// </summary>
     public string Reference { get; init; } = string.Empty;
     public TransactionTypeEnum Type { get; init; }
     public AccountTypeEnum AccountType { get; init; }
