@@ -49,7 +49,7 @@ import { UiEstadoVacioComponent } from './ui-estado-vacio.component';
         [pagination]="paginacion"
         [paginationPageSize]="tamanoPagina"
         [suppressNoRowsOverlay]="true"
-        [suppressLoadingOverlay]="true"
+        [loading]="cargando"
         (gridReady)="onGridReady($event)"
         (selectionChanged)="onSelectionChanged()"
       ></ag-grid-angular>
