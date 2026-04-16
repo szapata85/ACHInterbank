@@ -68,9 +68,14 @@ button.secondary[disabled] {
   cursor: not-allowed;
 }
 
-.row-actions {
+:host ::ng-deep .acciones-fila-nacha {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+:host ::ng-deep .acciones-fila-nacha .btn-grid {
+  white-space: nowrap;
 }
 
 a.link {

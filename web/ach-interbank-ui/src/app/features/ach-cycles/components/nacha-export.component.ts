@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
 import { RouterModule } from '@angular/router';
+import { ColDef, GridApi } from 'ag-grid-community';
 import { SharedModule } from '../../../shared/shared.module';
 import { NachaExportApiService } from '../services/nacha-export-api.service';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -31,6 +32,55 @@ export class NachaExportComponent implements OnInit {
   clearingHouses: ClearingHouseOption[] = [];
   loading = false;
   downloadingId: string | null = null;
+  private gridApi?: GridApi<ExportableAchCycleView>;
+
+  readonly columnas: ColDef<ExportableAchCycleView>[] = [
+    { field: 'cycleName', headerName: 'Ciclo', minWidth: 160 },
+    { field: 'clearingHouseName', headerName: 'Cámara', minWidth: 200 },
+    { field: 'processingDateText', headerName: 'Fecha efectiva', minWidth: 160 },
+    { field: 'transactionCount', headerName: 'Transacciones', width: 140, cellStyle: { textAlign: 'right' } },
+    {
+      colId: 'acciones',
+      headerName: 'Acciones',
+      minWidth: 250,
+      width: 280,
+      maxWidth: 320,
+      sortable: false,
+      filter: false,
+      cellRenderer: (params) => {
+        const rowId = params.data?.id;
+        const ocupado = Boolean(rowId && this.downloadingId === rowId);
+        const disabledAttr = ocupado ? 'disabled aria-disabled="true"' : '';
+        const tooltipGenerar = ocupado ? 'Generación en curso' : 'Generar archivo NACHA-M';
+        const tooltipSobre = ocupado ? 'Generación en curso' : 'Generar archivo con sobre digital';
+        const textoGenerar = ocupado ? 'Generando...' : 'Generar archivo NACHA';
+        const textoSobre = ocupado ? 'Generando...' : 'Generar con sobre digital';
+
+        return `
+          <div class="acciones-fila-nacha">
+            <button type="button" class="btn btn-primary btn-grid" data-action="generar-nacha" title="${tooltipGenerar}" ${disabledAttr}>${textoGenerar}</button>
+            <button type="button" class="btn btn-outline btn-grid" data-action="generar-sobre" title="${tooltipSobre}" ${disabledAttr}>${textoSobre}</button>
+          </div>
+        `;
+      },
+      onCellClicked: (params) => {
+        if (!params.data || this.downloadingId) {
+          return;
+        }
+
+        const target = params.event?.target as HTMLElement | null;
+        const actionElement = target?.closest<HTMLElement>('[data-action]');
+        const action = actionElement?.getAttribute('data-action');
+
+        if (action === 'generar-nacha') {
+          this.download(params.data, false);
+        }
+        if (action === 'generar-sobre') {
+          this.download(params.data, true);
+        }
+      }
+    }
+  ];
 
   readonly filterForm = this.fb.group({
     clearingHouseId: [null as number | null],
@@ -86,7 +136,12 @@ export class NachaExportComponent implements OnInit {
   }
 
   download(cycle: ExportableAchCycle, encrypted: boolean): void {
+    if (this.downloadingId) {
+      return;
+    }
+
     this.downloadingId = cycle.id;
+    this.refrescarAccionesGrilla();
     this.api.downloadFile(cycle.id, encrypted).subscribe({
       next: (response) => {
         const fileName = this.extractFileName(response.headers.get('content-disposition')) ??
@@ -101,6 +156,7 @@ export class NachaExportComponent implements OnInit {
 
         window.URL.revokeObjectURL(url);
         this.downloadingId = null;
+        this.refrescarAccionesGrilla();
         this.cdr.markForCheck();
       },
       error: () => {
@@ -108,9 +164,14 @@ export class NachaExportComponent implements OnInit {
           ? 'No fue posible generar el archivo NACHA-M con Sobre Digital'
           : 'No fue posible generar el archivo NACHA-M');
         this.downloadingId = null;
+        this.refrescarAccionesGrilla();
         this.cdr.markForCheck();
       }
     });
+  }
+
+  onGrillaLista(api: GridApi<ExportableAchCycleView>): void {
+    this.gridApi = api;
   }
 
   private loadClearingHouses(): void {
@@ -146,5 +207,9 @@ export class NachaExportComponent implements OnInit {
   private isInvalidDateRange(): boolean {
     const { startDate, endDate } = this.filterForm.value;
     return Boolean(startDate && endDate && new Date(startDate) > new Date(endDate));
+  }
+
+  private refrescarAccionesGrilla(): void {
+    this.gridApi?.refreshCells({ force: true, columns: ['acciones'] });
   }
 }

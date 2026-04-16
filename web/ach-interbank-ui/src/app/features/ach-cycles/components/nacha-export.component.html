@@ -23,31 +23,17 @@
 </div>
 
 <div class="export-wrapper">
-  <app-table
-    [columns]="[
-      { key: 'cycleName', label: 'Ciclo' },
-      { key: 'clearingHouseName', label: 'Cámara' },
-      { key: 'processingDateText', label: 'Fecha efectiva' },
-      { key: 'transactionCount', label: 'Transacciones', align: 'end' }
-    ]"
-    [data]="cycles"
-    [loading]="loading"
-    [pageSize]="cycles.length || 10"
-    [total]="cycles.length"
-    [rowActions]="rowActions"
-  ></app-table>
+  <ui-grilla-empresarial
+    [columnas]="columnas"
+    [datos]="cycles"
+    [cargando]="loading"
+    [paginacion]="cycles.length > 10"
+    [tamanoPagina]="10"
+    [mensajeVacio]="'No hay ciclos disponibles para exportar.'"
+    [mensajeCargando]="'Cargando ciclos con transacciones...'"
+    (grillaLista)="onGrillaLista($event)"
+  ></ui-grilla-empresarial>
 </div>
-
-<ng-template #rowActions let-cycle>
-  <div class="row-actions">
-    <button type="button" class="btn btn-primary" [disabled]="downloadingId === cycle.id" (click)="download(cycle, false)">
-      {{ downloadingId === cycle.id ? 'Generando...' : 'Generar NACHA' }}
-    </button>
-    <button type="button" class="btn btn-secondary" [disabled]="downloadingId === cycle.id" (click)="download(cycle, true)">
-      {{ downloadingId === cycle.id ? 'Generando...' : 'Generar Sobre Digital' }}
-    </button>
-  </div>
-</ng-template>
 
 <ng-template #headerActions>
   <a routerLink="/ach-cycles" class="link">Volver a ciclos</a>
