@@ -66,18 +66,17 @@
       <span class="badge">{{ group.items.length }} transacciones</span>
     </header>
 
-    <ag-grid-angular
-      class="ag-theme-alpine transactions-grid"
-      [columnDefs]="columnDefs"
-      [defaultColDef]="defaultColDef"
-      [rowData]="group.items"
-      [domLayout]="'autoHeight'"
-      [overlayNoRowsTemplate]="noRowsTemplate"
-      [overlayLoadingTemplate]="loadingTemplate"
-      [rowSelection]="rowSelection"
-      [animateRows]="true"
-      [suppressCellFocus]="true"
-    ></ag-grid-angular>
+    <ui-grilla-empresarial
+      [columnas]="columnDefs"
+      [datos]="group.items"
+      [cargando]="loading"
+      [error]="false"
+      [paginacion]="true"
+      [tamanoPagina]="10"
+      [seleccionFilas]="rowSelection"
+      [mensajeVacio]="'No hay transacciones para este lote.'"
+      [placeholderBusqueda]="'Buscar por cualquier campo del lote...'"
+    ></ui-grilla-empresarial>
   </section>
 </div>
 

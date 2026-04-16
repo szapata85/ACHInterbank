@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
-import { AgGridModule } from 'ag-grid-angular';
 import { ColDef, RowSelectionOptions } from 'ag-grid-community';
 import { SharedModule } from '../../../../shared/shared.module';
 import { TransactionsApiService } from '../../services/transactions-api.service';
@@ -39,7 +38,7 @@ interface ColumnOption {
 @Component({
   selector: 'app-transaction-list',
   standalone: true,
-  imports: [SharedModule, RouterModule, AgGridModule],
+  imports: [SharedModule, RouterModule],
   templateUrl: './transaction-list.component.html',
   styleUrls: ['./transaction-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
