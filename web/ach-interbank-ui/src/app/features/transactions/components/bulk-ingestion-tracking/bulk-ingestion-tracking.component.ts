@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
+import { ColDef } from 'ag-grid-community';
 import { forkJoin, of, take } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { NotificationService } from '../../../../core/services/notification.service';
@@ -24,6 +25,38 @@ export class BulkIngestionTrackingComponent {
   readonly statusFilter = signal<string>('ALL');
   readonly isLoading = signal(false);
   readonly rows = signal<BulkBatchStatusDto[]>([]);
+  readonly columnDefs: ColDef<BulkBatchStatusDto>[] = [
+    {
+      headerName: 'Referencia',
+      minWidth: 260,
+      valueGetter: (params) => `${params.data?.batchReference ?? '-'} (${params.data?.batchId ?? ''})`
+    },
+    { headerName: 'Estado', minWidth: 170, valueGetter: (params) => params.data ? this.statusLabel(params.data.status) : '' },
+    { field: 'uploadedAtUtc', headerName: 'Fecha carga', minWidth: 180, valueFormatter: (params) => params.value ? new Date(params.value).toLocaleString('es-CO') : '-' },
+    { field: 'totalRecords', headerName: 'Total', width: 110 },
+    { field: 'progressPercent', headerName: 'Progreso', width: 120, valueFormatter: (params) => `${Number(params.value ?? 0).toFixed(2)}%` },
+    { field: 'totalSucceeded', headerName: 'Éxitos', width: 110 },
+    { field: 'totalFailed', headerName: 'Fallos', width: 110 },
+    {
+      headerName: 'Acciones',
+      minWidth: 220,
+      sortable: false,
+      filter: false,
+      cellRenderer: (params) => this.canRetry(params.data?.status as BulkIngestionBatchStatus)
+        ? '<button class="btn btn-outline btn-grid" data-action="detail">Detalle</button> <button class="btn btn-secondary btn-grid" data-action="retry">Reintentar</button>'
+        : '<button class="btn btn-outline btn-grid" data-action="detail">Detalle</button>',
+      onCellClicked: (params) => {
+        const target = params.event?.target as HTMLElement | null;
+        const action = target?.getAttribute('data-action');
+        if (action === 'detail') {
+          this.openDetail(params.data!.batchId);
+        }
+        if (action === 'retry') {
+          this.retryFailed(params.data!.batchId);
+        }
+      }
+    }
+  ];
 
   readonly filteredRows = computed(() => {
     const selectedStatus = this.statusFilter();
@@ -81,6 +114,9 @@ export class BulkIngestionTrackingComponent {
   }
 
   retryFailed(batchId: string): void {
+    if (this.isLoading()) {
+      return;
+    }
     this.api.retry(batchId, { scope: BulkIngestionRetryScope.FailedOnly }).pipe(take(1)).subscribe({
       next: () => {
         this.notifications.success('Reintento del lote solicitado.');

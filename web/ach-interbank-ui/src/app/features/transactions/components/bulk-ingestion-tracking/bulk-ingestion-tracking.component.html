@@ -38,46 +38,13 @@
   <article class="card"><small>Fallidos</small><strong class="ko">{{ totals().failed }}</strong></article>
 </section>
 
-<section class="table-wrapper" *ngIf="filteredRows().length; else empty">
-  <table>
-    <thead>
-      <tr>
-        <th>Referencia</th>
-        <th>Estado</th>
-        <th>Fecha carga</th>
-        <th>Total</th>
-        <th>Progreso</th>
-        <th>Éxitos</th>
-        <th>Fallos</th>
-        <th>Acciones</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let row of filteredRows()">
-        <td>
-          <strong>{{ row.batchReference }}</strong>
-          <div><small>{{ row.batchId }}</small></div>
-        </td>
-        <td><span class="badge">{{ statusLabel(row.status) }}</span></td>
-        <td>{{ row.uploadedAtUtc | date: 'yyyy-MM-dd HH:mm' }}</td>
-        <td>{{ row.totalRecords }}</td>
-        <td>{{ row.progressPercent | number: '1.0-2' }}%</td>
-        <td class="ok">{{ row.totalSucceeded }}</td>
-        <td class="ko">{{ row.totalFailed }}</td>
-        <td>
-          <div class="actions">
-            <button type="button" class="btn btn-outline" (click)="openDetail(row.batchId)">Detalle</button>
-            <button type="button" class="btn btn-secondary" *ngIf="canRetry(row.status)" (click)="retryFailed(row.batchId)">Reintentar</button>
-          </div>
-        </td>
-      </tr>
-    </tbody>
-  </table>
-</section>
-
-<ng-template #empty>
-  <section class="empty-state">
-    <p>No hay lotes en seguimiento aún.</p>
-    <small>Agregue un Batch ID o registre lotes desde la pantalla de carga.</small>
-  </section>
-</ng-template>
+<ui-grilla-empresarial
+  [columnas]="columnDefs"
+  [datos]="filteredRows()"
+  [cargando]="isLoading()"
+  [paginacion]="true"
+  [tamanoPagina]="15"
+  [tituloVacio]="'Sin lotes en seguimiento'"
+  [mensajeVacio]="'Agregue un Batch ID o registre lotes desde la pantalla de carga.'"
+  [seleccionFilas]="{ mode: 'singleRow' }"
+></ui-grilla-empresarial>

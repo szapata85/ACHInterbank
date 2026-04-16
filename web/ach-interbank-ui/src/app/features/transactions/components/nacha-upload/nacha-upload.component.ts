@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
+import { ColDef } from 'ag-grid-community';
 import { finalize } from 'rxjs/operators';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SharedModule } from '../../../../shared/shared.module';
@@ -22,6 +23,21 @@ export class NachaUploadComponent implements OnInit {
   uploading = false;
   loadingRecords = false;
   records: NachaUploadRecord[] = [];
+  readonly columnDefs: ColDef<NachaUploadRecord>[] = [
+    { headerName: 'Nacha ID', valueGetter: (params) => params.data?.nachaId || '-' },
+    { headerName: 'Originador', valueGetter: (params) => params.data?.immediateOriginName || params.data?.immediateOrigin || '-' },
+    { headerName: 'Receptor', valueGetter: (params) => params.data?.immediateDestinationName || params.data?.immediateDestination || '-' },
+    { field: 'clearingHouseName', headerName: 'Cámara', valueGetter: (params) => params.data?.clearingHouseName || '-' },
+    { headerName: 'Ciclo', valueGetter: (params) => params.data?.achCycleName || params.data?.achCycleId || '-' },
+    { headerName: 'Fecha Archivo', valueGetter: (params) => params.data?.fileCreationDate || '-' },
+    { headerName: 'Hora', valueGetter: (params) => params.data?.fileCreationTime || '-' },
+    { field: 'totalBatches', headerName: 'Batches' },
+    { field: 'totalEntries', headerName: 'Entries' },
+    { field: 'totalAddendas', headerName: 'Addendas' },
+    { field: 'totalAmount', headerName: 'Total Monto', valueFormatter: (params) => Number(params.value ?? 0).toFixed(2) },
+    { field: 'totalDebitAmount', headerName: 'Total Débito', valueFormatter: (params) => Number(params.value ?? 0).toFixed(2) },
+    { field: 'totalCreditAmount', headerName: 'Total Crédito', valueFormatter: (params) => Number(params.value ?? 0).toFixed(2) }
+  ];
 
   form = this.fb.group({
     file: [null as File | null, Validators.required]

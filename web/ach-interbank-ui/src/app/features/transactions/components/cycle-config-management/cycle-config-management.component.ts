@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
+import { ColDef } from 'ag-grid-community';
 import { finalize } from 'rxjs';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SharedModule } from '../../../../shared/shared.module';
@@ -38,6 +39,42 @@ export class CycleConfigManagementComponent implements OnInit {
   allItems: ClearingHouseCycleConfigItem[] = [];
   visibleItems: ClearingHouseCycleConfigItem[] = [];
   clearingHouses: Array<{ id: number; name: string }> = [];
+  readonly columnDefs: ColDef<ClearingHouseCycleConfigItem>[] = [
+    { headerName: 'Cámara', minWidth: 180, valueGetter: (params) => params.data?.clearingHouseName || params.data?.clearingHouseId },
+    { field: 'cycleName', headerName: 'Ciclo', minWidth: 160 },
+    { headerName: 'Ventana operativa', minWidth: 170, valueGetter: (params) => `${params.data?.startTime?.slice(0, 5)} - ${params.data?.endTime?.slice(0, 5)}` },
+    { headerName: 'Cutoff', width: 110, valueGetter: (params) => params.data?.cutoffTime?.slice(0, 5) },
+    {
+      headerName: 'Vigencia',
+      minWidth: 220,
+      valueGetter: (params) => {
+        const from = this.toDateText(params.data?.effectiveFrom);
+        const to = params.data?.effectiveTo ? this.toDateText(params.data.effectiveTo) : 'abierto';
+        return `${from} a ${to}`;
+      }
+    },
+    { headerName: 'Estado', width: 120, valueGetter: (params) => this.statusBadge(params.data!).text },
+    {
+      headerName: 'Acciones',
+      minWidth: 260,
+      sortable: false,
+      filter: false,
+      cellRenderer: (params) => params.data?.isActive
+        ? '<button class="btn btn-outline btn-grid" data-action="edit">Editar</button> <button class="btn btn-outline btn-grid" data-action="clone">Clonar</button> <button class="btn btn-danger btn-grid" data-action="inactivate">Inactivar</button>'
+        : '<button class="btn btn-outline btn-grid" data-action="edit">Editar</button> <button class="btn btn-outline btn-grid" data-action="clone">Clonar</button>',
+      onCellClicked: (params) => {
+        const target = params.event?.target as HTMLElement | null;
+        const action = target?.getAttribute('data-action');
+        if (action === 'edit') {
+          this.edit(params.data!);
+        } else if (action === 'clone') {
+          this.clone(params.data!);
+        } else if (action === 'inactivate' && params.data?.isActive) {
+          this.askInactivate(params.data);
+        }
+      }
+    }
+  ];
 
   readonly statusOptions: Array<{ value: CycleStatusFilter; label: string }> = [
     { value: 'all', label: 'Todos' },
@@ -197,6 +234,9 @@ export class CycleConfigManagementComponent implements OnInit {
   }
 
   save(): void {
+    if (this.saving) {
+      return;
+    }
     this.form.markAllAsTouched();
     if (this.form.invalid || this.validationWarnings.some((x) => x.includes('debe') || x.includes('obligatoria'))) {
       this.notifications.warning('Revise las validaciones antes de guardar.');
@@ -248,8 +288,14 @@ export class CycleConfigManagementComponent implements OnInit {
 
     const effectiveTo = `${this.todayInputValue()}T00:00:00Z`;
     const id = this.selectedForInactivation.id;
+    this.saving = true;
 
-    this.cycleConfigApi.inactivate(id, { effectiveTo }).subscribe({
+    this.cycleConfigApi.inactivate(id, { effectiveTo }).pipe(
+      finalize(() => {
+        this.saving = false;
+        this.cdr.markForCheck();
+      })
+    ).subscribe({
       next: () => {
         this.notifications.success('Configuración inactivada correctamente.');
         this.selectedForInactivation = null;
@@ -317,6 +363,14 @@ export class CycleConfigManagementComponent implements OnInit {
 
   private toTimeInput(value: string): string {
     return value?.slice(0, 5) ?? '';
+  }
+
+  private toDateText(value?: string): string {
+    if (!value) {
+      return '-';
+    }
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '-' : date.toISOString().slice(0, 10);
   }
 
   private toApiTime(value: string): string {

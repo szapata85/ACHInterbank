@@ -12,46 +12,17 @@
   <button type="button" class="btn btn-outline" (click)="openReasonModal()" [disabled]="loading || rows.length === 0">Asignar causal / Generar</button>
 </div>
 
-<div class="table-wrapper" *ngIf="rows.length > 0; else empty">
-  <table>
-    <thead>
-      <tr>
-        <th><input type="checkbox" (change)="selectAllEligible($any($event.target).checked)" /></th>
-        <th>ID</th>
-        <th>Trace</th>
-        <th>Referencia</th>
-        <th>Monto</th>
-        <th>Cod. Tx</th>
-        <th>Estado</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let row of rows">
-        <td>
-          <input
-            type="checkbox"
-            [checked]="selectedRows.has(row.id)"
-            [disabled]="!row.isEligible"
-            (change)="toggleSelection(row.id, $any($event.target).checked)"
-          />
-        </td>
-        <td>{{ row.id }}</td>
-        <td>{{ row.traceNumber }}</td>
-        <td>{{ row.reference }}</td>
-        <td>{{ row.amount | currency:'COP':'symbol':'1.2-2':'es-CO' }}</td>
-        <td>{{ row.transactionCode }}</td>
-        <td>
-          <span *ngIf="row.isEligible" class="ok">Elegible</span>
-          <span *ngIf="!row.isEligible" class="error">{{ row.validationMessage }}</span>
-        </td>
-      </tr>
-    </tbody>
-  </table>
-</div>
-
-<ng-template #empty>
-  <div class="empty">No hay transacciones cargadas para devolución.</div>
-</ng-template>
+<ui-grilla-empresarial
+  [columnas]="columnDefs"
+  [datos]="rows"
+  [cargando]="loading"
+  [paginacion]="true"
+  [tamanoPagina]="20"
+  [tituloVacio]="'Sin transacciones'"
+  [mensajeVacio]="'No hay transacciones cargadas para devolución.'"
+  [seleccionFilas]="{ mode: 'multiRow' }"
+  (seleccionCambio)="onSelectionChanged($event)"
+></ui-grilla-empresarial>
 
 <div class="modal-backdrop" *ngIf="showReasonModal">
   <div class="modal">

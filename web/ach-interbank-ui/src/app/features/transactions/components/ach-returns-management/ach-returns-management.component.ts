@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { ColDef } from 'ag-grid-community';
 import { SharedModule } from '../../../../shared/shared.module';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { AchCyclesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
@@ -32,6 +33,25 @@ export class AchReturnsManagementComponent implements OnInit {
   loading = false;
 
   selectedRows = new Set<number>();
+  readonly columnDefs: ColDef<ReturnEligibleTransaction>[] = [
+    {
+      headerName: 'Sel.',
+      width: 90,
+      checkboxSelection: (params) => !!params.data?.isEligible,
+      headerCheckboxSelection: true,
+      headerCheckboxSelectionFilteredOnly: true
+    },
+    { field: 'id', headerName: 'ID', width: 110 },
+    { field: 'traceNumber', headerName: 'Trace', minWidth: 170 },
+    { field: 'reference', headerName: 'Referencia', minWidth: 180 },
+    { field: 'amount', headerName: 'Monto', valueFormatter: (params) => Number(params.value ?? 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP' }) },
+    { field: 'transactionCode', headerName: 'Cod. Tx', width: 130 },
+    {
+      headerName: 'Estado',
+      minWidth: 220,
+      valueGetter: (params) => params.data?.isEligible ? 'Elegible' : (params.data?.validationMessage || 'No elegible')
+    }
+  ];
 
   ngOnInit(): void {
     this.loadCycles();
@@ -94,6 +114,9 @@ export class AchReturnsManagementComponent implements OnInit {
   }
 
   generateFile(): void {
+    if (this.loading) {
+      return;
+    }
     if (!this.selectedCycleId) {
       this.notifications.warning('Seleccione el ciclo de operación.');
       return;
@@ -134,6 +157,12 @@ export class AchReturnsManagementComponent implements OnInit {
         this.cdr.markForCheck();
       }
     });
+  }
+
+  onSelectionChanged(rows: ReturnEligibleTransaction[]): void {
+    this.selectedRows.clear();
+    rows.forEach((row) => this.selectedRows.add(row.id));
+    this.cdr.markForCheck();
   }
 
   private loadCycles(): void {

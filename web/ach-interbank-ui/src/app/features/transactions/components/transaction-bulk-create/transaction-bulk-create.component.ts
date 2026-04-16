@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, inject, signal } from '@angular/core';
 import { RouterModule } from '@angular/router';
+import { ColDef } from 'ag-grid-community';
 import { take } from 'rxjs';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SharedModule } from '../../../../shared/shared.module';
@@ -34,6 +35,15 @@ export class TransactionBulkCreateComponent {
   readonly payload = signal<BulkAchTransactionRequest | null>(null);
   readonly response = signal<BulkAchTransactionResponse | null>(null);
   readonly parseWarnings = signal<string[]>([]);
+  readonly resultColumnDefs: ColDef<any>[] = [
+    { headerName: '#', valueGetter: (params) => (params.data?.index ?? 0) + 1, width: 90 },
+    { field: 'transactionExternalId', headerName: 'ID operación', valueGetter: (params) => params.data?.transactionExternalId || '-', minWidth: 150 },
+    { field: 'reference', headerName: 'Referencia legado', valueGetter: (params) => params.data?.reference || '-', minWidth: 170 },
+    { field: 'statusLabel', headerName: 'Estado', minWidth: 120 },
+    { field: 'transactionId', headerName: 'ID transacción', valueGetter: (params) => params.data?.transactionId ?? '-', minWidth: 150 },
+    { field: 'errorCode', headerName: 'Código error', valueGetter: (params) => params.data?.errorCode ?? '-', minWidth: 130 },
+    { headerName: 'Detalle', valueGetter: (params) => this.formatError(params.data), minWidth: 260 }
+  ];
 
   readonly transactionCount = computed(() => this.payload()?.transactions.length ?? 0);
   readonly summary = computed(() => {
@@ -86,6 +96,9 @@ export class TransactionBulkCreateComponent {
   }
 
   submit(): void {
+    if (this.isSubmitting()) {
+      return;
+    }
     const currentPayload = this.payload();
     if (!currentPayload) {
       this.validationError.set('Primero valida el JSON para poder enviar el lote.');

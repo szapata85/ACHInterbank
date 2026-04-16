@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ColDef } from 'ag-grid-community';
 import { finalize, take } from 'rxjs';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SharedModule } from '../../../../shared/shared.module';
@@ -32,6 +33,22 @@ export class BulkIngestionDetailComponent {
   readonly pageSize = signal(25);
   readonly itemStatusFilter = signal<BulkIngestionItemStatus | null>(null);
   readonly isLoading = signal(false);
+  readonly attemptsColumnDefs: ColDef<any>[] = [
+    { field: 'attemptNumber', headerName: '#', width: 90 },
+    { field: 'triggerType', headerName: 'Tipo', minWidth: 120 },
+    { field: 'scope', headerName: 'Scope', minWidth: 120 },
+    { field: 'status', headerName: 'Estado', minWidth: 130 },
+    { field: 'triggeredBy', headerName: 'Disparado por', minWidth: 150 },
+    { field: 'triggeredAtUtc', headerName: 'Fecha', minWidth: 180, valueFormatter: (params) => params.value ? new Date(params.value).toLocaleString('es-CO') : '-' },
+    { field: 'resultMessage', headerName: 'Resultado', minWidth: 220, valueGetter: (params) => params.data?.resultMessage || '-' }
+  ];
+  readonly itemsColumnDefs: ColDef<any>[] = [
+    { field: 'itemIndex', headerName: '#', width: 90 },
+    { field: 'reference', headerName: 'Referencia', minWidth: 170 },
+    { headerName: 'Estado', minWidth: 170, valueGetter: (params) => this.statusLabel(params.data?.status) },
+    { field: 'transactionId', headerName: 'ID transacción', minWidth: 140, valueGetter: (params) => params.data?.transactionId ?? '-' },
+    { field: 'message', headerName: 'Mensaje', minWidth: 240, valueGetter: (params) => params.data?.message || '-' }
+  ];
 
   readonly totalPages = computed(() => {
     const total = this.itemsPage()?.total ?? 0;
@@ -91,6 +108,9 @@ export class BulkIngestionDetailComponent {
   }
 
   retry(scope: BulkIngestionRetryScope): void {
+    if (this.isLoading()) {
+      return;
+    }
     this.api.retry(this.batchId(), { scope }).pipe(take(1)).subscribe({
       next: () => {
         this.notifications.success('Reintento solicitado correctamente.');
@@ -101,6 +121,9 @@ export class BulkIngestionDetailComponent {
   }
 
   cancelBatch(): void {
+    if (this.isLoading()) {
+      return;
+    }
     this.api.cancel(this.batchId()).pipe(take(1)).subscribe({
       next: () => {
         this.notifications.success('Cancelación del lote registrada.');

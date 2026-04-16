@@ -60,46 +60,15 @@
     </div>
   </form>
 
-  <div class="table-wrapper" *ngIf="records.length; else emptyRecords">
-    <table>
-      <thead>
-        <tr>
-          <th>Nacha ID</th>
-          <th>Originador</th>
-          <th>Receptor</th>
-          <th>Cámara</th>
-          <th>Ciclo</th>
-          <th>Fecha Archivo</th>
-          <th>Hora</th>
-          <th>Batches</th>
-          <th>Entries</th>
-          <th>Addendas</th>
-          <th>Total Monto</th>
-          <th>Total Débito</th>
-          <th>Total Crédito</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let row of records">
-          <td>{{ row.nachaId || '-' }}</td>
-          <td>{{ row.immediateOriginName || row.immediateOrigin || '-' }}</td>
-          <td>{{ row.immediateDestinationName || row.immediateDestination || '-' }}</td>
-          <td>{{ row.clearingHouseName || '-' }}</td>
-          <td>{{ row.achCycleName || row.achCycleId || '-' }}</td>
-          <td>{{ row.fileCreationDate || '-' }}</td>
-          <td>{{ row.fileCreationTime || '-' }}</td>
-          <td>{{ row.totalBatches }}</td>
-          <td>{{ row.totalEntries }}</td>
-          <td>{{ row.totalAddendas }}</td>
-          <td>{{ row.totalAmount | number : '1.2-2' }}</td>
-          <td>{{ row.totalDebitAmount | number : '1.2-2' }}</td>
-          <td>{{ row.totalCreditAmount | number : '1.2-2' }}</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <ng-template #emptyRecords>
-    <p class="muted">{{ loadingRecords ? 'Cargando información...' : 'No se encontraron registros NACHA-M con los filtros seleccionados.' }}</p>
-  </ng-template>
+  <ui-grilla-empresarial
+    [columnas]="columnDefs"
+    [datos]="records"
+    [cargando]="loadingRecords"
+    [paginacion]="true"
+    [tamanoPagina]="10"
+    [tituloVacio]="'Sin registros NACHA-M'"
+    [mensajeVacio]="'No se encontraron registros NACHA-M con los filtros seleccionados.'"
+    [mensajeCargando]="'Cargando información...'"
+    [seleccionFilas]="{ mode: 'singleRow' }"
+  ></ui-grilla-empresarial>
 </section>

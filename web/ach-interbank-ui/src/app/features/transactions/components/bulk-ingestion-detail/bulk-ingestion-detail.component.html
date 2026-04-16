@@ -50,32 +50,13 @@
 
 <section class="card" *ngIf="summary()?.attempts?.length">
   <h3>Histórico de intentos</h3>
-  <div class="table-wrapper">
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Tipo</th>
-          <th>Scope</th>
-          <th>Estado</th>
-          <th>Disparado por</th>
-          <th>Fecha</th>
-          <th>Resultado</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let attempt of summary()?.attempts">
-          <td>{{ attempt.attemptNumber }}</td>
-          <td>{{ attempt.triggerType }}</td>
-          <td>{{ attempt.scope }}</td>
-          <td>{{ attempt.status }}</td>
-          <td>{{ attempt.triggeredBy }}</td>
-          <td>{{ attempt.triggeredAtUtc | date: 'yyyy-MM-dd HH:mm' }}</td>
-          <td>{{ attempt.resultMessage || '-' }}</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+  <ui-grilla-empresarial
+    [columnas]="attemptsColumnDefs"
+    [datos]="summary()?.attempts ?? []"
+    [paginacion]="true"
+    [tamanoPagina]="10"
+    [seleccionFilas]="{ mode: 'singleRow' }"
+  ></ui-grilla-empresarial>
 </section>
 
 <section class="card">
@@ -93,32 +74,15 @@
     </div>
   </div>
 
-  <div class="table-wrapper" *ngIf="itemsPage()?.items?.length; else noItems">
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Referencia</th>
-          <th>Estado</th>
-          <th>ID transacción</th>
-          <th>Mensaje</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let item of itemsPage()?.items">
-          <td>{{ item.itemIndex }}</td>
-          <td>{{ item.reference }}</td>
-          <td><span class="badge">{{ statusLabel(item.status) }}</span></td>
-          <td>{{ item.transactionId ?? '-' }}</td>
-          <td>{{ item.message || '-' }}</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <ng-template #noItems>
-    <div class="empty-state">No hay ítems para los filtros seleccionados.</div>
-  </ng-template>
+  <ui-grilla-empresarial
+    [columnas]="itemsColumnDefs"
+    [datos]="itemsPage()?.items ?? []"
+    [cargando]="isLoading()"
+    [paginacion]="false"
+    [tituloVacio]="'Sin ítems'"
+    [mensajeVacio]="'No hay ítems para los filtros seleccionados.'"
+    [seleccionFilas]="{ mode: 'singleRow' }"
+  ></ui-grilla-empresarial>
 
   <div class="pagination">
     <button class="btn btn-outline" type="button" (click)="changePage(-1)" [disabled]="page() <= 1 || isLoading()">Anterior</button>
