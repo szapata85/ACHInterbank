@@ -1,26 +1,42 @@
-<app-page-header [title]="titulo" [subtitle]="subtitulo"></app-page-header>
+<section class="cenit-page">
+  <ui-migas-pan [items]="migas"></ui-migas-pan>
+  <ui-encabezado-pagina [titulo]="titulo" [descripcion]="subtitulo"></ui-encabezado-pagina>
+  <ui-alerta tipo="info" [mensaje]="mensajeOperacion"></ui-alerta>
 
-<section class="toolbar">
-  <label>
-    <span>Filtro rápido</span>
-    <input type="text" [(ngModel)]="filtro" placeholder="Transacción, ciclo, causal o estado" />
-  </label>
-</section>
+  <ng-template #resumenTpl>
+    <section class="resumen-grid">
+      <article class="resumen-item" *ngFor="let indicador of resumenVista">
+        <p class="resumen-etiqueta">{{ indicador.etiqueta }}</p>
+        <div class="resumen-valor">{{ indicador.valor }}</div>
+        <ui-etiqueta-estado [estado]="indicador.estado" [texto]="indicador.estado | titlecase"></ui-etiqueta-estado>
+      </article>
+    </section>
+  </ng-template>
+  <ui-tarjeta titulo="Resumen operativo" subtitulo="Indicadores de control de la vista activa." [contenido]="resumenTpl"></ui-tarjeta>
 
-<section class="state" *ngIf="loading">Cargando información operativa...</section>
-<section class="state error" *ngIf="!loading && error">{{ error }}</section>
-<section class="state" *ngIf="!loading && !error && !hasRows">
-  No hay datos disponibles para esta vista en el rango actual.
-</section>
+  <ng-template #filtrosTpl>
+    <section class="filtros-grid">
+      <label class="campo-filtro">
+        <span>Filtro operativo</span>
+        <input type="text" [formControl]="filtroControl" placeholder="Transacción, ciclo, causal, lote, archivo o estado" />
+      </label>
+      <div class="acciones-filtro">
+        <ui-boton texto="Limpiar filtros" variante="contorno" icono="filter_alt_off" (accion)="limpiarFiltros()"></ui-boton>
+      </div>
+    </section>
+  </ng-template>
+  <ui-barra-filtros [contenido]="filtrosTpl"></ui-barra-filtros>
 
-<section class="table-wrapper" *ngIf="!loading && !error && hasRows">
   <ui-grilla-empresarial
     [columnas]="columnasTabla"
     [datos]="filteredRows"
     [cargando]="loading"
-    [error]="false"
+    [error]="!!error"
+    [mensajeError]="error"
+    [mensajeVacio]="'No hay resultados para los filtros aplicados en esta vista.'"
+    [mensajeCargando]="'Consultando operación CENIT...'"
+    [placeholderBusqueda]="'Buscar en resultados de operación'"
     [tamanoPagina]="20"
-    [mensajeVacio]="'No se encontraron resultados'"
-    [mensajeCargando]="'Cargando información...'"
+    [tituloVacio]="'Sin resultados operativos'"
   ></ui-grilla-empresarial>
 </section>

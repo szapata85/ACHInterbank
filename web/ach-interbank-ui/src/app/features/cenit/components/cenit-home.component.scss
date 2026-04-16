@@ -1,31 +1,18 @@
-.cenit-section {
-  margin-top: 1rem;
-}
-
-.cenit-section > header {
-  margin-bottom: 0.75rem;
-}
-
-.cenit-section h2 {
-  margin: 0;
-  color: var(--color-text);
-}
-
-.cenit-section p {
-  margin: 0.35rem 0 0;
-  color: var(--color-text-muted);
+.cenit-home {
+  display: grid;
+  gap: 1rem;
 }
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 0.75rem;
 }
 
 .card {
   border: 1px solid #dbe4ee;
   border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  background: #fbfdff;
   padding: 1rem;
 }
 
@@ -41,11 +28,26 @@
 }
 
 .link {
-  color: var(--button-color, var(--color-primary));
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-primary);
+  color: var(--color-primary);
   text-decoration: none;
   font-weight: 600;
 }
 
 .link:hover {
-  text-decoration: underline;
+  background: #eff6ff;
+}
+
+.link-operativo {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.link-operativo:hover {
+  background: var(--color-primary-hover);
 }

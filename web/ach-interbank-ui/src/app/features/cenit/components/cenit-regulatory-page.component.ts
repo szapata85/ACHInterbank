@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { CenitRegulatoryApiService } from '../services/cenit-regulatory-api.service';
@@ -25,7 +25,7 @@ type RegulatoryView =
 @Component({
   selector: 'app-cenit-regulatory-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, SharedModule],
+  imports: [CommonModule, ReactiveFormsModule, SharedModule],
   templateUrl: './cenit-regulatory-page.component.html',
   styleUrls: ['./cenit-regulatory-page.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -36,7 +36,15 @@ export class CenitRegulatoryPageComponent implements OnInit {
 
   loading = false;
   error = '';
-  filtro = '';
+  mensajeRegulatorio = '';
+
+  readonly filtroControl = new FormControl<string>('', { nonNullable: true });
+
+  readonly migas = [
+    { etiqueta: 'Inicio', ruta: '/' },
+    { etiqueta: 'CENIT', ruta: '/cenit' },
+    { etiqueta: 'Regulatorio' }
+  ];
 
   view: RegulatoryView = 'causales-devolucion';
   titulo = '';
@@ -50,12 +58,8 @@ export class CenitRegulatoryPageComponent implements OnInit {
     this.load();
   }
 
-  get hasRows(): boolean {
-    return this.filteredRows.length > 0;
-  }
-
   get filteredRows(): Array<Record<string, string>> {
-    const lower = this.filtro.trim().toLowerCase();
+    const lower = this.filtroControl.value.trim().toLowerCase();
     if (!lower) {
       return this.rows;
     }
@@ -63,18 +67,27 @@ export class CenitRegulatoryPageComponent implements OnInit {
     return this.rows.filter((row) => Object.values(row).some((value) => value.toLowerCase().includes(lower)));
   }
 
-  get headers(): string[] {
-    return this.filteredRows[0] ? Object.keys(this.filteredRows[0]) : [];
-  }
-
   get columnasTabla(): ColDef<Record<string, string>>[] {
-    return this.headers.map((header) => ({
+    const headers = this.filteredRows[0] ? Object.keys(this.filteredRows[0]) : [];
+    return headers.map((header) => ({
       field: header,
       headerName: header,
       sortable: true,
       filter: 'agTextColumnFilter',
       tooltipValueGetter: (params) => (params.value == null ? '' : String(params.value))
     }));
+  }
+
+  get indicadoresRegulatorios(): Array<{ etiqueta: string; valor: string; estado: 'activo' | 'pendiente' | 'exitoso' }> {
+    return [
+      { etiqueta: 'Panel', valor: this.titulo, estado: 'activo' },
+      { etiqueta: 'Registros visibles', valor: this.filteredRows.length.toLocaleString('es-CO'), estado: this.filteredRows.length ? 'exitoso' : 'pendiente' },
+      { etiqueta: 'Estado de consulta', valor: this.error ? 'Con novedad' : 'En línea', estado: this.error ? 'pendiente' : 'activo' }
+    ];
+  }
+
+  limpiarFiltros(): void {
+    this.filtroControl.setValue('');
   }
 
   private load(): void {
@@ -194,7 +207,7 @@ export class CenitRegulatoryPageComponent implements OnInit {
 
   private mapReturnOfReturnPolicyRow(row: CenitReturnOfReturnPolicy): Record<string, string> {
     return {
-      Tipo: `ReturnOfReturn (${row.originalReturnCode})`,
+      Tipo: `Devolución de devolución (${row.originalReturnCode})`,
       Causales: row.allowedNewReturnCodesCsv,
       'Días máximos': String(row.maxDays),
       'Estado origen': row.requiredOriginalState,
@@ -215,30 +228,36 @@ export class CenitRegulatoryPageComponent implements OnInit {
   }
 
   private resolveHeader(): void {
-    const map: Record<RegulatoryView, { titulo: string; subtitulo: string }> = {
+    const map: Record<RegulatoryView, { titulo: string; subtitulo: string; mensaje: string }> = {
       'causales-devolucion': {
         titulo: 'Causales de devolución (Rxx)',
-        subtitulo: 'Consulta de causal, aplicabilidad y vigencia normativa.'
+        subtitulo: 'Consulta de causal, aplicabilidad y vigencia normativa.',
+        mensaje: 'Use esta vista para validar cumplimiento regulatorio de devoluciones antes de cierres de ciclo.'
       },
       'causales-rechazo': {
         titulo: 'Causales de rechazo (Dxx)',
-        subtitulo: 'Consulta por severidad, etapa y reintento permitido.'
+        subtitulo: 'Consulta por severidad, etapa y reintento permitido.',
+        mensaje: 'Permite identificar rechazos críticos y definir acciones de remediación operacional.'
       },
       'politicas-transaccion': {
         titulo: 'Políticas de tipo de transacción',
-        subtitulo: 'Prioridad operativa, naturaleza monetaria y capacidad de devolución.'
+        subtitulo: 'Prioridad operativa, naturaleza monetaria y capacidad de devolución.',
+        mensaje: 'Alinee la configuración de productos con las reglas vigentes de CENIT.'
       },
       'politicas-devolucion': {
-        titulo: 'Políticas de devolución y devolución de devolución',
-        subtitulo: 'Reglas de causal, plazo y estado origen para auditoría regulatoria.'
+        titulo: 'Políticas de devolución y de devolución de devolución',
+        subtitulo: 'Reglas de causal, plazo y estado origen para auditoría regulatoria.',
+        mensaje: 'Consolida reglas críticas para evitar devoluciones fuera de política.'
       },
       'politicas-prenotificacion': {
         titulo: 'Políticas de prenotificación',
-        subtitulo: 'Reglas de obligatoriedad, addenda y bloqueo operativo.'
+        subtitulo: 'Reglas de obligatoriedad, addenda y bloqueo operativo.',
+        mensaje: 'Controla el cumplimiento previo a transacciones monetarias sensibles.'
       }
     };
 
     this.titulo = map[this.view].titulo;
     this.subtitulo = map[this.view].subtitulo;
+    this.mensajeRegulatorio = map[this.view].mensaje;
   }
 }

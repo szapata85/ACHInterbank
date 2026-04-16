@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { CenitOperationsApiService } from '../services/cenit-operations-api.service';
@@ -11,10 +11,16 @@ import { ColDef } from 'ag-grid-community';
 
 type OperationView = 'ciclos' | 'cola' | 'neteo' | 'optimizacion' | 'devoluciones' | 'trazabilidad';
 
+interface IndicadorOperacion {
+  etiqueta: string;
+  valor: string;
+  estado: 'activo' | 'pendiente' | 'exitoso';
+}
+
 @Component({
   selector: 'app-cenit-operation-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, SharedModule],
+  imports: [CommonModule, ReactiveFormsModule, SharedModule],
   templateUrl: './cenit-operation-page.component.html',
   styleUrls: ['./cenit-operation-page.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -26,9 +32,17 @@ export class CenitOperationPageComponent implements OnInit {
   view: OperationView = 'ciclos';
   titulo = '';
   subtitulo = '';
+  mensajeOperacion = '';
   loading = false;
   error = '';
-  filtro = '';
+
+  readonly filtroControl = new FormControl<string>('', { nonNullable: true });
+
+  readonly migas = [
+    { etiqueta: 'Inicio', ruta: '/' },
+    { etiqueta: 'CENIT', ruta: '/cenit' },
+    { etiqueta: 'Operación' }
+  ];
 
   rows: Array<Record<string, string>> = [];
 
@@ -39,7 +53,7 @@ export class CenitOperationPageComponent implements OnInit {
   }
 
   get filteredRows(): Array<Record<string, string>> {
-    const lower = this.filtro.trim().toLowerCase();
+    const lower = this.filtroControl.value.trim().toLowerCase();
     if (!lower) {
       return this.rows;
     }
@@ -51,18 +65,43 @@ export class CenitOperationPageComponent implements OnInit {
     return this.filteredRows.length > 0;
   }
 
-  get headers(): string[] {
-    return this.filteredRows[0] ? Object.keys(this.filteredRows[0]) : [];
+  get resumenVista(): IndicadorOperacion[] {
+    const cantidad = this.filteredRows.length;
+    const etiqueta = this.view === 'trazabilidad' ? 'eventos' : 'registros';
+
+    return [
+      {
+        etiqueta: 'Vista activa',
+        valor: this.titulo,
+        estado: 'activo'
+      },
+      {
+        etiqueta: `Total de ${etiqueta}`,
+        valor: cantidad.toLocaleString('es-CO'),
+        estado: cantidad > 0 ? 'exitoso' : 'pendiente'
+      },
+      {
+        etiqueta: 'Última actualización',
+        valor: new Date().toLocaleString('es-CO'),
+        estado: 'activo'
+      }
+    ];
   }
 
   get columnasTabla(): ColDef<Record<string, string>>[] {
-    return this.headers.map((header) => ({
+    const headers = this.filteredRows[0] ? Object.keys(this.filteredRows[0]) : [];
+
+    return headers.map((header) => ({
       field: header,
       headerName: header,
       sortable: true,
       filter: 'agTextColumnFilter',
       tooltipValueGetter: (params) => (params.value == null ? '' : String(params.value))
     }));
+  }
+
+  limpiarFiltros(): void {
+    this.filtroControl.setValue('');
   }
 
   private load(): void {
@@ -201,16 +240,41 @@ export class CenitOperationPageComponent implements OnInit {
   }
 
   private resolveHeader(): void {
-    const map: Record<OperationView, { titulo: string; subtitulo: string }> = {
-      ciclos: { titulo: 'Ciclos del día', subtitulo: 'Monitoreo de ejecución y volumen operativo.' },
-      cola: { titulo: 'Cola y transacciones diferidas', subtitulo: 'Visibilidad de operaciones pendientes por causal/estado.' },
-      neteo: { titulo: 'Posiciones netas por entidad', subtitulo: 'Consolidado operativo para compensación.' },
-      optimizacion: { titulo: 'Decisiones de optimización', subtitulo: 'Trazabilidad de reglas de liquidez y priorización.' },
-      devoluciones: { titulo: 'Devoluciones', subtitulo: 'Consulta de devoluciones con causal regulatoria y estado.' },
-      trazabilidad: { titulo: 'Trazabilidad CENIT/ACH', subtitulo: 'Ciclo, lote, archivo, causal y decisión operativa.' }
+    const map: Record<OperationView, { titulo: string; subtitulo: string; mensaje: string }> = {
+      ciclos: {
+        titulo: 'Ciclos del día',
+        subtitulo: 'Monitoreo de ejecución, ventanas de cámara y volumen operativo.',
+        mensaje: 'Supervise el avance del día operacional y detecte desbalances de forma temprana.'
+      },
+      cola: {
+        titulo: 'Cola y transacciones diferidas',
+        subtitulo: 'Visibilidad de pendientes por causal, estado y ciclo destino.',
+        mensaje: 'Priorice transacciones en riesgo y reduzca acumulación operacional.'
+      },
+      neteo: {
+        titulo: 'Posiciones netas por entidad',
+        subtitulo: 'Consolidado de posición y liquidez para compensación.',
+        mensaje: 'Identifique presión de liquidez y soporte decisiones de contingencia.'
+      },
+      optimizacion: {
+        titulo: 'Decisiones de optimización',
+        subtitulo: 'Trazabilidad de reglas de liquidez, prioridad y diferimiento.',
+        mensaje: 'Analice por qué una transacción fue aprobada, diferida o rechazada.'
+      },
+      devoluciones: {
+        titulo: 'Devoluciones operativas',
+        subtitulo: 'Consulta de causales, ciclo y estado para gestión diaria.',
+        mensaje: 'Detecte patrones de devolución y reduzca reprocesos.'
+      },
+      trazabilidad: {
+        titulo: 'Trazabilidad operativa CENIT/ACH',
+        subtitulo: 'Vista integral de causal, decisión, lote, archivo, cámara y fecha valor.',
+        mensaje: 'Evidencia detallada para auditoría operativa y regulatoria.'
+      }
     };
 
     this.titulo = map[this.view].titulo;
     this.subtitulo = map[this.view].subtitulo;
+    this.mensajeOperacion = map[this.view].mensaje;
   }
 }

@@ -1,29 +1,46 @@
-<app-page-header title="Centro CENIT" subtitle="Supervisión regulatoria y operación ACH en un solo módulo"></app-page-header>
+<section class="cenit-home">
+  <ui-migas-pan [items]="migas"></ui-migas-pan>
 
-<section class="cenit-section">
-  <header>
-    <h2>Regulatorio</h2>
-    <p>Consulta de catálogos y políticas normativas para auditoría.</p>
-  </header>
-  <div class="cards">
-    <article class="card" *ngFor="let item of regulatorio">
-      <h3>{{ item.titulo }}</h3>
-      <p>{{ item.descripcion }}</p>
-      <a [routerLink]="item.ruta" class="link">Abrir consulta</a>
-    </article>
-  </div>
-</section>
+  <ui-encabezado-pagina
+    titulo="Centro de operación CENIT"
+    descripcion="Supervisión regulatoria y operativa ACH con foco en ciclos, cola, neteo, optimización, devoluciones y trazabilidad."
+  ></ui-encabezado-pagina>
 
-<section class="cenit-section">
-  <header>
-    <h2>Operación CENIT</h2>
-    <p>Monitoreo de ciclos, cola, neteo, optimización y trazabilidad.</p>
-  </header>
-  <div class="cards">
-    <article class="card" *ngFor="let item of operacion">
-      <h3>{{ item.titulo }}</h3>
-      <p>{{ item.descripcion }}</p>
-      <a [routerLink]="item.ruta" class="link">Abrir consulta</a>
-    </article>
-  </div>
+  <ui-alerta
+    tipo="info"
+    titulo="Contexto operativo"
+    mensaje="Use este módulo para seguimiento diario, análisis de causales y validación regulatoria con trazabilidad integral."
+  ></ui-alerta>
+
+  <ng-template #regulatorioTpl>
+    <div class="cards">
+      <article class="card" *ngFor="let item of regulatorio">
+        <h3>{{ item.titulo }}</h3>
+        <p>{{ item.descripcion }}</p>
+        <a [routerLink]="item.ruta" class="link">Abrir consulta</a>
+      </article>
+    </div>
+  </ng-template>
+
+  <ui-tarjeta
+    titulo="Paneles regulatorios"
+    subtitulo="Consulta de catálogos, causales y políticas normativas vigentes."
+    [contenido]="regulatorioTpl"
+  ></ui-tarjeta>
+
+  <ng-template #operacionTpl>
+    <div class="cards">
+      <article class="card" *ngFor="let item of operacion">
+        <h3>{{ item.titulo }}</h3>
+        <p>{{ item.descripcion }}</p>
+        <a [routerLink]="item.ruta" class="link link-operativo">Abrir consulta</a>
+      </article>
+    </div>
+  </ng-template>
+
+  <ui-tarjeta
+    titulo="Paneles operativos"
+    subtitulo="Monitoreo crítico para operación diaria y cierre de cámara."
+    [contenido]="operacionTpl"
+  ></ui-tarjeta>
 </section>

@@ -18,6 +18,10 @@ interface CenitSectionLink {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class CenitHomeComponent {
+  readonly migas = [
+    { etiqueta: 'Inicio', ruta: '/' },
+    { etiqueta: 'CENIT' }
+  ];
   readonly regulatorio: CenitSectionLink[] = [
     { titulo: 'Causales de devolución', descripcion: 'Catálogo Rxx y aplicabilidad normativa.', ruta: '/cenit/regulatorio/causales-devolucion' },
     { titulo: 'Causales de rechazo', descripcion: 'Catálogo Dxx por severidad y etapa.', ruta: '/cenit/regulatorio/causales-rechazo' },
