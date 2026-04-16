@@ -61,7 +61,23 @@ export interface OpcionSelectorBuscable {
       .etiqueta { font-weight: 600; font-size: var(--font-sm); }
       .control { display: grid; grid-template-columns: 1fr auto; gap: .5rem; }
       .control input { min-height: var(--control-height); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); padding: .5rem .75rem; }
-      .limpiar { border: 1px solid var(--color-border-strong); background: #fff; border-radius: var(--radius-md); padding: .4rem .75rem; }
+      .limpiar {
+        border: 1px solid var(--color-border-strong);
+        background: #fff;
+        color: var(--color-text);
+        border-radius: var(--radius-md);
+        padding: .4rem .75rem;
+        font-weight: 500;
+      }
+      .limpiar:hover:not(:disabled), .limpiar:focus-visible:not(:disabled) {
+        background: #f8fafc;
+        color: var(--color-text);
+      }
+      .limpiar:disabled {
+        color: var(--color-text-soft);
+        background: #f8fafc;
+        border-color: var(--color-border);
+      }
       .lista { border: 1px solid var(--color-border); border-radius: var(--radius-md); max-height: 220px; overflow: auto; display: flex; flex-direction: column; }
       .opcion {
         text-align: left;
