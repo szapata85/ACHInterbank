@@ -15,12 +15,11 @@ import { UiCampoBusquedaComponent } from './ui-campo-busqueda.component';
 import { UiEstadoCargaComponent } from './ui-estado-carga.component';
 import { UiEstadoErrorComponent } from './ui-estado-error.component';
 import { UiEstadoVacioComponent } from './ui-estado-vacio.component';
-import { TableRowActionsCellRendererComponent } from '../table-row-actions-cell-renderer.component';
 
 @Component({
   selector: 'ui-grilla-empresarial',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, AgGridAngular, UiCampoBusquedaComponent, UiEstadoCargaComponent, UiEstadoErrorComponent, UiEstadoVacioComponent, TableRowActionsCellRendererComponent],
+  imports: [CommonModule, ReactiveFormsModule, AgGridAngular, UiCampoBusquedaComponent, UiEstadoCargaComponent, UiEstadoErrorComponent, UiEstadoVacioComponent],
   template: `
     <section class="grilla-empresarial">
       <header class="toolbar">
