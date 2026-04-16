@@ -44,10 +44,13 @@
   <p class="error" *ngIf="errorMessage()">{{ errorMessage() }}</p>
 
   <div class="form-actions">
-    <button type="button" class="btn btn-primary" (click)="upload()" [disabled]="isSubmitting()">
-      {{ isSubmitting() ? 'Registrando lote…' : 'Enviar archivo' }}
-    </button>
-    <button type="button" class="btn btn-outline" (click)="goToTracking()">Ver seguimiento</button>
+    <ui-boton
+      [texto]="isSubmitting() ? 'Registrando lote…' : 'Enviar archivo'"
+      variante="primario"
+      [deshabilitado]="isSubmitting()"
+      (accion)="upload()"
+    ></ui-boton>
+    <ui-boton texto="Ver seguimiento" variante="contorno" (accion)="goToTracking()"></ui-boton>
   </div>
 </section>
 
@@ -55,7 +58,7 @@
   <h3>Lote registrado exitosamente</h3>
   <p>Identificador de lote: <strong>{{ batchId }}</strong></p>
   <div class="form-actions">
-    <button type="button" class="btn btn-primary" (click)="goToDetail()">Abrir detalle de lote</button>
-    <button type="button" class="btn btn-outline" (click)="goToTracking()">Ir a seguimiento</button>
+    <ui-boton texto="Abrir detalle de lote" variante="primario" (accion)="goToDetail()"></ui-boton>
+    <ui-boton texto="Ir a seguimiento" variante="contorno" (accion)="goToTracking()"></ui-boton>
   </div>
 </section>

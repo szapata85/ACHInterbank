@@ -25,20 +25,20 @@
       ></ui-selector-buscable>
     </div>
 
-    <button type="submit" class="btn btn-outline" [disabled]="loading">Aplicar</button>
+    <ui-boton texto="Aplicar" variante="contorno" [deshabilitado]="loading" (accion)="applyFilters()"></ui-boton>
   </form>
 
   <div class="action-buttons">
-    <button type="button" class="btn btn-outline" (click)="createBulk()">Carga masiva por archivo</button>
-    <button type="button" class="btn btn-outline" (click)="openBulkTracking()">Seguimiento lotes</button>
-    <button type="button" class="btn btn-primary" (click)="createNew()">Crear transacción</button>
+    <ui-boton texto="Carga masiva por archivo" variante="contorno" (accion)="createBulk()"></ui-boton>
+    <ui-boton texto="Seguimiento lotes" variante="contorno" (accion)="openBulkTracking()"></ui-boton>
+    <ui-boton texto="Crear transacción" variante="primario" (accion)="createNew()"></ui-boton>
   </div>
 </div>
 
   <div class="return-filters">
-    <button type="button" class="btn btn-outline" (click)="setReturnView('all')" [disabled]="loading || returnView === 'all'">Todas</button>
-    <button type="button" class="btn btn-outline" (click)="setReturnView('received')" [disabled]="loading || returnView === 'received'">Devoluciones recibidas</button>
-    <button type="button" class="btn btn-outline" (click)="setReturnView('sent')" [disabled]="loading || returnView === 'sent'">Devoluciones enviadas</button>
+    <ui-boton texto="Todas" variante="contorno" [deshabilitado]="loading || returnView === 'all'" (accion)="setReturnView('all')"></ui-boton>
+    <ui-boton texto="Devoluciones recibidas" variante="contorno" [deshabilitado]="loading || returnView === 'received'" (accion)="setReturnView('received')"></ui-boton>
+    <ui-boton texto="Devoluciones enviadas" variante="contorno" [deshabilitado]="loading || returnView === 'sent'" (accion)="setReturnView('sent')"></ui-boton>
   </div>
 
 <div class="column-manager" aria-label="Selector de columnas para la grilla">

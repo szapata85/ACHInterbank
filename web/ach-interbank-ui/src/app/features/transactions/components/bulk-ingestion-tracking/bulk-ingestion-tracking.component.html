@@ -9,8 +9,8 @@
       <label for="batchId">Identificador del lote</label>
       <input id="batchId" type="text" formControlName="batchId" (input)="onBatchIdInput($any($event.target).value)" placeholder="GUID del lote" />
     </div>
-    <button type="submit" class="btn btn-primary" [disabled]="isLoading()">Agregar al seguimiento</button>
-    <button type="button" class="btn btn-outline" (click)="refreshFromRecent()" [disabled]="isLoading()">Actualizar</button>
+    <ui-boton texto="Agregar al seguimiento" variante="primario" [deshabilitado]="isLoading()" (accion)="searchByBatchId()"></ui-boton>
+    <ui-boton texto="Actualizar" variante="contorno" [deshabilitado]="isLoading()" (accion)="refreshFromRecent()"></ui-boton>
   </form>
 
   <div class="field">

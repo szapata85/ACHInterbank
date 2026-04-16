@@ -10,8 +10,8 @@
     ></ui-selector-buscable>
   </label>
 
-  <button type="button" class="btn btn-primary" (click)="loadTransactions()" [disabled]="loading">Consultar</button>
-  <button type="button" class="btn btn-outline" (click)="openReasonModal()" [disabled]="loading || rows.length === 0">Asignar causal / Generar</button>
+  <ui-boton texto="Consultar" variante="primario" [deshabilitado]="loading" (accion)="loadTransactions()"></ui-boton>
+  <ui-boton texto="Asignar causal / Generar" variante="contorno" [deshabilitado]="loading || rows.length === 0" (accion)="openReasonModal()"></ui-boton>
 </div>
 
 <ui-grilla-empresarial
@@ -41,8 +41,8 @@
     <p>Transacciones seleccionadas: {{ selectedRows.size }}</p>
 
     <div class="actions">
-      <button type="button" class="btn btn-outline" (click)="closeReasonModal()" [disabled]="loading">Cancelar</button>
-      <button type="button" class="btn btn-primary" (click)="generateFile()" [disabled]="loading">Generar Archivo NACHA-M (.RET)</button>
+      <ui-boton texto="Cancelar" variante="contorno" [deshabilitado]="loading" (accion)="closeReasonModal()"></ui-boton>
+      <ui-boton texto="Generar archivo NACHA-M (.RET)" variante="primario" [deshabilitado]="loading" (accion)="generateFile()"></ui-boton>
     </div>
   </div>
 </div>

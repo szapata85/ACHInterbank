@@ -33,11 +33,11 @@
   </div>
 
   <div class="form-actions" *ngIf="canRetry()">
-    <button type="button" (click)="retry(2)">Reintentar fallidos</button>
-    <button type="button" class="btn btn-secondary" (click)="retry(1)">Reintentar lote completo</button>
+    <ui-boton texto="Reintentar fallidos" variante="primario" (accion)="retry(2)"></ui-boton>
+    <ui-boton texto="Reintentar lote completo" variante="secundario" (accion)="retry(1)"></ui-boton>
   </div>
   <div class="form-actions" *ngIf="canCancel()">
-    <button type="button" class="btn btn-danger" (click)="cancelBatch()">Cancelar lote</button>
+    <ui-boton texto="Cancelar lote" variante="peligro" (accion)="cancelBatch()"></ui-boton>
   </div>
 </section>
 
@@ -88,8 +88,8 @@
   ></ui-grilla-empresarial>
 
   <div class="pagination">
-    <button class="btn btn-outline" type="button" (click)="changePage(-1)" [disabled]="page() <= 1 || isLoading()">Anterior</button>
+    <ui-boton texto="Anterior" variante="contorno" [deshabilitado]="page() <= 1 || isLoading()" (accion)="changePage(-1)"></ui-boton>
     <span>Página {{ page() }} de {{ totalPages() }}</span>
-    <button class="btn btn-outline" type="button" (click)="changePage(1)" [disabled]="page() >= totalPages() || isLoading()">Siguiente</button>
+    <ui-boton texto="Siguiente" variante="contorno" [deshabilitado]="page() >= totalPages() || isLoading()" (accion)="changePage(1)"></ui-boton>
   </div>
 </section>
