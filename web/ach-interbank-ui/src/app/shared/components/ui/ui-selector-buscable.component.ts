@@ -63,9 +63,35 @@ export interface OpcionSelectorBuscable {
       .control input { min-height: var(--control-height); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); padding: .5rem .75rem; }
       .limpiar { border: 1px solid var(--color-border-strong); background: #fff; border-radius: var(--radius-md); padding: .4rem .75rem; }
       .lista { border: 1px solid var(--color-border); border-radius: var(--radius-md); max-height: 220px; overflow: auto; display: flex; flex-direction: column; }
-      .opcion { text-align: left; border: none; border-bottom: 1px solid var(--color-border); background: #fff; padding: .55rem .75rem; cursor: pointer; display:flex;flex-direction:column; }
+      .opcion {
+        text-align: left;
+        border: none;
+        border-bottom: 1px solid var(--color-border);
+        background: #fff;
+        color: var(--color-text);
+        padding: .55rem .75rem;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        gap: .15rem;
+      }
+      .opcion > span { color: inherit; font-weight: 500; }
+      .opcion > small { color: var(--color-text-muted); }
       .opcion:last-child { border-bottom: none; }
-      .opcion:hover:not(:disabled), .opcion.seleccionada { background: #eff6ff; }
+      .opcion:hover:not(:disabled),
+      .opcion:focus-visible:not(:disabled),
+      .opcion.seleccionada {
+        background: #eff6ff;
+        color: var(--color-text);
+      }
+      .opcion.seleccionada > span { color: var(--color-text); font-weight: 600; }
+      .opcion.seleccionada > small { color: var(--color-text-muted); }
+      .opcion:disabled {
+        cursor: not-allowed;
+        color: var(--color-text-soft);
+        background: #f8fafc;
+      }
+      .opcion:disabled > small { color: var(--color-text-soft); }
       .sin-resultados, .cargando { margin: 0; padding: .75rem; color: var(--color-text-soft); }
       .deshabilitado { opacity: .75; }
     `
