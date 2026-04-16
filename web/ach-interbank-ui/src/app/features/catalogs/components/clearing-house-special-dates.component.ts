@@ -9,8 +9,7 @@ import {
   inject
 } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
-import { AgGridModule } from 'ag-grid-angular';
-import { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
+import { ColDef, GridApi } from 'ag-grid-community';
 import { Subject, of } from 'rxjs';
 import { finalize, tap } from 'rxjs/operators';
 import { SharedModule } from '../../../shared/shared.module';
@@ -26,7 +25,7 @@ import { ClearingHouseOption } from '../../ach-cycles/models/ach-cycle.model';
   templateUrl: './clearing-house-special-dates.component.html',
   styleUrls: ['./clearing-house-special-dates.component.scss'],
   standalone: true,
-  imports: [SharedModule, NgIf, NgFor, AgGridModule],
+  imports: [SharedModule, NgIf, NgFor],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ClearingHouseSpecialDatesComponent implements OnInit, OnDestroy {
@@ -134,8 +133,8 @@ export class ClearingHouseSpecialDatesComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  onGridReady(event: GridReadyEvent<ClearingHouseSpecialDate>): void {
-    this.gridApi = event.api;
+  onGridReady(api: GridApi<ClearingHouseSpecialDate>): void {
+    this.gridApi = api;
     this.updateGridOverlays();
   }
 

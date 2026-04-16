@@ -1,8 +1,7 @@
 import { NgIf } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, NgZone, OnDestroy, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
-import { AgGridModule } from 'ag-grid-angular';
-import { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
+import { ColDef, GridApi } from 'ag-grid-community';
 import { Subject } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 import { SharedModule } from '../../../shared/shared.module';
@@ -14,7 +13,7 @@ import { BankHolidaysAdminService } from '../services/bank-holidays-admin.servic
   templateUrl: './bank-holidays.component.html',
   styleUrls: ['./bank-holidays.component.scss'],
   standalone: true,
-  imports: [SharedModule, NgIf, AgGridModule],
+  imports: [SharedModule, NgIf],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class BankHolidaysComponent implements OnDestroy {
@@ -101,8 +100,8 @@ export class BankHolidaysComponent implements OnDestroy {
     this.destroy$.complete();
   }
 
-  onGridReady(event: GridReadyEvent<BankHoliday>): void {
-    this.gridApi = event.api;
+  onGridReady(api: GridApi<BankHoliday>): void {
+    this.gridApi = api;
     this.updateGridOverlays();
   }
 

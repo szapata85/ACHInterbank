@@ -1,21 +1,12 @@
 <section class="card">
   <h2>Instituciones financieras</h2>
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Código</th>
-        <th>Nombre</th>
-        <th>Tipo</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let bank of banks">
-        <td>{{ bank.code }}</td>
-        <td>{{ bank.name }}</td>
-        <td>{{ bank.type }}</td>
-      </tr>
-    </tbody>
-  </table>
+  <ui-grilla-empresarial
+    [columnas]="columnas"
+    [datos]="banks"
+    [paginacion]="true"
+    [tamanoPagina]="10"
+    [error]="false"
+  ></ui-grilla-empresarial>
 </section>
 
 <section class="card catalog-links">

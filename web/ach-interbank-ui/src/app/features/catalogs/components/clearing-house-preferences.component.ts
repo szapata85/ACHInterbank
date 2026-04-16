@@ -8,8 +8,7 @@ import {
   OnInit,
   inject
 } from '@angular/core';
-import { AgGridModule } from 'ag-grid-angular';
-import { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
+import { ColDef, GridApi } from 'ag-grid-community';
 import { FormBuilder, Validators } from '@angular/forms';
 import { Subject } from 'rxjs';
 import { finalize, map, takeUntil } from 'rxjs/operators';
@@ -26,7 +25,7 @@ import { FinancialInstitutionStatusEnum } from '../../transactions/transactions.
   templateUrl: './clearing-house-preferences.component.html',
   styleUrls: ['./clearing-house-preferences.component.scss'],
   standalone: true,
-  imports: [SharedModule, NgIf, NgFor, AgGridModule],
+  imports: [SharedModule, NgIf, NgFor],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
@@ -175,8 +174,8 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  onGridReady(event: GridReadyEvent<InstitutionClearingHousePreference>): void {
-    this.gridApi = event.api;
+  onGridReady(api: GridApi<InstitutionClearingHousePreference>): void {
+    this.gridApi = api;
     this.updateGridOverlays();
   }
 

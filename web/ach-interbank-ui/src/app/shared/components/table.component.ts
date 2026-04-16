@@ -1,5 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, TemplateRef } from '@angular/core';
+import { ColDef } from 'ag-grid-community';
+import { UiGrillaEmpresarialComponent } from './ui/ui-grilla-empresarial.component';
 
 export interface TableColumn {
   key: string;
@@ -11,99 +13,19 @@ export interface TableColumn {
 @Component({
   selector: 'app-table',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, UiGrillaEmpresarialComponent],
   template: `
-    <div class="table-wrapper" [class.loading]="loading">
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th *ngFor="let column of columns" [style.width]="column.width" [class.align-end]="column.align === 'end'">
-                {{ column.label }}
-              </th>
-              <th *ngIf="rowActions">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngIf="!loading && data?.length === 0">
-              <td [attr.colspan]="columns.length + (rowActions ? 1 : 0)" class="empty">No hay registros para mostrar</td>
-            </tr>
-            <tr *ngFor="let item of data; trackBy: trackByIndex">
-              <td *ngFor="let column of columns" [class.align-end]="column.align === 'end'">
-                {{ item[column.key] ?? '-' }}
-              </td>
-              <td *ngIf="rowActions">
-                <ng-container *ngTemplateOutlet="rowActions; context: { $implicit: item }"></ng-container>
-              </td>
-            </tr>
-            <tr *ngIf="loading">
-              <td [attr.colspan]="columns.length + (rowActions ? 1 : 0)" class="loading-row">Cargando...</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="pagination" *ngIf="total > pageSize">
-        <button type="button" (click)="changePage(page - 1)" [disabled]="page <= 1">Anterior</button>
-        <span>Página {{ page }} de {{ totalPages }}</span>
-        <button type="button" (click)="changePage(page + 1)" [disabled]="page >= totalPages">Siguiente</button>
-      </div>
-    </div>
+    <ui-grilla-empresarial
+      [columnas]="columnDefs"
+      [datos]="data"
+      [cargando]="loading"
+      [error]="false"
+      [paginacion]="total > pageSize"
+      [tamanoPagina]="pageSize"
+      [mensajeVacio]="'No hay registros para mostrar'"
+      [mensajeCargando]="'Cargando información...'"
+    ></ui-grilla-empresarial>
   `,
-  styles: [
-    `
-      .table-wrapper {
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-lg);
-        background: #fff;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-      }
-      .table-scroll {
-        overflow: auto;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-      }
-      th,
-      td {
-        padding: 0.75rem 1rem;
-        border-bottom: 1px solid #edf2f7;
-        text-align: left;
-      }
-      th {
-        background: var(--color-surface-muted);
-        font-weight: 600;
-        color: #334155;
-        white-space: nowrap;
-      }
-      .align-end {
-        text-align: right;
-      }
-      .empty,
-      .loading-row {
-        text-align: center;
-        color: var(--color-text-soft);
-      }
-      .pagination {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.75rem 1rem;
-      }
-      button {
-        border: 1px solid var(--color-border-strong);
-        background: #fff;
-        padding: 0.35rem 0.75rem;
-        border-radius: var(--radius-sm);
-        cursor: pointer;
-      }
-      button:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-      }
-    `
-  ],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TableComponent {
@@ -117,18 +39,16 @@ export class TableComponent {
 
   @Output() pageChange = new EventEmitter<number>();
 
-  get totalPages(): number {
-    return Math.max(1, Math.ceil(this.total / this.pageSize));
-  }
+  get columnDefs(): ColDef[] {
+    const defs: ColDef[] = this.columns.map((column) => ({
+      field: column.key,
+      headerName: column.label,
+      width: column.width ? Number(column.width.replace('px', '')) : undefined,
+      sortable: true,
+      filter: true,
+      cellStyle: column.align === 'end' ? { textAlign: 'right' } : undefined
+    }));
 
-  changePage(page: number): void {
-    if (page < 1 || page > this.totalPages) {
-      return;
-    }
-    this.pageChange.emit(page);
-  }
-
-  trackByIndex(index: number): number {
-    return index;
+    return defs;
   }
 }

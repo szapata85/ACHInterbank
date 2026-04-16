@@ -12,19 +12,16 @@
   </div>
 
   <div class="grid" *ngIf="specialDates.length; else empty">
-    <ag-grid-angular
-      class="ag-theme-alpine"
-      [rowData]="specialDates"
-      [columnDefs]="columnDefs"
-      [defaultColDef]="defaultColDef"
-      [suppressScrollOnNewData]="true"
-      [pagination]="true"
-      [paginationPageSize]="10"
-      [context]="{ componentParent: this }"
-      [overlayNoRowsTemplate]="noRowsTemplate"
-      [overlayLoadingTemplate]="loadingTemplate"
-      (gridReady)="onGridReady($event)"
-    ></ag-grid-angular>
+    <ui-grilla-empresarial
+      [datos]="rows"
+      [columnas]="columnDefs"
+      [cargando]="loading"
+      [error]="false"
+      [tamanoPagina]="pageSize"
+      [mensajeVacio]="'No hay fechas especiales configuradas.'"
+      [mensajeCargando]="'Cargando información...'"
+      (grillaLista)="onGridReady($event)"
+    ></ui-grilla-empresarial>
   </div>
 
   <ng-template #empty>

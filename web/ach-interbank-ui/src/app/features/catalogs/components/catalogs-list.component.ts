@@ -3,6 +3,7 @@ import { CatalogsApiService } from '../services/catalogs-api.service';
 import { CatalogItem } from '../models/catalog.model';
 import { SharedModule } from '../../../shared/shared.module';
 import { RouterModule } from '@angular/router';
+import { ColDef } from 'ag-grid-community';
 
 @Component({
   selector: 'app-catalogs-list',
@@ -16,6 +17,12 @@ export class CatalogsListComponent implements OnInit {
   private readonly api = inject(CatalogsApiService);
   private readonly cdr = inject(ChangeDetectorRef);
   banks: CatalogItem[] = [];
+  readonly columnas: ColDef<CatalogItem>[] = [
+    { field: 'code', headerName: 'Código', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'name', headerName: 'Nombre', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'type', headerName: 'Tipo', sortable: true, filter: 'agTextColumnFilter' }
+  ];
+
   readonly adminCatalogs = [
     { label: 'Conceptos de lote', route: '/catalogs/company-entry-descriptions' },
     { label: 'Tipos de documento', route: '/catalogs/document-types' },

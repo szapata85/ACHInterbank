@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ColDef } from 'ag-grid-community';
 import { SharedModule } from '../../../shared/shared.module';
 
 interface DocumentTypeRow {
@@ -15,7 +16,15 @@ interface DocumentTypeRow {
   styleUrls: ['./catalog-admin.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
+
 export class DocumentTypesAdminComponent {
+  readonly columnas: ColDef[] = [
+    { field: 'code', headerName: 'Código', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'name', headerName: 'Nombre', sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'description', headerName: 'Descripción', sortable: true, filter: 'agTextColumnFilter', flex: 1 }
+  ];
+
+
   readonly rows: DocumentTypeRow[] = [
     { code: 'CC', name: 'Cédula de Ciudadanía', description: 'Documento de identidad nacional.' },
     { code: 'CE', name: 'Cédula de Extranjería', description: 'Documento para extranjeros residentes.' },
