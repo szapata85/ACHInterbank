@@ -49,8 +49,8 @@ export class BulkIngestionTrackingComponent {
       sortable: false,
       filter: false,
       cellRenderer: (params) => this.canRetry(params.data?.status as BulkIngestionBatchStatus)
-        ? '<button class="btn btn-outline btn-grid" data-action="detail">Detalle</button> <button class="btn btn-secondary btn-grid" data-action="retry">Reintentar</button>'
-        : '<button class="btn btn-outline btn-grid" data-action="detail">Detalle</button>',
+        ? '<button class="btn btn-outline btn-grid" data-action="detail" title="Ver detalle del lote"><span class="material-symbols-outlined">visibility</span></button> <button class="btn btn-secondary btn-grid" data-action="retry" title="Reintentar registros fallidos"><span class="material-symbols-outlined">refresh</span></button>'
+        : '<button class="btn btn-outline btn-grid" data-action="detail" title="Ver detalle del lote"><span class="material-symbols-outlined">visibility</span></button>',
       onCellClicked: (params) => {
         const target = params.event?.target as HTMLElement | null;
         const action = target?.getAttribute('data-action');

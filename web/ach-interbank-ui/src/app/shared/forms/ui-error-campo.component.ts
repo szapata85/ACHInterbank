@@ -14,7 +14,10 @@ import { resolverMensajeValidacion } from './mensajes-validacion';
         color: var(--color-danger);
         font-size: var(--font-xs);
         font-weight: 600;
+        display: block;
+        animation: aparecer .18s ease;
       }
+      @keyframes aparecer { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: translateY(0); } }
     `
   ]
 })

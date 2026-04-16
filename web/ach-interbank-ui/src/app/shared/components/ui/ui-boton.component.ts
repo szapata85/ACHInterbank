@@ -37,10 +37,13 @@ export type UiBotonVariante = 'primario' | 'secundario' | 'contorno' | 'fantasma
         justify-content: center;
         gap: 0.45rem;
         cursor: pointer;
-        transition: all 0.2s ease;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+        transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, opacity 0.18s ease;
       }
-      .ui-boton:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-      .ui-boton:disabled { opacity: 0.6; cursor: not-allowed; }
+      .ui-boton:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28), 0 4px 10px rgba(15, 23, 42, 0.08); }
+      .ui-boton:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 14px rgba(15, 23, 42, 0.12); }
+      .ui-boton:active:not(:disabled) { transform: translateY(0) scale(0.985); box-shadow: 0 2px 6px rgba(15, 23, 42, 0.16); }
+      .ui-boton:disabled { opacity: 0.56; cursor: not-allowed; box-shadow: none; filter: saturate(0.7); }
       .var-primario { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
       .var-primario:hover:not(:disabled) { background: var(--color-primary-hover); border-color: var(--color-primary-hover); }
       .var-secundario { background: var(--color-secondary); color: #fff; border-color: var(--color-secondary); }
@@ -63,13 +66,19 @@ export type UiBotonVariante = 'primario' | 'secundario' | 'contorno' | 'fantasma
         border-radius: 50%;
         animation: giro 0.8s linear infinite;
       }
+      .var-contorno .spinner,
+      .var-fantasma .spinner,
+      .var-icono .spinner {
+        border-color: rgba(15, 23, 42, 0.25);
+        border-top-color: currentColor;
+      }
       @keyframes giro { to { transform: rotate(360deg); } }
     `
   ]
 })
 export class UiBotonComponent {
   @Input() texto = 'Acción';
-  @Input() textoCargando = 'Procesando...';
+  @Input() textoCargando = 'Procesando…';
   @Input() variante: UiBotonVariante = 'primario';
   @Input() tamano: 'sm' | 'md' | 'lg' = 'md';
   @Input() icono?: string;

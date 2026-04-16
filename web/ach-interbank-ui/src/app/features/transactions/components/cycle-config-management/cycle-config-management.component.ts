@@ -61,8 +61,8 @@ export class CycleConfigManagementComponent implements OnInit {
       sortable: false,
       filter: false,
       cellRenderer: (params) => params.data?.isActive
-        ? '<button class="btn btn-outline btn-grid" data-action="edit">Editar</button> <button class="btn btn-outline btn-grid" data-action="clone">Clonar</button> <button class="btn btn-danger btn-grid" data-action="inactivate">Inactivar</button>'
-        : '<button class="btn btn-outline btn-grid" data-action="edit">Editar</button> <button class="btn btn-outline btn-grid" data-action="clone">Clonar</button>',
+        ? '<button class="btn btn-outline btn-grid" data-action="edit" title="Editar configuración"><span class="material-symbols-outlined">edit</span></button> <button class="btn btn-outline btn-grid" data-action="clone" title="Clonar configuración"><span class="material-symbols-outlined">content_copy</span></button> <button class="btn btn-danger btn-grid" data-action="inactivate" title="Inactivar configuración"><span class="material-symbols-outlined">block</span></button>'
+        : '<button class="btn btn-outline btn-grid" data-action="edit" title="Editar configuración"><span class="material-symbols-outlined">edit</span></button> <button class="btn btn-outline btn-grid" data-action="clone" title="Clonar configuración"><span class="material-symbols-outlined">content_copy</span></button>',
       onCellClicked: (params) => {
         const target = params.event?.target as HTMLElement | null;
         const action = target?.getAttribute('data-action');

@@ -27,9 +27,15 @@ import { UiEstadoVacioComponent } from './ui-estado-vacio.component';
         <ng-content select="[acciones-toolbar]"></ng-content>
       </header>
 
-      <ui-estado-carga *ngIf="cargando" [mensaje]="mensajeCargando"></ui-estado-carga>
-      <ui-estado-error *ngIf="error" [mensaje]="mensajeError" (reintentar)="reintentar.emit()"></ui-estado-error>
-      <ui-estado-vacio *ngIf="!cargando && !error && totalFilas === 0" [titulo]="tituloVacio" [mensaje]="mensajeVacio"></ui-estado-vacio>
+      <div class="estado-contenedor" [class.visible]="cargando">
+        <ui-estado-carga *ngIf="cargando" [mensaje]="mensajeCargando"></ui-estado-carga>
+      </div>
+      <div class="estado-contenedor" [class.visible]="error">
+        <ui-estado-error *ngIf="error" [mensaje]="mensajeError" (reintentar)="reintentar.emit()"></ui-estado-error>
+      </div>
+      <div class="estado-contenedor" [class.visible]="!cargando && !error && totalFilas === 0">
+        <ui-estado-vacio *ngIf="!cargando && !error && totalFilas === 0" [titulo]="tituloVacio" [mensaje]="mensajeVacio"></ui-estado-vacio>
+      </div>
 
       <ag-grid-angular
         *ngIf="!error"
@@ -53,8 +59,14 @@ import { UiEstadoVacioComponent } from './ui-estado-vacio.component';
     `
       .grilla-empresarial { display: grid; gap: .75rem; }
       .toolbar { display: flex; justify-content: space-between; align-items: center; gap: .75rem; flex-wrap: wrap; }
-      .grilla { width: 100%; min-height: 320px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; }
+      .grilla { width: 100%; min-height: 320px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; transition: opacity .18s ease; }
+      .estado-contenedor { opacity: 0; transform: translateY(2px); transition: opacity .2s ease, transform .2s ease; pointer-events: none; height: 0; overflow: hidden; }
+      .estado-contenedor.visible { opacity: 1; transform: translateY(0); pointer-events: auto; height: auto; }
       :host ::ng-deep .ag-header-cell-label { font-weight: 700; }
+      :host ::ng-deep .ag-row { transition: background-color .18s ease; }
+      :host ::ng-deep .ag-row:hover { background: #f8fbff !important; }
+      :host ::ng-deep .ag-row.ag-row-selected { background: #e8f0ff !important; }
+      :host ::ng-deep .ag-cell .btn-grid { font-size: .78rem; padding: .25rem .5rem; border-radius: var(--radius-sm); }
     `
   ],
   changeDetection: ChangeDetectionStrategy.OnPush
