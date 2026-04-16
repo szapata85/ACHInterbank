@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { FormBuilder, Validators } from '@angular/forms';
 import { ColDef } from 'ag-grid-community';
 import { SharedModule } from '../../../../shared/shared.module';
 import { NotificationService } from '../../../../core/services/notification.service';
@@ -7,6 +8,7 @@ import { AchCycleSummary } from '../../../ach-cycles/models/ach-cycle.model';
 import { AchReturnsApiService } from '../../services/ach-returns-api.service';
 import { ReturnReasonsApiService } from '../../services/return-reasons-api.service';
 import { ReturnEligibleTransaction, ReturnReason } from '../../transactions.models';
+import { OpcionSelectorBuscable } from '../../../../shared/components/ui/ui-selector-buscable.component';
 
 @Component({
   selector: 'app-ach-returns-management',
@@ -17,6 +19,7 @@ import { ReturnEligibleTransaction, ReturnReason } from '../../transactions.mode
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AchReturnsManagementComponent implements OnInit {
+  private readonly fb = inject(FormBuilder);
   private readonly cyclesApi = inject(AchCyclesApiService);
   private readonly returnsApi = inject(AchReturnsApiService);
   private readonly returnReasonsApi = inject(ReturnReasonsApiService);
@@ -27,8 +30,6 @@ export class AchReturnsManagementComponent implements OnInit {
   reasons: ReturnReason[] = [];
   rows: ReturnEligibleTransaction[] = [];
 
-  selectedCycleId: string | null = null;
-  selectedReasonCode = '';
   showReasonModal = false;
   loading = false;
 
@@ -52,6 +53,24 @@ export class AchReturnsManagementComponent implements OnInit {
       valueGetter: (params) => params.data?.isEligible ? 'Elegible' : (params.data?.validationMessage || 'No elegible')
     }
   ];
+  readonly filtrosForm = this.fb.group({
+    cycleId: [null as string | null, Validators.required]
+  });
+  readonly devolucionForm = this.fb.group({
+    reasonCode: ['', Validators.required]
+  });
+  get cycleOptions(): OpcionSelectorBuscable[] {
+    return this.cycles.map((cycle) => ({
+      valor: cycle.id,
+      etiqueta: `${cycle.cycleName} (${this.toDate(cycle.date)})`
+    }));
+  }
+  get reasonOptions(): OpcionSelectorBuscable[] {
+    return this.reasons.map((reason) => ({
+      valor: reason.code,
+      etiqueta: `${reason.code} - ${reason.description}`
+    }));
+  }
 
   ngOnInit(): void {
     this.loadCycles();
@@ -79,7 +98,9 @@ export class AchReturnsManagementComponent implements OnInit {
       return;
     }
 
-    this.selectedReasonCode = this.reasons.find((r) => r.code.startsWith('R'))?.code ?? '';
+    this.devolucionForm.patchValue({
+      reasonCode: this.reasons.find((r) => r.code.startsWith('R'))?.code ?? ''
+    });
     this.showReasonModal = true;
     this.cdr.markForCheck();
   }
@@ -90,7 +111,8 @@ export class AchReturnsManagementComponent implements OnInit {
   }
 
   loadTransactions(): void {
-    if (!this.selectedCycleId) {
+    const selectedCycleId = this.filtrosForm.controls.cycleId.value;
+    if (!selectedCycleId) {
       this.notifications.warning('Seleccione un ciclo operativo.');
       return;
     }
@@ -99,7 +121,7 @@ export class AchReturnsManagementComponent implements OnInit {
     this.rows = [];
     this.selectedRows.clear();
 
-    this.returnsApi.getTransactionsByCycle(this.selectedCycleId).subscribe({
+    this.returnsApi.getTransactionsByCycle(selectedCycleId).subscribe({
       next: (items) => {
         this.rows = items;
         this.loading = false;
@@ -117,19 +139,21 @@ export class AchReturnsManagementComponent implements OnInit {
     if (this.loading) {
       return;
     }
-    if (!this.selectedCycleId) {
+    const selectedCycleId = this.filtrosForm.controls.cycleId.value;
+    if (!selectedCycleId) {
       this.notifications.warning('Seleccione el ciclo de operación.');
       return;
     }
 
-    if (!this.selectedReasonCode) {
+    const selectedReasonCode = this.devolucionForm.controls.reasonCode.value ?? '';
+    if (!selectedReasonCode) {
       this.notifications.warning('Seleccione una causal de devolución (Rxx).');
       return;
     }
 
     const selectedItems = this.rows
       .filter((row) => this.selectedRows.has(row.id))
-      .map((row) => ({ transactionId: row.id, returnReasonCode: this.selectedReasonCode }));
+      .map((row) => ({ transactionId: row.id, returnReasonCode: selectedReasonCode }));
 
     if (selectedItems.length === 0) {
       this.notifications.warning('No hay transacciones seleccionadas para devolver.');
@@ -137,9 +161,9 @@ export class AchReturnsManagementComponent implements OnInit {
     }
 
     this.loading = true;
-    this.returnsApi.generateFile({ cycleId: this.selectedCycleId, items: selectedItems }).subscribe({
+    this.returnsApi.generateFile({ cycleId: selectedCycleId, items: selectedItems }).subscribe({
       next: (blob) => {
-        const fileName = `devoluciones_${this.selectedCycleId}.RET`;
+        const fileName = `devoluciones_${selectedCycleId}.RET`;
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         link.download = fileName;
@@ -169,8 +193,8 @@ export class AchReturnsManagementComponent implements OnInit {
     this.cyclesApi.search({ page: 1, pageSize: 100 }).subscribe({
       next: (response) => {
         this.cycles = response.items ?? [];
-        if (!this.selectedCycleId && this.cycles.length > 0) {
-          this.selectedCycleId = this.cycles[0].id;
+        if (!this.filtrosForm.controls.cycleId.value && this.cycles.length > 0) {
+          this.filtrosForm.patchValue({ cycleId: this.cycles[0].id }, { emitEvent: false });
         }
         this.cdr.markForCheck();
       },
@@ -186,5 +210,9 @@ export class AchReturnsManagementComponent implements OnInit {
       },
       error: () => this.notifications.error('No fue posible cargar el catálogo de causales de devolución.')
     });
+  }
+
+  private toDate(value: string | Date): string {
+    return new Date(value).toISOString().slice(0, 10);
   }
 }

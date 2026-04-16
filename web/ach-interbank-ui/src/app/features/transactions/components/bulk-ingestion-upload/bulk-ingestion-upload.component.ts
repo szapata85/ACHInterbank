@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { FormBuilder } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { finalize, take } from 'rxjs';
 import { NotificationService } from '../../../../core/services/notification.service';
@@ -14,6 +15,7 @@ import { BulkIngestionTrackingApiService } from '../../services/bulk-ingestion-t
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class BulkIngestionUploadComponent {
+  private readonly fb = inject(FormBuilder);
   private readonly api = inject(BulkIngestionTrackingApiService);
   private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
@@ -21,11 +23,13 @@ export class BulkIngestionUploadComponent {
   readonly acceptedFormats = '.json,.csv,.xlsx,.xls';
 
   readonly selectedFile = signal<File | null>(null);
-  readonly batchReference = signal('');
-  readonly clientRequestId = signal('');
   readonly isSubmitting = signal(false);
   readonly errorMessage = signal<string | null>(null);
   readonly successBatchId = signal<string | null>(null);
+  readonly metadataForm = this.fb.group({
+    batchReference: [''],
+    clientRequestId: ['']
+  });
 
   readonly fileExtension = computed(() => {
     const fileName = this.selectedFile()?.name ?? '';
@@ -53,6 +57,9 @@ export class BulkIngestionUploadComponent {
   }
 
   upload(): void {
+    if (this.isSubmitting()) {
+      return;
+    }
     const file = this.selectedFile();
     if (!file) {
       this.errorMessage.set('Debe seleccionar un archivo para cargar el lote.');
@@ -67,7 +74,8 @@ export class BulkIngestionUploadComponent {
     this.errorMessage.set(null);
     this.isSubmitting.set(true);
 
-    this.api.upload(file, this.batchReference(), this.clientRequestId())
+    const values = this.metadataForm.getRawValue();
+    this.api.upload(file, values.batchReference ?? '', values.clientRequestId ?? '')
       .pipe(
         take(1),
         finalize(() => this.isSubmitting.set(false))

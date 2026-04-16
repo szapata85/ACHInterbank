@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { FormBuilder, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { ColDef } from 'ag-grid-community';
 import { forkJoin, of, take } from 'rxjs';
@@ -17,6 +18,7 @@ import { BulkIngestionTrackingApiService } from '../../services/bulk-ingestion-t
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class BulkIngestionTrackingComponent {
+  private readonly fb = inject(FormBuilder);
   private readonly api = inject(BulkIngestionTrackingApiService);
   private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
@@ -25,6 +27,10 @@ export class BulkIngestionTrackingComponent {
   readonly statusFilter = signal<string>('ALL');
   readonly isLoading = signal(false);
   readonly rows = signal<BulkBatchStatusDto[]>([]);
+  readonly filtrosForm = this.fb.group({
+    batchId: [''],
+    status: ['ALL', Validators.required]
+  });
   readonly columnDefs: ColDef<BulkBatchStatusDto>[] = [
     {
       headerName: 'Referencia',
@@ -59,7 +65,7 @@ export class BulkIngestionTrackingComponent {
   ];
 
   readonly filteredRows = computed(() => {
-    const selectedStatus = this.statusFilter();
+    const selectedStatus = this.filtrosForm.controls.status.value ?? 'ALL';
     return this.rows().filter((row) => selectedStatus === 'ALL' || String(row.status) === selectedStatus);
   });
 
@@ -74,13 +80,17 @@ export class BulkIngestionTrackingComponent {
   });
 
   constructor() {
+    this.filtrosForm.controls.status.valueChanges.subscribe((value) => {
+      const normalized = value ?? 'ALL';
+      this.statusFilter.set(normalized);
+    });
     this.refreshFromRecent();
   }
 
   searchByBatchId(): void {
     const batchId = this.batchIdInput().trim();
     if (!batchId) {
-      this.notifications.warning('Ingrese un Batch ID para buscar.');
+      this.notifications.warning('Ingrese un identificador de lote para buscar.');
       return;
     }
 
@@ -90,6 +100,7 @@ export class BulkIngestionTrackingComponent {
         this.upsertRow(row);
         this.persistRecentIds();
         this.batchIdInput.set('');
+        this.filtrosForm.patchValue({ batchId: '' }, { emitEvent: false });
         this.isLoading.set(false);
       },
       error: (error: Error) => {
@@ -98,6 +109,12 @@ export class BulkIngestionTrackingComponent {
       }
     });
   }
+
+  onBatchIdInput(value: string): void {
+    this.batchIdInput.set(value);
+    this.filtrosForm.patchValue({ batchId: value }, { emitEvent: false });
+  }
+
 
   refreshFromRecent(): void {
     const ids = this.readRecentIds();

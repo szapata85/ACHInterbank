@@ -5,10 +5,11 @@
   <form [formGroup]="filterForm" (ngSubmit)="search()" class="filter-grid">
     <label>
       Cámara
-      <select formControlName="clearingHouseId">
-        <option [ngValue]="null">Seleccione</option>
-        <option *ngFor="let house of clearingHouses" [ngValue]="house.id">{{ house.name }}</option>
-      </select>
+      <ui-selector-buscable
+        [opciones]="clearingHouseOptions"
+        [formControl]="filterForm.controls.clearingHouseId"
+        placeholderBusqueda="Buscar cámara"
+      ></ui-selector-buscable>
     </label>
 
     <label>
@@ -18,16 +19,20 @@
 
     <label>
       Estado
-      <select formControlName="status" (change)="applyLocalFilters()">
-        <option *ngFor="let option of statusOptions" [value]="option.value">{{ option.label }}</option>
-      </select>
+      <ui-selector-buscable
+        [opciones]="statusSelectorOptions"
+        [formControl]="filterForm.controls.status"
+        placeholderBusqueda="Buscar estado"
+      ></ui-selector-buscable>
     </label>
 
     <label>
       Vigencia
-      <select formControlName="validity" (change)="applyLocalFilters()">
-        <option *ngFor="let option of validityOptions" [value]="option.value">{{ option.label }}</option>
-      </select>
+      <ui-selector-buscable
+        [opciones]="validitySelectorOptions"
+        [formControl]="filterForm.controls.validity"
+        placeholderBusqueda="Buscar vigencia"
+      ></ui-selector-buscable>
     </label>
 
     <label>
@@ -52,10 +57,11 @@
   <form [formGroup]="form" class="form-grid">
     <label>
       Cámara
-      <select formControlName="clearingHouseId">
-        <option [ngValue]="null">Seleccione</option>
-        <option *ngFor="let house of clearingHouses" [ngValue]="house.id">{{ house.name }}</option>
-      </select>
+      <ui-selector-buscable
+        [opciones]="clearingHouseOptions"
+        [formControl]="form.controls.clearingHouseId"
+        placeholderBusqueda="Buscar cámara"
+      ></ui-selector-buscable>
     </label>
 
     <label>

@@ -4,19 +4,19 @@
 ></app-page-header>
 
 <section class="card upload-layout">
-  <div class="form-grid">
+  <form class="form-grid" [formGroup]="metadataForm">
     <div>
       <label for="batchReference">Referencia del lote (opcional)</label>
-      <input id="batchReference" type="text" [ngModel]="batchReference()" (ngModelChange)="batchReference.set($event)" placeholder="BATCH-20260411-001" />
+      <input id="batchReference" type="text" formControlName="batchReference" placeholder="LOTE-20260411-001" />
       <small>Si se omite, el backend generará una referencia automática.</small>
     </div>
 
     <div>
       <label for="clientRequestId">ID cliente (opcional)</label>
-      <input id="clientRequestId" type="text" [ngModel]="clientRequestId()" (ngModelChange)="clientRequestId.set($event)" placeholder="REQ-OPS-0001" />
+      <input id="clientRequestId" type="text" formControlName="clientRequestId" placeholder="REQ-OPS-0001" />
       <small>Permite correlación operacional e idempotencia.</small>
     </div>
-  </div>
+  </form>
 
   <div class="file-zone">
     <label for="bulkFile">Archivo de lote</label>
@@ -53,7 +53,7 @@
 
 <section class="card success" *ngIf="successBatchId() as batchId">
   <h3>Lote registrado exitosamente</h3>
-  <p>Batch ID: <strong>{{ batchId }}</strong></p>
+  <p>Identificador de lote: <strong>{{ batchId }}</strong></p>
   <div class="form-actions">
     <button type="button" (click)="goToDetail()">Abrir detalle de lote</button>
     <button type="button" class="btn btn-outline" (click)="goToTracking()">Ir a seguimiento</button>

@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { FormBuilder } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { ColDef, RowSelectionOptions } from 'ag-grid-community';
 import { SharedModule } from '../../../../shared/shared.module';
@@ -44,6 +45,7 @@ interface ColumnOption {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TransactionListComponent implements OnInit {
+  private readonly fb = inject(FormBuilder);
   private readonly api = inject(TransactionsApiService);
   private readonly achCyclesApi = inject(AchCyclesApiService);
   private readonly clearingHousesApi = inject(ClearingHousesApiService);
@@ -132,11 +134,14 @@ export class TransactionListComponent implements OnInit {
   groups: TransactionGroup[] = [];
   cycles: AchCycleOption[] = [];
   clearingHouses: ClearingHouseOption[] = [];
-  selectedCycleId: string | null = null;
-  selectedClearingHouseId: number | null = null;
-  selectedDate = '';
+  readonly filtrosForm = this.fb.group({
+    selectedCycleId: [null as string | null],
+    selectedClearingHouseId: [null as number | null],
+    selectedDate: ['']
+  });
 
   ngOnInit(): void {
+    this.filtrosForm.controls.selectedClearingHouseId.valueChanges.subscribe(() => this.onClearingHouseChange());
     this.loadClearingHouses();
     this.loadCycles();
   }
@@ -158,12 +163,12 @@ export class TransactionListComponent implements OnInit {
   }
 
   onClearingHouseChange(): void {
-    this.selectedCycleId = null;
+    this.filtrosForm.patchValue({ selectedCycleId: null }, { emitEvent: false });
     this.loadCycles(false);
   }
 
   onDateChange(): void {
-    this.selectedCycleId = null;
+    this.filtrosForm.patchValue({ selectedCycleId: null }, { emitEvent: false });
     this.loadCycles(false);
   }
 
@@ -215,24 +220,25 @@ export class TransactionListComponent implements OnInit {
       .search({
         page: 1,
         pageSize: 100,
-        clearingHouseId: this.selectedClearingHouseId ?? undefined,
-        startDate: this.selectedDate || undefined,
-        endDate: this.selectedDate || undefined
+        clearingHouseId: this.filtrosForm.controls.selectedClearingHouseId.value ?? undefined,
+        startDate: this.filtrosForm.controls.selectedDate.value || undefined,
+        endDate: this.filtrosForm.controls.selectedDate.value || undefined
       })
       .subscribe({
         next: (response) => {
           const mapped = (response?.items ?? []).map((cycle) => this.mapCycleOption(cycle));
           const distinct = this.distinctCycles(mapped);
-          this.cycles = this.selectedClearingHouseId == null
+          const selectedClearingHouseId = this.filtrosForm.controls.selectedClearingHouseId.value;
+          this.cycles = selectedClearingHouseId == null
             ? distinct.map((option) => ({ ...option, id: option.name }))
             : distinct;
 
-          if (!this.selectedCycleId && this.cycles.length > 0) {
-            this.selectedCycleId = this.cycles[0].id;
+          if (!this.filtrosForm.controls.selectedCycleId.value && this.cycles.length > 0) {
+            this.filtrosForm.patchValue({ selectedCycleId: this.cycles[0].id }, { emitEvent: false });
           }
 
           if (this.cycles.length === 0) {
-            this.selectedCycleId = null;
+            this.filtrosForm.patchValue({ selectedCycleId: null }, { emitEvent: false });
           }
 
           if (autoLoadTransactions) {
@@ -251,13 +257,16 @@ export class TransactionListComponent implements OnInit {
   private loadTransactions(): void {
     this.loading = true;
     this.cdr.markForCheck();
-    const useCycleName = this.selectedClearingHouseId == null;
+    const selectedClearingHouseId = this.filtrosForm.controls.selectedClearingHouseId.value;
+    const selectedCycleId = this.filtrosForm.controls.selectedCycleId.value;
+    const selectedDate = this.filtrosForm.controls.selectedDate.value;
+    const useCycleName = selectedClearingHouseId == null;
     this.api
       .getAll({
-        achCycleId: useCycleName ? null : this.selectedCycleId,
-        achCycleName: useCycleName ? this.selectedCycleId : null,
-        effectiveDate: this.selectedDate || undefined,
-        clearingHouseId: this.selectedClearingHouseId ?? undefined
+        achCycleId: useCycleName ? null : selectedCycleId,
+        achCycleName: useCycleName ? selectedCycleId : null,
+        effectiveDate: selectedDate || undefined,
+        clearingHouseId: selectedClearingHouseId ?? undefined
       })
       .subscribe({
         next: (items) => {

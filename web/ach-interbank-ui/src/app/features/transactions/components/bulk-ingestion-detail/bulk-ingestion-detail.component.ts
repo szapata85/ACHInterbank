@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { ColDef } from 'ag-grid-community';
+import { FormControl } from '@angular/forms';
 import { finalize, take } from 'rxjs';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SharedModule } from '../../../../shared/shared.module';
@@ -32,11 +33,12 @@ export class BulkIngestionDetailComponent {
   readonly page = signal(1);
   readonly pageSize = signal(25);
   readonly itemStatusFilter = signal<BulkIngestionItemStatus | null>(null);
+  readonly itemStatusControl = new FormControl<string>('');
   readonly isLoading = signal(false);
   readonly attemptsColumnDefs: ColDef<any>[] = [
     { field: 'attemptNumber', headerName: '#', width: 90 },
     { field: 'triggerType', headerName: 'Tipo', minWidth: 120 },
-    { field: 'scope', headerName: 'Scope', minWidth: 120 },
+    { field: 'scope', headerName: 'Alcance', minWidth: 120 },
     { field: 'status', headerName: 'Estado', minWidth: 130 },
     { field: 'triggeredBy', headerName: 'Disparado por', minWidth: 150 },
     { field: 'triggeredAtUtc', headerName: 'Fecha', minWidth: 180, valueFormatter: (params) => params.value ? new Date(params.value).toLocaleString('es-CO') : '-' },
@@ -61,6 +63,7 @@ export class BulkIngestionDetailComponent {
     if (batchId) {
       this.loadAll();
     }
+    this.itemStatusControl.valueChanges.subscribe((value) => this.applyStatusFilter(value ?? ''));
   }
 
   loadAll(): void {

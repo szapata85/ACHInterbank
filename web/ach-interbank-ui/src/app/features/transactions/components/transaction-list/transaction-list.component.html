@@ -1,30 +1,32 @@
 <app-page-header title="Transacciones" description="Consulta y agrupa las transacciones por lote"></app-page-header>
 
 <div class="actions">
-  <div class="filters">
+  <form class="filters" [formGroup]="filtrosForm" (ngSubmit)="applyFilters()">
     <div class="filter-field">
       <label for="date">Fecha</label>
-      <input id="date" type="date" [(ngModel)]="selectedDate" (ngModelChange)="onDateChange()" />
+      <input id="date" type="date" formControlName="selectedDate" (change)="onDateChange()" />
     </div>
 
     <div class="filter-field">
       <label for="clearingHouse">Cámara compensadora</label>
-      <select id="clearingHouse" [(ngModel)]="selectedClearingHouseId" (ngModelChange)="onClearingHouseChange()">
-        <option [ngValue]="null">Todas las cámaras</option>
-        <option *ngFor="let house of clearingHouses" [ngValue]="house.id">{{ house.name }}</option>
-      </select>
+      <ui-selector-buscable
+        [opciones]="clearingHouses.map(house => ({ valor: house.id, etiqueta: house.name }))"
+        [formControl]="filtrosForm.controls.selectedClearingHouseId"
+        placeholderBusqueda="Buscar cámara"
+      ></ui-selector-buscable>
     </div>
 
     <div class="filter-field">
       <label for="cycle">Ciclo</label>
-      <select id="cycle" [(ngModel)]="selectedCycleId">
-        <option [ngValue]="null">Todos los ciclos</option>
-        <option *ngFor="let cycle of cycles" [ngValue]="cycle.id">{{ cycle.label }}</option>
-      </select>
+      <ui-selector-buscable
+        [opciones]="cycles.map(cycle => ({ valor: cycle.id, etiqueta: cycle.label }))"
+        [formControl]="filtrosForm.controls.selectedCycleId"
+        placeholderBusqueda="Buscar ciclo"
+      ></ui-selector-buscable>
     </div>
 
-    <button type="button" class="btn btn-outline" (click)="applyFilters()" [disabled]="loading">Aplicar</button>
-  </div>
+    <button type="submit" class="btn btn-outline" [disabled]="loading">Aplicar</button>
+  </form>
 
   <div class="action-buttons">
     <button type="button" class="btn btn-outline" (click)="createBulk()">Carga masiva por archivo</button>

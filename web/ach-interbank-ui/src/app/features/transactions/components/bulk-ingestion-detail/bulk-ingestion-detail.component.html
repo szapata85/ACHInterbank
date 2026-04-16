@@ -6,7 +6,7 @@
 <section class="card" *ngIf="summary() as data">
   <div class="summary-grid">
     <article>
-      <small>Batch ID</small>
+      <small>Identificador del lote</small>
       <strong>{{ data.batchId }}</strong>
     </article>
     <article>
@@ -64,13 +64,16 @@
     <h3>Ítems del lote</h3>
     <div class="field">
       <label for="itemStatus">Estado ítem</label>
-      <select id="itemStatus" (change)="applyStatusFilter($any($event.target).value)">
-        <option value="">Todos</option>
-        <option value="1">Listo</option>
-        <option value="2">Error estructural</option>
-        <option value="3">Error funcional</option>
-        <option value="4">Procesado</option>
-      </select>
+      <ui-selector-buscable
+        [opciones]="[
+          { valor: '1', etiqueta: 'Listo' },
+          { valor: '2', etiqueta: 'Error estructural' },
+          { valor: '3', etiqueta: 'Error funcional' },
+          { valor: '4', etiqueta: 'Procesado' }
+        ]"
+        [formControl]="itemStatusControl"
+        placeholderBusqueda="Buscar estado de ítem"
+      ></ui-selector-buscable>
     </div>
   </div>
 

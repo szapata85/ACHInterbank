@@ -42,21 +42,29 @@
 
           <label>
             <span>Tipo *</span>
-            <select formControlName="type" required>
-              <option [ngValue]="TransactionType.Credit">Crédito</option>
-              <option [ngValue]="TransactionType.Debit">Débito</option>
-              <option [ngValue]="TransactionType.Reversal">Reverso</option>
-            </select>
+            <ui-selector-buscable
+              [opciones]="[
+                { valor: TransactionType.Credit, etiqueta: 'Crédito' },
+                { valor: TransactionType.Debit, etiqueta: 'Débito' },
+                { valor: TransactionType.Reversal, etiqueta: 'Reverso' }
+              ]"
+              formControlName="type"
+              placeholderBusqueda="Buscar tipo"
+            ></ui-selector-buscable>
             <app-error-message [control]="form.get('type')"></app-error-message>
           </label>
 
           <label>
             <span>Tipo de cuenta *</span>
-            <select formControlName="accountType" required>
-              <option [ngValue]="AccountType.Checking">Cuenta corriente</option>
-              <option [ngValue]="AccountType.Savings">Cuenta de ahorros</option>
-              <option [ngValue]="AccountType.ElectronicDeposits">Depósitos electrónicos</option>
-            </select>
+            <ui-selector-buscable
+              [opciones]="[
+                { valor: AccountType.Checking, etiqueta: 'Cuenta corriente' },
+                { valor: AccountType.Savings, etiqueta: 'Cuenta de ahorros' },
+                { valor: AccountType.ElectronicDeposits, etiqueta: 'Depósitos electrónicos' }
+              ]"
+              formControlName="accountType"
+              placeholderBusqueda="Buscar tipo de cuenta"
+            ></ui-selector-buscable>
             <app-error-message [control]="form.get('accountType')"></app-error-message>
           </label>
 
@@ -73,12 +81,11 @@
         <div class="fieldset-grid">
           <label>
             <span>Cliente originador (opcional)</span>
-            <select formControlName="customerId">
-              <option [ngValue]="null">Sin cliente pre-registrado</option>
-              <option *ngFor="let customer of customers$ | async" [ngValue]="customer.id">
-                {{ customer.fullName }} · {{ customer.documentType }} {{ customer.documentNumber }} · {{ customer.accountNumbers.length }} cuenta(s)
-              </option>
-            </select>
+            <ui-selector-buscable
+              [opciones]="(customers$ | async)?.map(customer => ({ valor: customer.id, etiqueta: customer.fullName + ' · ' + customer.documentType + ' ' + customer.documentNumber + ' · ' + customer.accountNumbers.length + ' cuenta(s)' })) ?? []"
+              formControlName="customerId"
+              placeholderBusqueda="Buscar cliente originador"
+            ></ui-selector-buscable>
             <small class="muted">Seleccionarlo autocompleta identificación, nombre y cuenta origen.</small>
             <small class="muted">Si no existe, crea la transacción y el cliente se registrará silenciosamente.</small>
           </label>
@@ -86,10 +93,11 @@
           <label>
             <span>Cuenta origen *</span>
             <ng-container *ngIf="selectedCustomerAccounts.length > 0; else manualSourceAccount">
-              <select formControlName="sourceAccountNumber" required>
-                <option value="" disabled>Seleccione una cuenta origen</option>
-                <option *ngFor="let accountNumber of selectedCustomerAccounts" [value]="accountNumber">{{ accountNumber }}</option>
-              </select>
+              <ui-selector-buscable
+                [opciones]="selectedCustomerAccounts.map(accountNumber => ({ valor: accountNumber, etiqueta: accountNumber }))"
+                formControlName="sourceAccountNumber"
+                placeholderBusqueda="Buscar cuenta origen"
+              ></ui-selector-buscable>
               <small class="muted">Puedes digitar otra cuenta limpiando el cliente originador.</small>
             </ng-container>
             <ng-template #manualSourceAccount>
@@ -101,10 +109,14 @@
 
           <label>
             <span>Tipo persona originador *</span>
-            <select formControlName="sourcePersonType" required>
-              <option value="PJ">Persona jurídica (PJ)</option>
-              <option value="PN">Persona natural (PN)</option>
-            </select>
+            <ui-selector-buscable
+              [opciones]="[
+                { valor: 'PJ', etiqueta: 'Persona jurídica (PJ)' },
+                { valor: 'PN', etiqueta: 'Persona natural (PN)' }
+              ]"
+              formControlName="sourcePersonType"
+              placeholderBusqueda="Buscar tipo de persona"
+            ></ui-selector-buscable>
           </label>
 
           <label>
@@ -128,12 +140,11 @@
         <div class="fieldset-grid">
           <label>
             <span>Institución destino *</span>
-            <select formControlName="destinationInstitutionId" required>
-              <option [ngValue]="null" disabled>Seleccione una institución</option>
-              <option *ngFor="let institution of institutions$ | async" [ngValue]="institution.id">
-                {{ institution.name }}
-              </option>
-            </select>
+            <ui-selector-buscable
+              [opciones]="(institutions$ | async)?.map(institution => ({ valor: institution.id, etiqueta: institution.name })) ?? []"
+              formControlName="destinationInstitutionId"
+              placeholderBusqueda="Buscar institución"
+            ></ui-selector-buscable>
             <small class="muted">Seleccione una institución habilitada.</small>
             <app-error-message [control]="form.get('destinationInstitutionId')"></app-error-message>
           </label>
@@ -141,18 +152,13 @@
           <label>
             <span>Cuenta destino *</span>
             <ng-container *ngIf="!form.get('isPrenotification')?.value; else manualDestinationAccount">
-              <select
+              <ui-selector-buscable
+                [opciones]="filteredDestinationAccounts.map(account => ({ valor: account.destinationAccountNumber, etiqueta: account.destinationAccountNumber + ' · ' + account.recipientIdNumber + ' · ' + account.destinationInstitutionName }))"
                 formControlName="destinationAccountNumber"
-                (change)="onDestinationAccountSelected($any($event.target).value)"
-                [disabled]="sourceAccountRequiredForDestinationSelection"
-                required
-              >
-                <option value="" disabled>Seleccione una cuenta con prenotificación exitosa</option>
-                <option *ngFor="let account of filteredDestinationAccounts" [value]="account.destinationAccountNumber">
-                  {{ account.destinationAccountNumber }} · {{ account.recipientIdNumber }} · {{ account.destinationInstitutionName }}
-                </option>
-              </select>
-              <small class="muted">Solo se muestran cuentas con prenotificación aprobada (Active).</small>
+                [cargando]="sourceAccountRequiredForDestinationSelection"
+                placeholderBusqueda="Buscar cuenta destino"
+              ></ui-selector-buscable>
+              <small class="muted">Solo se muestran cuentas con prenotificación aprobada (Activa).</small>
               <small class="muted" *ngIf="sourceAccountRequiredForDestinationSelection">
                 Primero selecciona/digita la cuenta origen para cargar las cuentas destino permitidas.
               </small>
@@ -170,10 +176,14 @@
 
           <label>
             <span>Tipo persona receptor *</span>
-            <select formControlName="recipientPersonType" required>
-              <option value="PN">Persona natural (PN)</option>
-              <option value="PJ">Persona jurídica (PJ)</option>
-            </select>
+            <ui-selector-buscable
+              [opciones]="[
+                { valor: 'PN', etiqueta: 'Persona natural (PN)' },
+                { valor: 'PJ', etiqueta: 'Persona jurídica (PJ)' }
+              ]"
+              formControlName="recipientPersonType"
+              placeholderBusqueda="Buscar tipo de persona"
+            ></ui-selector-buscable>
           </label>
 
           <label>
@@ -213,12 +223,11 @@
 
       <label>
         <span>Descripción de la entrada *</span>
-        <select formControlName="companyEntryDescriptionId" required>
-          <option [ngValue]="null">Seleccione un concepto</option>
-          <option *ngFor="let option of companyEntryDescriptionOptions" [ngValue]="option.id">
-            {{ option.description }} ({{ option.term }})
-          </option>
-        </select>
+        <ui-selector-buscable
+          [opciones]="companyEntryDescriptionOptions.map(option => ({ valor: option.id, etiqueta: option.description + ' (' + option.term + ')' }))"
+          formControlName="companyEntryDescriptionId"
+          placeholderBusqueda="Buscar concepto"
+        ></ui-selector-buscable>
         <small class="muted">Seleccione un concepto del catálogo.</small>
         <app-error-message [control]="form.get('companyEntryDescriptionId')"></app-error-message>
       </label>
@@ -226,7 +235,7 @@
 
     <div class="addenda-section">
       <div class="section-header">
-        <h3>Addendas</h3>
+        <h3>Adendas</h3>
         <button type="button" class="link" (click)="addAddenda()">Agregar addenda</button>
       </div>
       <ng-container *ngIf="addendas.controls.length; else noAddendas">
@@ -237,9 +246,11 @@
         >
           <label>
             <span>Código tipo registro adenda *</span>
-            <select formControlName="addendaType" required>
-              <option value="05">05 - Información adicional</option>
-            </select>
+            <ui-selector-buscable
+              [opciones]="[{ valor: '05', etiqueta: '05 - Información adicional' }]"
+              formControlName="addendaType"
+              placeholderBusqueda="Buscar tipo de adenda"
+            ></ui-selector-buscable>
             <app-error-message [control]="addenda.get('addendaType')"></app-error-message>
           </label>
           <label>

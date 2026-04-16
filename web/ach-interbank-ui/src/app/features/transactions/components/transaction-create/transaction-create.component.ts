@@ -149,6 +149,11 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       .subscribe(() => this.filterActiveDestinationAccounts());
 
     this.form
+      .get('destinationAccountNumber')
+      ?.valueChanges.pipe(takeUntil(this.destroy$))
+      .subscribe((value) => this.onDestinationAccountSelected(String(value ?? '')));
+
+    this.form
       .get('isPrenotification')
       ?.valueChanges.pipe(takeUntil(this.destroy$))
       .subscribe((isPrenotification) => {
@@ -194,6 +199,9 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   }
 
   submit(): void {
+    if (this.isSubmitting.value) {
+      return;
+    }
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;

@@ -31,9 +31,9 @@ export class NachaUploadComponent implements OnInit {
     { headerName: 'Ciclo', valueGetter: (params) => params.data?.achCycleName || params.data?.achCycleId || '-' },
     { headerName: 'Fecha Archivo', valueGetter: (params) => params.data?.fileCreationDate || '-' },
     { headerName: 'Hora', valueGetter: (params) => params.data?.fileCreationTime || '-' },
-    { field: 'totalBatches', headerName: 'Batches' },
-    { field: 'totalEntries', headerName: 'Entries' },
-    { field: 'totalAddendas', headerName: 'Addendas' },
+    { field: 'totalBatches', headerName: 'Lotes' },
+    { field: 'totalEntries', headerName: 'Entradas' },
+    { field: 'totalAddendas', headerName: 'Adendas' },
     { field: 'totalAmount', headerName: 'Total Monto', valueFormatter: (params) => Number(params.value ?? 0).toFixed(2) },
     { field: 'totalDebitAmount', headerName: 'Total Débito', valueFormatter: (params) => Number(params.value ?? 0).toFixed(2) },
     { field: 'totalCreditAmount', headerName: 'Total Crédito', valueFormatter: (params) => Number(params.value ?? 0).toFixed(2) }

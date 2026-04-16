@@ -4,30 +4,34 @@
 ></app-page-header>
 
 <section class="card toolbar">
-  <div class="search-row">
+  <form class="search-row" [formGroup]="filtrosForm" (ngSubmit)="searchByBatchId()">
     <div class="field">
-      <label for="batchId">Batch ID</label>
-      <input id="batchId" type="text" [ngModel]="batchIdInput()" (ngModelChange)="batchIdInput.set($event)" placeholder="GUID del lote" />
+      <label for="batchId">Identificador del lote</label>
+      <input id="batchId" type="text" formControlName="batchId" (input)="onBatchIdInput($any($event.target).value)" placeholder="GUID del lote" />
     </div>
-    <button type="button" (click)="searchByBatchId()" [disabled]="isLoading()">Agregar al seguimiento</button>
+    <button type="submit" [disabled]="isLoading()">Agregar al seguimiento</button>
     <button type="button" class="btn btn-outline" (click)="refreshFromRecent()" [disabled]="isLoading()">Actualizar</button>
-  </div>
+  </form>
 
   <div class="field">
     <label for="statusFilter">Estado</label>
-    <select id="statusFilter" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event)">
-      <option value="ALL">Todos</option>
-      <option value="1">Cargado</option>
-      <option value="2">Parseado</option>
-      <option value="3">Validado</option>
-      <option value="4">En cola</option>
-      <option value="5">Procesando</option>
-      <option value="6">Parcialmente procesado</option>
-      <option value="7">Completado</option>
-      <option value="8">Fallido</option>
-      <option value="9">Reintentando</option>
-      <option value="10">Cancelado</option>
-    </select>
+    <ui-selector-buscable
+      [opciones]="[
+        { valor: 'ALL', etiqueta: 'Todos' },
+        { valor: '1', etiqueta: 'Cargado' },
+        { valor: '2', etiqueta: 'Parseado' },
+        { valor: '3', etiqueta: 'Validado' },
+        { valor: '4', etiqueta: 'En cola' },
+        { valor: '5', etiqueta: 'Procesando' },
+        { valor: '6', etiqueta: 'Parcialmente procesado' },
+        { valor: '7', etiqueta: 'Completado' },
+        { valor: '8', etiqueta: 'Fallido' },
+        { valor: '9', etiqueta: 'Reintentando' },
+        { valor: '10', etiqueta: 'Cancelado' }
+      ]"
+      [formControl]="filtrosForm.controls.status"
+      placeholderBusqueda="Buscar estado"
+    ></ui-selector-buscable>
   </div>
 </section>
 
@@ -45,6 +49,6 @@
   [paginacion]="true"
   [tamanoPagina]="15"
   [tituloVacio]="'Sin lotes en seguimiento'"
-  [mensajeVacio]="'Agregue un Batch ID o registre lotes desde la pantalla de carga.'"
+  [mensajeVacio]="'Agregue un identificador de lote o registre lotes desde la pantalla de carga.'"
   [seleccionFilas]="{ mode: 'singleRow' }"
 ></ui-grilla-empresarial>

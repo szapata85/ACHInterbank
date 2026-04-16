@@ -3,9 +3,11 @@
 <div class="toolbar">
   <label>
     Ciclo operativo
-    <select [(ngModel)]="selectedCycleId">
-      <option *ngFor="let cycle of cycles" [ngValue]="cycle.id">{{ cycle.cycleName }} ({{ cycle.processingDate | date:'yyyy-MM-dd' }})</option>
-    </select>
+    <ui-selector-buscable
+      [opciones]="cycleOptions"
+      [formControl]="filtrosForm.controls.cycleId"
+      placeholderBusqueda="Buscar ciclo operativo"
+    ></ui-selector-buscable>
   </label>
 
   <button type="button" (click)="loadTransactions()" [disabled]="loading">Consultar</button>
@@ -29,9 +31,11 @@
     <h3>Asignar causal de devolución</h3>
     <label>
       Causal (Rxx)
-      <select [(ngModel)]="selectedReasonCode">
-        <option *ngFor="let reason of reasons" [value]="reason.code">{{ reason.code }} - {{ reason.description }}</option>
-      </select>
+      <ui-selector-buscable
+        [opciones]="reasonOptions"
+        [formControl]="devolucionForm.controls.reasonCode"
+        placeholderBusqueda="Buscar causal de devolución"
+      ></ui-selector-buscable>
     </label>
 
     <p>Transacciones seleccionadas: {{ selectedRows.size }}</p>

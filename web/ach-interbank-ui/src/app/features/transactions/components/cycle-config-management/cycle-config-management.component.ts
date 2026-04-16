@@ -12,6 +12,7 @@ import {
   UpsertCycleConfigRequest
 } from '../../transactions.models';
 import { ClearingHouseCycleConfigsApiService } from '../../services/clearing-house-cycle-configs-api.service';
+import { OpcionSelectorBuscable } from '../../../../shared/components/ui/ui-selector-buscable.component';
 
 @Component({
   selector: 'app-cycle-config-management',
@@ -88,6 +89,15 @@ export class CycleConfigManagementComponent implements OnInit {
     { value: 'future', label: 'Futuras' },
     { value: 'expired', label: 'Vencidas' }
   ];
+  get clearingHouseOptions(): OpcionSelectorBuscable[] {
+    return this.clearingHouses.map((house) => ({ valor: house.id, etiqueta: house.name }));
+  }
+  get statusSelectorOptions(): OpcionSelectorBuscable[] {
+    return this.statusOptions.map((option) => ({ valor: option.value, etiqueta: option.label }));
+  }
+  get validitySelectorOptions(): OpcionSelectorBuscable[] {
+    return this.validityOptions.map((option) => ({ valor: option.value, etiqueta: option.label }));
+  }
 
   readonly filterForm = this.fb.group({
     clearingHouseId: [null as number | null, Validators.required],
@@ -108,6 +118,8 @@ export class CycleConfigManagementComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadClearingHouses();
+    this.filterForm.controls.status.valueChanges.subscribe(() => this.applyLocalFilters());
+    this.filterForm.controls.validity.valueChanges.subscribe(() => this.applyLocalFilters());
   }
 
   get validationWarnings(): string[] {
