@@ -7,8 +7,14 @@ import { ICellRendererAngularComp } from 'ag-grid-angular';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <ng-container *ngIf="template" [ngTemplateOutlet]="template" [ngTemplateOutletContext]="{ $implicit: rowData }"></ng-container>
-  `
+    <div class="acciones-renderer" (click)="detenerPropagacion($event)" (mousedown)="detenerPropagacion($event)">
+      <ng-container *ngIf="template" [ngTemplateOutlet]="template" [ngTemplateOutletContext]="{ $implicit: rowData }"></ng-container>
+    </div>
+  `,
+  styles: [`
+    :host { display: block; }
+    .acciones-renderer { display: flex; align-items: center; gap: .4rem; min-height: 100%; }
+  `]
 })
 export class TableRowActionsCellRendererComponent implements ICellRendererAngularComp {
   template: TemplateRef<any> | null = null;
@@ -23,5 +29,9 @@ export class TableRowActionsCellRendererComponent implements ICellRendererAngula
     this.rowData = params.data;
     this.template = params.template ?? null;
     return true;
+  }
+
+  detenerPropagacion(event: Event): void {
+    event.stopPropagation();
   }
 }
