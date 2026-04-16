@@ -1,3 +1,5 @@
+:host { display:block; }
+
 .transaction-card {
   background: var(--color-surface);
   border-radius: var(--radius-lg);
@@ -37,7 +39,7 @@
     }
 
     input,
-    select {
+    ui-selector-buscable {
       border: 1px solid var(--color-border);
       border-radius: var(--radius-md);
       padding: 0.65rem 0.75rem;
@@ -253,4 +255,14 @@
       color: #334155;
     }
   }
+}
+
+
+.actions {
+  display:flex;
+  gap:.75rem;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  padding-top:.5rem;
+  border-top:1px solid var(--color-border);
 }
