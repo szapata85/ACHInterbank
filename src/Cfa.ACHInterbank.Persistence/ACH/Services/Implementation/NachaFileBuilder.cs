@@ -428,9 +428,22 @@ public class NachaFileBuilder : INachaFileBuilder
             : 106;
         var sb = new StringBuilder(capacity: estimatedRecordCount * estimatedRecordLength);
 
-        var transactionsByBatchId = context.Transactions
-            .GroupBy(t => t.AchBatchId)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<AchTransaction>)g.OrderBy(t => t.Id).ToList());
+        var transactionsByBatchId = new Dictionary<int, List<AchTransaction>>(orderedBatches.Count);
+        foreach (var tx in context.Transactions)
+        {
+            if (!transactionsByBatchId.TryGetValue(tx.AchBatchId, out var list))
+            {
+                list = new List<AchTransaction>();
+                transactionsByBatchId[tx.AchBatchId] = list;
+            }
+
+            list.Add(tx);
+        }
+
+        foreach (var list in transactionsByBatchId.Values)
+        {
+            list.Sort(static (a, b) => a.Id.CompareTo(b.Id));
+        }
 
         long totalDebit = 0, totalCredit = 0;
         int recordCount = 0, batchCount = orderedBatches.Count, entryAddendaCount = 0;
@@ -439,49 +452,50 @@ public class NachaFileBuilder : INachaFileBuilder
             .Select(item => new CompanyEntryDescriptionCatalogItem(item.Term, item.StandardEntryClassCode))
             .ToList();
 
-        var batchCalculations = orderedBatches.ToDictionary(
-            batch => batch.Id,
-            batch =>
+        var batchCalculations = new Dictionary<int, BatchCalculation>(orderedBatches.Count);
+        var totalAddendaOnlyCount = 0;
+        foreach (var batch in orderedBatches)
+        {
+            var batchTransactions = transactionsByBatchId.TryGetValue(batch.Id, out var txs)
+                ? (IReadOnlyList<AchTransaction>)txs
+                : Array.Empty<AchTransaction>();
+
+            var addendaCount = 0;
+            long batchDebit = 0, batchCredit = 0;
+            var creditLikeCount = 0;
+
+            foreach (var tx in batchTransactions)
             {
-                var batchTransactions = transactionsByBatchId.TryGetValue(batch.Id, out var txs)
-                    ? txs
-                    : Array.Empty<AchTransaction>();
-
-                var addendaCount = 0;
-                long batchDebit = 0, batchCredit = 0;
-                var creditLikeCount = 0;
-
-                foreach (var tx in batchTransactions)
+                if (tx.Type is TransactionTypeEnum.Credit or TransactionTypeEnum.Prenotification)
                 {
-                    if (tx.Type is TransactionTypeEnum.Credit or TransactionTypeEnum.Prenotification)
-                    {
-                        creditLikeCount++;
-                        batchCredit += (long)(tx.Amount * 100);
-                    }
-                    else
-                    {
-                        batchDebit += (long)(tx.Amount * 100);
-                    }
-
-                    addendaCount += tx.Addendas is { Count: > 0 } ? tx.Addendas.Count : 1;
+                    creditLikeCount++;
+                    batchCredit += (long)(tx.Amount * 100);
+                }
+                else
+                {
+                    batchDebit += (long)(tx.Amount * 100);
                 }
 
-                totalDebit += batchDebit;
-                totalCredit += batchCredit;
+                addendaCount += tx.Addendas is { Count: > 0 } ? tx.Addendas.Count : 1;
+            }
 
-                var description = (batch.CompanyEntryDescription ?? string.Empty).Trim().ToUpperInvariant();
-                var secCode = ResolveStandardEntryClassCode(batch, batchTransactions, companyEntryDescriptionCatalog);
-                var batchDescription = creditLikeCount > 1 ? "MULTICREDIT" : description;
+            totalDebit += batchDebit;
+            totalCredit += batchCredit;
+            totalAddendaOnlyCount += addendaCount;
 
-                return new BatchCalculation(
-                    Transactions: batchTransactions,
-                    EntryAddendaCount: batchTransactions.Count + addendaCount,
-                    AddendaOnlyCount: addendaCount,
-                    BatchDebit: batchDebit,
-                    BatchCredit: batchCredit,
-                    StandardEntryClassCode: secCode,
-                    BatchEntryDescription: batchDescription);
-            });
+            var description = (batch.CompanyEntryDescription ?? string.Empty).Trim().ToUpperInvariant();
+            var secCode = ResolveStandardEntryClassCode(batch, batchTransactions, companyEntryDescriptionCatalog);
+            var batchDescription = creditLikeCount > 1 ? "MULTICREDIT" : description;
+
+            batchCalculations[batch.Id] = new BatchCalculation(
+                Transactions: batchTransactions,
+                EntryAddendaCount: batchTransactions.Count + addendaCount,
+                AddendaOnlyCount: addendaCount,
+                BatchDebit: batchDebit,
+                BatchCredit: batchCredit,
+                StandardEntryClassCode: secCode,
+                BatchEntryDescription: batchDescription);
+        }
 
         foreach (var definition in definitions)
         {
@@ -502,19 +516,22 @@ public class NachaFileBuilder : INachaFileBuilder
                         ct);
                     break;
                 case "5":
+                    var type5Records = new List<object>(orderedBatches.Count);
+                    foreach (var batch in orderedBatches)
+                    {
+                        var calculation = batchCalculations[batch.Id];
+                        type5Records.Add(BatchHeaderRecord.From(
+                            batch,
+                            calculation.StandardEntryClassCode,
+                            batchSequenceById[batch.Id],
+                            calculation.BatchEntryDescription));
+                    }
+
                     recordCount += await AppendCustomOrConfiguredAsync(
                         sb,
                         definition,
                         layoutCache,
-                        orderedBatches.Select(batch =>
-                        {
-                            var calculation = batchCalculations[batch.Id];
-                            return BatchHeaderRecord.From(
-                                batch,
-                                calculation.StandardEntryClassCode,
-                                batchSequenceById[batch.Id],
-                                calculation.BatchEntryDescription);
-                        }),
+                        type5Records,
                         context,
                         ct);
                     break;
@@ -530,23 +547,26 @@ public class NachaFileBuilder : INachaFileBuilder
                     break;
                 case "7":
                     recordCount += AppendTypedAddendaRecords(sb, orderedBatches);
-                    entryAddendaCount += batchCalculations.Values.Sum(calc => calc.AddendaOnlyCount);
+                    entryAddendaCount += totalAddendaOnlyCount;
                     break;
                 case "8":
+                    var type8Records = new List<object>(orderedBatches.Count);
+                    foreach (var batch in orderedBatches)
+                    {
+                        var calculation = batchCalculations[batch.Id];
+                        type8Records.Add(BatchControlRecord.From(
+                            batch,
+                            calculation.EntryAddendaCount,
+                            calculation.BatchDebit,
+                            calculation.BatchCredit,
+                            batchSequenceById[batch.Id]));
+                    }
+
                     recordCount += await AppendCustomOrConfiguredAsync(
                         sb,
                         definition,
                         layoutCache,
-                        orderedBatches.Select(batch =>
-                        {
-                            var calculation = batchCalculations[batch.Id];
-                            return BatchControlRecord.From(
-                                batch,
-                                calculation.EntryAddendaCount,
-                                calculation.BatchDebit,
-                                calculation.BatchCredit,
-                                batchSequenceById[batch.Id]);
-                        }),
+                        type8Records,
                         context,
                         ct);
                     break;
