@@ -24,17 +24,26 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private readonly AchDbContext _context;
     private readonly IBankHoliday _holidayService;
+    private readonly INachaDataLoader _dataLoader;
+    private readonly INachaTransactionValidationService _transactionValidationService;
+    private readonly INachaFixedWidthRecordRenderer _recordRenderer;
     private readonly INachaRecordDataProvider _recordDataProvider;
     private readonly INachaSemanticValidator _nachaSemanticValidator;
 
     public NachaFileBuilder(
         AchDbContext context,
         IBankHoliday holidayService,
+        INachaDataLoader dataLoader,
+        INachaTransactionValidationService transactionValidationService,
+        INachaFixedWidthRecordRenderer recordRenderer,
         INachaRecordDataProvider recordDataProvider,
         INachaSemanticValidator nachaSemanticValidator)
     {
         _context = context;
         _holidayService = holidayService;
+        _dataLoader = dataLoader;
+        _transactionValidationService = transactionValidationService;
+        _recordRenderer = recordRenderer;
         _recordDataProvider = recordDataProvider;
         _nachaSemanticValidator = nachaSemanticValidator;
     }
@@ -44,33 +53,18 @@ public class NachaFileBuilder : INachaFileBuilder
     // ─────────────────────────────────────────────────────────────────────────────
     public async Task<string> BuildNachaFileAsync(IEnumerable<int> batchIds, CancellationToken ct = default)
     {
-        var batches = await _context.AchBatches
-            .AsNoTracking()
-            .Include(b => b.AchCycle)
-                .ThenInclude(c => c!.ClearingHouse)
-            .Include(b => b.Transactions)
-                .ThenInclude(t => t.Addendas)
-            .Include(b => b.Transactions)
-                .ThenInclude(t => t.SourceInstitution)
-            .Include(b => b.Transactions)
-                .ThenInclude(t => t.DestinationInstitution)
-            .Where(b => batchIds.Contains(b.Id))
-            .ToListAsync(ct);
+        var batches = await _dataLoader.LoadBatchesByIdsAsync(batchIds, ct);
 
         if (!batches.Any())
             throw new InvalidOperationException("No se encontraron lotes para exportar.");
 
         var cycle = batches.First().AchCycle!;
-        var nachaHeader = await LoadHeaderAsync(cycle.Id, ct);
-
-        var layoutCache = await _context.NachaRecordLayouts
-            .AsNoTracking()
-            .Include(l => l.Fields)
-            .ToDictionaryAsync(l => l.RecordCode!, ct);
+        var nachaHeader = await _dataLoader.LoadHeaderAsync(cycle.Id, ct);
+        var layoutCache = await _dataLoader.LoadLayoutsAsync(ct);
 
         var transactions = batches.SelectMany(b => b.Transactions).ToList();
-        await ValidateTransactionsForSendAsync(transactions, ct);
-        var definitions = await LoadDefinitionsAsync(ct);
+        await _transactionValidationService.ValidateTransactionsForSendAsync(transactions, ct);
+        var definitions = await _dataLoader.LoadDefinitionsAsync(ct);
         var context = new NachaBuildContext
         {
             Cycle = cycle,
@@ -85,38 +79,10 @@ public class NachaFileBuilder : INachaFileBuilder
     // ─────────────────────────────────────────────────────────────────────────────
     public async Task<string> BuildNachaFileByCycleAsync(string cycleId, CancellationToken ct = default)
     {
-        var cycle = await _context.AchCycles
-            .AsNoTracking()
-            .Include(c => c.ClearingHouse)
-            .FirstOrDefaultAsync(c => c.Id == cycleId, ct)
-            ?? throw new InvalidOperationException($"No existe el ciclo {cycleId}.");
-
-        var cycleBatches = await _context.AchBatches
-            .AsNoTracking()
-            .Where(b => b.AchCycleId == cycleId)
-            .ToListAsync(ct);
-
-        var transactions = await _context.AchTransactions
-            .AsNoTracking()
-            .Include(t => t.Addendas)
-            .Include(t => t.AchBatch)
-            .Include(t => t.SourceInstitution)
-            .Include(t => t.DestinationInstitution)
-            .Where(t => t.AchCycleId == cycleId)
-            .ToListAsync(ct);
-
-        var transactionBatches = transactions
-            .Where(t => t.AchBatch is not null)
-            .Select(t => t.AchBatch!)
-            .GroupBy(b => b.Id)
-            .Select(g => g.First())
-            .ToList();
-
-        var batches = cycleBatches
-            .Concat(transactionBatches)
-            .GroupBy(b => b.Id)
-            .Select(g => g.First())
-            .ToList();
+        var context = await _dataLoader.LoadByCycleAsync(cycleId, ct);
+        var cycle = context.Cycle;
+        var transactions = context.Transactions;
+        var batches = context.Batches;
 
         if (transactions.Count == 0)
             throw new InvalidOperationException($"El ciclo {cycleId} no tiene transacciones para exportar.");
@@ -124,20 +90,10 @@ public class NachaFileBuilder : INachaFileBuilder
         if (batches.Count == 0)
             throw new InvalidOperationException($"El ciclo {cycleId} no tiene lotes asociados para exportar.");
 
-        var nachaHeader = await LoadHeaderAsync(cycle.Id, ct);
-        var layoutCache = await _context.NachaRecordLayouts
-            .AsNoTracking()
-            .Include(l => l.Fields)
-            .ToDictionaryAsync(l => l.RecordCode!, ct);
-
-        await ValidateTransactionsForSendAsync(transactions, ct);
-        var definitions = await LoadDefinitionsAsync(ct);
-        var context = new NachaBuildContext
-        {
-            Cycle = cycle,
-            Batches = batches,
-            Transactions = transactions
-        };
+        var nachaHeader = await _dataLoader.LoadHeaderAsync(cycle.Id, ct);
+        var layoutCache = await _dataLoader.LoadLayoutsAsync(ct);
+        await _transactionValidationService.ValidateTransactionsForSendAsync(transactions, ct);
+        var definitions = await _dataLoader.LoadDefinitionsAsync(ct);
         return await BuildFileAsync(context, definitions, layoutCache, nachaHeader, ct);
     }
 
@@ -146,13 +102,13 @@ public class NachaFileBuilder : INachaFileBuilder
     // ─────────────────────────────────────────────────────────────────────────────
     public async Task<string> BuildRecordAsync<T>(string recordType, T entity, CancellationToken ct = default)
     {
-        var layout = await _context.NachaRecordLayouts
-            .AsNoTracking()
-            .Include(l => l.Fields)
-            .FirstOrDefaultAsync(l => l.RecordCode == recordType, ct)
-            ?? throw new InvalidOperationException($"Layout no encontrado para '{recordType}'.");
+        var layoutCache = await _dataLoader.LoadLayoutsAsync(ct);
+        if (!layoutCache.TryGetValue(recordType, out var layout))
+        {
+            throw new InvalidOperationException($"Layout no encontrado para '{recordType}'.");
+        }
 
-        return await BuildRecordInternalAsync(recordType, entity, layout);
+        return await _recordRenderer.RenderRecordAsync(recordType, entity, layout);
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -479,11 +435,9 @@ public class NachaFileBuilder : INachaFileBuilder
         long totalDebit = 0, totalCredit = 0;
         int recordCount = 0, batchCount = orderedBatches.Count, entryAddendaCount = 0;
 
-        var companyEntryDescriptionCatalog = await _context.CompanyEntryDescriptionCatalogs
-            .AsNoTracking()
-            .Where(item => item.IsActive)
+        var companyEntryDescriptionCatalog = (await _dataLoader.LoadCompanyEntryDescriptionCatalogAsync(ct))
             .Select(item => new CompanyEntryDescriptionCatalogItem(item.Term, item.StandardEntryClassCode))
-            .ToListAsync(ct);
+            .ToList();
 
         var batchCalculations = orderedBatches.ToDictionary(
             batch => batch.Id,
@@ -654,11 +608,11 @@ public class NachaFileBuilder : INachaFileBuilder
             count++;
             if (record is IReadOnlyDictionary<string, object?> dict)
             {
-                sb.Append(await BuildRecordInternalAsync(definition.RecordCode, dict, layout));
+                sb.Append(await _recordRenderer.RenderRecordAsync(definition.RecordCode, dict, layout));
             }
             else
             {
-                sb.Append(await BuildRecordInternalAsync(definition.RecordCode, record, layout));
+                sb.Append(await _recordRenderer.RenderRecordAsync(definition.RecordCode, record, layout));
             }
         }
 
