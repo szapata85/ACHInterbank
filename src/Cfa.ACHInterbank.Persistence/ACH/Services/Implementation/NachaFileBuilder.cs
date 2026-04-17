@@ -8,6 +8,8 @@ using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Concurrent;
+using System.Reflection;
 using System.Text;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
@@ -15,6 +17,11 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public class NachaFileBuilder : INachaFileBuilder
 {
+    private static readonly ConcurrentDictionary<string, string> NormalizedIdentifierCache = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, string[]> IdentifierCandidatesCache = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<Type, PropertyResolutionCache> PropertyCacheByType = new();
+    private static readonly ConcurrentDictionary<(Type Type, string Identifier), PropertyLookupResult> PropertyLookupCache = new();
+
     private readonly AchDbContext _context;
     private readonly IBankHoliday _holidayService;
     private readonly INachaRecordDataProvider _recordDataProvider;
@@ -261,35 +268,58 @@ public class NachaFileBuilder : INachaFileBuilder
         return validation.FormattedValue;
     }
 
-    private static System.Reflection.PropertyInfo? ResolveProperty(Type type, string? dbColumn)
+    private static PropertyInfo? ResolveProperty(Type type, string? dbColumn)
     {
         if (string.IsNullOrWhiteSpace(dbColumn))
         {
             return null;
         }
 
-        var properties = type.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-        foreach (var candidate in EnumerateIdentifierCandidates(dbColumn))
+        var normalizedIdentifier = dbColumn.Trim();
+        var lookupResult = PropertyLookupCache.GetOrAdd(
+            (type, normalizedIdentifier),
+            static key => ResolvePropertyUncached(key.Type, key.Identifier));
+
+        return lookupResult.Found ? lookupResult.Property : null;
+    }
+
+    private static PropertyLookupResult ResolvePropertyUncached(Type type, string identifier)
+    {
+        var typeCache = PropertyCacheByType.GetOrAdd(type, static t =>
+        {
+            var properties = t.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+            var normalizedMap = new Dictionary<string, PropertyInfo>(StringComparer.Ordinal);
+            foreach (var property in properties)
+            {
+                var normalizedPropertyName = NormalizeIdentifier(property.Name);
+                if (!normalizedMap.ContainsKey(normalizedPropertyName))
+                {
+                    normalizedMap[normalizedPropertyName] = property;
+                }
+            }
+
+            return new PropertyResolutionCache(normalizedMap);
+        });
+
+        foreach (var candidate in EnumerateIdentifierCandidates(identifier))
         {
             var property = type.GetProperty(candidate,
-                System.Reflection.BindingFlags.Public |
-                System.Reflection.BindingFlags.Instance |
-                System.Reflection.BindingFlags.IgnoreCase);
-
+                BindingFlags.Public |
+                BindingFlags.Instance |
+                BindingFlags.IgnoreCase);
             if (property is not null)
             {
-                return property;
+                return PropertyLookupResult.From(property);
             }
 
             var normalizedTarget = NormalizeIdentifier(candidate);
-            property = properties.FirstOrDefault(p => NormalizeIdentifier(p.Name) == normalizedTarget);
-            if (property is not null)
+            if (typeCache.NormalizedProperties.TryGetValue(normalizedTarget, out property))
             {
-                return property;
+                return PropertyLookupResult.From(property);
             }
         }
 
-        return null;
+        return PropertyLookupResult.NotFound;
     }
 
     private static bool TryResolveConstant(string? dbColumn, out object? raw)
@@ -345,25 +375,63 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private static IEnumerable<string> EnumerateIdentifierCandidates(string value)
     {
-        var trimmed = value.Trim();
-        if (trimmed.Length == 0)
+        if (string.IsNullOrWhiteSpace(value))
         {
             yield break;
         }
 
-        yield return trimmed;
-
-        var separators = new[] { '.', ':', '/' };
-        var segments = trimmed.Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (segments.Length > 1)
+        foreach (var candidate in IdentifierCandidatesCache.GetOrAdd(value, static raw =>
         {
-            yield return segments[^1];
+            var trimmed = raw.Trim();
+            if (trimmed.Length == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            var separators = new[] { '.', ':', '/' };
+            var segments = trimmed.Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (segments.Length > 1)
+            {
+                return new[] { trimmed, segments[^1] };
+            }
+
+            return new[] { trimmed };
+        }))
+        {
+            yield return candidate;
         }
     }
 
     private static string NormalizeIdentifier(string value)
     {
-        return new string(value.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        return NormalizedIdentifierCache.GetOrAdd(value, static raw =>
+        {
+            var chars = new char[raw.Length];
+            var index = 0;
+
+            foreach (var ch in raw)
+            {
+                if (char.IsLetterOrDigit(ch))
+                {
+                    chars[index++] = char.ToUpperInvariant(ch);
+                }
+            }
+
+            return index == 0 ? string.Empty : new string(chars, 0, index);
+        });
+    }
+
+    private sealed record PropertyResolutionCache(IReadOnlyDictionary<string, PropertyInfo> NormalizedProperties);
+
+    private readonly record struct PropertyLookupResult(bool Found, PropertyInfo? Property)
+    {
+        public static PropertyLookupResult NotFound => new(false, null);
+        public static PropertyLookupResult From(PropertyInfo property) => new(true, property);
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
