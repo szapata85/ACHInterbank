@@ -61,7 +61,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
                 It.IsAny<DateTime>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProcTransaccionesRequestResolution(
-                new ProcTransaccionesRequestContract(new Dictionary<string, string> { ["TRNIDTX"] = "1", ["TRNVALOR"] = "10", ["TRNCOD"] = "22" }),
+                new ProcTransaccionesRequestContract(new Dictionary<string, string> { ["TREG"] = "6", ["TIPTRAN"] = "22", ["MONTO"] = "10", ["IDTRAN"] = "1", ["IDCAMCOMPE"] = "1" }),
                 Guid.NewGuid(),
                 1,
                 "hash"));

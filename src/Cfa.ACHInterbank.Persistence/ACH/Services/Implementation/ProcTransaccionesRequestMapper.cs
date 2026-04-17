@@ -76,7 +76,7 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             resolved[parameter.ParameterPath] = value ?? string.Empty;
         }
 
-        var requiredKeys = new[] { "TRNIDTX", "TRNVALOR", "TRNCOD" };
+        var requiredKeys = new[] { "TREG", "TIPTRAN", "MONTO", "IDTRAN", "IDCAMCOMPE" };
         foreach (var key in requiredKeys)
         {
             if (!resolved.TryGetValue(key, out var value) || string.IsNullOrWhiteSpace(value))
@@ -136,14 +136,21 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             "transaction.id" => transaction.Id.ToString(CultureInfo.InvariantCulture),
             "transaction.amount" => transaction.Amount.ToString(CultureInfo.InvariantCulture),
             "transaction.transactioncode" => transaction.TransactionCode,
-            "transaction.trace" => transaction.TraceNumber,
-            "transaction.externalid" => transaction.TransactionExternalId,
+            "transaction.tracenumber" or "transaction.trace" => transaction.TraceNumber,
+            "transaction.transactionexternalid" or "transaction.externalid" => transaction.TransactionExternalId,
+            "transaction.reference" => transaction.Reference,
+            "transaction.companyidentification" => transaction.CompanyIdentification,
+            "transaction.sourceaccountnumber" => transaction.SourceAccountNumber,
+            "transaction.effectiveentrydate" => transaction.EffectiveEntryDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture),
+            "batch.id" => transaction.AchBatchId.ToString(CultureInfo.InvariantCulture),
             "cycle.id" => cycle.Id,
+            "cycle.processingdate" => cycle.ProcessingDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture),
             "cycle.clearinghouseid" => cycle.ClearingHouseId.ToString(CultureInfo.InvariantCulture),
             "ingestion.id" => ingestion.Id.ToString("N"),
             "classification.class" => ((int)classification.FunctionalClass).ToString(CultureInfo.InvariantCulture),
             "queue.idempotencykey" => queue.IdempotencyDispatchKey,
             "execution.datetimeutc" => executionDateTime.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
+            "execution.dateyyyymmdd" => executionDateTime.ToString("yyyyMMdd", CultureInfo.InvariantCulture),
             _ => rule.DefaultValue
         };
     }

@@ -34,6 +34,54 @@ public class ProcTransaccionesRequestMapperTests
             sut.ResolveAsync(queue, ingestion, classification, transaction, cycle, DateTime.Now));
     }
 
+    [Fact]
+    public async Task ResolveAsync_BuildsContractWithPublishedMapping_UsingProcTransaccionesTechnicalNames()
+    {
+        await using var context = BuildContext();
+        var method = new IntegrationMethod
+        {
+            Id = 11,
+            Code = "WSCFAACH.Proc_Transacciones",
+            DisplayName = "Proc_Transacciones",
+            SoapClientCode = "WSCFAACH",
+            IsActive = true
+        };
+        context.IntegrationMethods.Add(method);
+
+        var pTreg = new IntegrationMethodParameter { Id = 1, MethodId = method.Id, ParameterPath = "TREG", Required = true, Direction = IntegrationParameterDirectionEnum.Input, DisplayName = "TREG" };
+        var pTiptran = new IntegrationMethodParameter { Id = 2, MethodId = method.Id, ParameterPath = "TIPTRAN", Required = true, Direction = IntegrationParameterDirectionEnum.Input, DisplayName = "TIPTRAN" };
+        var pMonto = new IntegrationMethodParameter { Id = 3, MethodId = method.Id, ParameterPath = "MONTO", Required = true, Direction = IntegrationParameterDirectionEnum.Input, DisplayName = "MONTO" };
+        var pIdTran = new IntegrationMethodParameter { Id = 4, MethodId = method.Id, ParameterPath = "IDTRAN", Required = true, Direction = IntegrationParameterDirectionEnum.Input, DisplayName = "IDTRAN" };
+        var pIdCam = new IntegrationMethodParameter { Id = 5, MethodId = method.Id, ParameterPath = "IDCAMCOMPE", Required = true, Direction = IntegrationParameterDirectionEnum.Input, DisplayName = "IDCAMCOMPE" };
+        context.IntegrationMethodParameters.AddRange(pTreg, pTiptran, pMonto, pIdTran, pIdCam);
+
+        var set = new IntegrationMappingSet { Id = Guid.NewGuid(), MethodId = method.Id, Name = "pub", Version = 1, Status = IntegrationMappingSetStatusEnum.Published };
+        context.IntegrationMappingSets.Add(set);
+        context.IntegrationMappingRules.AddRange(
+            new IntegrationMappingRule { Id = 1, MappingSetId = set.Id, MethodId = method.Id, ParameterId = pTreg.Id, SourceKind = IntegrationSourceKindEnum.Constant, FixedValue = "6", Priority = 1, Enabled = true },
+            new IntegrationMappingRule { Id = 2, MappingSetId = set.Id, MethodId = method.Id, ParameterId = pTiptran.Id, SourceKind = IntegrationSourceKindEnum.Transaction, SourceFieldPath = "transaction.transactionCode", Priority = 1, Enabled = true },
+            new IntegrationMappingRule { Id = 3, MappingSetId = set.Id, MethodId = method.Id, ParameterId = pMonto.Id, SourceKind = IntegrationSourceKindEnum.Transaction, SourceFieldPath = "transaction.amount", Priority = 1, Enabled = true },
+            new IntegrationMappingRule { Id = 4, MappingSetId = set.Id, MethodId = method.Id, ParameterId = pIdTran.Id, SourceKind = IntegrationSourceKindEnum.Transaction, SourceFieldPath = "transaction.id", Priority = 1, Enabled = true },
+            new IntegrationMappingRule { Id = 5, MappingSetId = set.Id, MethodId = method.Id, ParameterId = pIdCam.Id, SourceKind = IntegrationSourceKindEnum.Cycle, SourceFieldPath = "cycle.clearingHouseId", Priority = 1, Enabled = true });
+        context.IntegrationMappingSetHistory.Add(new IntegrationMappingSetHistory { MappingSetId = set.Id, MethodId = method.Id, Version = 1, Status = IntegrationMappingSetStatusEnum.Published, Action = "Publish", PerformedBy = "tester", SnapshotHash = "snap-1", SnapshotJson = "{}" });
+        await context.SaveChangesAsync();
+
+        var sut = new ProcTransaccionesRequestMapper(context);
+        var queue = BuildQueue();
+        var ingestion = new IncomingNachaFileIngestion { Id = queue.IncomingNachaFileIngestionId, FileName = "in.ach", FileHashSha256 = "h", ContentType = "txt", CorrelationId = "c", UploadedBy = "u", Notes = "n" };
+        var classification = new IncomingNachaEntryClassification { Id = queue.IncomingNachaEntryClassificationId, FunctionalClass = IncomingNachaFunctionalClass.CreditoEntrante };
+        var transaction = new AchTransaction { Id = queue.AchTransactionId, Amount = 100m, TransactionCode = "22", TraceNumber = "1", TransactionExternalId = "ext", AchCycleId = "C1", Reference = "r", CompanyName = "c", CompanyIdentification = "i", SourceAccountNumber = "s", DestinationAccountNumber = "d", OriginatingDFI = "o", ReceivingDFI = "r", SourceInstitutionId = 1, DestinationInstitutionId = 1, AchBatchId = 1, Type = Domain.Entities.Transactions.Enums.TransactionTypeEnum.Credit, EffectiveEntryDate = DateTime.Today };
+        var cycle = new AchCycle { Id = "C1", ProcessingDate = DateTime.Today, StartTime = TimeSpan.Zero, EndTime = new TimeSpan(23, 59, 0), ClearingHouseId = 1, CycleName = "c1" };
+
+        var resolution = await sut.ResolveAsync(queue, ingestion, classification, transaction, cycle, DateTime.Now);
+        var xml = sut.BuildSoapBody(resolution.Contract);
+
+        Assert.Equal("6", resolution.Contract.Parameters["TREG"]);
+        Assert.Contains("<tem:TREG>6</tem:TREG>", xml);
+        Assert.Contains("<tem:TIPTRAN>22</tem:TIPTRAN>", xml);
+        Assert.Contains("<tem:IDCAMCOMPE>1</tem:IDCAMCOMPE>", xml);
+    }
+
     private static IncomingNachaDispatchQueue BuildQueue()
     {
         return new IncomingNachaDispatchQueue

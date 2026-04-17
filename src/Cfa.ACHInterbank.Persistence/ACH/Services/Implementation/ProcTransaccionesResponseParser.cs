@@ -21,8 +21,17 @@ public class ProcTransaccionesResponseParser : IProcTransaccionesResponseParser
         try
         {
             var xml = XDocument.Parse(responseXml);
-            var code = ExtractValue(xml, "ANSST") ?? ExtractValue(xml, "Codigo") ?? ExtractValue(xml, "Code") ?? "UNKNOWN";
-            var message = ExtractValue(xml, "ANSMEN") ?? ExtractValue(xml, "Mensaje") ?? ExtractValue(xml, "Message") ?? string.Empty;
+            var code = ExtractValue(xml, "RTAACH")
+                       ?? ExtractValue(xml, "RTALOC")
+                       ?? ExtractValue(xml, "ANSST")
+                       ?? ExtractValue(xml, "Codigo")
+                       ?? ExtractValue(xml, "Code")
+                       ?? "UNKNOWN";
+            var message = ExtractValue(xml, "RTALOC")
+                          ?? ExtractValue(xml, "ANSMEN")
+                          ?? ExtractValue(xml, "Mensaje")
+                          ?? ExtractValue(xml, "Message")
+                          ?? string.Empty;
 
             var isSuccess = SuccessCodes.Contains(code);
             var isPartial = !isSuccess && PartialCodes.Contains(code);
