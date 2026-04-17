@@ -1045,7 +1045,7 @@ public class NachaFileBuilder : INachaFileBuilder
         foreach (var transaction in transactions.OrderBy(t => t.Id))
         {
             var receiverName = await ResolveReceiverNameForType6Async(transaction, ct);
-            var normalizedReceiverName = ResolveReceiverNameWithFallback(transaction, receiverName);
+            var normalizedReceiverName = NachaReceiverNameHelper.SanitizeForType6(receiverName);
 
             if (string.IsNullOrWhiteSpace(normalizedReceiverName))
             {
@@ -1058,7 +1058,7 @@ public class NachaFileBuilder : INachaFileBuilder
         return records;
     }
 
-    private async Task<string?> ResolveReceiverNameForType6Async(AchTransaction transaction, CancellationToken ct)
+    private async Task<string> ResolveReceiverNameForType6Async(AchTransaction transaction, CancellationToken ct)
     {
         var destinationAccount = (transaction.DestinationAccountNumber ?? string.Empty).Trim();
         var recipientId = (transaction.RecipientIdNumber ?? string.Empty).Trim();
@@ -1088,7 +1088,12 @@ public class NachaFileBuilder : INachaFileBuilder
             return BuildReceiverName(accountMatches[0]);
         }
 
-        return null;
+        if (!string.IsNullOrWhiteSpace(transaction.RecipientIdNumber))
+        {
+            return transaction.RecipientIdNumber;
+        }
+
+        return $"USUARIO {transaction.Id}";
     }
 
     private static string BuildReceiverName(Customer customer)
@@ -1108,24 +1113,6 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return customer.CompanyName ?? string.Empty;
-    }
-
-    private static string ResolveReceiverNameWithFallback(AchTransaction transaction, string? receiverName)
-    {
-        var normalizedReceiverName = NachaReceiverNameHelper.SanitizeForType6(receiverName);
-        if (!string.IsNullOrWhiteSpace(normalizedReceiverName))
-        {
-            return normalizedReceiverName;
-        }
-
-        normalizedReceiverName = NachaReceiverNameHelper.SanitizeForType6(transaction.RecipientIdNumber);
-        if (!string.IsNullOrWhiteSpace(normalizedReceiverName))
-        {
-            return normalizedReceiverName;
-        }
-
-        normalizedReceiverName = NachaReceiverNameHelper.SanitizeForType6($"USUARIO {transaction.Id}");
-        return normalizedReceiverName;
     }
 
     private async Task ValidateTransactionsForSendAsync(IEnumerable<AchTransaction> transactions, CancellationToken ct)
