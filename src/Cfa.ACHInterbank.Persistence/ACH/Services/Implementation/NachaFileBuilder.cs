@@ -986,11 +986,11 @@ public class NachaFileBuilder : INachaFileBuilder
         string BatchEntryDescription);
 
     private sealed record ReceiverLookup(
-        IReadOnlyDictionary<(string Document, string Account), Customer> CustomersByDocumentAndAccount,
+        IReadOnlyDictionary<(string Document, string Account), IReadOnlyList<Customer>> CustomersByDocumentAndAccount,
         IReadOnlyDictionary<string, List<Customer>> CustomersByAccount)
     {
         public static readonly ReceiverLookup Empty = new(
-            new Dictionary<(string Document, string Account), Customer>(),
+            new Dictionary<(string Document, string Account), IReadOnlyList<Customer>>(),
             new Dictionary<string, List<Customer>>(StringComparer.Ordinal));
     }
 
@@ -1168,9 +1168,10 @@ public class NachaFileBuilder : INachaFileBuilder
         if (receiverLookup is not null)
         {
             if (!string.IsNullOrWhiteSpace(recipientId) &&
-                receiverLookup.CustomersByDocumentAndAccount.TryGetValue((recipientId, destinationAccount), out var exactCustomer))
+                receiverLookup.CustomersByDocumentAndAccount.TryGetValue((recipientId, destinationAccount), out var exactMatches) &&
+                exactMatches.Count > 0)
             {
-                return BuildReceiverName(exactCustomer);
+                return BuildReceiverName(exactMatches[0]);
             }
 
             if (receiverLookup.CustomersByAccount.TryGetValue(destinationAccount, out var accountMatches) && accountMatches.Count == 1)
@@ -1320,7 +1321,7 @@ public class NachaFileBuilder : INachaFileBuilder
             .Where(c => c.Accounts.Any(a => destinationAccounts.Contains(a.AccountNumber)))
             .ToListAsync(ct);
 
-        var byDocumentAndAccount = new Dictionary<(string Document, string Account), Customer>();
+        var byDocumentAndAccount = new Dictionary<(string Document, string Account), List<Customer>>();
         var byAccount = new Dictionary<string, List<Customer>>(StringComparer.Ordinal);
 
         foreach (var customer in customers)
@@ -1340,16 +1341,31 @@ public class NachaFileBuilder : INachaFileBuilder
                     byAccount[accountNumber] = list;
                 }
 
-                list.Add(customer);
+                if (!list.Any(existing => existing.Id == customer.Id))
+                {
+                    list.Add(customer);
+                }
 
                 if (!string.IsNullOrWhiteSpace(document))
                 {
-                    byDocumentAndAccount[(document, accountNumber)] = customer;
+                    var documentAccountKey = (document, accountNumber);
+                    if (!byDocumentAndAccount.TryGetValue(documentAccountKey, out var exactList))
+                    {
+                        exactList = new List<Customer>();
+                        byDocumentAndAccount[documentAccountKey] = exactList;
+                    }
+
+                    if (!exactList.Any(existing => existing.Id == customer.Id))
+                    {
+                        exactList.Add(customer);
+                    }
                 }
             }
         }
 
-        return new ReceiverLookup(byDocumentAndAccount, byAccount);
+        return new ReceiverLookup(
+            byDocumentAndAccount.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<Customer>)pair.Value),
+            byAccount);
     }
 
     private async Task<IReadOnlyDictionary<PrenoteLookupKey, DateTime>> BuildPrenoteLookupAsync(
