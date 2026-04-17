@@ -50,6 +50,8 @@ public class AchDbContext : DbContext
     public DbSet<IncomingNachaFileIngestion> IncomingNachaFileIngestions { get; set; }
     public DbSet<IncomingNachaFileProcessingResult> IncomingNachaFileProcessingResults { get; set; }
     public DbSet<IncomingNachaTransactionLink> IncomingNachaTransactionLinks { get; set; }
+    public DbSet<IncomingNachaEntryClassification> IncomingNachaEntryClassifications { get; set; }
+    public DbSet<IncomingNachaProcessingEvent> IncomingNachaProcessingEvents { get; set; }
     public DbSet<Customer> Customers { get; set; }
     public DbSet<CustomerAccount> CustomerAccounts { get; set; }
     public DbSet<DocumentTypeCatalog> DocumentTypes { get; set; }

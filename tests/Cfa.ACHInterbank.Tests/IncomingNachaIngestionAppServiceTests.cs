@@ -35,7 +35,7 @@ public class IncomingNachaIngestionAppServiceTests
         parser.Setup(x => x.ParseAndSaveDetailedAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<NachaParseRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new NachaParseResult { TotalBatches = 1, TotalEntries = 2, TotalAddendas = 1, ErrorCount = 0, WarningCount = 0, Failures = [] });
 
-        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, parser.Object, Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
+        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, parser.Object, Mock.Of<IIncomingNachaPostParseProcessor>(), Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
 
         var response = await sut.IngestAsync(new IncomingNachaIngestionRequest
         {
@@ -68,7 +68,7 @@ public class IncomingNachaIngestionAppServiceTests
 
         var resolver = new Mock<IIncomingNachaCycleResolver>();
         var parser = new Mock<INachaParserService>();
-        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, parser.Object, Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
+        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, parser.Object, Mock.Of<IIncomingNachaPostParseProcessor>(), Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
 
         var response = await sut.IngestAsync(new IncomingNachaIngestionRequest
         {
@@ -96,7 +96,7 @@ public class IncomingNachaIngestionAppServiceTests
                 Errors = ["Múltiples candidatos"]
             });
 
-        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, Mock.Of<INachaParserService>(), Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
+        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, Mock.Of<INachaParserService>(), Mock.Of<IIncomingNachaPostParseProcessor>(), Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
 
         var response = await sut.IngestAsync(new IncomingNachaIngestionRequest { FileStream = BuildStream(), FileName = "amb.ach" });
 
@@ -118,7 +118,7 @@ public class IncomingNachaIngestionAppServiceTests
                 Errors = ["Sin ciclo candidato"]
             });
 
-        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, Mock.Of<INachaParserService>(), Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
+        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, Mock.Of<INachaParserService>(), Mock.Of<IIncomingNachaPostParseProcessor>(), Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
         var response = await sut.IngestAsync(new IncomingNachaIngestionRequest { FileStream = BuildStream(), FileName = "sin.ach" });
 
         Assert.Equal(IncomingNachaIngestionStatus.PendienteResolucion, response.IngestionStatus);
@@ -128,7 +128,7 @@ public class IncomingNachaIngestionAppServiceTests
     public async Task IngestAsync_ForceReprocess_RequiresBaseIngestion()
     {
         using var context = BuildContext();
-        var sut = new IncomingNachaIngestionAppService(context, Mock.Of<IIncomingNachaCycleResolver>(), Mock.Of<INachaParserService>(), Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
+        var sut = new IncomingNachaIngestionAppService(context, Mock.Of<IIncomingNachaCycleResolver>(), Mock.Of<INachaParserService>(), Mock.Of<IIncomingNachaPostParseProcessor>(), Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
 
         await Assert.ThrowsAsync<ArgumentException>(() => sut.IngestAsync(new IncomingNachaIngestionRequest
         {
@@ -174,7 +174,7 @@ public class IncomingNachaIngestionAppServiceTests
         parser.Setup(x => x.ParseAndSaveDetailedAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<NachaParseRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new NachaParseResult());
 
-        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, parser.Object, Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
+        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, parser.Object, Mock.Of<IIncomingNachaPostParseProcessor>(), Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
         var response = await sut.IngestAsync(new IncomingNachaIngestionRequest
         {
             FileStream = BuildStream(),

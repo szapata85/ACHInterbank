@@ -81,6 +81,47 @@ CREATE TABLE IF NOT EXISTS "IncomingNachaTransactionLinks" (
     CONSTRAINT "FK_IncNachaLink_Ingestion" FOREIGN KEY ("IncomingNachaFileIngestionId") REFERENCES "IncomingNachaFileIngestions"("Id") ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS "IncomingNachaEntryClassifications" (
+    "Id" uuid PRIMARY KEY,
+    "IncomingNachaFileIngestionId" uuid NOT NULL,
+    "EntryDetailId" integer NOT NULL,
+    "AddendaRecordId" integer NULL,
+    "FunctionalClass" varchar(40) NOT NULL,
+    "EligibilityStatus" varchar(30) NOT NULL,
+    "RequiresLink" boolean NOT NULL,
+    "RequiresManualResolution" boolean NOT NULL,
+    "OriginalTraceRef" varchar(30) NULL,
+    "ReturnReasonCode" varchar(10) NULL,
+    "PrenoteStatus" varchar(30) NOT NULL,
+    "BusinessMeaning" varchar(500) NOT NULL,
+    "ClassifierVersion" varchar(40) NOT NULL,
+    "ClassificationEvidenceJson" text NOT NULL,
+    "CreatedAt" timestamp without time zone NULL,
+    "UpdatedAt" timestamp without time zone NULL,
+    CONSTRAINT "FK_IncNachaClass_Ingestion" FOREIGN KEY ("IncomingNachaFileIngestionId") REFERENCES "IncomingNachaFileIngestions"("Id") ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "IX_IncNachaClass_Entry_Addenda_UQ"
+    ON "IncomingNachaEntryClassifications" ("IncomingNachaFileIngestionId", "EntryDetailId", "AddendaRecordId");
+
+CREATE TABLE IF NOT EXISTS "IncomingNachaProcessingEvents" (
+    "Id" uuid PRIMARY KEY,
+    "IncomingNachaFileIngestionId" uuid NOT NULL,
+    "EntryDetailId" integer NULL,
+    "AddendaRecordId" integer NULL,
+    "AchTransactionId" integer NULL,
+    "EventType" varchar(80) NOT NULL,
+    "EventStatus" varchar(40) NOT NULL,
+    "Message" varchar(2000) NOT NULL,
+    "EvidenceJson" text NOT NULL,
+    "OccurredAtUtc" timestamp without time zone NOT NULL,
+    "RaisedBy" varchar(120) NOT NULL,
+    "CreatedAt" timestamp without time zone NULL,
+    "UpdatedAt" timestamp without time zone NULL,
+    CONSTRAINT "FK_IncNachaEvents_Ingestion" FOREIGN KEY ("IncomingNachaFileIngestionId") REFERENCES "IncomingNachaFileIngestions"("Id") ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS "IX_IncNachaEvents_Ingestion_Occurred"
+    ON "IncomingNachaProcessingEvents" ("IncomingNachaFileIngestionId", "OccurredAtUtc");
+
 ALTER TABLE "NachaHeaders" ADD COLUMN IF NOT EXISTS "IncomingNachaFileIngestionId" uuid NULL;
 CREATE INDEX IF NOT EXISTS "IX_NachaHeaders_IncIngestion" ON "NachaHeaders"("IncomingNachaFileIngestionId");
 ALTER TABLE "NachaHeaders"

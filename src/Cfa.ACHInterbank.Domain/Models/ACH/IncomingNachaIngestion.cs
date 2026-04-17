@@ -34,6 +34,8 @@ public class IncomingNachaFileIngestion : AuditableEntity
     public ICollection<IncomingNachaFileIngestion> ReprocessChildren { get; set; } = new List<IncomingNachaFileIngestion>();
     public ICollection<IncomingNachaFileProcessingResult> ProcessingResults { get; set; } = new List<IncomingNachaFileProcessingResult>();
     public ICollection<IncomingNachaTransactionLink> TransactionLinks { get; set; } = new List<IncomingNachaTransactionLink>();
+    public ICollection<IncomingNachaEntryClassification> EntryClassifications { get; set; } = new List<IncomingNachaEntryClassification>();
+    public ICollection<IncomingNachaProcessingEvent> ProcessingEvents { get; set; } = new List<IncomingNachaProcessingEvent>();
     public ICollection<NachaHeader> ParsedHeaders { get; set; } = new List<NachaHeader>();
 }
 
@@ -116,11 +118,13 @@ public enum IncomingNachaParsingStatus
 public enum IncomingNachaLinkType
 {
     NoResuelto = 1,
-    ExactTrace = 2,
-    ExactExternalId = 3,
-    Manual = 4,
-    Ambiguo = 5,
-    NoEncontrado = 6
+    ExactTrace15 = 2,
+    ExactOriginalTraceRef = 3,
+    ExactTransactionExternalId = 4,
+    ExactCompositeBusinessKey = 5,
+    Manual = 6,
+    Ambiguous = 7,
+    NotFound = 8
 }
 
 public enum IncomingNachaProcessingOutcomeStatus
@@ -131,4 +135,77 @@ public enum IncomingNachaProcessingOutcomeStatus
     Fallido = 4,
     BloqueadoAmbiguo = 5,
     Duplicado = 6
+}
+
+public class IncomingNachaEntryClassification : AuditableEntity
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid IncomingNachaFileIngestionId { get; set; }
+    public int EntryDetailId { get; set; }
+    public int? AddendaRecordId { get; set; }
+    public IncomingNachaFunctionalClass FunctionalClass { get; set; } = IncomingNachaFunctionalClass.PendienteResolucion;
+    public IncomingNachaEligibilityStatus EligibilityStatus { get; set; } = IncomingNachaEligibilityStatus.PendienteResolucion;
+    public bool RequiresLink { get; set; } = true;
+    public bool RequiresManualResolution { get; set; }
+    public string? OriginalTraceRef { get; set; }
+    public string? ReturnReasonCode { get; set; }
+    public IncomingNachaPrenoteStatus PrenoteStatus { get; set; } = IncomingNachaPrenoteStatus.NoAplica;
+    public string BusinessMeaning { get; set; } = string.Empty;
+    public string ClassifierVersion { get; set; } = "v1.0.0";
+    public string ClassificationEvidenceJson { get; set; } = "{}";
+
+    public IncomingNachaFileIngestion Ingestion { get; set; } = null!;
+    public EntryDetail EntryDetail { get; set; } = null!;
+    public AddendaRecord? AddendaRecord { get; set; }
+}
+
+public class IncomingNachaProcessingEvent : AuditableEntity
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid IncomingNachaFileIngestionId { get; set; }
+    public int? EntryDetailId { get; set; }
+    public int? AddendaRecordId { get; set; }
+    public int? AchTransactionId { get; set; }
+    public string EventType { get; set; } = string.Empty;
+    public string EventStatus { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public string EvidenceJson { get; set; } = "{}";
+    public DateTime OccurredAtUtc { get; set; } = DateTime.UtcNow;
+    public string RaisedBy { get; set; } = "sistema";
+
+    public IncomingNachaFileIngestion Ingestion { get; set; } = null!;
+}
+
+public enum IncomingNachaFunctionalClass
+{
+    CreditoEntrante = 1,
+    DebitoEntrante = 2,
+    Prenotificacion = 3,
+    Devolucion = 4,
+    RechazadaOperador = 5,
+    RetornoEpr = 6,
+    PendienteProcesamiento = 7,
+    NoProcesable = 8,
+    PendienteResolucion = 9,
+    EnEsperaVentana = 10,
+    EnEsperaCiclo = 11,
+    Ambigua = 12,
+    Inconsistente = 13
+}
+
+public enum IncomingNachaEligibilityStatus
+{
+    Elegible = 1,
+    Bloqueada = 2,
+    PendienteResolucion = 3,
+    RevisionManual = 4
+}
+
+public enum IncomingNachaPrenoteStatus
+{
+    NoAplica = 1,
+    ActivaTercero = 2,
+    RechazaTercero = 3,
+    Pendiente = 4,
+    RequiereRevision = 5
 }

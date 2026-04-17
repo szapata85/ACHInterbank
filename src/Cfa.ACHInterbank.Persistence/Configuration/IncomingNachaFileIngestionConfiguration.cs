@@ -53,5 +53,15 @@ public class IncomingNachaFileIngestionConfiguration : IEntityTypeConfiguration<
             .WithOne(x => x.Ingestion)
             .HasForeignKey(x => x.IncomingNachaFileIngestionId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.EntryClassifications)
+            .WithOne(x => x.Ingestion)
+            .HasForeignKey(x => x.IncomingNachaFileIngestionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.ProcessingEvents)
+            .WithOne(x => x.Ingestion)
+            .HasForeignKey(x => x.IncomingNachaFileIngestionId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

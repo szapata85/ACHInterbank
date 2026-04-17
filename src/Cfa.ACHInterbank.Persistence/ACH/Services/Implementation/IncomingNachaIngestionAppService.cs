@@ -17,17 +17,20 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
     private readonly AchDbContext _context;
     private readonly IIncomingNachaCycleResolver _cycleResolver;
     private readonly INachaParserService _parserService;
+    private readonly IIncomingNachaPostParseProcessor _postParseProcessor;
     private readonly ILogger<IncomingNachaIngestionAppService> _logger;
 
     public IncomingNachaIngestionAppService(
         AchDbContext context,
         IIncomingNachaCycleResolver cycleResolver,
         INachaParserService parserService,
+        IIncomingNachaPostParseProcessor postParseProcessor,
         ILogger<IncomingNachaIngestionAppService> logger)
     {
         _context = context;
         _cycleResolver = cycleResolver;
         _parserService = parserService;
+        _postParseProcessor = postParseProcessor;
         _logger = logger;
     }
 
@@ -257,6 +260,8 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                     IsFinal = false
                 });
             }
+
+            await _postParseProcessor.ProcessAsync(ingestion.Id, request.RequestedBy, ct);
 
             await _context.SaveChangesAsync(ct);
             return BuildResponse(ingestion, processingResult, parseResult.Failures.Select(x => x.Reason).ToList());

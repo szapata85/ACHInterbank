@@ -91,6 +91,53 @@ BEGIN
     );
 END
 
+IF OBJECT_ID(N'dbo.IncomingNachaEntryClassifications', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.IncomingNachaEntryClassifications (
+        Id uniqueidentifier NOT NULL PRIMARY KEY,
+        IncomingNachaFileIngestionId uniqueidentifier NOT NULL,
+        EntryDetailId int NOT NULL,
+        AddendaRecordId int NULL,
+        FunctionalClass nvarchar(40) NOT NULL,
+        EligibilityStatus nvarchar(30) NOT NULL,
+        RequiresLink bit NOT NULL,
+        RequiresManualResolution bit NOT NULL,
+        OriginalTraceRef nvarchar(30) NULL,
+        ReturnReasonCode nvarchar(10) NULL,
+        PrenoteStatus nvarchar(30) NOT NULL,
+        BusinessMeaning nvarchar(500) NOT NULL,
+        ClassifierVersion nvarchar(40) NOT NULL,
+        ClassificationEvidenceJson nvarchar(max) NOT NULL,
+        CreatedAt datetime2 NULL,
+        UpdatedAt datetime2 NULL,
+        CONSTRAINT FK_IncNachaClass_Ingestion FOREIGN KEY (IncomingNachaFileIngestionId) REFERENCES dbo.IncomingNachaFileIngestions(Id) ON DELETE CASCADE
+    );
+END
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_IncNachaClass_Entry_Addenda_UQ' AND object_id = OBJECT_ID('dbo.IncomingNachaEntryClassifications'))
+    CREATE UNIQUE INDEX IX_IncNachaClass_Entry_Addenda_UQ ON dbo.IncomingNachaEntryClassifications(IncomingNachaFileIngestionId, EntryDetailId, AddendaRecordId);
+
+IF OBJECT_ID(N'dbo.IncomingNachaProcessingEvents', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.IncomingNachaProcessingEvents (
+        Id uniqueidentifier NOT NULL PRIMARY KEY,
+        IncomingNachaFileIngestionId uniqueidentifier NOT NULL,
+        EntryDetailId int NULL,
+        AddendaRecordId int NULL,
+        AchTransactionId int NULL,
+        EventType nvarchar(80) NOT NULL,
+        EventStatus nvarchar(40) NOT NULL,
+        Message nvarchar(2000) NOT NULL,
+        EvidenceJson nvarchar(max) NOT NULL,
+        OccurredAtUtc datetime2 NOT NULL,
+        RaisedBy nvarchar(120) NOT NULL,
+        CreatedAt datetime2 NULL,
+        UpdatedAt datetime2 NULL,
+        CONSTRAINT FK_IncNachaEvents_Ingestion FOREIGN KEY (IncomingNachaFileIngestionId) REFERENCES dbo.IncomingNachaFileIngestions(Id) ON DELETE CASCADE
+    );
+END
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_IncNachaEvents_Ingestion_Occurred' AND object_id = OBJECT_ID('dbo.IncomingNachaProcessingEvents'))
+    CREATE INDEX IX_IncNachaEvents_Ingestion_Occurred ON dbo.IncomingNachaProcessingEvents(IncomingNachaFileIngestionId, OccurredAtUtc);
+
 IF COL_LENGTH('dbo.NachaHeaders', 'IncomingNachaFileIngestionId') IS NULL
     ALTER TABLE dbo.NachaHeaders ADD IncomingNachaFileIngestionId uniqueidentifier NULL;
 
