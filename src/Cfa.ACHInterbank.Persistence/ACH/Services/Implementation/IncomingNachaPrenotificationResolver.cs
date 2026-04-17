@@ -30,6 +30,14 @@ public class IncomingNachaPrenotificationResolver : IIncomingNachaPrenotificatio
     {
         var destinationAccount = (entry.AccountNumber ?? string.Empty).Trim();
         var recipientId = (entry.RecipIdNumber ?? string.Empty).Trim();
+        var receivingDfi = $"{(entry.ReceivingParticipantEntityCode ?? string.Empty).Trim()}{(entry.CheckDigit ?? string.Empty).Trim()}".Trim();
+
+        AchTransaction? linkedTransaction = null;
+        if (linkedTransactionId.HasValue)
+        {
+            linkedTransaction = await _context.AchTransactions.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == linkedTransactionId.Value, ct);
+        }
 
         var thirdPartyQuery = _context.CustomerThirdParties
             .Where(x => x.DestinationAccountNumber == destinationAccount);
@@ -37,6 +45,26 @@ public class IncomingNachaPrenotificationResolver : IIncomingNachaPrenotificatio
         if (!string.IsNullOrWhiteSpace(recipientId))
         {
             thirdPartyQuery = thirdPartyQuery.Where(x => x.RecipientIdNumber == recipientId);
+        }
+
+        if (linkedTransaction is not null)
+        {
+            thirdPartyQuery = thirdPartyQuery.Where(x => x.DestinationInstitutionId == linkedTransaction.DestinationInstitutionId);
+        }
+        else if (!string.IsNullOrWhiteSpace(receivingDfi))
+        {
+            var receivingDfiPrefix = (entry.ReceivingParticipantEntityCode ?? string.Empty).Trim();
+            var matchingInstitutionIds = await _context.FinancialInstitutions.AsNoTracking()
+                .Where(x => (x.RoutingNumber + x.TransitCode + x.CheckDigit) == receivingDfi
+                            || (x.RoutingNumber + x.TransitCode) == receivingDfiPrefix)
+                .Select(x => x.Id)
+                .ToListAsync(ct);
+
+            if (matchingInstitutionIds.Count == 1)
+            {
+                var institutionId = matchingInstitutionIds[0];
+                thirdPartyQuery = thirdPartyQuery.Where(x => x.DestinationInstitutionId == institutionId);
+            }
         }
 
         if (linkedTransactionId.HasValue)
@@ -61,6 +89,7 @@ public class IncomingNachaPrenotificationResolver : IIncomingNachaPrenotificatio
                     ingestionId,
                     destinationAccount,
                     recipientId,
+                    receivingDfi,
                     linkedTransactionId,
                     resolvedClearingHouseId,
                     operationalDate
@@ -82,6 +111,28 @@ public class IncomingNachaPrenotificationResolver : IIncomingNachaPrenotificatio
                     candidateIds = candidates.Select(x => x.Id).ToList(),
                     destinationAccount,
                     recipientId,
+                    receivingDfi,
+                    linkedTransactionId,
+                    resolvedClearingHouseId,
+                    operationalDate
+                })
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(recipientId) && !linkedTransactionId.HasValue)
+        {
+            return new IncomingNachaPrenoteResolutionResult
+            {
+                PrenoteStatus = IncomingNachaPrenoteStatus.RequiereRevision,
+                Applied = false,
+                RequiresManualReview = true,
+                Message = "Prenotificación sin identificación de receptor y sin vínculo previo: requiere revisión manual.",
+                EvidenceJson = JsonSerializer.Serialize(new
+                {
+                    ingestionId,
+                    destinationAccount,
+                    recipientId,
+                    receivingDfi,
                     linkedTransactionId,
                     resolvedClearingHouseId,
                     operationalDate
@@ -110,6 +161,7 @@ public class IncomingNachaPrenotificationResolver : IIncomingNachaPrenotificatio
                 selectedThirdPartyId = selected.Id,
                 destinationAccount,
                 recipientId,
+                receivingDfi,
                 linkedTransactionId,
                 resolvedClearingHouseId,
                 operationalDate,

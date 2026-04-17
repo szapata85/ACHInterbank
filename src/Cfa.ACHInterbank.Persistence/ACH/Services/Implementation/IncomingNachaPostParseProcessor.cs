@@ -202,7 +202,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
 
         if (classification.FunctionalClass is IncomingNachaFunctionalClass.Devolucion or IncomingNachaFunctionalClass.RechazadaOperador or IncomingNachaFunctionalClass.RetornoEpr)
         {
-            var route = await ResolveReturnRouteAsync(classification.ReturnReasonCode, ct);
+            var route = await ResolveReturnRouteAsync(classification.ReturnReasonCode, classification.FunctionalClass, ct);
             if (!route.IsTransitionAllowed)
             {
                 classification.EligibilityStatus = IncomingNachaEligibilityStatus.RevisionManual;
@@ -288,7 +288,10 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         await Task.CompletedTask;
     }
 
-    private async Task<(bool IsTransitionAllowed, AchTransferStateEnum TargetState, AchStateEventSourceEnum Source, string Reason)> ResolveReturnRouteAsync(string? returnReasonCode, CancellationToken ct)
+    private async Task<(bool IsTransitionAllowed, AchTransferStateEnum TargetState, AchStateEventSourceEnum Source, string Reason)> ResolveReturnRouteAsync(
+        string? returnReasonCode,
+        IncomingNachaFunctionalClass functionalClass,
+        CancellationToken ct)
     {
         var code = (returnReasonCode ?? string.Empty).Trim().ToUpperInvariant();
         if (string.IsNullOrWhiteSpace(code))
@@ -297,7 +300,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         }
 
         var returnCode = await _regulatoryCatalogService.GetReturnCodesAsync(ct);
-        var model = returnCode.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase));
+        var model = returnCode.FirstOrDefault(x => x.IsActive && string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase));
         if (model is null)
         {
             return (false, AchTransferStateEnum.Pending, AchStateEventSourceEnum.System, $"Causal {code} no existe en catálogo regulatorio.");
@@ -323,11 +326,19 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
 
         if (isOperator)
         {
+            if (functionalClass == IncomingNachaFunctionalClass.RetornoEpr)
+            {
+                return (false, AchTransferStateEnum.Pending, AchStateEventSourceEnum.System, $"Causal {code} clasificada como operador, pero la clasificación funcional viene como RetornoEpr.");
+            }
             return (true, AchTransferStateEnum.ReturnedByOperator, AchStateEventSourceEnum.Operator, $"Causal {code} mapeada como rechazo operador.");
         }
 
         if (isEpr)
         {
+            if (functionalClass == IncomingNachaFunctionalClass.RechazadaOperador)
+            {
+                return (false, AchTransferStateEnum.Pending, AchStateEventSourceEnum.System, $"Causal {code} clasificada como EPR, pero la clasificación funcional viene como RechazadaOperador.");
+            }
             return (true, AchTransferStateEnum.ReturnedByEpr, AchStateEventSourceEnum.Epr, $"Causal {code} mapeada como retorno EPR.");
         }
 

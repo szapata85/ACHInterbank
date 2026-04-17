@@ -72,7 +72,7 @@ public class IncomingNachaTransactionLinkerTests
                 Amount = 500,
                 AccountNumber = "AC1",
                 RecipIdNumber = "RID1",
-                TransactionCode = transactionCode,
+                TransactionCode = "22",
                 ReceivingParticipantEntityCode = "11111111",
                 CheckDigit = "0"
             },
@@ -103,7 +103,7 @@ public class IncomingNachaTransactionLinkerTests
                 Amount = 700,
                 AccountNumber = "AC2",
                 RecipIdNumber = "RID2",
-                TransactionCode = transactionCode,
+                TransactionCode = "22",
                 ReceivingParticipantEntityCode = "22222222",
                 CheckDigit = "0"
             },
@@ -116,6 +116,38 @@ public class IncomingNachaTransactionLinkerTests
 
         Assert.Equal(IncomingNachaLinkType.Ambiguous, result.LinkType);
     }
+
+    [Fact]
+    public async Task LinkAsync_CompositeKey_UsesFunctionalClassToAvoidCreditDebitCollision()
+    {
+        using var context = BuildContext();
+        SeedTx(context, 30, trace: "999999999999930", externalId: "EXT-F1", amount: 810, account: "AC3", recipientId: "RID3", transactionCode: "27", achCycleId: "CYCLE-X", receivingDfi: "333333330", effectiveDate: new DateTime(2026, 4, 20), type: Domain.Entities.Transactions.Enums.TransactionTypeEnum.Credit);
+        SeedTx(context, 31, trace: "999999999999931", externalId: "EXT-F2", amount: 810, account: "AC3", recipientId: "RID3", transactionCode: "27", achCycleId: "CYCLE-X", receivingDfi: "333333330", effectiveDate: new DateTime(2026, 4, 20), type: Domain.Entities.Transactions.Enums.TransactionTypeEnum.Debit);
+
+        var sut = new IncomingNachaTransactionLinker(context);
+        var result = await sut.LinkAsync(
+            new EntryDetail
+            {
+                SequenceNumber = "000000000000000",
+                Amount = 810,
+                AccountNumber = "AC3",
+                RecipIdNumber = "RID3",
+                TransactionCode = "27",
+                ReceivingParticipantEntityCode = "33333333",
+                CheckDigit = "0"
+            },
+            null,
+            new IncomingNachaLinkingContext
+            {
+                FunctionalClass = IncomingNachaFunctionalClass.Devolucion,
+                ResolvedAchCycleId = "CYCLE-X",
+                OperationalDate = new DateTime(2026, 4, 20)
+            });
+
+        Assert.Equal(IncomingNachaLinkType.ExactCompositeBusinessKey, result.LinkType);
+        Assert.Equal(31, result.AchTransactionId);
+    }
+
     private static AchDbContext BuildContext()
     {
         var options = new DbContextOptionsBuilder<AchDbContext>()
@@ -124,7 +156,7 @@ public class IncomingNachaTransactionLinkerTests
         return new AchDbContext(options);
     }
 
-    private static void SeedTx(AchDbContext context, int id, string trace, string externalId, decimal amount = 100, string account = "001", string recipientId = "A", string transactionCode = "22", string achCycleId = "C1", string receivingDfi = "000000000", DateTime? effectiveDate = null)
+    private static void SeedTx(AchDbContext context, int id, string trace, string externalId, decimal amount = 100, string account = "001", string recipientId = "A", string transactionCode = "22", string achCycleId = "C1", string receivingDfi = "000000000", DateTime? effectiveDate = null, Domain.Entities.Transactions.Enums.TransactionTypeEnum type = Domain.Entities.Transactions.Enums.TransactionTypeEnum.Credit)
     {
         context.AchTransactions.Add(new AchTransaction
         {
@@ -136,7 +168,7 @@ public class IncomingNachaTransactionLinkerTests
             RecipientIdNumber = recipientId,
             Reference = "R",
             TransactionCode = transactionCode,
-            Type = Domain.Entities.Transactions.Enums.TransactionTypeEnum.Credit,
+            Type = type,
             SourceAccountNumber = "S",
             OriginatingDFI = "00000000",
             ReceivingDFI = receivingDfi,

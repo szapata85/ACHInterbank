@@ -192,6 +192,96 @@ public class IncomingNachaPostParseProcessorTests
         Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(e => e.EventType == "TransicionBloqueada"));
     }
 
+    [Fact]
+    public async Task ProcessAsync_BlocksTransition_WhenFunctionalClassAndCatalogRouteConflict()
+    {
+        using var context = BuildContext();
+        SeedMinimalParsed(context, out var ingestionId, out _, out _);
+
+        var classifier = new Mock<IIncomingNachaFunctionalClassifier>();
+        classifier.Setup(x => x.Classify(It.IsAny<EntryDetail>(), It.IsAny<AddendaRecord?>()))
+            .Returns(new IncomingNachaClassificationResult
+            {
+                FunctionalClass = IncomingNachaFunctionalClass.RechazadaOperador,
+                EligibilityStatus = IncomingNachaEligibilityStatus.PendienteResolucion,
+                RequiresLink = true,
+                BusinessMeaning = "rechazo operador",
+                ReturnReasonCode = "R01",
+                OriginalTraceRef = "123456789012345",
+                ClassifierVersion = "vtest"
+            });
+
+        var linker = new Mock<IIncomingNachaTransactionLinker>();
+        linker.Setup(x => x.LinkAsync(It.IsAny<EntryDetail>(), It.IsAny<AddendaRecord?>(), It.IsAny<IncomingNachaLinkingContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IncomingNachaLinkingResult
+            {
+                LinkType = IncomingNachaLinkType.ExactOriginalTraceRef,
+                AchTransactionId = 103,
+                IsFinal = true,
+                ConfidenceScore = 1,
+                EvidenceJson = "{}"
+            });
+
+        var state = new Mock<IAchStateTransitionService>();
+        var regulatory = new Mock<IAchRegulatoryCatalogService>();
+        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AchReturnCode>
+            {
+                new() { Code = "R01", Description = "Fondos insuficientes", AppliesToReturn = true, IsActive = true, RegulatorySource = "EPR" }
+            });
+
+        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), regulatory.Object, state.Object);
+        await sut.ProcessAsync(ingestionId, "tester");
+
+        state.Verify(x => x.TransitionAsync(It.IsAny<int>(), It.IsAny<AchTransferStateEnum>(), It.IsAny<AchStateEventSourceEnum>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(e => e.EventType == "TransicionBloqueada"));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_BlocksTransition_WhenReasonCodeInactive()
+    {
+        using var context = BuildContext();
+        SeedMinimalParsed(context, out var ingestionId, out _, out _);
+
+        var classifier = new Mock<IIncomingNachaFunctionalClassifier>();
+        classifier.Setup(x => x.Classify(It.IsAny<EntryDetail>(), It.IsAny<AddendaRecord?>()))
+            .Returns(new IncomingNachaClassificationResult
+            {
+                FunctionalClass = IncomingNachaFunctionalClass.Devolucion,
+                EligibilityStatus = IncomingNachaEligibilityStatus.PendienteResolucion,
+                RequiresLink = true,
+                BusinessMeaning = "devolución",
+                ReturnReasonCode = "DEV14",
+                OriginalTraceRef = "123456789012345",
+                ClassifierVersion = "vtest"
+            });
+
+        var linker = new Mock<IIncomingNachaTransactionLinker>();
+        linker.Setup(x => x.LinkAsync(It.IsAny<EntryDetail>(), It.IsAny<AddendaRecord?>(), It.IsAny<IncomingNachaLinkingContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IncomingNachaLinkingResult
+            {
+                LinkType = IncomingNachaLinkType.ExactOriginalTraceRef,
+                AchTransactionId = 104,
+                IsFinal = true,
+                ConfidenceScore = 1,
+                EvidenceJson = "{}"
+            });
+
+        var state = new Mock<IAchStateTransitionService>();
+        var regulatory = new Mock<IAchRegulatoryCatalogService>();
+        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AchReturnCode>
+            {
+                new() { Code = "DEV14", Description = "rechazo operador", AppliesToReturn = true, IsActive = false, RegulatorySource = "OPERATOR" }
+            });
+
+        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), regulatory.Object, state.Object);
+        await sut.ProcessAsync(ingestionId, "tester");
+
+        state.Verify(x => x.TransitionAsync(It.IsAny<int>(), It.IsAny<AchTransferStateEnum>(), It.IsAny<AchStateEventSourceEnum>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(e => e.EventType == "TransicionBloqueada"));
+    }
+
     private static AchDbContext BuildContext()
     {
         var options = new DbContextOptionsBuilder<AchDbContext>()

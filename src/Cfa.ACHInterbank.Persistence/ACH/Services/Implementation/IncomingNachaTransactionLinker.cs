@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -98,6 +99,17 @@ public class IncomingNachaTransactionLinker : IIncomingNachaTransactionLinker
                         && x.DestinationAccountNumber == destinationAccount
                         && x.TransactionCode == transactionCode);
 
+        var expectedType = ResolveExpectedTransactionType(context.FunctionalClass);
+        if (expectedType.HasValue)
+        {
+            compositeQuery = compositeQuery.Where(x => x.Type == expectedType.Value);
+        }
+
+        if (context.FunctionalClass == IncomingNachaFunctionalClass.Prenotificacion)
+        {
+            compositeQuery = compositeQuery.Where(x => x.IsPrenotification);
+        }
+
         if (!string.IsNullOrWhiteSpace(recipientId))
         {
             compositeQuery = compositeQuery.Where(x => x.RecipientIdNumber == recipientId);
@@ -106,6 +118,12 @@ public class IncomingNachaTransactionLinker : IIncomingNachaTransactionLinker
         if (!string.IsNullOrWhiteSpace(receivingDfiComposite))
         {
             compositeQuery = compositeQuery.Where(x => x.ReceivingDFI == receivingDfiComposite || x.ReceivingDFI.StartsWith((entry.ReceivingParticipantEntityCode ?? string.Empty).Trim()));
+        }
+
+        var discretionaryData = (entry.DiscreData ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(discretionaryData))
+        {
+            compositeQuery = compositeQuery.Where(x => x.DiscretionaryData == discretionaryData);
         }
 
         if (hasOperationalDate)
@@ -140,6 +158,20 @@ public class IncomingNachaTransactionLinker : IIncomingNachaTransactionLinker
         }
 
         return Build(IncomingNachaLinkType.NotFound, null, false, 0.0m, false, true, "NotFound", [], trace, originalTraceRef, externalId);
+    }
+
+    private static TransactionTypeEnum? ResolveExpectedTransactionType(IncomingNachaFunctionalClass functionalClass)
+    {
+        return functionalClass switch
+        {
+            IncomingNachaFunctionalClass.CreditoEntrante => TransactionTypeEnum.Credit,
+            IncomingNachaFunctionalClass.DebitoEntrante => TransactionTypeEnum.Debit,
+            IncomingNachaFunctionalClass.Prenotificacion => TransactionTypeEnum.Credit,
+            IncomingNachaFunctionalClass.Devolucion => TransactionTypeEnum.Debit,
+            IncomingNachaFunctionalClass.RechazadaOperador => TransactionTypeEnum.Debit,
+            IncomingNachaFunctionalClass.RetornoEpr => TransactionTypeEnum.Debit,
+            _ => null
+        };
     }
 
     private static IncomingNachaLinkingResult Build(
