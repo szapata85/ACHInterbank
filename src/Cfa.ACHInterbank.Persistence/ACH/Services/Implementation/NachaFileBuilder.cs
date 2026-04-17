@@ -1,7 +1,6 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Helpers.ACH;
-using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -1312,7 +1311,7 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private async Task<DateTime?> GetPrenoteDateAsync(
         AchTransaction tx,
-        IReadOnlyDictionary<PrenoteLookupKey, DateTime> ? prenoteLookup,
+        IReadOnlyDictionary<PrenoteLookupKey, DateTime>? prenoteLookup,
         CancellationToken ct)
     {
         var prenoteCode = ResolvePrenoteCode(tx.TransactionCode);
