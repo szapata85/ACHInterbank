@@ -95,6 +95,20 @@ public class TaskParameterSeeder : IDbSeeder
             });
         }
 
+        var incomingNachaTask = await _context.TaskDefinitions
+            .FirstOrDefaultAsync(t => t.Code == "IncomingNachaPostProcessing");
+
+        if (incomingNachaTask is not null
+            && !_context.TaskParameters.Any(p => p.TaskDefinitionId == incomingNachaTask.Id && p.Key == "ChunkSize"))
+        {
+            _context.TaskParameters.Add(new TaskParameter
+            {
+                TaskDefinitionId = incomingNachaTask.Id,
+                Key = "ChunkSize",
+                Value = "100"
+            });
+        }
+
         await _context.SaveChangesAsync();
     }
 }

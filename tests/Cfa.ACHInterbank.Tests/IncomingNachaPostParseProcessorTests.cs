@@ -48,7 +48,7 @@ public class IncomingNachaPostParseProcessorTests
             {
                 new() { Code = "R01", Description = "Fondos insuficientes", AppliesToReturn = true, IsActive = true, RegulatorySource = "EPR" }
             });
-        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), regulatory.Object, state.Object);
+        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, state.Object);
 
         await sut.ProcessAsync(ingestionId, "tester");
 
@@ -96,7 +96,7 @@ public class IncomingNachaPostParseProcessorTests
                 new() { Code = "R01", Description = "Fondos insuficientes", AppliesToReturn = true, IsActive = true, RegulatorySource = "EPR" }
             });
 
-        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), regulatory.Object, state.Object);
+        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, state.Object);
         await sut.ProcessAsync(ingestionId, "tester");
 
         state.Verify(x => x.TransitionAsync(100, AchTransferStateEnum.ReturnedByEpr, AchStateEventSourceEnum.Epr, "R01", It.IsAny<string?>(), "123456789012345", It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -144,7 +144,7 @@ public class IncomingNachaPostParseProcessorTests
                 new() { Code = "DEV14", Description = "rechazo operador", AppliesToReturn = true, IsActive = true, RegulatorySource = "OPERATOR" }
             });
 
-        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), regulatory.Object, state.Object);
+        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, state.Object);
         await sut.ProcessAsync(ingestionId, "tester");
 
         state.Verify(x => x.TransitionAsync(101, AchTransferStateEnum.ReturnedByOperator, AchStateEventSourceEnum.Operator, "DEV14", It.IsAny<string?>(), "123456789012345", It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -185,7 +185,7 @@ public class IncomingNachaPostParseProcessorTests
         regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AchReturnCode>());
 
-        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), regulatory.Object, state.Object);
+        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, state.Object);
         await sut.ProcessAsync(ingestionId, "tester");
 
         state.Verify(x => x.TransitionAsync(It.IsAny<int>(), It.IsAny<AchTransferStateEnum>(), It.IsAny<AchStateEventSourceEnum>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -230,7 +230,7 @@ public class IncomingNachaPostParseProcessorTests
                 new() { Code = "R01", Description = "Fondos insuficientes", AppliesToReturn = true, IsActive = true, RegulatorySource = "EPR" }
             });
 
-        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), regulatory.Object, state.Object);
+        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, state.Object);
         await sut.ProcessAsync(ingestionId, "tester");
 
         state.Verify(x => x.TransitionAsync(It.IsAny<int>(), It.IsAny<AchTransferStateEnum>(), It.IsAny<AchStateEventSourceEnum>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -275,7 +275,7 @@ public class IncomingNachaPostParseProcessorTests
                 new() { Code = "DEV14", Description = "rechazo operador", AppliesToReturn = true, IsActive = false, RegulatorySource = "OPERATOR" }
             });
 
-        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), regulatory.Object, state.Object);
+        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, state.Object);
         await sut.ProcessAsync(ingestionId, "tester");
 
         state.Verify(x => x.TransitionAsync(It.IsAny<int>(), It.IsAny<AchTransferStateEnum>(), It.IsAny<AchStateEventSourceEnum>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);

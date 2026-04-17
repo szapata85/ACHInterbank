@@ -1,0 +1,204 @@
+using System.Security.Cryptography;
+using System.Text;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.External.Connections;
+using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.Persistence.DataBase;
+using Microsoft.EntityFrameworkCore;
+
+namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
+
+[Scoped]
+public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcessingOrchestrator
+{
+    private const int MaxAttempts = 5;
+    private readonly AchDbContext _context;
+    private readonly IProcTransaccionesRequestMapper _mapper;
+    private readonly IProcTransaccionesResponseParser _parser;
+    private readonly IWscfaachSoapClient _soapClient;
+
+    public IncomingNachaPostProcessingOrchestrator(
+        AchDbContext context,
+        IProcTransaccionesRequestMapper mapper,
+        IProcTransaccionesResponseParser parser,
+        IWscfaachSoapClient soapClient)
+    {
+        _context = context;
+        _mapper = mapper;
+        _parser = parser;
+        _soapClient = soapClient;
+    }
+
+    public async Task<IncomingNachaPostProcessingRunResult> ExecuteAsync(
+        int chunkSize,
+        string triggeredBy,
+        CancellationToken ct = default)
+    {
+        var safeChunk = Math.Clamp(chunkSize, 10, 500);
+        var nowUtc = DateTime.UtcNow;
+
+        await _context.IncomingNachaDispatchQueue
+            .Where(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.WaitingWindow)
+            .Where(x => x.NextAttemptAtUtc == null || x.NextAttemptAtUtc <= nowUtc)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.QueueStatus, IncomingNachaDispatchQueueStatus.Queued)
+                .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow), ct);
+
+        var ids = await _context.IncomingNachaDispatchQueue
+            .AsNoTracking()
+            .Where(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.Queued || x.QueueStatus == IncomingNachaDispatchQueueStatus.RetryPending)
+            .Where(x => !x.NextAttemptAtUtc.HasValue || x.NextAttemptAtUtc <= nowUtc)
+            .OrderBy(x => x.Priority)
+            .ThenBy(x => x.Id)
+            .Select(x => x.Id)
+            .Take(safeChunk)
+            .ToListAsync(ct);
+
+        if (ids.Count == 0)
+        {
+            return new IncomingNachaPostProcessingRunResult(0, 0, 0, 0, 0, 0, 0, "Sin elementos en cola.");
+        }
+
+        var queues = await _context.IncomingNachaDispatchQueue
+            .Include(x => x.AchTransaction).ThenInclude(x => x.AchCycle)
+            .Where(x => ids.Contains(x.Id))
+            .ToListAsync(ct);
+        var ingestions = await _context.IncomingNachaFileIngestions
+            .Where(x => queues.Select(q => q.IncomingNachaFileIngestionId).Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, ct);
+        var classifications = await _context.IncomingNachaEntryClassifications
+            .Where(x => queues.Select(q => q.IncomingNachaEntryClassificationId).Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, ct);
+
+        var confirmed = 0;
+        var retryPending = 0;
+        var failedFinal = 0;
+        var blocked = 0;
+        var waitingWindow = 0;
+
+        foreach (var queue in queues)
+        {
+            queue.QueueStatus = IncomingNachaDispatchQueueStatus.Dispatching;
+            queue.LastAttemptAtUtc = nowUtc;
+            queue.AttemptCount += 1;
+
+            var correlationId = $"in-nacha-{queue.Id:N}-{queue.AttemptCount}";
+            var execution = new IncomingNachaIntegrationExecution
+            {
+                DispatchQueueId = queue.Id,
+                MethodName = "Proc_Transacciones",
+                CorrelationId = correlationId,
+                StartedAtUtc = nowUtc
+            };
+            _context.IncomingNachaIntegrationExecution.Add(execution);
+
+            try
+            {
+                if (!ingestions.TryGetValue(queue.IncomingNachaFileIngestionId, out var ingestion)
+                    || !classifications.TryGetValue(queue.IncomingNachaEntryClassificationId, out var classification))
+                {
+                    queue.QueueStatus = IncomingNachaDispatchQueueStatus.Blocked;
+                    queue.LastErrorCode = "MISSING_CONTEXT";
+                    queue.LastErrorMessage = "No se encontró contexto de ingesta/clasificación.";
+                    blocked++;
+                    continue;
+                }
+
+                var resolution = await _mapper.ResolveAsync(queue, ingestion, classification, queue.AchTransaction, queue.AchTransaction.AchCycle, DateTime.Now, ct);
+                var requestXml = _mapper.BuildSoapBody(resolution.Contract);
+                var responseXml = await _soapClient.ProcTransaccionesAsync(requestXml, ct);
+                var parsed = _parser.Parse(responseXml);
+
+                execution.MappingSetId = resolution.MappingSetId;
+                execution.MappingVersion = resolution.MappingVersion;
+                execution.MappingSnapshotHash = resolution.MappingSnapshotHash;
+                execution.RequestPayloadXml = requestXml;
+                execution.ResponsePayloadXml = responseXml;
+                execution.RequestHash = Hash(requestXml);
+                execution.ResponseHash = Hash(responseXml);
+                execution.ResponseCode = parsed.ResponseCode;
+                execution.ResponseMessage = parsed.ResponseMessage;
+                execution.IsSuccess = parsed.IsSuccess;
+                execution.IsRetryable = parsed.IsRetryable;
+                execution.FinishedAtUtc = DateTime.UtcNow;
+
+                queue.LastResponseCode = parsed.ResponseCode;
+                queue.LastErrorCode = parsed.IsSuccess ? string.Empty : parsed.ResponseCode;
+                queue.LastErrorMessage = parsed.IsSuccess ? string.Empty : parsed.ResponseMessage;
+
+                if (parsed.IsSuccess || parsed.IsPartialSuccess)
+                {
+                    queue.QueueStatus = IncomingNachaDispatchQueueStatus.Confirmed;
+                    queue.ConfirmedAtUtc = DateTime.UtcNow;
+                    queue.NextAttemptAtUtc = null;
+                    confirmed++;
+                }
+                else if (parsed.IsRetryable && queue.AttemptCount < MaxAttempts)
+                {
+                    queue.QueueStatus = IncomingNachaDispatchQueueStatus.RetryPending;
+                    queue.NextAttemptAtUtc = DateTime.UtcNow.AddMinutes(Math.Min(30, 2 * queue.AttemptCount));
+                    retryPending++;
+                }
+                else
+                {
+                    queue.QueueStatus = IncomingNachaDispatchQueueStatus.FailedFinal;
+                    queue.NextAttemptAtUtc = null;
+                    failedFinal++;
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                queue.QueueStatus = IncomingNachaDispatchQueueStatus.Blocked;
+                queue.LastErrorCode = "MAPPING_INVALID";
+                queue.LastErrorMessage = ex.Message;
+                execution.ResponseCode = "MAPPING_INVALID";
+                execution.ResponseMessage = ex.Message;
+                execution.RequestHash = execution.RequestHash == string.Empty ? Hash(ex.Message) : execution.RequestHash;
+                execution.FinishedAtUtc = DateTime.UtcNow;
+                blocked++;
+            }
+            catch (Exception ex)
+            {
+                queue.LastErrorCode = "TECHNICAL_ERROR";
+                queue.LastErrorMessage = ex.Message;
+                execution.ResponseCode = "TECHNICAL_ERROR";
+                execution.ResponseMessage = ex.Message;
+                execution.FinishedAtUtc = DateTime.UtcNow;
+                execution.IsSuccess = false;
+                execution.IsRetryable = true;
+
+                if (queue.AttemptCount < MaxAttempts)
+                {
+                    queue.QueueStatus = IncomingNachaDispatchQueueStatus.RetryPending;
+                    queue.NextAttemptAtUtc = DateTime.UtcNow.AddMinutes(Math.Min(30, 2 * queue.AttemptCount));
+                    retryPending++;
+                }
+                else
+                {
+                    queue.QueueStatus = IncomingNachaDispatchQueueStatus.FailedFinal;
+                    failedFinal++;
+                }
+            }
+        }
+
+        await _context.SaveChangesAsync(ct);
+        var summary = $"Procesadas={queues.Count}, Confirmadas={confirmed}, Retry={retryPending}, FailedFinal={failedFinal}, Blocked={blocked}, WaitingWindow={waitingWindow}.";
+        return new IncomingNachaPostProcessingRunResult(
+            Planned: ids.Count,
+            Picked: queues.Count,
+            Confirmed: confirmed,
+            RetryPending: retryPending,
+            FailedFinal: failedFinal,
+            Blocked: blocked,
+            WaitingWindow: waitingWindow,
+            Summary: summary);
+    }
+
+    private static string Hash(string payload)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(payload ?? string.Empty));
+        return Convert.ToHexString(bytes);
+    }
+}

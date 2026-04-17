@@ -16,6 +16,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
     private readonly IIncomingNachaFunctionalClassifier _classifier;
     private readonly IIncomingNachaTransactionLinker _linker;
     private readonly IIncomingNachaPrenotificationResolver _prenotificationResolver;
+    private readonly IIncomingNachaDispatchPlanner _dispatchPlanner;
     private readonly IAchRegulatoryCatalogService _regulatoryCatalogService;
     private readonly IAchStateTransitionService _stateTransitionService;
 
@@ -24,6 +25,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         IIncomingNachaFunctionalClassifier classifier,
         IIncomingNachaTransactionLinker linker,
         IIncomingNachaPrenotificationResolver prenotificationResolver,
+        IIncomingNachaDispatchPlanner dispatchPlanner,
         IAchRegulatoryCatalogService regulatoryCatalogService,
         IAchStateTransitionService stateTransitionService)
     {
@@ -31,6 +33,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         _classifier = classifier;
         _linker = linker;
         _prenotificationResolver = prenotificationResolver;
+        _dispatchPlanner = dispatchPlanner;
         _regulatoryCatalogService = regulatoryCatalogService;
         _stateTransitionService = stateTransitionService;
     }
@@ -160,6 +163,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         }
 
         await _context.SaveChangesAsync(ct);
+        await _dispatchPlanner.PlanForIngestionAsync(ingestionId, executedBy, ct);
     }
 
     private async Task ApplyBusinessEffectsAsync(

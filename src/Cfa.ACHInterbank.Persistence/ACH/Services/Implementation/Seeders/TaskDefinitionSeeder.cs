@@ -87,6 +87,19 @@ public class TaskDefinitionSeeder : IDbSeeder
                 StartAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero)
             });
         }
+
+        if (!_context.TaskDefinitions.Any(t => t.Code == "IncomingNachaPostProcessing"))
+        {
+            _context.TaskDefinitions.Add(new TaskDefinition
+            {
+                Code = "IncomingNachaPostProcessing",
+                Name = "Procesamiento posterior NACHA entrante a Proc_Transacciones",
+                PeriodicityType = PeriodicityTypeEnum.EveryNMinutes,
+                N = 3,
+                TimeZoneId = "America/Bogota",
+                StartAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            });
+        }
         await _context.SaveChangesAsync();
         _context.ChangeTracker.AutoDetectChangesEnabled = true;
     }
