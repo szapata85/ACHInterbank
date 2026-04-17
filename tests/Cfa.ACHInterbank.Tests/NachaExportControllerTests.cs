@@ -169,4 +169,45 @@ public class NachaExportControllerTests
         auditService.VerifyAll();
         identifierMapService.VerifyAll();
     }
+
+    [Fact]
+    public async Task Export_WhenBuilderThrowsFatalValidation_ReturnsUnprocessableEntity()
+    {
+        const string cycleId = "cycle-fail";
+        const string fatalMessage = "Error Fatal ID 22: la transacción 2 no tiene Nombre del Usuario Receptor válido para posiciones 63-84 del registro tipo 6.";
+
+        var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
+        var crypto = new Mock<ICryptoServiceScoped>(MockBehavior.Strict);
+        var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
+        var clearingHouseService = new Mock<IClearingHouseService>(MockBehavior.Strict);
+        var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
+        var identifierMapService = new Mock<INachaFileIdentifierMapService>(MockBehavior.Strict);
+        var auditService = new Mock<IAchFileExportAuditService>(MockBehavior.Strict);
+
+        cycleService
+            .Setup(c => c.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchCycleDto { Id = cycleId, ClearingHouseId = 1, CycleName = "CICLO-1", ProcessingDate = DateTime.UtcNow });
+        clearingHouseService
+            .Setup(c => c.GetByIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ClearingHouseDto { Id = 1, Code = "ACHCOL", OriginCode = "12345678", Name = "ACH Colombia" });
+        builder
+            .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException(fatalMessage));
+
+        var controller = new NachaExportController(
+            builder.Object,
+            crypto.Object,
+            cycleService.Object,
+            clearingHouseService.Object,
+            envelopePolicy.Object,
+            identifierMapService.Object,
+            auditService.Object);
+
+        var result = await controller.Export(cycleId, CancellationToken.None);
+
+        var unprocessable = Assert.IsType<UnprocessableEntityObjectResult>(result);
+        var payload = unprocessable.Value?.ToString() ?? string.Empty;
+        Assert.Contains("NACHA_VALIDATION_ERROR", payload);
+        Assert.Contains("Error Fatal ID 22", payload);
+    }
 }

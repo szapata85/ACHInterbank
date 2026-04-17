@@ -46,32 +46,44 @@ public class NachaExportController : ControllerBase
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> Export(string cycleId, CancellationToken ct)
     {
-        AchCycleDto? cycle = await _cycleService.GetByIdAsync(cycleId, ct);
-        if (cycle is null)
+        try
         {
-            return NotFound();
-        }
+            AchCycleDto? cycle = await _cycleService.GetByIdAsync(cycleId, ct);
+            if (cycle is null)
+            {
+                return NotFound();
+            }
 
-        ClearingHouseDto? clearingHouse = await _clearingHouseService.GetByIdAsync(cycle.ClearingHouseId, ct);
-        if (clearingHouse is null)
+            ClearingHouseDto? clearingHouse = await _clearingHouseService.GetByIdAsync(cycle.ClearingHouseId, ct);
+            if (clearingHouse is null)
+            {
+                return NotFound();
+            }
+
+            string nachaContent = await _nachaBuilder.BuildNachaFileByCycleAsync(cycleId, ct);
+            string fileName = BuildNachaFileName(clearingHouse, cycle);
+            string normalizedNachaContent = await NormalizeFileHeaderIdentifierForCenitAsync(nachaContent, clearingHouse, fileName, ct);
+            await _fileExportAuditService.RecordGeneratedFileAsync(
+                cycle.Id,
+                cycle.ClearingHouseId,
+                "NACHA",
+                fileName,
+                CountRecords(normalizedNachaContent),
+                CountTransactions(normalizedNachaContent),
+                false,
+                ct);
+
+            return File(Encoding.ASCII.GetBytes(normalizedNachaContent), "text/plain", fileName);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Error Fatal ID", StringComparison.OrdinalIgnoreCase))
         {
-            return NotFound();
+            return UnprocessableEntity(new
+            {
+                codigo = "NACHA_VALIDATION_ERROR",
+                mensaje = ex.Message,
+                cicloId = cycleId
+            });
         }
-
-        string nachaContent = await _nachaBuilder.BuildNachaFileByCycleAsync(cycleId, ct);
-        string fileName = BuildNachaFileName(clearingHouse, cycle);
-        string normalizedNachaContent = await NormalizeFileHeaderIdentifierForCenitAsync(nachaContent, clearingHouse, fileName, ct);
-        await _fileExportAuditService.RecordGeneratedFileAsync(
-            cycle.Id,
-            cycle.ClearingHouseId,
-            "NACHA",
-            fileName,
-            CountRecords(normalizedNachaContent),
-            CountTransactions(normalizedNachaContent),
-            false,
-            ct);
-
-        return File(Encoding.ASCII.GetBytes(normalizedNachaContent), "text/plain", fileName);
     }
     /// <summary>
     /// Endpoint de la API ACH Interbank.
@@ -81,40 +93,52 @@ public class NachaExportController : ControllerBase
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> ExportEncrypted(string cycleId, [FromQuery] bool forceEncryption = false, CancellationToken ct = default)
     {
-        AchCycleDto? cycle = await _cycleService.GetByIdAsync(cycleId, ct);
-        if (cycle is null)
+        try
         {
-            return NotFound();
-        }
+            AchCycleDto? cycle = await _cycleService.GetByIdAsync(cycleId, ct);
+            if (cycle is null)
+            {
+                return NotFound();
+            }
 
-        string nachaContent = await _nachaBuilder.BuildNachaFileByCycleAsync(cycleId, ct);
-        ClearingHouseDto? clearingHouse = await _clearingHouseService.GetByIdAsync(cycle.ClearingHouseId, ct);
-        if (clearingHouse is null)
+            string nachaContent = await _nachaBuilder.BuildNachaFileByCycleAsync(cycleId, ct);
+            ClearingHouseDto? clearingHouse = await _clearingHouseService.GetByIdAsync(cycle.ClearingHouseId, ct);
+            if (clearingHouse is null)
+            {
+                return NotFound();
+            }
+
+            string fileName = BuildNachaFileName(clearingHouse, cycle);
+            string normalizedNachaContent = await NormalizeFileHeaderIdentifierForCenitAsync(nachaContent, clearingHouse, fileName, ct);
+            await _fileExportAuditService.RecordGeneratedFileAsync(
+                cycle.Id,
+                cycle.ClearingHouseId,
+                "NACHA",
+                fileName,
+                CountRecords(normalizedNachaContent),
+                CountTransactions(normalizedNachaContent),
+                forceEncryption || _envelopePolicy.ShouldEncrypt(cycle.ClearingHouseId),
+                ct);
+
+            if (!forceEncryption && !_envelopePolicy.ShouldEncrypt(cycle.ClearingHouseId))
+            {
+                return File(Encoding.ASCII.GetBytes(normalizedNachaContent), "text/plain", fileName);
+            }
+
+            byte[] digitalEnvelope = await _crypto.CreateEnvelopeAsync(Encoding.ASCII.GetBytes(normalizedNachaContent), fileName);
+            string envelopeFileName = $"{fileName}.ENV";
+
+            return File(digitalEnvelope, "application/xml", envelopeFileName);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Error Fatal ID", StringComparison.OrdinalIgnoreCase))
         {
-            return NotFound();
+            return UnprocessableEntity(new
+            {
+                codigo = "NACHA_VALIDATION_ERROR",
+                mensaje = ex.Message,
+                cicloId = cycleId
+            });
         }
-
-        string fileName = BuildNachaFileName(clearingHouse, cycle);
-        string normalizedNachaContent = await NormalizeFileHeaderIdentifierForCenitAsync(nachaContent, clearingHouse, fileName, ct);
-        await _fileExportAuditService.RecordGeneratedFileAsync(
-            cycle.Id,
-            cycle.ClearingHouseId,
-            "NACHA",
-            fileName,
-            CountRecords(normalizedNachaContent),
-            CountTransactions(normalizedNachaContent),
-            forceEncryption || _envelopePolicy.ShouldEncrypt(cycle.ClearingHouseId),
-            ct);
-
-        if (!forceEncryption && !_envelopePolicy.ShouldEncrypt(cycle.ClearingHouseId))
-        {
-            return File(Encoding.ASCII.GetBytes(normalizedNachaContent), "text/plain", fileName);
-        }
-
-        byte[] digitalEnvelope = await _crypto.CreateEnvelopeAsync(Encoding.ASCII.GetBytes(normalizedNachaContent), fileName);
-        string envelopeFileName = $"{fileName}.ENV";
-
-        return File(digitalEnvelope, "application/xml", envelopeFileName);
     }
 
     private static string BuildNachaFileName(ClearingHouseDto clearingHouse, AchCycleDto cycle)

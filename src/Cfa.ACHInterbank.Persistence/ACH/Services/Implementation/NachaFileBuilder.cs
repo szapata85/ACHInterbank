@@ -1045,11 +1045,11 @@ public class NachaFileBuilder : INachaFileBuilder
         foreach (var transaction in transactions.OrderBy(t => t.Id))
         {
             var receiverName = await ResolveReceiverNameForType6Async(transaction, ct);
-            var normalizedReceiverName = NachaReceiverNameHelper.SanitizeForType6(receiverName);
+            var normalizedReceiverName = ResolveReceiverNameWithFallback(transaction, receiverName);
 
             if (string.IsNullOrWhiteSpace(normalizedReceiverName))
             {
-                throw new InvalidOperationException($"Error Fatal ID 22: la transacción {transaction.Id} no tiene Nombre del Usuario Receptor válido para posiciones 63-84 del registro tipo 6.");
+                throw new InvalidOperationException($"Error Fatal ID 22: la transacción {transaction.Id} no tiene Nombre del Usuario Receptor válido para posiciones 63-84 del registro tipo 6. Revise Cliente/Tercero asociado y número de cuenta destino.");
             }
 
             records.Add(EntryDetailRecord.From(transaction, normalizedReceiverName));
@@ -1108,6 +1108,24 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return customer.CompanyName ?? string.Empty;
+    }
+
+    private static string ResolveReceiverNameWithFallback(AchTransaction transaction, string? receiverName)
+    {
+        var normalizedReceiverName = NachaReceiverNameHelper.SanitizeForType6(receiverName);
+        if (!string.IsNullOrWhiteSpace(normalizedReceiverName))
+        {
+            return normalizedReceiverName;
+        }
+
+        normalizedReceiverName = NachaReceiverNameHelper.SanitizeForType6(transaction.RecipientIdNumber);
+        if (!string.IsNullOrWhiteSpace(normalizedReceiverName))
+        {
+            return normalizedReceiverName;
+        }
+
+        normalizedReceiverName = NachaReceiverNameHelper.SanitizeForType6($"USUARIO {transaction.Id}");
+        return normalizedReceiverName;
     }
 
     private async Task ValidateTransactionsForSendAsync(IEnumerable<AchTransaction> transactions, CancellationToken ct)
