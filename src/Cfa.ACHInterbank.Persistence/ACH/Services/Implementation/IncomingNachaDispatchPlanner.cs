@@ -86,9 +86,7 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
                 IdempotencyDispatchKey = dispatchKey,
                 NextAttemptAtUtc = status == IncomingNachaDispatchQueueStatus.Queued ? DateTime.UtcNow : null,
                 LastErrorCode = status == IncomingNachaDispatchQueueStatus.Blocked ? "POLICY_BLOCKED" : string.Empty,
-                LastErrorMessage = evaluation.Reason,
-                CreatedBy = string.IsNullOrWhiteSpace(plannedBy) ? "sistema" : plannedBy,
-                UpdatedBy = string.IsNullOrWhiteSpace(plannedBy) ? "sistema" : plannedBy
+                LastErrorMessage = evaluation.Reason
             });
             created++;
         }
