@@ -37,10 +37,10 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
         var clearingHouse = await _context.ClearingHouses.AsNoTracking().FirstOrDefaultAsync(x => x.OriginCode == immediateOrigin, ct);
         if (clearingHouse is null)
         {
-            var inferred = InferClearingHouseFromFileName(request.FileName);
-            if (inferred.HasValue)
+            var inferred = await InferClearingHouseFromFileNameAsync(request.FileName, ct);
+            if (inferred is not null)
             {
-                clearingHouse = await _context.ClearingHouses.AsNoTracking().FirstOrDefaultAsync(x => x.Id == inferred.Value, ct);
+                clearingHouse = inferred;
                 warnings.Add("La cámara se infirió por nombre de archivo porque no coincidió OriginCode.");
             }
         }
@@ -177,11 +177,32 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
         return int.TryParse(match.Groups[1].Value, out var cycleNumber) && cycleNumber > 0 ? cycleNumber : null;
     }
 
-    private static int? InferClearingHouseFromFileName(string fileName)
+    private async Task<ClearingHouse?> InferClearingHouseFromFileNameAsync(string fileName, CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return null;
+        }
+
         var name = fileName.ToLowerInvariant();
-        if (name.Contains("cenit")) return 2;
-        if (name.Contains("ach")) return 1;
+        var clearingHouses = await _context.ClearingHouses.AsNoTracking().ToListAsync(ct);
+
+        var cenitByCatalog = clearingHouses.FirstOrDefault(ch =>
+            (ch.Code ?? string.Empty).Contains("cenit", StringComparison.OrdinalIgnoreCase)
+            || (ch.Name ?? string.Empty).Contains("cenit", StringComparison.OrdinalIgnoreCase));
+        if (name.Contains("cenit") && cenitByCatalog is not null)
+        {
+            return cenitByCatalog;
+        }
+
+        var achByCatalog = clearingHouses.FirstOrDefault(ch =>
+            (ch.Code ?? string.Empty).Contains("ach", StringComparison.OrdinalIgnoreCase)
+            || (ch.Name ?? string.Empty).Contains("ach", StringComparison.OrdinalIgnoreCase));
+        if (name.Contains("ach") && achByCatalog is not null)
+        {
+            return achByCatalog;
+        }
+
         return null;
     }
 }

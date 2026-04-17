@@ -47,52 +47,50 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         var fileHash = ComputeSha256(fileBytes);
         var records = ChunkFixed106(fileBytes);
 
-        var ingestion = new IncomingNachaFileIngestion
-        {
-            FileName = request.FileName,
-            FileHashSha256 = fileHash,
-            FileSize = fileBytes.LongLength,
-            ContentType = request.ContentType,
-            UploadedBy = string.IsNullOrWhiteSpace(request.RequestedBy) ? "system" : request.RequestedBy,
-            ReceivedBy = string.IsNullOrWhiteSpace(request.RequestedBy) ? "system" : request.RequestedBy,
-            ReceivedAtUtc = DateTime.UtcNow,
-            CorrelationId = correlationId,
-            ParentIngestionId = request.ParentIngestionId,
-            IsReprocess = request.ForceReprocess,
-            IngestionStatus = IncomingNachaIngestionStatus.Recibido,
-            ParsingStatus = IncomingNachaParsingStatus.NoEjecutado,
-            CycleResolutionStatus = IncomingNachaCycleResolutionStatus.NoIntentado,
-            Notes = "Archivo recibido."
-        };
-
-        _context.IncomingNachaFileIngestions.Add(ingestion);
-        await _context.SaveChangesAsync(ct);
-
-        var duplicate = await _context.IncomingNachaFileIngestions.AsNoTracking()
-            .Where(x => x.Id != ingestion.Id)
+        var candidatesByFingerprint = await _context.IncomingNachaFileIngestions.AsNoTracking()
             .Where(x => x.FileHashSha256 == fileHash && x.FileSize == fileBytes.LongLength)
             .OrderByDescending(x => x.UploadedAtUtc)
-            .FirstOrDefaultAsync(ct);
+            .ToListAsync(ct);
 
-        if (duplicate is not null && !request.ForceReprocess)
+        var canonicalCandidate = candidatesByFingerprint.FirstOrDefault(x => !x.IsReprocess) ?? candidatesByFingerprint.FirstOrDefault();
+        var parentIngestionId = request.ParentIngestionId;
+        if (request.ForceReprocess)
         {
-            ingestion.IngestionStatus = IncomingNachaIngestionStatus.Duplicado;
-            ingestion.CycleResolutionStatus = IncomingNachaCycleResolutionStatus.NoIntentado;
-            ingestion.ParsingStatus = IncomingNachaParsingStatus.NoEjecutado;
-            ingestion.Notes = $"Archivo duplicado detectado. Ingesta previa: {duplicate.Id}";
-            ingestion.ResolutionEvidenceJson = JsonSerializer.Serialize(new
+            if (canonicalCandidate is null)
             {
-                eventType = "DuplicadoDetectado",
-                duplicateIngestionId = duplicate.Id,
-                fileHash,
-                ingestion.FileSize,
-                ingestion.FileName
-            });
+                throw new ArgumentException("No existe una ingesta base para reprocesar el archivo indicado por hash/tamaño.");
+            }
+
+            parentIngestionId ??= canonicalCandidate.Id;
+            if (!candidatesByFingerprint.Any(x => x.Id == parentIngestionId.Value))
+            {
+                throw new ArgumentException("ParentIngestionId no corresponde al archivo a reprocesar (hash/tamaño diferente).");
+            }
+
+            var alreadyReprocessed = await _context.IncomingNachaFileIngestions.AsNoTracking()
+                .AnyAsync(x => x.IsReprocess
+                               && x.ParentIngestionId == parentIngestionId.Value
+                               && x.FileHashSha256 == fileHash
+                               && x.FileSize == fileBytes.LongLength, ct);
+
+            if (alreadyReprocessed)
+            {
+                throw new ArgumentException("Ya existe un reproceso registrado para este archivo y ParentIngestionId.");
+            }
+        }
+
+        if (!request.ForceReprocess && canonicalCandidate is not null)
+        {
+            var nextAttempt = await _context.IncomingNachaFileProcessingResults
+                .AsNoTracking()
+                .Where(x => x.IncomingNachaFileIngestionId == canonicalCandidate.Id)
+                .Select(x => (int?)x.AttemptNumber)
+                .MaxAsync(ct) ?? 0;
 
             _context.IncomingNachaFileProcessingResults.Add(new IncomingNachaFileProcessingResult
             {
-                IncomingNachaFileIngestionId = ingestion.Id,
-                AttemptNumber = 1,
+                IncomingNachaFileIngestionId = canonicalCandidate.Id,
+                AttemptNumber = nextAttempt + 1,
                 StartedAtUtc = DateTime.UtcNow,
                 FinishedAtUtc = DateTime.UtcNow,
                 OutcomeStatus = IncomingNachaProcessingOutcomeStatus.Duplicado,
@@ -103,8 +101,52 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             });
 
             await _context.SaveChangesAsync(ct);
-            return BuildResponse(ingestion, null, new[] { "Archivo duplicado detectado por hash/tamaño." });
+            return new IncomingNachaIngestionResponse
+            {
+                IngestionId = canonicalCandidate.Id,
+                IngestionStatus = IncomingNachaIngestionStatus.Duplicado,
+                CycleResolutionStatus = canonicalCandidate.CycleResolutionStatus,
+                ParsingStatus = canonicalCandidate.ParsingStatus,
+                DetectedClearingHouseId = canonicalCandidate.DetectedClearingHouseId,
+                ResolvedClearingHouseId = canonicalCandidate.ResolvedClearingHouseId,
+                ResolvedAchCycleId = canonicalCandidate.ResolvedAchCycleId,
+                OperationalDate = canonicalCandidate.OperationalDate,
+                ErrorCount = 1,
+                Errors = new[] { "Archivo duplicado detectado por hash/tamaño." }
+            };
         }
+
+        var ingestion = new IncomingNachaFileIngestion
+        {
+            FileName = request.FileName,
+            FileHashSha256 = fileHash,
+            FileSize = fileBytes.LongLength,
+            ContentType = request.ContentType,
+            UploadedBy = string.IsNullOrWhiteSpace(request.RequestedBy) ? "system" : request.RequestedBy,
+            ReceivedBy = string.IsNullOrWhiteSpace(request.RequestedBy) ? "system" : request.RequestedBy,
+            ReceivedAtUtc = DateTime.UtcNow,
+            CorrelationId = correlationId,
+            ParentIngestionId = parentIngestionId,
+            IsReprocess = request.ForceReprocess,
+            IngestionStatus = IncomingNachaIngestionStatus.Recibido,
+            ParsingStatus = IncomingNachaParsingStatus.NoEjecutado,
+            CycleResolutionStatus = IncomingNachaCycleResolutionStatus.NoIntentado,
+            Notes = request.ForceReprocess
+                ? $"Reproceso autorizado. ParentIngestionId={parentIngestionId}"
+                : "Archivo recibido.",
+            ResolutionEvidenceJson = request.ForceReprocess
+                ? JsonSerializer.Serialize(new
+                {
+                    eventType = "ReprocesoAutorizado",
+                    parentIngestionId,
+                    fileHash,
+                    fileSize = fileBytes.LongLength
+                })
+                : "{}"
+        };
+
+        _context.IncomingNachaFileIngestions.Add(ingestion);
+        await _context.SaveChangesAsync(ct);
 
         ingestion.IngestionStatus = IncomingNachaIngestionStatus.EnValidacion;
         ingestion.Notes = "Validación de resolución de cámara/ciclo en proceso.";

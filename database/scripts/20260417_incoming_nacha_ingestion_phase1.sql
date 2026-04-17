@@ -30,7 +30,13 @@ CREATE TABLE IF NOT EXISTS "IncomingNachaFileIngestions" (
     CONSTRAINT "FK_IncNacha_Parent" FOREIGN KEY ("ParentIngestionId") REFERENCES "IncomingNachaFileIngestions"("Id") ON DELETE RESTRICT
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS "IX_IncNacha_Hash_Size" ON "IncomingNachaFileIngestions" ("FileHashSha256", "FileSize");
+DROP INDEX IF EXISTS "IX_IncNacha_Hash_Size";
+CREATE UNIQUE INDEX IF NOT EXISTS "IX_IncNacha_BaseFingerprint_UQ"
+    ON "IncomingNachaFileIngestions" ("FileHashSha256", "FileSize")
+    WHERE NOT "IsReprocess";
+CREATE UNIQUE INDEX IF NOT EXISTS "IX_IncNacha_ReprocessFingerprint_UQ"
+    ON "IncomingNachaFileIngestions" ("ParentIngestionId", "FileHashSha256", "FileSize")
+    WHERE "IsReprocess" AND "ParentIngestionId" IS NOT NULL;
 CREATE INDEX IF NOT EXISTS "IX_IncNacha_Operational" ON "IncomingNachaFileIngestions" ("ResolvedClearingHouseId", "OperationalDate", "ResolvedAchCycleId");
 
 CREATE TABLE IF NOT EXISTS "IncomingNachaFileProcessingResults" (

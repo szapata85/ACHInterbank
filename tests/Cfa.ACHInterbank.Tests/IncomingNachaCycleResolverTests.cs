@@ -60,6 +60,43 @@ public class IncomingNachaCycleResolverTests
         Assert.Equal(Domain.Models.ACH.IncomingNachaCycleResolutionStatus.NoResuelto, result.Status);
     }
 
+    [Fact]
+    public async Task ResolveAsync_InfersClearingHouseByCatalogWithoutHardcodedIds()
+    {
+        using var context = BuildContext();
+        context.ClearingHouses.Add(new ClearingHouse
+        {
+            Id = 99,
+            Name = "CENIT Banco de la República",
+            Code = "CENIT",
+            OriginCode = "9999999999",
+            ClearingHouseId = 99,
+            ClearingHouseConfig = new ClearingHouseConfig { Id = 99, HolidayStrategy = "Colombian" }
+        });
+        context.AchCycles.Add(new AchCycle
+        {
+            Id = "CENIT-20260417-01",
+            CycleName = "Ciclo 1",
+            ClearingHouseId = 99,
+            ProcessingDate = new DateTime(2026, 4, 17),
+            CutoffTime = new TimeSpan(8, 0, 0),
+            StartTime = new TimeSpan(7, 0, 0),
+            EndTime = new TimeSpan(9, 0, 0)
+        });
+        await context.SaveChangesAsync();
+
+        var sut = new IncomingNachaCycleResolver(context);
+        var result = await sut.ResolveAsync(new IncomingNachaCycleResolutionRequest
+        {
+            FileName = "entrante_cenit_1.ach",
+            Records = [BuildHeader("0000000000", "20260417")]
+        });
+
+        Assert.True(result.IsResolved);
+        Assert.Equal(99, result.ClearingHouseId);
+        Assert.Equal("CENIT-20260417-01", result.AchCycleId);
+    }
+
     private static AchDbContext BuildContext()
     {
         var options = new DbContextOptionsBuilder<AchDbContext>()

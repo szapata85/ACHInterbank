@@ -33,8 +33,14 @@ BEGIN
     );
 END
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_IncNacha_Hash_Size' AND object_id = OBJECT_ID('dbo.IncomingNachaFileIngestions'))
-    CREATE UNIQUE INDEX IX_IncNacha_Hash_Size ON dbo.IncomingNachaFileIngestions(FileHashSha256, FileSize);
+IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_IncNacha_Hash_Size' AND object_id = OBJECT_ID('dbo.IncomingNachaFileIngestions'))
+    DROP INDEX IX_IncNacha_Hash_Size ON dbo.IncomingNachaFileIngestions;
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_IncNacha_BaseFingerprint_UQ' AND object_id = OBJECT_ID('dbo.IncomingNachaFileIngestions'))
+    CREATE UNIQUE INDEX IX_IncNacha_BaseFingerprint_UQ ON dbo.IncomingNachaFileIngestions(FileHashSha256, FileSize) WHERE IsReprocess = 0;
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_IncNacha_ReprocessFingerprint_UQ' AND object_id = OBJECT_ID('dbo.IncomingNachaFileIngestions'))
+    CREATE UNIQUE INDEX IX_IncNacha_ReprocessFingerprint_UQ ON dbo.IncomingNachaFileIngestions(ParentIngestionId, FileHashSha256, FileSize) WHERE IsReprocess = 1 AND ParentIngestionId IS NOT NULL;
 
 IF OBJECT_ID(N'dbo.IncomingNachaFileProcessingResults', N'U') IS NULL
 BEGIN
