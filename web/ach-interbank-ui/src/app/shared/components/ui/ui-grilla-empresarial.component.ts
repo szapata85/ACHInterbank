@@ -104,6 +104,7 @@ export class UiGrillaEmpresarialComponent<TData = any> {
   readonly gridOptions: GridOptions<TData> = {
     animateRows: true,
     suppressCellFocus: true,
+    paginationPageSizeSelector: [10, 20, 50, 100],
     localeText: {
       noRowsToShow: 'No hay filas para mostrar',
       page: 'Página',
@@ -125,6 +126,14 @@ export class UiGrillaEmpresarialComponent<TData = any> {
 
   onGridReady(event: GridReadyEvent<TData>): void {
     this.api = event.api;
+
+    if (this.paginacion) {
+      const selector = new Set<number>([10, 20, 50, 100, this.tamanoPagina]);
+      this.api.setGridOption(
+        'paginationPageSizeSelector',
+        Array.from(selector).sort((a, b) => a - b)
+      );
+    }
 
     if (this.modoFila === 'serverSide' && this.datasourceServidor) {
       this.api.setGridOption('serverSideDatasource', this.datasourceServidor);
