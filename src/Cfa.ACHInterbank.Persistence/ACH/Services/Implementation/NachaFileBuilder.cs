@@ -1002,12 +1002,17 @@ public class NachaFileBuilder : INachaFileBuilder
         public string TraceNumber { get; init; } = string.Empty;
         public string CompanyIdentification { get; init; } = string.Empty;
 
-        public static EntryDetailRecord From(AchTransaction tx, string receiverName)
+        public static EntryDetailRecord From(AchTransaction tx, string receiverName, int receivingDfiLength)
         {
             var receivingDfi = (tx.ReceivingDFI ?? string.Empty).Trim();
-            if (receivingDfi.Length != 8 || receivingDfi.Any(c => !char.IsDigit(c)))
+            if (receivingDfi.Length != receivingDfiLength || receivingDfi.Any(c => !char.IsDigit(c)))
             {
-                throw new InvalidOperationException("Error Fatal ID 35: el Código Entidad Participante Receptor (posiciones 4-11) debe contener 8 dígitos numéricos para calcular el dígito de chequeo.");
+                throw new InvalidOperationException($"Error Fatal ID 35: el Código Entidad Participante Receptor (posiciones 4-11) debe contener {receivingDfiLength} dígitos numéricos según configuración NACHA.");
+            }
+
+            if (receivingDfiLength != 8)
+            {
+                throw new InvalidOperationException($"Configuración inválida: la longitud del campo ReceivingDFI en registro tipo 6 es {receivingDfiLength}. El cálculo de dígito de chequeo ACH requiere exactamente 8.");
             }
 
             var expectedCheckDigit = DigitoChequeoHelper.CalcularDigitoChequeo(receivingDfi);
@@ -1041,6 +1046,7 @@ public class NachaFileBuilder : INachaFileBuilder
         CancellationToken ct)
     {
         var records = new List<EntryDetailRecord>(transactions.Count);
+        var receivingDfiLength = await ResolveReceivingDfiLengthFromLayoutAsync(ct);
 
         foreach (var transaction in transactions.OrderBy(t => t.Id))
         {
@@ -1052,10 +1058,23 @@ public class NachaFileBuilder : INachaFileBuilder
                 throw new InvalidOperationException($"Error Fatal ID 22: la transacción {transaction.Id} no tiene Nombre del Usuario Receptor válido para posiciones 63-84 del registro tipo 6. Revise Cliente/Tercero asociado y número de cuenta destino.");
             }
 
-            records.Add(EntryDetailRecord.From(transaction, normalizedReceiverName));
+            records.Add(EntryDetailRecord.From(transaction, normalizedReceiverName, receivingDfiLength));
         }
 
         return records;
+    }
+
+    private async Task<int> ResolveReceivingDfiLengthFromLayoutAsync(CancellationToken ct)
+    {
+        var fieldLength = await _context.NachaRecordFields
+            .AsNoTracking()
+            .Where(field =>
+                field.Layout.RecordCode == "6" &&
+                (field.FieldName == "ReceivingDFI" || field.DbColumn == "ReceivingDFI"))
+            .Select(field => (int?)field.Length)
+            .FirstOrDefaultAsync(ct);
+
+        return fieldLength ?? 8;
     }
 
     private async Task<string> ResolveReceiverNameForType6Async(AchTransaction transaction, CancellationToken ct)
