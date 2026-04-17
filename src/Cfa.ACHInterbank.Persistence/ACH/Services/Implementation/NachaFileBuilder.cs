@@ -389,7 +389,6 @@ public class NachaFileBuilder : INachaFileBuilder
         NachaHeader? header,
         CancellationToken ct)
     {
-        var sb = new StringBuilder(capacity: 10240);
         var orderedBatches = context.Batches.OrderBy(b => b.Id).ToList();
         var batchSequenceById = orderedBatches
             .Select((batch, index) => new { batch.Id, BatchNumber = index + 1 })
@@ -397,6 +396,17 @@ public class NachaFileBuilder : INachaFileBuilder
 
         if (!orderedBatches.Any())
             throw new InvalidOperationException("No se encontraron lotes para exportar.");
+
+        var transactionCount = context.Transactions.Count;
+        var estimatedRecordCount = Math.Max(1, transactionCount * 3 + (orderedBatches.Count * 4) + 10);
+        var estimatedRecordLength = layoutCache.TryGetValue("6", out var entryLayout)
+            ? entryLayout.TotalLength
+            : 106;
+        var sb = new StringBuilder(capacity: estimatedRecordCount * estimatedRecordLength);
+
+        var transactionsByBatchId = context.Transactions
+            .GroupBy(t => t.AchBatchId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<AchTransaction>)g.OrderBy(t => t.Id).ToList());
 
         long totalDebit = 0, totalCredit = 0;
         int recordCount = 0, batchCount = orderedBatches.Count, entryAddendaCount = 0;
@@ -406,6 +416,50 @@ public class NachaFileBuilder : INachaFileBuilder
             .Where(item => item.IsActive)
             .Select(item => new CompanyEntryDescriptionCatalogItem(item.Term, item.StandardEntryClassCode))
             .ToListAsync(ct);
+
+        var batchCalculations = orderedBatches.ToDictionary(
+            batch => batch.Id,
+            batch =>
+            {
+                var batchTransactions = transactionsByBatchId.TryGetValue(batch.Id, out var txs)
+                    ? txs
+                    : Array.Empty<AchTransaction>();
+
+                var addendaCount = 0;
+                long batchDebit = 0, batchCredit = 0;
+                var creditLikeCount = 0;
+
+                foreach (var tx in batchTransactions)
+                {
+                    if (tx.Type is TransactionTypeEnum.Credit or TransactionTypeEnum.Prenotification)
+                    {
+                        creditLikeCount++;
+                        batchCredit += (long)(tx.Amount * 100);
+                    }
+                    else
+                    {
+                        batchDebit += (long)(tx.Amount * 100);
+                    }
+
+                    addendaCount += tx.Addendas is { Count: > 0 } ? tx.Addendas.Count : 1;
+                }
+
+                totalDebit += batchDebit;
+                totalCredit += batchCredit;
+
+                var description = (batch.CompanyEntryDescription ?? string.Empty).Trim().ToUpperInvariant();
+                var secCode = ResolveStandardEntryClassCode(batch, batchTransactions, companyEntryDescriptionCatalog);
+                var batchDescription = creditLikeCount > 1 ? "MULTICREDIT" : description;
+
+                return new BatchCalculation(
+                    Transactions: batchTransactions,
+                    EntryAddendaCount: batchTransactions.Count + addendaCount,
+                    AddendaOnlyCount: addendaCount,
+                    BatchDebit: batchDebit,
+                    BatchCredit: batchCredit,
+                    StandardEntryClassCode: secCode,
+                    BatchEntryDescription: batchDescription);
+            });
 
         foreach (var definition in definitions)
         {
@@ -432,10 +486,12 @@ public class NachaFileBuilder : INachaFileBuilder
                         layoutCache,
                         orderedBatches.Select(batch =>
                         {
-                            var batchTransactions = context.Transactions.Where(t => t.AchBatchId == batch.Id).ToList();
-                            string secCode = ResolveStandardEntryClassCode(batch, batchTransactions, companyEntryDescriptionCatalog);
-                            var batchDescription = ResolveBatchEntryDescription(batch, batchTransactions);
-                            return BatchHeaderRecord.From(batch, secCode, batchSequenceById[batch.Id], batchDescription);
+                            var calculation = batchCalculations[batch.Id];
+                            return BatchHeaderRecord.From(
+                                batch,
+                                calculation.StandardEntryClassCode,
+                                batchSequenceById[batch.Id],
+                                calculation.BatchEntryDescription);
                         }),
                         context,
                         ct);
@@ -448,18 +504,11 @@ public class NachaFileBuilder : INachaFileBuilder
                         await BuildEntryDetailRecordsAsync(context.Transactions, ct),
                         context,
                         ct);
-                    entryAddendaCount += context.Transactions.Count;
-                    foreach (var tx in context.Transactions)
-                    {
-                        if (tx.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal)
-                            totalDebit += (long)(tx.Amount * 100);
-                        else
-                            totalCredit += (long)(tx.Amount * 100);
-                    }
+                    entryAddendaCount += transactionCount;
                     break;
                 case "7":
                     recordCount += AppendTypedAddendaRecords(sb, orderedBatches);
-                    entryAddendaCount += context.Transactions.Sum(tx => BuildAddendasForTransaction(tx).Count());
+                    entryAddendaCount += batchCalculations.Values.Sum(calc => calc.AddendaOnlyCount);
                     break;
                 case "8":
                     recordCount += await AppendCustomOrConfiguredAsync(
@@ -467,12 +516,15 @@ public class NachaFileBuilder : INachaFileBuilder
                         definition,
                         layoutCache,
                         orderedBatches.Select(batch =>
-                            BatchControlRecord.From(
+                        {
+                            var calculation = batchCalculations[batch.Id];
+                            return BatchControlRecord.From(
                                 batch,
-                                batch.Transactions.Count + batch.Transactions.Sum(t => BuildAddendasForTransaction(t).Count()),
-                                SumBatchDebit(batch),
-                                SumBatchCredit(batch),
-                                batchSequenceById[batch.Id])),
+                                calculation.EntryAddendaCount,
+                                calculation.BatchDebit,
+                                calculation.BatchCredit,
+                                batchSequenceById[batch.Id]);
+                        }),
                         context,
                         ct);
                     break;
@@ -924,6 +976,28 @@ public class NachaFileBuilder : INachaFileBuilder
     }
 
     private sealed record CompanyEntryDescriptionCatalogItem(string Term, string StandardEntryClassCode);
+    private sealed record BatchCalculation(
+        IReadOnlyList<AchTransaction> Transactions,
+        int EntryAddendaCount,
+        int AddendaOnlyCount,
+        long BatchDebit,
+        long BatchCredit,
+        string StandardEntryClassCode,
+        string BatchEntryDescription);
+
+    private sealed record ReceiverLookup(
+        IReadOnlyDictionary<(string Document, string Account), Customer> CustomersByDocumentAndAccount,
+        IReadOnlyDictionary<string, List<Customer>> CustomersByAccount)
+    {
+        public static readonly ReceiverLookup Empty = new(
+            new Dictionary<(string Document, string Account), Customer>(),
+            new Dictionary<string, List<Customer>>(StringComparer.Ordinal));
+    }
+
+    private sealed record PrenoteLookupKey(
+        int DestinationInstitutionId,
+        string DestinationAccountNumber,
+        string TransactionCode);
 
     private static string ResolveBatchEntryDescription(AchBatch batch, IReadOnlyCollection<AchTransaction> batchTransactions)
     {
@@ -1047,10 +1121,11 @@ public class NachaFileBuilder : INachaFileBuilder
     {
         var records = new List<EntryDetailRecord>(transactions.Count);
         var receivingDfiLength = await ResolveReceivingDfiLengthFromLayoutAsync(ct);
+        var receiverLookup = await BuildReceiverLookupAsync(transactions, ct);
 
         foreach (var transaction in transactions.OrderBy(t => t.Id))
         {
-            var receiverName = await ResolveReceiverNameForType6Async(transaction, ct);
+            var receiverName = await ResolveReceiverNameForType6Async(transaction, receiverLookup, ct);
             var normalizedReceiverName = NachaReceiverNameHelper.SanitizeForType6(receiverName);
 
             if (string.IsNullOrWhiteSpace(normalizedReceiverName))
@@ -1079,32 +1154,56 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private async Task<string> ResolveReceiverNameForType6Async(AchTransaction transaction, CancellationToken ct)
     {
+        return await ResolveReceiverNameForType6Async(transaction, receiverLookup: null, ct);
+    }
+
+    private async Task<string> ResolveReceiverNameForType6Async(
+        AchTransaction transaction,
+        ReceiverLookup? receiverLookup,
+        CancellationToken ct)
+    {
         var destinationAccount = (transaction.DestinationAccountNumber ?? string.Empty).Trim();
         var recipientId = (transaction.RecipientIdNumber ?? string.Empty).Trim();
 
-        Customer? customer;
-        if (!string.IsNullOrWhiteSpace(recipientId))
+        if (receiverLookup is not null)
         {
-            customer = await _context.Customers
-                .AsNoTracking()
-                .Include(c => c.Accounts)
-                .FirstOrDefaultAsync(c => c.DocumentNumber == recipientId && c.Accounts.Any(a => a.AccountNumber == destinationAccount), ct);
-
-            if (customer is not null)
+            if (!string.IsNullOrWhiteSpace(recipientId) &&
+                receiverLookup.CustomersByDocumentAndAccount.TryGetValue((recipientId, destinationAccount), out var exactCustomer))
             {
-                return BuildReceiverName(customer);
+                return BuildReceiverName(exactCustomer);
+            }
+
+            if (receiverLookup.CustomersByAccount.TryGetValue(destinationAccount, out var accountMatches) && accountMatches.Count == 1)
+            {
+                return BuildReceiverName(accountMatches[0]);
             }
         }
-
-        var accountMatches = await _context.Customers
-            .AsNoTracking()
-            .Include(c => c.Accounts)
-            .Where(c => c.Accounts.Any(a => a.AccountNumber == destinationAccount))
-            .ToListAsync(ct);
-
-        if (accountMatches.Count == 1)
+        else
         {
-            return BuildReceiverName(accountMatches[0]);
+            Customer? customer;
+            if (!string.IsNullOrWhiteSpace(recipientId))
+            {
+                customer = await _context.Customers
+                    .AsNoTracking()
+                    .Include(c => c.Accounts)
+                    .FirstOrDefaultAsync(c => c.DocumentNumber == recipientId && c.Accounts.Any(a => a.AccountNumber == destinationAccount), ct);
+
+                if (customer is not null)
+                {
+                    return BuildReceiverName(customer);
+                }
+            }
+
+            var accountMatches = await _context.Customers
+                .AsNoTracking()
+                .Include(c => c.Accounts)
+                .Where(c => c.Accounts.Any(a => a.AccountNumber == destinationAccount))
+                .ToListAsync(ct);
+
+            if (accountMatches.Count == 1)
+            {
+                return BuildReceiverName(accountMatches[0]);
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(transaction.RecipientIdNumber))
@@ -1136,7 +1235,10 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private async Task ValidateTransactionsForSendAsync(IEnumerable<AchTransaction> transactions, CancellationToken ct)
     {
-        foreach (var tx in transactions)
+        var txList = transactions as IReadOnlyList<AchTransaction> ?? transactions.ToList();
+        var prenoteLookup = await BuildPrenoteLookupAsync(txList, ct);
+
+        foreach (var tx in txList)
         {
             if (tx.IsPrenotification && tx.Amount != 0)
             {
@@ -1145,7 +1247,7 @@ public class NachaFileBuilder : INachaFileBuilder
 
             if (!tx.IsPrenotification)
             {
-                var prenoteDate = await GetPrenoteDateAsync(tx, ct);
+                var prenoteDate = await GetPrenoteDateAsync(tx, prenoteLookup, ct);
                 if (prenoteDate is null)
                 {
                     throw new InvalidOperationException($"La transacción {tx.Id} no tiene prenotificación previa.");
@@ -1162,10 +1264,28 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private async Task<DateTime?> GetPrenoteDateAsync(AchTransaction tx, CancellationToken ct)
     {
+        return await GetPrenoteDateAsync(tx, prenoteLookup: null, ct);
+    }
+
+    private async Task<DateTime?> GetPrenoteDateAsync(
+        AchTransaction tx,
+        IReadOnlyDictionary<PrenoteLookupKey, DateTime> ? prenoteLookup,
+        CancellationToken ct)
+    {
         var prenoteCode = ResolvePrenoteCode(tx.TransactionCode);
         if (string.IsNullOrWhiteSpace(prenoteCode))
         {
             return null;
+        }
+
+        if (prenoteLookup is not null)
+        {
+            var key = new PrenoteLookupKey(
+                tx.DestinationInstitutionId,
+                (tx.DestinationAccountNumber ?? string.Empty).Trim(),
+                prenoteCode);
+
+            return prenoteLookup.TryGetValue(key, out var date) ? date : null;
         }
 
         return await _context.AchTransactions
@@ -1177,6 +1297,120 @@ public class NachaFileBuilder : INachaFileBuilder
             .OrderByDescending(t => t.EffectiveEntryDate)
             .Select(t => (DateTime?)t.EffectiveEntryDate.Date)
             .FirstOrDefaultAsync(ct);
+    }
+
+    private async Task<ReceiverLookup> BuildReceiverLookupAsync(
+        IReadOnlyList<AchTransaction> transactions,
+        CancellationToken ct)
+    {
+        var destinationAccounts = transactions
+            .Select(tx => (tx.DestinationAccountNumber ?? string.Empty).Trim())
+            .Where(account => !string.IsNullOrWhiteSpace(account))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (destinationAccounts.Length == 0)
+        {
+            return ReceiverLookup.Empty;
+        }
+
+        var customers = await _context.Customers
+            .AsNoTracking()
+            .Include(c => c.Accounts)
+            .Where(c => c.Accounts.Any(a => destinationAccounts.Contains(a.AccountNumber)))
+            .ToListAsync(ct);
+
+        var byDocumentAndAccount = new Dictionary<(string Document, string Account), Customer>();
+        var byAccount = new Dictionary<string, List<Customer>>(StringComparer.Ordinal);
+
+        foreach (var customer in customers)
+        {
+            var document = (customer.DocumentNumber ?? string.Empty).Trim();
+            foreach (var account in customer.Accounts)
+            {
+                var accountNumber = (account.AccountNumber ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(accountNumber))
+                {
+                    continue;
+                }
+
+                if (!byAccount.TryGetValue(accountNumber, out var list))
+                {
+                    list = new List<Customer>();
+                    byAccount[accountNumber] = list;
+                }
+
+                list.Add(customer);
+
+                if (!string.IsNullOrWhiteSpace(document))
+                {
+                    byDocumentAndAccount[(document, accountNumber)] = customer;
+                }
+            }
+        }
+
+        return new ReceiverLookup(byDocumentAndAccount, byAccount);
+    }
+
+    private async Task<IReadOnlyDictionary<PrenoteLookupKey, DateTime>> BuildPrenoteLookupAsync(
+        IReadOnlyList<AchTransaction> transactions,
+        CancellationToken ct)
+    {
+        var keys = transactions
+            .Where(tx => !tx.IsPrenotification)
+            .Select(tx => new
+            {
+                Tx = tx,
+                PrenoteCode = ResolvePrenoteCode(tx.TransactionCode)
+            })
+            .Where(item => !string.IsNullOrWhiteSpace(item.PrenoteCode))
+            .Select(item => new PrenoteLookupKey(
+                item.Tx.DestinationInstitutionId,
+                (item.Tx.DestinationAccountNumber ?? string.Empty).Trim(),
+                item.PrenoteCode!))
+            .Distinct()
+            .ToArray();
+
+        if (keys.Length == 0)
+        {
+            return new Dictionary<PrenoteLookupKey, DateTime>();
+        }
+
+        var institutionIds = keys.Select(k => k.DestinationInstitutionId).Distinct().ToArray();
+        var accounts = keys.Select(k => k.DestinationAccountNumber).Distinct(StringComparer.Ordinal).ToArray();
+        var codes = keys.Select(k => k.TransactionCode).Distinct(StringComparer.Ordinal).ToArray();
+        var keySet = keys.ToHashSet();
+
+        var prenotes = await _context.AchTransactions
+            .AsNoTracking()
+            .Where(t =>
+                t.IsPrenotification &&
+                institutionIds.Contains(t.DestinationInstitutionId) &&
+                accounts.Contains(t.DestinationAccountNumber) &&
+                codes.Contains(t.TransactionCode))
+            .Select(t => new
+            {
+                t.DestinationInstitutionId,
+                t.DestinationAccountNumber,
+                t.TransactionCode,
+                Date = t.EffectiveEntryDate.Date
+            })
+            .ToListAsync(ct);
+
+        var lookup = prenotes
+            .Select(item => new
+            {
+                Key = new PrenoteLookupKey(
+                    item.DestinationInstitutionId,
+                    (item.DestinationAccountNumber ?? string.Empty).Trim(),
+                    item.TransactionCode),
+                item.Date
+            })
+            .Where(item => keySet.Contains(item.Key))
+            .GroupBy(item => item.Key)
+            .ToDictionary(group => group.Key, group => group.Max(x => x.Date));
+
+        return lookup;
     }
 
     private static string? ResolvePrenoteCode(string transactionCode)
