@@ -47,6 +47,9 @@ public class AchDbContext : DbContext
     public DbSet<AddendaRecord> AddendaRecords { get; set; }
     public DbSet<BatchControl> BatchControls { get; set; }
     public DbSet<FileControl> FileControls { get; set; }
+    public DbSet<IncomingNachaFileIngestion> IncomingNachaFileIngestions { get; set; }
+    public DbSet<IncomingNachaFileProcessingResult> IncomingNachaFileProcessingResults { get; set; }
+    public DbSet<IncomingNachaTransactionLink> IncomingNachaTransactionLinks { get; set; }
     public DbSet<Customer> Customers { get; set; }
     public DbSet<CustomerAccount> CustomerAccounts { get; set; }
     public DbSet<DocumentTypeCatalog> DocumentTypes { get; set; }

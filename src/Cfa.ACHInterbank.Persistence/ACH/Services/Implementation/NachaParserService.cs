@@ -47,7 +47,17 @@ public class NachaParserService : INachaParserService
 
     public async Task<IReadOnlyList<NachaValidationFailure>> ParseAndSaveAsync(Stream nachaStream, string FileName, CancellationToken ct = default)
     {
+        var result = await ParseAndSaveDetailedAsync(nachaStream, FileName, null, ct);
+        return result.Failures;
+    }
+
+    public async Task<NachaParseResult> ParseAndSaveDetailedAsync(Stream nachaStream, string fileName, NachaParseRequest? request = null, CancellationToken ct = default)
+    {
         var failures = new List<NachaValidationFailure>();
+        int totalBatches = 0;
+        int totalEntries = 0;
+        int totalAddendas = 0;
+        string? parsedNachaId = null;
 
         try
         {
@@ -91,11 +101,12 @@ public class NachaParserService : INachaParserService
                 switch (recordType)
                 {
                     case '1':
-                        currentHeader = ParseFileHeaderLinq([line], clearingHouseMap, FileName).FirstOrDefault();
+                        currentHeader = ParseFileHeaderLinq([line], clearingHouseMap, fileName, request).FirstOrDefault();
                         if (currentHeader is null)
                         {
                             break;
                         }
+                        parsedNachaId = currentHeader.NachaID;
                         currentHeader.Batches = new List<BatchHeader>();
                         currentHeader.EntryDetails = new List<EntryDetail>();
                         currentHeader.AddendaRecords = new List<AddendaRecord>();
@@ -123,6 +134,7 @@ public class NachaParserService : INachaParserService
                             fileMetrics.RegisterBatch();
                             currentBatch.NachaID = currentHeader?.NachaID;
                             currentHeader?.Batches?.Add(currentBatch);
+                            totalBatches++;
                         }
                         break;
                     case '6':
@@ -143,6 +155,7 @@ public class NachaParserService : INachaParserService
                         {
                             entryDetails.Add(entry);
                             lastEntry = entry;
+                            totalEntries++;
                         }
                         else
                         {
@@ -170,6 +183,7 @@ public class NachaParserService : INachaParserService
                             {
                                 addenda.EntryDetailSequenceNumber ??= GetEntrySequenceSuffix(lastEntry.SequenceNumber);
                                 addendaRecords.Add(addenda);
+                                totalAddendas++;
                             }
                         }
                         break;
@@ -224,11 +238,20 @@ public class NachaParserService : INachaParserService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error procesando archivo NACHA: {FileName}", FileName);
+            _logger.LogError(ex, "Error procesando archivo NACHA: {FileName}", fileName);
             throw;
         }
 
-        return failures;
+        return new NachaParseResult
+        {
+            Failures = failures,
+            TotalBatches = totalBatches,
+            TotalEntries = totalEntries,
+            TotalAddendas = totalAddendas,
+            WarningCount = failures.Count,
+            ErrorCount = failures.Count,
+            NachaId = parsedNachaId
+        };
     }
 
     private async Task ValidateEntrySequencePolicyAsync(
@@ -505,14 +528,14 @@ public class NachaParserService : INachaParserService
         return line.Length == 106 && line.All(character => character == '9');
     }
 
-    private List<NachaHeader> ParseFileHeaderLinq(List<string> line, Dictionary<string, int> clearingHouseMap, string FileName)
+    private List<NachaHeader> ParseFileHeaderLinq(List<string> line, Dictionary<string, int> clearingHouseMap, string FileName, NachaParseRequest? request)
     {
         int cycleNumber = ExtractCycleNumberFromFileName(FileName);
 
         return line.Select(a =>
         {
             string immediateOrigin = a.Substring(13, 10).Trim();
-            int? clearingHouseId = clearingHouseMap.TryGetValue(immediateOrigin, out var chId) ? chId : null;
+            int? clearingHouseId = request?.ResolvedClearingHouseId ?? (clearingHouseMap.TryGetValue(immediateOrigin, out var chId) ? chId : null);
             string fileCreationDate = a.Substring(23, 8);
             DateTime? processingDate = ParseNachaProcessingDate(fileCreationDate);
 
@@ -529,11 +552,12 @@ public class NachaParserService : INachaParserService
                 cycleQuery = cycleQuery.Where(c => c.CycleName.Contains(cycleNumber.ToString()));
             }
 
-            string? achCycleId = cycleQuery
-                .OrderByDescending(c => c.ProcessingDate)
-                .ThenByDescending(c => c.CutoffTime)
-                .Select(c => c.Id)
-                .FirstOrDefault();
+            string? achCycleId = request?.ResolvedAchCycleId
+                ?? cycleQuery
+                    .OrderByDescending(c => c.ProcessingDate)
+                    .ThenByDescending(c => c.CutoffTime)
+                    .Select(c => c.Id)
+                    .FirstOrDefault();
 
             return new NachaHeader
             {
@@ -553,7 +577,8 @@ public class NachaParserService : INachaParserService
                 ReferenceCode = a.Substring(88, 8).Trim(),
                 ClearingHouseId = clearingHouseId,
                 CycleNumber = cycleNumber,
-                AchCycleId = achCycleId
+                AchCycleId = achCycleId,
+                IncomingNachaFileIngestionId = request?.IncomingNachaFileIngestionId
             };
         }).ToList();
     }

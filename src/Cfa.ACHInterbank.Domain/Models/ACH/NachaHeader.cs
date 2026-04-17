@@ -31,6 +31,8 @@ public class NachaHeader
     public string? AchCycleId { get; set; }
     public AchCycle? AchCycle { get; set; }
 
+    public Guid? IncomingNachaFileIngestionId { get; set; }
+    public IncomingNachaFileIngestion? IncomingNachaFileIngestion { get; set; }
 
     public virtual ICollection<BatchHeader>? Batches { get; set; }
     public virtual ICollection<EntryDetail>? EntryDetails { get; set; }

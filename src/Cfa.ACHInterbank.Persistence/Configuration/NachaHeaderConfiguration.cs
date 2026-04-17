@@ -25,6 +25,15 @@ public class NachaHeaderConfiguration : IEntityTypeConfiguration<NachaHeader>
             .OnDelete(DeleteBehavior.Restrict);
 
 
+        builder.Property(n => n.IncomingNachaFileIngestionId);
+
+        builder.HasOne(n => n.IncomingNachaFileIngestion)
+            .WithMany(i => i.ParsedHeaders)
+            .HasForeignKey(n => n.IncomingNachaFileIngestionId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(n => n.IncomingNachaFileIngestionId);
+
         //builder.HasMany(x => x.Batches)
         //       .WithOne(x => x.NachaHeader)
         //       .HasForeignKey(x => x.NachaHeaderId)

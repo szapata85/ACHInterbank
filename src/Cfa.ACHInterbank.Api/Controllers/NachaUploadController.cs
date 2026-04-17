@@ -13,16 +13,16 @@ namespace Cfa.ACHInterbank.Api.Controllers
     [Route("[controller]")]
     public class NachaUploadController : Controller
     {
-        private readonly INachaParserService _parserService;
+        private readonly IIncomingNachaIngestionAppService _ingestionService;
         private readonly AchDbContext _context;
         private readonly ILogger<NachaUploadController> _logger;
 
         public NachaUploadController(
-            INachaParserService parserService,
+            IIncomingNachaIngestionAppService ingestionService,
             AchDbContext context,
             ILogger<NachaUploadController> logger)
         {
-            _parserService = parserService;
+            _ingestionService = ingestionService;
             _context = context;
             _logger = logger;
         }
@@ -101,29 +101,50 @@ namespace Cfa.ACHInterbank.Api.Controllers
             try
             {
                 await using var stream = file.OpenReadStream();
-                var failures = await _parserService.ParseAndSaveAsync(stream, file.FileName, ct);
-
-                if (failures.Count > 0)
+                var result = await _ingestionService.IngestAsync(new IncomingNachaIngestionRequest
                 {
-                    return UnprocessableEntity(new NachaUploadResponseDto
+                    FileStream = stream,
+                    FileName = file.FileName,
+                    ContentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType,
+                    RequestedBy = User?.Identity?.Name ?? "usuario-api",
+                    CorrelationId = traceId,
+                    ForceReprocess = request.ForceReprocess,
+                    ParentIngestionId = request.ParentIngestionId
+                }, ct);
+
+                var response = new NachaUploadResponseDto
+                {
+                    Success = result.IngestionStatus == Domain.Models.ACH.IncomingNachaIngestionStatus.Completado,
+                    Partial = result.ErrorCount > 0 || result.CycleResolutionStatus is Domain.Models.ACH.IncomingNachaCycleResolutionStatus.Ambiguo or Domain.Models.ACH.IncomingNachaCycleResolutionStatus.NoResuelto,
+                    Message = result.IngestionStatus switch
                     {
-                        Success = false,
-                        Partial = true,
-                        Message = "Archivo procesado con observaciones de validación.",
-                        Errors = failures.Select(f => f.Reason).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList(),
-                        OperatorReturns = failures,
-                        TraceId = traceId
-                    });
+                        Domain.Models.ACH.IncomingNachaIngestionStatus.Duplicado => "Archivo duplicado detectado.",
+                        Domain.Models.ACH.IncomingNachaIngestionStatus.Bloqueado => "Archivo bloqueado por ambigüedad de ciclo.",
+                        Domain.Models.ACH.IncomingNachaIngestionStatus.PendienteResolucion => "Archivo pendiente de resolución de ciclo.",
+                        Domain.Models.ACH.IncomingNachaIngestionStatus.Completado => "Archivo procesado correctamente.",
+                        _ => "Archivo recibido."
+                    },
+                    Errors = result.Errors,
+                    TraceId = traceId,
+                    IngestionId = result.IngestionId,
+                    IngestionStatus = result.IngestionStatus.ToString(),
+                    CycleResolutionStatus = result.CycleResolutionStatus.ToString(),
+                    ParsingStatus = result.ParsingStatus.ToString(),
+                    DetectedClearingHouseId = result.DetectedClearingHouseId,
+                    ResolvedClearingHouseId = result.ResolvedClearingHouseId,
+                    ResolvedAchCycleId = result.ResolvedAchCycleId,
+                    OperationalDate = result.OperationalDate,
+                    TotalBatches = result.TotalBatches,
+                    TotalEntries = result.TotalEntries,
+                    TotalAddendas = result.TotalAddendas
+                };
+
+                if (result.IngestionStatus == Domain.Models.ACH.IncomingNachaIngestionStatus.Bloqueado)
+                {
+                    return UnprocessableEntity(response);
                 }
 
-                return Ok(new NachaUploadResponseDto
-                {
-                    Success = true,
-                    Partial = false,
-                    Message = "Archivo procesado y guardado.",
-                    Errors = [],
-                    TraceId = traceId
-                });
+                return Ok(response);
             }
             catch (ArgumentException ex)
             {
@@ -250,6 +271,8 @@ namespace Cfa.ACHInterbank.Api.Controllers
     public class NachaUploadRequest
     {
         public IFormFile File { get; set; } = null!;
+        public bool ForceReprocess { get; set; }
+        public Guid? ParentIngestionId { get; set; }
     }
 
     public class NachaUploadResponseDto
@@ -260,6 +283,17 @@ namespace Cfa.ACHInterbank.Api.Controllers
         public IReadOnlyList<string> Errors { get; set; } = [];
         public IReadOnlyList<NachaValidationFailure> OperatorReturns { get; set; } = [];
         public string TraceId { get; set; } = string.Empty;
+        public Guid? IngestionId { get; set; }
+        public string IngestionStatus { get; set; } = string.Empty;
+        public string CycleResolutionStatus { get; set; } = string.Empty;
+        public string ParsingStatus { get; set; } = string.Empty;
+        public int? DetectedClearingHouseId { get; set; }
+        public int? ResolvedClearingHouseId { get; set; }
+        public string? ResolvedAchCycleId { get; set; }
+        public DateTime? OperationalDate { get; set; }
+        public int TotalBatches { get; set; }
+        public int TotalEntries { get; set; }
+        public int TotalAddendas { get; set; }
     }
 
     public class NachaUploadRecordResponse
