@@ -5,5 +5,9 @@ namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
 
 public interface IIncomingNachaTransactionLinker
 {
-    Task<IncomingNachaLinkingResult> LinkAsync(EntryDetail entry, AddendaRecord? addenda, CancellationToken ct = default);
+    Task<IncomingNachaLinkingResult> LinkAsync(
+        EntryDetail entry,
+        AddendaRecord? addenda,
+        IncomingNachaLinkingContext context,
+        CancellationToken ct = default);
 }

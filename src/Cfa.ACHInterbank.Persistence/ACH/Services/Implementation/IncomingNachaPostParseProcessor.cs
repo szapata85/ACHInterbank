@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -14,17 +15,23 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
     private readonly AchDbContext _context;
     private readonly IIncomingNachaFunctionalClassifier _classifier;
     private readonly IIncomingNachaTransactionLinker _linker;
+    private readonly IIncomingNachaPrenotificationResolver _prenotificationResolver;
+    private readonly IAchRegulatoryCatalogService _regulatoryCatalogService;
     private readonly IAchStateTransitionService _stateTransitionService;
 
     public IncomingNachaPostParseProcessor(
         AchDbContext context,
         IIncomingNachaFunctionalClassifier classifier,
         IIncomingNachaTransactionLinker linker,
+        IIncomingNachaPrenotificationResolver prenotificationResolver,
+        IAchRegulatoryCatalogService regulatoryCatalogService,
         IAchStateTransitionService stateTransitionService)
     {
         _context = context;
         _classifier = classifier;
         _linker = linker;
+        _prenotificationResolver = prenotificationResolver;
+        _regulatoryCatalogService = regulatoryCatalogService;
         _stateTransitionService = stateTransitionService;
     }
 
@@ -92,7 +99,22 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
                 continue;
             }
 
-            var linkResult = await _linker.LinkAsync(entry, relatedAddenda, ct);
+            var ingestion = await _context.IncomingNachaFileIngestions
+                .AsNoTracking()
+                .FirstAsync(x => x.Id == ingestionId, ct);
+
+            var linkResult = await _linker.LinkAsync(
+                entry,
+                relatedAddenda,
+                new IncomingNachaLinkingContext
+                {
+                    IncomingNachaFileIngestionId = ingestionId,
+                    FunctionalClass = classification.FunctionalClass,
+                    OperationalDate = ingestion.OperationalDate,
+                    ResolvedAchCycleId = ingestion.ResolvedAchCycleId,
+                    ResolvedClearingHouseId = ingestion.ResolvedClearingHouseId
+                },
+                ct);
             var link = await _context.IncomingNachaTransactionLinks
                 .FirstOrDefaultAsync(x => x.IncomingNachaFileIngestionId == ingestionId
                                           && x.EntryDetailId == entry.EntryDetailID
@@ -134,14 +156,14 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
                 "LinkingExitoso", "Ok", "Linking determinístico completado.",
                 new { linkResult.LinkType, linkResult.ConfidenceScore }, executedBy, ct);
 
-            await ApplyBusinessEffectsAsync(ingestionId, entry, relatedAddenda, classificationRow, linkResult, executedBy, ct);
+            await ApplyBusinessEffectsAsync(ingestion, entry, relatedAddenda, classificationRow, linkResult, executedBy, ct);
         }
 
         await _context.SaveChangesAsync(ct);
     }
 
     private async Task ApplyBusinessEffectsAsync(
-        Guid ingestionId,
+        IncomingNachaFileIngestion ingestion,
         EntryDetail entry,
         AddendaRecord? addenda,
         IncomingNachaEntryClassification classification,
@@ -156,51 +178,54 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
 
         if (classification.FunctionalClass == IncomingNachaFunctionalClass.Prenotificacion)
         {
-            var thirdParties = await _context.CustomerThirdParties
-                .Where(x => x.PrenotificationTransactionId == link.AchTransactionId.Value)
-                .ToListAsync(ct);
+            var prenoteResolution = await _prenotificationResolver.ResolveAsync(
+                ingestion.Id,
+                entry,
+                link.AchTransactionId,
+                ingestion.ResolvedClearingHouseId,
+                ingestion.OperationalDate,
+                executedBy,
+                ct);
 
-            foreach (var tp in thirdParties)
-            {
-                tp.Status = CustomerThirdPartyStatusEnum.Active;
-                tp.ValidationReceivedAt = DateTime.UtcNow;
-                tp.ValidationMessage = "Prenotificación entrante confirmada por archivo NACHA-M.";
-            }
+            classification.PrenoteStatus = prenoteResolution.PrenoteStatus;
+            classification.RequiresManualResolution = prenoteResolution.RequiresManualReview;
+            classification.EligibilityStatus = prenoteResolution.RequiresManualReview
+                ? IncomingNachaEligibilityStatus.RevisionManual
+                : classification.EligibilityStatus;
 
-            classification.PrenoteStatus = thirdParties.Count > 0
-                ? IncomingNachaPrenoteStatus.ActivaTercero
-                : IncomingNachaPrenoteStatus.RequiereRevision;
-
-            await AddEventAsync(ingestionId, entry.EntryDetailID, addenda?.AddendaID, link.AchTransactionId,
-                thirdParties.Count > 0 ? "PrenotificacionAplicada" : "PrenotificacionRequiereRevision",
-                "Ok",
-                thirdParties.Count > 0 ? "Prenotificación aplicada sobre CustomerThirdParty." : "No se encontró CustomerThirdParty para aplicar prenotificación.",
-                new { thirdPartyCount = thirdParties.Count }, executedBy, ct);
+            await AddEventAsync(ingestion.Id, entry.EntryDetailID, addenda?.AddendaID, link.AchTransactionId,
+                prenoteResolution.Applied ? "PrenotificacionAplicada" : "PrenotificacionRequiereRevision",
+                prenoteResolution.RequiresManualReview ? "RevisionManual" : "Ok",
+                prenoteResolution.Message,
+                new { prenoteResolution.EvidenceJson }, executedBy, ct);
         }
 
         if (classification.FunctionalClass is IncomingNachaFunctionalClass.Devolucion or IncomingNachaFunctionalClass.RechazadaOperador or IncomingNachaFunctionalClass.RetornoEpr)
         {
-            var source = classification.FunctionalClass == IncomingNachaFunctionalClass.RechazadaOperador
-                ? AchStateEventSourceEnum.Operator
-                : AchStateEventSourceEnum.Epr;
-
-            var toState = classification.FunctionalClass == IncomingNachaFunctionalClass.RechazadaOperador
-                ? AchTransferStateEnum.ReturnedByOperator
-                : AchTransferStateEnum.ReturnedByEpr;
+            var route = await ResolveReturnRouteAsync(classification.ReturnReasonCode, ct);
+            if (!route.IsTransitionAllowed)
+            {
+                classification.EligibilityStatus = IncomingNachaEligibilityStatus.RevisionManual;
+                classification.RequiresManualResolution = true;
+                await AddEventAsync(ingestion.Id, entry.EntryDetailID, addenda?.AddendaID, link.AchTransactionId,
+                    "TransicionBloqueada", "Bloqueado", route.Reason,
+                    new { classification.ReturnReasonCode, route.Reason, route.Source }, executedBy, ct);
+                return;
+            }
 
             await _stateTransitionService.TransitionAsync(
                 link.AchTransactionId.Value,
-                toState,
-                source,
+                route.TargetState,
+                route.Source,
                 classification.ReturnReasonCode,
                 classification.ClassificationEvidenceJson,
                 classification.OriginalTraceRef,
                 DateTime.UtcNow,
                 ct);
 
-            await AddEventAsync(ingestionId, entry.EntryDetailID, addenda?.AddendaID, link.AchTransactionId,
+            await AddEventAsync(ingestion.Id, entry.EntryDetailID, addenda?.AddendaID, link.AchTransactionId,
                 "TransicionDisparada", "Ok", "Transición de estado aplicada para devolución entrante.",
-                new { toState, source, classification.ReturnReasonCode, classification.OriginalTraceRef }, executedBy, ct);
+                new { route.TargetState, route.Source, classification.ReturnReasonCode, classification.OriginalTraceRef, route.Reason }, executedBy, ct);
         }
     }
 
@@ -261,5 +286,51 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         });
 
         await Task.CompletedTask;
+    }
+
+    private async Task<(bool IsTransitionAllowed, AchTransferStateEnum TargetState, AchStateEventSourceEnum Source, string Reason)> ResolveReturnRouteAsync(string? returnReasonCode, CancellationToken ct)
+    {
+        var code = (returnReasonCode ?? string.Empty).Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return (false, AchTransferStateEnum.Pending, AchStateEventSourceEnum.System, "Causal vacía: requiere revisión manual.");
+        }
+
+        var returnCode = await _regulatoryCatalogService.GetReturnCodesAsync(ct);
+        var model = returnCode.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase));
+        if (model is null)
+        {
+            return (false, AchTransferStateEnum.Pending, AchStateEventSourceEnum.System, $"Causal {code} no existe en catálogo regulatorio.");
+        }
+
+        var regulatorySource = (model.RegulatorySource ?? string.Empty).Trim().ToUpperInvariant();
+        var isOperator = code.StartsWith("DEV", StringComparison.OrdinalIgnoreCase)
+                         || regulatorySource.Contains("OPER", StringComparison.OrdinalIgnoreCase)
+                         || regulatorySource.Contains("ACH", StringComparison.OrdinalIgnoreCase);
+        var isEpr = code.StartsWith("R", StringComparison.OrdinalIgnoreCase)
+                    || regulatorySource.Contains("EPR", StringComparison.OrdinalIgnoreCase)
+                    || regulatorySource.Contains("CENIT", StringComparison.OrdinalIgnoreCase);
+
+        if (!model.AppliesToReturn)
+        {
+            return (false, AchTransferStateEnum.Pending, AchStateEventSourceEnum.System, $"Causal {code} no aplica a devolución entrante.");
+        }
+
+        if (isOperator && isEpr)
+        {
+            return (false, AchTransferStateEnum.Pending, AchStateEventSourceEnum.System, $"Causal {code} ambigua entre operador y EPR.");
+        }
+
+        if (isOperator)
+        {
+            return (true, AchTransferStateEnum.ReturnedByOperator, AchStateEventSourceEnum.Operator, $"Causal {code} mapeada como rechazo operador.");
+        }
+
+        if (isEpr)
+        {
+            return (true, AchTransferStateEnum.ReturnedByEpr, AchStateEventSourceEnum.Epr, $"Causal {code} mapeada como retorno EPR.");
+        }
+
+        return (false, AchTransferStateEnum.Pending, AchStateEventSourceEnum.System, $"Causal {code} no determinable con reglas actuales.");
     }
 }

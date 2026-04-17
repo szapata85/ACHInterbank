@@ -26,3 +26,12 @@ public sealed class IncomingNachaLinkingResult
     public bool IsAmbiguous { get; init; }
     public bool IsNotFound { get; init; }
 }
+
+public sealed class IncomingNachaLinkingContext
+{
+    public Guid IncomingNachaFileIngestionId { get; init; }
+    public string? ResolvedAchCycleId { get; init; }
+    public int? ResolvedClearingHouseId { get; init; }
+    public DateTime? OperationalDate { get; init; }
+    public IncomingNachaFunctionalClass FunctionalClass { get; init; }
+}

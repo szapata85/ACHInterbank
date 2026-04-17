@@ -18,7 +18,11 @@ public class IncomingNachaTransactionLinker : IIncomingNachaTransactionLinker
         _context = context;
     }
 
-    public async Task<IncomingNachaLinkingResult> LinkAsync(EntryDetail entry, AddendaRecord? addenda, CancellationToken ct = default)
+    public async Task<IncomingNachaLinkingResult> LinkAsync(
+        EntryDetail entry,
+        AddendaRecord? addenda,
+        IncomingNachaLinkingContext context,
+        CancellationToken ct = default)
     {
         var trace = (entry.SequenceNumber ?? string.Empty).Trim();
         var originalTraceRef = (addenda?.OriginalTraceNumber ?? string.Empty).Trim();
@@ -78,22 +82,61 @@ public class IncomingNachaTransactionLinker : IIncomingNachaTransactionLinker
             }
         }
 
-        // 4) Composite business key exacta
-        var compositeCandidates = await _context.AchTransactions.AsNoTracking()
+        // 4) Composite business key exacta (endurecida para reducir colisiones):
+        // monto + cuenta destino + identificación receptor + transactionCode
+        // + dfi receptor + fecha operativa + ciclo/cámara cuando estén disponibles.
+        var destinationAccount = (entry.AccountNumber ?? string.Empty).Trim();
+        var recipientId = (entry.RecipIdNumber ?? string.Empty).Trim();
+        var transactionCode = (entry.TransactionCode ?? string.Empty).Trim();
+        var receivingDfiComposite = $"{(entry.ReceivingParticipantEntityCode ?? string.Empty).Trim()}{(entry.CheckDigit ?? string.Empty).Trim()}".Trim();
+        var hasOperationalDate = context.OperationalDate.HasValue;
+        var hasCycle = !string.IsNullOrWhiteSpace(context.ResolvedAchCycleId);
+
+        var compositeQuery = _context.AchTransactions.AsNoTracking()
+            .Include(x => x.AchCycle)
             .Where(x => x.Amount == entry.Amount.GetValueOrDefault()
-                        && x.DestinationAccountNumber == (entry.AccountNumber ?? string.Empty)
-                        && x.RecipientIdNumber == (entry.RecipIdNumber ?? string.Empty))
+                        && x.DestinationAccountNumber == destinationAccount
+                        && x.TransactionCode == transactionCode);
+
+        if (!string.IsNullOrWhiteSpace(recipientId))
+        {
+            compositeQuery = compositeQuery.Where(x => x.RecipientIdNumber == recipientId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(receivingDfiComposite))
+        {
+            compositeQuery = compositeQuery.Where(x => x.ReceivingDFI == receivingDfiComposite || x.ReceivingDFI.StartsWith((entry.ReceivingParticipantEntityCode ?? string.Empty).Trim()));
+        }
+
+        if (hasOperationalDate)
+        {
+            var opDate = context.OperationalDate!.Value.Date;
+            compositeQuery = compositeQuery.Where(x => x.EffectiveEntryDate.Date == opDate);
+        }
+
+        if (hasCycle)
+        {
+            compositeQuery = compositeQuery.Where(x => x.AchCycleId == context.ResolvedAchCycleId);
+        }
+        else if (context.ResolvedClearingHouseId.HasValue && hasOperationalDate)
+        {
+            var clearingHouseId = context.ResolvedClearingHouseId.Value;
+            var opDate = context.OperationalDate!.Value.Date;
+            compositeQuery = compositeQuery.Where(x => x.AchCycle.ClearingHouseId == clearingHouseId && x.AchCycle.ProcessingDate.Date == opDate);
+        }
+
+        var compositeCandidates = await compositeQuery
             .Select(x => x.Id)
             .ToListAsync(ct);
 
         if (compositeCandidates.Count == 1)
         {
-            return Build(IncomingNachaLinkType.ExactCompositeBusinessKey, compositeCandidates[0], true, 0.85m, false, false, "ExactCompositeBusinessKey", compositeCandidates, trace, originalTraceRef, externalId);
+            return Build(IncomingNachaLinkType.ExactCompositeBusinessKey, compositeCandidates[0], true, 0.90m, false, false, "ExactCompositeBusinessKeyV2", compositeCandidates, trace, originalTraceRef, externalId);
         }
 
         if (compositeCandidates.Count > 1)
         {
-            return Build(IncomingNachaLinkType.Ambiguous, null, false, 0.15m, true, false, "AmbiguousCompositeBusinessKey", compositeCandidates, trace, originalTraceRef, externalId);
+            return Build(IncomingNachaLinkType.Ambiguous, null, false, 0.15m, true, false, "AmbiguousCompositeBusinessKeyV2", compositeCandidates, trace, originalTraceRef, externalId);
         }
 
         return Build(IncomingNachaLinkType.NotFound, null, false, 0.0m, false, true, "NotFound", [], trace, originalTraceRef, externalId);
