@@ -48,6 +48,7 @@ import { UiEstadoVacioComponent } from './ui-estado-vacio.component';
         [gridOptions]="gridOptions"
         [pagination]="paginacion"
         [paginationPageSize]="tamanoPagina"
+        [paginationPageSizeSelector]="selectorTamanoPagina"
         [suppressNoRowsOverlay]="true"
         [loading]="cargando"
         (gridReady)="onGridReady($event)"
@@ -104,7 +105,6 @@ export class UiGrillaEmpresarialComponent<TData = any> {
   readonly gridOptions: GridOptions<TData> = {
     animateRows: true,
     suppressCellFocus: true,
-    paginationPageSizeSelector: [10, 20, 50, 100],
     localeText: {
       noRowsToShow: 'No hay filas para mostrar',
       page: 'Página',
@@ -119,6 +119,11 @@ export class UiGrillaEmpresarialComponent<TData = any> {
   };
 
   private api?: GridApi<TData>;
+  private readonly selectorTamanoPaginaBase = [10, 20, 50, 100];
+
+  get selectorTamanoPagina(): number[] {
+    return Array.from(new Set<number>([...this.selectorTamanoPaginaBase, this.tamanoPagina])).sort((a, b) => a - b);
+  }
 
   get totalFilas(): number {
     return this.datos?.length ?? 0;
@@ -126,14 +131,6 @@ export class UiGrillaEmpresarialComponent<TData = any> {
 
   onGridReady(event: GridReadyEvent<TData>): void {
     this.api = event.api;
-
-    if (this.paginacion) {
-      const selector = new Set<number>([10, 20, 50, 100, this.tamanoPagina]);
-      this.api.setGridOption(
-        'paginationPageSizeSelector',
-        Array.from(selector).sort((a, b) => a - b)
-      );
-    }
 
     if (this.modoFila === 'serverSide' && this.datasourceServidor) {
       this.api.setGridOption('serverSideDatasource', this.datasourceServidor);
