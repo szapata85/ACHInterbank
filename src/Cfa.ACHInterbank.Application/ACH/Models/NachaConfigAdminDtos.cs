@@ -67,6 +67,16 @@ public sealed class NachaConfigLayoutFieldDto
     public string? PropertyPath { get; init; }
     public string? SourceType { get; init; }
     public bool IsEnabled { get; init; }
+    public IReadOnlyList<NachaConfigFieldRuleDto> Reglas { get; init; } = [];
+}
+
+public sealed class NachaConfigFieldRuleDto
+{
+    public int Id { get; init; }
+    public string ErrorCode { get; init; } = string.Empty;
+    public string ErrorMessageEs { get; init; } = string.Empty;
+    public string Severity { get; init; } = string.Empty;
+    public bool IsEnabled { get; init; }
 }
 
 public sealed class NachaConfigCreateDraftRequest

@@ -60,6 +60,9 @@ public sealed class NachaConfigProfileQueryService : INachaConfigProfileQuerySer
                 .ThenInclude(x => x.Fields)
                     .ThenInclude(x => x.SourceDefinition)
                         .ThenInclude(x => x.DataSourceType)
+            .Include(x => x.LayoutVariants)
+                .ThenInclude(x => x.Fields)
+                    .ThenInclude(x => x.Rules)
             .FirstOrDefaultAsync(x => x.Id == profileId, ct);
 
         if (profile is null)
@@ -108,7 +111,17 @@ public sealed class NachaConfigProfileQueryService : INachaConfigProfileQuerySer
                     Length = f.Length,
                     PropertyPath = f.SourceDefinition.PropertyPath,
                     SourceType = f.SourceDefinition.DataSourceType.Code,
-                    IsEnabled = f.IsEnabled
+                    IsEnabled = f.IsEnabled,
+                    Reglas = f.Rules
+                        .OrderBy(r => r.Id)
+                        .Select(r => new NachaConfigFieldRuleDto
+                        {
+                            Id = r.Id,
+                            ErrorCode = r.ErrorCode,
+                            ErrorMessageEs = r.ErrorMessageEs,
+                            Severity = r.Severity,
+                            IsEnabled = r.IsEnabled
+                        }).ToList()
                 }).ToList()
             }).ToList()
         };

@@ -10,3 +10,14 @@
   display: flex;
   justify-content: flex-end;
 }
+
+.selector-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.selector-campo > span {
+  font-weight: 600;
+  font-size: var(--font-sm);
+}

@@ -6,6 +6,7 @@ import { finalize } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
 import {
   NachaConfigApiError,
+  NachaConfigFieldRule,
   NachaConfigHistoryItem,
   NachaConfigLayoutField,
   NachaConfigLayoutVariant,
@@ -19,7 +20,7 @@ import { NachaConfigCommandService } from '../services/nacha-config-command.serv
 import { NachaConfigQueryService } from '../services/nacha-config-query.service';
 import { NachaConfigStateService } from '../services/nacha-config-state.service';
 
-type TabKey = 'detalle' | 'secuencia' | 'variantes' | 'fields' | 'rules' | 'validacion' | 'historial' | 'preview';
+type TabKey = 'detalle' | 'secuencia' | 'variantes' | 'campos' | 'reglas' | 'validacion' | 'historial' | 'vistaPrevia';
 
 @Component({
   selector: 'app-nacha-config-profile-workspace-page',
@@ -48,16 +49,19 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
   procesando = false;
   tab: TabKey = 'detalle';
   alerta: { tipo: 'info' | 'exito' | 'advertencia' | 'error'; mensaje: string } | null = null;
+  conflictosConcurrencia = false;
+  issuesPublicacion: Array<{ codigo: string; mensaje: string; severidad: string }> = [];
+  reglaSeleccionada: (NachaConfigFieldRule & { fieldCode: string; variantCode: string }) | null = null;
 
   readonly tabs: Array<{ key: TabKey; label: string }> = [
     { key: 'detalle', label: 'Detalle y edición' },
-    { key: 'secuencia', label: 'Secuencia records' },
+    { key: 'secuencia', label: 'Secuencia de registros' },
     { key: 'variantes', label: 'Variantes' },
-    { key: 'fields', label: 'Fields' },
-    { key: 'rules', label: 'Rules' },
+    { key: 'campos', label: 'Campos' },
+    { key: 'reglas', label: 'Reglas' },
     { key: 'validacion', label: 'Validación y publicación' },
-    { key: 'historial', label: 'Historial y snapshots' },
-    { key: 'preview', label: 'Preview resolver' }
+    { key: 'historial', label: 'Historial e instantáneas' },
+    { key: 'vistaPrevia', label: 'Vista previa del resolvedor' }
   ];
 
   readonly editarForm = this.fb.group({
@@ -94,7 +98,6 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
   });
 
   readonly ruleForm = this.fb.group({
-    ruleId: [0, Validators.required],
     errorCode: ['', Validators.required],
     errorMessageEs: ['', Validators.required],
     severity: ['ERROR', Validators.required],
@@ -122,8 +125,18 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
     return (this.perfil?.variantes ?? []).flatMap((v) => v.fields.map((f) => ({ ...f, variantCode: v.variantCode } as NachaConfigLayoutField & { variantCode: string })));
   }
 
+  get rowsReglas(): Array<NachaConfigFieldRule & { fieldCode: string; variantCode: string }> {
+    return (this.perfil?.variantes ?? []).flatMap((v) =>
+      v.fields.flatMap((f) => (f.reglas ?? []).map((r) => ({
+        ...r,
+        fieldCode: f.fieldCode,
+        variantCode: v.variantCode
+      })))
+    );
+  }
+
   readonly columnasRecords: ColDef<NachaConfigProfileRecord>[] = [
-    { field: 'recordCode', headerName: 'Record', minWidth: 100 },
+    { field: 'recordCode', headerName: 'Registro', minWidth: 100 },
     { field: 'sequence', headerName: 'Secuencia', minWidth: 120, editable: true },
     { field: 'isEnabled', headerName: 'Habilitado', minWidth: 120 },
     { field: 'minOccurs', headerName: 'Min', minWidth: 80 },
@@ -132,21 +145,30 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
   ];
 
   readonly columnasVariantes: ColDef<NachaConfigLayoutVariant>[] = [
-    { field: 'recordCode', headerName: 'Record', minWidth: 90 },
+    { field: 'recordCode', headerName: 'Registro', minWidth: 90 },
     { field: 'variantCode', headerName: 'Código variante', minWidth: 140 },
     { field: 'nombreEs', headerName: 'Nombre', minWidth: 180 },
     { field: 'priority', headerName: 'Prioridad', minWidth: 100 },
-    { field: 'isDefaultForRecord', headerName: 'Default', minWidth: 100 },
+    { field: 'isDefaultForRecord', headerName: 'Predeterminada', minWidth: 120 },
     { field: 'totalLength', headerName: 'Longitud', minWidth: 100 }
   ];
 
   readonly columnasFields: ColDef<any>[] = [
     { field: 'variantCode', headerName: 'Variante', minWidth: 120 },
-    { field: 'fieldCode', headerName: 'Field', minWidth: 120 },
+    { field: 'fieldCode', headerName: 'Campo', minWidth: 120 },
     { field: 'fieldNameEs', headerName: 'Nombre', minWidth: 190 },
     { field: 'startPosition', headerName: 'Posición', minWidth: 100 },
     { field: 'length', headerName: 'Longitud', minWidth: 90 },
-    { field: 'propertyPath', headerName: 'Source', minWidth: 220 }
+    { field: 'propertyPath', headerName: 'Origen', minWidth: 220 }
+  ];
+
+  readonly columnasReglas: ColDef<any>[] = [
+    { field: 'variantCode', headerName: 'Variante', minWidth: 120 },
+    { field: 'fieldCode', headerName: 'Campo', minWidth: 120 },
+    { field: 'errorCode', headerName: 'Código', minWidth: 130 },
+    { field: 'errorMessageEs', headerName: 'Mensaje', minWidth: 260 },
+    { field: 'severity', headerName: 'Severidad', minWidth: 120 },
+    { field: 'isEnabled', headerName: 'Activa', minWidth: 100 }
   ];
 
   readonly columnasHistorial: ColDef<NachaConfigHistoryItem>[] = [
@@ -176,6 +198,7 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
 
   seleccionarTab(tab: TabKey): void {
     this.tab = tab;
+    this.issuesPublicacion = [];
   }
 
   cargarTodo(): void {
@@ -306,10 +329,10 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
   }
 
   guardarRule(): void {
-    if (!this.perfil || this.procesando) return;
+    if (!this.perfil || this.procesando || !this.reglaSeleccionada) return;
     const payload = { ...this.ruleForm.getRawValue(), expectedRowVersion: this.state.rowVersionActual() };
     this.procesando = true;
-    this.command.actualizarRule(this.perfil.id, Number(payload.ruleId), payload as Record<string, unknown>)
+    this.command.actualizarRule(this.perfil.id, Number(this.reglaSeleccionada.id), payload as Record<string, unknown>)
       .pipe(finalize(() => {
         this.procesando = false;
         this.cdr.markForCheck();
@@ -338,6 +361,7 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
 
   publicar(): void {
     if (!this.perfil || this.procesando) return;
+    if (!window.confirm('¿Confirma la publicación del perfil seleccionado?')) return;
     this.procesando = true;
     this.command.publicar(this.perfil.id, this.state.rowVersionActual()).pipe(finalize(() => {
       this.procesando = false;
@@ -352,14 +376,16 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
   }
 
   inactivar(): void {
+    if (!window.confirm('¿Confirma inactivar este perfil?')) return;
     this.cambiarEstado('inactivar');
   }
 
   archivar(): void {
+    if (!window.confirm('¿Confirma archivar este perfil?')) return;
     this.cambiarEstado('archivar');
   }
 
-  ejecutarPreview(): void {
+  ejecutarVistaPrevia(): void {
     if (this.procesando) return;
     this.procesando = true;
     const raw = this.previewForm.getRawValue();
@@ -378,10 +404,38 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
     })).subscribe({
       next: (result) => {
         this.preview = result;
-        this.alerta = { tipo: 'info', mensaje: result.success ? 'Preview resuelto correctamente.' : 'No se resolvió un perfil para el contexto solicitado.' };
+        this.alerta = { tipo: 'info', mensaje: result.success ? 'Vista previa resuelta correctamente.' : 'No se resolvió un perfil para el contexto solicitado.' };
       },
       error: (error: NachaConfigApiError) => this.onBackendError(error)
     });
+  }
+
+  seleccionarRegla(regla: NachaConfigFieldRule & { fieldCode: string; variantCode: string }): void {
+    this.reglaSeleccionada = regla;
+    this.ruleForm.patchValue({
+      errorCode: regla.errorCode,
+      errorMessageEs: regla.errorMessageEs,
+      severity: regla.severity,
+      isEnabled: regla.isEnabled
+    });
+  }
+
+  recargarPorConcurrencia(): void {
+    this.conflictosConcurrencia = false;
+    this.cargarTodo();
+  }
+
+  descartarCambiosLocales(): void {
+    this.conflictosConcurrencia = false;
+    if (this.perfil) {
+      this.editarForm.patchValue({
+        nombreEs: this.perfil.nombreEs,
+        descripcion: this.perfil.descripcion ?? '',
+        contextPriority: this.perfil.contextPriority,
+        effectiveFrom: (this.perfil.effectiveFrom ?? '').slice(0, 10),
+        effectiveTo: (this.perfil.effectiveTo ?? '').slice(0, 10)
+      });
+    }
   }
 
   private cambiarEstado(accion: 'inactivar' | 'archivar'): void {
@@ -412,11 +466,13 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
     if (error.errorCode === 'CONCURRENCY_CONFLICT' || error.errorCode === 'CONCURRENCY_TOKEN_REQUIRED' || error.errorCode === 'INVALID_CONCURRENCY_TOKEN') {
       this.alerta = { tipo: 'error', mensaje: `${error.message}${error.currentRowVersion ? ` (Versión actual: ${error.currentRowVersion})` : ''}` };
       this.notifications.warning('Se detectó conflicto de concurrencia. Recargue el perfil antes de continuar.');
+      this.conflictosConcurrencia = true;
       return;
     }
 
     if (error.errorCode === 'PUBLISH_BLOCKED') {
       this.alerta = { tipo: 'advertencia', mensaje: 'La publicación fue bloqueada por validaciones pendientes.' };
+      this.issuesPublicacion = error.issues ?? [];
       return;
     }
 

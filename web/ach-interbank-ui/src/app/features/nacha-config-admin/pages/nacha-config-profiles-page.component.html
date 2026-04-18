@@ -4,10 +4,22 @@
 <ui-tarjeta titulo="Filtros y alta de borrador" subtitulo="Use filtros para operación y cree nuevos perfiles en estado BORRADOR.">
   <div class="filtros-grid" [formGroup]="filtrosForm">
     <ui-campo-texto etiqueta="Buscar" [control]="filtrosForm.controls.texto" placeholder="Código o nombre"></ui-campo-texto>
-    <ui-campo-texto etiqueta="Estado" [control]="filtrosForm.controls.estado" placeholder="TODOS / BORRADOR / PUBLICADO"></ui-campo-texto>
-    <ui-campo-texto etiqueta="Cámara" [control]="filtrosForm.controls.camara" placeholder="ACH / CENIT / TODAS"></ui-campo-texto>
-    <ui-campo-texto etiqueta="Flujo" [control]="filtrosForm.controls.flujo" placeholder="ORIGINAL / DEVOLUCION / TODOS"></ui-campo-texto>
-    <ui-campo-texto etiqueta="Dirección" [control]="filtrosForm.controls.direccion" placeholder="SALIDA / ENTRADA / TODAS"></ui-campo-texto>
+    <label class="selector-campo">
+      <span>Estado</span>
+      <ui-selector-buscable [opciones]="opcionesEstado" [formControl]="filtrosForm.controls.estado" placeholderBusqueda="Buscar estado"></ui-selector-buscable>
+    </label>
+    <label class="selector-campo">
+      <span>Cámara</span>
+      <ui-selector-buscable [opciones]="opcionesCamara" [formControl]="filtrosForm.controls.camara" placeholderBusqueda="Buscar cámara"></ui-selector-buscable>
+    </label>
+    <label class="selector-campo">
+      <span>Flujo</span>
+      <ui-selector-buscable [opciones]="opcionesFlujo" [formControl]="filtrosForm.controls.flujo" placeholderBusqueda="Buscar flujo"></ui-selector-buscable>
+    </label>
+    <label class="selector-campo">
+      <span>Dirección</span>
+      <ui-selector-buscable [opciones]="opcionesDireccion" [formControl]="filtrosForm.controls.direccion" placeholderBusqueda="Buscar dirección"></ui-selector-buscable>
+    </label>
   </div>
 
   <div class="crear-grid" [formGroup]="crearForm">

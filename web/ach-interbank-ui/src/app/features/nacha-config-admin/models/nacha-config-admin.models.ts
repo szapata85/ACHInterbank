@@ -51,6 +51,15 @@ export interface NachaConfigLayoutField {
   propertyPath?: string | null;
   sourceType?: string | null;
   isEnabled: boolean;
+  reglas: NachaConfigFieldRule[];
+}
+
+export interface NachaConfigFieldRule {
+  id: number;
+  errorCode: string;
+  errorMessageEs: string;
+  severity: string;
+  isEnabled: boolean;
 }
 
 export interface NachaConfigValidationIssue {

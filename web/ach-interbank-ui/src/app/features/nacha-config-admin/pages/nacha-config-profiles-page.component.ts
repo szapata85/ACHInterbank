@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { ColDef } from 'ag-grid-community';
 import { finalize } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
+import { OpcionSelectorBuscable } from '../../../shared/components/ui/ui-selector-buscable.component';
 import { NachaConfigProfileListItem } from '../models/nacha-config-admin.models';
 import { NachaConfigCommandService } from '../services/nacha-config-command.service';
 import { NachaConfigQueryService } from '../services/nacha-config-query.service';
@@ -35,6 +36,26 @@ export class NachaConfigProfilesPageComponent implements OnInit {
     flujo: ['TODOS'],
     direccion: ['TODAS']
   });
+
+  get opcionesEstado(): OpcionSelectorBuscable[] {
+    const opciones = ['TODOS', ...new Set(this.perfiles.map((x) => x.estado))];
+    return opciones.map((valor) => ({ valor, etiqueta: valor }));
+  }
+
+  get opcionesCamara(): OpcionSelectorBuscable[] {
+    const opciones = ['TODAS', ...new Set(this.perfiles.map((x) => x.camara))];
+    return opciones.map((valor) => ({ valor, etiqueta: valor }));
+  }
+
+  get opcionesFlujo(): OpcionSelectorBuscable[] {
+    const opciones = ['TODOS', ...new Set(this.perfiles.map((x) => x.flujo))];
+    return opciones.map((valor) => ({ valor, etiqueta: valor }));
+  }
+
+  get opcionesDireccion(): OpcionSelectorBuscable[] {
+    const opciones = ['TODAS', ...new Set(this.perfiles.map((x) => x.direccion))];
+    return opciones.map((valor) => ({ valor, etiqueta: valor }));
+  }
 
   readonly crearForm = this.fb.group({
     profileCode: [''],
