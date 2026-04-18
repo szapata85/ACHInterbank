@@ -10,9 +10,9 @@ public class CfgProfileConfiguration : IEntityTypeConfiguration<CfgProfile>
     {
         builder.ToTable("CfgProfile");
         builder.HasKey(x => x.Id);
-        builder.HasCheckConstraint("CK_CfgProfile_VersionMajor_Positive", "VersionMajor >= 1");
-        builder.HasCheckConstraint("CK_CfgProfile_VersionMinor_NonNegative", "VersionMinor >= 0");
-        builder.HasCheckConstraint("CK_CfgProfile_EffectiveRange", "EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom");
+        builder.HasCheckConstraint("CK_CfgProfile_VersionMajor_Positive", "\"VersionMajor\" >= 1");
+        builder.HasCheckConstraint("CK_CfgProfile_VersionMinor_NonNegative", "\"VersionMinor\" >= 0");
+        builder.HasCheckConstraint("CK_CfgProfile_EffectiveRange", "\"EffectiveTo\" IS NULL OR \"EffectiveTo\" >= \"EffectiveFrom\"");
 
         builder.Property(x => x.ProfileCode).HasMaxLength(80).IsRequired();
         builder.Property(x => x.NameEs).HasMaxLength(160).IsRequired();
@@ -83,8 +83,8 @@ public class CfgProfileRecordConfiguration : IEntityTypeConfiguration<CfgProfile
     {
         builder.ToTable("CfgProfileRecord");
         builder.HasKey(x => x.Id);
-        builder.HasCheckConstraint("CK_CfgProfileRecord_MinOccurs_NonNegative", "MinOccurs >= 0");
-        builder.HasCheckConstraint("CK_CfgProfileRecord_MaxOccurs_Valid", "MaxOccurs IS NULL OR MaxOccurs >= MinOccurs");
+        builder.HasCheckConstraint("CK_CfgProfileRecord_MinOccurs_NonNegative", "\"MinOccurs\" >= 0");
+        builder.HasCheckConstraint("CK_CfgProfileRecord_MaxOccurs_Valid", "\"MaxOccurs\" IS NULL OR \"MaxOccurs\" >= \"MinOccurs\"");
 
         builder.Property(x => x.SourceStrategy).HasMaxLength(40).IsRequired();
         builder.HasIndex(x => new { x.ProfileId, x.RecordCodeId, x.Sequence }).IsUnique();
@@ -118,9 +118,9 @@ public class CfgLayoutVariantConfiguration : IEntityTypeConfiguration<CfgLayoutV
     {
         builder.ToTable("CfgLayoutVariant");
         builder.HasKey(x => x.Id);
-        builder.HasCheckConstraint("CK_CfgLayoutVariant_TotalLength_Positive", "TotalLength > 0");
-        builder.HasCheckConstraint("CK_CfgLayoutVariant_Priority_NonNegative", "Priority >= 0");
-        builder.HasCheckConstraint("CK_CfgLayoutVariant_EffectiveRange", "EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom");
+        builder.HasCheckConstraint("CK_CfgLayoutVariant_TotalLength_Positive", "\"TotalLength\" > 0");
+        builder.HasCheckConstraint("CK_CfgLayoutVariant_Priority_NonNegative", "\"Priority\" >= 0");
+        builder.HasCheckConstraint("CK_CfgLayoutVariant_EffectiveRange", "\"EffectiveTo\" IS NULL OR \"EffectiveTo\" >= \"EffectiveFrom\"");
 
         builder.Property(x => x.VariantCode).HasMaxLength(120).IsRequired();
         builder.Property(x => x.NameEs).HasMaxLength(180).IsRequired();
@@ -152,9 +152,9 @@ public class CfgLayoutFieldConfiguration : IEntityTypeConfiguration<CfgLayoutFie
     {
         builder.ToTable("CfgLayoutField");
         builder.HasKey(x => x.Id);
-        builder.HasCheckConstraint("CK_CfgLayoutField_StartPosition_Positive", "StartPosition > 0");
-        builder.HasCheckConstraint("CK_CfgLayoutField_Length_Positive", "Length > 0");
-        builder.HasCheckConstraint("CK_CfgLayoutField_Justification_Valid", "Justification IN ('L','R')");
+        builder.HasCheckConstraint("CK_CfgLayoutField_StartPosition_Positive", "\"StartPosition\" > 0");
+        builder.HasCheckConstraint("CK_CfgLayoutField_Length_Positive", "\"Length\" > 0");
+        builder.HasCheckConstraint("CK_CfgLayoutField_Justification_Valid", "\"Justification\" IN ('L','R')");
 
         builder.Property(x => x.FieldCode).HasMaxLength(80).IsRequired();
         builder.Property(x => x.FieldNameEs).HasMaxLength(150).IsRequired();
@@ -205,7 +205,7 @@ public class CfgFieldRuleConfiguration : IEntityTypeConfiguration<CfgFieldRule>
     {
         builder.ToTable("CfgFieldRule");
         builder.HasKey(x => x.Id);
-        builder.HasCheckConstraint("CK_CfgFieldRule_Severity_Valid", "Severity IN ('ERROR','WARN')");
+        builder.HasCheckConstraint("CK_CfgFieldRule_Severity_Valid", "\"Severity\" IN ('ERROR','WARN')");
 
         builder.Property(x => x.RuleCode).HasMaxLength(100).IsRequired();
         builder.Property(x => x.ErrorCode).HasMaxLength(60).IsRequired();
@@ -280,7 +280,7 @@ public class CfgPublishRequestConfiguration : IEntityTypeConfiguration<CfgPublis
     {
         builder.ToTable("CfgPublishRequest");
         builder.HasKey(x => x.Id);
-        builder.HasCheckConstraint("CK_CfgPublishRequest_Status_Valid", "Status IN ('PENDING','APPROVED','REJECTED','CANCELLED')");
+        builder.HasCheckConstraint("CK_CfgPublishRequest_Status_Valid", "\"Status\" IN ('PENDING','APPROVED','REJECTED','CANCELLED')");
 
         builder.Property(x => x.RequestedBy).HasMaxLength(120).IsRequired();
         builder.Property(x => x.ApprovedBy).HasMaxLength(120);
