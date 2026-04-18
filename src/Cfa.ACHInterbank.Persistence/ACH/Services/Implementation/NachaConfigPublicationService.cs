@@ -19,7 +19,7 @@ public sealed class NachaConfigPublicationService : INachaConfigPublicationServi
         _validation = validation;
     }
 
-    public async Task<NachaConfigPublicationResultDto> PublishAsync(int profileId, string actor, CancellationToken ct = default)
+    public async Task<NachaConfigPublicationResultDto> PublishAsync(int profileId, string actor, string expectedRowVersion, CancellationToken ct = default)
     {
         var validation = await _validation.ValidateBeforePublishAsync(profileId, ct);
         if (!validation.IsValid)
@@ -32,58 +32,112 @@ public sealed class NachaConfigPublicationService : INachaConfigPublicationServi
             };
         }
 
-        var profile = await _context.CfgProfiles.FirstOrDefaultAsync(x => x.Id == profileId, ct)
-                     ?? throw new InvalidOperationException("Perfil no encontrado.");
-
-        profile.StatusId = await ResolveStatusIdAsync("PUBLICADO", ct);
-        profile.PublishedAt = DateTime.UtcNow;
-        profile.PublishedBy = string.IsNullOrWhiteSpace(actor) ? "system" : actor;
-        profile.VersionMinor += 1;
-        await _context.SaveChangesAsync(ct);
-
-        var snapshot = new HistConfigSnapshot
+        return await ExecuteInTransactionAsync(async () =>
         {
-            ProfileId = profile.Id,
-            VersionMajor = profile.VersionMajor,
-            VersionMinor = profile.VersionMinor,
-            SnapshotType = "PUBLISH",
-            SnapshotJson = JsonSerializer.Serialize(new
+            var profile = await _context.CfgProfiles.FirstOrDefaultAsync(x => x.Id == profileId, ct)
+                         ?? throw new InvalidOperationException("Perfil no encontrado.");
+
+            EnsureExpectedRowVersion(profile, expectedRowVersion);
+
+            profile.StatusId = await ResolveStatusIdAsync("PUBLICADO", ct);
+            profile.PublishedAt = DateTime.UtcNow;
+            profile.PublishedBy = string.IsNullOrWhiteSpace(actor) ? "system" : actor;
+            profile.UpdatedAt = DateTimeOffset.UtcNow;
+            profile.VersionMinor += 1;
+
+            var snapshot = new HistConfigSnapshot
             {
-                profile.ProfileCode,
-                profile.VersionMajor,
-                profile.VersionMinor,
-                profile.EffectiveFrom,
-                profile.EffectiveTo,
-                profile.StatusId
-            }),
-            CreatedAtUtc = DateTime.UtcNow,
-            CreatedBy = profile.PublishedBy ?? "system"
-        };
+                ProfileId = profile.Id,
+                VersionMajor = profile.VersionMajor,
+                VersionMinor = profile.VersionMinor,
+                SnapshotType = "PUBLISH",
+                SnapshotJson = JsonSerializer.Serialize(new
+                {
+                    profile.ProfileCode,
+                    profile.VersionMajor,
+                    profile.VersionMinor,
+                    profile.EffectiveFrom,
+                    profile.EffectiveTo,
+                    profile.StatusId
+                }),
+                CreatedAtUtc = DateTime.UtcNow,
+                CreatedBy = profile.PublishedBy ?? "system"
+            };
 
-        _context.HistConfigSnapshots.Add(snapshot);
-        _context.HistConfigChanges.Add(new HistConfigChange
+            _context.HistConfigSnapshots.Add(snapshot);
+            _context.HistConfigChanges.Add(new HistConfigChange
+            {
+                ProfileId = profile.Id,
+                EntityName = nameof(CfgProfile),
+                EntityId = profile.Id.ToString(),
+                ChangeType = "PUBLISH",
+                BeforeJson = null,
+                AfterJson = JsonSerializer.Serialize(new { profile.StatusId, profile.VersionMajor, profile.VersionMinor }),
+                ChangedAtUtc = DateTime.UtcNow,
+                ChangedBy = profile.PublishedBy ?? "system",
+                CorrelationId = $"NACHA-PUBLISH-{profile.Id}-{DateTime.UtcNow:yyyyMMddHHmmssfff}"
+            });
+
+            await _context.SaveChangesAsync(ct);
+
+            return new NachaConfigPublicationResultDto
+            {
+                ProfileId = profileId,
+                Publicado = true,
+                Mensaje = "Perfil publicado correctamente.",
+                VersionMajor = profile.VersionMajor,
+                VersionMinor = profile.VersionMinor,
+                RowVersion = Convert.ToBase64String(profile.RowVersion)
+            };
+        }, ct);
+    }
+
+    private static void EnsureExpectedRowVersion(CfgProfile profile, string expectedRowVersion)
+    {
+        if (string.IsNullOrWhiteSpace(expectedRowVersion))
         {
-            ProfileId = profile.Id,
-            EntityName = nameof(CfgProfile),
-            EntityId = profile.Id.ToString(),
-            ChangeType = "PUBLISH",
-            BeforeJson = null,
-            AfterJson = JsonSerializer.Serialize(new { profile.StatusId, profile.VersionMajor, profile.VersionMinor }),
-            ChangedAtUtc = DateTime.UtcNow,
-            ChangedBy = profile.PublishedBy ?? "system",
-            CorrelationId = $"NACHA-PUBLISH-{profile.Id}-{DateTime.UtcNow:yyyyMMddHHmmssfff}"
+            throw new NachaConfigException("CONCURRENCY_TOKEN_REQUIRED", "Debe enviar la versión de concurrencia del perfil.", 409, Convert.ToBase64String(profile.RowVersion));
+        }
+
+        byte[] expectedBytes;
+        try
+        {
+            expectedBytes = Convert.FromBase64String(expectedRowVersion);
+        }
+        catch (FormatException)
+        {
+            throw new NachaConfigException("INVALID_CONCURRENCY_TOKEN", "La versión de concurrencia no tiene formato Base64 válido.", 400, Convert.ToBase64String(profile.RowVersion));
+        }
+
+        if (!profile.RowVersion.SequenceEqual(expectedBytes))
+        {
+            throw new NachaConfigException("CONCURRENCY_CONFLICT", "El perfil fue modificado por otro usuario.", 409, Convert.ToBase64String(profile.RowVersion));
+        }
+    }
+
+    private async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation, CancellationToken ct)
+    {
+        var strategy = _context.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await _context.Database.BeginTransactionAsync(ct);
+            try
+            {
+                var result = await operation();
+                await tx.CommitAsync(ct);
+                return result;
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                await tx.RollbackAsync(ct);
+                throw new NachaConfigException("CONCURRENCY_CONFLICT", "El perfil fue modificado por otro usuario.", 409);
+            }
+            catch
+            {
+                await tx.RollbackAsync(ct);
+                throw;
+            }
         });
-
-        await _context.SaveChangesAsync(ct);
-
-        return new NachaConfigPublicationResultDto
-        {
-            ProfileId = profileId,
-            Publicado = true,
-            Mensaje = "Perfil publicado correctamente.",
-            VersionMajor = profile.VersionMajor,
-            VersionMinor = profile.VersionMinor
-        };
     }
 
     private async Task<int> ResolveStatusIdAsync(string code, CancellationToken ct)

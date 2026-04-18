@@ -45,6 +45,17 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
             }
         }
 
+        var enabledRecords = profile.Records.Where(x => x.IsEnabled).ToList();
+        if (enabledRecords.GroupBy(x => x.Sequence).Any(g => g.Count() > 1))
+        {
+            issues.Add(new NachaConfigValidationIssueDto { Severidad = "ERROR", Codigo = "INVALID_SEQUENCE", Mensaje = "Existen records habilitados con secuencia duplicada." });
+        }
+
+        if (enabledRecords.Count == 0)
+        {
+            issues.Add(new NachaConfigValidationIssueDto { Severidad = "ERROR", Codigo = "NO_ENABLED_RECORDS", Mensaje = "El perfil no tiene records habilitados." });
+        }
+
         var ambiguousLayouts = profile.LayoutVariants
             .GroupBy(x => x.RecordCode.Code)
             .Where(g => g.Count(v => v.IsDefaultForRecord) > 1)
@@ -54,9 +65,30 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
             issues.Add(new NachaConfigValidationIssueDto { Severidad = "ERROR", Codigo = "AMBIGUOUS_LAYOUT", Mensaje = $"Más de un layout default para record {ambiguous.Key}." });
         }
 
+        var missingVariant = enabledRecords
+            .Where(r => !profile.LayoutVariants.Any(v => v.RecordCodeId == r.RecordCodeId))
+            .Select(r => r.RecordCode.Code)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        foreach (var code in missingVariant)
+        {
+            issues.Add(new NachaConfigValidationIssueDto { Severidad = "ERROR", Codigo = "MISSING_VARIANT", Mensaje = $"No hay variantes configuradas para record {code}." });
+        }
+
         foreach (var variant in profile.LayoutVariants)
         {
             var ordered = variant.Fields.Where(f => f.IsEnabled).OrderBy(f => f.StartPosition).ToList();
+            if (ordered.Count == 0)
+            {
+                issues.Add(new NachaConfigValidationIssueDto
+                {
+                    Severidad = "ERROR",
+                    Codigo = "EMPTY_VARIANT",
+                    Mensaje = $"La variante {variant.VariantCode} no tiene fields habilitados."
+                });
+                continue;
+            }
+
             for (var i = 1; i < ordered.Count; i++)
             {
                 var prev = ordered[i - 1];

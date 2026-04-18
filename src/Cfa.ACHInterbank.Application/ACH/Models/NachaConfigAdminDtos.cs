@@ -14,6 +14,7 @@ public sealed class NachaConfigProfileListItemDto
     public int VersionMinor { get; init; }
     public DateTime EffectiveFrom { get; init; }
     public DateTime? EffectiveTo { get; init; }
+    public string RowVersion { get; init; } = string.Empty;
 }
 
 public sealed class NachaConfigProfileDetailDto
@@ -28,6 +29,7 @@ public sealed class NachaConfigProfileDetailDto
     public int ContextPriority { get; init; }
     public DateTime EffectiveFrom { get; init; }
     public DateTime? EffectiveTo { get; init; }
+    public string RowVersion { get; init; } = string.Empty;
     public IReadOnlyList<NachaConfigProfileRecordDto> Records { get; init; } = [];
     public IReadOnlyList<NachaConfigLayoutVariantDto> Variantes { get; init; } = [];
 }
@@ -86,6 +88,7 @@ public sealed class NachaConfigUpdateProfileRequest
     public int ContextPriority { get; init; } = 100;
     public DateTime EffectiveFrom { get; init; }
     public DateTime? EffectiveTo { get; init; }
+    public string ExpectedRowVersion { get; init; } = string.Empty;
 }
 
 public sealed class NachaConfigCloneProfileRequest
@@ -93,6 +96,7 @@ public sealed class NachaConfigCloneProfileRequest
     public string NuevoProfileCode { get; init; } = string.Empty;
     public string NuevoNombreEs { get; init; } = string.Empty;
     public DateTime EffectiveFrom { get; init; }
+    public string ExpectedRowVersion { get; init; } = string.Empty;
 }
 
 public sealed class NachaConfigValidationResultDto
@@ -119,6 +123,7 @@ public sealed class NachaConfigPublicationResultDto
     public string Mensaje { get; init; } = string.Empty;
     public int VersionMajor { get; init; }
     public int VersionMinor { get; init; }
+    public string? RowVersion { get; init; }
 }
 
 public sealed class NachaConfigHistoryItemDto
@@ -167,6 +172,12 @@ public sealed class NachaConfigProfileRecordSequenceDto
     public int Sequence { get; init; }
 }
 
+public sealed class NachaConfigRecordSequenceUpdateRequest
+{
+    public string ExpectedRowVersion { get; init; } = string.Empty;
+    public IReadOnlyList<NachaConfigProfileRecordSequenceDto> Records { get; init; } = [];
+}
+
 public sealed class NachaConfigLayoutVariantEditDto
 {
     public string NombreEs { get; init; } = string.Empty;
@@ -175,6 +186,7 @@ public sealed class NachaConfigLayoutVariantEditDto
     public bool IsDefaultForRecord { get; init; }
     public DateTime EffectiveFrom { get; init; }
     public DateTime? EffectiveTo { get; init; }
+    public string ExpectedRowVersion { get; init; } = string.Empty;
 }
 
 public sealed class NachaConfigLayoutFieldEditDto
@@ -184,6 +196,7 @@ public sealed class NachaConfigLayoutFieldEditDto
     public int Length { get; init; }
     public string? PropertyPath { get; init; }
     public bool IsEnabled { get; init; }
+    public string ExpectedRowVersion { get; init; } = string.Empty;
 }
 
 public sealed class NachaConfigFieldRuleEditDto
@@ -192,4 +205,18 @@ public sealed class NachaConfigFieldRuleEditDto
     public string ErrorMessageEs { get; init; } = string.Empty;
     public string Severity { get; init; } = "ERROR";
     public bool IsEnabled { get; init; }
+    public string ExpectedRowVersion { get; init; } = string.Empty;
+}
+
+public sealed class NachaConfigStateTransitionRequest
+{
+    public string ExpectedRowVersion { get; init; } = string.Empty;
+}
+
+public sealed class NachaConfigApiErrorDto
+{
+    public string ErrorCode { get; init; } = string.Empty;
+    public string Message { get; init; } = string.Empty;
+    public string? CurrentRowVersion { get; init; }
+    public IReadOnlyList<NachaConfigValidationIssueDto> Issues { get; init; } = [];
 }

@@ -50,27 +50,36 @@ public sealed class NachaConfigProfilesController : ControllerBase
     [Authorize(Policy = "CanManageAch")]
     public async Task<ActionResult<NachaConfigProfileDetailDto>> CreateDraft([FromBody] NachaConfigCreateDraftRequest request, CancellationToken ct)
     {
-        var actor = User?.Identity?.Name ?? "system";
-        var created = await _command.CreateDraftAsync(request, actor, ct);
-        return CreatedAtAction(nameof(GetProfile), new { id = created.Id }, created);
+        return await ExecuteHandledAsync<NachaConfigProfileDetailDto>(async () =>
+        {
+            var actor = User?.Identity?.Name ?? "system";
+            var created = await _command.CreateDraftAsync(request, actor, ct);
+            return CreatedAtAction(nameof(GetProfile), new { id = created.Id }, created);
+        });
     }
 
     [HttpPut("perfiles/{id:int}")]
     [Authorize(Policy = "CanManageAch")]
     public async Task<ActionResult<NachaConfigProfileDetailDto>> UpdateDraft(int id, [FromBody] NachaConfigUpdateProfileRequest request, CancellationToken ct)
     {
-        var actor = User?.Identity?.Name ?? "system";
-        var updated = await _command.UpdateDraftAsync(id, request, actor, ct);
-        return updated is null ? NotFound() : Ok(updated);
+        return await ExecuteHandledAsync<NachaConfigProfileDetailDto>(async () =>
+        {
+            var actor = User?.Identity?.Name ?? "system";
+            var updated = await _command.UpdateDraftAsync(id, request, actor, ct);
+            return updated is null ? NotFound() : Ok(updated);
+        });
     }
 
     [HttpPost("perfiles/{id:int}/clonar")]
     [Authorize(Policy = "CanManageAch")]
     public async Task<ActionResult<NachaConfigProfileDetailDto>> Clone(int id, [FromBody] NachaConfigCloneProfileRequest request, CancellationToken ct)
     {
-        var actor = User?.Identity?.Name ?? "system";
-        var cloned = await _command.CloneProfileAsync(id, request, actor, ct);
-        return cloned is null ? NotFound() : Ok(cloned);
+        return await ExecuteHandledAsync<NachaConfigProfileDetailDto>(async () =>
+        {
+            var actor = User?.Identity?.Name ?? "system";
+            var cloned = await _command.CloneProfileAsync(id, request, actor, ct);
+            return cloned is null ? NotFound() : Ok(cloned);
+        });
     }
 
     [HttpPost("perfiles/{id:int}/validar")]
@@ -80,27 +89,45 @@ public sealed class NachaConfigProfilesController : ControllerBase
 
     [HttpPost("perfiles/{id:int}/publicar")]
     [Authorize(Policy = "CanManageAch")]
-    public async Task<ActionResult<NachaConfigPublicationResultDto>> Publish(int id, CancellationToken ct)
+    public async Task<ActionResult<NachaConfigPublicationResultDto>> Publish(int id, [FromBody] NachaConfigStateTransitionRequest request, CancellationToken ct)
     {
-        var actor = User?.Identity?.Name ?? "system";
-        var result = await _publication.PublishAsync(id, actor, ct);
-        return result.Publicado ? Ok(result) : BadRequest(result);
+        return await ExecuteHandledAsync<NachaConfigPublicationResultDto>(async () =>
+        {
+            var actor = User?.Identity?.Name ?? "system";
+            var result = await _publication.PublishAsync(id, actor, request.ExpectedRowVersion, ct);
+            if (result.Publicado)
+            {
+                return Ok(result);
+            }
+
+            return UnprocessableEntity(new NachaConfigApiErrorDto
+            {
+                ErrorCode = "PUBLISH_BLOCKED",
+                Message = result.Mensaje
+            });
+        });
     }
 
     [HttpPost("perfiles/{id:int}/inactivar")]
     [Authorize(Policy = "CanManageAch")]
-    public async Task<IActionResult> Inactivate(int id, CancellationToken ct)
+    public async Task<IActionResult> Inactivate(int id, [FromBody] NachaConfigStateTransitionRequest request, CancellationToken ct)
     {
-        var actor = User?.Identity?.Name ?? "system";
-        return await _command.InactivateProfileAsync(id, actor, ct) ? Ok() : NotFound();
+        return await ExecuteHandledAsync(async () =>
+        {
+            var actor = User?.Identity?.Name ?? "system";
+            return await _command.InactivateProfileAsync(id, actor, request.ExpectedRowVersion, ct) ? Ok() : NotFound();
+        });
     }
 
     [HttpPost("perfiles/{id:int}/archivar")]
     [Authorize(Policy = "CanManageAch")]
-    public async Task<IActionResult> Archive(int id, CancellationToken ct)
+    public async Task<IActionResult> Archive(int id, [FromBody] NachaConfigStateTransitionRequest request, CancellationToken ct)
     {
-        var actor = User?.Identity?.Name ?? "system";
-        return await _command.ArchiveProfileAsync(id, actor, ct) ? Ok() : NotFound();
+        return await ExecuteHandledAsync(async () =>
+        {
+            var actor = User?.Identity?.Name ?? "system";
+            return await _command.ArchiveProfileAsync(id, actor, request.ExpectedRowVersion, ct) ? Ok() : NotFound();
+        });
     }
 
     [HttpGet("perfiles/{id:int}/historial")]
@@ -115,38 +142,100 @@ public sealed class NachaConfigProfilesController : ControllerBase
 
     [HttpPut("perfiles/{id:int}/records/secuencia")]
     [Authorize(Policy = "CanManageAch")]
-    public async Task<IActionResult> UpdateSequence(int id, [FromBody] IReadOnlyList<NachaConfigProfileRecordSequenceDto> request, CancellationToken ct)
+    public async Task<IActionResult> UpdateSequence(int id, [FromBody] NachaConfigRecordSequenceUpdateRequest request, CancellationToken ct)
     {
-        var actor = User?.Identity?.Name ?? "system";
-        return await _command.UpdateRecordSequenceAsync(id, request, actor, ct) ? Ok() : NotFound();
+        return await ExecuteHandledAsync(async () =>
+        {
+            var actor = User?.Identity?.Name ?? "system";
+            return await _command.UpdateRecordSequenceAsync(id, request, actor, ct) ? Ok() : NotFound();
+        });
     }
 
     [HttpPut("perfiles/{id:int}/variantes/{variantId:int}")]
     [Authorize(Policy = "CanManageAch")]
     public async Task<IActionResult> UpdateVariant(int id, int variantId, [FromBody] NachaConfigLayoutVariantEditDto request, CancellationToken ct)
     {
-        var actor = User?.Identity?.Name ?? "system";
-        return await _command.UpdateLayoutVariantAsync(id, variantId, request, actor, ct) ? Ok() : NotFound();
+        return await ExecuteHandledAsync(async () =>
+        {
+            var actor = User?.Identity?.Name ?? "system";
+            return await _command.UpdateLayoutVariantAsync(id, variantId, request, actor, ct) ? Ok() : NotFound();
+        });
     }
 
     [HttpPut("perfiles/{id:int}/fields/{fieldId:int}")]
     [Authorize(Policy = "CanManageAch")]
     public async Task<IActionResult> UpdateField(int id, int fieldId, [FromBody] NachaConfigLayoutFieldEditDto request, CancellationToken ct)
     {
-        var actor = User?.Identity?.Name ?? "system";
-        return await _command.UpdateLayoutFieldAsync(id, fieldId, request, actor, ct) ? Ok() : NotFound();
+        return await ExecuteHandledAsync(async () =>
+        {
+            var actor = User?.Identity?.Name ?? "system";
+            return await _command.UpdateLayoutFieldAsync(id, fieldId, request, actor, ct) ? Ok() : NotFound();
+        });
     }
 
     [HttpPut("perfiles/{id:int}/rules/{ruleId:int}")]
     [Authorize(Policy = "CanManageAch")]
     public async Task<IActionResult> UpdateRule(int id, int ruleId, [FromBody] NachaConfigFieldRuleEditDto request, CancellationToken ct)
     {
-        var actor = User?.Identity?.Name ?? "system";
-        return await _command.UpdateFieldRuleAsync(id, ruleId, request, actor, ct) ? Ok() : NotFound();
+        return await ExecuteHandledAsync(async () =>
+        {
+            var actor = User?.Identity?.Name ?? "system";
+            return await _command.UpdateFieldRuleAsync(id, ruleId, request, actor, ct) ? Ok() : NotFound();
+        });
     }
 
     [HttpPost("resolver-preview")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<ActionResult<NachaConfigResolverPreviewResultDto>> ResolverPreview([FromBody] NachaConfigResolverPreviewRequest request, CancellationToken ct)
         => Ok(await _preview.PreviewResolverAsync(request, ct));
+
+    private async Task<ActionResult> ExecuteHandledAsync(Func<Task<ActionResult>> action)
+    {
+        try
+        {
+            return await action();
+        }
+        catch (NachaConfigException ex)
+        {
+            return StatusCode(ex.HttpStatusCode, new NachaConfigApiErrorDto
+            {
+                ErrorCode = ex.ErrorCode,
+                Message = ex.Message,
+                CurrentRowVersion = ex.CurrentRowVersion
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new NachaConfigApiErrorDto
+            {
+                ErrorCode = "INVALID_OPERATION",
+                Message = ex.Message
+            });
+        }
+    }
+
+    private async Task<ActionResult<T>> ExecuteHandledAsync<T>(Func<Task<ActionResult<T>>> action)
+    {
+        try
+        {
+            return await action();
+        }
+        catch (NachaConfigException ex)
+        {
+            return StatusCode(ex.HttpStatusCode, new NachaConfigApiErrorDto
+            {
+                ErrorCode = ex.ErrorCode,
+                Message = ex.Message,
+                CurrentRowVersion = ex.CurrentRowVersion
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new NachaConfigApiErrorDto
+            {
+                ErrorCode = "INVALID_OPERATION",
+                Message = ex.Message
+            });
+        }
+    }
 }

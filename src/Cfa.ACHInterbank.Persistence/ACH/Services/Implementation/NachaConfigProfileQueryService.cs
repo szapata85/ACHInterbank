@@ -42,7 +42,8 @@ public sealed class NachaConfigProfileQueryService : INachaConfigProfileQuerySer
             VersionMajor = x.VersionMajor,
             VersionMinor = x.VersionMinor,
             EffectiveFrom = x.EffectiveFrom,
-            EffectiveTo = x.EffectiveTo
+            EffectiveTo = x.EffectiveTo,
+            RowVersion = Convert.ToBase64String(x.RowVersion)
         }).ToList();
     }
 
@@ -78,6 +79,7 @@ public sealed class NachaConfigProfileQueryService : INachaConfigProfileQuerySer
             ContextPriority = profile.ContextPriority,
             EffectiveFrom = profile.EffectiveFrom,
             EffectiveTo = profile.EffectiveTo,
+            RowVersion = Convert.ToBase64String(profile.RowVersion),
             Records = profile.Records.OrderBy(x => x.Sequence).Select(x => new NachaConfigProfileRecordDto
             {
                 Id = x.Id,
