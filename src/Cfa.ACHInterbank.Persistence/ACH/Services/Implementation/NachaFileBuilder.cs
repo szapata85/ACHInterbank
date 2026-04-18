@@ -37,6 +37,7 @@ public class NachaFileBuilder : INachaFileBuilder
     private readonly INachaType7AliasMap? _type7AliasMap;
     private readonly INachaType7GenerationStrategy? _type7GenerationStrategy;
     private readonly INachaType7LegacyRenderer? _type7LegacyRenderer;
+    private readonly INachaType7RolloutPolicy? _type7RolloutPolicy;
     private readonly NachaGenerationOptions _generationOptions;
     private readonly ILogger<NachaFileBuilder>? _logger;
 
@@ -52,6 +53,7 @@ public class NachaFileBuilder : INachaFileBuilder
         INachaType7AliasMap? type7AliasMap = null,
         INachaType7GenerationStrategy? type7GenerationStrategy = null,
         INachaType7LegacyRenderer? type7LegacyRenderer = null,
+        INachaType7RolloutPolicy? type7RolloutPolicy = null,
         IOptions<NachaGenerationOptions>? generationOptions = null,
         ILogger<NachaFileBuilder>? logger = null)
     {
@@ -66,6 +68,7 @@ public class NachaFileBuilder : INachaFileBuilder
         _type7AliasMap = type7AliasMap;
         _type7GenerationStrategy = type7GenerationStrategy;
         _type7LegacyRenderer = type7LegacyRenderer;
+        _type7RolloutPolicy = type7RolloutPolicy;
         _generationOptions = generationOptions?.Value ?? new NachaGenerationOptions();
         _logger = logger;
     }
@@ -451,7 +454,8 @@ public class NachaFileBuilder : INachaFileBuilder
         var sb = new StringBuilder(capacity: estimatedRecordCount * estimatedRecordLength);
         var audit = new NachaGenerationAuditResult
         {
-            Mode = (_generationOptions.Mode ?? "LEGACY").Trim().ToUpperInvariant()
+            Mode = (_generationOptions.Mode ?? "LEGACY").Trim().ToUpperInvariant(),
+            ClearingHouseCode = context.Cycle.ClearingHouse?.Name?.Contains("CENIT", StringComparison.OrdinalIgnoreCase) == true ? "CENIT" : "ACH"
         };
 
         var resolution = await ResolveRuntimeConfigAsync(context, definitions, ct);
@@ -771,6 +775,7 @@ public class NachaFileBuilder : INachaFileBuilder
     {
         var mode = (_generationOptions.Mode ?? "LEGACY").Trim().ToUpperInvariant();
         var hasLayout = resolution.LayoutsByRecordCode.TryGetValue("7", out var layoutVariant);
+        audit.Type7LayoutVariantCode = layoutVariant?.VariantCode;
         audit.Type7TotalCandidates += candidates.Count;
         var shouldUseTableDriven = _generationOptions.EnableType7TableDriven
                                    && mode is "HYBRID" or "TABLE_DRIVEN" or "SHADOW_COMPARE"
@@ -793,6 +798,12 @@ public class NachaFileBuilder : INachaFileBuilder
             }
         }
 
+        var rolloutDecision = _type7RolloutPolicy is null
+            ? new NachaType7RolloutDecision { AllowLegacyFallback = true, Reasons = ["RolloutPolicyNotConfigured"] }
+            : await _type7RolloutPolicy.EvaluateAsync(audit.ClearingHouseCode ?? "ACH", layoutVariant, mode, ct);
+
+        audit.Trace.Add($"Type7RolloutDecision:Eligible={rolloutDecision.EligibleToDisableFallback};AllowFallback={rolloutDecision.AllowLegacyFallback};Runs={rolloutDecision.QualifiedRuns};Equivalence={rolloutDecision.EquivalenceRatePercent:0.00};Reasons={string.Join(',', rolloutDecision.Reasons)}");
+
         if (!shouldUseTableDriven || layoutVariant is null)
         {
             if (!audit.LegacyRecordCodes.Contains("7"))
@@ -804,6 +815,10 @@ public class NachaFileBuilder : INachaFileBuilder
             IncrementCounter(audit.Type7FallbackReasons, "NoLayoutOrModeDisabled");
             IncrementCounter(audit.Type7FallbackByLayout, layoutVariant?.VariantCode ?? "NO_LAYOUT");
             audit.Type7GeneratedLegacy += candidates.Count;
+            if (!rolloutDecision.AllowLegacyFallback)
+            {
+                throw new InvalidOperationException($"Rollout policy bloqueó fallback type7. Razones: {string.Join(", ", rolloutDecision.Reasons)}");
+            }
             return AppendType7Legacy(sb, candidates);
         }
 
@@ -835,7 +850,7 @@ public class NachaFileBuilder : INachaFileBuilder
             }
         }
 
-        if (forcedTableDrivenByLayout && audit.Type7GeneratedLegacy > 0)
+        if ((forcedTableDrivenByLayout || !rolloutDecision.AllowLegacyFallback) && audit.Type7GeneratedLegacy > 0)
         {
             throw new InvalidOperationException($"Fallback legado deshabilitado para layout {layoutVariant.VariantCode}.");
         }

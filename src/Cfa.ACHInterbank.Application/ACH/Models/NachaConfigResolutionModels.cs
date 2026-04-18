@@ -36,6 +36,8 @@ public class NachaGenerationAuditResult
     public int Type7TotalCandidates { get; set; }
     public int Type7GeneratedTableDriven { get; set; }
     public int Type7GeneratedLegacy { get; set; }
+    public string? ClearingHouseCode { get; set; }
+    public string? Type7LayoutVariantCode { get; set; }
     public Dictionary<string, int> Type7FallbackReasons { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, int> Type7FallbackByLayout { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, int> Type7DiffByField { get; init; } = new(StringComparer.OrdinalIgnoreCase);
