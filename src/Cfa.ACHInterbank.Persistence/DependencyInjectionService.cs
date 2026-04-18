@@ -21,6 +21,7 @@ public static class DependencyInjectionService
     public static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<TransactionPolicyOptions>(configuration.GetSection("TransactionPolicies"));
+        services.Configure<NachaGenerationOptions>(configuration.GetSection(NachaGenerationOptions.SectionName));
         //services.AddDbContext<DataBaseService>(options => options.UseAseClient(configuration.GetConnectionString("SybaseConnection")));
 
         //using (var connection = new AseConnection(""))

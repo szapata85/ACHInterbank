@@ -1,12 +1,17 @@
-﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+﻿using System.Text.Json;
+using Cfa.ACHInterbank.Application.ACH.Configuration;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Helpers.ACH;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text;
@@ -28,6 +33,9 @@ public class NachaFileBuilder : INachaFileBuilder
     private readonly INachaFixedWidthRecordRenderer _recordRenderer;
     private readonly INachaRecordDataProvider _recordDataProvider;
     private readonly INachaSemanticValidator _nachaSemanticValidator;
+    private readonly INachaConfigResolver? _configResolver;
+    private readonly NachaGenerationOptions _generationOptions;
+    private readonly ILogger<NachaFileBuilder>? _logger;
 
     public NachaFileBuilder(
         AchDbContext context,
@@ -36,7 +44,10 @@ public class NachaFileBuilder : INachaFileBuilder
         INachaTransactionValidationService transactionValidationService,
         INachaFixedWidthRecordRenderer recordRenderer,
         INachaRecordDataProvider recordDataProvider,
-        INachaSemanticValidator nachaSemanticValidator)
+        INachaSemanticValidator nachaSemanticValidator,
+        INachaConfigResolver? configResolver = null,
+        IOptions<NachaGenerationOptions>? generationOptions = null,
+        ILogger<NachaFileBuilder>? logger = null)
     {
         _context = context;
         _holidayService = holidayService;
@@ -45,6 +56,9 @@ public class NachaFileBuilder : INachaFileBuilder
         _recordRenderer = recordRenderer;
         _recordDataProvider = recordDataProvider;
         _nachaSemanticValidator = nachaSemanticValidator;
+        _configResolver = configResolver;
+        _generationOptions = generationOptions?.Value ?? new NachaGenerationOptions();
+        _logger = logger;
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -426,6 +440,19 @@ public class NachaFileBuilder : INachaFileBuilder
             ? entryLayout.TotalLength
             : 106;
         var sb = new StringBuilder(capacity: estimatedRecordCount * estimatedRecordLength);
+        var audit = new NachaGenerationAuditResult
+        {
+            Mode = (_generationOptions.Mode ?? "LEGACY").Trim().ToUpperInvariant()
+        };
+
+        var resolution = await ResolveRuntimeConfigAsync(context, definitions, ct);
+        if (resolution.Profile is not null)
+        {
+            audit.ProfileId = resolution.Profile.Id;
+            audit.ProfileCode = resolution.Profile.ProfileCode;
+            audit.Trace.AddRange(resolution.Trace);
+            audit.Warnings.AddRange(resolution.Warnings);
+        }
 
         var transactionsByBatchId = new Dictionary<int, List<AchTransaction>>(orderedBatches.Count);
         foreach (var tx in context.Transactions)
@@ -506,12 +533,15 @@ public class NachaFileBuilder : INachaFileBuilder
             switch (definition.RecordCode)
             {
                 case "1":
-                    recordCount += await AppendCustomOrConfiguredAsync(
+                    recordCount += await AppendResolvedOrLegacyAsync(
                         sb,
+                        definition.RecordCode,
+                        [FileHeaderRecord.From(context.Cycle, context.Transactions, header)],
                         definition,
                         layoutCache,
-                        new[] { FileHeaderRecord.From(context.Cycle, context.Transactions, header) },
                         context,
+                        resolution,
+                        audit,
                         ct);
                     break;
                 case "5":
@@ -526,25 +556,33 @@ public class NachaFileBuilder : INachaFileBuilder
                             calculation.BatchEntryDescription));
                     }
 
-                    recordCount += await AppendCustomOrConfiguredAsync(
+                    recordCount += await AppendResolvedOrLegacyAsync(
                         sb,
+                        definition.RecordCode,
+                        type5Records,
                         definition,
                         layoutCache,
-                        type5Records,
                         context,
+                        resolution,
+                        audit,
                         ct);
                     break;
                 case "6":
-                    recordCount += await AppendCustomOrConfiguredAsync(
+                    recordCount += await AppendResolvedOrLegacyAsync(
                         sb,
+                        definition.RecordCode,
+                        await BuildEntryDetailRecordsAsync(context.Transactions, ct),
                         definition,
                         layoutCache,
-                        await BuildEntryDetailRecordsAsync(context.Transactions, ct),
                         context,
+                        resolution,
+                        audit,
                         ct);
                     entryAddendaCount += transactionCount;
                     break;
                 case "7":
+                    audit.Warnings.Add("RecordCode=7 continúa en ruta legacy hardcodeada en esta fase.");
+                    audit.LegacyRecordCodes.Add("7");
                     recordCount += AppendTypedAddendaRecords(sb, orderedBatches);
                     entryAddendaCount += totalAddendaOnlyCount;
                     break;
@@ -561,12 +599,15 @@ public class NachaFileBuilder : INachaFileBuilder
                             batchSequenceById[batch.Id]));
                     }
 
-                    recordCount += await AppendCustomOrConfiguredAsync(
+                    recordCount += await AppendResolvedOrLegacyAsync(
                         sb,
+                        definition.RecordCode,
+                        type8Records,
                         definition,
                         layoutCache,
-                        type8Records,
                         context,
+                        resolution,
+                        audit,
                         ct);
                     break;
                 case "9":
@@ -575,12 +616,15 @@ public class NachaFileBuilder : INachaFileBuilder
                     var paddingNeeded = (blockCount * 10) - totalRecords;
                     var fileControl = FileControlRecord.From(context.Cycle, orderedBatches, batchCount, blockCount, entryAddendaCount, totalDebit, totalCredit);
 
-                    recordCount += await AppendCustomOrConfiguredAsync(
+                    recordCount += await AppendResolvedOrLegacyAsync(
                         sb,
+                        definition.RecordCode,
+                        [fileControl],
                         definition,
                         layoutCache,
-                        new[] { fileControl },
                         context,
+                        resolution,
+                        audit,
                         ct);
 
                     if (paddingNeeded > 0)
@@ -596,6 +640,11 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         var fileContent = sb.ToString();
+        await PersistGenerationAuditAsync(audit, resolution.Profile?.Id, ct);
+        if (audit.Warnings.Count > 0)
+        {
+            _logger?.LogWarning("NACHA generación con advertencias: {Warnings}", string.Join(" | ", audit.Warnings));
+        }
         _nachaSemanticValidator.Validate(fileContent, context);
         return fileContent;
     }
@@ -636,6 +685,222 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return count;
+    }
+
+    private async Task<int> AppendResolvedOrLegacyAsync(
+        StringBuilder sb,
+        string recordCode,
+        IEnumerable<object> records,
+        NachaRecordDefinition definition,
+        IReadOnlyDictionary<string, NachaRecordLayout> layoutCache,
+        NachaBuildContext context,
+        NachaConfigResolutionResult resolution,
+        NachaGenerationAuditResult audit,
+        CancellationToken ct)
+    {
+        var mode = (_generationOptions.Mode ?? "LEGACY").Trim().ToUpperInvariant();
+        var shouldUseResolver = mode is "HYBRID" or "TABLE_DRIVEN" or "SHADOW_COMPARE";
+        var isType7 = string.Equals(recordCode, "7", StringComparison.OrdinalIgnoreCase);
+
+        if (isType7 && !_generationOptions.EnableType7TableDriven)
+        {
+            return await AppendCustomOrConfiguredAsync(sb, definition, layoutCache, records, context, ct);
+        }
+
+        if (!shouldUseResolver || _configResolver is null || !resolution.LayoutsByRecordCode.TryGetValue(recordCode, out var layoutVariant))
+        {
+            if (!audit.LegacyRecordCodes.Contains(recordCode))
+            {
+                audit.LegacyRecordCodes.Add(recordCode);
+            }
+
+            audit.Warnings.Add($"Fallback legado para RecordCode={recordCode}: no hay layout resuelto o modo legado.");
+            return await AppendCustomOrConfiguredAsync(sb, definition, layoutCache, records, context, ct);
+        }
+
+        var lineCount = 0;
+        foreach (var record in records)
+        {
+            var rendered = await RenderWithResolvedLayoutAsync(recordCode, record, layoutVariant);
+            if (mode == "SHADOW_COMPARE" && layoutCache.TryGetValue(recordCode, out var legacyLayout))
+            {
+                var legacyRendered = record is IReadOnlyDictionary<string, object?> shadowDict
+                    ? await _recordRenderer.RenderRecordAsync(recordCode, shadowDict, legacyLayout)
+                    : await _recordRenderer.RenderRecordAsync(recordCode, record, legacyLayout);
+
+                var diff = CompareRenderedLines(recordCode, legacyRendered, rendered);
+                if (!string.IsNullOrWhiteSpace(diff))
+                {
+                    audit.EquivalenceDiffs.Add(diff);
+                    audit.Warnings.Add($"Diferencia detectada en shadow compare para RecordCode={recordCode}.");
+                }
+            }
+
+            sb.Append(rendered);
+            lineCount++;
+        }
+
+        if (!audit.NewEngineRecordCodes.Contains(recordCode))
+        {
+            audit.NewEngineRecordCodes.Add(recordCode);
+        }
+
+        return lineCount;
+    }
+
+    private async Task<string> RenderWithResolvedLayoutAsync(string recordCode, object record, CfgLayoutVariant layoutVariant)
+    {
+        var mappedLayout = new NachaRecordLayout
+        {
+            RecordCode = recordCode,
+            TotalLength = layoutVariant.TotalLength,
+            Fields = layoutVariant.Fields
+                .OrderBy(x => x.StartPosition)
+                .Select(x => new NachaRecordField
+                {
+                    FieldName = x.FieldCode,
+                    DbColumn = ResolveDbColumnAlias(x.SourceDefinition),
+                    StartPosition = x.StartPosition,
+                    Length = x.Length,
+                    Justification = x.Justification,
+                    PadChar = x.PadChar,
+                    Format = x.FormatMask
+                })
+                .ToList()
+        };
+
+        if (record is IReadOnlyDictionary<string, object?> dict)
+        {
+            return await _recordRenderer.RenderRecordAsync(recordCode, dict, mappedLayout);
+        }
+
+        return await _recordRenderer.RenderRecordAsync(recordCode, record, mappedLayout);
+    }
+
+    private static string? ResolveDbColumnAlias(CfgFieldSourceDefinition source)
+    {
+        if (source.DataSourceType.Code == "CONSTANTE")
+        {
+            return $"CONST:{source.ConstantValue}";
+        }
+
+        return source.PropertyPath;
+    }
+
+    private async Task<NachaConfigResolutionResult> ResolveRuntimeConfigAsync(
+        NachaBuildContext context,
+        IReadOnlyList<NachaRecordDefinition> definitions,
+        CancellationToken ct)
+    {
+        if (_configResolver is null)
+        {
+            return new NachaConfigResolutionResult
+            {
+                Success = false,
+                UsedFallback = true,
+                Warnings = ["Resolver de configuración NACHA no está registrado."],
+                Trace = []
+            };
+        }
+
+        var flow = ResolveFlowCode(context.Transactions);
+        var direction = ResolveDirectionCode(context.Transactions);
+        var serviceClassCode = context.Batches
+            .Select(x => x.ServiceClassCode)
+            .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
+
+        var request = new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = context.Cycle.ClearingHouse?.Name?.Contains("CENIT", StringComparison.OrdinalIgnoreCase) == true ? "CENIT" : "ACH",
+            FlowTypeCode = flow,
+            DirectionCode = direction,
+            ServiceClassCode = serviceClassCode,
+            ProcessDateUtc = context.Cycle.ProcessingDate,
+            RecordCodes = definitions.Where(x => x.IsEnabled).Select(x => x.RecordCode).ToList(),
+            SelectionContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["CycleName"] = context.Cycle.CycleName ?? string.Empty,
+                ["ClearingHouseId"] = context.Cycle.ClearingHouseId.ToString()
+            }
+        };
+
+        var resolution = await _configResolver.ResolveAsync(request, ct);
+        if (_generationOptions.FailOnResolverAmbiguity && resolution.Warnings.Any(x => x.Contains("Ambigüedad", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException($"Resolver NACHA encontró ambigüedad: {string.Join(" | ", resolution.Warnings)}");
+        }
+
+        return resolution;
+    }
+
+    private static string ResolveFlowCode(IReadOnlyList<AchTransaction> transactions)
+    {
+        if (transactions.Any(x => x.Type is TransactionTypeEnum.Return or TransactionTypeEnum.Reversal))
+        {
+            return "RETORNO";
+        }
+
+        if (transactions.Any(x => x.Type == TransactionTypeEnum.Prenotification))
+        {
+            return "PRENOTIFICACION";
+        }
+
+        return "ORIGINAL";
+    }
+
+    private static string ResolveDirectionCode(IReadOnlyList<AchTransaction> transactions)
+    {
+        return transactions.Any(x => x.Type is TransactionTypeEnum.Return or TransactionTypeEnum.Reversal)
+            ? "ENTRADA"
+            : "SALIDA";
+    }
+
+    private static string? CompareRenderedLines(string recordCode, string legacyRendered, string newRendered)
+    {
+        if (string.Equals(legacyRendered, newRendered, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var max = Math.Min(legacyRendered.Length, newRendered.Length);
+        for (var i = 0; i < max; i++)
+        {
+            if (legacyRendered[i] != newRendered[i])
+            {
+                return $"RecordCode={recordCode}, posición={i + 1}, legado='{legacyRendered[i]}', nuevo='{newRendered[i]}'";
+            }
+        }
+
+        return $"RecordCode={recordCode}, longitud legado={legacyRendered.Length}, longitud nuevo={newRendered.Length}";
+    }
+
+    private async Task PersistGenerationAuditAsync(NachaGenerationAuditResult audit, int? profileId, CancellationToken ct)
+    {
+        if (!profileId.HasValue)
+        {
+            return;
+        }
+
+        try
+        {
+            _context.HistConfigChanges.Add(new Domain.Models.ACH.Config.HistConfigChange
+            {
+                ProfileId = profileId.Value,
+                EntityName = "NachaFileBuilder",
+                EntityId = Guid.NewGuid().ToString("N"),
+                ChangeType = "GENERATION_TRACE",
+                BeforeJson = null,
+                AfterJson = JsonSerializer.Serialize(audit),
+                ChangedAtUtc = DateTime.UtcNow,
+                ChangedBy = "system-runtime",
+                CorrelationId = $"NACHA-GEN-{DateTime.UtcNow:yyyyMMddHHmmss}"
+            });
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "No fue posible persistir traza de generación NACHA.");
+        }
     }
 
     private static long SumBatchDebit(AchBatch batch)
