@@ -230,3 +230,18 @@ public sealed class NachaConfigApiErrorDto
     public string? CurrentRowVersion { get; init; }
     public IReadOnlyList<NachaConfigValidationIssueDto> Issues { get; init; } = [];
 }
+
+public sealed class NachaConfigFilterCatalogOptionDto
+{
+    public string Code { get; init; } = string.Empty;
+    public string LabelEs { get; init; } = string.Empty;
+}
+
+public sealed class NachaConfigFilterCatalogsDto
+{
+    public IReadOnlyList<NachaConfigFilterCatalogOptionDto> Estados { get; init; } = [];
+    public IReadOnlyList<NachaConfigFilterCatalogOptionDto> Camaras { get; init; } = [];
+    public IReadOnlyList<NachaConfigFilterCatalogOptionDto> Flujos { get; init; } = [];
+    public IReadOnlyList<NachaConfigFilterCatalogOptionDto> Direcciones { get; init; } = [];
+    public IReadOnlyList<NachaConfigFilterCatalogOptionDto> Servicios { get; init; } = [];
+}

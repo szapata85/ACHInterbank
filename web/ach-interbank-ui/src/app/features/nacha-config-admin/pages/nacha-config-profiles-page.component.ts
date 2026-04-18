@@ -5,7 +5,7 @@ import { ColDef } from 'ag-grid-community';
 import { finalize } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
 import { OpcionSelectorBuscable } from '../../../shared/components/ui/ui-selector-buscable.component';
-import { NachaConfigProfileListItem } from '../models/nacha-config-admin.models';
+import { NachaConfigFilterCatalogs, NachaConfigProfileListItem } from '../models/nacha-config-admin.models';
 import { NachaConfigCommandService } from '../services/nacha-config-command.service';
 import { NachaConfigQueryService } from '../services/nacha-config-query.service';
 
@@ -13,6 +13,7 @@ import { NachaConfigQueryService } from '../services/nacha-config-query.service'
   selector: 'app-nacha-config-profiles-page',
   templateUrl: './nacha-config-profiles-page.component.html',
   styleUrls: ['./nacha-config-profiles-page.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class NachaConfigProfilesPageComponent implements OnInit {
@@ -28,6 +29,7 @@ export class NachaConfigProfilesPageComponent implements OnInit {
   errorCarga = false;
   perfiles: NachaConfigProfileListItem[] = [];
   visibles: NachaConfigProfileListItem[] = [];
+  catalogos: NachaConfigFilterCatalogs = { estados: [], camaras: [], flujos: [], direcciones: [], servicios: [] };
 
   readonly filtrosForm = this.fb.group({
     texto: [''],
@@ -38,23 +40,47 @@ export class NachaConfigProfilesPageComponent implements OnInit {
   });
 
   get opcionesEstado(): OpcionSelectorBuscable[] {
-    const opciones = ['TODOS', ...new Set(this.perfiles.map((x) => x.estado))];
-    return opciones.map((valor) => ({ valor, etiqueta: valor }));
+    return [
+      { valor: 'TODOS', etiqueta: 'Todos' },
+      ...this.catalogos.estados.map((x) => ({ valor: x.code, etiqueta: `${x.code} · ${x.labelEs}` }))
+    ];
   }
 
   get opcionesCamara(): OpcionSelectorBuscable[] {
-    const opciones = ['TODAS', ...new Set(this.perfiles.map((x) => x.camara))];
-    return opciones.map((valor) => ({ valor, etiqueta: valor }));
+    return [
+      { valor: 'TODAS', etiqueta: 'Todas' },
+      ...this.catalogos.camaras.map((x) => ({ valor: x.code, etiqueta: `${x.code} · ${x.labelEs}` }))
+    ];
   }
 
   get opcionesFlujo(): OpcionSelectorBuscable[] {
-    const opciones = ['TODOS', ...new Set(this.perfiles.map((x) => x.flujo))];
-    return opciones.map((valor) => ({ valor, etiqueta: valor }));
+    return [
+      { valor: 'TODOS', etiqueta: 'Todos' },
+      ...this.catalogos.flujos.map((x) => ({ valor: x.code, etiqueta: `${x.code} · ${x.labelEs}` }))
+    ];
   }
 
   get opcionesDireccion(): OpcionSelectorBuscable[] {
-    const opciones = ['TODAS', ...new Set(this.perfiles.map((x) => x.direccion))];
-    return opciones.map((valor) => ({ valor, etiqueta: valor }));
+    return [
+      { valor: 'TODAS', etiqueta: 'Todas' },
+      ...this.catalogos.direcciones.map((x) => ({ valor: x.code, etiqueta: `${x.code} · ${x.labelEs}` }))
+    ];
+  }
+
+  get opcionesServicio(): OpcionSelectorBuscable[] {
+    return this.catalogos.servicios.map((x) => ({ valor: x.code, etiqueta: `${x.code} · ${x.labelEs}` }));
+  }
+
+  get opcionesCamaraForm(): OpcionSelectorBuscable[] {
+    return this.catalogos.camaras.map((x) => ({ valor: x.code, etiqueta: `${x.code} · ${x.labelEs}` }));
+  }
+
+  get opcionesFlujoForm(): OpcionSelectorBuscable[] {
+    return this.catalogos.flujos.map((x) => ({ valor: x.code, etiqueta: `${x.code} · ${x.labelEs}` }));
+  }
+
+  get opcionesDireccionForm(): OpcionSelectorBuscable[] {
+    return this.catalogos.direcciones.map((x) => ({ valor: x.code, etiqueta: `${x.code} · ${x.labelEs}` }));
   }
 
   readonly crearForm = this.fb.group({
@@ -64,7 +90,7 @@ export class NachaConfigProfilesPageComponent implements OnInit {
     camaraCode: ['ACH'],
     flujoCode: ['ORIGINAL'],
     direccionCode: ['SALIDA'],
-    servicioCode: ['PPD'],
+    servicioCode: [''],
     effectiveFrom: [this.today()]
   });
 
@@ -97,6 +123,22 @@ export class NachaConfigProfilesPageComponent implements OnInit {
   cargar(): void {
     this.cargando = true;
     this.errorCarga = false;
+    this.query.catalogosFiltro().subscribe({
+      next: (catalogos) => {
+        this.catalogos = catalogos;
+        this.crearForm.patchValue({
+          camaraCode: catalogos.camaras[0]?.code ?? this.crearForm.controls.camaraCode.value,
+          flujoCode: catalogos.flujos[0]?.code ?? this.crearForm.controls.flujoCode.value,
+          direccionCode: catalogos.direcciones[0]?.code ?? this.crearForm.controls.direccionCode.value,
+          servicioCode: catalogos.servicios[0]?.code ?? this.crearForm.controls.servicioCode.value
+        }, { emitEvent: false });
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.notifications.warning('No fue posible cargar catálogos de filtros. Se mantiene la carga de perfiles.');
+      }
+    });
+
     this.query.perfiles().pipe(finalize(() => {
       this.cargando = false;
       this.cdr.markForCheck();
@@ -104,6 +146,9 @@ export class NachaConfigProfilesPageComponent implements OnInit {
       next: (rows) => {
         this.perfiles = rows;
         this.aplicarFiltros();
+        if (this.catalogos.servicios.length > 0 && !this.crearForm.controls.servicioCode.value) {
+          this.crearForm.patchValue({ servicioCode: this.catalogos.servicios[0].code }, { emitEvent: false });
+        }
       },
       error: () => {
         this.errorCarga = true;

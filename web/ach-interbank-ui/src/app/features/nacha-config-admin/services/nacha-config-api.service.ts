@@ -3,6 +3,7 @@ import { Observable } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import {
   NachaConfigHistoryItem,
+  NachaConfigFilterCatalogs,
   NachaConfigProfileDetail,
   NachaConfigProfileListItem,
   NachaConfigPublicationResult,
@@ -19,6 +20,10 @@ export class NachaConfigApiService {
 
   listarPerfiles(): Observable<NachaConfigProfileListItem[]> {
     return this.api.get<NachaConfigProfileListItem[]>(`${this.basePath}/perfiles`);
+  }
+
+  catalogosFiltro(): Observable<NachaConfigFilterCatalogs> {
+    return this.api.get<NachaConfigFilterCatalogs>(`${this.basePath}/catalogos-filtro`);
   }
 
   obtenerPerfil(id: number): Observable<NachaConfigProfileDetail> {

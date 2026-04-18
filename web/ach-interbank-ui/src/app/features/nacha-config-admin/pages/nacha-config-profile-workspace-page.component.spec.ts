@@ -103,4 +103,18 @@ describe('NachaConfigProfileWorkspacePageComponent', () => {
     component.ejecutarVistaPrevia();
     expect(commandSpy.preview).toHaveBeenCalled();
   });
+
+  it('debe seleccionar variante y precargar formulario guiado', () => {
+    const variante = component.rowsVariantes[0];
+    component.seleccionarVariante(variante);
+    expect(component.varianteSeleccionada?.id).toBe(variante.id);
+    expect(component.varianteForm.controls.variantId.value).toBe(variante.id);
+  });
+
+  it('debe seleccionar campo y precargar formulario guiado', () => {
+    const field = component.rowsFields[0] as any;
+    component.seleccionarField(field);
+    expect(component.fieldSeleccionado?.id).toBe(field.id);
+    expect(component.fieldForm.controls.fieldId.value).toBe(field.id);
+  });
 });

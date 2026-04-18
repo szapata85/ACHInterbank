@@ -126,4 +126,60 @@ public sealed class NachaConfigProfileQueryService : INachaConfigProfileQuerySer
             }).ToList()
         };
     }
+
+    public async Task<NachaConfigFilterCatalogsDto> GetFilterCatalogsAsync(CancellationToken ct = default)
+    {
+        return new NachaConfigFilterCatalogsDto
+        {
+            Estados = await _context.CatConfigStatuses
+                .AsNoTracking()
+                .OrderBy(x => x.Code)
+                .Select(x => new NachaConfigFilterCatalogOptionDto
+                {
+                    Code = x.Code,
+                    LabelEs = x.Code
+                })
+                .ToListAsync(ct),
+            Camaras = await _context.CatClearingHouses
+                .AsNoTracking()
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.Code)
+                .Select(x => new NachaConfigFilterCatalogOptionDto
+                {
+                    Code = x.Code,
+                    LabelEs = x.Name
+                })
+                .ToListAsync(ct),
+            Flujos = await _context.CatFlowTypes
+                .AsNoTracking()
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.Code)
+                .Select(x => new NachaConfigFilterCatalogOptionDto
+                {
+                    Code = x.Code,
+                    LabelEs = x.NameEs
+                })
+                .ToListAsync(ct),
+            Direcciones = await _context.CatDirections
+                .AsNoTracking()
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.Code)
+                .Select(x => new NachaConfigFilterCatalogOptionDto
+                {
+                    Code = x.Code,
+                    LabelEs = x.NameEs
+                })
+                .ToListAsync(ct),
+            Servicios = await _context.CatServiceClasses
+                .AsNoTracking()
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.Code)
+                .Select(x => new NachaConfigFilterCatalogOptionDto
+                {
+                    Code = x.Code,
+                    LabelEs = x.NameEs
+                })
+                .ToListAsync(ct)
+        };
+    }
 }

@@ -28,6 +28,14 @@ describe('NachaConfigApiService', () => {
     req.flush([]);
   });
 
+  it('debe consultar catálogos de filtro', () => {
+    service.catalogosFiltro().subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/nacha-config/catalogos-filtro`);
+    expect(req.request.method).toBe('GET');
+    req.flush({ estados: [], camaras: [], flujos: [], direcciones: [], servicios: [] });
+  });
+
   it('debe publicar enviando expectedRowVersion', () => {
     service.publicar(9, 'abc=').subscribe();
 

@@ -25,10 +25,22 @@
   <div class="crear-grid" [formGroup]="crearForm">
     <ui-campo-texto etiqueta="Código perfil" [control]="crearForm.controls.profileCode"></ui-campo-texto>
     <ui-campo-texto etiqueta="Nombre" [control]="crearForm.controls.nombreEs"></ui-campo-texto>
-    <ui-campo-texto etiqueta="Cámara" [control]="crearForm.controls.camaraCode"></ui-campo-texto>
-    <ui-campo-texto etiqueta="Flujo" [control]="crearForm.controls.flujoCode"></ui-campo-texto>
-    <ui-campo-texto etiqueta="Dirección" [control]="crearForm.controls.direccionCode"></ui-campo-texto>
-    <ui-campo-texto etiqueta="Servicio" [control]="crearForm.controls.servicioCode"></ui-campo-texto>
+    <label class="selector-campo">
+      <span>Cámara</span>
+      <ui-selector-buscable [opciones]="opcionesCamaraForm" [formControl]="crearForm.controls.camaraCode" placeholderBusqueda="Buscar cámara"></ui-selector-buscable>
+    </label>
+    <label class="selector-campo">
+      <span>Flujo</span>
+      <ui-selector-buscable [opciones]="opcionesFlujoForm" [formControl]="crearForm.controls.flujoCode" placeholderBusqueda="Buscar flujo"></ui-selector-buscable>
+    </label>
+    <label class="selector-campo">
+      <span>Dirección</span>
+      <ui-selector-buscable [opciones]="opcionesDireccionForm" [formControl]="crearForm.controls.direccionCode" placeholderBusqueda="Buscar dirección"></ui-selector-buscable>
+    </label>
+    <label class="selector-campo">
+      <span>Servicio</span>
+      <ui-selector-buscable [opciones]="opcionesServicio" [formControl]="crearForm.controls.servicioCode" placeholderBusqueda="Buscar servicio"></ui-selector-buscable>
+    </label>
     <ui-campo-fecha etiqueta="Vigente desde" [control]="crearForm.controls.effectiveFrom"></ui-campo-fecha>
   </div>
 

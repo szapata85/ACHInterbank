@@ -38,6 +38,11 @@ public sealed class NachaConfigProfilesController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<NachaConfigProfileListItemDto>>> GetProfiles(CancellationToken ct)
         => Ok(await _query.GetProfilesAsync(ct));
 
+    [HttpGet("catalogos-filtro")]
+    [Authorize(Policy = "CanReadAch")]
+    public async Task<ActionResult<NachaConfigFilterCatalogsDto>> GetFilterCatalogs(CancellationToken ct)
+        => Ok(await _query.GetFilterCatalogsAsync(ct));
+
     [HttpGet("perfiles/{id:int}")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<ActionResult<NachaConfigProfileDetailDto>> GetProfile(int id, CancellationToken ct)

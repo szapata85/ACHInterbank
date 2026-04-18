@@ -26,6 +26,7 @@ type TabKey = 'detalle' | 'secuencia' | 'variantes' | 'campos' | 'reglas' | 'val
   selector: 'app-nacha-config-profile-workspace-page',
   templateUrl: './nacha-config-profile-workspace-page.component.html',
   styleUrls: ['./nacha-config-profile-workspace-page.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class NachaConfigProfileWorkspacePageComponent implements OnInit {
@@ -52,6 +53,8 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
   conflictosConcurrencia = false;
   issuesPublicacion: Array<{ codigo: string; mensaje: string; severidad: string }> = [];
   reglaSeleccionada: (NachaConfigFieldRule & { fieldCode: string; variantCode: string }) | null = null;
+  varianteSeleccionada: NachaConfigLayoutVariant | null = null;
+  fieldSeleccionado: (NachaConfigLayoutField & { variantCode: string }) | null = null;
 
   readonly tabs: Array<{ key: TabKey; label: string }> = [
     { key: 'detalle', label: 'Detalle y edición' },
@@ -211,6 +214,9 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
     })).subscribe({
       next: (perfil) => {
         this.perfil = perfil;
+        this.varianteSeleccionada = null;
+        this.fieldSeleccionado = null;
+        this.reglaSeleccionada = null;
         this.state.setPerfil(perfil);
         this.editarForm.patchValue({
           nombreEs: perfil.nombreEs,
@@ -293,7 +299,7 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
   }
 
   guardarVariante(): void {
-    if (!this.perfil || this.procesando) return;
+    if (!this.perfil || this.procesando || !this.varianteSeleccionada) return;
     const payload = { ...this.varianteForm.getRawValue(), expectedRowVersion: this.state.rowVersionActual() };
     this.procesando = true;
     this.command.actualizarVariante(this.perfil.id, Number(payload.variantId), payload as Record<string, unknown>)
@@ -311,7 +317,7 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
   }
 
   guardarField(): void {
-    if (!this.perfil || this.procesando) return;
+    if (!this.perfil || this.procesando || !this.fieldSeleccionado) return;
     const payload = { ...this.fieldForm.getRawValue(), expectedRowVersion: this.state.rowVersionActual() };
     this.procesando = true;
     this.command.actualizarField(this.perfil.id, Number(payload.fieldId), payload as Record<string, unknown>)
@@ -321,7 +327,7 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
       }))
       .subscribe({
         next: () => {
-          this.onSuccess('Field actualizado correctamente.');
+          this.onSuccess('Campo actualizado correctamente.');
           this.cargarTodo();
         },
         error: (error: NachaConfigApiError) => this.onBackendError(error)
@@ -338,7 +344,7 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
         this.cdr.markForCheck();
       }))
       .subscribe({
-        next: () => this.onSuccess('Rule actualizada correctamente.'),
+        next: () => this.onSuccess('Regla actualizada correctamente.'),
         error: (error: NachaConfigApiError) => this.onBackendError(error)
       });
   }
@@ -417,6 +423,38 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
       errorMessageEs: regla.errorMessageEs,
       severity: regla.severity,
       isEnabled: regla.isEnabled
+    });
+  }
+
+  seleccionarVariante(row: NachaConfigLayoutVariant | undefined): void {
+    if (!row) {
+      return;
+    }
+
+    this.varianteSeleccionada = row;
+    this.varianteForm.patchValue({
+      variantId: row.id,
+      nombreEs: row.nombreEs,
+      priority: row.priority,
+      isDefaultForRecord: row.isDefaultForRecord,
+      effectiveFrom: this.perfil?.effectiveFrom?.slice(0, 10) ?? this.today(),
+      effectiveTo: this.perfil?.effectiveTo?.slice(0, 10) ?? ''
+    });
+  }
+
+  seleccionarField(row: (NachaConfigLayoutField & { variantCode: string }) | undefined): void {
+    if (!row) {
+      return;
+    }
+
+    this.fieldSeleccionado = row;
+    this.fieldForm.patchValue({
+      fieldId: row.id,
+      fieldNameEs: row.fieldNameEs,
+      startPosition: row.startPosition,
+      length: row.length,
+      propertyPath: row.propertyPath ?? '',
+      isEnabled: row.isEnabled
     });
   }
 

@@ -128,3 +128,16 @@ export interface NachaConfigApiError {
   currentRowVersion?: string | null;
   issues?: NachaConfigValidationIssue[];
 }
+
+export interface NachaConfigFilterCatalogOption {
+  code: string;
+  labelEs: string;
+}
+
+export interface NachaConfigFilterCatalogs {
+  estados: NachaConfigFilterCatalogOption[];
+  camaras: NachaConfigFilterCatalogOption[];
+  flujos: NachaConfigFilterCatalogOption[];
+  direcciones: NachaConfigFilterCatalogOption[];
+  servicios: NachaConfigFilterCatalogOption[];
+}

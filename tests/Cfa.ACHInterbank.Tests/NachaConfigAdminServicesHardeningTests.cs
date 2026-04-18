@@ -206,6 +206,22 @@ public sealed class NachaConfigAdminServicesHardeningTests
         result.LayoutByRecordCode.Should().ContainKey("1");
     }
 
+    [Fact]
+    public async Task GetFilterCatalogsAsync_ShouldReturnConfiguredCatalogs()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        await SeedCatalogAsync(context);
+        var query = new NachaConfigProfileQueryService(context);
+
+        var result = await query.GetFilterCatalogsAsync();
+
+        result.Estados.Should().Contain(x => x.Code == "BORRADOR");
+        result.Camaras.Should().Contain(x => x.Code == "ACH");
+        result.Flujos.Should().Contain(x => x.Code == "ORIGINAL");
+        result.Direcciones.Should().Contain(x => x.Code == "SALIDA");
+        result.Servicios.Should().Contain(x => x.Code == "PPD");
+    }
+
     private static async Task<AchDbContext> CreateSqliteContextAsync()
     {
         var connection = new SqliteConnection("DataSource=:memory:");

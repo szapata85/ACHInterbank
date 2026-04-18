@@ -60,8 +60,9 @@
 </section>
 
 <section *ngIf="tab === 'variantes' && perfil" class="seccion">
-  <ui-grilla-empresarial [columnas]="columnasVariantes" [datos]="rowsVariantes" [cargando]="cargando" tituloVacio="Sin variantes" mensajeVacio="No hay variantes configuradas."></ui-grilla-empresarial>
-  <ui-tarjeta titulo="Editar variante" subtitulo="Seleccione la variante e indique los cambios requeridos.">
+  <ui-grilla-empresarial [columnas]="columnasVariantes" [datos]="rowsVariantes" [cargando]="cargando" tituloVacio="Sin variantes" mensajeVacio="No hay variantes configuradas." (seleccionCambio)="seleccionarVariante($event[0])"></ui-grilla-empresarial>
+  <ui-tarjeta titulo="Editar variante" subtitulo="Seleccione una fila de la grilla para habilitar la edición guiada.">
+    <ui-alerta *ngIf="!varianteSeleccionada" tipo="info" mensaje="Primero seleccione una variante en la grilla para editarla."></ui-alerta>
     <div class="form-grid" [formGroup]="varianteForm">
       <ui-campo-numero etiqueta="Id variante" [control]="varianteForm.controls.variantId"></ui-campo-numero>
       <ui-campo-texto etiqueta="Nombre" [control]="varianteForm.controls.nombreEs"></ui-campo-texto>
@@ -71,14 +72,15 @@
       <ui-campo-fecha etiqueta="Vigente hasta" [control]="varianteForm.controls.effectiveTo"></ui-campo-fecha>
     </div>
     <div class="acciones-inline">
-      <ui-boton texto="Guardar variante" [cargando]="procesando" [deshabilitado]="procesando" (accion)="guardarVariante()"></ui-boton>
+      <ui-boton texto="Guardar variante" [cargando]="procesando" [deshabilitado]="procesando || !varianteSeleccionada" (accion)="guardarVariante()"></ui-boton>
     </div>
   </ui-tarjeta>
 </section>
 
 <section *ngIf="tab === 'campos' && perfil" class="seccion">
-  <ui-grilla-empresarial [columnas]="columnasFields" [datos]="rowsFields" [cargando]="cargando" tituloVacio="Sin campos" mensajeVacio="No hay campos configurados."></ui-grilla-empresarial>
-  <ui-tarjeta titulo="Editar campo" subtitulo="Actualiza posición, longitud y origen de un campo.">
+  <ui-grilla-empresarial [columnas]="columnasFields" [datos]="rowsFields" [cargando]="cargando" tituloVacio="Sin campos" mensajeVacio="No hay campos configurados." (seleccionCambio)="seleccionarField($event[0])"></ui-grilla-empresarial>
+  <ui-tarjeta titulo="Editar campo" subtitulo="Seleccione un campo desde la grilla para editar sin ingreso manual de identificadores.">
+    <ui-alerta *ngIf="!fieldSeleccionado" tipo="info" mensaje="Primero seleccione un campo en la grilla para habilitar la edición."></ui-alerta>
     <div class="form-grid" [formGroup]="fieldForm">
       <ui-campo-numero etiqueta="Id campo" [control]="fieldForm.controls.fieldId"></ui-campo-numero>
       <ui-campo-texto etiqueta="Nombre" [control]="fieldForm.controls.fieldNameEs"></ui-campo-texto>
@@ -87,7 +89,7 @@
       <ui-campo-texto etiqueta="Ruta origen" [control]="fieldForm.controls.propertyPath"></ui-campo-texto>
     </div>
     <div class="acciones-inline">
-      <ui-boton texto="Guardar campo" [cargando]="procesando" [deshabilitado]="procesando" (accion)="guardarField()"></ui-boton>
+      <ui-boton texto="Guardar campo" [cargando]="procesando" [deshabilitado]="procesando || !fieldSeleccionado" (accion)="guardarField()"></ui-boton>
     </div>
   </ui-tarjeta>
 </section>

@@ -10,6 +10,16 @@ export class NachaConfigQueryService {
     return this.api.listarPerfiles().pipe(map((rows) => rows ?? []));
   }
 
+  catalogosFiltro() {
+    return this.api.catalogosFiltro().pipe(map((catalogos) => ({
+      estados: catalogos?.estados ?? [],
+      camaras: catalogos?.camaras ?? [],
+      flujos: catalogos?.flujos ?? [],
+      direcciones: catalogos?.direcciones ?? [],
+      servicios: catalogos?.servicios ?? []
+    })));
+  }
+
   detalle(profileId: number) {
     return this.api.obtenerPerfil(profileId);
   }
