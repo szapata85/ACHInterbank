@@ -1,0 +1,38 @@
+<ui-migas-pan [items]="[{ label: 'Inicio', route: '/dashboard' }, { label: 'NACHA Config' }]" />
+<ui-encabezado-pagina titulo="Perfiles NACHA" descripcion="Administración enterprise de configuración NACHA-M"></ui-encabezado-pagina>
+
+<ui-tarjeta titulo="Filtros y alta de borrador" subtitulo="Use filtros para operación y cree nuevos perfiles en estado BORRADOR.">
+  <div class="filtros-grid" [formGroup]="filtrosForm">
+    <ui-campo-texto etiqueta="Buscar" [control]="filtrosForm.controls.texto" placeholder="Código o nombre"></ui-campo-texto>
+    <ui-campo-texto etiqueta="Estado" [control]="filtrosForm.controls.estado" placeholder="TODOS / BORRADOR / PUBLICADO"></ui-campo-texto>
+    <ui-campo-texto etiqueta="Cámara" [control]="filtrosForm.controls.camara" placeholder="ACH / CENIT / TODAS"></ui-campo-texto>
+    <ui-campo-texto etiqueta="Flujo" [control]="filtrosForm.controls.flujo" placeholder="ORIGINAL / DEVOLUCION / TODOS"></ui-campo-texto>
+    <ui-campo-texto etiqueta="Dirección" [control]="filtrosForm.controls.direccion" placeholder="SALIDA / ENTRADA / TODAS"></ui-campo-texto>
+  </div>
+
+  <div class="crear-grid" [formGroup]="crearForm">
+    <ui-campo-texto etiqueta="Código perfil" [control]="crearForm.controls.profileCode"></ui-campo-texto>
+    <ui-campo-texto etiqueta="Nombre" [control]="crearForm.controls.nombreEs"></ui-campo-texto>
+    <ui-campo-texto etiqueta="Cámara" [control]="crearForm.controls.camaraCode"></ui-campo-texto>
+    <ui-campo-texto etiqueta="Flujo" [control]="crearForm.controls.flujoCode"></ui-campo-texto>
+    <ui-campo-texto etiqueta="Dirección" [control]="crearForm.controls.direccionCode"></ui-campo-texto>
+    <ui-campo-texto etiqueta="Servicio" [control]="crearForm.controls.servicioCode"></ui-campo-texto>
+    <ui-campo-fecha etiqueta="Vigente desde" [control]="crearForm.controls.effectiveFrom"></ui-campo-fecha>
+  </div>
+
+  <div class="acciones">
+    <ui-boton texto="Crear borrador" textoCargando="Creando..." [cargando]="guardando" [deshabilitado]="guardando" (accion)="crearBorrador()"></ui-boton>
+  </div>
+</ui-tarjeta>
+
+<ui-grilla-empresarial
+  [columnas]="columnas"
+  [datos]="visibles"
+  [cargando]="cargando"
+  [error]="errorCarga"
+  mensajeError="No fue posible cargar perfiles NACHA."
+  tituloVacio="Sin perfiles"
+  mensajeVacio="No hay perfiles para los filtros seleccionados."
+  [paginacion]="true"
+  [tamanoPagina]="15"
+></ui-grilla-empresarial>

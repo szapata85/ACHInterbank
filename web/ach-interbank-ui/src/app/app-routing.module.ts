@@ -140,6 +140,17 @@ const routes: Routes = [
         loadChildren: () => import('./features/cenit/cenit.module').then((m) => m.CenitModule)
       },
       {
+        path: 'nacha-config-admin',
+        canActivate: [roleGuard, permissionGuard],
+        data: {
+          roles: ['Admin', 'ACH.Operator'],
+          permissions: ['CanReadAch', 'CanManageAch'],
+          breadcrumb: 'NACHA Config',
+          title: 'Administración NACHA Config'
+        },
+        loadChildren: () => import('./features/nacha-config-admin/nacha-config-admin.module').then((m) => m.NachaConfigAdminModule)
+      },
+      {
         path: 'unauthorized',
         data: { title: 'No autorizado', breadcrumb: 'Error 403' },
         loadComponent: () =>
