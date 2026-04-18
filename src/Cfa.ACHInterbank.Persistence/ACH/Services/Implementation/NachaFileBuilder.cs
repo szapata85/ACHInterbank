@@ -34,6 +34,8 @@ public class NachaFileBuilder : INachaFileBuilder
     private readonly INachaRecordDataProvider _recordDataProvider;
     private readonly INachaSemanticValidator _nachaSemanticValidator;
     private readonly INachaConfigResolver? _configResolver;
+    private readonly INachaType7GenerationStrategy? _type7GenerationStrategy;
+    private readonly INachaType7LegacyRenderer? _type7LegacyRenderer;
     private readonly NachaGenerationOptions _generationOptions;
     private readonly ILogger<NachaFileBuilder>? _logger;
 
@@ -46,6 +48,8 @@ public class NachaFileBuilder : INachaFileBuilder
         INachaRecordDataProvider recordDataProvider,
         INachaSemanticValidator nachaSemanticValidator,
         INachaConfigResolver? configResolver = null,
+        INachaType7GenerationStrategy? type7GenerationStrategy = null,
+        INachaType7LegacyRenderer? type7LegacyRenderer = null,
         IOptions<NachaGenerationOptions>? generationOptions = null,
         ILogger<NachaFileBuilder>? logger = null)
     {
@@ -57,6 +61,8 @@ public class NachaFileBuilder : INachaFileBuilder
         _recordDataProvider = recordDataProvider;
         _nachaSemanticValidator = nachaSemanticValidator;
         _configResolver = configResolver;
+        _type7GenerationStrategy = type7GenerationStrategy;
+        _type7LegacyRenderer = type7LegacyRenderer;
         _generationOptions = generationOptions?.Value ?? new NachaGenerationOptions();
         _logger = logger;
     }
@@ -581,10 +587,18 @@ public class NachaFileBuilder : INachaFileBuilder
                     entryAddendaCount += transactionCount;
                     break;
                 case "7":
-                    audit.Warnings.Add("RecordCode=7 continúa en ruta legacy hardcodeada en esta fase.");
-                    audit.LegacyRecordCodes.Add("7");
-                    recordCount += AppendTypedAddendaRecords(sb, orderedBatches);
-                    entryAddendaCount += totalAddendaOnlyCount;
+                    var type7Candidates = (_type7GenerationStrategy?.BuildCandidates(orderedBatches)
+                                           ?? BuildFallbackType7Candidates(orderedBatches)).ToList();
+                    recordCount += await AppendType7ResolvedOrLegacyAsync(
+                        sb,
+                        definition,
+                        layoutCache,
+                        resolution,
+                        audit,
+                        type7Candidates,
+                        context,
+                        ct);
+                    entryAddendaCount += type7Candidates.Count;
                     break;
                 case "8":
                     var type8Records = new List<object>(orderedBatches.Count);
@@ -700,12 +714,6 @@ public class NachaFileBuilder : INachaFileBuilder
     {
         var mode = (_generationOptions.Mode ?? "LEGACY").Trim().ToUpperInvariant();
         var shouldUseResolver = mode is "HYBRID" or "TABLE_DRIVEN" or "SHADOW_COMPARE";
-        var isType7 = string.Equals(recordCode, "7", StringComparison.OrdinalIgnoreCase);
-
-        if (isType7 && !_generationOptions.EnableType7TableDriven)
-        {
-            return await AppendCustomOrConfiguredAsync(sb, definition, layoutCache, records, context, ct);
-        }
 
         if (!shouldUseResolver || _configResolver is null || !resolution.LayoutsByRecordCode.TryGetValue(recordCode, out var layoutVariant))
         {
@@ -746,6 +754,81 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return lineCount;
+    }
+
+    private async Task<int> AppendType7ResolvedOrLegacyAsync(
+        StringBuilder sb,
+        NachaRecordDefinition definition,
+        IReadOnlyDictionary<string, NachaRecordLayout> layoutCache,
+        NachaConfigResolutionResult resolution,
+        NachaGenerationAuditResult audit,
+        IReadOnlyList<NachaType7RecordCandidate> candidates,
+        NachaBuildContext context,
+        CancellationToken ct)
+    {
+        var mode = (_generationOptions.Mode ?? "LEGACY").Trim().ToUpperInvariant();
+        var hasLayout = resolution.LayoutsByRecordCode.TryGetValue("7", out var layoutVariant);
+        var shouldUseTableDriven = _generationOptions.EnableType7TableDriven
+                                   && mode is "HYBRID" or "TABLE_DRIVEN" or "SHADOW_COMPARE"
+                                   && _configResolver is not null
+                                   && hasLayout;
+
+        if (!shouldUseTableDriven || layoutVariant is null)
+        {
+            if (!audit.LegacyRecordCodes.Contains("7"))
+            {
+                audit.LegacyRecordCodes.Add("7");
+            }
+
+            audit.Warnings.Add("Fallback legado para RecordCode=7 por cobertura/configuración insuficiente.");
+            return AppendType7Legacy(sb, candidates);
+        }
+
+        var lineCount = 0;
+        foreach (var candidate in candidates)
+        {
+            var rendered = await RenderWithResolvedLayoutAsync("7", candidate.FieldValues, layoutVariant);
+            sb.Append(rendered);
+            lineCount++;
+
+            if (mode == "SHADOW_COMPARE")
+            {
+                var legacy = (_type7LegacyRenderer ?? new NachaType7LegacyRenderer())
+                    .Render(candidate.Batch, candidate.Transaction, candidate.Addenda);
+                var diff = CompareRenderedLines("7", legacy, rendered);
+                if (!string.IsNullOrWhiteSpace(diff))
+                {
+                    audit.EquivalenceDiffs.Add(diff);
+                    audit.Warnings.Add("Diferencia detectada en SHADOW_COMPARE para RecordCode=7.");
+                }
+            }
+        }
+
+        if (!audit.NewEngineRecordCodes.Contains("7"))
+        {
+            audit.NewEngineRecordCodes.Add("7");
+        }
+
+        return lineCount;
+    }
+
+    private int AppendType7Legacy(StringBuilder sb, IReadOnlyList<NachaType7RecordCandidate> candidates)
+    {
+        var renderer = _type7LegacyRenderer ?? new NachaType7LegacyRenderer();
+        var count = 0;
+        foreach (var candidate in candidates)
+        {
+            sb.Append(renderer.Render(candidate.Batch, candidate.Transaction, candidate.Addenda));
+            count++;
+        }
+
+        return count;
+    }
+
+    private IReadOnlyList<NachaType7RecordCandidate> BuildFallbackType7Candidates(IReadOnlyList<AchBatch> orderedBatches)
+    {
+        var fallbackStrategy = new NachaType7GenerationStrategy(new NachaType7FieldValueResolver());
+        return fallbackStrategy.BuildCandidates(orderedBatches);
     }
 
     private async Task<string> RenderWithResolvedLayoutAsync(string recordCode, object record, CfgLayoutVariant layoutVariant)
@@ -979,222 +1062,6 @@ public class NachaFileBuilder : INachaFileBuilder
                 IsEnabled = true
             }
         };
-    }
-
-    private static IEnumerable<AchTransactionAddenda> BuildAddendasForTransaction(AchTransaction tx)
-    {
-        if (tx.Addendas != null && tx.Addendas.Any())
-        {
-            return tx.Addendas.OrderBy(a => a.SequenceNumber);
-        }
-
-        return new[]
-        {
-            new AchTransactionAddenda
-            {
-                AddendaType = "05",
-                BusinessType = tx.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal
-                    ? AchAddendaBusinessType.Debit
-                    : AchAddendaBusinessType.Credit,
-                Purpose = tx.AchBatch?.CompanyEntryDescription,
-                // Transición: no propagar referencia legado de transacción como semántica funcional.
-                Reference = new string('0', 53),
-                CollectorId = tx.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal ? tx.CompanyIdentification : null,
-                ReceiverCustomerCode = tx.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal ? tx.RecipientIdNumber : null,
-                ServiceDescription = tx.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal
-                    ? tx.AchBatch?.CompanyEntryDescription
-                    : null,
-                SequenceNumber = 1
-            }
-        };
-    }
-
-    private static int AppendTypedAddendaRecords(StringBuilder sb, IReadOnlyList<AchBatch> orderedBatches)
-    {
-        var count = 0;
-        foreach (var batch in orderedBatches)
-        {
-            foreach (var transaction in batch.Transactions.OrderBy(t => t.Id))
-            {
-                foreach (var addenda in BuildAddendasForTransaction(transaction))
-                {
-                    sb.Append(BuildType7Record(batch, transaction, addenda));
-                    count++;
-                }
-            }
-        }
-
-        return count;
-    }
-
-    private static string BuildType7Record(AchBatch batch, AchTransaction transaction, AchTransactionAddenda addenda)
-    {
-        ValidateAddendaCompatibility(transaction, addenda);
-        return addenda.BusinessType switch
-        {
-            AchAddendaBusinessType.Debit => BuildDebitType7Record(transaction, addenda),
-            AchAddendaBusinessType.Return => BuildReturnType7Record(transaction, addenda),
-            _ => BuildCreditType7Record(batch, transaction, addenda)
-        };
-    }
-
-    private static void ValidateAddendaCompatibility(AchTransaction transaction, AchTransactionAddenda addenda)
-    {
-        var txType = transaction.Type;
-        var addendaType = (addenda.AddendaType ?? string.Empty).Trim();
-
-        switch (addenda.BusinessType)
-        {
-            case AchAddendaBusinessType.Credit:
-                if (addendaType != "05")
-                {
-                    throw new InvalidOperationException($"La transacción {transaction.Id} con addenda de crédito debe utilizar AddendaType=05.");
-                }
-
-                if (txType is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal)
-                {
-                    throw new InvalidOperationException($"La transacción {transaction.Id} ({txType}) no puede serializar addenda de crédito.");
-                }
-                break;
-
-            case AchAddendaBusinessType.Debit:
-                if (addendaType != "05")
-                {
-                    throw new InvalidOperationException($"La transacción {transaction.Id} con addenda de débito debe utilizar AddendaType=05.");
-                }
-
-                if (txType is TransactionTypeEnum.Credit)
-                {
-                    throw new InvalidOperationException($"La transacción {transaction.Id} ({txType}) no puede serializar addenda de débito.");
-                }
-                break;
-
-            case AchAddendaBusinessType.Return:
-                if (addendaType != "99")
-                {
-                    throw new InvalidOperationException($"La transacción {transaction.Id} con addenda de devolución debe utilizar AddendaType=99.");
-                }
-
-                if (txType is not (TransactionTypeEnum.Return or TransactionTypeEnum.Reversal))
-                {
-                    throw new InvalidOperationException($"La transacción {transaction.Id} ({txType}) no puede serializar addenda de devolución.");
-                }
-                break;
-        }
-    }
-
-    private static string BuildCreditType7Record(AchBatch batch, AchTransaction transaction, AchTransactionAddenda addenda)
-    {
-        var purpose = FormatAlpha(addenda.Purpose ?? batch.CompanyEntryDescription, 10);
-        var batchDescription = FormatAlpha(batch.CompanyEntryDescription, 10);
-        if (!string.Equals(purpose, batchDescription, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException($"La addenda de crédito de la transacción {transaction.Id} debe reflejar la descripción del lote tipo 5.");
-        }
-
-        var reference = string.IsNullOrWhiteSpace(addenda.Reference)
-            ? new string('0', 53)
-            : FormatAlpha(addenda.Reference, 53);
-
-        var buffer = CreateBlankRecord('7');
-        WriteValue(buffer, 2, "05");
-        WriteValue(buffer, 21, purpose);
-        WriteValue(buffer, 31, reference);
-        WriteValue(buffer, 84, FormatNumeric((addenda.SequenceNumber ?? 1).ToString(), 4));
-        WriteValue(buffer, 88, FormatNumeric(GetTraceSuffix(transaction.TraceNumber), 7));
-        return new string(buffer);
-    }
-
-    private static string BuildDebitType7Record(AchTransaction transaction, AchTransactionAddenda addenda)
-    {
-        var collectorId = FormatNumeric(addenda.CollectorId, 13);
-        var receiverCustomerCode = FormatAlpha(addenda.ReceiverCustomerCode, 30);
-        var serviceDescription = FormatAlpha(addenda.ServiceDescription, 15);
-
-        if (string.IsNullOrWhiteSpace(collectorId.Trim('0')))
-        {
-            throw new InvalidOperationException($"La transacción débito {transaction.Id} requiere CollectorId en la addenda tipo 7.");
-        }
-
-        if (string.IsNullOrWhiteSpace(receiverCustomerCode.Trim()))
-        {
-            throw new InvalidOperationException($"La transacción débito {transaction.Id} requiere ReceiverCustomerCode en la addenda tipo 7.");
-        }
-
-        if (string.IsNullOrWhiteSpace(serviceDescription.Trim()))
-        {
-            throw new InvalidOperationException($"La transacción débito {transaction.Id} requiere ServiceDescription en la addenda tipo 7.");
-        }
-
-        var buffer = CreateBlankRecord('7');
-        WriteValue(buffer, 2, "05");
-        WriteValue(buffer, 4, collectorId);
-        WriteValue(buffer, 17, receiverCustomerCode);
-        WriteValue(buffer, 47, serviceDescription);
-        WriteValue(buffer, 84, FormatNumeric((addenda.SequenceNumber ?? 1).ToString(), 4));
-        WriteValue(buffer, 88, FormatNumeric(GetTraceSuffix(transaction.TraceNumber), 7));
-        return new string(buffer);
-    }
-
-    private static string BuildReturnType7Record(AchTransaction transaction, AchTransactionAddenda addenda)
-    {
-        var returnReasonCode = FormatAlpha(addenda.ReturnReasonCode, 5);
-        var originalTraceNumber = FormatNumeric(addenda.OriginalTraceNumber, 15);
-        var newTraceNumber = FormatNumeric(addenda.NewTraceNumber, 15);
-
-        var buffer = CreateBlankRecord('7');
-        WriteValue(buffer, 2, "99");
-        WriteValue(buffer, 4, returnReasonCode);
-        WriteValue(buffer, 9, originalTraceNumber);
-        WriteValue(buffer, 82, newTraceNumber);
-        WriteValue(buffer, 100, FormatNumeric(GetTraceSuffix(transaction.TraceNumber), 7));
-        return new string(buffer);
-    }
-
-    private static char[] CreateBlankRecord(char recordType)
-    {
-        var buffer = new char[106];
-        Array.Fill(buffer, ' ');
-        buffer[0] = recordType;
-        return buffer;
-    }
-
-    private static void WriteValue(char[] buffer, int startPosition, string value)
-    {
-        var start = startPosition - 1;
-        value.CopyTo(0, buffer, start, value.Length);
-    }
-
-    private static string FormatAlpha(string? value, int length)
-    {
-        var normalized = new string((value ?? string.Empty)
-            .Trim()
-            .ToUpperInvariant()
-            .Where(ch => char.IsLetterOrDigit(ch) || ch == ' ' || ch is '.' or ',' or '-' or '/' or '&')
-            .ToArray());
-        if (normalized.Length > length)
-        {
-            normalized = normalized[..length];
-        }
-
-        return normalized.PadRight(length, ' ');
-    }
-
-    private static string FormatNumeric(string? value, int length)
-    {
-        var digits = new string((value ?? string.Empty).Where(char.IsDigit).ToArray());
-        if (digits.Length > length)
-        {
-            digits = digits[^length..];
-        }
-
-        return digits.PadLeft(length, '0');
-    }
-
-    private static string GetTraceSuffix(string? traceNumber)
-    {
-        var digits = new string((traceNumber ?? string.Empty).Where(char.IsDigit).ToArray());
-        return digits.Length <= 7 ? digits : digits[^7..];
     }
 
     private async Task<NachaHeader?> LoadHeaderAsync(string cycleId, CancellationToken ct)
