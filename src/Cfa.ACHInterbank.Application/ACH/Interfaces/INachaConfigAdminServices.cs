@@ -1,0 +1,43 @@
+using Cfa.ACHInterbank.Application.ACH.Models;
+
+namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
+
+public interface INachaConfigProfileQueryService
+{
+    Task<IReadOnlyList<NachaConfigProfileListItemDto>> GetProfilesAsync(CancellationToken ct = default);
+    Task<NachaConfigProfileDetailDto?> GetProfileDetailAsync(int profileId, CancellationToken ct = default);
+}
+
+public interface INachaConfigProfileCommandService
+{
+    Task<NachaConfigProfileDetailDto> CreateDraftAsync(NachaConfigCreateDraftRequest request, string actor, CancellationToken ct = default);
+    Task<NachaConfigProfileDetailDto?> UpdateDraftAsync(int profileId, NachaConfigUpdateProfileRequest request, string actor, CancellationToken ct = default);
+    Task<NachaConfigProfileDetailDto?> CloneProfileAsync(int profileId, NachaConfigCloneProfileRequest request, string actor, CancellationToken ct = default);
+    Task<bool> InactivateProfileAsync(int profileId, string actor, CancellationToken ct = default);
+    Task<bool> ArchiveProfileAsync(int profileId, string actor, CancellationToken ct = default);
+    Task<bool> UpdateRecordSequenceAsync(int profileId, IReadOnlyList<NachaConfigProfileRecordSequenceDto> request, string actor, CancellationToken ct = default);
+    Task<bool> UpdateLayoutVariantAsync(int profileId, int variantId, NachaConfigLayoutVariantEditDto request, string actor, CancellationToken ct = default);
+    Task<bool> UpdateLayoutFieldAsync(int profileId, int fieldId, NachaConfigLayoutFieldEditDto request, string actor, CancellationToken ct = default);
+    Task<bool> UpdateFieldRuleAsync(int profileId, int ruleId, NachaConfigFieldRuleEditDto request, string actor, CancellationToken ct = default);
+}
+
+public interface INachaConfigValidationService
+{
+    Task<NachaConfigValidationResultDto> ValidateBeforePublishAsync(int profileId, CancellationToken ct = default);
+}
+
+public interface INachaConfigPublicationService
+{
+    Task<NachaConfigPublicationResultDto> PublishAsync(int profileId, string actor, CancellationToken ct = default);
+}
+
+public interface INachaConfigHistoryService
+{
+    Task<IReadOnlyList<NachaConfigHistoryItemDto>> GetHistoryAsync(int profileId, CancellationToken ct = default);
+    Task<IReadOnlyList<NachaConfigSnapshotItemDto>> GetSnapshotsAsync(int profileId, CancellationToken ct = default);
+}
+
+public interface INachaConfigPreviewService
+{
+    Task<NachaConfigResolverPreviewResultDto> PreviewResolverAsync(NachaConfigResolverPreviewRequest request, CancellationToken ct = default);
+}
