@@ -1,8 +1,10 @@
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -105,5 +107,46 @@ public class NachaConfigBackfillSeederTests
         Assert.Contains("7", recordCodes);
         Assert.Contains("8", recordCodes);
         Assert.Contains("9", recordCodes);
+    }
+
+    [Fact]
+    public async Task Model_Should_Define_Unique_Indexes_And_Check_Constraints_For_Core_Config()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var context = new AchDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+
+        var profileEntity = context.Model.FindEntityType(typeof(CfgProfile));
+        Assert.NotNull(profileEntity);
+        Assert.Contains(profileEntity!.GetIndexes(), index =>
+            index.IsUnique &&
+            index.Properties.Select(x => x.Name).SequenceEqual(new[]
+            {
+                nameof(CfgProfile.ClearingHouseId),
+                nameof(CfgProfile.FlowTypeId),
+                nameof(CfgProfile.DirectionId),
+                nameof(CfgProfile.ServiceClassId),
+                nameof(CfgProfile.VersionMajor),
+                nameof(CfgProfile.VersionMinor)
+            }));
+
+        Assert.Contains(profileEntity.GetCheckConstraints(), constraint => constraint.Name == "CK_CfgProfile_EffectiveRange");
+
+        var layoutFieldEntity = context.Model.FindEntityType(typeof(CfgLayoutField));
+        Assert.NotNull(layoutFieldEntity);
+        Assert.Contains(layoutFieldEntity!.GetIndexes(), index =>
+            index.IsUnique &&
+            index.Properties.Select(x => x.Name).SequenceEqual(new[]
+            {
+                nameof(CfgLayoutField.LayoutVariantId),
+                nameof(CfgLayoutField.StartPosition)
+            }));
+        Assert.Contains(layoutFieldEntity.GetCheckConstraints(), constraint => constraint.Name == "CK_CfgLayoutField_Justification_Valid");
     }
 }
