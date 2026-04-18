@@ -34,6 +34,7 @@ public class NachaFileBuilder : INachaFileBuilder
     private readonly INachaRecordDataProvider _recordDataProvider;
     private readonly INachaSemanticValidator _nachaSemanticValidator;
     private readonly INachaConfigResolver? _configResolver;
+    private readonly INachaType7AliasMap? _type7AliasMap;
     private readonly INachaType7GenerationStrategy? _type7GenerationStrategy;
     private readonly INachaType7LegacyRenderer? _type7LegacyRenderer;
     private readonly NachaGenerationOptions _generationOptions;
@@ -48,6 +49,7 @@ public class NachaFileBuilder : INachaFileBuilder
         INachaRecordDataProvider recordDataProvider,
         INachaSemanticValidator nachaSemanticValidator,
         INachaConfigResolver? configResolver = null,
+        INachaType7AliasMap? type7AliasMap = null,
         INachaType7GenerationStrategy? type7GenerationStrategy = null,
         INachaType7LegacyRenderer? type7LegacyRenderer = null,
         IOptions<NachaGenerationOptions>? generationOptions = null,
@@ -61,6 +63,7 @@ public class NachaFileBuilder : INachaFileBuilder
         _recordDataProvider = recordDataProvider;
         _nachaSemanticValidator = nachaSemanticValidator;
         _configResolver = configResolver;
+        _type7AliasMap = type7AliasMap;
         _type7GenerationStrategy = type7GenerationStrategy;
         _type7LegacyRenderer = type7LegacyRenderer;
         _generationOptions = generationOptions?.Value ?? new NachaGenerationOptions();
@@ -768,10 +771,27 @@ public class NachaFileBuilder : INachaFileBuilder
     {
         var mode = (_generationOptions.Mode ?? "LEGACY").Trim().ToUpperInvariant();
         var hasLayout = resolution.LayoutsByRecordCode.TryGetValue("7", out var layoutVariant);
+        audit.Type7TotalCandidates += candidates.Count;
         var shouldUseTableDriven = _generationOptions.EnableType7TableDriven
                                    && mode is "HYBRID" or "TABLE_DRIVEN" or "SHADOW_COMPARE"
                                    && _configResolver is not null
                                    && hasLayout;
+
+        var forcedTableDrivenByLayout = layoutVariant is not null &&
+                                        _generationOptions.Type7DisableLegacyFallbackForLayouts
+                                            .Any(x => string.Equals(x, layoutVariant.VariantCode, StringComparison.OrdinalIgnoreCase));
+
+        if (_generationOptions.Type7EnableTableDrivenForClearingHouses.Count > 0)
+        {
+            var clearingHouseName = context.Cycle.ClearingHouse?.Name ?? "ACH";
+            var allowForClearingHouse = _generationOptions.Type7EnableTableDrivenForClearingHouses
+                .Any(x => clearingHouseName.Contains(x, StringComparison.OrdinalIgnoreCase));
+            shouldUseTableDriven &= allowForClearingHouse;
+            if (!allowForClearingHouse)
+            {
+                IncrementCounter(audit.Type7FallbackReasons, $"ClearingHouseNotEnabled:{clearingHouseName}");
+            }
+        }
 
         if (!shouldUseTableDriven || layoutVariant is null)
         {
@@ -781,15 +801,20 @@ public class NachaFileBuilder : INachaFileBuilder
             }
 
             audit.Warnings.Add("Fallback legado para RecordCode=7 por cobertura/configuración insuficiente.");
+            IncrementCounter(audit.Type7FallbackReasons, "NoLayoutOrModeDisabled");
+            IncrementCounter(audit.Type7FallbackByLayout, layoutVariant?.VariantCode ?? "NO_LAYOUT");
+            audit.Type7GeneratedLegacy += candidates.Count;
             return AppendType7Legacy(sb, candidates);
         }
 
         var lineCount = 0;
         foreach (var candidate in candidates)
         {
-            var rendered = await RenderWithResolvedLayoutAsync("7", candidate.FieldValues, layoutVariant);
+            var alignedValues = AlignType7ValuesWithLayout(layoutVariant, candidate.FieldValues, audit);
+            var rendered = await RenderWithResolvedLayoutAsync("7", alignedValues, layoutVariant);
             sb.Append(rendered);
             lineCount++;
+            audit.Type7GeneratedTableDriven++;
 
             if (mode == "SHADOW_COMPARE")
             {
@@ -801,7 +826,18 @@ public class NachaFileBuilder : INachaFileBuilder
                     audit.EquivalenceDiffs.Add(diff);
                     audit.Warnings.Add("Diferencia detectada en SHADOW_COMPARE para RecordCode=7.");
                 }
+
+                foreach (var fieldDiff in BuildType7FieldDiffs(layoutVariant, legacy, rendered))
+                {
+                    audit.EquivalenceDiffs.Add(fieldDiff);
+                    IncrementCounter(audit.Type7DiffByField, fieldDiff.Split(':')[0]);
+                }
             }
+        }
+
+        if (forcedTableDrivenByLayout && audit.Type7GeneratedLegacy > 0)
+        {
+            throw new InvalidOperationException($"Fallback legado deshabilitado para layout {layoutVariant.VariantCode}.");
         }
 
         if (!audit.NewEngineRecordCodes.Contains("7"))
@@ -810,6 +846,91 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return lineCount;
+    }
+
+    private IReadOnlyDictionary<string, object?> AlignType7ValuesWithLayout(
+        CfgLayoutVariant layoutVariant,
+        IReadOnlyDictionary<string, object?> values,
+        NachaGenerationAuditResult audit)
+    {
+        if (_type7AliasMap is null)
+        {
+            return values;
+        }
+
+        var aligned = new Dictionary<string, object?>(values, StringComparer.OrdinalIgnoreCase);
+        foreach (var field in layoutVariant.Fields.Where(f => f.IsEnabled))
+        {
+            var rawPath = field.SourceDefinition.PropertyPath;
+            if (string.IsNullOrWhiteSpace(rawPath))
+            {
+                continue;
+            }
+
+            var canonical = _type7AliasMap.GetCanonicalKey(rawPath);
+            if (aligned.TryGetValue(canonical, out var value))
+            {
+                aligned[rawPath] = value;
+                aligned[field.FieldCode] = value;
+                audit.Type7AliasResolutionTrace.Add($"{field.FieldCode}:{rawPath}->{canonical}");
+                continue;
+            }
+
+            if (!aligned.ContainsKey(rawPath))
+            {
+                IncrementCounter(audit.Type7FallbackReasons, $"MissingField:{field.FieldCode}");
+            }
+        }
+
+        return aligned;
+    }
+
+    private static IEnumerable<string> BuildType7FieldDiffs(CfgLayoutVariant layoutVariant, string legacy, string generated)
+    {
+        foreach (var field in layoutVariant.Fields.Where(x => x.IsEnabled).OrderBy(x => x.StartPosition))
+        {
+            var start = field.StartPosition - 1;
+            if (start < 0 || start + field.Length > legacy.Length || start + field.Length > generated.Length)
+            {
+                yield return $"{field.FieldCode}:LONGITUD:{legacy.Length}->{generated.Length}";
+                continue;
+            }
+
+            var legacyValue = legacy.Substring(start, field.Length);
+            var newValue = generated.Substring(start, field.Length);
+            if (string.Equals(legacyValue, newValue, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var classification = ClassifyFieldDifference(legacyValue, newValue);
+            yield return $"{field.FieldCode}:{classification}:LEGACY='{legacyValue}'|NEW='{newValue}'";
+        }
+    }
+
+    private static string ClassifyFieldDifference(string legacyValue, string newValue)
+    {
+        if (legacyValue.Trim() == newValue.Trim())
+        {
+            return "PADDING";
+        }
+
+        if (legacyValue.Length != newValue.Length)
+        {
+            return "LONGITUD";
+        }
+
+        if (legacyValue.All(char.IsDigit) && newValue.All(char.IsDigit))
+        {
+            return "FORMATO";
+        }
+
+        return "VALOR";
+    }
+
+    private static void IncrementCounter(Dictionary<string, int> map, string key)
+    {
+        map[key] = map.TryGetValue(key, out var current) ? current + 1 : 1;
     }
 
     private int AppendType7Legacy(StringBuilder sb, IReadOnlyList<NachaType7RecordCandidate> candidates)
@@ -827,7 +948,7 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private IReadOnlyList<NachaType7RecordCandidate> BuildFallbackType7Candidates(IReadOnlyList<AchBatch> orderedBatches)
     {
-        var fallbackStrategy = new NachaType7GenerationStrategy(new NachaType7FieldValueResolver());
+        var fallbackStrategy = new NachaType7GenerationStrategy(new NachaType7FieldValueResolver(new NachaType7AliasMap()));
         return fallbackStrategy.BuildCandidates(orderedBatches);
     }
 
@@ -966,6 +1087,11 @@ public class NachaFileBuilder : INachaFileBuilder
 
         try
         {
+            var type7Compared = Math.Max(1, audit.Type7GeneratedTableDriven);
+            var type7DiffCount = audit.Type7DiffByField.Values.Sum();
+            var type7MatchRate = 100m * (type7Compared - Math.Min(type7Compared, type7DiffCount)) / type7Compared;
+            audit.Trace.Add($"Type7Summary:Candidates={audit.Type7TotalCandidates};New={audit.Type7GeneratedTableDriven};Legacy={audit.Type7GeneratedLegacy};Diffs={type7DiffCount};MatchRate={type7MatchRate:0.00}%");
+
             _context.HistConfigChanges.Add(new Domain.Models.ACH.Config.HistConfigChange
             {
                 ProfileId = profileId.Value,

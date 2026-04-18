@@ -33,4 +33,11 @@ public class NachaGenerationAuditResult
     public List<string> Warnings { get; init; } = [];
     public List<string> Trace { get; init; } = [];
     public List<string> EquivalenceDiffs { get; init; } = [];
+    public int Type7TotalCandidates { get; set; }
+    public int Type7GeneratedTableDriven { get; set; }
+    public int Type7GeneratedLegacy { get; set; }
+    public Dictionary<string, int> Type7FallbackReasons { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, int> Type7FallbackByLayout { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, int> Type7DiffByField { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+    public List<string> Type7AliasResolutionTrace { get; init; } = [];
 }

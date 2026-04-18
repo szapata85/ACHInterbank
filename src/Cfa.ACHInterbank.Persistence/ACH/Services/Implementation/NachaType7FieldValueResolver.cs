@@ -7,11 +7,18 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public sealed class NachaType7FieldValueResolver : INachaType7FieldValueResolver
 {
+    private readonly INachaType7AliasMap _aliasMap;
+
+    public NachaType7FieldValueResolver(INachaType7AliasMap aliasMap)
+    {
+        _aliasMap = aliasMap;
+    }
+
     public IReadOnlyDictionary<string, object?> Resolve(AchBatch batch, AchTransaction transaction, AchTransactionAddenda addenda)
     {
         var traceSuffix = GetTraceSuffix(transaction.TraceNumber);
 
-        return new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        var canonicalValues = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
             ["RecordCode"] = "7",
             ["AddendaType"] = addenda.AddendaType,
@@ -30,6 +37,22 @@ public sealed class NachaType7FieldValueResolver : INachaType7FieldValueResolver
             ["TransactionCode"] = transaction.TransactionCode,
             ["BatchCompanyEntryDescription"] = batch.CompanyEntryDescription
         };
+
+        var expanded = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        var aliasTrace = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in canonicalValues)
+        {
+            expanded[pair.Key] = pair.Value;
+            var aliases = _aliasMap.GetAliases(pair.Key).ToArray();
+            aliasTrace[pair.Key] = aliases;
+            foreach (var alias in aliases)
+            {
+                expanded[alias] = pair.Value;
+            }
+        }
+
+        expanded["__Type7AliasTrace"] = aliasTrace;
+        return expanded;
     }
 
     private static string GetTraceSuffix(string? traceNumber)
