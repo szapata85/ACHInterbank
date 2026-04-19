@@ -21,6 +21,7 @@ public interface IFieldSourceResolver
 public interface INachaCanonicalMapper
 {
     string ResolveCanonicalKey(string recordCode, string keyOrAlias);
+    bool TryResolveCanonicalKey(string recordCode, string keyOrAlias, out string canonicalKey);
 }
 
 public interface IFieldTransformationEngine
