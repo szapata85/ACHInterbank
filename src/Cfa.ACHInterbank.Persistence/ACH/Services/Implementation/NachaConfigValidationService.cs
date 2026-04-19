@@ -13,6 +13,15 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public sealed class NachaConfigValidationService : INachaConfigValidationService
 {
     private static readonly HashSet<string> RequiredRecordCodes = ["1", "5", "6", "8", "9"];
+    private static readonly string[] Record1RequiredFields =
+    [
+        "PRIORITYCODE", "IMMEDIATEDESTINATION", "IMMEDIATEORIGIN", "FILECREATIONDATE", "FILECREATIONTIME",
+        "FILEIDMODIFIER", "RECORDSIZE", "BLOCKINGFACTOR", "FORMATCODE"
+    ];
+    private static readonly string[] Record5RequiredFields =
+    [
+        "SERVICECLASSCODE", "COMPANYNAME", "COMPANYIDENTIFICATION", "STANDARDENTRYCLASSCODE", "EFFECTIVEENTRYDATE", "SETTLEMENTDATE"
+    ];
     private readonly AchDbContext _context;
     private readonly INachaCanonicalMapper _canonicalMapper;
 
@@ -259,6 +268,8 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                     Mensaje = $"Colisión de alias/canonical en record {variant.RecordCode.Code} para '{usage.Key}': {string.Join(", ", usage.Value)}."
                 });
             }
+
+            ValidateHeaderNormativeRequirements(issues, variant, ordered);
         }
 
         var conflictingEffective = await _context.CfgProfiles
@@ -278,6 +289,66 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         }
 
         return Build(profileId, issues);
+    }
+
+    private static void ValidateHeaderNormativeRequirements(
+        ICollection<NachaConfigValidationIssueDto> issues,
+        CfgLayoutVariant variant,
+        IReadOnlyCollection<CfgLayoutField> orderedFields)
+    {
+        var recordCode = variant.RecordCode.Code;
+        if (recordCode is not ("1" or "5"))
+        {
+            return;
+        }
+
+        if (variant.TotalLength != 106)
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = "INVALID_RECORD_LENGTH",
+                Mensaje = $"Record {recordCode} debe tener longitud 106 y tiene {variant.TotalLength}."
+            });
+        }
+
+        if (orderedFields.Count < 5)
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "WARN",
+                Codigo = "HEADER_NOT_FULLY_TABLE_DRIVEN",
+                Mensaje = $"Record {recordCode} aún no está completamente gobernado por layout. Se conserva control legado parcial."
+            });
+            return;
+        }
+
+        var normalizedFieldCodes = orderedFields
+            .Select(f => Normalize(f.FieldCode))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var required = recordCode == "1" ? Record1RequiredFields : Record5RequiredFields;
+        foreach (var requiredField in required)
+        {
+            if (!normalizedFieldCodes.Contains(requiredField))
+            {
+                issues.Add(new NachaConfigValidationIssueDto
+                {
+                    Severidad = "ERROR",
+                    Codigo = "MISSING_HEADER_FIELD",
+                    Mensaje = $"Record {recordCode} no tiene configurado el campo obligatorio {requiredField}."
+                });
+            }
+        }
+    }
+
+    private static string Normalize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return new string(value.Trim().Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
     }
 
     private void ValidateCanonicalPath(

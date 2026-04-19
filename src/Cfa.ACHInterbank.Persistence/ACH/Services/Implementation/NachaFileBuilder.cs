@@ -744,6 +744,32 @@ public class NachaFileBuilder : INachaFileBuilder
         var lineCount = 0;
         foreach (var record in records)
         {
+            if (recordCode == "1" && ShouldUseRecord1MappingEngine(mode) && _recordMappingEngine is not null && _mappingPlanCompiler is not null)
+            {
+                var mapped = await TryRenderRecord1WithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
+                if (!string.IsNullOrWhiteSpace(mapped))
+                {
+                    sb.Append(mapped);
+                    lineCount++;
+                    continue;
+                }
+
+                audit.Warnings.Add("RecordCode=1 usó fallback legado por cobertura insuficiente del mapping engine.");
+            }
+
+            if (recordCode == "5" && ShouldUseRecord5MappingEngine(mode) && _recordMappingEngine is not null && _mappingPlanCompiler is not null)
+            {
+                var mapped = await TryRenderRecord5WithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
+                if (!string.IsNullOrWhiteSpace(mapped))
+                {
+                    sb.Append(mapped);
+                    lineCount++;
+                    continue;
+                }
+
+                audit.Warnings.Add("RecordCode=5 usó fallback legado por cobertura insuficiente del mapping engine.");
+            }
+
             if (recordCode == "6" && ShouldUseRecord6MappingEngine(mode) && _recordMappingEngine is not null && _mappingPlanCompiler is not null)
             {
                 var mapped = await TryRenderRecord6WithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, audit, ct);
@@ -1258,9 +1284,134 @@ public class NachaFileBuilder : INachaFileBuilder
         return rendered;
     }
 
+    private Task<string?> TryRenderRecord1WithMappingEngineAsync(
+        string recordCode,
+        object record,
+        CfgLayoutVariant layoutVariant,
+        string mode,
+        IReadOnlyDictionary<string, NachaRecordLayout> layoutCache,
+        NachaBuildContext context,
+        NachaGenerationAuditResult audit,
+        CancellationToken ct)
+    {
+        return TryRenderHeaderWithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
+    }
+
+    private Task<string?> TryRenderRecord5WithMappingEngineAsync(
+        string recordCode,
+        object record,
+        CfgLayoutVariant layoutVariant,
+        string mode,
+        IReadOnlyDictionary<string, NachaRecordLayout> layoutCache,
+        NachaBuildContext context,
+        NachaGenerationAuditResult audit,
+        CancellationToken ct)
+    {
+        return TryRenderHeaderWithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
+    }
+
+    private async Task<string?> TryRenderHeaderWithMappingEngineAsync(
+        string recordCode,
+        object record,
+        CfgLayoutVariant layoutVariant,
+        string mode,
+        IReadOnlyDictionary<string, NachaRecordLayout> layoutCache,
+        NachaBuildContext context,
+        NachaGenerationAuditResult audit,
+        CancellationToken ct)
+    {
+        if (_recordMappingEngine is null || _mappingPlanCompiler is null)
+        {
+            return null;
+        }
+
+        var issues = new List<string>();
+        var plan = _mappingPlanCompiler.CompileRecordPlan(layoutVariant, issues);
+        if (issues.Count > 0)
+        {
+            audit.Warnings.AddRange(issues.Select(x => $"Record{recordCode}PlanIssue:{x}"));
+        }
+
+        var contextValues = BuildHeaderContextValues(record, context);
+        var mapped = await _recordMappingEngine.MapRecordAsync(new RecordMappingRequest
+        {
+            RecordCode = recordCode,
+            SourceRecord = record,
+            RecordPlan = plan,
+            ContextValues = contextValues,
+            EnableDiagnostics = _generationOptions.Record6MappingDiagnostics,
+            ShadowCompare = string.Equals(mode, "SHADOW_COMPARE", StringComparison.OrdinalIgnoreCase),
+            LegacyLayout = layoutCache.TryGetValue(recordCode, out var legacyLayout) ? legacyLayout : null
+        }, ct);
+
+        foreach (var trace in mapped.FieldTraces.Take(_generationOptions.Record6MappingDiagnostics ? mapped.FieldTraces.Count : 5))
+        {
+            var transforms = trace.TransformSteps.Count == 0 ? "none" : string.Join(",", trace.TransformSteps);
+            audit.Trace.Add($"R{recordCode}:{trace.FieldCode}:SRC={trace.SourceUsed}:CAN={trace.CanonicalKey}:RAW={trace.RawValue}:TF={transforms}:FB={trace.FallbackStrategy}:FINAL={trace.FinalValue}");
+        }
+
+        if (!mapped.Success && mapped.ValuesByFieldCode.Count == 0)
+        {
+            return null;
+        }
+
+        var mappedLayout = new NachaRecordLayout
+        {
+            RecordCode = recordCode,
+            TotalLength = layoutVariant.TotalLength,
+            Fields = layoutVariant.Fields
+                .OrderBy(x => x.StartPosition)
+                .Select(x => new NachaRecordField
+                {
+                    FieldName = x.FieldCode,
+                    DbColumn = x.FieldCode,
+                    StartPosition = x.StartPosition,
+                    Length = x.Length,
+                    Justification = x.Justification,
+                    PadChar = x.PadChar,
+                    Format = x.FormatMask
+                })
+                .ToList()
+        };
+
+        var rendered = await _recordRenderer.RenderRecordAsync(recordCode, mapped.ValuesByFieldCode, mappedLayout);
+        if (mode == "SHADOW_COMPARE" && layoutCache.TryGetValue(recordCode, out var legacy))
+        {
+            var legacyRendered = await _recordRenderer.RenderRecordAsync(recordCode, record, legacy);
+            var diff = CompareRenderedLines(recordCode, legacyRendered, rendered);
+            if (!string.IsNullOrWhiteSpace(diff))
+            {
+                audit.EquivalenceDiffs.Add($"R{recordCode}_MAPPING:{diff}");
+                audit.Warnings.Add($"Diferencia SHADOW_COMPARE en record {recordCode} mapping engine.");
+            }
+        }
+
+        return rendered;
+    }
+
     private bool ShouldUseRecord6MappingEngine(string mode)
     {
         if (!_generationOptions.EnableRecord6MappingEngine)
+        {
+            return false;
+        }
+
+        return mode is "HYBRID" or "TABLE_DRIVEN" or "SHADOW_COMPARE";
+    }
+
+    private bool ShouldUseRecord1MappingEngine(string mode)
+    {
+        if (!_generationOptions.EnableRecord1MappingEngine)
+        {
+            return false;
+        }
+
+        return mode is "HYBRID" or "TABLE_DRIVEN" or "SHADOW_COMPARE";
+    }
+
+    private bool ShouldUseRecord5MappingEngine(string mode)
+    {
+        if (!_generationOptions.EnableRecord5MappingEngine)
         {
             return false;
         }
@@ -1276,6 +1427,28 @@ public class NachaFileBuilder : INachaFileBuilder
         {
             map[property.Name] = property.GetValue(record);
             map[$"ctx.{property.Name}"] = property.GetValue(record);
+        }
+
+        return map;
+    }
+
+    private static IReadOnlyDictionary<string, object?> BuildHeaderContextValues(object record, NachaBuildContext context)
+    {
+        var map = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["CycleName"] = context.Cycle.CycleName,
+            ["ProcessingDateUtc"] = context.Cycle.ProcessingDate,
+            ["ClearingHouseName"] = context.Cycle.ClearingHouse?.Name,
+            ["ClearingHouseId"] = context.Cycle.ClearingHouseId,
+            ["TransactionCount"] = context.Transactions.Count
+        };
+
+        var type = record.GetType();
+        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            var value = property.GetValue(record);
+            map[property.Name] = value;
+            map[$"ctx.{property.Name}"] = value;
         }
 
         return map;
