@@ -22,6 +22,14 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
     [
         "SERVICECLASSCODE", "COMPANYNAME", "COMPANYIDENTIFICATION", "STANDARDENTRYCLASSCODE", "EFFECTIVEENTRYDATE", "SETTLEMENTDATE"
     ];
+    private static readonly string[] Record8RequiredFields =
+    [
+        "SERVICECLASSCODE", "ENTRYADDENDACOUNT", "ENTRYHASH", "TOTALDEBITAMOUNT", "TOTALCREDITAMOUNT", "COMPANYIDENTIFICATION", "ORIGINATINGDFI", "BATCHNUMBER"
+    ];
+    private static readonly string[] Record9RequiredFields =
+    [
+        "BATCHCOUNT", "BLOCKCOUNT", "ENTRYADDENDACOUNT", "ENTRYHASH", "TOTALDEBITAMOUNT", "TOTALCREDITAMOUNT"
+    ];
     private readonly AchDbContext _context;
     private readonly INachaCanonicalMapper _canonicalMapper;
 
@@ -324,6 +332,26 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         ["ORIGINATINGDFI"] = 8,
         ["BATCHNUMBER"] = 7
     };
+    private static readonly Dictionary<string, int> Record8FieldLengths = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["SERVICECLASSCODE"] = 3,
+        ["ENTRYADDENDACOUNT"] = 6,
+        ["ENTRYHASH"] = 10,
+        ["TOTALDEBITAMOUNT"] = 12,
+        ["TOTALCREDITAMOUNT"] = 12,
+        ["COMPANYIDENTIFICATION"] = 10,
+        ["ORIGINATINGDFI"] = 8,
+        ["BATCHNUMBER"] = 7
+    };
+    private static readonly Dictionary<string, int> Record9FieldLengths = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["BATCHCOUNT"] = 6,
+        ["BLOCKCOUNT"] = 6,
+        ["ENTRYADDENDACOUNT"] = 8,
+        ["ENTRYHASH"] = 10,
+        ["TOTALDEBITAMOUNT"] = 12,
+        ["TOTALCREDITAMOUNT"] = 12
+    };
 
     private static void ValidateHeaderNormativeRequirements(
         ICollection<NachaConfigValidationIssueDto> issues,
@@ -332,7 +360,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         IReadOnlyCollection<CfgLayoutField> orderedFields)
     {
         var recordCode = variant.RecordCode.Code;
-        if (recordCode is not ("1" or "5"))
+        if (recordCode is not ("1" or "5" or "8" or "9"))
         {
             return;
         }
@@ -362,7 +390,13 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
             .GroupBy(f => Normalize(f.FieldCode))
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
         var normalizedFieldCodes = fieldsByCode.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var required = recordCode == "1" ? Record1RequiredFields : Record5RequiredFields;
+        var required = recordCode switch
+        {
+            "1" => Record1RequiredFields,
+            "5" => Record5RequiredFields,
+            "8" => Record8RequiredFields,
+            _ => Record9RequiredFields
+        };
         foreach (var requiredField in required)
         {
             if (!normalizedFieldCodes.Contains(requiredField))
@@ -376,7 +410,13 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
             }
         }
 
-        var expectedLengths = recordCode == "1" ? Record1FieldLengths : Record5FieldLengths;
+        var expectedLengths = recordCode switch
+        {
+            "1" => Record1FieldLengths,
+            "5" => Record5FieldLengths,
+            "8" => Record8FieldLengths,
+            _ => Record9FieldLengths
+        };
         foreach (var expected in expectedLengths)
         {
             if (!fieldsByCode.TryGetValue(expected.Key, out var field))
@@ -399,9 +439,55 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         {
             ValidateRecord1HeaderRules(issues, chamberCode, fieldsByCode);
         }
-        else
+        else if (recordCode == "5")
         {
             ValidateRecord5HeaderRules(issues, chamberCode, fieldsByCode);
+        }
+        else
+        {
+            ValidateControlRecordRules(issues, recordCode, fieldsByCode);
+        }
+    }
+
+    private static void ValidateControlRecordRules(
+        ICollection<NachaConfigValidationIssueDto> issues,
+        string recordCode,
+        IReadOnlyDictionary<string, CfgLayoutField> fieldsByCode)
+    {
+        if (recordCode == "8")
+        {
+            ValidateFieldIsRuntimeComputed(issues, fieldsByCode, "BATCHNUMBER");
+            ValidateFieldIsRuntimeComputed(issues, fieldsByCode, "ENTRYHASH");
+            ValidateFieldIsRuntimeComputed(issues, fieldsByCode, "TOTALDEBITAMOUNT");
+            ValidateFieldIsRuntimeComputed(issues, fieldsByCode, "TOTALCREDITAMOUNT");
+        }
+
+        if (recordCode == "9")
+        {
+            ValidateFieldIsRuntimeComputed(issues, fieldsByCode, "BATCHCOUNT");
+            ValidateFieldIsRuntimeComputed(issues, fieldsByCode, "BLOCKCOUNT");
+            ValidateFieldIsRuntimeComputed(issues, fieldsByCode, "ENTRYHASH");
+        }
+    }
+
+    private static void ValidateFieldIsRuntimeComputed(
+        ICollection<NachaConfigValidationIssueDto> issues,
+        IReadOnlyDictionary<string, CfgLayoutField> fieldsByCode,
+        string fieldCode)
+    {
+        if (!fieldsByCode.TryGetValue(fieldCode, out var field))
+        {
+            return;
+        }
+
+        if (string.Equals(field.SourceDefinition?.DataSourceType?.Code, "CONSTANTE", StringComparison.OrdinalIgnoreCase))
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = "CONTROL_FIELD_MUST_BE_RUNTIME",
+                Mensaje = $"Campo {fieldCode} debe derivarse de cálculo runtime y no puede ser constante."
+            });
         }
     }
 

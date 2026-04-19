@@ -288,6 +288,48 @@ public sealed class NachaConfigAdminServicesHardeningTests
     }
 
     [Fact]
+    public async Task ValidateBeforePublishAsync_ShouldRejectConstantControlFields_ForRecord8And9()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var constante = await context.CatDataSourceTypes.SingleAsync(x => x.Code == "CONSTANTE");
+
+        var record8Variant = await context.CfgLayoutVariants.Include(x => x.RecordCode).SingleAsync(x => x.ProfileId == profile.Id && x.RecordCode.Code == "8");
+        var record9Variant = await context.CfgLayoutVariants.Include(x => x.RecordCode).SingleAsync(x => x.ProfileId == profile.Id && x.RecordCode.Code == "9");
+        context.CfgLayoutFields.RemoveRange(await context.CfgLayoutFields.Where(x => x.LayoutVariantId == record8Variant.Id || x.LayoutVariantId == record9Variant.Id).ToListAsync());
+        await context.SaveChangesAsync();
+
+        var srcConstant = new CfgFieldSourceDefinition { DataSourceTypeId = constante.Id, ConstantValue = "1" };
+        context.CfgFieldSourceDefinitions.Add(srcConstant);
+        await context.SaveChangesAsync();
+
+        context.CfgLayoutFields.AddRange(
+            new CfgLayoutField { LayoutVariantId = record8Variant.Id, FieldCode = "ServiceClassCode", FieldNameEs = "ServiceClassCode", StartPosition = 2, Length = 3, SourceDefinitionId = srcConstant.Id, SortOrder = 1, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record8Variant.Id, FieldCode = "EntryAddendaCount", FieldNameEs = "EntryAddendaCount", StartPosition = 5, Length = 6, SourceDefinitionId = srcConstant.Id, SortOrder = 2, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record8Variant.Id, FieldCode = "EntryHash", FieldNameEs = "EntryHash", StartPosition = 11, Length = 10, SourceDefinitionId = srcConstant.Id, SortOrder = 3, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record8Variant.Id, FieldCode = "TotalDebitAmount", FieldNameEs = "TotalDebitAmount", StartPosition = 21, Length = 12, SourceDefinitionId = srcConstant.Id, SortOrder = 4, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record8Variant.Id, FieldCode = "TotalCreditAmount", FieldNameEs = "TotalCreditAmount", StartPosition = 33, Length = 12, SourceDefinitionId = srcConstant.Id, SortOrder = 5, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record8Variant.Id, FieldCode = "CompanyIdentification", FieldNameEs = "CompanyIdentification", StartPosition = 45, Length = 10, SourceDefinitionId = srcConstant.Id, SortOrder = 6, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record8Variant.Id, FieldCode = "OriginatingDFI", FieldNameEs = "OriginatingDFI", StartPosition = 80, Length = 8, SourceDefinitionId = srcConstant.Id, SortOrder = 7, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record8Variant.Id, FieldCode = "BatchNumber", FieldNameEs = "BatchNumber", StartPosition = 88, Length = 7, SourceDefinitionId = srcConstant.Id, SortOrder = 8, IsEnabled = true },
+
+            new CfgLayoutField { LayoutVariantId = record9Variant.Id, FieldCode = "BatchCount", FieldNameEs = "BatchCount", StartPosition = 2, Length = 6, SourceDefinitionId = srcConstant.Id, SortOrder = 1, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record9Variant.Id, FieldCode = "BlockCount", FieldNameEs = "BlockCount", StartPosition = 8, Length = 6, SourceDefinitionId = srcConstant.Id, SortOrder = 2, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record9Variant.Id, FieldCode = "EntryAddendaCount", FieldNameEs = "EntryAddendaCount", StartPosition = 14, Length = 8, SourceDefinitionId = srcConstant.Id, SortOrder = 3, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record9Variant.Id, FieldCode = "EntryHash", FieldNameEs = "EntryHash", StartPosition = 22, Length = 10, SourceDefinitionId = srcConstant.Id, SortOrder = 4, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record9Variant.Id, FieldCode = "TotalDebitAmount", FieldNameEs = "TotalDebitAmount", StartPosition = 32, Length = 12, SourceDefinitionId = srcConstant.Id, SortOrder = 5, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record9Variant.Id, FieldCode = "TotalCreditAmount", FieldNameEs = "TotalCreditAmount", StartPosition = 44, Length = 12, SourceDefinitionId = srcConstant.Id, SortOrder = 6, IsEnabled = true }
+        );
+        await context.SaveChangesAsync();
+
+        var validation = new NachaConfigValidationService(context);
+        var result = await validation.ValidateBeforePublishAsync(profile.Id);
+
+        result.IsValid.Should().BeFalse();
+        result.Issues.Should().Contain(x => x.Codigo == "CONTROL_FIELD_MUST_BE_RUNTIME");
+    }
+
+    [Fact]
     public async Task PublishAsync_ShouldSucceed_AndPersistSnapshotAndHistory()
     {
         await using var context = await CreateSqliteContextAsync();

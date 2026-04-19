@@ -35,6 +35,7 @@ public class NachaFileBuilder : INachaFileBuilder
     private readonly INachaFixedWidthRecordRenderer _recordRenderer;
     private readonly INachaRecordDataProvider _recordDataProvider;
     private readonly INachaSemanticValidator _nachaSemanticValidator;
+    private readonly IBatchNumberGenerator _batchNumberGenerator;
     private readonly INachaConfigResolver? _configResolver;
     private readonly INachaType7AliasMap? _type7AliasMap;
     private readonly INachaType7GenerationStrategy? _type7GenerationStrategy;
@@ -61,7 +62,8 @@ public class NachaFileBuilder : INachaFileBuilder
         INachaRecordMappingEngine? recordMappingEngine = null,
         IFieldMappingPlanCompiler? mappingPlanCompiler = null,
         IOptions<NachaGenerationOptions>? generationOptions = null,
-        ILogger<NachaFileBuilder>? logger = null)
+        ILogger<NachaFileBuilder>? logger = null,
+        IBatchNumberGenerator? batchNumberGenerator = null)
     {
         _context = context;
         _holidayService = holidayService;
@@ -70,6 +72,7 @@ public class NachaFileBuilder : INachaFileBuilder
         _recordRenderer = recordRenderer;
         _recordDataProvider = recordDataProvider;
         _nachaSemanticValidator = nachaSemanticValidator;
+        _batchNumberGenerator = batchNumberGenerator ?? new DailyResetBatchNumberGenerator();
         _configResolver = configResolver;
         _type7AliasMap = type7AliasMap;
         _type7GenerationStrategy = type7GenerationStrategy;
@@ -447,9 +450,9 @@ public class NachaFileBuilder : INachaFileBuilder
         CancellationToken ct)
     {
         var orderedBatches = context.Batches.OrderBy(b => b.Id).ToList();
-        var batchSequenceById = orderedBatches
-            .Select((batch, index) => new { batch.Id, BatchNumber = index + 1 })
-            .ToDictionary(item => item.Id, item => item.BatchNumber);
+        var clearingHouseCode = context.Cycle.ClearingHouse?.Name?.Contains("CENIT", StringComparison.OrdinalIgnoreCase) == true ? "CENIT" : "ACH";
+        var batchNumberAssignment = _batchNumberGenerator.AssignBatchNumbers(orderedBatches, clearingHouseCode, context.Cycle.ProcessingDate);
+        var batchSequenceById = batchNumberAssignment.BatchNumberByBatchId;
 
         if (!orderedBatches.Any())
             throw new InvalidOperationException("No se encontraron lotes para exportar.");
@@ -463,10 +466,11 @@ public class NachaFileBuilder : INachaFileBuilder
         var audit = new NachaGenerationAuditResult
         {
             Mode = (_generationOptions.Mode ?? "LEGACY").Trim().ToUpperInvariant(),
-            ClearingHouseCode = context.Cycle.ClearingHouse?.Name?.Contains("CENIT", StringComparison.OrdinalIgnoreCase) == true ? "CENIT" : "ACH"
+            ClearingHouseCode = clearingHouseCode
         };
         var settlementPolicy = ResolveSettlementPolicyByChamber(audit.ClearingHouseCode);
         audit.Trace.Add($"HeaderPolicy:Chamber={audit.ClearingHouseCode};SettlementDate={settlementPolicy}");
+        audit.Trace.Add($"BatchNumberPolicy:{batchNumberAssignment.PolicyCode};ScopedGroups={batchNumberAssignment.ScopedGroups}");
 
         var resolution = await ResolveRuntimeConfigAsync(context, definitions, ct);
         if (resolution.Profile is not null)
@@ -792,6 +796,36 @@ public class NachaFileBuilder : INachaFileBuilder
                 }
 
                 audit.Warnings.Add("RecordCode=6 usó fallback legado por cobertura insuficiente del mapping engine.");
+            }
+
+            if (recordCode == "8" && ShouldUseRecord8MappingEngine(mode) && _recordMappingEngine is not null && _mappingPlanCompiler is not null)
+            {
+                var mapped = await TryRenderRecord8WithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
+                if (!string.IsNullOrWhiteSpace(mapped))
+                {
+                    audit.Trace.Add("R8:MAPPING_ENGINE_APPLIED:BASE_OBJECT=BatchControlRecord.From");
+                    sb.Append(mapped);
+                    lineCount++;
+                    continue;
+                }
+
+                audit.Warnings.Add("RecordCode=8 usó fallback legado por cobertura insuficiente del mapping engine.");
+                audit.Trace.Add("R8:MAPPING_ENGINE_FALLBACK:BASE_OBJECT=BatchControlRecord.From");
+            }
+
+            if (recordCode == "9" && ShouldUseRecord9MappingEngine(mode) && _recordMappingEngine is not null && _mappingPlanCompiler is not null)
+            {
+                var mapped = await TryRenderRecord9WithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
+                if (!string.IsNullOrWhiteSpace(mapped))
+                {
+                    audit.Trace.Add("R9:MAPPING_ENGINE_APPLIED:BASE_OBJECT=FileControlRecord.From");
+                    sb.Append(mapped);
+                    lineCount++;
+                    continue;
+                }
+
+                audit.Warnings.Add("RecordCode=9 usó fallback legado por cobertura insuficiente del mapping engine.");
+                audit.Trace.Add("R9:MAPPING_ENGINE_FALLBACK:BASE_OBJECT=FileControlRecord.From");
             }
 
             var rendered = await RenderWithResolvedLayoutAsync(recordCode, record, layoutVariant);
@@ -1321,6 +1355,32 @@ public class NachaFileBuilder : INachaFileBuilder
         return TryRenderHeaderWithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
     }
 
+    private Task<string?> TryRenderRecord8WithMappingEngineAsync(
+        string recordCode,
+        object record,
+        CfgLayoutVariant layoutVariant,
+        string mode,
+        IReadOnlyDictionary<string, NachaRecordLayout> layoutCache,
+        NachaBuildContext context,
+        NachaGenerationAuditResult audit,
+        CancellationToken ct)
+    {
+        return TryRenderHeaderWithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
+    }
+
+    private Task<string?> TryRenderRecord9WithMappingEngineAsync(
+        string recordCode,
+        object record,
+        CfgLayoutVariant layoutVariant,
+        string mode,
+        IReadOnlyDictionary<string, NachaRecordLayout> layoutCache,
+        NachaBuildContext context,
+        NachaGenerationAuditResult audit,
+        CancellationToken ct)
+    {
+        return TryRenderHeaderWithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
+    }
+
     private async Task<string?> TryRenderHeaderWithMappingEngineAsync(
         string recordCode,
         object record,
@@ -1423,6 +1483,26 @@ public class NachaFileBuilder : INachaFileBuilder
     private bool ShouldUseRecord5MappingEngine(string mode)
     {
         if (!_generationOptions.EnableRecord5MappingEngine)
+        {
+            return false;
+        }
+
+        return mode is "HYBRID" or "TABLE_DRIVEN" or "SHADOW_COMPARE";
+    }
+
+    private bool ShouldUseRecord8MappingEngine(string mode)
+    {
+        if (!_generationOptions.EnableRecord8MappingEngine)
+        {
+            return false;
+        }
+
+        return mode is "HYBRID" or "TABLE_DRIVEN" or "SHADOW_COMPARE";
+    }
+
+    private bool ShouldUseRecord9MappingEngine(string mode)
+    {
+        if (!_generationOptions.EnableRecord9MappingEngine)
         {
             return false;
         }
