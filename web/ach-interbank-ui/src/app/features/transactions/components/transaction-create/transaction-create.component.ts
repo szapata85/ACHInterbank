@@ -11,7 +11,7 @@ import { SharedModule } from '../../../../shared/shared.module';
 import { FinancialInstitutionsApiService } from '../../services/financial-institutions-api.service';
 import { CustomersApiService } from '../../../customers/services/customers-api.service';
 import { CustomerSummary } from '../../../customers/models/customer.model';
-import { policyPreviewValidator, recipientIdentityValidator } from '../../transaction-policy.validators';
+import { recipientIdentityValidator } from '../../transaction-policy.validators';
 
 @Component({
   selector: 'app-transaction-create',
@@ -87,7 +87,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
-    this.form.setValidators([this.validateAccountDifference, this.validateBusinessRules, recipientIdentityValidator(), policyPreviewValidator(() => this.policyPreview)]);
+    this.form.setValidators([this.validateAccountDifference, this.validateBusinessRules, recipientIdentityValidator()]);
 
     this.api.getCompanyEntryDescriptions().pipe(take(1), takeUntil(this.destroy$)).subscribe((items) => {
       this.companyEntryDescriptionOptions = (items ?? []).sort((a, b) => a.term.localeCompare(b.term));
@@ -212,12 +212,6 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     if (parsedAmount === null || (!Boolean(payload.isPrenotification) && parsedAmount <= 0)) {
       this.form.get('amount')?.setErrors({ invalidAmount: true });
       this.form.get('amount')?.markAsTouched();
-      return;
-    }
-
-    if (this.policyPreview && !this.policyPreview.canSubmit) {
-      this.errorMessage.setValue(this.policyPreview.message ?? 'La transacción incumple la política ACH vigente.');
-      this.notifications.error(this.errorMessage.value);
       return;
     }
 
@@ -475,10 +469,6 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
     if (!addendas || addendas.length === 0) {
       errors.missingAddenda = true;
-    }
-
-    if (this.policyPreview && !this.policyPreview.canSubmit) {
-      errors.policyRejected = true;
     }
 
     if (addendas && addendas.length > 0) {

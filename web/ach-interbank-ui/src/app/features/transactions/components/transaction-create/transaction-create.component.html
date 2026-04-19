@@ -268,7 +268,9 @@
       </ng-template>
       <p class="error" *ngIf="form.errors?.missingAddenda">Debes registrar al menos una addenda.</p>
       <p class="error" *ngIf="form.errors?.invalidAddenda">En esta pantalla solo se permite addenda tipo 05.</p>
-      <p class="error" *ngIf="form.errors?.policyRejected">La transacción está fuera de política operativa o excede límites dinámicos.</p>
+      <p class="muted" *ngIf="policyPreview && !policyPreview.canSubmit">
+        Advertencia operativa: {{ policyPreview.message }}. Se intentará registrar la transacción para que el backend gestione ciclo automático cuando aplique.
+      </p>
     </div>
 
 
@@ -307,7 +309,7 @@
       <p class="muted" *ngIf="preview.canSubmit">La transacción cumple la política operativa vigente.</p>
       <p class="error" *ngIf="!preview.canSubmit">{{ preview.message }}</p>
       <p class="error" *ngIf="preview.wouldDuplicate">Advertencia: ya existe una transacción equivalente en el mismo ciclo operativo.</p>
-      <p class="error" *ngIf="!preview.isWithinProcessingWindow">Advertencia: el ciclo está fuera de ventana y el envío será bloqueado.</p>
+      <p class="muted" *ngIf="!preview.isWithinProcessingWindow">Advertencia: el ciclo está fuera de ventana; el backend intentará crear ciclo operativo automático.</p>
     </section>
 
     <div class="actions">
