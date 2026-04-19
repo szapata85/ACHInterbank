@@ -73,8 +73,8 @@ describe('TransactionBulkCreateComponent', () => {
       totalFailed: 0,
       createdTransactionIds: [10, 11],
       itemResults: [
-        { index: 0, reference: 'REF-001', succeeded: true, transactionId: 10 },
-        { index: 1, reference: 'REF-002', succeeded: true, transactionId: 11 }
+        { index: 0, reference: 'REF-001', succeeded: true, transactionId: 10, transactionExternalId: 'EXT-001' },
+        { index: 1, reference: 'REF-002', succeeded: true, transactionId: 11, transactionExternalId: 'EXT-002' }
       ]
     };
 
