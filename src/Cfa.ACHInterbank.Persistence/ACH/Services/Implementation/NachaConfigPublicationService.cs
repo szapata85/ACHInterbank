@@ -2,6 +2,7 @@ using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH.Config;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 

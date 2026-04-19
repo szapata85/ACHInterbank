@@ -8,7 +8,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace Cfa.ACHInterbank.Persistence.Migrations
+namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 {
     [DbContext(typeof(AchDbContext))]
     partial class AchDbContextModelSnapshot : ModelSnapshot
@@ -4741,7 +4741,6 @@ namespace Cfa.ACHInterbank.Persistence.Migrations
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("bytea");
 
                     b.Property<int?>("ServiceClassId")

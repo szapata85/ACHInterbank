@@ -978,7 +978,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 .Select(x => new NachaRecordField
                 {
                     FieldName = x.FieldCode,
-                    DbColumn = ResolveDbColumnAlias(x.SourceDefinition),
+                    DbColumn = ResolveDbColumnAlias(x.SourceDefinition)!,
                     StartPosition = x.StartPosition,
                     Length = x.Length,
                     Justification = x.Justification,
