@@ -744,7 +744,7 @@ public class NachaFileBuilder : INachaFileBuilder
         var lineCount = 0;
         foreach (var record in records)
         {
-            if (recordCode == "6" && _generationOptions.EnableRecord6MappingEngine && _recordMappingEngine is not null && _mappingPlanCompiler is not null)
+            if (recordCode == "6" && ShouldUseRecord6MappingEngine(mode) && _recordMappingEngine is not null && _mappingPlanCompiler is not null)
             {
                 var mapped = await TryRenderRecord6WithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, audit, ct);
                 if (!string.IsNullOrWhiteSpace(mapped))
@@ -1130,7 +1130,11 @@ public class NachaFileBuilder : INachaFileBuilder
 
         foreach (var trace in mapped.FieldTraces.Take(_generationOptions.Record6MappingDiagnostics ? mapped.FieldTraces.Count : 5))
         {
-            audit.Trace.Add($"R6:{trace.FieldCode}:SRC={trace.SourceUsed}:RAW={trace.RawValue}:FINAL={trace.FinalValue}:FB={trace.FallbackStrategy}");
+            var transforms = trace.TransformSteps.Count == 0 ? "none" : string.Join(",", trace.TransformSteps);
+            var issuesText = trace.ValidationIssues.Count == 0
+                ? "none"
+                : string.Join("|", trace.ValidationIssues.Select(x => $"{x.RuleCode}:{x.Severity}"));
+            audit.Trace.Add($"R6:{trace.FieldCode}:SRC={trace.SourceUsed}:CAN={trace.CanonicalKey}:RAW={trace.RawValue}:TF={transforms}:RULES={issuesText}:FB={trace.FallbackStrategy}:FINAL={trace.FinalValue}");
         }
 
         if (!mapped.Success && mapped.ValuesByFieldCode.Count == 0)
@@ -1170,6 +1174,16 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return rendered;
+    }
+
+    private bool ShouldUseRecord6MappingEngine(string mode)
+    {
+        if (!_generationOptions.EnableRecord6MappingEngine)
+        {
+            return false;
+        }
+
+        return mode is "HYBRID" or "TABLE_DRIVEN" or "SHADOW_COMPARE";
     }
 
     private static IReadOnlyDictionary<string, object?> BuildRecord6ContextValues(object record)

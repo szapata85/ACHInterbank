@@ -192,6 +192,43 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                     }
                 }
 
+
+                if (!string.IsNullOrWhiteSpace(field.SourceDefinition.FallbackPolicyJson))
+                {
+                    try
+                    {
+                        using var fallbackDoc = JsonDocument.Parse(field.SourceDefinition.FallbackPolicyJson);
+                        if (fallbackDoc.RootElement.TryGetProperty("steps", out var steps) && steps.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var step in steps.EnumerateArray())
+                            {
+                                var stepType = step.TryGetProperty("type", out var stepTypeElement)
+                                    ? stepTypeElement.GetString()?.ToLowerInvariant()
+                                    : string.Empty;
+
+                                if (stepType is not ("default" or "coalesce" or "null_if_missing" or "alias" or "secondary_source"))
+                                {
+                                    issues.Add(new NachaConfigValidationIssueDto
+                                    {
+                                        Severidad = "ERROR",
+                                        Codigo = "UNSUPPORTED_FALLBACK_STEP",
+                                        Mensaje = $"Field {field.FieldCode} usa fallback step {stepType} no soportado en fase 1."
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        issues.Add(new NachaConfigValidationIssueDto
+                        {
+                            Severidad = "ERROR",
+                            Codigo = "INVALID_FALLBACK_POLICY",
+                            Mensaje = $"Field {field.FieldCode} tiene FallbackPolicyJson inválido."
+                        });
+                    }
+                }
+
                 foreach (var rule in field.Rules.Where(r => r.IsEnabled))
                 {
                     var ruleType = rule.RuleType?.Code ?? string.Empty;
