@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
