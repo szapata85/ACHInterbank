@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Text.Json;
 using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -39,10 +40,10 @@ public sealed class NachaConfigBackfillSeeder : IDbSeeder
             return;
         }
 
-        var achClearingHouseId = await ResolveCatalogIdAsync(_context.CatClearingHouses, "ACH");
-        var originalFlowId = await ResolveCatalogIdAsync(_context.CatFlowTypes, "ORIGINAL");
-        var outDirectionId = await ResolveCatalogIdAsync(_context.CatDirections, "SALIDA");
-        var publishedStatusId = await ResolveCatalogIdAsync(_context.CatConfigStatuses, "PUBLICADO");
+        var achClearingHouseId = await ResolveCatalogIdAsync(_context.CatClearingHouses, x => x.Code, x => x.Id, "ACH");
+        var originalFlowId = await ResolveCatalogIdAsync(_context.CatFlowTypes, x => x.Code, x => x.Id, "ORIGINAL");
+        var outDirectionId = await ResolveCatalogIdAsync(_context.CatDirections, x => x.Code, x => x.Id, "SALIDA");
+        var publishedStatusId = await ResolveCatalogIdAsync(_context.CatConfigStatuses, x => x.Code, x => x.Id, "PUBLICADO");
 
         var defaultServiceClassCode = await _context.CompanyEntryDescriptionCatalogs
             .AsNoTracking()
@@ -79,8 +80,8 @@ public sealed class NachaConfigBackfillSeeder : IDbSeeder
             .AsNoTracking()
             .ToDictionaryAsync(x => x.Code, x => x.Id);
 
-        var constantTypeId = await ResolveCatalogIdAsync(_context.CatDataSourceTypes, "CONSTANTE");
-        var entityTypeId = await ResolveCatalogIdAsync(_context.CatDataSourceTypes, "ENTIDAD");
+        var constantTypeId = await ResolveCatalogIdAsync(_context.CatDataSourceTypes, x => x.Code, x => x.Id, "CONSTANTE");
+        var entityTypeId = await ResolveCatalogIdAsync(_context.CatDataSourceTypes, x => x.Code, x => x.Id, "ENTIDAD");
 
         var layoutByRecordCode = layouts
             .GroupBy(x => x.RecordCode)
@@ -252,14 +253,27 @@ public sealed class NachaConfigBackfillSeeder : IDbSeeder
         return fallback;
     }
 
-    private static async Task<int> ResolveCatalogIdAsync<TCatalog>(IQueryable<TCatalog> query, string code)
+    private static async Task<int> ResolveCatalogIdAsync<TCatalog>(
+        IQueryable<TCatalog> query,
+        Expression<Func<TCatalog, string>> codeSelector,
+        Expression<Func<TCatalog, int>> idSelector,
+        string code)
         where TCatalog : class
     {
         var entity = await query
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => EF.Property<string>(x, "Code") == code)
+            .FirstOrDefaultAsync(BuildCodePredicate(codeSelector, code))
             ?? throw new InvalidOperationException($"No se encontró catálogo requerido: {typeof(TCatalog).Name} con código {code}.");
 
-        return EF.Property<int>(entity, "Id");
+        return idSelector.Compile()(entity);
+    }
+
+    private static Expression<Func<TCatalog, bool>> BuildCodePredicate<TCatalog>(
+        Expression<Func<TCatalog, string>> codeSelector,
+        string code)
+    {
+        var parameter = codeSelector.Parameters[0];
+        var equals = Expression.Equal(codeSelector.Body, Expression.Constant(code));
+        return Expression.Lambda<Func<TCatalog, bool>>(equals, parameter);
     }
 }
