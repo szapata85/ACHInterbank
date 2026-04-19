@@ -86,16 +86,16 @@ public class NachaFileBuilderBatchNumberHardeningTests
             ["9"] = new NachaRecordLayout { RecordCode = "9", TotalLength = 106, Fields = [] }
         });
         loader.Setup(x => x.LoadDefinitionsAsync(It.IsAny<CancellationToken>())).ReturnsAsync([
-            new NachaRecordDefinition { RecordCode = "1", IsEnabled = true, SortOrder = 1 },
-            new NachaRecordDefinition { RecordCode = "5", IsEnabled = true, SortOrder = 2 },
-            new NachaRecordDefinition { RecordCode = "6", IsEnabled = true, SortOrder = 3 },
-            new NachaRecordDefinition { RecordCode = "8", IsEnabled = true, SortOrder = 4 },
-            new NachaRecordDefinition { RecordCode = "9", IsEnabled = true, SortOrder = 5 }
+            new NachaRecordDefinition { RecordCode = "1", IsEnabled = true, Sequence = 1 },
+            new NachaRecordDefinition { RecordCode = "5", IsEnabled = true, Sequence = 2 },
+            new NachaRecordDefinition { RecordCode = "6", IsEnabled = true, Sequence = 3 },
+            new NachaRecordDefinition { RecordCode = "8", IsEnabled = true, Sequence = 4 },
+            new NachaRecordDefinition { RecordCode = "9", IsEnabled = true, Sequence = 5 }
         ]);
         loader.Setup(x => x.LoadCompanyEntryDescriptionCatalogAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([new CompanyEntryDescriptionCatalog { Id = 1, Term = "PAGOS", StandardEntryClassCode = "PPD" }]);
-        validation.Setup(x => x.ValidateTransactionsForSendAsync(It.IsAny<IReadOnlyCollection<AchTransaction>>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-        semantic.Setup(x => x.ValidateForExport(It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(Task.FromResult(Array.Empty<string>()));
+            .ReturnsAsync([(Term: "PAGOS", StandardEntryClassCode: "PPD")]);
+        validation.Setup(x => x.ValidateTransactionsForSendAsync(It.IsAny<IReadOnlyList<AchTransaction>>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        semantic.Setup(x => x.Validate(It.IsAny<string>(), It.IsAny<NachaBuildContext>()));
 
         renderer.Setup(x => x.RenderRecordAsync("1", It.IsAny<object>(), It.IsAny<NachaRecordLayout>())).ReturnsAsync(new string('1', 106));
         renderer.Setup(x => x.RenderRecordAsync("6", It.IsAny<object>(), It.IsAny<NachaRecordLayout>())).ReturnsAsync(new string('6', 106));

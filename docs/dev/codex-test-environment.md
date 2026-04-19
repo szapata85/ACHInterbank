@@ -88,3 +88,26 @@ Resultado real:
    ```
 2. Instalar navegador para Karma (Chrome/Chromium) y exportar `CHROME_BIN`.
 3. Normalizar el baseline del proyecto de tests (compilación) antes de exigir ejecución parcial por filtro.
+
+
+## 8) Fase adicional: compilación de suite para tests NACHA filtrados
+Comando ejecutado:
+```bash
+export DOTNET_ROOT=$HOME/.dotnet
+export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" -v minimal
+```
+
+Resultado real:
+- El comando sigue fallando por **errores de compilación en múltiples pruebas legacy** fuera del núcleo NACHA actual.
+- Se redujeron errores de dependencias básicas (FluentAssertions, InMemory, global usings), pero persisten desalineaciones estructurales entre pruebas antiguas y contratos/clases actuales.
+
+Bloqueadores principales vigentes:
+- Pruebas que usan propiedades removidas de `ClearingHouseConfig` (`FileHeaderCode`, `RecordSeparator`, `IsFixedLength`, `TotalLength`).
+- Pruebas con firmas de constructores antiguas (p.ej., `NachaFileBuilder`, `AchCycleScheduler`, `AchTransactionService`, `BatchResolver`, `TransactionPersister`).
+- Pruebas con modelos obsoletos (`DocumentTypeCatalogs`, `PersonTypeCatalogs`, `GenderCatalogs`, campos viejos en `Customer`, etc.).
+- Pruebas con enums/estados antiguos (`AchTransferStateEnum.RejectedByOperator`) y objetos de integración desactualizados.
+
+Conclusión de esta fase:
+- El entorno .NET quedó funcional para compilar backend y ejecutar comandos reales.
+- La ejecución de tests filtrados continúa bloqueada por deuda de mantenimiento del proyecto de pruebas (baseline legacy), no por falta de setup.

@@ -43,10 +43,9 @@ public class NachaFileBuilderFileIntegrityClosureTests
             ReceivingDFI = "11112222",
             DestinationAccountNumber = "000123456789",
             RecipientIdNumber = "900000001",
-            ReceiverName = "RECEPTOR UNO",
-            TransactionCode = "22",
+                        TransactionCode = "22",
             TraceNumber = "123456780000001",
-            Addendas = [new AchTransactionAddenda { PaymentRelatedInformation = "INFO" }]
+            Addendas = [new AchTransactionAddenda { Information = "INFO" }]
         };
 
         var batch = new AchBatch
@@ -84,9 +83,9 @@ public class NachaFileBuilderFileIntegrityClosureTests
             new NachaRecordDefinition { RecordCode = "9", IsEnabled = true, Sequence = 6 }
         ]);
         loader.Setup(x => x.LoadCompanyEntryDescriptionCatalogAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([new CompanyEntryDescriptionCatalog { Id = 1, Term = "PAGOS", StandardEntryClassCode = "PPD" }]);
+            .ReturnsAsync([(Term: "PAGOS", StandardEntryClassCode: "PPD")]);
 
-        validation.Setup(x => x.ValidateTransactionsForSendAsync(It.IsAny<IReadOnlyCollection<AchTransaction>>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        validation.Setup(x => x.ValidateTransactionsForSendAsync(It.IsAny<IReadOnlyList<AchTransaction>>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         semantic.Setup(x => x.Validate(It.IsAny<string>(), It.IsAny<NachaBuildContext>()));
 
         renderer.Setup(x => x.RenderRecordAsync("1", It.IsAny<object>(), It.IsAny<NachaRecordLayout>())).ReturnsAsync(new string('1', 106));
