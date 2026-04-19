@@ -465,6 +465,8 @@ public class NachaFileBuilder : INachaFileBuilder
             Mode = (_generationOptions.Mode ?? "LEGACY").Trim().ToUpperInvariant(),
             ClearingHouseCode = context.Cycle.ClearingHouse?.Name?.Contains("CENIT", StringComparison.OrdinalIgnoreCase) == true ? "CENIT" : "ACH"
         };
+        var settlementPolicy = ResolveSettlementPolicyByChamber(audit.ClearingHouseCode);
+        audit.Trace.Add($"HeaderPolicy:Chamber={audit.ClearingHouseCode};SettlementDate={settlementPolicy}");
 
         var resolution = await ResolveRuntimeConfigAsync(context, definitions, ct);
         if (resolution.Profile is not null)
@@ -728,6 +730,7 @@ public class NachaFileBuilder : INachaFileBuilder
         CancellationToken ct)
     {
         var mode = (_generationOptions.Mode ?? "LEGACY").Trim().ToUpperInvariant();
+        var settlementPolicy = ResolveSettlementPolicyByChamber(audit.ClearingHouseCode);
         var shouldUseResolver = mode is "HYBRID" or "TABLE_DRIVEN" or "SHADOW_COMPARE";
 
         if (!shouldUseResolver || _configResolver is null || !resolution.LayoutsByRecordCode.TryGetValue(recordCode, out var layoutVariant))
@@ -750,6 +753,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 if (!string.IsNullOrWhiteSpace(mapped))
                 {
                     audit.Trace.Add("R1:MAPPING_ENGINE_APPLIED:BASE_OBJECT=FileHeaderRecord.From");
+                    audit.Trace.Add($"R1:CHAMBER={audit.ClearingHouseCode};SETTLEMENT_POLICY={settlementPolicy}");
                     sb.Append(mapped);
                     lineCount++;
                     continue;
@@ -757,6 +761,7 @@ public class NachaFileBuilder : INachaFileBuilder
 
                 audit.Warnings.Add("RecordCode=1 usó fallback legado por cobertura insuficiente del mapping engine.");
                 audit.Trace.Add("R1:MAPPING_ENGINE_FALLBACK:BASE_OBJECT=FileHeaderRecord.From");
+                audit.Trace.Add($"R1:CHAMBER={audit.ClearingHouseCode};SETTLEMENT_POLICY={settlementPolicy}");
             }
 
             if (recordCode == "5" && ShouldUseRecord5MappingEngine(mode) && _recordMappingEngine is not null && _mappingPlanCompiler is not null)
@@ -765,6 +770,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 if (!string.IsNullOrWhiteSpace(mapped))
                 {
                     audit.Trace.Add("R5:MAPPING_ENGINE_APPLIED:BASE_OBJECT=BatchHeaderRecord.From");
+                    audit.Trace.Add($"R5:CHAMBER={audit.ClearingHouseCode};SETTLEMENT_POLICY={settlementPolicy}");
                     sb.Append(mapped);
                     lineCount++;
                     continue;
@@ -772,6 +778,7 @@ public class NachaFileBuilder : INachaFileBuilder
 
                 audit.Warnings.Add("RecordCode=5 usó fallback legado por cobertura insuficiente del mapping engine.");
                 audit.Trace.Add("R5:MAPPING_ENGINE_FALLBACK:BASE_OBJECT=BatchHeaderRecord.From");
+                audit.Trace.Add($"R5:CHAMBER={audit.ClearingHouseCode};SETTLEMENT_POLICY={settlementPolicy}");
             }
 
             if (recordCode == "6" && ShouldUseRecord6MappingEngine(mode) && _recordMappingEngine is not null && _mappingPlanCompiler is not null)
@@ -1475,6 +1482,13 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return $"RecordCode={recordCode}, longitud legado={legacyRendered.Length}, longitud nuevo={newRendered.Length}";
+    }
+
+    private static string ResolveSettlementPolicyByChamber(string? chamberCode)
+    {
+        return string.Equals(chamberCode, "CENIT", StringComparison.OrdinalIgnoreCase)
+            ? "CENIT_BLANK_ONLY"
+            : "ACH_BLANK_OR_JULIAN3";
     }
 
     private async Task PersistGenerationAuditAsync(NachaGenerationAuditResult audit, int? profileId, CancellationToken ct)

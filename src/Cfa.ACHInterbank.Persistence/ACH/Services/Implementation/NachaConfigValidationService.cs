@@ -47,6 +47,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                 .ThenInclude(x => x.Fields)
                     .ThenInclude(x => x.Rules)
                         .ThenInclude(x => x.RuleType)
+            .Include(x => x.ClearingHouse)
             .FirstOrDefaultAsync(x => x.Id == profileId, ct);
 
         if (profile is null)
@@ -94,6 +95,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
             issues.Add(new NachaConfigValidationIssueDto { Severidad = "ERROR", Codigo = "MISSING_VARIANT", Mensaje = $"No hay variantes configuradas para record {code}." });
         }
 
+        var chamberCode = ResolveChamberCode(profile.ClearingHouse?.Code, profile.ClearingHouse?.Name);
         foreach (var variant in profile.LayoutVariants)
         {
             var ordered = variant.Fields.Where(f => f.IsEnabled).OrderBy(f => f.StartPosition).ToList();
@@ -269,7 +271,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                 });
             }
 
-            ValidateHeaderNormativeRequirements(issues, variant, ordered);
+            ValidateHeaderNormativeRequirements(issues, chamberCode, variant, ordered);
         }
 
         var conflictingEffective = await _context.CfgProfiles
@@ -325,6 +327,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
 
     private static void ValidateHeaderNormativeRequirements(
         ICollection<NachaConfigValidationIssueDto> issues,
+        string chamberCode,
         CfgLayoutVariant variant,
         IReadOnlyCollection<CfgLayoutField> orderedFields)
     {
@@ -394,16 +397,17 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
 
         if (recordCode == "1")
         {
-            ValidateRecord1HeaderRules(issues, fieldsByCode);
+            ValidateRecord1HeaderRules(issues, chamberCode, fieldsByCode);
         }
         else
         {
-            ValidateRecord5HeaderRules(issues, fieldsByCode);
+            ValidateRecord5HeaderRules(issues, chamberCode, fieldsByCode);
         }
     }
 
     private static void ValidateRecord1HeaderRules(
         ICollection<NachaConfigValidationIssueDto> issues,
+        string chamberCode,
         IReadOnlyDictionary<string, CfgLayoutField> fieldsByCode)
     {
         ValidateFormatMask(issues, fieldsByCode, "FILECREATIONDATE", "yyMMdd");
@@ -423,10 +427,25 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                 Mensaje = "ImmediateOrigin e ImmediateDestination no deben ser idénticos cuando ambos son constantes."
             });
         }
+
+        if (TryGetConstant(fieldsByCode, "FILEIDMODIFIER", out var fileIdModifier))
+        {
+            var isValid = chamberCode == "CENIT"
+                ? fileIdModifier.Length == 1 && fileIdModifier.All(char.IsLetter)
+                : fileIdModifier.Length == 1 && fileIdModifier.All(char.IsLetterOrDigit);
+            if (!isValid)
+            {
+                AddChamberRuleIssue(issues, chamberCode, "FileIdModifier inválido para la cámara configurada.");
+            }
+        }
+
+        ValidateRoutingConstantByChamber(issues, chamberCode, fieldsByCode, "IMMEDIATEORIGIN");
+        ValidateRoutingConstantByChamber(issues, chamberCode, fieldsByCode, "IMMEDIATEDESTINATION");
     }
 
     private static void ValidateRecord5HeaderRules(
         ICollection<NachaConfigValidationIssueDto> issues,
+        string chamberCode,
         IReadOnlyDictionary<string, CfgLayoutField> fieldsByCode)
     {
         ValidateFormatMask(issues, fieldsByCode, "EFFECTIVEENTRYDATE", "yyMMdd");
@@ -435,24 +454,112 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         if (TryGetConstant(fieldsByCode, "STANDARDENTRYCLASSCODE", out var secCode)
             && secCode is not ("PPD" or "CCD"))
         {
-            issues.Add(new NachaConfigValidationIssueDto
-            {
-                Severidad = "ERROR",
-                Codigo = "INVALID_SEC_CODE",
-                Mensaje = $"SEC inválido '{secCode}'. Solo se permite PPD o CCD en la versión actual."
-            });
+            AddChamberRuleIssue(issues, chamberCode, $"SEC inválido '{secCode}'. Solo se permite PPD o CCD.");
         }
 
         if (TryGetConstant(fieldsByCode, "ORIGINATINGDFI", out var dfi)
             && (dfi.Length != 8 || dfi.Any(ch => !char.IsDigit(ch))))
         {
-            issues.Add(new NachaConfigValidationIssueDto
-            {
-                Severidad = "ERROR",
-                Codigo = "INVALID_ORIGINATING_DFI",
-                Mensaje = "OriginatingDFI constante debe tener exactamente 8 dígitos."
-            });
+            AddChamberRuleIssue(issues, chamberCode, "OriginatingDFI constante debe tener exactamente 8 dígitos.");
         }
+
+        if (fieldsByCode.TryGetValue("SETTLEMENTDATE", out var settlementField))
+        {
+            ValidateSettlementPolicy(issues, chamberCode, settlementField);
+        }
+    }
+
+    private static void ValidateSettlementPolicy(
+        ICollection<NachaConfigValidationIssueDto> issues,
+        string chamberCode,
+        CfgLayoutField settlementField)
+    {
+        var sourceType = settlementField.SourceDefinition?.DataSourceType?.Code ?? string.Empty;
+        var constant = (settlementField.SourceDefinition?.ConstantValue ?? string.Empty).Trim();
+
+        if (chamberCode == "CENIT")
+        {
+            if (sourceType.Equals("CONSTANTE", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(constant))
+            {
+                issues.Add(new NachaConfigValidationIssueDto
+                {
+                    Severidad = "ERROR",
+                    Codigo = "INVALID_SETTLEMENT_POLICY",
+                    Mensaje = "CENIT requiere SettlementDate vacío (lo determina la cámara)."
+                });
+            }
+
+            return;
+        }
+
+        if (chamberCode == "ACH" && sourceType.Equals("CONSTANTE", StringComparison.OrdinalIgnoreCase))
+        {
+            var valid = string.IsNullOrWhiteSpace(constant) || (constant.Length == 3 && constant.All(char.IsDigit));
+            if (!valid)
+            {
+                issues.Add(new NachaConfigValidationIssueDto
+                {
+                    Severidad = "ERROR",
+                    Codigo = "INVALID_SETTLEMENT_POLICY",
+                    Mensaje = "ACH permite SettlementDate vacío o juliano de 3 dígitos cuando es constante."
+                });
+            }
+        }
+    }
+
+    private static void ValidateRoutingConstantByChamber(
+        ICollection<NachaConfigValidationIssueDto> issues,
+        string chamberCode,
+        IReadOnlyDictionary<string, CfgLayoutField> fieldsByCode,
+        string fieldCode)
+    {
+        if (!TryGetConstant(fieldsByCode, fieldCode, out var value))
+        {
+            return;
+        }
+
+        var isNumeric = value.All(char.IsDigit);
+        var valid = chamberCode == "CENIT"
+            ? isNumeric && value.Length == 8
+            : isNumeric && value.Length is >= 8 and <= 10;
+        if (!valid)
+        {
+            AddChamberRuleIssue(issues, chamberCode, $"{fieldCode} no cumple formato esperado para cámara {chamberCode}.");
+        }
+    }
+
+    private static void AddChamberRuleIssue(ICollection<NachaConfigValidationIssueDto> issues, string chamberCode, string message)
+    {
+        var code = chamberCode == "CENIT" ? "HEADER_RULE_CENIT_INVALID" : "HEADER_RULE_ACH_INVALID";
+        issues.Add(new NachaConfigValidationIssueDto
+        {
+            Severidad = "ERROR",
+            Codigo = code,
+            Mensaje = message
+        });
+    }
+
+    private static string ResolveChamberCode(string? clearingHouseCode, string? clearingHouseName)
+    {
+        if (!string.IsNullOrWhiteSpace(clearingHouseCode))
+        {
+            if (clearingHouseCode.Contains("CENIT", StringComparison.OrdinalIgnoreCase))
+            {
+                return "CENIT";
+            }
+
+            if (clearingHouseCode.Contains("ACH", StringComparison.OrdinalIgnoreCase))
+            {
+                return "ACH";
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(clearingHouseName) && clearingHouseName.Contains("CENIT", StringComparison.OrdinalIgnoreCase))
+        {
+            return "CENIT";
+        }
+
+        return "ACH";
     }
 
     private static void ValidateFormatMask(
