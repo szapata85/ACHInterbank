@@ -654,6 +654,7 @@ public class NachaFileBuilder : INachaFileBuilder
                     var blockCount = (int)Math.Ceiling(totalRecords / 10m);
                     var paddingNeeded = (blockCount * 10) - totalRecords;
                     var fileControl = FileControlRecord.From(context.Cycle, orderedBatches, batchCount, blockCount, entryAddendaCount, totalDebit, totalCredit);
+                    audit.Trace.Add($"FileIntegrity:BatchCount={batchCount};EntryAddendaCount={entryAddendaCount};TotalDebit={totalDebit};TotalCredit={totalCredit};BlockCount={blockCount};PaddingNeeded={paddingNeeded}");
 
                     recordCount += await AppendResolvedOrLegacyAsync(
                         sb,
@@ -669,6 +670,7 @@ public class NachaFileBuilder : INachaFileBuilder
                     if (paddingNeeded > 0)
                     {
                         var paddingRecord = new string('9', layoutCache["9"].TotalLength);
+                        EnsureRecordLength("9", paddingRecord, layoutCache["9"].TotalLength);
                         for (int i = 0; i < paddingNeeded; i++)
                         {
                             sb.Append(paddingRecord);
@@ -844,9 +846,11 @@ public class NachaFileBuilder : INachaFileBuilder
                 {
                     audit.EquivalenceDiffs.Add(diff);
                     audit.Warnings.Add($"Diferencia detectada en shadow compare para RecordCode={recordCode}.");
+                    RegisterShadowDiff(audit, diff);
                 }
             }
 
+            EnsureRecordLength(recordCode, rendered, layoutVariant.TotalLength);
             sb.Append(rendered);
             lineCount++;
         }
@@ -941,6 +945,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 audit.Type7GeneratedTableDriven++;
             }
 
+            EnsureRecordLength("7", rendered, layoutVariant.TotalLength);
             sb.Append(rendered);
             lineCount++;
 
@@ -953,6 +958,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 {
                     audit.EquivalenceDiffs.Add(diff);
                     audit.Warnings.Add("Diferencia detectada en SHADOW_COMPARE para RecordCode=7.");
+                    RegisterShadowDiff(audit, diff);
                 }
 
                 foreach (var fieldDiff in BuildType7FieldDiffs(layoutVariant, legacy, rendered))
@@ -1327,9 +1333,11 @@ public class NachaFileBuilder : INachaFileBuilder
             {
                 audit.EquivalenceDiffs.Add($"R6_MAPPING:{diff}");
                 audit.Warnings.Add("Diferencia SHADOW_COMPARE en record 6 mapping engine.");
+                RegisterShadowDiff(audit, $"R6_MAPPING:{diff}");
             }
         }
 
+        EnsureRecordLength(recordCode, rendered, mappedLayout.TotalLength);
         return rendered;
     }
 
@@ -1458,9 +1466,11 @@ public class NachaFileBuilder : INachaFileBuilder
             {
                 audit.EquivalenceDiffs.Add($"R{recordCode}_MAPPING:{diff}");
                 audit.Warnings.Add($"Diferencia SHADOW_COMPARE en record {recordCode} mapping engine.");
+                RegisterShadowDiff(audit, $"R{recordCode}_MAPPING:{diff}");
             }
         }
 
+        EnsureRecordLength(recordCode, rendered, mappedLayout.TotalLength);
         return rendered;
     }
 
@@ -1557,15 +1567,45 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         var max = Math.Min(legacyRendered.Length, newRendered.Length);
+        var diffs = new List<string>(capacity: 3);
+        var totalDiffs = 0;
         for (var i = 0; i < max; i++)
         {
             if (legacyRendered[i] != newRendered[i])
             {
-                return $"RecordCode={recordCode}, posición={i + 1}, legado='{legacyRendered[i]}', nuevo='{newRendered[i]}'";
+                totalDiffs++;
+                if (diffs.Count < 3)
+                {
+                    diffs.Add($"pos={i + 1},legacy='{legacyRendered[i]}',new='{newRendered[i]}'");
+                }
             }
         }
 
+        totalDiffs += Math.Abs(legacyRendered.Length - newRendered.Length);
+
+        if (diffs.Count > 0)
+        {
+            return $"RecordCode={recordCode};DiffCount={totalDiffs};Diffs={string.Join("|", diffs)};LenLegacy={legacyRendered.Length};LenNew={newRendered.Length}";
+        }
+
         return $"RecordCode={recordCode}, longitud legado={legacyRendered.Length}, longitud nuevo={newRendered.Length}";
+    }
+
+    private static void RegisterShadowDiff(NachaGenerationAuditResult audit, string diff)
+    {
+        audit.ShadowDiffCount++;
+        if (audit.ShadowDiffDetails.Count < 200)
+        {
+            audit.ShadowDiffDetails.Add(diff);
+        }
+    }
+
+    private static void EnsureRecordLength(string recordCode, string rendered, int expectedLength)
+    {
+        if (rendered.Length != expectedLength)
+        {
+            throw new InvalidOperationException($"RecordCode={recordCode} renderizó longitud {rendered.Length} y se esperaba {expectedLength}.");
+        }
     }
 
     private static string ResolveSettlementPolicyByChamber(string? chamberCode)
@@ -1588,6 +1628,7 @@ public class NachaFileBuilder : INachaFileBuilder
             var type7DiffCount = audit.Type7DiffByField.Values.Sum();
             var type7MatchRate = 100m * (type7Compared - Math.Min(type7Compared, type7DiffCount)) / type7Compared;
             audit.Trace.Add($"Type7Summary:Candidates={audit.Type7TotalCandidates};New={audit.Type7GeneratedTableDriven};Legacy={audit.Type7GeneratedLegacy};Diffs={type7DiffCount};MatchRate={type7MatchRate:0.00}%");
+            audit.Trace.Add($"ShadowCompareSummary:DiffCount={audit.ShadowDiffCount};StoredDetails={audit.ShadowDiffDetails.Count}");
 
             _context.HistConfigChanges.Add(new Domain.Models.ACH.Config.HistConfigChange
             {

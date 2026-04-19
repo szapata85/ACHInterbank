@@ -89,6 +89,30 @@ public class DailyResetBatchNumberGeneratorTests
         values.OrderBy(x => x).Should().Equal([1, 2, 3, 4, 5]);
     }
 
+
+    [Fact]
+    public async Task BatchNumberSequence_Model_ShouldConfigureRowVersionAndUniqueScope()
+    {
+        await using var harness = await CreateSqliteHarnessAsync();
+
+        var entityType = harness.Context.Model.FindEntityType(typeof(BatchNumberSequence));
+        entityType.Should().NotBeNull();
+
+        var rowVersion = entityType!.FindProperty(nameof(BatchNumberSequence.RowVersion));
+        rowVersion.Should().NotBeNull();
+        rowVersion!.IsConcurrencyToken.Should().BeTrue();
+
+        var uniqueScopeIndex = entityType.GetIndexes().FirstOrDefault(x => x.IsUnique
+                        && x.Properties.Select(p => p.Name).SequenceEqual([
+                nameof(BatchNumberSequence.ClearingHouseId),
+                nameof(BatchNumberSequence.OriginatingDfi),
+                nameof(BatchNumberSequence.ProcessingDate),
+                nameof(BatchNumberSequence.PolicyCode)
+            ]));
+
+        uniqueScopeIndex.Should().NotBeNull();
+    }
+
     private static async Task<SqliteHarness> CreateSqliteHarnessAsync()
     {
         var connection = new SqliteConnection("Data Source=:memory:");

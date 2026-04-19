@@ -83,6 +83,15 @@ public sealed class BatchNumberSequenceStore(
                     MaxAttempts,
                     scope.ToScopeKey());
             }
+            catch (DbUpdateConcurrencyException ex) when (attempt < MaxAttempts)
+            {
+                await tx.RollbackAsync(ct);
+                logger?.LogWarning(ex,
+                    "BatchNumberSequence concurrency retry {Attempt}/{MaxAttempts} for scope {Scope}.",
+                    attempt,
+                    MaxAttempts,
+                    scope.ToScopeKey());
+            }
         }
 
         throw new InvalidOperationException($"Could not reserve batch number sequence for scope {scope.ToScopeKey()}.");

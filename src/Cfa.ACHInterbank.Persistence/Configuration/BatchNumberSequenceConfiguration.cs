@@ -27,6 +27,9 @@ internal sealed class BatchNumberSequenceConfiguration : IEntityTypeConfiguratio
         builder.Property(x => x.LastAssignedValue)
             .IsRequired();
 
+        builder.Property(x => x.RowVersion)
+            .IsRowVersion();
+
         builder.HasIndex(x => new { x.ClearingHouseId, x.OriginatingDfi, x.ProcessingDate, x.PolicyCode })
             .IsUnique();
     }

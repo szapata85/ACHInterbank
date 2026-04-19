@@ -10,4 +10,5 @@ public class BatchNumberSequence : AuditableEntity
     public DateOnly ProcessingDate { get; set; }
     public string PolicyCode { get; set; } = string.Empty;
     public int LastAssignedValue { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
