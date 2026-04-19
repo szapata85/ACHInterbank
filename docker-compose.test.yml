@@ -1,0 +1,20 @@
+services:
+  postgres-test:
+    image: postgres:16
+    container_name: achinterbank-postgres-test
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-achinterbank_test}
+      POSTGRES_USER: ${POSTGRES_USER:-ach_test}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ach_test_password}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ach_test} -d ${POSTGRES_DB:-achinterbank_test}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_test_data:
