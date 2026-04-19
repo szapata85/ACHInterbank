@@ -55,6 +55,21 @@ public sealed class FieldSourceResolver : IFieldSourceResolver
             return Task.FromResult(new SourceResolutionResult { Success = false, SourceUsed = "ENTITY", ErrorCode = "PROPERTY_PATH_NOT_FOUND" });
         }
 
+        if (sourceRecord is IReadOnlyDictionary<string, object?> dictSource)
+        {
+            if (TryResolveDictionaryValue(dictSource, path, out var dictValue))
+            {
+                return Task.FromResult(new SourceResolutionResult
+                {
+                    Success = true,
+                    Value = dictValue,
+                    SourceUsed = $"DICT:{path}"
+                });
+            }
+
+            return Task.FromResult(new SourceResolutionResult { Success = false, SourceUsed = $"DICT:{path}", ErrorCode = "SOURCE_MISSING" });
+        }
+
         var accessor = BuildAccessor(sourceRecord.GetType(), path);
         var resolved = accessor(sourceRecord);
         return Task.FromResult(new SourceResolutionResult
@@ -64,6 +79,28 @@ public sealed class FieldSourceResolver : IFieldSourceResolver
             SourceUsed = $"ENTITY:{path}",
             ErrorCode = resolved is null ? "SOURCE_MISSING" : null
         });
+    }
+
+
+    private static bool TryResolveDictionaryValue(IReadOnlyDictionary<string, object?> source, string propertyPath, out object? value)
+    {
+        value = null;
+        var candidates = propertyPath.Split(new[] { ".", ":", "/" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var last = candidates.Length == 0 ? propertyPath : candidates[^1];
+
+        if (source.TryGetValue(propertyPath, out value) || source.TryGetValue(last, out value))
+        {
+            return true;
+        }
+
+        var found = source.FirstOrDefault(kv => string.Equals(kv.Key, propertyPath, StringComparison.OrdinalIgnoreCase) || string.Equals(kv.Key, last, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrEmpty(found.Key))
+        {
+            value = found.Value;
+            return true;
+        }
+
+        return false;
     }
 
     private static Func<object, object?> BuildAccessor(Type type, string propertyPath)

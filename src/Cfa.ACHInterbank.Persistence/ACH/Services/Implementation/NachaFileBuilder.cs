@@ -847,10 +847,27 @@ public class NachaFileBuilder : INachaFileBuilder
         foreach (var candidate in candidates)
         {
             var alignedValues = AlignType7ValuesWithLayout(layoutVariant, candidate.FieldValues, audit);
-            var rendered = await RenderWithResolvedLayoutAsync("7", alignedValues, layoutVariant);
+            var rendered = await TryRenderType7WithMappingEngineAsync(layoutVariant, alignedValues, mode, layoutCache, candidate, audit, ct);
+            if (string.IsNullOrWhiteSpace(rendered))
+            {
+                var renderer = _type7LegacyRenderer ?? new NachaType7LegacyRenderer();
+                if (!rolloutDecision.AllowLegacyFallback)
+                {
+                    throw new InvalidOperationException($"Rollout policy bloqueó fallback type7 para candidato Trace={candidate.Transaction.TraceNumber}.");
+                }
+
+                rendered = renderer.Render(candidate.Batch, candidate.Transaction, candidate.Addenda);
+                audit.Type7GeneratedLegacy++;
+                IncrementCounter(audit.Type7FallbackReasons, "MappingEngineFallbackToLegacy");
+                IncrementCounter(audit.Type7FallbackByLayout, layoutVariant.VariantCode);
+            }
+            else
+            {
+                audit.Type7GeneratedTableDriven++;
+            }
+
             sb.Append(rendered);
             lineCount++;
-            audit.Type7GeneratedTableDriven++;
 
             if (mode == "SHADOW_COMPARE")
             {
@@ -882,6 +899,71 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return lineCount;
+    }
+
+    private async Task<string?> TryRenderType7WithMappingEngineAsync(
+        CfgLayoutVariant layoutVariant,
+        IReadOnlyDictionary<string, object?> alignedValues,
+        string mode,
+        IReadOnlyDictionary<string, NachaRecordLayout> layoutCache,
+        NachaType7RecordCandidate candidate,
+        NachaGenerationAuditResult audit,
+        CancellationToken ct)
+    {
+        if (!_generationOptions.EnableType7CommonMappingEngine || _recordMappingEngine is null || _mappingPlanCompiler is null)
+        {
+            return await RenderWithResolvedLayoutAsync("7", alignedValues, layoutVariant);
+        }
+
+        var issues = new List<string>();
+        var plan = _mappingPlanCompiler.CompileRecordPlan(layoutVariant, issues);
+        if (issues.Count > 0)
+        {
+            audit.Warnings.AddRange(issues.Select(x => $"Type7PlanIssue:{x}"));
+        }
+
+        var mapped = await _recordMappingEngine.MapRecordAsync(new RecordMappingRequest
+        {
+            RecordCode = "7",
+            SourceRecord = alignedValues,
+            RecordPlan = plan,
+            ContextValues = new Dictionary<string, object?>(alignedValues, StringComparer.OrdinalIgnoreCase),
+            EnableDiagnostics = _generationOptions.Record6MappingDiagnostics,
+            ShadowCompare = string.Equals(mode, "SHADOW_COMPARE", StringComparison.OrdinalIgnoreCase),
+            LegacyLayout = layoutCache.TryGetValue("7", out var legacyLayout) ? legacyLayout : null
+        }, ct);
+
+        foreach (var trace in mapped.FieldTraces.Take(_generationOptions.Record6MappingDiagnostics ? mapped.FieldTraces.Count : 5))
+        {
+            audit.Trace.Add($"R7:{trace.FieldCode}:SRC={trace.SourceUsed}:CAN={trace.CanonicalKey}:RAW={trace.RawValue}:FINAL={trace.FinalValue}:FB={trace.FallbackStrategy}");
+        }
+
+        if (!mapped.Success && mapped.ValuesByFieldCode.Count == 0)
+        {
+            audit.Warnings.Add($"Type7 mapping engine devolvió fallback para Trace={candidate.Transaction.TraceNumber}.");
+            return null;
+        }
+
+        var mappedLayout = new NachaRecordLayout
+        {
+            RecordCode = "7",
+            TotalLength = layoutVariant.TotalLength,
+            Fields = layoutVariant.Fields
+                .OrderBy(x => x.StartPosition)
+                .Select(x => new NachaRecordField
+                {
+                    FieldName = x.FieldCode,
+                    DbColumn = x.FieldCode,
+                    StartPosition = x.StartPosition,
+                    Length = x.Length,
+                    Justification = x.Justification,
+                    PadChar = x.PadChar,
+                    Format = x.FormatMask
+                })
+                .ToList()
+        };
+
+        return await _recordRenderer.RenderRecordAsync("7", mapped.ValuesByFieldCode, mappedLayout);
     }
 
     private IReadOnlyDictionary<string, object?> AlignType7ValuesWithLayout(

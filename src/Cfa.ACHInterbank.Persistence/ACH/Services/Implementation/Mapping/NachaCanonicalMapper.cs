@@ -24,6 +24,43 @@ public sealed class NachaCanonicalMapper : INachaCanonicalMapper
             ["destinationaccountnumber"] = "DestinationAccountNumber",
             ["receivingdfi"] = "ReceivingDFI",
             ["tracenumber"] = "TraceNumber"
+        },
+        ["7"] = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["addendatype"] = "AddendaType",
+            ["tipoaddenda"] = "AddendaType",
+            ["typecode"] = "AddendaType",
+            ["businesstype"] = "BusinessType",
+            ["tiponegocio"] = "BusinessType",
+            ["purpose"] = "Purpose",
+            ["proposito"] = "Purpose",
+            ["descripcionproposito"] = "Purpose",
+            ["reference"] = "Reference",
+            ["referencia"] = "Reference",
+            ["collectorid"] = "CollectorId",
+            ["identificacionrecaudador"] = "CollectorId",
+            ["receivercustomercode"] = "ReceiverCustomerCode",
+            ["codigoclientereceptor"] = "ReceiverCustomerCode",
+            ["servicedescription"] = "ServiceDescription",
+            ["descripcionservicio"] = "ServiceDescription",
+            ["sequencenumber"] = "SequenceNumber",
+            ["addendasequence"] = "SequenceNumber",
+            ["secuenciaaddenda"] = "SequenceNumber",
+            ["tracesuffix"] = "TraceSuffix",
+            ["tracenumbersuffix"] = "TraceSuffix",
+            ["sufijotrace"] = "TraceSuffix",
+            ["returnreasoncode"] = "ReturnReasonCode",
+            ["codigodevolucion"] = "ReturnReasonCode",
+            ["originaltracenumber"] = "OriginalTraceNumber",
+            ["numerotraceoriginal"] = "OriginalTraceNumber",
+            ["newtracenumber"] = "NewTraceNumber",
+            ["numerotracenuevo"] = "NewTraceNumber",
+            ["transactiontracenumber"] = "TransactionTraceNumber",
+            ["tracenumber"] = "TransactionTraceNumber",
+            ["transactioncode"] = "TransactionCode",
+            ["codigotransaccion"] = "TransactionCode",
+            ["batchcompanyentrydescription"] = "BatchCompanyEntryDescription",
+            ["descripcionentradalote"] = "BatchCompanyEntryDescription"
         }
     };
 
