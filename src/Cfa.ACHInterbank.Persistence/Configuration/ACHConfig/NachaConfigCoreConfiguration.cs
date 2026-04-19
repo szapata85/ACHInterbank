@@ -19,7 +19,10 @@ public class CfgProfileConfiguration : IEntityTypeConfiguration<CfgProfile>
         builder.Property(x => x.Description).HasMaxLength(1000);
         builder.Property(x => x.PublishedBy).HasMaxLength(120);
 
-        builder.Property(x => x.RowVersion).IsRowVersion();
+        builder.Property(x => x.RowVersion)
+            .IsRequired()
+            .IsConcurrencyToken()
+            .ValueGeneratedNever();
 
         builder.HasIndex(x => x.ProfileCode).IsUnique();
         builder.HasIndex(x => new { x.ClearingHouseId, x.FlowTypeId, x.DirectionId, x.ServiceClassId, x.VersionMajor, x.VersionMinor })

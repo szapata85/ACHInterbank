@@ -371,6 +371,17 @@ public class AchDbContext : DbContext
             }
         }
 
+        var profileEntries = ChangeTracker
+            .Entries<CfgProfile>()
+            .Where(x => x.State is EntityState.Added or EntityState.Modified)
+            .ToList();
+
+        foreach (var entry in profileEntries)
+        {
+            entry.Entity.RowVersion = Guid.NewGuid().ToByteArray();
+            entry.Property(x => x.RowVersion).IsModified = true;
+        }
+
         if (auditEntries.Count > 0)
         {
             AuditLogs.AddRange(auditEntries);
