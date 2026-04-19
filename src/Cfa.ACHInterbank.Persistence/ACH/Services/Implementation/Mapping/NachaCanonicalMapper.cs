@@ -6,6 +6,20 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Mapping;
 [Scoped]
 public sealed class NachaCanonicalMapper : INachaCanonicalMapper
 {
+    internal enum CanonicalResolutionFailure
+    {
+        None = 0,
+        UnresolvableAlias = 1,
+        AmbiguousAlias = 2,
+        InvalidCanonicalKey = 3
+    }
+
+    internal sealed record CanonicalResolutionProbe(
+        bool Success,
+        string? CanonicalKey,
+        CanonicalResolutionFailure Failure,
+        IReadOnlyList<string> Candidates);
+
     private static readonly Dictionary<string, string> GlobalAliases = new(StringComparer.OrdinalIgnoreCase)
     {
         ["trace"] = "TraceNumber",
@@ -66,18 +80,97 @@ public sealed class NachaCanonicalMapper : INachaCanonicalMapper
 
     public string ResolveCanonicalKey(string recordCode, string keyOrAlias)
     {
-        var normalized = Normalize(keyOrAlias);
-        if (RecordOverrides.TryGetValue(recordCode, out var map) && map.TryGetValue(normalized, out var scoped))
+        if (TryResolveCanonicalKey(recordCode, keyOrAlias, out var canonicalKey))
         {
-            return scoped;
-        }
-
-        if (GlobalAliases.TryGetValue(normalized, out var global))
-        {
-            return global;
+            return canonicalKey;
         }
 
         return keyOrAlias.Trim();
+    }
+
+    public bool TryResolveCanonicalKey(string recordCode, string keyOrAlias, out string canonicalKey)
+    {
+        var probe = Probe(recordCode, keyOrAlias);
+        canonicalKey = probe.CanonicalKey ?? string.Empty;
+        return probe.Success;
+    }
+
+    internal CanonicalResolutionProbe Probe(string recordCode, string keyOrAlias)
+    {
+        var raw = (keyOrAlias ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return new CanonicalResolutionProbe(false, null, CanonicalResolutionFailure.UnresolvableAlias, []);
+        }
+
+        var normalized = Normalize(raw);
+        var candidates = ResolveCandidates(recordCode, normalized);
+        if (candidates.Count == 1)
+        {
+            return new CanonicalResolutionProbe(true, candidates[0], CanonicalResolutionFailure.None, candidates);
+        }
+
+        if (candidates.Count > 1)
+        {
+            return new CanonicalResolutionProbe(false, null, CanonicalResolutionFailure.AmbiguousAlias, candidates);
+        }
+
+        var failure = LooksLikeCanonical(raw)
+            ? CanonicalResolutionFailure.InvalidCanonicalKey
+            : CanonicalResolutionFailure.UnresolvableAlias;
+        return new CanonicalResolutionProbe(false, null, failure, []);
+    }
+
+    private static List<string> ResolveCandidates(string recordCode, string normalizedKey)
+    {
+        var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (RecordOverrides.TryGetValue(recordCode, out var scopedMap))
+        {
+            if (scopedMap.TryGetValue(normalizedKey, out var scopedAlias))
+            {
+                candidates.Add(scopedAlias);
+            }
+
+            foreach (var scopedCanonical in scopedMap.Values)
+            {
+                if (Normalize(scopedCanonical) == normalizedKey)
+                {
+                    candidates.Add(scopedCanonical);
+                }
+            }
+        }
+
+        if (GlobalAliases.TryGetValue(normalizedKey, out var globalAlias))
+        {
+            candidates.Add(globalAlias);
+        }
+
+        foreach (var globalCanonical in GlobalAliases.Values)
+        {
+            if (Normalize(globalCanonical) == normalizedKey)
+            {
+                candidates.Add(globalCanonical);
+            }
+        }
+
+        return candidates.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static bool LooksLikeCanonical(string keyOrAlias)
+    {
+        if (string.IsNullOrWhiteSpace(keyOrAlias))
+        {
+            return false;
+        }
+
+        var trimmed = keyOrAlias.Trim();
+        if (trimmed.Any(ch => !char.IsLetterOrDigit(ch)))
+        {
+            return false;
+        }
+
+        return trimmed.Any(char.IsUpper);
     }
 
     private static string Normalize(string value)

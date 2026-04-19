@@ -52,7 +52,7 @@ public class MappingEnginePhase1Tests
     public async Task SourceResolver_ShouldResolveConstant()
     {
         var dsl = new ExpressionDslEngine();
-        var sut = new FieldSourceResolver(dsl, dsl);
+        var sut = new FieldSourceResolver(dsl, dsl, new NachaCanonicalMapper());
         var plan = BuildFieldPlan(sourceType: "CONSTANTE", constant: "ABC");
 
         var result = await sut.ResolveAsync(plan, new { Name = "X" }, new Dictionary<string, object?>());
@@ -65,7 +65,7 @@ public class MappingEnginePhase1Tests
     public async Task SourceResolver_ShouldResolvePropertyPath()
     {
         var dsl = new ExpressionDslEngine();
-        var sut = new FieldSourceResolver(dsl, dsl);
+        var sut = new FieldSourceResolver(dsl, dsl, new NachaCanonicalMapper());
         var plan = BuildFieldPlan(sourceType: "ENTIDAD", propertyPath: "TraceNumber");
 
         var result = await sut.ResolveAsync(plan, new { TraceNumber = "123456" }, new Dictionary<string, object?>());
@@ -78,7 +78,7 @@ public class MappingEnginePhase1Tests
     public async Task SourceResolver_ShouldResolveContextValue()
     {
         var dsl = new ExpressionDslEngine();
-        var sut = new FieldSourceResolver(dsl, dsl);
+        var sut = new FieldSourceResolver(dsl, dsl, new NachaCanonicalMapper());
         var plan = BuildFieldPlan(sourceType: "CONTEXT_VALUE", propertyPath: "CycleName");
 
         var result = await sut.ResolveAsync(plan, new { Name = "X" }, new Dictionary<string, object?> { ["CycleName"] = "C40" });
@@ -91,7 +91,7 @@ public class MappingEnginePhase1Tests
     public async Task SourceResolver_ShouldResolveExpression()
     {
         var dsl = new ExpressionDslEngine();
-        var sut = new FieldSourceResolver(dsl, dsl);
+        var sut = new FieldSourceResolver(dsl, dsl, new NachaCanonicalMapper());
         var plan = BuildFieldPlan(sourceType: "EXPRESION", expressionDsl: "{\"op\":\"concat\",\"args\":[{\"op\":\"const\",\"value\":\"A\"},{\"op\":\"prop\",\"path\":\"TraceNumber\"}]}");
 
         var result = await sut.ResolveAsync(plan, new { TraceNumber = "22" }, new Dictionary<string, object?>());
@@ -198,10 +198,59 @@ public class MappingEnginePhase1Tests
     }
 
     [Fact]
+    public void CanonicalMapper_TryResolve_ShouldCoverDirectUnresolvableAndAmbiguousCases()
+    {
+        var sut = new NachaCanonicalMapper();
+
+        sut.TryResolveCanonicalKey("6", "TraceNumber", out var directCanonical).Should().BeTrue();
+        directCanonical.Should().Be("TraceNumber");
+
+        sut.TryResolveCanonicalKey("6", "alias_que_no_existe", out _).Should().BeFalse();
+
+        sut.TryResolveCanonicalKey("7", "tracenumber", out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SourceResolver_ShouldResolveAliasThroughCanonicalMapper()
+    {
+        var dsl = new ExpressionDslEngine();
+        var sut = new FieldSourceResolver(dsl, dsl, new NachaCanonicalMapper());
+        var plan = BuildFieldPlan(sourceType: "ENTIDAD", propertyPath: "receivercustomercode");
+
+        var result = await sut.ResolveAsync(plan, new { ReceiverCustomerCode = "RC001" }, new Dictionary<string, object?>());
+
+        result.Success.Should().BeTrue();
+        result.Value.Should().Be("RC001");
+    }
+
+    [Fact]
+    public async Task FieldMappingEngine_ShouldFailWhenAliasIsAmbiguous()
+    {
+        var dsl = new ExpressionDslEngine();
+        var source = new FieldSourceResolver(dsl, dsl, new NachaCanonicalMapper());
+        var transform = new FieldTransformationEngine();
+        var validation = new FieldValidationEngine();
+        var fallback = new FieldFallbackEngine();
+        var canonical = new NachaCanonicalMapper();
+        var fieldEngine = new NachaFieldMappingEngine(source, canonical, transform, validation, fallback);
+
+        var result = await fieldEngine.MapFieldAsync(new FieldMappingRequest
+        {
+            RecordCode = "7",
+            FieldPlan = BuildFieldPlan(sourceType: "ENTIDAD", propertyPath: "tracenumber", fieldCode: "TRACE7", recordCode: "7"),
+            SourceRecord = new { TraceNumber = "T-01", TransactionTraceNumber = "T-02" },
+            ContextValues = new Dictionary<string, object?>()
+        });
+
+        result.Success.Should().BeFalse();
+        result.Trace.ValidationIssues.Should().ContainSingle(x => x.RuleCode == "AMBIGUOUS_ALIAS");
+    }
+
+    [Fact]
     public async Task RecordMappingEngine_ShouldMapRecord6()
     {
         var dsl = new ExpressionDslEngine();
-        var source = new FieldSourceResolver(dsl, dsl);
+        var source = new FieldSourceResolver(dsl, dsl, new NachaCanonicalMapper());
         var transform = new FieldTransformationEngine();
         var validation = new FieldValidationEngine();
         var fallback = new FieldFallbackEngine();
@@ -241,12 +290,13 @@ public class MappingEnginePhase1Tests
         string? fallback = null,
         string? expressionDsl = null,
         string fieldCode = "F1",
+        string recordCode = "6",
         IReadOnlyList<FieldRulePlan>? rules = null)
     {
         return new FieldRuntimePlan
         {
             LayoutFieldId = 1,
-            RecordCode = "6",
+            RecordCode = recordCode,
             FieldCode = fieldCode,
             FieldNameEs = fieldCode,
             StartPosition = 1,

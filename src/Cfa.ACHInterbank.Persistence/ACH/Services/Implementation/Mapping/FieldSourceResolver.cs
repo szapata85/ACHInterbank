@@ -11,12 +11,14 @@ public sealed class FieldSourceResolver : IFieldSourceResolver
 {
     private readonly IExpressionDslCompiler _dslCompiler;
     private readonly IExpressionDslExecutor _dslExecutor;
+    private readonly INachaCanonicalMapper _canonicalMapper;
     private static readonly ConcurrentDictionary<(Type Type, string Path), Func<object, object?>> AccessorCache = new();
 
-    public FieldSourceResolver(IExpressionDslCompiler dslCompiler, IExpressionDslExecutor dslExecutor)
+    public FieldSourceResolver(IExpressionDslCompiler dslCompiler, IExpressionDslExecutor dslExecutor, INachaCanonicalMapper canonicalMapper)
     {
         _dslCompiler = dslCompiler;
         _dslExecutor = dslExecutor;
+        _canonicalMapper = canonicalMapper;
     }
 
     public Task<SourceResolutionResult> ResolveAsync(FieldRuntimePlan fieldPlan, object sourceRecord, IReadOnlyDictionary<string, object?> contextValues, CancellationToken ct = default)
@@ -55,52 +57,94 @@ public sealed class FieldSourceResolver : IFieldSourceResolver
             return Task.FromResult(new SourceResolutionResult { Success = false, SourceUsed = "ENTITY", ErrorCode = "PROPERTY_PATH_NOT_FOUND" });
         }
 
+        _canonicalMapper.TryResolveCanonicalKey(fieldPlan.RecordCode, path, out var canonicalPath);
+        var fallbackPath = string.IsNullOrWhiteSpace(canonicalPath) ? path : canonicalPath;
+
         if (sourceRecord is IReadOnlyDictionary<string, object?> dictSource)
         {
-            if (TryResolveDictionaryValue(dictSource, path, out var dictValue))
+            if (TryResolveDictionaryValue(dictSource, path, fallbackPath, out var dictValue, out var resolvedKey))
             {
                 return Task.FromResult(new SourceResolutionResult
                 {
                     Success = true,
                     Value = dictValue,
-                    SourceUsed = $"DICT:{path}"
+                    SourceUsed = $"DICT:{resolvedKey}"
                 });
             }
 
             return Task.FromResult(new SourceResolutionResult { Success = false, SourceUsed = $"DICT:{path}", ErrorCode = "SOURCE_MISSING" });
         }
 
+        var resolvedPath = path;
         var accessor = BuildAccessor(sourceRecord.GetType(), path);
         var resolved = accessor(sourceRecord);
+        if (resolved is null && !string.Equals(path, fallbackPath, StringComparison.OrdinalIgnoreCase))
+        {
+            var canonicalAccessor = BuildAccessor(sourceRecord.GetType(), fallbackPath);
+            resolved = canonicalAccessor(sourceRecord);
+            if (resolved is not null)
+            {
+                resolvedPath = fallbackPath;
+            }
+        }
+
         return Task.FromResult(new SourceResolutionResult
         {
             Success = resolved is not null,
             Value = resolved,
-            SourceUsed = $"ENTITY:{path}",
+            SourceUsed = $"ENTITY:{resolvedPath}",
             ErrorCode = resolved is null ? "SOURCE_MISSING" : null
         });
     }
 
 
-    private static bool TryResolveDictionaryValue(IReadOnlyDictionary<string, object?> source, string propertyPath, out object? value)
+    private static bool TryResolveDictionaryValue(IReadOnlyDictionary<string, object?> source, string propertyPath, string canonicalPath, out object? value, out string resolvedKey)
     {
         value = null;
-        var candidates = propertyPath.Split(new[] { ".", ":", "/" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var last = candidates.Length == 0 ? propertyPath : candidates[^1];
-
-        if (source.TryGetValue(propertyPath, out value) || source.TryGetValue(last, out value))
+        resolvedKey = propertyPath;
+        foreach (var candidate in BuildPathCandidates(propertyPath, canonicalPath))
         {
-            return true;
-        }
+            if (source.TryGetValue(candidate, out value))
+            {
+                resolvedKey = candidate;
+                return true;
+            }
 
-        var found = source.FirstOrDefault(kv => string.Equals(kv.Key, propertyPath, StringComparison.OrdinalIgnoreCase) || string.Equals(kv.Key, last, StringComparison.OrdinalIgnoreCase));
-        if (!string.IsNullOrEmpty(found.Key))
-        {
-            value = found.Value;
-            return true;
+            var found = source.FirstOrDefault(kv => string.Equals(kv.Key, candidate, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrEmpty(found.Key))
+            {
+                value = found.Value;
+                resolvedKey = found.Key;
+                return true;
+            }
         }
 
         return false;
+    }
+
+    private static IEnumerable<string> BuildPathCandidates(string propertyPath, string canonicalPath)
+    {
+        yield return propertyPath;
+
+        var pathTokens = propertyPath.Split(new[] { ".", ":", "/" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (pathTokens.Length > 0)
+        {
+            yield return pathTokens[^1];
+        }
+
+        if (!string.IsNullOrWhiteSpace(canonicalPath))
+        {
+            if (!string.Equals(canonicalPath, propertyPath, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return canonicalPath;
+            }
+
+            var canonicalTokens = canonicalPath.Split(new[] { ".", ":", "/" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (canonicalTokens.Length > 0)
+            {
+                yield return canonicalTokens[^1];
+            }
+        }
     }
 
     private static Func<object, object?> BuildAccessor(Type type, string propertyPath)

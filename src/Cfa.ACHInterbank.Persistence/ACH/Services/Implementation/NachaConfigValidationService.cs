@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.Mapping;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Mapping;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,10 +14,12 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
 {
     private static readonly HashSet<string> RequiredRecordCodes = ["1", "5", "6", "8", "9"];
     private readonly AchDbContext _context;
+    private readonly INachaCanonicalMapper _canonicalMapper;
 
-    public NachaConfigValidationService(AchDbContext context)
+    public NachaConfigValidationService(AchDbContext context, INachaCanonicalMapper? canonicalMapper = null)
     {
         _context = context;
+        _canonicalMapper = canonicalMapper ?? new NachaCanonicalMapper();
     }
 
     public async Task<NachaConfigValidationResultDto> ValidateBeforePublishAsync(int profileId, CancellationToken ct = default)
@@ -84,6 +88,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         foreach (var variant in profile.LayoutVariants)
         {
             var ordered = variant.Fields.Where(f => f.IsEnabled).OrderBy(f => f.StartPosition).ToList();
+            var canonicalUsages = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             if (ordered.Count == 0)
             {
                 issues.Add(new NachaConfigValidationIssueDto
@@ -124,6 +129,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                     });
                 }
                 var sourceType = field.SourceDefinition.DataSourceType?.Code ?? string.Empty;
+                ValidateCanonicalPath(issues, variant.RecordCode.Code, field, sourceType, canonicalUsages);
                 if (sourceType is "SQL_VIEW" or "SQL_PROCEDURE")
                 {
                     issues.Add(new NachaConfigValidationIssueDto
@@ -243,6 +249,16 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                     }
                 }
             }
+
+            foreach (var usage in canonicalUsages.Where(x => x.Value.Count > 1))
+            {
+                issues.Add(new NachaConfigValidationIssueDto
+                {
+                    Severidad = "ERROR",
+                    Codigo = "AMBIGUOUS_ALIAS",
+                    Mensaje = $"Colisión de alias/canonical en record {variant.RecordCode.Code} para '{usage.Key}': {string.Join(", ", usage.Value)}."
+                });
+            }
         }
 
         var conflictingEffective = await _context.CfgProfiles
@@ -262,6 +278,49 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         }
 
         return Build(profileId, issues);
+    }
+
+    private void ValidateCanonicalPath(
+        ICollection<NachaConfigValidationIssueDto> issues,
+        string recordCode,
+        CfgLayoutField field,
+        string sourceType,
+        IDictionary<string, List<string>> canonicalUsages)
+    {
+        if (sourceType.Equals("CONSTANTE", StringComparison.OrdinalIgnoreCase)
+            || sourceType.Equals("EXPRESION", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(field.SourceDefinition.PropertyPath))
+        {
+            return;
+        }
+
+        var propertyPath = field.SourceDefinition.PropertyPath.Trim();
+        var probe = (_canonicalMapper as NachaCanonicalMapper)?.Probe(recordCode, propertyPath);
+        if (_canonicalMapper.TryResolveCanonicalKey(recordCode, propertyPath, out var canonical))
+        {
+            if (!canonicalUsages.TryGetValue(canonical, out var usages))
+            {
+                usages = [];
+                canonicalUsages[canonical] = usages;
+            }
+
+            usages.Add($"{field.FieldCode}:{propertyPath}");
+            return;
+        }
+
+        var code = probe?.Failure switch
+        {
+            NachaCanonicalMapper.CanonicalResolutionFailure.AmbiguousAlias => "AMBIGUOUS_ALIAS",
+            NachaCanonicalMapper.CanonicalResolutionFailure.InvalidCanonicalKey => "INVALID_CANONICAL_KEY",
+            _ => "UNRESOLVABLE_ALIAS"
+        };
+
+        issues.Add(new NachaConfigValidationIssueDto
+        {
+            Severidad = "ERROR",
+            Codigo = code,
+            Mensaje = $"Field {field.FieldCode} en record {recordCode} no resuelve '{propertyPath}' ({code})."
+        });
     }
 
     private static NachaConfigValidationResultDto Build(int profileId, IReadOnlyList<NachaConfigValidationIssueDto> issues)

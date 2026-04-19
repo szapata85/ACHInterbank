@@ -109,6 +109,52 @@ public sealed class NachaConfigAdminServicesHardeningTests
     }
 
     [Fact]
+    public async Task ValidateBeforePublishAsync_ShouldFlagCanonicalAliasProblems_AndType7Collisions()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+
+        var record7 = await context.CatRecordCodes.SingleAsync(x => x.Code == "7");
+        var entidad = await context.CatDataSourceTypes.SingleAsync(x => x.Code == "ENTIDAD");
+
+        var variant7 = new CfgLayoutVariant
+        {
+            ProfileId = profile.Id,
+            RecordCodeId = record7.Id,
+            VariantCode = "R7",
+            NameEs = "R7",
+            Priority = 10,
+            EffectiveFrom = DateTime.UtcNow.Date.AddDays(-1),
+            StatusId = 2,
+            IsDefaultForRecord = true
+        };
+        context.CfgLayoutVariants.Add(variant7);
+        await context.SaveChangesAsync();
+
+        var srcAliasA = new CfgFieldSourceDefinition { DataSourceTypeId = entidad.Id, PropertyPath = "tipoaddenda" };
+        var srcAliasB = new CfgFieldSourceDefinition { DataSourceTypeId = entidad.Id, PropertyPath = "addendatype" };
+        var srcInvalidCanonical = new CfgFieldSourceDefinition { DataSourceTypeId = entidad.Id, PropertyPath = "UnknownCanonicalField" };
+        var srcMissingAlias = new CfgFieldSourceDefinition { DataSourceTypeId = entidad.Id, PropertyPath = "alias_no_resuelve" };
+        context.CfgFieldSourceDefinitions.AddRange(srcAliasA, srcAliasB, srcInvalidCanonical, srcMissingAlias);
+        await context.SaveChangesAsync();
+
+        context.CfgLayoutFields.AddRange(
+            new CfgLayoutField { LayoutVariantId = variant7.Id, FieldCode = "A7_1", FieldNameEs = "A7_1", StartPosition = 1, Length = 10, SourceDefinitionId = srcAliasA.Id, SortOrder = 1, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = variant7.Id, FieldCode = "A7_2", FieldNameEs = "A7_2", StartPosition = 11, Length = 10, SourceDefinitionId = srcAliasB.Id, SortOrder = 2, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = variant7.Id, FieldCode = "A7_3", FieldNameEs = "A7_3", StartPosition = 21, Length = 10, SourceDefinitionId = srcInvalidCanonical.Id, SortOrder = 3, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = variant7.Id, FieldCode = "A7_4", FieldNameEs = "A7_4", StartPosition = 31, Length = 10, SourceDefinitionId = srcMissingAlias.Id, SortOrder = 4, IsEnabled = true });
+        await context.SaveChangesAsync();
+
+        var validation = new NachaConfigValidationService(context);
+        var result = await validation.ValidateBeforePublishAsync(profile.Id);
+
+        result.IsValid.Should().BeFalse();
+        result.Issues.Should().Contain(x => x.Codigo == "AMBIGUOUS_ALIAS");
+        result.Issues.Should().Contain(x => x.Codigo == "INVALID_CANONICAL_KEY");
+        result.Issues.Should().Contain(x => x.Codigo == "UNRESOLVABLE_ALIAS");
+    }
+
+    [Fact]
     public async Task PublishAsync_ShouldSucceed_AndPersistSnapshotAndHistory()
     {
         await using var context = await CreateSqliteContextAsync();
@@ -254,7 +300,9 @@ public sealed class NachaConfigAdminServicesHardeningTests
             new CatRecordCode { Id = 4, Code = "7", NameEs = "Addenda", IsMandatoryBase = false },
             new CatRecordCode { Id = 5, Code = "8", NameEs = "BatchCtl", IsMandatoryBase = true },
             new CatRecordCode { Id = 6, Code = "9", NameEs = "FileCtl", IsMandatoryBase = true });
-        context.CatDataSourceTypes.Add(new CatDataSourceType { Id = 1, Code = "CONSTANTE", NameEs = "Constante" });
+        context.CatDataSourceTypes.AddRange(
+            new CatDataSourceType { Id = 1, Code = "CONSTANTE", NameEs = "Constante" },
+            new CatDataSourceType { Id = 2, Code = "ENTIDAD", NameEs = "Entidad" });
         await context.SaveChangesAsync();
     }
 
