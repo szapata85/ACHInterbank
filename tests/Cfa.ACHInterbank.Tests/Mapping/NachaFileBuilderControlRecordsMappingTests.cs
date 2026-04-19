@@ -86,11 +86,12 @@ public class NachaFileBuilderControlRecordsMappingTests
         var recordProvider = new Mock<INachaRecordDataProvider>(MockBehavior.Loose);
         var holiday = new Mock<IBankHoliday>(MockBehavior.Loose);
         var batchNumberGenerator = new Mock<IBatchNumberGenerator>(MockBehavior.Strict);
-        batchNumberGenerator.Setup(x => x.AssignBatchNumbers(It.IsAny<IReadOnlyList<AchBatch>>(), It.IsAny<string>(), It.IsAny<DateTime>()))
-            .Returns((IReadOnlyList<AchBatch> batches, string _, DateTime _) => new BatchNumberAssignmentResult(
+        batchNumberGenerator.Setup(x => x.AssignBatchNumbersAsync(It.IsAny<IReadOnlyList<AchBatch>>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<AchBatch> batches, string _, DateTime _, CancellationToken _) => new BatchNumberAssignmentResult(
                 batches.ToDictionary(b => b.Id, b => 1),
                 "DAILY_RESET_BY_CHAMBER_DATE_ORIGINATING_DFI",
-                1));
+                1,
+                []));
 
         var options = Options.Create(new NachaGenerationOptions
         {

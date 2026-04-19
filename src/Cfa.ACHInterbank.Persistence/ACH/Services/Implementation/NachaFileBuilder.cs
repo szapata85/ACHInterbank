@@ -72,7 +72,7 @@ public class NachaFileBuilder : INachaFileBuilder
         _recordRenderer = recordRenderer;
         _recordDataProvider = recordDataProvider;
         _nachaSemanticValidator = nachaSemanticValidator;
-        _batchNumberGenerator = batchNumberGenerator ?? new DailyResetBatchNumberGenerator();
+        _batchNumberGenerator = batchNumberGenerator ?? new DailyResetBatchNumberGenerator(new BatchNumberSequenceStore(_context));
         _configResolver = configResolver;
         _type7AliasMap = type7AliasMap;
         _type7GenerationStrategy = type7GenerationStrategy;
@@ -451,7 +451,7 @@ public class NachaFileBuilder : INachaFileBuilder
     {
         var orderedBatches = context.Batches.OrderBy(b => b.Id).ToList();
         var clearingHouseCode = context.Cycle.ClearingHouse?.Name?.Contains("CENIT", StringComparison.OrdinalIgnoreCase) == true ? "CENIT" : "ACH";
-        var batchNumberAssignment = _batchNumberGenerator.AssignBatchNumbers(orderedBatches, clearingHouseCode, context.Cycle.ProcessingDate);
+        var batchNumberAssignment = await _batchNumberGenerator.AssignBatchNumbersAsync(orderedBatches, clearingHouseCode, context.Cycle.ProcessingDate, ct);
         var batchSequenceById = batchNumberAssignment.BatchNumberByBatchId;
 
         if (!orderedBatches.Any())
@@ -471,6 +471,10 @@ public class NachaFileBuilder : INachaFileBuilder
         var settlementPolicy = ResolveSettlementPolicyByChamber(audit.ClearingHouseCode);
         audit.Trace.Add($"HeaderPolicy:Chamber={audit.ClearingHouseCode};SettlementDate={settlementPolicy}");
         audit.Trace.Add($"BatchNumberPolicy:{batchNumberAssignment.PolicyCode};ScopedGroups={batchNumberAssignment.ScopedGroups}");
+        foreach (var scopeTrace in batchNumberAssignment.ScopeTrace)
+        {
+            audit.Trace.Add($"BatchNumberScope:{scopeTrace.Scope};Policy={scopeTrace.PolicyCode};Previous={scopeTrace.PreviousValue};Assigned={scopeTrace.AssignedValue};WasCreated={scopeTrace.WasCreated};Reserved={scopeTrace.ReservedCount}");
+        }
 
         var resolution = await ResolveRuntimeConfigAsync(context, definitions, ct);
         if (resolution.Profile is not null)

@@ -4,13 +4,23 @@ namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
 
 public interface IBatchNumberGenerator
 {
-    BatchNumberAssignmentResult AssignBatchNumbers(
+    Task<BatchNumberAssignmentResult> AssignBatchNumbersAsync(
         IReadOnlyList<AchBatch> orderedBatches,
         string clearingHouseCode,
-        DateTime processingDateUtc);
+        DateTime processingDateUtc,
+        CancellationToken ct = default);
 }
 
 public sealed record BatchNumberAssignmentResult(
     IReadOnlyDictionary<int, int> BatchNumberByBatchId,
     string PolicyCode,
-    int ScopedGroups);
+    int ScopedGroups,
+    IReadOnlyList<BatchNumberScopeTrace> ScopeTrace);
+
+public sealed record BatchNumberScopeTrace(
+    string PolicyCode,
+    string Scope,
+    int PreviousValue,
+    int AssignedValue,
+    bool WasCreated,
+    int ReservedCount);

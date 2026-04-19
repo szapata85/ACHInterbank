@@ -4,32 +4,60 @@ using Cfa.ACHInterbank.Domain.Models.ACH;
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
-public sealed class DailyResetBatchNumberGenerator : IBatchNumberGenerator
+public sealed class DailyResetBatchNumberGenerator(IBatchNumberSequenceStore store) : IBatchNumberGenerator
 {
-    public BatchNumberAssignmentResult AssignBatchNumbers(
+    private const string DailyResetPolicyCode = "DAILY_RESET_BY_CHAMBER_DATE_ORIGINATING_DFI";
+
+    public async Task<BatchNumberAssignmentResult> AssignBatchNumbersAsync(
         IReadOnlyList<AchBatch> orderedBatches,
         string clearingHouseCode,
-        DateTime processingDateUtc)
+        DateTime processingDateUtc,
+        CancellationToken ct = default)
     {
         var byBatchId = new Dictionary<int, int>(orderedBatches.Count);
-        var counters = new Dictionary<(string Chamber, DateOnly Date, string OriginatingDfi), int>();
+        var scopeTrace = new List<BatchNumberScopeTrace>();
+
         var date = DateOnly.FromDateTime(processingDateUtc.Date);
+        var normalizedChamber = string.IsNullOrWhiteSpace(clearingHouseCode)
+            ? "ACH"
+            : clearingHouseCode.Trim().ToUpperInvariant();
 
-        foreach (var batch in orderedBatches.OrderBy(x => x.Id))
+        var groups = orderedBatches
+            .OrderBy(x => x.Id)
+            .GroupBy(x => (x.OriginOrOdfi ?? string.Empty).Trim().ToUpperInvariant())
+            .OrderBy(x => x.Key, StringComparer.Ordinal)
+            .ToList();
+
+        foreach (var group in groups)
         {
-            var key = (
-                Chamber: string.IsNullOrWhiteSpace(clearingHouseCode) ? "ACH" : clearingHouseCode.Trim().ToUpperInvariant(),
-                Date: date,
-                OriginatingDfi: (batch.OriginOrOdfi ?? string.Empty).Trim().ToUpperInvariant());
+            var scope = new BatchNumberSequenceScope(
+                PolicyCode: DailyResetPolicyCode,
+                ClearingHouseId: normalizedChamber,
+                OriginatingDfi: group.Key,
+                ProcessingDate: date);
 
-            var next = counters.TryGetValue(key, out var current) ? current + 1 : 1;
-            counters[key] = next;
-            byBatchId[batch.Id] = next;
+            var reservation = await store.ReserveRangeAsync(scope, group.Count(), ct);
+            var current = reservation.StartValue;
+
+            foreach (var batch in group.OrderBy(x => x.Id))
+            {
+                byBatchId[batch.Id] = current;
+                current++;
+            }
+
+            scopeTrace.Add(new BatchNumberScopeTrace(
+                PolicyCode: DailyResetPolicyCode,
+                Scope: scope.ToScopeKey(),
+                PreviousValue: reservation.PreviousValue,
+                AssignedValue: reservation.EndValue,
+                WasCreated: reservation.WasCreated,
+                ReservedCount: reservation.ReservedCount));
         }
 
         return new BatchNumberAssignmentResult(
             BatchNumberByBatchId: byBatchId,
-            PolicyCode: "DAILY_RESET_BY_CHAMBER_DATE_ORIGINATING_DFI",
-            ScopedGroups: counters.Count);
+            PolicyCode: DailyResetPolicyCode,
+            ScopedGroups: groups.Count,
+            ScopeTrace: scopeTrace);
     }
 }
