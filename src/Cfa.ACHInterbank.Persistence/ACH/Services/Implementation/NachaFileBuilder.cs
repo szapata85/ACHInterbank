@@ -2,6 +2,8 @@
 using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.Mapping;
+using Cfa.ACHInterbank.Application.ACH.Models.Mapping;
 using Cfa.ACHInterbank.Application.Helpers.ACH;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Helpers;
@@ -38,6 +40,8 @@ public class NachaFileBuilder : INachaFileBuilder
     private readonly INachaType7GenerationStrategy? _type7GenerationStrategy;
     private readonly INachaType7LegacyRenderer? _type7LegacyRenderer;
     private readonly INachaType7RolloutPolicy? _type7RolloutPolicy;
+    private readonly INachaRecordMappingEngine? _recordMappingEngine;
+    private readonly IFieldMappingPlanCompiler? _mappingPlanCompiler;
     private readonly NachaGenerationOptions _generationOptions;
     private readonly ILogger<NachaFileBuilder>? _logger;
 
@@ -54,6 +58,8 @@ public class NachaFileBuilder : INachaFileBuilder
         INachaType7GenerationStrategy? type7GenerationStrategy = null,
         INachaType7LegacyRenderer? type7LegacyRenderer = null,
         INachaType7RolloutPolicy? type7RolloutPolicy = null,
+        INachaRecordMappingEngine? recordMappingEngine = null,
+        IFieldMappingPlanCompiler? mappingPlanCompiler = null,
         IOptions<NachaGenerationOptions>? generationOptions = null,
         ILogger<NachaFileBuilder>? logger = null)
     {
@@ -69,6 +75,8 @@ public class NachaFileBuilder : INachaFileBuilder
         _type7GenerationStrategy = type7GenerationStrategy;
         _type7LegacyRenderer = type7LegacyRenderer;
         _type7RolloutPolicy = type7RolloutPolicy;
+        _recordMappingEngine = recordMappingEngine;
+        _mappingPlanCompiler = mappingPlanCompiler;
         _generationOptions = generationOptions?.Value ?? new NachaGenerationOptions();
         _logger = logger;
     }
@@ -736,6 +744,19 @@ public class NachaFileBuilder : INachaFileBuilder
         var lineCount = 0;
         foreach (var record in records)
         {
+            if (recordCode == "6" && _generationOptions.EnableRecord6MappingEngine && _recordMappingEngine is not null && _mappingPlanCompiler is not null)
+            {
+                var mapped = await TryRenderRecord6WithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, audit, ct);
+                if (!string.IsNullOrWhiteSpace(mapped))
+                {
+                    sb.Append(mapped);
+                    lineCount++;
+                    continue;
+                }
+
+                audit.Warnings.Add("RecordCode=6 usó fallback legado por cobertura insuficiente del mapping engine.");
+            }
+
             var rendered = await RenderWithResolvedLayoutAsync(recordCode, record, layoutVariant);
             if (mode == "SHADOW_COMPARE" && layoutCache.TryGetValue(recordCode, out var legacyLayout))
             {
@@ -1072,6 +1093,96 @@ public class NachaFileBuilder : INachaFileBuilder
         return transactions.Any(x => x.Type is TransactionTypeEnum.Return or TransactionTypeEnum.Reversal)
             ? "ENTRADA"
             : "SALIDA";
+    }
+
+    private async Task<string?> TryRenderRecord6WithMappingEngineAsync(
+        string recordCode,
+        object record,
+        CfgLayoutVariant layoutVariant,
+        string mode,
+        IReadOnlyDictionary<string, NachaRecordLayout> layoutCache,
+        NachaGenerationAuditResult audit,
+        CancellationToken ct)
+    {
+        if (_recordMappingEngine is null || _mappingPlanCompiler is null)
+        {
+            return null;
+        }
+
+        var issues = new List<string>();
+        var plan = _mappingPlanCompiler.CompileRecordPlan(layoutVariant, issues);
+        if (issues.Count > 0)
+        {
+            audit.Warnings.AddRange(issues.Select(x => $"Record6PlanIssue:{x}"));
+        }
+
+        var contextValues = BuildRecord6ContextValues(record);
+        var mapped = await _recordMappingEngine.MapRecordAsync(new RecordMappingRequest
+        {
+            RecordCode = recordCode,
+            SourceRecord = record,
+            RecordPlan = plan,
+            ContextValues = contextValues,
+            EnableDiagnostics = _generationOptions.Record6MappingDiagnostics,
+            ShadowCompare = string.Equals(mode, "SHADOW_COMPARE", StringComparison.OrdinalIgnoreCase),
+            LegacyLayout = layoutCache.TryGetValue(recordCode, out var legacyLayout) ? legacyLayout : null
+        }, ct);
+
+        foreach (var trace in mapped.FieldTraces.Take(_generationOptions.Record6MappingDiagnostics ? mapped.FieldTraces.Count : 5))
+        {
+            audit.Trace.Add($"R6:{trace.FieldCode}:SRC={trace.SourceUsed}:RAW={trace.RawValue}:FINAL={trace.FinalValue}:FB={trace.FallbackStrategy}");
+        }
+
+        if (!mapped.Success && mapped.ValuesByFieldCode.Count == 0)
+        {
+            return null;
+        }
+
+        var mappedLayout = new NachaRecordLayout
+        {
+            RecordCode = recordCode,
+            TotalLength = layoutVariant.TotalLength,
+            Fields = layoutVariant.Fields
+                .OrderBy(x => x.StartPosition)
+                .Select(x => new NachaRecordField
+                {
+                    FieldName = x.FieldCode,
+                    DbColumn = x.FieldCode,
+                    StartPosition = x.StartPosition,
+                    Length = x.Length,
+                    Justification = x.Justification,
+                    PadChar = x.PadChar,
+                    Format = x.FormatMask
+                })
+                .ToList()
+        };
+
+        var rendered = await _recordRenderer.RenderRecordAsync(recordCode, mapped.ValuesByFieldCode, mappedLayout);
+        if (mode == "SHADOW_COMPARE" && layoutCache.TryGetValue(recordCode, out var legacy))
+        {
+            var legacyRendered = await _recordRenderer.RenderRecordAsync(recordCode, record, legacy);
+            var diff = CompareRenderedLines(recordCode, legacyRendered, rendered);
+            if (!string.IsNullOrWhiteSpace(diff))
+            {
+                audit.EquivalenceDiffs.Add($"R6_MAPPING:{diff}");
+                audit.Warnings.Add("Diferencia SHADOW_COMPARE en record 6 mapping engine.");
+            }
+        }
+
+        return rendered;
+    }
+
+    private static IReadOnlyDictionary<string, object?> BuildRecord6ContextValues(object record)
+    {
+        var map = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        var type = record.GetType();
+        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            map[property.Name] = property.GetValue(record);
+            map[$"ctx.{property.Name}"] = property.GetValue(record);
+        }
+
+        return map;
     }
 
     private static string? CompareRenderedLines(string recordCode, string legacyRendered, string newRendered)

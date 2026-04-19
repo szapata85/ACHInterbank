@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -29,6 +30,10 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
             .Include(x => x.LayoutVariants)
                 .ThenInclude(x => x.Fields)
                     .ThenInclude(x => x.SourceDefinition)
+            .Include(x => x.LayoutVariants)
+                .ThenInclude(x => x.Fields)
+                    .ThenInclude(x => x.Rules)
+                        .ThenInclude(x => x.RuleType)
             .FirstOrDefaultAsync(x => x.Id == profileId, ct);
 
         if (profile is null)
@@ -117,6 +122,88 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                         Codigo = "MISSING_SOURCE",
                         Mensaje = $"Field {field.FieldCode} sin source crítico."
                     });
+                }
+                var sourceType = field.SourceDefinition.DataSourceType?.Code ?? string.Empty;
+                if (sourceType is "SQL_VIEW" or "SQL_PROCEDURE")
+                {
+                    issues.Add(new NachaConfigValidationIssueDto
+                    {
+                        Severidad = "ERROR",
+                        Codigo = "UNSUPPORTED_SOURCE_TYPE",
+                        Mensaje = $"Field {field.FieldCode} usa source {sourceType} no soportado en fase 1."
+                    });
+                }
+
+                if (!string.IsNullOrWhiteSpace(field.SourceDefinition.ExpressionDsl))
+                {
+                    try
+                    {
+                        JsonDocument.Parse(field.SourceDefinition.ExpressionDsl);
+                    }
+                    catch
+                    {
+                        issues.Add(new NachaConfigValidationIssueDto
+                        {
+                            Severidad = "ERROR",
+                            Codigo = "INVALID_EXPRESSION_DSL",
+                            Mensaje = $"Field {field.FieldCode} tiene ExpressionDsl inválido."
+                        });
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(field.TransformationPipelineJson))
+                {
+                    try
+                    {
+                        using var pipelineDoc = JsonDocument.Parse(field.TransformationPipelineJson);
+                        var steps = pipelineDoc.RootElement.ValueKind == JsonValueKind.Array
+                            ? pipelineDoc.RootElement.EnumerateArray()
+                            : pipelineDoc.RootElement.TryGetProperty("steps", out var arr) && arr.ValueKind == JsonValueKind.Array
+                                ? arr.EnumerateArray()
+                                : Enumerable.Empty<JsonElement>();
+
+                        foreach (var step in steps)
+                        {
+                            if (!step.TryGetProperty("type", out var typeElement))
+                            {
+                                continue;
+                            }
+
+                            var type = typeElement.GetString()?.ToLowerInvariant();
+                            if (type is not ("trim" or "upper" or "lower" or "truncate" or "substring" or "remove_non_digits" or "replace" or "null_to_default"))
+                            {
+                                issues.Add(new NachaConfigValidationIssueDto
+                                {
+                                    Severidad = "ERROR",
+                                    Codigo = "UNSUPPORTED_TRANSFORM_TYPE",
+                                    Mensaje = $"Field {field.FieldCode} usa transform {type} no soportado en fase 1."
+                                });
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        issues.Add(new NachaConfigValidationIssueDto
+                        {
+                            Severidad = "ERROR",
+                            Codigo = "INVALID_TRANSFORM_PIPELINE",
+                            Mensaje = $"Field {field.FieldCode} tiene TransformationPipelineJson inválido."
+                        });
+                    }
+                }
+
+                foreach (var rule in field.Rules.Where(r => r.IsEnabled))
+                {
+                    var ruleType = rule.RuleType?.Code ?? string.Empty;
+                    if (ruleType is not ("REQUIRED" or "REGEX" or "RANGE" or "ENUM" or "DATE_FORMAT"))
+                    {
+                        issues.Add(new NachaConfigValidationIssueDto
+                        {
+                            Severidad = "ERROR",
+                            Codigo = "UNSUPPORTED_RULE_TYPE",
+                            Mensaje = $"Field {field.FieldCode} usa rule type {ruleType} no soportado en fase 1."
+                        });
+                    }
                 }
             }
         }

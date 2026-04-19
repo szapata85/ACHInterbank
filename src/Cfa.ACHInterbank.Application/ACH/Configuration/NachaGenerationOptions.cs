@@ -6,6 +6,8 @@ public class NachaGenerationOptions
     public string Mode { get; set; } = "LEGACY";
     public bool EnableType7TableDriven { get; set; }
     public bool FailOnResolverAmbiguity { get; set; }
+    public bool EnableRecord6MappingEngine { get; set; }
+    public bool Record6MappingDiagnostics { get; set; }
     public List<string> Type7DisableLegacyFallbackForLayouts { get; set; } = [];
     public List<string> Type7EnableTableDrivenForClearingHouses { get; set; } = [];
     public bool Type7RolloutPolicyEnabled { get; set; } = true;
