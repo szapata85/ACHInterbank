@@ -16,7 +16,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
     private static readonly string[] Record1RequiredFields =
     [
         "PRIORITYCODE", "IMMEDIATEDESTINATION", "IMMEDIATEORIGIN", "FILECREATIONDATE", "FILECREATIONTIME",
-        "FILEIDMODIFIER", "RECORDSIZE", "BLOCKINGFACTOR", "FORMATCODE"
+        "FILEIDMODIFIER", "RECORDSIZE", "BLOCKINGFACTOR", "FORMATCODE", "IMMEDIATEDESTINATIONNAME", "IMMEDIATEORIGINNAME", "REFERENCECODE"
     ];
     private static readonly string[] Record5RequiredFields =
     [
@@ -291,6 +291,38 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         return Build(profileId, issues);
     }
 
+    private static readonly Dictionary<string, int> Record1FieldLengths = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["PRIORITYCODE"] = 2,
+        ["IMMEDIATEDESTINATION"] = 10,
+        ["IMMEDIATEORIGIN"] = 10,
+        ["FILECREATIONDATE"] = 6,
+        ["FILECREATIONTIME"] = 4,
+        ["FILEIDMODIFIER"] = 1,
+        ["RECORDSIZE"] = 3,
+        ["BLOCKINGFACTOR"] = 2,
+        ["FORMATCODE"] = 1,
+        ["IMMEDIATEDESTINATIONNAME"] = 23,
+        ["IMMEDIATEORIGINNAME"] = 23,
+        ["REFERENCECODE"] = 8
+    };
+
+    private static readonly Dictionary<string, int> Record5FieldLengths = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["SERVICECLASSCODE"] = 3,
+        ["COMPANYNAME"] = 16,
+        ["COMPANYDISCRETIONARYDATA"] = 20,
+        ["COMPANYIDENTIFICATION"] = 10,
+        ["STANDARDENTRYCLASSCODE"] = 3,
+        ["COMPANYENTRYDESCRIPTION"] = 10,
+        ["COMPANYDESCRIPTIVEDATE"] = 6,
+        ["EFFECTIVEENTRYDATE"] = 6,
+        ["SETTLEMENTDATE"] = 3,
+        ["ORIGINATORSTATUSCODE"] = 1,
+        ["ORIGINATINGDFI"] = 8,
+        ["BATCHNUMBER"] = 7
+    };
+
     private static void ValidateHeaderNormativeRequirements(
         ICollection<NachaConfigValidationIssueDto> issues,
         CfgLayoutVariant variant,
@@ -323,9 +355,10 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
             return;
         }
 
-        var normalizedFieldCodes = orderedFields
-            .Select(f => Normalize(f.FieldCode))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var fieldsByCode = orderedFields
+            .GroupBy(f => Normalize(f.FieldCode))
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        var normalizedFieldCodes = fieldsByCode.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var required = recordCode == "1" ? Record1RequiredFields : Record5RequiredFields;
         foreach (var requiredField in required)
         {
@@ -339,6 +372,158 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                 });
             }
         }
+
+        var expectedLengths = recordCode == "1" ? Record1FieldLengths : Record5FieldLengths;
+        foreach (var expected in expectedLengths)
+        {
+            if (!fieldsByCode.TryGetValue(expected.Key, out var field))
+            {
+                continue;
+            }
+
+            if (field.Length != expected.Value)
+            {
+                issues.Add(new NachaConfigValidationIssueDto
+                {
+                    Severidad = "ERROR",
+                    Codigo = "INVALID_FIELD_LENGTH",
+                    Mensaje = $"Record {recordCode} campo {expected.Key} debe tener longitud {expected.Value} y tiene {field.Length}."
+                });
+            }
+        }
+
+        if (recordCode == "1")
+        {
+            ValidateRecord1HeaderRules(issues, fieldsByCode);
+        }
+        else
+        {
+            ValidateRecord5HeaderRules(issues, fieldsByCode);
+        }
+    }
+
+    private static void ValidateRecord1HeaderRules(
+        ICollection<NachaConfigValidationIssueDto> issues,
+        IReadOnlyDictionary<string, CfgLayoutField> fieldsByCode)
+    {
+        ValidateFormatMask(issues, fieldsByCode, "FILECREATIONDATE", "yyMMdd");
+        ValidateFormatMask(issues, fieldsByCode, "FILECREATIONTIME", "HHmm");
+        ValidateConstantValue(issues, fieldsByCode, "RECORDSIZE", "106");
+        ValidateConstantValue(issues, fieldsByCode, "BLOCKINGFACTOR", "10");
+        ValidateConstantValue(issues, fieldsByCode, "FORMATCODE", "1");
+
+        if (TryGetConstant(fieldsByCode, "IMMEDIATEORIGIN", out var origin)
+            && TryGetConstant(fieldsByCode, "IMMEDIATEDESTINATION", out var destination)
+            && string.Equals(origin, destination, StringComparison.OrdinalIgnoreCase))
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = "INVALID_HEADER_COHERENCE",
+                Mensaje = "ImmediateOrigin e ImmediateDestination no deben ser idénticos cuando ambos son constantes."
+            });
+        }
+    }
+
+    private static void ValidateRecord5HeaderRules(
+        ICollection<NachaConfigValidationIssueDto> issues,
+        IReadOnlyDictionary<string, CfgLayoutField> fieldsByCode)
+    {
+        ValidateFormatMask(issues, fieldsByCode, "EFFECTIVEENTRYDATE", "yyMMdd");
+        ValidateFormatMask(issues, fieldsByCode, "COMPANYDESCRIPTIVEDATE", "yyMMdd", allowMissingMask: true);
+
+        if (TryGetConstant(fieldsByCode, "STANDARDENTRYCLASSCODE", out var secCode)
+            && secCode is not ("PPD" or "CCD"))
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = "INVALID_SEC_CODE",
+                Mensaje = $"SEC inválido '{secCode}'. Solo se permite PPD o CCD en la versión actual."
+            });
+        }
+
+        if (TryGetConstant(fieldsByCode, "ORIGINATINGDFI", out var dfi)
+            && (dfi.Length != 8 || dfi.Any(ch => !char.IsDigit(ch))))
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = "INVALID_ORIGINATING_DFI",
+                Mensaje = "OriginatingDFI constante debe tener exactamente 8 dígitos."
+            });
+        }
+    }
+
+    private static void ValidateFormatMask(
+        ICollection<NachaConfigValidationIssueDto> issues,
+        IReadOnlyDictionary<string, CfgLayoutField> fieldsByCode,
+        string fieldCode,
+        string expectedMask,
+        bool allowMissingMask = false)
+    {
+        if (!fieldsByCode.TryGetValue(fieldCode, out var field))
+        {
+            return;
+        }
+
+        var mask = field.FormatMask?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(mask) && allowMissingMask)
+        {
+            return;
+        }
+
+        if (!string.Equals(mask, expectedMask, StringComparison.OrdinalIgnoreCase))
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = "INVALID_DATE_FORMAT",
+                Mensaje = $"Campo {fieldCode} debe usar formato {expectedMask}."
+            });
+        }
+    }
+
+    private static void ValidateConstantValue(
+        ICollection<NachaConfigValidationIssueDto> issues,
+        IReadOnlyDictionary<string, CfgLayoutField> fieldsByCode,
+        string fieldCode,
+        string expected)
+    {
+        if (!TryGetConstant(fieldsByCode, fieldCode, out var constant))
+        {
+            return;
+        }
+
+        if (!string.Equals(constant, expected, StringComparison.OrdinalIgnoreCase))
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = "INVALID_CONSTANT_VALUE",
+                Mensaje = $"Campo {fieldCode} debe tener constante {expected}."
+            });
+        }
+    }
+
+    private static bool TryGetConstant(
+        IReadOnlyDictionary<string, CfgLayoutField> fieldsByCode,
+        string fieldCode,
+        out string constant)
+    {
+        constant = string.Empty;
+        if (!fieldsByCode.TryGetValue(fieldCode, out var field))
+        {
+            return false;
+        }
+
+        if (!string.Equals(field.SourceDefinition?.DataSourceType?.Code, "CONSTANTE", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        constant = (field.SourceDefinition?.ConstantValue ?? string.Empty).Trim();
+        return !string.IsNullOrWhiteSpace(constant);
     }
 
     private static string Normalize(string? value)

@@ -30,6 +30,8 @@ public class NachaFileBuilderHeaderMappingEngineTests
         var content = await sut.BuildNachaFileAsync([100], CancellationToken.None);
 
         content.Should().NotBeNullOrWhiteSpace();
+        content.Length.Should().BeGreaterThan(0);
+        content.Length.Should().BeMultipleOf(106);
         recordMappingEngine.Verify(x => x.MapRecordAsync(It.Is<RecordMappingRequest>(r => r.RecordCode == "1"), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
     }
 
@@ -58,6 +60,35 @@ public class NachaFileBuilderHeaderMappingEngineTests
 
         await sut.BuildNachaFileAsync([100], CancellationToken.None);
 
+        renderer.Verify(x => x.RenderRecordAsync("1", It.IsAny<object>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task BuildNachaFileAsync_ShouldFallbackToLegacy_ForRecord5_WhenMappingFails()
+    {
+        var sut = CreateSut(enableRecord1: false, enableRecord5: true, shadowMode: false,
+            out var loader, out var resolver, out var renderer, out var recordMappingEngine, out var planCompiler, out var semanticValidator, out var validationService);
+        SetupScenario(loader, resolver, renderer, planCompiler, recordMappingEngine, mappingSuccess: false);
+        validationService.Setup(x => x.ValidateTransactionsForSendAsync(It.IsAny<IReadOnlyList<AchTransaction>>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        semanticValidator.Setup(x => x.Validate(It.IsAny<string>(), It.IsAny<NachaBuildContext>()));
+
+        await sut.BuildNachaFileAsync([100], CancellationToken.None);
+
+        renderer.Verify(x => x.RenderRecordAsync("5", It.IsAny<object>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task BuildNachaFileAsync_ShouldRunShadowCompare_ForRecord1_WhenModeShadowCompare()
+    {
+        var sut = CreateSut(enableRecord1: true, enableRecord5: false, shadowMode: true,
+            out var loader, out var resolver, out var renderer, out var recordMappingEngine, out var planCompiler, out var semanticValidator, out var validationService);
+        SetupScenario(loader, resolver, renderer, planCompiler, recordMappingEngine, mappingSuccess: true);
+        validationService.Setup(x => x.ValidateTransactionsForSendAsync(It.IsAny<IReadOnlyList<AchTransaction>>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        semanticValidator.Setup(x => x.Validate(It.IsAny<string>(), It.IsAny<NachaBuildContext>()));
+
+        await sut.BuildNachaFileAsync([100], CancellationToken.None);
+
+        renderer.Verify(x => x.RenderRecordAsync("1", It.IsAny<IReadOnlyDictionary<string, object?>>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
         renderer.Verify(x => x.RenderRecordAsync("1", It.IsAny<object>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
     }
 

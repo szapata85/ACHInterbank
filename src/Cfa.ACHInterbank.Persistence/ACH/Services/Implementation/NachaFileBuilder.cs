@@ -749,12 +749,14 @@ public class NachaFileBuilder : INachaFileBuilder
                 var mapped = await TryRenderRecord1WithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
                 if (!string.IsNullOrWhiteSpace(mapped))
                 {
+                    audit.Trace.Add("R1:MAPPING_ENGINE_APPLIED:BASE_OBJECT=FileHeaderRecord.From");
                     sb.Append(mapped);
                     lineCount++;
                     continue;
                 }
 
                 audit.Warnings.Add("RecordCode=1 usó fallback legado por cobertura insuficiente del mapping engine.");
+                audit.Trace.Add("R1:MAPPING_ENGINE_FALLBACK:BASE_OBJECT=FileHeaderRecord.From");
             }
 
             if (recordCode == "5" && ShouldUseRecord5MappingEngine(mode) && _recordMappingEngine is not null && _mappingPlanCompiler is not null)
@@ -762,12 +764,14 @@ public class NachaFileBuilder : INachaFileBuilder
                 var mapped = await TryRenderRecord5WithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
                 if (!string.IsNullOrWhiteSpace(mapped))
                 {
+                    audit.Trace.Add("R5:MAPPING_ENGINE_APPLIED:BASE_OBJECT=BatchHeaderRecord.From");
                     sb.Append(mapped);
                     lineCount++;
                     continue;
                 }
 
                 audit.Warnings.Add("RecordCode=5 usó fallback legado por cobertura insuficiente del mapping engine.");
+                audit.Trace.Add("R5:MAPPING_ENGINE_FALLBACK:BASE_OBJECT=BatchHeaderRecord.From");
             }
 
             if (recordCode == "6" && ShouldUseRecord6MappingEngine(mode) && _recordMappingEngine is not null && _mappingPlanCompiler is not null)
