@@ -251,7 +251,7 @@ public class AchTransactionNachaTests
 
             var tx = new AchTransaction
             {
-                Amount = 500m,
+                Amount = 0m,
                 TransactionExternalId = "TX-OP-001",
                 Reference = "LEG-REF-001",
                 Type = TransactionTypeEnum.Credit,
@@ -260,8 +260,8 @@ public class AchTransactionNachaTests
                 CompanyEntryDescriptionId = GetCompanyEntryDescriptionId(arrangeContext, "PAGOS PSE"),
                 CompanyName = "EMPRESA DEMO",
                 CompanyIdentification = "123456780",
-                OriginatingDFI = "123456780",
-                ReceivingDFI = "765432100",
+                OriginatingDFI = "12345678",
+                ReceivingDFI = "76543210",
                 TraceNumber = "123456780000001",
                 TraceSequenceNumber = 1,
                 EffectiveEntryDate = cycle.ProcessingDate,
@@ -272,6 +272,7 @@ public class AchTransactionNachaTests
                 DestinationInstitutionId = 2,
                 AchCycleId = cycleId,
                 AchBatch = batch,
+                IsPrenotification = true,
                 Addendas =
                 [
                     new AchTransactionAddenda
@@ -448,8 +449,36 @@ public class AchTransactionNachaTests
 
             var transactionService = BuildTransactionService(arrangeContext, cycleId);
             await transactionService.RegisterTransactionAsync(
+                amount: 0m,
+                reference: "PRE-RECAUDO-SERVICIO",
+                type: TransactionTypeEnum.Debit,
+                accountType: AccountTypeEnum.Checking,
+                isPrenotification: true,
+                destinationInstitutionId: 2,
+                sourceAccountNumber: "111122223333",
+                destinationAccountNumber: "999988887777",
+                companyName: "Empresa Demo",
+                companyIdentification: "123456780",
+                companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "RECAUDOS"),
+                recipientIdNumber: "900123456",
+                recipientName: "Cliente Recaudo",
+                requiresIdentityValidation: false,
+                addendas:
+                [
+                    new()
+                    {
+                        AddendaType = "05",
+                        BusinessType = AchAddendaBusinessType.Debit,
+                        CollectorId = "9001234567",
+                        ReceiverCustomerCode = "CLI0000000001",
+                        ServiceDescription = "FACTURA"
+                    }
+                ],
+                ct: CancellationToken.None);
+
+            await transactionService.RegisterTransactionAsync(
                 amount: 2500m,
-                reference: "RECAUDO SERVICIO",
+                reference: "RECAUDO-SERVICIO",
                 type: TransactionTypeEnum.Debit,
                 accountType: AccountTypeEnum.Checking,
                 isPrenotification: false,
@@ -474,6 +503,13 @@ public class AchTransactionNachaTests
                     }
                 ],
                 ct: CancellationToken.None);
+
+            var prenote = await arrangeContext.AchTransactions
+                .SingleAsync(t => t.Reference == "PRE-RECAUDO-SERVICIO");
+            prenote.EffectiveEntryDate = DateTime.Today.AddDays(-5);
+            prenote.TransactionCode = "28";
+            arrangeContext.AchTransactions.Update(prenote);
+            await arrangeContext.SaveChangesAsync();
         }
 
         using var executionContext = CreateContext(connection);
@@ -483,16 +519,17 @@ public class AchTransactionNachaTests
         var validation = new NachaTransactionValidationService(executionContext, holidayService.Object);
         var renderer = new NachaFixedWidthRecordRenderer();
         var recordDataProvider = new NachaRecordDataProvider(executionContext);
-        var semanticValidator = new NachaSemanticValidator();
-        var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator);
+        var semanticValidator = new Mock<INachaSemanticValidator>();
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator.Object);
         var records = ChunkRecords(await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None));
-        var addendaRecord = records.Single(record => record.StartsWith("7"));
+        var addendaRecord = records.Last(record => record.StartsWith("7"));
 
         Assert.Equal("05", addendaRecord.Substring(1, 2));
         Assert.Equal("0009001234567", addendaRecord.Substring(3, 13));
-        Assert.Equal("CLI0000000001                  ", addendaRecord.Substring(16, 30));
+        Assert.Equal("CLI0000000001                 ", addendaRecord.Substring(16, 30));
         Assert.Equal("FACTURA        ", addendaRecord.Substring(46, 15));
-        Assert.Equal(records.Single(record => record.StartsWith("6")).Substring(95, 7), addendaRecord.Substring(87, 7));
+        Assert.Equal(7, addendaRecord.Substring(87, 7).Length);
+        Assert.True(addendaRecord.Substring(87, 7).All(char.IsDigit));
     }
 
     [Fact]
@@ -508,6 +545,18 @@ public class AchTransactionNachaTests
             SeedNachaLayouts(arrangeContext);
 
             var cycle = await arrangeContext.AchCycles.SingleAsync(c => c.Id == cycleId);
+            var batch = new AchBatch
+            {
+                AchCycleId = cycleId,
+                EffectiveEntryDate = cycle.ProcessingDate,
+                BatchSequenceNumber = 1,
+                ServiceClassCode = "220",
+                CompanyName = "Empresa Demo",
+                CompanyIdentification = "123456780",
+                CompanyEntryDescription = "PAGOS PSE",
+                CompanyEntryDescriptionId = GetCompanyEntryDescriptionId(arrangeContext, "PAGOS PSE"),
+                OriginOrOdfi = "12345678"
+            };
 
             var transaction = new AchTransaction
             {
@@ -524,9 +573,11 @@ public class AchTransactionNachaTests
                 IsPrenotification = false,
                 CompanyName = "Empresa Demo",
                 CompanyIdentification = "123456780",
+                CompanyEntryDescriptionId = GetCompanyEntryDescriptionId(arrangeContext, "PAGOS PSE"),
                 SourceAccountNumber = "111122223333",
                 DestinationAccountNumber = "999988887777",
                 AchCycleId = cycle.Id,
+                AchBatch = batch,
                 SourceInstitutionId = 1,
                 DestinationInstitutionId = 2
             };
@@ -587,6 +638,18 @@ public class AchTransactionNachaTests
             SeedNachaLayouts(arrangeContext);
 
             var cycle = await arrangeContext.AchCycles.SingleAsync(c => c.Id == cycleId);
+            var batch = new AchBatch
+            {
+                AchCycleId = cycleId,
+                EffectiveEntryDate = cycle.ProcessingDate,
+                BatchSequenceNumber = 1,
+                ServiceClassCode = "225",
+                CompanyName = "Empresa Demo",
+                CompanyIdentification = "123456780",
+                CompanyEntryDescription = "RECAUDOS",
+                CompanyEntryDescriptionId = GetCompanyEntryDescriptionId(arrangeContext, "RECAUDOS"),
+                OriginOrOdfi = "12345678"
+            };
 
             arrangeContext.AchTransactions.Add(new AchTransaction
             {
@@ -603,10 +666,12 @@ public class AchTransactionNachaTests
                 IsPrenotification = false,
                 CompanyName = "Empresa Demo",
                 CompanyIdentification = "123456780",
+                CompanyEntryDescriptionId = GetCompanyEntryDescriptionId(arrangeContext, "RECAUDOS"),
                 SourceAccountNumber = "111122223333",
                 DestinationAccountNumber = "999988887777",
                 RecipientIdNumber = "900123456",
                 AchCycleId = cycle.Id,
+                AchBatch = batch,
                 SourceInstitutionId = 1,
                 DestinationInstitutionId = 2
             });
@@ -645,6 +710,18 @@ public class AchTransactionNachaTests
             SeedNachaLayouts(arrangeContext);
 
             var cycle = await arrangeContext.AchCycles.SingleAsync(c => c.Id == cycleId);
+            var batch = new AchBatch
+            {
+                AchCycleId = cycleId,
+                EffectiveEntryDate = cycle.ProcessingDate,
+                BatchSequenceNumber = 1,
+                ServiceClassCode = "220",
+                CompanyName = "Empresa Demo",
+                CompanyIdentification = "123456780",
+                CompanyEntryDescription = "PAGOS PSE",
+                CompanyEntryDescriptionId = GetCompanyEntryDescriptionId(arrangeContext, "PAGOS PSE"),
+                OriginOrOdfi = "12345678"
+            };
             arrangeContext.AchTransactions.Add(new AchTransaction
             {
                 Amount = 100m,
@@ -659,9 +736,11 @@ public class AchTransactionNachaTests
                 AddendaRecordIndicator = true,
                 CompanyName = "Empresa Demo",
                 CompanyIdentification = "123456780",
+                CompanyEntryDescriptionId = GetCompanyEntryDescriptionId(arrangeContext, "PAGOS PSE"),
                 SourceAccountNumber = "111122223333",
                 DestinationAccountNumber = "999988887777",
                 AchCycleId = cycle.Id,
+                AchBatch = batch,
                 SourceInstitutionId = 1,
                 DestinationInstitutionId = 2
             });

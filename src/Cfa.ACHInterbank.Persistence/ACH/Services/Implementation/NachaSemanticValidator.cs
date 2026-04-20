@@ -111,6 +111,11 @@ public class NachaSemanticValidator : INachaSemanticValidator
                     var addendaRecord = records[currentRecordIndex];
                     currentRecordIndex++;
 
+                    if (addenda.BusinessType == AchAddendaBusinessType.Return && tx.Type != TransactionTypeEnum.Return)
+                    {
+                        throw new InvalidOperationException($"La transacción {tx.Id} tiene una addenda de devolución incompatible con su tipo efectivo.");
+                    }
+
                     if (addenda.AddendaType == "99" && tx.Type != TransactionTypeEnum.Return)
                     {
                         throw new InvalidOperationException($"La transacción {tx.Id} solo puede usar addenda 99 cuando el tipo efectivo es Return.");

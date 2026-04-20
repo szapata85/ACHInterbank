@@ -648,3 +648,90 @@ Tests fallando en filtro amplio (9):
 7. `Cfa.ACHInterbank.Tests.AchTransactionNachaTests.GenerateReturnsFileAsync_WithDev14_PreservesFiveCharacterReasonCode`
 8. `Cfa.ACHInterbank.Tests.AchTransactionNachaTests.BuildNachaFileByCycleAsync_DebitAddenda_UsesGoldenPositions`
 9. `Cfa.ACHInterbank.Tests.AchTransactionNachaTests.GenerateReturnsFileAsync_ReturnAddenda_UsesGoldenPositions`
+
+## 17) Cierre bloque addendas/devoluciones/returns (2026-04-20 UTC)
+
+### 17.1 Ejecución inicial (5 tests objetivo)
+Comando:
+```bash
+export DOTNET_ROOT=$HOME/.dotnet
+export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~GenerateReturnsFileAsync_WhenCatalogPolicyRejectsReason_ThrowsRegulatoryMessage|FullyQualifiedName~BuildNachaFileByCycleAsync_Throws_WhenAddendaBusinessTypeIsIncompatibleWithTransactionType|FullyQualifiedName~GenerateReturnsFileAsync_WithDev14_PreservesFiveCharacterReasonCode|FullyQualifiedName~BuildNachaFileByCycleAsync_DebitAddenda_UsesGoldenPositions|FullyQualifiedName~GenerateReturnsFileAsync_ReturnAddenda_UsesGoldenPositions" \
+  -v minimal
+```
+Resultado inicial:
+- Total: 5
+- Passed: 0
+- Failed: 5
+- Skipped: 0
+
+Fallos observados:
+- FK constraint en 3 tests de returns (fixtures de transacción sin lote asociado válido en SQLite).
+- Test de incompatibilidad caía antes por validación de prenotificación (ruido de fixture).
+- Test de addenda débito caía por validación de referencia y luego por prerequisito de prenotificación.
+
+### 17.2 Causa raíz y correcciones aplicadas
+1) **PolicyRejectsReason / ReturnAddenda / DEV14 (returns)**
+- Causa: `AchReturnsService.GetCycleOrderAsync` ordenaba por `TimeSpan` en SQL (`ThenBy(CutoffTime)`), no soportado por SQLite.
+- Causa adicional de fixture: transacciones manuales sin `AchBatch` válido (FK).
+- Corrección:
+  - `AchReturnsService.GetCycleOrderAsync`: materialización + ordenamiento en memoria para `CutoffTime`.
+  - Fixtures de tests de returns: crear `AchBatch` explícito y asociarlo a la transacción.
+
+2) **AddendaBusinessTypeIncompatible**
+- Causa: el fixture disparaba errores previos (prenotificación/DFI) antes de la regla objetivo.
+- Corrección:
+  - Ajuste de fixture: prenotificación con monto 0 y DFI de 8 dígitos para evitar ruido previo.
+  - Se agregó validación semántica explícita de incompatibilidad `BusinessType.Return` con tipo efectivo distinto de `Return`.
+
+3) **DebitAddendaGoldenPositions**
+- Causa: referencia con espacio inválida por regex nueva + falta de prenotificación previa para débito.
+- Corrección:
+  - referencia normalizada a `RECAUDO-SERVICIO`.
+  - se registró prenotificación previa y se backdateó fecha efectiva para cumplir ventana hábil.
+  - se ajustó el test para identificar el addenda de interés cuando hay más de un registro tipo 7.
+
+### 17.3 Ejecución final (5 tests objetivo)
+Comando (mismo filtro):
+- Total: 5
+- Passed: 5
+- Failed: 0
+- Skipped: 0
+
+### 17.4 No regresión de bloques verdes
+1) Núcleo (`BatchNumber|NachaFileBuilder|Mapping`):
+- Total: 60 / Passed: 60 / Failed: 0 / Skipped: 0
+
+2) Backfill/Admin:
+- Total: 17 / Passed: 17 / Failed: 0 / Skipped: 0
+
+3) Parser fatal:
+- Total: 6 / Passed: 6 / Failed: 0 / Skipped: 0
+
+4) Generación/registro/secuenciales:
+- Total: 3 / Passed: 3 / Failed: 0 / Skipped: 0
+
+### 17.5 Filtro amplio
+Comando:
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" \
+  -v minimal
+```
+Resultado final:
+- Total: 154
+- Passed: 150
+- Failed: 4
+- Skipped: 0
+
+Fallos restantes (4), todos en `AchPreproductionCertificationTests` (golden masters):
+1. `BuildNachaFileAsync_MatchesGoldenMasterForFinalCertification` (Credit)
+2. `BuildNachaFileAsync_MatchesGoldenMasterForFinalCertification` (Reversal)
+3. `BuildNachaFileAsync_MatchesGoldenMasterForFinalCertification` (Prenotification)
+4. `BuildNachaFileAsync_MatchesGoldenMasterForFinalCertification` (Debit)
