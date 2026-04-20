@@ -631,6 +631,27 @@ public class AchTransactionNachaTests
     }
 
     [Fact]
+    public async Task ParseAndSaveAsync_WithValidBaseFile_ShouldParseSuccessfully()
+    {
+        using var connection = CreateOpenConnection();
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var nachaContent = await BuildValidNachaFileAsync(connection, cycleId);
+
+        using var parseContext = CreateContext(connection);
+        var parser = BuildParser(parseContext);
+        using var stream = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(nachaContent));
+
+        var failures = await parser.ParseAndSaveAsync(stream, "valid-base.ach", CancellationToken.None);
+
+        Assert.Empty(failures);
+        Assert.NotNull(await parseContext.NachaHeaders.FirstOrDefaultAsync());
+        Assert.NotNull(await parseContext.BatchHeaders.FirstOrDefaultAsync());
+        Assert.NotNull(await parseContext.EntryDetails.FirstOrDefaultAsync());
+        Assert.NotNull(await parseContext.BatchControls.FirstOrDefaultAsync());
+        Assert.NotNull(await parseContext.FileControls.FirstOrDefaultAsync());
+    }
+
+    [Fact]
     public async Task ParseAndSaveAsync_WhenBatchControlCountDoesNotMatch_ThrowsFatal51()
     {
         using var connection = CreateOpenConnection();
@@ -1116,101 +1137,138 @@ public class AchTransactionNachaTests
 
     private static async Task<string> BuildValidNachaFileAsync(SqliteConnection connection, string cycleId)
     {
-        using (var arrangeContext = CreateContext(connection))
+        using var arrangeContext = CreateContext(connection);
+        SeedCoreEntities(arrangeContext);
+
+        var processingDate = DateTime.Today;
+        const string receivingDfi = "76543210";
+        const string companyId = "1234567800";
+        const string batchNumber = "0000001";
+        const string traceNumber = "123456780000001";
+        const string accountNumber = "999988887777";
+        const string amount18 = "000000000000150000"; // 1500.00
+        const string hash10 = "0076543210";
+        const string entryAddendaCount6 = "000002";
+        const string entryAddendaCount8 = "00000002";
+        const string blockCount = "000001";
+        const string batchCount = "000001";
+
+        var records = new List<string>
         {
-            SeedCoreEntities(arrangeContext);
-            SeedNachaLayouts(arrangeContext);
-            var multiCreditEntryDescriptionId = GetCompanyEntryDescriptionId(arrangeContext, "MULTICREDIT");
+            BuildType1(processingDate),
+            BuildType5(processingDate, companyId, batchNumber),
+            BuildType6(receivingDfi, accountNumber, amount18, traceNumber),
+            BuildType7(traceNumber),
+            BuildType8(entryAddendaCount6, hash10, amount18, companyId, batchNumber),
+            BuildType9(batchCount, blockCount, entryAddendaCount8, hash10, amount18),
+            new string('9', 106),
+            new string('9', 106),
+            new string('9', 106),
+            new string('9', 106)
+        };
 
-            var transactionService = BuildTransactionService(arrangeContext, cycleId);
-            await transactionService.RegisterTransactionAsync(
-                amount: 0m,
-                reference: "PRENOTE-REF-VALIDACION",
-                type: TransactionTypeEnum.Prenotification,
-                accountType: AccountTypeEnum.Checking,
-                isPrenotification: true,
-                destinationInstitutionId: 2,
-                sourceAccountNumber: "111122223333",
-                destinationAccountNumber: "999988887777",
-                companyName: "Empresa Demo",
-                companyIdentification: "123456780",
-                companyEntryDescriptionId: multiCreditEntryDescriptionId,
-                recipientIdNumber: null,
-                requiresIdentityValidation: false,
-                addendas:
-                [
-                    new AddendaDto
-                    {
-                        AddendaType = "05",
-                        Purpose = "MULTICREDIT",
-                        Reference = "PRENOTEADDENDA01"
-                    }
-                ],
-                ct: CancellationToken.None);
-
-            var prenote = await arrangeContext.AchTransactions
-                .Where(x => x.IsPrenotification)
-                .OrderByDescending(x => x.Id)
-                .FirstAsync();
-            prenote.EffectiveEntryDate = DateTime.Today.AddDays(-5);
-            await arrangeContext.SaveChangesAsync();
-
-            await transactionService.RegisterTransactionAsync(
-                amount: 1500m,
-                reference: "PAGO-REF-VALIDACION",
-                type: TransactionTypeEnum.Credit,
-                accountType: AccountTypeEnum.Checking,
-                isPrenotification: false,
-                destinationInstitutionId: 2,
-                sourceAccountNumber: "111122223333",
-                destinationAccountNumber: "999988887777",
-                companyName: "Empresa Demo",
-                companyIdentification: "123456780",
-                companyEntryDescriptionId: multiCreditEntryDescriptionId,
-                recipientIdNumber: null,
-                requiresIdentityValidation: false,
-                addendas:
-                [
-                    new AddendaDto
-                    {
-                        AddendaType = "05",
-                        Purpose = "MULTICREDIT",
-                        Reference = "CREDITADDENDA001"
-                    }
-                ],
-                ct: CancellationToken.None);
-
-            var transactions = await arrangeContext.AchTransactions.ToListAsync();
-            foreach (var transaction in transactions)
-            {
-                if (!string.IsNullOrWhiteSpace(transaction.ReceivingDFI) && transaction.ReceivingDFI.Length > 8)
-                {
-                    transaction.ReceivingDFI = transaction.ReceivingDFI[..8];
-                }
-            }
-
-            await arrangeContext.SaveChangesAsync();
-        }
-
-        using var executionContext = CreateContext(connection);
-        var holidayService = new Mock<IBankHoliday>();
-        holidayService.Setup(h => h.GetHolidays(It.IsAny<int>())).Returns([]);
-        var loader = new NachaDataLoader(executionContext);
-        var validation = new NachaTransactionValidationService(executionContext, holidayService.Object);
-        var renderer = new NachaFixedWidthRecordRenderer();
-        var recordDataProvider = new NachaRecordDataProvider(executionContext);
-        var semanticValidator = new Mock<INachaSemanticValidator>();
-        semanticValidator
-            .Setup(x => x.Validate(It.IsAny<string>(), It.IsAny<NachaBuildContext>()));
-        var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator.Object);
-        var content = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
-        var records = ChunkRecords(content);
-        var headerIndex = records.FindIndex(r => r.StartsWith("1"));
-        if (headerIndex >= 0)
-        {
-            records[headerIndex] = ReplaceSegment(records[headerIndex], 36, 3, "106");
-        }
-
+        await Task.CompletedTask;
         return string.Concat(records);
+    }
+
+    private static string BuildType1(DateTime processingDate)
+    {
+        var line = new string(' ', 106).ToCharArray();
+        line[0] = '1';
+        Copy("01", line, 1);
+        Copy("0000000001", line, 3);
+        Copy("ORG", line, 13);
+        Copy(processingDate.ToString("yyyyMMdd"), line, 23);
+        Copy("1200", line, 31);
+        Copy("A", line, 35);
+        Copy("106", line, 36);
+        Copy("10", line, 39);
+        Copy("1", line, 41);
+        Copy("ACH COLOMBIA".PadRight(23), line, 42);
+        Copy("COOP TEST".PadRight(23), line, 65);
+        Copy("REF00001", line, 88);
+        return new string(line);
+    }
+
+    private static string BuildType5(DateTime processingDate, string companyId, string batchNumber)
+    {
+        var line = new string(' ', 106).ToCharArray();
+        line[0] = '5';
+        Copy("220", line, 1);
+        Copy("EMPRESA DEMO".PadRight(16), line, 4);
+        Copy(companyId.PadRight(10), line, 40);
+        Copy("PPD", line, 50);
+        Copy("MULTICREDIT", line, 53);
+        Copy(processingDate.ToString("yyyyMMdd"), line, 63);
+        Copy(processingDate.ToString("yyyyMMdd"), line, 71);
+        Copy("1", line, 82);
+        Copy("12345678", line, 83);
+        Copy(batchNumber, line, 91);
+        return new string(line);
+    }
+
+    private static string BuildType6(string receivingDfi, string accountNumber, string amount18, string traceNumber)
+    {
+        var line = new string(' ', 106).ToCharArray();
+        var checkDigit = DigitoChequeoHelper.CalcularDigitoChequeo(receivingDfi);
+        line[0] = '6';
+        Copy("22", line, 1);
+        Copy(receivingDfi, line, 3);
+        Copy(checkDigit, line, 11);
+        Copy(accountNumber.PadRight(17), line, 12);
+        Copy(amount18, line, 29);
+        Copy("900000001".PadLeft(15), line, 47);
+        Copy("CLIENTE CREDITO".PadRight(22), line, 62);
+        Copy("  ", line, 84);
+        Copy("1", line, 86);
+        Copy(traceNumber, line, 87);
+        return new string(line);
+    }
+
+    private static string BuildType7(string traceNumber)
+    {
+        var line = new string(' ', 106).ToCharArray();
+        line[0] = '7';
+        Copy("05", line, 1);
+        Copy("INFO-ADDENDA".PadRight(80), line, 3);
+        Copy("0001", line, 83);
+        Copy(traceNumber[^7..], line, 87);
+        return new string(line);
+    }
+
+    private static string BuildType8(string entryAddendaCount6, string hash10, string amount18, string companyId, string batchNumber)
+    {
+        var line = new string(' ', 106).ToCharArray();
+        line[0] = '8';
+        Copy("220", line, 1);
+        Copy(entryAddendaCount6, line, 4);
+        Copy(hash10, line, 10);
+        Copy("000000000000000000", line, 20);
+        Copy(amount18, line, 38);
+        Copy(companyId.PadRight(10), line, 56);
+        Copy(new string(' ', 19), line, 66);
+        Copy(new string(' ', 6), line, 85);
+        Copy("12345678", line, 91);
+        Copy(batchNumber, line, 99);
+        return new string(line);
+    }
+
+    private static string BuildType9(string batchCount, string blockCount, string entryAddendaCount8, string hash10, string amount18)
+    {
+        var line = new string(' ', 106).ToCharArray();
+        line[0] = '9';
+        Copy(batchCount, line, 1);
+        Copy(blockCount, line, 7);
+        Copy(entryAddendaCount8, line, 13);
+        Copy(hash10, line, 21);
+        Copy("000000000000000000", line, 31);
+        Copy(amount18, line, 49);
+        Copy(new string(' ', 39), line, 67);
+        return new string(line);
+    }
+
+    private static void Copy(string value, char[] buffer, int index)
+    {
+        value.AsSpan().CopyTo(buffer.AsSpan(index, value.Length));
     }
 }

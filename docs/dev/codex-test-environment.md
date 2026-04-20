@@ -515,3 +515,48 @@ dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
 - Skipped: 0
 
 Pendientes del filtro amplio permanecen fuera de este bloque (AchTransactionNacha + AchPreproductionCertification), de acuerdo con el alcance definido para esta fase.
+
+## 15) Fixture base válido para parser fatal codes (2026-04-20 UTC)
+
+### Problema observado
+En el bloque de 5 pruebas fatal del parser, los casos no alcanzaban las validaciones objetivo (D04/D05/D02/Fatal87) porque el archivo base fallaba antes en validaciones previas (incluyendo Fatal ID 5 del tipo 5).
+
+### Qué valida Fatal ID 5
+El parser valida en el registro tipo 5 que el `BatchNumber` (posiciones 92-98, índice 91 longitud 7) sea numérico de 7 dígitos.
+Adicionalmente, valida coherencia de número de lote entre tipo 5 y tipo 8.
+
+### Corrección aplicada al fixture base
+Se reemplazó la construcción del archivo base en `AchTransactionNachaTests.BuildValidNachaFileAsync` por un fixture determinístico de registros fijos (106 chars) con estructura coherente:
+- Orden: 1,5,6,7,8,9 + 4 fillers de 9 para completar 10 bloques.
+- Tipo 5 y tipo 8 con `BatchNumber = 0000001`.
+- Conteos/hash/totales de tipo 8 y tipo 9 consistentes entre sí.
+- Campo reservado de tipo 8 en blanco.
+- Check digit de tipo 6 calculado con `DigitoChequeoHelper`.
+
+También se añadió test guardrail:
+- `ParseAndSaveAsync_WithValidBaseFile_ShouldParseSuccessfully`
+
+### Ejecución de validación
+Comando:
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~ParseAndSaveAsync_WithValidBaseFile_ShouldParseSuccessfully|FullyQualifiedName~ParseAndSaveAsync_WhenBatchControlCountDoesNotMatch_ThrowsFatal51|FullyQualifiedName~ParseAndSaveAsync_WhenBatchControlReservedFieldContainsData_ThrowsFatal87|FullyQualifiedName~ParseAndSaveAsync_WhenFileControlCountDoesNotMatch_ThrowsFatal60|FullyQualifiedName~ParseAndSaveAsync_WhenBatchControlHashDoesNotMatch_ThrowsFatal52|FullyQualifiedName~ParseAndSaveAsync_WhenPaddingContainsCharactersOtherThanNine_ThrowsFatal64" \
+  -v minimal
+```
+
+Resultado:
+- Total: 6
+- Passed: 6
+- Failed: 0
+
+### Verificación final por bloques solicitados
+1) Base válido:
+- Total 1 / Passed 1 / Failed 0
+
+2) Bloque parser fatal:
+- Total 5 / Passed 5 / Failed 0
+
+3) Filtro núcleo:
+- Total 60 / Passed 60 / Failed 0
