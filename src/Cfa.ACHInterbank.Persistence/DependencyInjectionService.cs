@@ -1,10 +1,12 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.Mapping;
 using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Mapping;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -107,10 +109,11 @@ public static class DependencyInjectionService
         services.AddScoped<IBulkFileParser, ACH.Services.Implementation.BulkParsers.JsonBulkFileParser>();
         services.AddScoped<IBulkFileParser, ACH.Services.Implementation.BulkParsers.CsvBulkFileParser>();
         services.AddScoped<IBulkFileParser, ACH.Services.Implementation.BulkParsers.ExcelBulkFileParser>();
+        services.AddScoped<ExpressionDslEngine>();
+        services.AddScoped<IExpressionDslCompiler>(sp => sp.GetRequiredService<ExpressionDslEngine>());
+        services.AddScoped<IExpressionDslExecutor>(sp => sp.GetRequiredService<ExpressionDslEngine>());
 
 
-
-        
 
 
         //Injection
