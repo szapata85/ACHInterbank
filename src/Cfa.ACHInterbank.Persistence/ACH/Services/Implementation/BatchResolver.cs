@@ -60,8 +60,6 @@ public class BatchResolver : IBatchResolver
             throw new InvalidOperationException($"La institución de origen tiene una longitud inválida para el ruteo: {originBase}.");
         }
 
-        string originWithCheckDigit = BuildTransitCodeWithCheckDigit(sourceRouting, sourceTransit, source.CheckDigit);
-
         var dest = await _context.FinancialInstitutions
             .AsNoTracking()
             .Where(fi => fi.Id == request.DestinationInstitutionId && fi.Status == FinancialInstitutionStatus.Active)
@@ -88,8 +86,6 @@ public class BatchResolver : IBatchResolver
         {
             throw new InvalidOperationException($"La institución destino tiene una longitud inválida para el ruteo: {destinationBase}.");
         }
-
-        string destinationWithCheckDigit = BuildTransitCodeWithCheckDigit(destRouting, destTransit, dest.CheckDigit);
 
         var now = _timeProvider.GetLocalNow().LocalDateTime;
         string achCycleId = await _routing.ResolveClearingHouseForTransactionAsync(request.DestinationInstitutionId, now, ct);
@@ -154,8 +150,8 @@ public class BatchResolver : IBatchResolver
             Batch = batch,
             AchCycleId = achCycleId,
             EffectiveEntryDate = effectiveEntryDate,
-            OriginatingDfi = originWithCheckDigit,
-            ReceivingDfi = destinationWithCheckDigit,
+            OriginatingDfi = originBase,
+            ReceivingDfi = destinationBase,
             CompanyName = companyName,
             CompanyIdentification = companyIdentification,
             CompanyEntryDescription = companyEntryDescription,

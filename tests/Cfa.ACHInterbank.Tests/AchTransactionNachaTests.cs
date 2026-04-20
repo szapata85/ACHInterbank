@@ -46,7 +46,7 @@ public class AchTransactionNachaTests
                 destinationAccountNumber: "999988887777",
                 companyName: "Empresa Demo",
                 companyIdentification: "123456780",
-                companyEntryDescriptionId: 1,
+                companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "PAGOS PSE"),
                 recipientIdNumber: null,
                 requiresIdentityValidation: false,
                 addendas:
@@ -161,10 +161,10 @@ public class AchTransactionNachaTests
                 destinationAccountNumber: "999988887777",
                 companyName: "Empresa Demo",
                 companyIdentification: "123456780",
-                companyEntryDescriptionId: 1,
+                companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "MULTICREDIT"),
                 recipientIdNumber: null,
                 requiresIdentityValidation: false,
-                addendas: null,
+                addendas: BuildCreditAddendas("MULTICREDIT", "PRENOTE 002"),
                 ct: CancellationToken.None);
 
             await transactionService.RegisterTransactionAsync(
@@ -178,11 +178,17 @@ public class AchTransactionNachaTests
                 destinationAccountNumber: "999988887777",
                 companyName: "Empresa Demo",
                 companyIdentification: "123456780",
-                companyEntryDescriptionId: 1,
+                companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "MULTICREDIT"),
                 recipientIdNumber: null,
                 requiresIdentityValidation: false,
-                addendas: null,
+                addendas: BuildCreditAddendas("MULTICREDIT", "PAGO 002"),
                 ct: CancellationToken.None);
+
+            var prenote = await arrangeContext.AchTransactions
+                .SingleAsync(t => t.Reference == "PAGOPRE-002");
+            prenote.EffectiveEntryDate = DateTime.Today.AddDays(-5);
+            arrangeContext.AchTransactions.Update(prenote);
+            await arrangeContext.SaveChangesAsync();
         }
 
         using var executionContext = CreateContext(connection);
@@ -200,21 +206,22 @@ public class AchTransactionNachaTests
 
         var records = ChunkRecords(nachaContent);
 
-        Assert.Equal(8, records.Count);
+        Assert.Equal(10, records.Count);
         Assert.All(records, record => Assert.Equal(106, record.Length));
         Assert.Equal("1", records[0][..1]);
         Assert.Equal("5", records[1][..1]);
         Assert.Equal("6", records[2][..1]);
-        Assert.Equal("7", records[3][..1]);
-        Assert.Equal("6", records[4][..1]);
+        Assert.Equal("6", records[3][..1]);
+        Assert.Equal("7", records[4][..1]);
         Assert.Equal("7", records[5][..1]);
         Assert.Equal("8", records[6][..1]);
         Assert.Equal("9", records[7][..1]);
+        Assert.Equal("9", records[8][..1]);
+        Assert.Equal("9", records[9][..1]);
 
-        Assert.Equal("05", records[3].Substring(1, 2));
-        Assert.Equal("PAGOS PSE ", records[3].Substring(20, 10));
-        Assert.Equal(new string('0', 53), records[3].Substring(30, 53));
-        Assert.Equal("0000001", records[3].Substring(87, 7));
+        Assert.Equal("05", records[4].Substring(1, 2));
+        Assert.Equal("MULTICREDI", records[4].Substring(20, 10));
+        Assert.Equal("0000001", records[4].Substring(87, 7));
     }
 
     [Fact]
@@ -312,6 +319,23 @@ public class AchTransactionNachaTests
             var transactionService = BuildTransactionService(arrangeContext, cycleId);
 
             await transactionService.RegisterTransactionAsync(
+                amount: 0m,
+                reference: "PAGOPRE-SAV-001",
+                type: TransactionTypeEnum.Credit,
+                accountType: AccountTypeEnum.Savings,
+                isPrenotification: true,
+                destinationInstitutionId: 2,
+                sourceAccountNumber: "111122223333",
+                destinationAccountNumber: "222233334444",
+                companyName: "Empresa Demo",
+                companyIdentification: "123456780",
+                companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "MULTICREDIT"),
+                recipientIdNumber: null,
+                requiresIdentityValidation: false,
+                addendas: BuildCreditAddendas("MULTICREDIT", "PRE SAV 001"),
+                ct: CancellationToken.None);
+
+            await transactionService.RegisterTransactionAsync(
                 amount: 125m,
                 reference: "PAGO-SAV-001",
                 type: TransactionTypeEnum.Credit,
@@ -322,10 +346,27 @@ public class AchTransactionNachaTests
                 destinationAccountNumber: "222233334444",
                 companyName: "Empresa Demo",
                 companyIdentification: "123456780",
-                companyEntryDescriptionId: 1,
+                companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "MULTICREDIT"),
                 recipientIdNumber: null,
                 requiresIdentityValidation: false,
-                addendas: null,
+                addendas: BuildCreditAddendas("MULTICREDIT", "PAGO SAV 001"),
+                ct: CancellationToken.None);
+
+            await transactionService.RegisterTransactionAsync(
+                amount: 0m,
+                reference: "PAGOPRE-CHK-001",
+                type: TransactionTypeEnum.Credit,
+                accountType: AccountTypeEnum.Checking,
+                isPrenotification: true,
+                destinationInstitutionId: 2,
+                sourceAccountNumber: "111122223333",
+                destinationAccountNumber: "555566667777",
+                companyName: "Empresa Demo",
+                companyIdentification: "123456780",
+                companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "MULTICREDIT"),
+                recipientIdNumber: null,
+                requiresIdentityValidation: false,
+                addendas: BuildCreditAddendas("MULTICREDIT", "PRE CHK 001"),
                 ct: CancellationToken.None);
 
             await transactionService.RegisterTransactionAsync(
@@ -339,10 +380,10 @@ public class AchTransactionNachaTests
                 destinationAccountNumber: "555566667777",
                 companyName: "Empresa Demo",
                 companyIdentification: "123456780",
-                companyEntryDescriptionId: 1,
+                companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "MULTICREDIT"),
                 recipientIdNumber: null,
                 requiresIdentityValidation: false,
-                addendas: null,
+                addendas: BuildCreditAddendas("MULTICREDIT", "PAGO CHK 001"),
                 ct: CancellationToken.None);
 
             await transactionService.RegisterTransactionAsync(
@@ -356,11 +397,22 @@ public class AchTransactionNachaTests
                 destinationAccountNumber: "888899990000",
                 companyName: "Empresa Demo",
                 companyIdentification: "123456780",
-                companyEntryDescriptionId: 1,
+                companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "MULTICREDIT"),
                 recipientIdNumber: null,
                 requiresIdentityValidation: false,
-                addendas: null,
+                addendas: BuildCreditAddendas("MULTICREDIT", "PRE 003"),
                 ct: CancellationToken.None);
+
+            var prenotes = await arrangeContext.AchTransactions
+                .Where(t => t.IsPrenotification)
+                .ToListAsync();
+            foreach (var prenote in prenotes)
+            {
+                prenote.EffectiveEntryDate = DateTime.Today.AddDays(-5);
+            }
+
+            arrangeContext.AchTransactions.UpdateRange(prenotes);
+            await arrangeContext.SaveChangesAsync();
         }
 
         using var executionContext = CreateContext(connection);
@@ -377,8 +429,10 @@ public class AchTransactionNachaTests
         var nachaContent = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
 
         Assert.NotEmpty(nachaContent);
-        Assert.Contains("PAGO-SAV-001", nachaContent);
-        Assert.Contains("PAGO-CHK-001", nachaContent);
+        var records = ChunkRecords(nachaContent);
+        Assert.Equal(5, records.Count(record => record.StartsWith("6", StringComparison.Ordinal)));
+        Assert.Equal(5, records.Count(record => record.StartsWith("7", StringComparison.Ordinal)));
+        Assert.Contains(records, record => record.StartsWith("5", StringComparison.Ordinal) && record.Contains("MULTICREDI", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -884,6 +938,20 @@ public class AchTransactionNachaTests
             .Where(x => x.Term == term)
             .Select(x => x.Id)
             .First();
+
+    private static IEnumerable<AddendaDto> BuildCreditAddendas(string purpose, string reference)
+    {
+        return
+        [
+            new AddendaDto
+            {
+                AddendaType = "05",
+                BusinessType = AchAddendaBusinessType.Credit,
+                Purpose = purpose,
+                Reference = reference
+            }
+        ];
+    }
 
     private static void EnsureCompanyEntryDescription(AchDbContext context, string term)
     {

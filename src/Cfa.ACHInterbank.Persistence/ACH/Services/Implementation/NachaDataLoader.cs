@@ -68,6 +68,18 @@ public class NachaDataLoader : INachaDataLoader
             .Select(g => g.First())
             .ToList();
 
+        var transactionsByBatchId = transactions
+            .Where(t => t.AchBatchId > 0)
+            .GroupBy(t => t.AchBatchId)
+            .ToDictionary(g => g.Key, g => (ICollection<AchTransaction>)g.OrderBy(t => t.Id).ToList());
+
+        foreach (var batch in batches)
+        {
+            batch.Transactions = transactionsByBatchId.TryGetValue(batch.Id, out var batchTransactions)
+                ? batchTransactions
+                : [];
+        }
+
         return new NachaBuildContext
         {
             Cycle = cycle,
