@@ -333,3 +333,84 @@ Resultado actual del filtro amplio:
 
 Bloqueadores vigentes del filtro amplio:
 - Pruebas fuera del objetivo de los 9 fallos con deuda legacy adicional (NachaConfigAdminServices, ReportServices con limitaciones SQLite DateTimeOffset ORDER BY, AchTransactionNacha con seeds duplicados de `CompanyEntryDescription`).
+
+## 13) Saneamiento adicional del filtro amplio NACHA/Mapping/BatchNumber (2026-04-20 UTC)
+
+### Ejecución inicial de esta fase
+Comando ejecutado:
+```bash
+export DOTNET_ROOT=$HOME/.dotnet
+export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" \
+  -v minimal
+```
+
+Resultado inicial capturado:
+- Total: 153
+- Passed: 124
+- Failed: 29
+- Skipped: 0
+
+### Agrupación de fallos iniciales (29)
+1) NachaConfigAdminServices:
+- Fallos por resolución de catálogo con `EF.Property` fuera de expresión LINQ y asserts de validación desalineados.
+
+2) AchTransactionNacha:
+- Múltiples fallos por seeds no idempotentes (`CompanyEntryDescription`) y por queries no portables en SQLite (comparación `DateTime/TimeSpan`).
+
+3) ReportServices / SQLite:
+- `ORDER BY DateTimeOffset` no soportado por SQLite.
+
+4) Seeds duplicados:
+- Violaciones `UNIQUE` en `CompanyEntryDescription.Id/Term`.
+
+5) FK/seeding:
+- Escenarios de dispatch entrante sin entidades referenciadas completas.
+
+6) Provider limitation real:
+- Traducción SQLite para expresiones mixtas `DateTime + TimeSpan` en repositorios.
+
+7) Asserts obsoletos:
+- Validaciones de catálogo/config no actualizadas frente a reglas nuevas del validador.
+
+8) Bug productivo real:
+- Serialización de auditoría en clone profile con ciclos de navegación (Json cycle detected).
+
+### Correcciones aplicadas en esta fase
+- `NachaConfigProfileCommandService`
+  - `ResolveCatalogIdAsync` corregido para resolver `Id` dentro de la consulta (sin `EF.Property` sobre entidad materializada).
+  - serialización de auditoría robustecida con `ReferenceHandler.IgnoreCycles`.
+- `AchBatchRepository.GetUpcomingCyclesAsync`
+  - query hecha portable para SQLite: materialización + filtro/orden en memoria para `TimeSpan`.
+- `AchTransactionReportService`
+  - manejo SQLite para ordenamiento por `DateTimeOffset` con orden/paginación en memoria.
+  - filtro de reporte enviado para excluir estados de retorno y transacciones con causal de devolución.
+- `AchTransactionNachaTests`
+  - seed de `CompanyEntryDescription` idempotente por término.
+  - referencias a `CompanyEntryDescriptionId` resueltas por clave natural en pruebas afectadas.
+  - ciclo de prueba con ventana operativa explícita (`StartTime/EndTime`).
+- `AchPreproductionCertificationTests`
+  - seed de `CompanyEntryDescription` idempotente por término (retornando ID real).
+  - lotes/transacciones usan ID resuelto, no fijo.
+  - transacciones de escenario de certificación con addendas explícitas para cumplir validador semántico actual.
+- `IncomingNachaDispatchRelationalValidationTests`
+  - seed relacional completo (clearing house config/chamber, institución financiera, company entry description idempotente, `EntryDetail` referenciado).
+- `NachaConfigBackfillSeederTests`
+  - seed `NOMINAS` idempotente por término.
+  - acceso a check constraints vía `IDesignTimeModel`.
+
+### Resultado final medido de esta fase
+- Filtro núcleo (`BatchNumber|NachaFileBuilder|Mapping`):
+  - Total 60 / Passed 60 / Failed 0 / Skipped 0.
+- Filtro amplio (`Nacha|Mapping|BatchNumber`):
+  - Total 153 / Passed 131 / Failed 22 / Skipped 0.
+
+### Pendientes remanentes (filtro amplio)
+- AchTransactionNacha (múltiples casos aún fallando).
+- AchPreproductionCertification (golden master desalineado con reglas semánticas actuales).
+- NachaConfigAdminServices (asserts/reglas de validación aún desalineadas en algunos casos).
+- NachaConfigBackfillSeeder (flujo de seed/backfill aún con una falla).

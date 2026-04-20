@@ -35,15 +35,19 @@ public class AchBatchRepository : IAchBatchRepository
 
     public async Task<IReadOnlyList<AchCycle>> GetUpcomingCyclesAsync(int clearingHouseId, DateTime processingDate, TimeSpan cutoffTime, int take, CancellationToken ct = default)
     {
-        return await _context.AchCycles
+        var buffered = await _context.AchCycles
             .AsNoTracking()
             .Where(c => c.ClearingHouseId == clearingHouseId)
+            .OrderBy(c => c.ProcessingDate)
+            .ToListAsync(ct);
+
+        return buffered
             .Where(c => c.ProcessingDate > processingDate
                         || (c.ProcessingDate == processingDate && c.CutoffTime >= cutoffTime))
             .OrderBy(c => c.ProcessingDate)
             .ThenBy(c => c.CutoffTime)
             .Take(take)
-            .ToListAsync(ct);
+            .ToList();
     }
 
     public Task UpdateAsync(AchBatch batch, CancellationToken ct = default)

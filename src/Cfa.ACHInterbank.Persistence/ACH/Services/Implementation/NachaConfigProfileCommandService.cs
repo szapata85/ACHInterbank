@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH.Config;
@@ -11,6 +12,11 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public sealed class NachaConfigProfileCommandService : INachaConfigProfileCommandService
 {
+    private static readonly JsonSerializerOptions AuditJsonOptions = new()
+    {
+        ReferenceHandler = ReferenceHandler.IgnoreCycles
+    };
+
     private readonly AchDbContext _context;
     private readonly INachaConfigProfileQueryService _query;
 
@@ -398,12 +404,17 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
     private async Task<int> ResolveCatalogIdAsync<TCatalog>(string code, CancellationToken ct)
         where TCatalog : class
     {
-        var entity = await _context.Set<TCatalog>()
+        var match = await _context.Set<TCatalog>()
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => EF.Property<string>(x, "Code") == code, ct)
+            .Where(x => EF.Property<string>(x, "Code") == code)
+            .Select(x => new
+            {
+                Id = EF.Property<int>(x, "Id")
+            })
+            .FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException($"No se encontró catálogo {typeof(TCatalog).Name} código {code}.");
 
-        return EF.Property<int>(entity, "Id");
+        return match.Id;
     }
 
     private void AppendChange(int profileId, string entityName, string entityId, string changeType, string actor, object? before, object? after)
@@ -414,8 +425,8 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
             EntityName = entityName,
             EntityId = entityId,
             ChangeType = changeType,
-            BeforeJson = before is null ? null : JsonSerializer.Serialize(before),
-            AfterJson = after is null ? null : JsonSerializer.Serialize(after),
+            BeforeJson = before is null ? null : JsonSerializer.Serialize(before, AuditJsonOptions),
+            AfterJson = after is null ? null : JsonSerializer.Serialize(after, AuditJsonOptions),
             ChangedAtUtc = DateTime.UtcNow,
             ChangedBy = string.IsNullOrWhiteSpace(actor) ? "system" : actor,
             CorrelationId = $"NACHA-CONFIG-{DateTime.UtcNow:yyyyMMddHHmmssfff}"

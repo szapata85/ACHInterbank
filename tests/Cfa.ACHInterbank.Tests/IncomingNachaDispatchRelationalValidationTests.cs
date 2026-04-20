@@ -21,6 +21,42 @@ public class IncomingNachaDispatchRelationalValidationTests
 
         await using var context = new AchDbContext(options);
         await context.Database.EnsureCreatedAsync();
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, HolidayStrategy = "Colombian" });
+        context.ClearingHouses.Add(new ClearingHouse
+        {
+            Id = 1,
+            Name = "ACH Colombia",
+            Code = "ACH",
+            OriginCode = "12345678",
+            ClearingHouseId = 1
+        });
+        var companyEntryDescriptionId = await context.CompanyEntryDescriptionCatalogs
+            .Where(x => x.Term == "PAGOS")
+            .Select(x => x.Id)
+            .FirstOrDefaultAsync();
+        if (companyEntryDescriptionId == 0)
+        {
+            companyEntryDescriptionId = 999;
+            context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog
+            {
+                Id = companyEntryDescriptionId,
+                Term = "PAGOS",
+                Description = "Pagos",
+                StandardEntryClassCode = "PPD",
+                IsActive = true
+            });
+        }
+        var fi = new FinancialInstitution
+        {
+            Id = 1,
+            Name = "Banco Test",
+            RoutingNumber = "12345",
+            TransitCode = "678",
+            IsDefaultSource = true,
+            Status = FinancialInstitutionStatus.Active
+        };
+        fi.CalculateCheckDigit();
+        context.FinancialInstitutions.Add(fi);
 
         var ingestion = new IncomingNachaFileIngestion
         {
@@ -43,7 +79,7 @@ public class IncomingNachaDispatchRelationalValidationTests
             EndTime = new TimeSpan(23, 59, 0),
             CutoffTime = new TimeSpan(23, 0, 0)
         };
-        var batch = new AchBatch { Id = 1, AchCycleId = cycle.Id, CompanyEntryDescriptionId = 1, EffectiveEntryDate = DateTime.Today };
+        var batch = new AchBatch { Id = 1, AchCycleId = cycle.Id, CompanyEntryDescriptionId = companyEntryDescriptionId, EffectiveEntryDate = DateTime.Today };
         var tx = new AchTransaction
         {
             Id = 100,
@@ -65,6 +101,15 @@ public class IncomingNachaDispatchRelationalValidationTests
             AchBatchId = batch.Id,
             EffectiveEntryDate = DateTime.Today
         };
+        context.EntryDetails.Add(new EntryDetail
+        {
+            EntryDetailID = 1,
+            TransactionCode = "22",
+            ReceivingParticipantEntityCode = "22222222",
+            AccountNumber = "D",
+            Amount = 10m,
+            RecipUserName = "Receiver"
+        });
         var classification = new IncomingNachaEntryClassification { Id = Guid.NewGuid(), IncomingNachaFileIngestionId = ingestion.Id, EntryDetailId = 1 };
         var link = new IncomingNachaTransactionLink { Id = Guid.NewGuid(), IncomingNachaFileIngestionId = ingestion.Id, EntryDetailId = 1, AchTransactionId = tx.Id, IsFinal = true, LinkType = IncomingNachaLinkType.ExactTrace15 };
 

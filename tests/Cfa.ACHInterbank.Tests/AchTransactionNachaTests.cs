@@ -238,7 +238,7 @@ public class AchTransactionNachaTests
                 CompanyName = "EMPRESA DEMO",
                 CompanyIdentification = "123456780",
                 CompanyEntryDescription = "PAGOS PSE",
-                CompanyEntryDescriptionId = 1,
+                CompanyEntryDescriptionId = GetCompanyEntryDescriptionId(arrangeContext, "PAGOS PSE"),
                 OriginOrOdfi = "12345678"
             };
 
@@ -250,7 +250,7 @@ public class AchTransactionNachaTests
                 Type = TransactionTypeEnum.Credit,
                 TransactionCode = "22",
                 ServiceClassCode = "220",
-                CompanyEntryDescriptionId = 1,
+                CompanyEntryDescriptionId = GetCompanyEntryDescriptionId(arrangeContext, "PAGOS PSE"),
                 CompanyName = "EMPRESA DEMO",
                 CompanyIdentification = "123456780",
                 OriginatingDFI = "123456780",
@@ -784,6 +784,8 @@ public class AchTransactionNachaTests
             Id = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today),
             CycleName = "CICLO-TEST",
             ProcessingDate = DateTime.Today,
+            StartTime = TimeSpan.Zero,
+            EndTime = new TimeSpan(23, 59, 0),
             CutoffTime = TimeSpan.FromHours(17),
             RescheduleOnHoliday = false,
             ClearingHouseId = 1,
@@ -813,23 +815,8 @@ public class AchTransactionNachaTests
         destinationInstitution.CalculateCheckDigit();
 
         context.ClearingHouseConfigs.Add(config);
-        context.CompanyEntryDescriptionCatalogs.AddRange(
-            new CompanyEntryDescriptionCatalog
-            {
-                Id = 1,
-                Term = "PAGOS PSE",
-                Description = "Pagos PSE",
-                StandardEntryClassCode = "PPD",
-                IsActive = true
-            },
-            new CompanyEntryDescriptionCatalog
-            {
-                Id = 2,
-                Term = "RECAUDOS",
-                Description = "Recaudos",
-                StandardEntryClassCode = "PPD",
-                IsActive = true
-            });
+        EnsureCompanyEntryDescription(context, "PAGOS PSE");
+        EnsureCompanyEntryDescription(context, "RECAUDOS");
         context.DocumentTypes.Add(documentType);
         context.PersonTypes.Add(personType);
         context.GenderTypes.Add(gender);
@@ -868,6 +855,28 @@ public class AchTransactionNachaTests
             AccountNumber = "111122223333"
         });
         context.SaveChanges();
+    }
+
+    private static int GetCompanyEntryDescriptionId(AchDbContext context, string term)
+        => context.CompanyEntryDescriptionCatalogs
+            .Where(x => x.Term == term)
+            .Select(x => x.Id)
+            .First();
+
+    private static void EnsureCompanyEntryDescription(AchDbContext context, string term)
+    {
+        if (context.CompanyEntryDescriptionCatalogs.Any(x => x.Term == term))
+        {
+            return;
+        }
+
+        context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog
+        {
+            Term = term,
+            Description = term,
+            StandardEntryClassCode = "PPD",
+            IsActive = true
+        });
     }
 
     private static AchTransactionService BuildTransactionService(AchDbContext context, string cycleId)

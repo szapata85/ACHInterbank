@@ -29,7 +29,7 @@ public class AchPreproductionCertificationTests
         using var context = CreateContext(connection);
         SeedReferenceData(context);
         SeedInstitutions(context);
-        SeedCompanyEntryDescription(context, 1, "PAGOS PSE");
+        var companyEntryDescriptionId = SeedCompanyEntryDescription(context, "PAGOS PSE");
 
         context.AchCycles.Add(new AchCycle
         {
@@ -62,7 +62,7 @@ public class AchPreproductionCertificationTests
             DestinationAccountNumber = "999988887777",
             CompanyName = "EMPRESA DEMO",
             CompanyIdentification = "900123456",
-            CompanyEntryDescriptionId = 1
+            CompanyEntryDescriptionId = companyEntryDescriptionId
         }, CancellationToken.None));
 
         Assert.Contains("está cerrado", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -193,7 +193,7 @@ public class AchPreproductionCertificationTests
     {
         SeedReferenceData(context);
         SeedInstitutions(context);
-        SeedCompanyEntryDescription(context, 1, batchDescription);
+        var companyEntryDescriptionId = SeedCompanyEntryDescription(context, batchDescription);
         await new NachaLayoutSeeder(context).SeedAsync();
 
         var cycle = new AchCycle
@@ -249,7 +249,7 @@ public class AchPreproductionCertificationTests
                 CompanyName = "EMPRESA DEMO",
                 CompanyIdentification = "900123456",
                 CompanyEntryDescription = batchDescription,
-                CompanyEntryDescriptionId = 1,
+                CompanyEntryDescriptionId = companyEntryDescriptionId,
                 EffectiveEntryDate = new DateTime(2026, 03, 18),
                 OriginOrOdfi = "12345678"
             });
@@ -262,7 +262,7 @@ public class AchPreproductionCertificationTests
                 Type = TransactionTypeEnum.Prenotification,
                 TransactionCode = transactionCode is "27" or "37" or "55" ? "28" : "23",
                 ServiceClassCode = transactionCode is "27" or "37" or "55" ? "225" : "220",
-                CompanyEntryDescriptionId = 1,
+                CompanyEntryDescriptionId = companyEntryDescriptionId,
                 CompanyName = "EMPRESA DEMO",
                 CompanyIdentification = "900123456",
                 OriginatingDFI = "12345678",
@@ -278,7 +278,17 @@ public class AchPreproductionCertificationTests
                 SourceInstitutionId = 1,
                 DestinationInstitutionId = 2,
                 AchCycleId = "cycle-prenote",
-                AchBatchId = 99
+                AchBatchId = 99,
+                Addendas =
+                [
+                    new AchTransactionAddenda
+                    {
+                        AddendaType = "05",
+                        BusinessType = AchAddendaBusinessType.Credit,
+                        Purpose = batchDescription,
+                        SequenceNumber = 1
+                    }
+                ]
             });
         }
 
@@ -290,7 +300,7 @@ public class AchPreproductionCertificationTests
             CompanyName = "EMPRESA DEMO",
             CompanyIdentification = "900123456",
             CompanyEntryDescription = batchDescription,
-            CompanyEntryDescriptionId = 1,
+            CompanyEntryDescriptionId = companyEntryDescriptionId,
             EffectiveEntryDate = cycle.ProcessingDate,
             OriginOrOdfi = "12345678"
         });
@@ -303,7 +313,7 @@ public class AchPreproductionCertificationTests
             Type = type,
             TransactionCode = transactionCode,
             ServiceClassCode = type is TransactionTypeEnum.Debit or TransactionTypeEnum.Reversal or TransactionTypeEnum.Return ? "225" : "220",
-            CompanyEntryDescriptionId = 1,
+            CompanyEntryDescriptionId = companyEntryDescriptionId,
             CompanyName = "EMPRESA DEMO",
             CompanyIdentification = "900123456",
             OriginatingDFI = "12345678",
@@ -320,7 +330,41 @@ public class AchPreproductionCertificationTests
             SourceInstitutionId = 1,
             DestinationInstitutionId = 2,
             AchCycleId = cycle.Id,
-            AchBatchId = 100
+            AchBatchId = 100,
+            Addendas = type switch
+            {
+                TransactionTypeEnum.Debit => [
+                    new AchTransactionAddenda
+                    {
+                        AddendaType = "05",
+                        BusinessType = AchAddendaBusinessType.Debit,
+                        CollectorId = "0000000000001",
+                        ReceiverCustomerCode = receiverName,
+                        ServiceDescription = batchDescription,
+                        SequenceNumber = 1
+                    }
+                ],
+                TransactionTypeEnum.Reversal => [
+                    new AchTransactionAddenda
+                    {
+                        AddendaType = "99",
+                        BusinessType = AchAddendaBusinessType.Return,
+                        ReturnReasonCode = "R01",
+                        OriginalTraceNumber = "123456780000000",
+                        NewTraceNumber = traceNumber,
+                        SequenceNumber = 1
+                    }
+                ],
+                _ => [
+                    new AchTransactionAddenda
+                    {
+                        AddendaType = "05",
+                        BusinessType = AchAddendaBusinessType.Credit,
+                        Purpose = batchDescription,
+                        SequenceNumber = 1
+                    }
+                ]
+            }
         });
 
         await context.SaveChangesAsync();
@@ -735,22 +779,27 @@ public class AchPreproductionCertificationTests
         context.SaveChanges();
     }
 
-    private static void SeedCompanyEntryDescription(AchDbContext context, int id, string term)
+    private static int SeedCompanyEntryDescription(AchDbContext context, string term)
     {
-        if (context.CompanyEntryDescriptionCatalogs.Any(x => x.Id == id))
+        var existingId = context.CompanyEntryDescriptionCatalogs
+            .Where(x => x.Term == term)
+            .Select(x => x.Id)
+            .FirstOrDefault();
+        if (existingId != 0)
         {
-            return;
+            return existingId;
         }
 
-        context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog
+        var entry = new CompanyEntryDescriptionCatalog
         {
-            Id = id,
             Term = term,
             Description = term,
             StandardEntryClassCode = "PPD",
             IsActive = true
-        });
+        };
+        context.CompanyEntryDescriptionCatalogs.Add(entry);
         context.SaveChanges();
+        return entry.Id;
     }
 
     private static void SeedCustomer(AchDbContext context, string receiverName, string recipientIdNumber, string accountNumber)
