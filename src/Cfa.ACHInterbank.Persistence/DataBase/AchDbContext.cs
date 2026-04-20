@@ -81,6 +81,7 @@ public class AchDbContext : DbContext
     public DbSet<NachaFileIdentifierMap> NachaFileIdentifierMaps => Set<NachaFileIdentifierMap>();
     public DbSet<CompanyEntryDescriptionCatalog> CompanyEntryDescriptionCatalogs => Set<CompanyEntryDescriptionCatalog>();
     public DbSet<AchBatch> AchBatches => Set<AchBatch>();
+    public DbSet<BatchNumberSequence> BatchNumberSequences => Set<BatchNumberSequence>();
     public DbSet<BulkIngestionBatch> BulkIngestionBatches => Set<BulkIngestionBatch>();
     public DbSet<BulkIngestionItem> BulkIngestionItems => Set<BulkIngestionItem>();
     public DbSet<BulkIngestionAttempt> BulkIngestionAttempts => Set<BulkIngestionAttempt>();

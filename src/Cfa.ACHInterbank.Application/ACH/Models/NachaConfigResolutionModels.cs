@@ -42,4 +42,6 @@ public class NachaGenerationAuditResult
     public Dictionary<string, int> Type7FallbackByLayout { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, int> Type7DiffByField { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     public List<string> Type7AliasResolutionTrace { get; init; } = [];
+    public int ShadowDiffCount { get; set; }
+    public List<string> ShadowDiffDetails { get; init; } = [];
 }
