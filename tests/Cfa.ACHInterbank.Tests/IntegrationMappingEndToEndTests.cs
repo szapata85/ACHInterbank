@@ -313,6 +313,8 @@ public class IntegrationMappingEndToEndTests
             {
                 var (kind, path, fixedVal) = parameter.ParameterPath switch
                 {
+                    "OFIDLOT" => (IntegrationSourceKindEnum.Cycle, "cycle.id", (string?)null),
+                    "OFIDTX" => (IntegrationSourceKindEnum.Transaction, "transaction.transactionExternalId", (string?)null),
                     "CycleId" => (IntegrationSourceKindEnum.Cycle, "cycle.id", (string?)null),
                     "CycleName" => (IntegrationSourceKindEnum.Cycle, "cycle.cycleName", (string?)null),
                     "ClearingHouseId" => (IntegrationSourceKindEnum.ClearingHouse, "clearinghouse.id", (string?)null),

@@ -97,14 +97,22 @@ public class IncomingNachaPostProcessingOrchestratorTests
             OriginCode = "12345678",
             ClearingHouseId = 1
         });
-        context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog
+        var companyEntryDescriptionId = context.CompanyEntryDescriptionCatalogs
+            .Where(x => x.Term == "PAGOS")
+            .Select(x => x.Id)
+            .FirstOrDefault();
+        if (companyEntryDescriptionId == 0)
         {
-            Id = 1,
-            Term = "PAGOS",
-            Description = "Pagos",
-            StandardEntryClassCode = "PPD",
-            IsActive = true
-        });
+            companyEntryDescriptionId = 999;
+            context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog
+            {
+                Id = companyEntryDescriptionId,
+                Term = "PAGOS",
+                Description = "Pagos",
+                StandardEntryClassCode = "PPD",
+                IsActive = true
+            });
+        }
         var fi = new FinancialInstitution
         {
             Id = 1,
@@ -139,7 +147,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
             CutoffTime = new TimeSpan(23, 0, 0)
         };
         context.AchCycles.Add(cycle);
-        context.AchBatches.Add(new AchBatch { Id = 1, AchCycleId = "C1", CompanyEntryDescriptionId = 1, EffectiveEntryDate = DateTime.Today });
+        context.AchBatches.Add(new AchBatch { Id = 1, AchCycleId = "C1", CompanyEntryDescriptionId = companyEntryDescriptionId, EffectiveEntryDate = DateTime.Today });
         var tx = new AchTransaction
         {
             Id = 100,
@@ -162,6 +170,15 @@ public class IncomingNachaPostProcessingOrchestratorTests
             EffectiveEntryDate = DateTime.Today
         };
         context.AchTransactions.Add(tx);
+        context.EntryDetails.Add(new EntryDetail
+        {
+            EntryDetailID = 1,
+            TransactionCode = "22",
+            ReceivingParticipantEntityCode = "22222222",
+            AccountNumber = "D",
+            Amount = 100m,
+            RecipUserName = "Receiver"
+        });
         var classification = new IncomingNachaEntryClassification { Id = Guid.NewGuid(), IncomingNachaFileIngestionId = ingestion.Id, EntryDetailId = 1 };
         var link = new IncomingNachaTransactionLink { Id = Guid.NewGuid(), IncomingNachaFileIngestionId = ingestion.Id, EntryDetailId = 1, AchTransactionId = tx.Id, IsFinal = true, LinkType = IncomingNachaLinkType.ExactTrace15 };
 

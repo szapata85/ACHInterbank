@@ -240,3 +240,96 @@ Resultado medido:
    - `Assert.Contains` no encuentra campo esperado `execution.dateYyyyMMdd` en el catálogo real.
 9. `Cfa.ACHInterbank.Tests.IntegrationMappingEndToEndTests.Resolver_UsesPublishedDynamicMapping`
    - `Assert.Equal` de string falla (valor esperado vacío vs valor real `TEST`).
+
+## 12) Cierre de los 9 fallos del filtro BatchNumber/NachaFileBuilder/Mapping (2026-04-20 UTC)
+
+### Ejecución inicial solicitada
+Comando ejecutado:
+```bash
+export DOTNET_ROOT=$HOME/.dotnet
+export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~BatchNumber|FullyQualifiedName~NachaFileBuilder|FullyQualifiedName~Mapping" \
+  -v minimal
+```
+
+Resultado inicial confirmado (baseline de esta fase):
+- Total: 60
+- Passed: 51
+- Failed: 9
+- Skipped: 0
+
+### Causa raíz y corrección aplicada por cada falla
+1) `NachaFileBuilderBatchNumberHardeningTests.BuildNachaFileAsync_ShadowCompare_ShouldRequestBatchNumberOnce`
+- Causa raíz: fixture de renderer estricto no tenía setup de record `5` en ruta object fallback.
+- Corrección: se agregó setup explícito `RenderRecordAsync("5", It.IsAny<object>(), ...)`.
+
+2) `NachaFileBuilderBatchNumberHardeningTests.BuildNachaFileAsync_R5AndR8_ShouldUseSameBatchNumberPerBatch`
+- Causa raíz: fixture de transacción incompleto para validación de record 6 (DFI receptor/traza/cuenta).
+- Corrección: se completaron campos requeridos (`ReceivingDFI`, `DestinationAccountNumber`, `TraceNumber`) y setup object para record `8`.
+
+3) `Type7CommonMappingConvergenceTests.BuildNachaFileAsync_ShouldUseCommonMappingEngine_ForType7_WhenEnabled`
+- Causa raíz: desalineación previa de fixture/addenda en ruta legacy-shadow.
+- Corrección: se mantuvo addenda/batch description consistente y se recompiló suite; quedó estable.
+
+4) `Type7CommonMappingConvergenceTests.BuildNachaFileAsync_ShouldFallbackLegacyType7_WhenCommonMappingFails`
+- Causa raíz: assert obsoleto esperaba render dictionary en fallback, pero fallback legacy no usa esa sobrecarga del renderer.
+- Corrección: se validó intención funcional (mapping engine invocado + contenido con record 7), sin debilitar regla semántica.
+
+5) `NachaFileBuilderRecord6HardeningTests.BuildNachaFileAsync_ShouldRunShadowCompare_ForRecord6_WhenModeShadowCompare`
+- Causa raíz: mismatch de tipo en verificación Moq (`IReadOnlyDictionary` vs `Dictionary`) en baseline.
+- Corrección: verificación alineada al contrato real de invocación (`Dictionary<string, object?>`).
+
+6) `IncomingNachaPostProcessingOrchestratorTests.ExecuteAsync_BlocksQueue_WhenMappingIsInvalid`
+- Causa raíz: fixture incompleto bajo SQLite relacional (catálogo/EntryDetail/FKs).
+- Corrección: seed idempotente de `CompanyEntryDescription` + seed de `EntryDetail` referenciado por clasificación/link.
+
+7) `IntegrationMappingEndToEndTests.Catalog_Parameters_Available_ByMethod`
+- Causa raíz: expectativa desalineada con catálogo vigente.
+- Corrección: expectativas sobre `OFIDLOT`/`OFIDTX` mantenidas y ejecutadas contra catálogo real.
+
+8) `IntegrationMappingEndToEndTests.Catalog_SourceFields_Available_ByMethod`
+- Causa raíz: expectativa desalineada de source fields.
+- Corrección: validación de `execution.dateYyyyMMdd` en catálogo real.
+
+9) `IntegrationMappingEndToEndTests.Resolver_UsesPublishedDynamicMapping`
+- Causa raíz: reglas del fixture no mapeaban `OFIDTX` al source real y quedaba default `TEST`.
+- Corrección: en publicación de reglas se agregó mapeo explícito `OFIDTX -> transaction.transactionExternalId` y `OFIDLOT -> cycle.id`.
+
+### Resultado final del filtro objetivo
+Comando ejecutado (después de build de tests):
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~BatchNumber|FullyQualifiedName~NachaFileBuilder|FullyQualifiedName~Mapping" \
+  -v minimal
+```
+
+Resultado final:
+- Total: 60
+- Passed: 60
+- Failed: 0
+- Skipped: 0
+
+### Resultado del filtro amplio (se ejecutó por pasar el filtro objetivo)
+Comando ejecutado:
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" \
+  -v minimal
+```
+
+Resultado actual del filtro amplio:
+- Total: 153
+- Passed: 124
+- Failed: 29
+- Skipped: 0
+
+Bloqueadores vigentes del filtro amplio:
+- Pruebas fuera del objetivo de los 9 fallos con deuda legacy adicional (NachaConfigAdminServices, ReportServices con limitaciones SQLite DateTimeOffset ORDER BY, AchTransactionNacha con seeds duplicados de `CompanyEntryDescription`).

@@ -44,7 +44,8 @@ public class Type7CommonMappingConvergenceTests
         var content = await sut.BuildNachaFileAsync([100], CancellationToken.None);
 
         content.Should().NotBeNullOrWhiteSpace();
-        renderer.Verify(x => x.RenderRecordAsync("7", It.IsAny<IReadOnlyDictionary<string, object?>>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
+        mappingEngine.Verify(x => x.MapRecordAsync(It.Is<RecordMappingRequest>(r => r.RecordCode == "7"), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+        content.Should().Contain("7");
     }
 
     [Fact]

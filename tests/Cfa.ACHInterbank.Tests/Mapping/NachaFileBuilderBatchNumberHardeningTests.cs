@@ -73,7 +73,19 @@ public class NachaFileBuilderBatchNumberHardeningTests
         var batchGenerator = new Mock<IBatchNumberGenerator>(MockBehavior.Strict);
 
         var cycle = new AchCycle { Id = "c1", CycleName = "C40", ProcessingDate = DateTime.UtcNow, ClearingHouse = new ClearingHouse { Name = "ACH Colombia" } };
-        var tx = new AchTransaction { Id = 1, Type = TransactionTypeEnum.Credit, Amount = 100m, AchBatchId = 100, AchCycleId = cycle.Id, CompanyIdentification = "1234567890", Addendas = [] };
+        var tx = new AchTransaction
+        {
+            Id = 1,
+            Type = TransactionTypeEnum.Credit,
+            Amount = 100m,
+            AchBatchId = 100,
+            AchCycleId = cycle.Id,
+            CompanyIdentification = "1234567890",
+            ReceivingDFI = "12345678",
+            DestinationAccountNumber = "1234567890",
+            TraceNumber = "123456780000001",
+            Addendas = []
+        };
         var batch = new AchBatch { Id = 100, AchCycle = cycle, AchCycleId = cycle.Id, CompanyIdentification = "1234567890", CompanyName = "CO", OriginOrOdfi = "12345678", ServiceClassCode = "220", EffectiveEntryDate = DateTime.UtcNow, Transactions = [tx], CompanyEntryDescription = "PAGOS" };
 
         loader.Setup(x => x.LoadBatchesByIdsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>())).ReturnsAsync([batch]);
@@ -101,7 +113,9 @@ public class NachaFileBuilderBatchNumberHardeningTests
             .ReturnsAsync(new NachaConfigResolutionResult { Success = false, Trace = [], Warnings = [] });
 
         renderer.Setup(x => x.RenderRecordAsync("1", It.IsAny<object>(), It.IsAny<NachaRecordLayout>())).ReturnsAsync(new string('1', 106));
+        renderer.Setup(x => x.RenderRecordAsync("5", It.IsAny<object>(), It.IsAny<NachaRecordLayout>())).ReturnsAsync(new string('5', 106));
         renderer.Setup(x => x.RenderRecordAsync("6", It.IsAny<object>(), It.IsAny<NachaRecordLayout>())).ReturnsAsync(new string('6', 106));
+        renderer.Setup(x => x.RenderRecordAsync("8", It.IsAny<object>(), It.IsAny<NachaRecordLayout>())).ReturnsAsync(new string('8', 106));
         renderer.Setup(x => x.RenderRecordAsync("9", It.IsAny<object>(), It.IsAny<NachaRecordLayout>())).ReturnsAsync(new string('9', 106));
         renderer.Setup(x => x.RenderRecordAsync(It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, object?>>(), It.IsAny<NachaRecordLayout>()))
             .ReturnsAsync(new string('S', 106));
