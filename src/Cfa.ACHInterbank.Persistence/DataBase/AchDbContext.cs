@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Services;
 using Cfa.ACHInterbank.Domain.Entities.User;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.ExternalFileNames;
 using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Microsoft.AspNetCore.Http;
@@ -98,6 +99,9 @@ public class AchDbContext : DbContext
     public DbSet<CenitNettingDetail> CenitNettingDetails => Set<CenitNettingDetail>();
     public DbSet<LiquidityOptimizationDecision> LiquidityOptimizationDecisions => Set<LiquidityOptimizationDecision>();
     public DbSet<ReturnOfReturnFlow> ReturnOfReturnFlows => Set<ReturnOfReturnFlow>();
+    public DbSet<ExternalFileSequence> ExternalFileSequences => Set<ExternalFileSequence>();
+    public DbSet<ExternalFileNameRegistry> ExternalFileNameRegistry => Set<ExternalFileNameRegistry>();
+    public DbSet<ExternalFileNameValidationLog> ExternalFileNameValidationLog => Set<ExternalFileNameValidationLog>();
     public DbSet<AchReturnCode> AchReturnCodes => Set<AchReturnCode>();
     public DbSet<AchFileRejectionCode> AchFileRejectionCodes => Set<AchFileRejectionCode>();
     public DbSet<AchTransactionTypePolicy> AchTransactionTypePolicies => Set<AchTransactionTypePolicy>();

@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using Cfa.ACHInterbank.Api.Controllers;
 using Cfa.ACHInterbank.Api.Encryption;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
+using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
 using Microsoft.AspNetCore.Mvc;
@@ -28,6 +30,7 @@ public class NachaExportControllerTests
         var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
         var identifierMapService = new Mock<INachaFileIdentifierMapService>(MockBehavior.Strict);
         var auditService = new Mock<IAchFileExportAuditService>(MockBehavior.Strict);
+        var externalFileNamePolicy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
 
         builder
             .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
@@ -41,6 +44,13 @@ public class NachaExportControllerTests
         auditService
             .Setup(s => s.RecordGeneratedFileAsync(cycleId, 1, "NACHA", It.Is<string>(f => f.StartsWith($"NACHA_{cycleId}_") && f.EndsWith(".txt")), 0, 0, false, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        externalFileNamePolicy
+            .Setup(p => p.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ExternalFileNameContext ctx, CancellationToken _) => new ExternalFileNamePolicyResult
+            {
+                ExternalFileName = ctx.ProvidedExternalFileName ?? ctx.InternalFileName ?? "file.txt",
+                Validation = new ExternalFileNameValidationResult { Disposition = ExternalFileValidationDisposition.Passed }
+            });
 
         var controller = new NachaExportController(
             builder.Object,
@@ -49,7 +59,8 @@ public class NachaExportControllerTests
             clearingHouseService.Object,
             envelopePolicy.Object,
             identifierMapService.Object,
-            auditService.Object);
+            auditService.Object,
+            externalFileNamePolicy.Object);
 
         var result = await controller.Export(cycleId, CancellationToken.None);
 
@@ -76,6 +87,7 @@ public class NachaExportControllerTests
         var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
         var identifierMapService = new Mock<INachaFileIdentifierMapService>(MockBehavior.Strict);
         var auditService = new Mock<IAchFileExportAuditService>(MockBehavior.Strict);
+        var externalFileNamePolicy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
 
         builder
             .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
@@ -95,6 +107,13 @@ public class NachaExportControllerTests
         crypto
             .Setup(c => c.CreateEnvelopeAsync(It.Is<byte[]>(d => Encoding.ASCII.GetString(d) == nachaContent), It.Is<string>(f => f.StartsWith($"NACHA_{cycleId}_") && f.EndsWith(".txt"))))
             .ReturnsAsync(expectedEnvelope);
+        externalFileNamePolicy
+            .Setup(p => p.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ExternalFileNameContext ctx, CancellationToken _) => new ExternalFileNamePolicyResult
+            {
+                ExternalFileName = ctx.ProvidedExternalFileName ?? ctx.InternalFileName ?? "file.txt",
+                Validation = new ExternalFileNameValidationResult { Disposition = ExternalFileValidationDisposition.Passed }
+            });
 
         var controller = new NachaExportController(
             builder.Object,
@@ -103,7 +122,8 @@ public class NachaExportControllerTests
             clearingHouseService.Object,
             envelopePolicy.Object,
             identifierMapService.Object,
-            auditService.Object);
+            auditService.Object,
+            externalFileNamePolicy.Object);
 
         var result = await controller.ExportEncrypted(cycleId, false, CancellationToken.None);
 
@@ -130,6 +150,7 @@ public class NachaExportControllerTests
         var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
         var identifierMapService = new Mock<INachaFileIdentifierMapService>(MockBehavior.Strict);
         var auditService = new Mock<IAchFileExportAuditService>(MockBehavior.Strict);
+        var externalFileNamePolicy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
 
         builder
             .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
@@ -149,6 +170,13 @@ public class NachaExportControllerTests
         auditService
             .Setup(s => s.RecordGeneratedFileAsync(cycleId, 2, "NACHA", "12345678.003.1", 2, 0, false, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        externalFileNamePolicy
+            .Setup(p => p.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ExternalFileNameContext ctx, CancellationToken _) => new ExternalFileNamePolicyResult
+            {
+                ExternalFileName = "12345678.003.1",
+                Validation = new ExternalFileNameValidationResult { Disposition = ExternalFileValidationDisposition.Passed }
+            });
 
         var controller = new NachaExportController(
             builder.Object,
@@ -157,7 +185,8 @@ public class NachaExportControllerTests
             clearingHouseService.Object,
             envelopePolicy.Object,
             identifierMapService.Object,
-            auditService.Object);
+            auditService.Object,
+            externalFileNamePolicy.Object);
 
         var result = await controller.ExportEncrypted(cycleId, false, CancellationToken.None);
 
@@ -183,6 +212,7 @@ public class NachaExportControllerTests
         var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
         var identifierMapService = new Mock<INachaFileIdentifierMapService>(MockBehavior.Strict);
         var auditService = new Mock<IAchFileExportAuditService>(MockBehavior.Strict);
+        var externalFileNamePolicy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
 
         cycleService
             .Setup(c => c.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()))
@@ -201,7 +231,8 @@ public class NachaExportControllerTests
             clearingHouseService.Object,
             envelopePolicy.Object,
             identifierMapService.Object,
-            auditService.Object);
+            auditService.Object,
+            externalFileNamePolicy.Object);
 
         var result = await controller.Export(cycleId, CancellationToken.None);
 
