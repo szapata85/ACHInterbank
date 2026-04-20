@@ -560,3 +560,91 @@ Resultado:
 
 3) Filtro núcleo:
 - Total 60 / Passed 60 / Failed 0
+
+## 16) Re-ejecución de evidencia obligatoria (2026-04-20 UTC)
+
+Se ejecutaron exactamente los comandos solicitados para confirmar no regresión sobre cambios sensibles (`NachaDataLoader`, `NachaSemanticValidator`, resolución DFI).
+
+### 16.1 Bloque generación/registro/secuenciales
+```bash
+export DOTNET_ROOT=$HOME/.dotnet
+export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+ -c Release \
+ --no-build \
+ --filter "FullyQualifiedName~RegisterTransactions_WithSavingsCheckingAndPrenote_BuildsNachaFile|FullyQualifiedName~RegisterTransactionAsync_CreatesTransactionAndBatch|FullyQualifiedName~BuildNachaFileByCycleAsync_GeneratesSequentialRecords" \
+ -v minimal
+```
+Resultado:
+- Total: 3
+- Passed: 3
+- Failed: 0
+- Skipped: 0
+
+### 16.2 Filtro núcleo
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+ -c Release \
+ --no-build \
+ --filter "FullyQualifiedName~BatchNumber|FullyQualifiedName~NachaFileBuilder|FullyQualifiedName~Mapping" \
+ -v minimal
+```
+Resultado:
+- Total: 60
+- Passed: 60
+- Failed: 0
+- Skipped: 0
+
+### 16.3 Backfill/Admin
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+ -c Release \
+ --no-build \
+ --filter "FullyQualifiedName~NachaConfigBackfillSeederTests|FullyQualifiedName~NachaConfigAdminServicesHardeningTests" \
+ -v minimal
+```
+Resultado:
+- Total: 17
+- Passed: 17
+- Failed: 0
+- Skipped: 0
+
+### 16.4 Parser fatal block
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+ -c Release \
+ --no-build \
+ --filter "FullyQualifiedName~ParseAndSaveAsync_WithValidBaseFile_ShouldParseSuccessfully|FullyQualifiedName~ParseAndSaveAsync_WhenBatchControlCountDoesNotMatch_ThrowsFatal51|FullyQualifiedName~ParseAndSaveAsync_WhenBatchControlReservedFieldContainsData_ThrowsFatal87|FullyQualifiedName~ParseAndSaveAsync_WhenFileControlCountDoesNotMatch_ThrowsFatal60|FullyQualifiedName~ParseAndSaveAsync_WhenBatchControlHashDoesNotMatch_ThrowsFatal52|FullyQualifiedName~ParseAndSaveAsync_WhenPaddingContainsCharactersOtherThanNine_ThrowsFatal64" \
+ -v minimal
+```
+Resultado:
+- Total: 6
+- Passed: 6
+- Failed: 0
+- Skipped: 0
+
+### 16.5 Filtro amplio
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+ -c Release \
+ --no-build \
+ --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" \
+ -v minimal
+```
+Resultado:
+- Total: 154
+- Passed: 145
+- Failed: 9
+- Skipped: 0
+
+Tests fallando en filtro amplio (9):
+1. `Cfa.ACHInterbank.Tests.AchPreproductionCertificationTests.BuildNachaFileAsync_MatchesGoldenMasterForFinalCertification(type: Credit, transactionCode: "22", isPrenotification: False, amount: 1500, recipientIdNumber: "900000001", receiverName: "CLIENTE CREDITO", batchDescription: "PAGOS PSE", traceNumber: "123456780000001")`
+2. `Cfa.ACHInterbank.Tests.AchPreproductionCertificationTests.BuildNachaFileAsync_MatchesGoldenMasterForFinalCertification(type: Reversal, transactionCode: "27", isPrenotification: False, amount: 4100, recipientIdNumber: "900000004", receiverName: "CLIENTE REVERSO", batchDescription: "REVERSO", traceNumber: "123456780000004")`
+3. `Cfa.ACHInterbank.Tests.AchPreproductionCertificationTests.BuildNachaFileAsync_MatchesGoldenMasterForFinalCertification(type: Prenotification, transactionCode: "23", isPrenotification: True, amount: 0, recipientIdNumber: "", receiverName: "CLIENTE PRENOTE", batchDescription: "PAGOS PSE", traceNumber: "123456780000003")`
+4. `Cfa.ACHInterbank.Tests.AchPreproductionCertificationTests.BuildNachaFileAsync_MatchesGoldenMasterForFinalCertification(type: Debit, transactionCode: "27", isPrenotification: False, amount: 2500, recipientIdNumber: "900000002", receiverName: "CLIENTE DEBITO", batchDescription: "RECAUDOS", traceNumber: "123456780000002")`
+5. `Cfa.ACHInterbank.Tests.AchTransactionNachaTests.GenerateReturnsFileAsync_WhenCatalogPolicyRejectsReason_ThrowsRegulatoryMessage`
+6. `Cfa.ACHInterbank.Tests.AchTransactionNachaTests.BuildNachaFileByCycleAsync_Throws_WhenAddendaBusinessTypeIsIncompatibleWithTransactionType`
+7. `Cfa.ACHInterbank.Tests.AchTransactionNachaTests.GenerateReturnsFileAsync_WithDev14_PreservesFiveCharacterReasonCode`
+8. `Cfa.ACHInterbank.Tests.AchTransactionNachaTests.BuildNachaFileByCycleAsync_DebitAddenda_UsesGoldenPositions`
+9. `Cfa.ACHInterbank.Tests.AchTransactionNachaTests.GenerateReturnsFileAsync_ReturnAddenda_UsesGoldenPositions`
