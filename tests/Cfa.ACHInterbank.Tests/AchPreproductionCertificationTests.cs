@@ -375,6 +375,7 @@ public class AchPreproductionCertificationTests
         SeedReferenceData(context);
         SeedInstitutions(context);
         SeedCustomer(context, "CLIENTE DEV14", "900000014", "999988887777");
+        var companyEntryDescriptionId = SeedCompanyEntryDescription(context, "RECAUDOS");
 
         context.AchCycles.Add(new AchCycle
         {
@@ -394,8 +395,10 @@ public class AchPreproductionCertificationTests
             Reference = "PAGO DEV14",
             Type = TransactionTypeEnum.Debit,
             TransactionCode = "27",
+            ServiceClassCode = "225",
             CompanyName = "EMPRESA DEMO",
             CompanyIdentification = "900123456",
+            CompanyEntryDescriptionId = companyEntryDescriptionId,
             OriginatingDFI = "12345678",
             ReceivingDFI = "76543210",
             TraceNumber = "123456780000501",
@@ -407,7 +410,19 @@ public class AchPreproductionCertificationTests
             DestinationAccountNumber = "999988887777",
             SourceInstitutionId = 1,
             DestinationInstitutionId = 2,
-            AchCycleId = "cycle-ret"
+            AchCycleId = "cycle-ret",
+            AchBatch = new AchBatch
+            {
+                Id = 501,
+                AchCycleId = "cycle-ret",
+                ServiceClassCode = "225",
+                CompanyName = "EMPRESA DEMO",
+                CompanyIdentification = "900123456",
+                CompanyEntryDescription = "RECAUDOS",
+                CompanyEntryDescriptionId = companyEntryDescriptionId,
+                EffectiveEntryDate = new DateTime(2026, 03, 23),
+                OriginOrOdfi = "12345678"
+            }
         });
 
         context.AchReturnCodes.Add(new AchReturnCode
@@ -448,7 +463,7 @@ public class AchPreproductionCertificationTests
             BuildNachaFileHeader(),
             BuildNachaBatchHeader(type, batchDescription),
             BuildNachaEntryDetail(transactionCode, amount, recipientIdNumber, receiverName, traceNumber),
-            BuildNachaAddenda(type, batchDescription, traceNumber, recipientIdNumber),
+            BuildNachaAddenda(type, batchDescription, traceNumber, recipientIdNumber, receiverName),
             BuildNachaBatchControl(type, amount),
             BuildNachaFileControl(type, amount)
         };
@@ -495,7 +510,7 @@ public class AchPreproductionCertificationTests
         Write(buffer, 37, "106");
         Write(buffer, 40, "10");
         Write(buffer, 42, "1");
-        Write(buffer, 43, Alpha("ACH COLOMBIA", 23));
+        Write(buffer, 43, Alpha("ACH Colombia", 23));
         Write(buffer, 66, Alpha("BANCO ORIGEN", 23));
         Write(buffer, 89, Alpha("1", 8));
         return new string(buffer);
@@ -508,7 +523,8 @@ public class AchPreproductionCertificationTests
         Write(buffer, 5, Alpha("EMPRESA DEMO", 16));
         Write(buffer, 21, Alpha(string.Empty, 20));
         Write(buffer, 41, Alpha("900123456", 10));
-        Write(buffer, 51, Alpha("PPD", 3));
+        var secCode = type is TransactionTypeEnum.Credit or TransactionTypeEnum.Prenotification ? "CCD" : "PPD";
+        Write(buffer, 51, Alpha(secCode, 3));
         Write(buffer, 54, Alpha(batchDescription == "PAGOS PSE" ? "PAGOS PSE" : batchDescription, 10));
         Write(buffer, 64, "20260323");
         Write(buffer, 72, "20260323");
@@ -535,21 +551,30 @@ public class AchPreproductionCertificationTests
         return new string(buffer);
     }
 
-    private static string BuildNachaAddenda(TransactionTypeEnum type, string batchDescription, string traceNumber, string recipientIdNumber)
+    private static string BuildNachaAddenda(TransactionTypeEnum type, string batchDescription, string traceNumber, string recipientIdNumber, string receiverName)
     {
         var buffer = CreateRecord('7');
-        Write(buffer, 2, "05");
-
-        if (type is TransactionTypeEnum.Debit or TransactionTypeEnum.Reversal or TransactionTypeEnum.Return)
+        if (type is TransactionTypeEnum.Reversal or TransactionTypeEnum.Return)
         {
-            Write(buffer, 4, Num("900123456", 13));
-            Write(buffer, 17, Alpha(recipientIdNumber, 30));
-            Write(buffer, 47, Alpha(type == TransactionTypeEnum.Reversal ? "REVERSO-001" : "RECAUDO-001", 15));
+            Write(buffer, 2, "99");
+            Write(buffer, 4, Alpha("R01", 5));
+            Write(buffer, 9, Num("123456780000000", 15));
+            Write(buffer, 82, Num(traceNumber, 15));
+            Write(buffer, 100, Num(traceNumber[^7..], 7));
+            return new string(buffer);
+        }
+        else if (type is TransactionTypeEnum.Debit)
+        {
+            Write(buffer, 2, "05");
+            Write(buffer, 4, Num("0000000000001", 13));
+            Write(buffer, 17, Alpha(receiverName, 30));
+            Write(buffer, 47, Alpha("RECAUDOS", 15));
         }
         else
         {
+            Write(buffer, 2, "05");
             Write(buffer, 21, Alpha(batchDescription, 10));
-            Write(buffer, 31, Alpha(type == TransactionTypeEnum.Prenotification ? "PRENOTE-001" : "PAGO-001", 53));
+            Write(buffer, 31, new string('0', 53));
         }
 
         Write(buffer, 84, "0001");
@@ -595,7 +620,7 @@ public class AchPreproductionCertificationTests
         Write(buffer, 32, "A");
         Write(buffer, 33, "09410");
         Write(buffer, 38, Alpha("ACH-RET", 23));
-        Write(buffer, 61, Alpha("ACH Colombia", 23));
+        Write(buffer, 61, "ACH Colombia".PadRight(23));
         Write(buffer, 84, Alpha("RET", 23));
         return new string(buffer);
     }

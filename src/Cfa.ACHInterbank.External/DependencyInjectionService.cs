@@ -79,6 +79,7 @@ public static class DependencyInjectionService
         var validAudience = configuration["appSettings:tokenManager:audienceJwt"]
             ?? _appSettings.TokenManager?.audienceJwt
             ?? string.Empty;
+        var jwtSecret = ResolveJwtSecret(configuration);
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(option =>
         {
@@ -88,7 +89,7 @@ public static class DependencyInjectionService
                 ValidateAudience = true,
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(ResolveJwtSecret(configuration))),
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
                 ValidIssuer = validIssuer,
                 ValidAudience = validAudience,
                 NameClaimType = JwtRegisteredClaimNames.Sub,
