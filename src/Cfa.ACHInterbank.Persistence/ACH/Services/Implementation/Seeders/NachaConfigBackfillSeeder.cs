@@ -88,7 +88,12 @@ public sealed class NachaConfigBackfillSeeder : IDbSeeder
             .ToDictionary(g => g.Key, g => g.OrderBy(x => x.Id).First());
 
         var profileRecords = new List<CfgProfileRecord>();
-        foreach (var definition in definitions)
+        var definitionsByRecordCode = definitions
+            .GroupBy(x => x.RecordCode, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.OrderBy(x => x.Sequence).ThenBy(x => x.Id).First())
+            .ToList();
+
+        foreach (var definition in definitionsByRecordCode)
         {
             if (!recordCodeIds.TryGetValue(definition.RecordCode, out var recordCodeId))
             {

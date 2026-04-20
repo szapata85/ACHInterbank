@@ -52,6 +52,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
             .Include(x => x.LayoutVariants)
                 .ThenInclude(x => x.Fields)
                     .ThenInclude(x => x.SourceDefinition)
+                        .ThenInclude(x => x.DataSourceType)
             .Include(x => x.LayoutVariants)
                 .ThenInclude(x => x.Fields)
                     .ThenInclude(x => x.Rules)

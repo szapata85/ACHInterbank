@@ -414,3 +414,104 @@ Resultado inicial capturado:
 - AchPreproductionCertification (golden master desalineado con reglas semánticas actuales).
 - NachaConfigAdminServices (asserts/reglas de validación aún desalineadas en algunos casos).
 - NachaConfigBackfillSeeder (flujo de seed/backfill aún con una falla).
+
+## 14) Cierre por bloque Backfill/Admin (5 fallos objetivos) — 2026-04-20 UTC
+
+### Alcance de la fase
+Objetivo explícito de cierre (sin tocar AchTransactionNacha ni golden masters):
+1. `NachaConfigBackfillSeederTests.SeedAsync_Should_Create_Default_Profile_And_Backfill_From_Legacy`
+2. `NachaConfigAdminServicesHardeningTests.ValidateBeforePublishAsync_ShouldApplyCenitSettlementPolicy_AndHeaderRules`
+3. `NachaConfigAdminServicesHardeningTests.ValidateBeforePublishAsync_ShouldRejectConstantControlFields_ForRecord8And9`
+4. `NachaConfigAdminServicesHardeningTests.PreviewService_ShouldReuseResolverAndReturnLayoutSelection`
+5. `NachaConfigAdminServicesHardeningTests.ValidateBeforePublishAsync_ShouldFlagHeaderNormativeViolations_ForRecord1And5`
+
+### Ejecución inicial del bloque
+Comando:
+```bash
+export DOTNET_ROOT=$HOME/.dotnet
+export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~NachaConfigBackfillSeederTests|FullyQualifiedName~NachaConfigAdminServicesHardeningTests" \
+  -v minimal
+```
+
+Resultado inicial:
+- Total: 17
+- Passed: 12
+- Failed: 5
+
+Fallos observados:
+- Backfill: `UNIQUE constraint failed: CfgLayoutVariant.ProfileId, CfgLayoutVariant.RecordCodeId, CfgLayoutVariant.VariantCode`.
+- Admin/CENIT/Header: tests disparando `INVALID_CANONICAL_KEY` masivo por fixture con `PropertyPath = "Dummy"`, ocultando las reglas normativas que se querían validar.
+- Control fields R8/R9: `IsValid` quedaba `true` porque el validador no cargaba `DataSourceType`, por lo que no detectaba fuentes `CONSTANTE` en controles runtime.
+- Preview resolver: `Success = false` por fixture con IDs de catálogos hardcoded (1..6) no confiables cuando el catálogo ya viene pre-seeded por `EnsureCreated`.
+
+### Correcciones aplicadas
+1) **Backfill idempotente por RecordCode (causa raíz de UNIQUE)**
+- Archivo: `NachaConfigBackfillSeeder`.
+- Cambio: deduplicación de `NachaRecordDefinitions` por `RecordCode` (seleccionando la definición de menor secuencia/Id) antes de crear variantes.
+- Efecto: evita doble inserción de `CfgLayoutVariant` con mismo `(ProfileId, RecordCodeId, VariantCode)`.
+
+2) **Validador de publicación: carga completa de fuente de datos**
+- Archivo: `NachaConfigValidationService`.
+- Cambio: `Include` de `SourceDefinition.DataSourceType` al cargar fields.
+- Efecto: se habilita detección real de constantes para reglas críticas:
+  - `CONTROL_FIELD_MUST_BE_RUNTIME` (R8/R9)
+  - validación de settlement policy por cámara
+  - validaciones de constantes normativas.
+
+3) **Fixtures Admin hardening alineados al contrato vigente**
+- Archivo: `NachaConfigAdminServicesHardeningTests`.
+- Cambios principales:
+  - Se sustituyeron fuentes `ENTIDAD + Dummy` por fuentes `CONSTANTE` controladas donde el objetivo del test era validar reglas de header/control y no canonical mapping.
+  - Se retiraron asserts obsoletos (`INVALID_SEC_CODE`, `INVALID_ORIGINATING_DFI`) y se mantuvo/assertó el contrato vigente de cámara (`HEADER_RULE_ACH_INVALID` / `HEADER_RULE_CENIT_INVALID`).
+  - Para Preview, el perfil de prueba se fuerza a `PUBLICADO` por código de estado (no por Id fijo) y se limpia competencia de perfiles alternos.
+  - `SeedProfileGraphAsync` y `CreateDraftWithoutRecordsAsync` dejan de usar IDs hardcoded; ahora resuelven IDs por código de catálogo y `CatRecordCodes` por clave de negocio.
+  - Las variantes base quedan con `TotalLength = 106` para coherencia normativa base.
+
+### Resultado final del bloque
+Comando final del bloque:
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~NachaConfigBackfillSeederTests|FullyQualifiedName~NachaConfigAdminServicesHardeningTests" \
+  -v minimal
+```
+
+Resultado final del bloque:
+- Total: 17
+- Passed: 17
+- Failed: 0
+- Skipped: 0
+
+### Verificación de no regresión pedida
+Filtro núcleo:
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~BatchNumber|FullyQualifiedName~NachaFileBuilder|FullyQualifiedName~Mapping" \
+  -v minimal
+```
+- Total: 60
+- Passed: 60
+- Failed: 0
+
+Filtro amplio (estado al cerrar este bloque):
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" \
+  -v minimal
+```
+- Total: 153
+- Passed: 136
+- Failed: 17
+- Skipped: 0
+
+Pendientes del filtro amplio permanecen fuera de este bloque (AchTransactionNacha + AchPreproductionCertification), de acuerdo con el alcance definido para esta fase.
