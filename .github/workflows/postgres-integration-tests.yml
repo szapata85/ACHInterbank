@@ -1,0 +1,73 @@
+name: postgres-integration-tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'docker-compose.test.yml'
+      - '.env.test.example'
+      - 'scripts/test/**'
+      - '.github/workflows/postgres-integration-tests.yml'
+
+jobs:
+  postgres-integration:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: achinterbank_test
+          POSTGRES_USER: ach_test
+          POSTGRES_PASSWORD: ach_test_password
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U ach_test -d achinterbank_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      ASPNETCORE_ENVIRONMENT: Test
+      DOTNET_ENVIRONMENT: Test
+      Database__Provider: PostgreSQL
+      POSTGRES_TEST_CONNECTION_STRING: Host=localhost;Port=5433;Database=achinterbank_test;Username=ach_test;Password=ach_test_password
+      ConnectionStrings__PostgresConnection: Host=localhost;Port=5433;Database=achinterbank_test;Username=ach_test;Password=ach_test_password
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore ACHInterbank.sln
+
+      - name: Build
+        run: dotnet build ACHInterbank.sln -c Release --no-restore
+
+      - name: Install dotnet-ef
+        run: dotnet tool install --global dotnet-ef
+
+      - name: Apply EF migrations
+        run: |
+          export PATH="$HOME/.dotnet/tools:$PATH"
+          dotnet ef database update \
+            --project src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj \
+            --startup-project src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj \
+            --context AchDbContext
+
+      - name: Run PostgreSQL integration tests
+        run: dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build --filter "Category=Postgres" -v minimal
+
+      - name: Run NACHA core non-regression
+        run: dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~BatchNumber|FullyQualifiedName~NachaFileBuilder|FullyQualifiedName~Mapping" -v minimal
+
+      - name: Run NACHA broad non-regression
+        run: dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" -v minimal

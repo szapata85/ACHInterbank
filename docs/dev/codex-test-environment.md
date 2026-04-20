@@ -868,3 +868,22 @@ Alcance/no alcance:
 - Se implementó fase 1 segura con bloqueo parcial controlado.
 - No se ejecutó PostgreSQL harness (fuera de alcance de esta fase).
 - No hubo cambios en frontend ni SOAP E2E.
+
+
+## PostgreSQL Integration Harness (local/CI)
+
+Este entorno Codex **no tiene Docker/Podman**, por lo tanto aquí no se puede validar PostgreSQL real.
+
+Harness creado para ejecución fuera de Codex:
+
+```bash
+bash scripts/test/run-postgres-integration-tests.sh
+```
+
+PowerShell:
+
+```powershell
+.\scripts\test\run-postgres-integration-tests.ps1
+```
+
+El harness levanta `docker-compose.test.yml`, aplica migraciones EF y ejecuta tests PostgreSQL + filtros NACHA de no regresión.
