@@ -269,17 +269,43 @@ public class PostgresExternalFileNameIntegrationTests
 
         public static async Task<PostgresHarness> CreateAsync()
         {
+            var requirePostgresTests = string.Equals(
+                Environment.GetEnvironmentVariable("REQUIRE_POSTGRES_TESTS"),
+                "true",
+                StringComparison.OrdinalIgnoreCase);
+
             var cs = Environment.GetEnvironmentVariable("POSTGRES_TEST_CONNECTION_STRING")
                      ?? Environment.GetEnvironmentVariable("ConnectionStrings__PostgresConnection");
 
             if (string.IsNullOrWhiteSpace(cs))
             {
+                if (requirePostgresTests)
+                {
+                    throw new InvalidOperationException(
+                        "REQUIRE_POSTGRES_TESTS=true but no PostgreSQL connection string was provided. Set POSTGRES_TEST_CONNECTION_STRING or ConnectionStrings__PostgresConnection.");
+                }
+
                 Console.WriteLine("[PostgresIntegration] Missing POSTGRES_TEST_CONNECTION_STRING / ConnectionStrings__PostgresConnection. Test skipped by early return.");
                 return new PostgresHarness(string.Empty, new NpgsqlConnection(), string.Empty) { IsDisabled = true };
             }
 
-            var adminConnection = new NpgsqlConnection(cs);
-            await adminConnection.OpenAsync();
+            NpgsqlConnection adminConnection;
+            try
+            {
+                adminConnection = new NpgsqlConnection(cs);
+                await adminConnection.OpenAsync();
+            }
+            catch (Exception ex) when (!requirePostgresTests)
+            {
+                Console.WriteLine($"[PostgresIntegration] PostgreSQL is unreachable and REQUIRE_POSTGRES_TESTS is not true. Tests skipped. Error: {ex.Message}");
+                return new PostgresHarness(string.Empty, new NpgsqlConnection(), string.Empty) { IsDisabled = true };
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    "REQUIRE_POSTGRES_TESTS=true and PostgreSQL connection failed. Check container health and connection string values.",
+                    ex);
+            }
 
             var schemaName = $"it_{Guid.NewGuid():N}";
             await using var cmd = adminConnection.CreateCommand();

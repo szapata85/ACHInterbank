@@ -33,6 +33,7 @@ jobs:
     env:
       ASPNETCORE_ENVIRONMENT: Test
       DOTNET_ENVIRONMENT: Test
+      REQUIRE_POSTGRES_TESTS: "true"
       Database__Provider: PostgreSQL
       POSTGRES_TEST_CONNECTION_STRING: Host=localhost;Port=5433;Database=achinterbank_test;Username=ach_test;Password=ach_test_password
       ConnectionStrings__PostgresConnection: Host=localhost;Port=5433;Database=achinterbank_test;Username=ach_test;Password=ach_test_password

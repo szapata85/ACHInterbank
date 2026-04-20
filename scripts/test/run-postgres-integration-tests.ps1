@@ -48,6 +48,7 @@ try {
 
     $env:ASPNETCORE_ENVIRONMENT = 'Test'
     $env:DOTNET_ENVIRONMENT = 'Test'
+    $env:REQUIRE_POSTGRES_TESTS = 'true'
     if (-not $env:Database__Provider) { $env:Database__Provider = 'PostgreSQL' }
 
     $postgresPort = if ($env:POSTGRES_PORT) { $env:POSTGRES_PORT } else { '5433' }

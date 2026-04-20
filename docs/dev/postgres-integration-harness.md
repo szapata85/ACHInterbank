@@ -11,6 +11,7 @@ Este harness permite validar localmente/CI en PostgreSQL real:
 - Docker + Docker Compose
 - .NET SDK 10
 - `dotnet-ef`
+- Al ejecutar harness PostgreSQL se fuerza `REQUIRE_POSTGRES_TESTS=true` para evitar falsos verdes.
 
 ## 3) Linux/macOS
 ```bash
@@ -35,6 +36,13 @@ Opciones:
 
 ## 5) Solo tests PostgreSQL
 ```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build --filter "Category=Postgres" -v minimal
+```
+
+Para ejecución estricta (sin falsos verdes):
+```bash
+export REQUIRE_POSTGRES_TESTS=true
+export POSTGRES_TEST_CONNECTION_STRING="Host=localhost;Port=5433;Database=achinterbank_test;Username=ach_test;Password=ach_test_password"
 dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build --filter "Category=Postgres" -v minimal
 ```
 
@@ -64,3 +72,4 @@ docker compose -f docker-compose.test.yml --env-file .env.test.example down -v
 
 ## 10) Limitaciones conocidas
 - En entornos sin Docker (como Codex) no se puede ejecutar PostgreSQL real; solo build/tests no-Postgres y validación sintáctica de scripts.
+- Con `REQUIRE_POSTGRES_TESTS=true`, los tests `Category=Postgres` fallan explícitamente si falta connection string o no hay conectividad real a PostgreSQL.

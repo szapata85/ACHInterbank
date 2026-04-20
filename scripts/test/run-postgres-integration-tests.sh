@@ -65,6 +65,7 @@ fi
 
 export ASPNETCORE_ENVIRONMENT=Test
 export DOTNET_ENVIRONMENT=Test
+export REQUIRE_POSTGRES_TESTS=true
 export Database__Provider="${Database__Provider:-PostgreSQL}"
 export POSTGRES_TEST_CONNECTION_STRING="${POSTGRES_TEST_CONNECTION_STRING:-Host=localhost;Port=${POSTGRES_PORT:-5433};Database=${POSTGRES_DB:-achinterbank_test};Username=${POSTGRES_USER:-ach_test};Password=${POSTGRES_PASSWORD:-ach_test_password}}"
 export ConnectionStrings__PostgresConnection="${ConnectionStrings__PostgresConnection:-$POSTGRES_TEST_CONNECTION_STRING}"
