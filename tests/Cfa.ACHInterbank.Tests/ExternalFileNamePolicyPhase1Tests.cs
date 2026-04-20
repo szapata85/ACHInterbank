@@ -13,7 +13,7 @@ public class ExternalFileNamePolicyPhase1Tests
     public async Task AchBuilder_Generates_RRRRTTT_ZZZ_1()
     {
         await using var harness = await CreateHarnessAsync();
-        var sequence = new ExternalFileNameSequenceService(harness.Context);
+        var sequence = CreateSequenceService(harness.Context);
         var map = new FakeIdentifierMapService();
         var builder = new ExternalFileNameBuilder(sequence, map);
 
@@ -214,7 +214,7 @@ public class ExternalFileNamePolicyPhase1Tests
     public async Task SequenceService_Persists_ByScope()
     {
         await using var harness = await CreateHarnessAsync();
-        var sequence = new ExternalFileNameSequenceService(harness.Context);
+        var sequence = CreateSequenceService(harness.Context);
         var context = new ExternalFileNameContext
         {
             ClearingHouseId = 1,
@@ -230,6 +230,17 @@ public class ExternalFileNamePolicyPhase1Tests
 
         Assert.Equal(1, first);
         Assert.Equal(2, second);
+    }
+
+
+    private static ExternalFileNameSequenceService CreateSequenceService(AchDbContext context)
+    {
+        var providers = new IExternalFileNameSequenceProvider[]
+        {
+            new EfGenericExternalFileNameSequenceService(context)
+        };
+        var resolver = new ExternalFileNameSequenceProviderResolver(providers);
+        return new ExternalFileNameSequenceService(context, resolver);
     }
 
     private static ExternalFileNameValidator CreateValidator(AchDbContext? context = null)
