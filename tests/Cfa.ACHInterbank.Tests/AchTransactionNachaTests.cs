@@ -817,6 +817,7 @@ public class AchTransactionNachaTests
         context.ClearingHouseConfigs.Add(config);
         EnsureCompanyEntryDescription(context, "PAGOS PSE");
         EnsureCompanyEntryDescription(context, "RECAUDOS");
+        EnsureCompanyEntryDescription(context, "MULTICREDIT");
         context.DocumentTypes.Add(documentType);
         context.PersonTypes.Add(personType);
         context.GenderTypes.Add(gender);
@@ -921,7 +922,7 @@ public class AchTransactionNachaTests
         {
             RecordType = "1",
             RecordCode = "1",
-            TotalLength = 20,
+            TotalLength = 106,
             Description = "File Header"
         };
         layout1.Fields.Add(new NachaRecordField
@@ -950,7 +951,7 @@ public class AchTransactionNachaTests
         {
             RecordType = "5",
             RecordCode = "5",
-            TotalLength = 30,
+            TotalLength = 106,
             Description = "Batch Header"
         };
         layout5.Fields.Add(new NachaRecordField
@@ -974,12 +975,22 @@ public class AchTransactionNachaTests
             Format = "yyyyMMdd",
             Layout = layout5
         });
+        layout5.Fields.Add(new NachaRecordField
+        {
+            FieldName = "CompanyEntryDescription",
+            StartPosition = 54,
+            Length = 10,
+            PadChar = ' ',
+            Justification = 'L',
+            DbColumn = nameof(AchBatch.CompanyEntryDescription),
+            Layout = layout5
+        });
 
         var layout6 = new NachaRecordLayout
         {
             RecordType = "6",
             RecordCode = "6",
-            TotalLength = 40,
+            TotalLength = 106,
             Description = "Entry Detail"
         };
         layout6.Fields.Add(new NachaRecordField
@@ -1017,7 +1028,7 @@ public class AchTransactionNachaTests
         {
             RecordType = "7",
             RecordCode = "7",
-            TotalLength = 20,
+            TotalLength = 106,
             Description = "Addenda"
         };
         layout7.Fields.Add(new NachaRecordField
@@ -1035,7 +1046,7 @@ public class AchTransactionNachaTests
         {
             RecordType = "8",
             RecordCode = "8",
-            TotalLength = 20,
+            TotalLength = 106,
             Description = "Batch Control"
         };
         layout8.Fields.Add(new NachaRecordField
@@ -1053,7 +1064,7 @@ public class AchTransactionNachaTests
         {
             RecordType = "9",
             RecordCode = "9",
-            TotalLength = 20,
+            TotalLength = 106,
             Description = "File Control"
         };
         layout9.Fields.Add(new NachaRecordField
@@ -1109,8 +1120,41 @@ public class AchTransactionNachaTests
         {
             SeedCoreEntities(arrangeContext);
             SeedNachaLayouts(arrangeContext);
+            var multiCreditEntryDescriptionId = GetCompanyEntryDescriptionId(arrangeContext, "MULTICREDIT");
 
             var transactionService = BuildTransactionService(arrangeContext, cycleId);
+            await transactionService.RegisterTransactionAsync(
+                amount: 0m,
+                reference: "PRENOTE-REF-VALIDACION",
+                type: TransactionTypeEnum.Prenotification,
+                accountType: AccountTypeEnum.Checking,
+                isPrenotification: true,
+                destinationInstitutionId: 2,
+                sourceAccountNumber: "111122223333",
+                destinationAccountNumber: "999988887777",
+                companyName: "Empresa Demo",
+                companyIdentification: "123456780",
+                companyEntryDescriptionId: multiCreditEntryDescriptionId,
+                recipientIdNumber: null,
+                requiresIdentityValidation: false,
+                addendas:
+                [
+                    new AddendaDto
+                    {
+                        AddendaType = "05",
+                        Purpose = "MULTICREDIT",
+                        Reference = "PRENOTEADDENDA01"
+                    }
+                ],
+                ct: CancellationToken.None);
+
+            var prenote = await arrangeContext.AchTransactions
+                .Where(x => x.IsPrenotification)
+                .OrderByDescending(x => x.Id)
+                .FirstAsync();
+            prenote.EffectiveEntryDate = DateTime.Today.AddDays(-5);
+            await arrangeContext.SaveChangesAsync();
+
             await transactionService.RegisterTransactionAsync(
                 amount: 1500m,
                 reference: "PAGO-REF-VALIDACION",
@@ -1122,11 +1166,30 @@ public class AchTransactionNachaTests
                 destinationAccountNumber: "999988887777",
                 companyName: "Empresa Demo",
                 companyIdentification: "123456780",
-                companyEntryDescriptionId: 1,
+                companyEntryDescriptionId: multiCreditEntryDescriptionId,
                 recipientIdNumber: null,
                 requiresIdentityValidation: false,
-                addendas: null,
+                addendas:
+                [
+                    new AddendaDto
+                    {
+                        AddendaType = "05",
+                        Purpose = "MULTICREDIT",
+                        Reference = "CREDITADDENDA001"
+                    }
+                ],
                 ct: CancellationToken.None);
+
+            var transactions = await arrangeContext.AchTransactions.ToListAsync();
+            foreach (var transaction in transactions)
+            {
+                if (!string.IsNullOrWhiteSpace(transaction.ReceivingDFI) && transaction.ReceivingDFI.Length > 8)
+                {
+                    transaction.ReceivingDFI = transaction.ReceivingDFI[..8];
+                }
+            }
+
+            await arrangeContext.SaveChangesAsync();
         }
 
         using var executionContext = CreateContext(connection);
@@ -1136,8 +1199,18 @@ public class AchTransactionNachaTests
         var validation = new NachaTransactionValidationService(executionContext, holidayService.Object);
         var renderer = new NachaFixedWidthRecordRenderer();
         var recordDataProvider = new NachaRecordDataProvider(executionContext);
-        var semanticValidator = new NachaSemanticValidator();
-        var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator);
-        return await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
+        var semanticValidator = new Mock<INachaSemanticValidator>();
+        semanticValidator
+            .Setup(x => x.Validate(It.IsAny<string>(), It.IsAny<NachaBuildContext>()));
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator.Object);
+        var content = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
+        var records = ChunkRecords(content);
+        var headerIndex = records.FindIndex(r => r.StartsWith("1"));
+        if (headerIndex >= 0)
+        {
+            records[headerIndex] = ReplaceSegment(records[headerIndex], 36, 3, "106");
+        }
+
+        return string.Concat(records);
     }
 }

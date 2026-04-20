@@ -52,7 +52,24 @@ public class AchBatchRepository : IAchBatchRepository
 
     public Task UpdateAsync(AchBatch batch, CancellationToken ct = default)
     {
-        _context.AchBatches.Update(batch);
+        var entry = _context.Entry(batch);
+
+        if (batch.Id <= 0)
+        {
+            if (entry.State == EntityState.Detached)
+            {
+                _context.AchBatches.Add(batch);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        if (entry.State == EntityState.Detached)
+        {
+            _context.AchBatches.Attach(batch);
+        }
+
+        entry.State = EntityState.Modified;
         return Task.CompletedTask;
     }
 }
