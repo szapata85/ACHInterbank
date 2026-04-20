@@ -191,3 +191,52 @@ Resultados finales de esta fase:
   - `ExecuteUpdate` no soportado por InMemory.
   - escenarios de integración/mapping que requieren harness relacional más cercano a PostgreSQL.
   - duplicados de catálogo en seeds legacy aún no normalizados en toda la suite.
+
+## 11) Revalidación solicitada del filtro BatchNumber/NachaFileBuilder/Mapping (2026-04-20 UTC)
+
+### Resultado inicial del filtro (evidencia ejecutada)
+Comandos:
+```bash
+export DOTNET_ROOT=$HOME/.dotnet
+export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~BatchNumber|FullyQualifiedName~NachaFileBuilder|FullyQualifiedName~Mapping" \
+  -v minimal
+```
+
+Resultado medido:
+- Total: **60**
+- Exitosos: **51**
+- Fallidos: **9**
+- Skipped: **0**
+
+### Cambios aplicados en esta revalidación
+- **No se aplicaron cambios de código**.
+- Se realizó únicamente la ejecución y captura del estado real solicitado del filtro.
+
+### Resultado final
+- El filtro **sigue fallando** (9 fallos vigentes).
+- No se ejecutó el filtro amplio `FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber` porque la condición indicada fue ejecutarlo solo si el primer filtro pasaba completamente.
+
+### Fallos pendientes (lista exacta)
+1. `Cfa.ACHInterbank.Tests.Mapping.NachaFileBuilderBatchNumberHardeningTests.BuildNachaFileAsync_ShadowCompare_ShouldRequestBatchNumberOnce`
+   - `System.NullReferenceException` en `NachaFileBuilder.BuildFileAsync` (línea 480).
+2. `Cfa.ACHInterbank.Tests.Mapping.NachaFileBuilderBatchNumberHardeningTests.BuildNachaFileAsync_R5AndR8_ShouldUseSameBatchNumberPerBatch`
+   - `System.NullReferenceException` en `NachaFileBuilder.BuildFileAsync` (línea 480).
+3. `Cfa.ACHInterbank.Tests.Mapping.Type7CommonMappingConvergenceTests.BuildNachaFileAsync_ShouldUseCommonMappingEngine_ForType7_WhenEnabled`
+   - `System.InvalidOperationException`: addenda de crédito no refleja la descripción del lote tipo 5.
+4. `Cfa.ACHInterbank.Tests.Mapping.Type7CommonMappingConvergenceTests.BuildNachaFileAsync_ShouldFallbackLegacyType7_WhenCommonMappingFails`
+   - `System.InvalidOperationException`: addenda de crédito no refleja la descripción del lote tipo 5.
+5. `Cfa.ACHInterbank.Tests.Mapping.NachaFileBuilderRecord6HardeningTests.BuildNachaFileAsync_ShouldRunShadowCompare_ForRecord6_WhenModeShadowCompare`
+   - `Moq.MockException`: verificación espera `IReadOnlyDictionary<string, object>` pero la invocación real usa `Dictionary<string, object>`.
+6. `Cfa.ACHInterbank.Tests.IncomingNachaPostProcessingOrchestratorTests.ExecuteAsync_BlocksQueue_WhenMappingIsInvalid`
+   - `System.InvalidOperationException`: `ExecuteUpdate/ExecuteUpdateAsync` no soportado por el provider actual.
+7. `Cfa.ACHInterbank.Tests.IntegrationMappingEndToEndTests.Catalog_Parameters_Available_ByMethod`
+   - `Assert.Contains` no encuentra rutas esperadas (`OFIDLOT`/`OFIDTX`) en el catálogo real.
+8. `Cfa.ACHInterbank.Tests.IntegrationMappingEndToEndTests.Catalog_SourceFields_Available_ByMethod`
+   - `Assert.Contains` no encuentra campo esperado `execution.dateYyyyMMdd` en el catálogo real.
+9. `Cfa.ACHInterbank.Tests.IntegrationMappingEndToEndTests.Resolver_UsesPublishedDynamicMapping`
+   - `Assert.Equal` de string falla (valor esperado vacío vs valor real `TEST`).
