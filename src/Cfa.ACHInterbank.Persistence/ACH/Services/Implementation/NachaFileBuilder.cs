@@ -2,6 +2,8 @@
 using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.Mapping;
+using Cfa.ACHInterbank.Application.ACH.Models.Mapping;
 using Cfa.ACHInterbank.Application.Helpers.ACH;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Helpers;
@@ -33,11 +35,14 @@ public class NachaFileBuilder : INachaFileBuilder
     private readonly INachaFixedWidthRecordRenderer _recordRenderer;
     private readonly INachaRecordDataProvider _recordDataProvider;
     private readonly INachaSemanticValidator _nachaSemanticValidator;
+    private readonly IBatchNumberGenerator _batchNumberGenerator;
     private readonly INachaConfigResolver? _configResolver;
     private readonly INachaType7AliasMap? _type7AliasMap;
     private readonly INachaType7GenerationStrategy? _type7GenerationStrategy;
     private readonly INachaType7LegacyRenderer? _type7LegacyRenderer;
     private readonly INachaType7RolloutPolicy? _type7RolloutPolicy;
+    private readonly INachaRecordMappingEngine? _recordMappingEngine;
+    private readonly IFieldMappingPlanCompiler? _mappingPlanCompiler;
     private readonly NachaGenerationOptions _generationOptions;
     private readonly ILogger<NachaFileBuilder>? _logger;
 
@@ -54,8 +59,11 @@ public class NachaFileBuilder : INachaFileBuilder
         INachaType7GenerationStrategy? type7GenerationStrategy = null,
         INachaType7LegacyRenderer? type7LegacyRenderer = null,
         INachaType7RolloutPolicy? type7RolloutPolicy = null,
+        INachaRecordMappingEngine? recordMappingEngine = null,
+        IFieldMappingPlanCompiler? mappingPlanCompiler = null,
         IOptions<NachaGenerationOptions>? generationOptions = null,
-        ILogger<NachaFileBuilder>? logger = null)
+        ILogger<NachaFileBuilder>? logger = null,
+        IBatchNumberGenerator? batchNumberGenerator = null)
     {
         _context = context;
         _holidayService = holidayService;
@@ -64,11 +72,14 @@ public class NachaFileBuilder : INachaFileBuilder
         _recordRenderer = recordRenderer;
         _recordDataProvider = recordDataProvider;
         _nachaSemanticValidator = nachaSemanticValidator;
+        _batchNumberGenerator = batchNumberGenerator ?? new DailyResetBatchNumberGenerator(new BatchNumberSequenceStore(_context));
         _configResolver = configResolver;
         _type7AliasMap = type7AliasMap;
         _type7GenerationStrategy = type7GenerationStrategy;
         _type7LegacyRenderer = type7LegacyRenderer;
         _type7RolloutPolicy = type7RolloutPolicy;
+        _recordMappingEngine = recordMappingEngine;
+        _mappingPlanCompiler = mappingPlanCompiler;
         _generationOptions = generationOptions?.Value ?? new NachaGenerationOptions();
         _logger = logger;
     }
@@ -439,9 +450,9 @@ public class NachaFileBuilder : INachaFileBuilder
         CancellationToken ct)
     {
         var orderedBatches = context.Batches.OrderBy(b => b.Id).ToList();
-        var batchSequenceById = orderedBatches
-            .Select((batch, index) => new { batch.Id, BatchNumber = index + 1 })
-            .ToDictionary(item => item.Id, item => item.BatchNumber);
+        var clearingHouseCode = context.Cycle.ClearingHouse?.Name?.Contains("CENIT", StringComparison.OrdinalIgnoreCase) == true ? "CENIT" : "ACH";
+        var batchNumberAssignment = await _batchNumberGenerator.AssignBatchNumbersAsync(orderedBatches, clearingHouseCode, context.Cycle.ProcessingDate, ct);
+        var batchSequenceById = batchNumberAssignment.BatchNumberByBatchId;
 
         if (!orderedBatches.Any())
             throw new InvalidOperationException("No se encontraron lotes para exportar.");
@@ -455,8 +466,15 @@ public class NachaFileBuilder : INachaFileBuilder
         var audit = new NachaGenerationAuditResult
         {
             Mode = (_generationOptions.Mode ?? "LEGACY").Trim().ToUpperInvariant(),
-            ClearingHouseCode = context.Cycle.ClearingHouse?.Name?.Contains("CENIT", StringComparison.OrdinalIgnoreCase) == true ? "CENIT" : "ACH"
+            ClearingHouseCode = clearingHouseCode
         };
+        var settlementPolicy = ResolveSettlementPolicyByChamber(audit.ClearingHouseCode);
+        audit.Trace.Add($"HeaderPolicy:Chamber={audit.ClearingHouseCode};SettlementDate={settlementPolicy}");
+        audit.Trace.Add($"BatchNumberPolicy:{batchNumberAssignment.PolicyCode};ScopedGroups={batchNumberAssignment.ScopedGroups}");
+        foreach (var scopeTrace in batchNumberAssignment.ScopeTrace)
+        {
+            audit.Trace.Add($"BatchNumberScope:{scopeTrace.Scope};Policy={scopeTrace.PolicyCode};Previous={scopeTrace.PreviousValue};Assigned={scopeTrace.AssignedValue};WasCreated={scopeTrace.WasCreated};Reserved={scopeTrace.ReservedCount}");
+        }
 
         var resolution = await ResolveRuntimeConfigAsync(context, definitions, ct);
         if (resolution.Profile is not null)
@@ -636,6 +654,7 @@ public class NachaFileBuilder : INachaFileBuilder
                     var blockCount = (int)Math.Ceiling(totalRecords / 10m);
                     var paddingNeeded = (blockCount * 10) - totalRecords;
                     var fileControl = FileControlRecord.From(context.Cycle, orderedBatches, batchCount, blockCount, entryAddendaCount, totalDebit, totalCredit);
+                    audit.Trace.Add($"FileIntegrity:BatchCount={batchCount};EntryAddendaCount={entryAddendaCount};TotalDebit={totalDebit};TotalCredit={totalCredit};BlockCount={blockCount};PaddingNeeded={paddingNeeded}");
 
                     recordCount += await AppendResolvedOrLegacyAsync(
                         sb,
@@ -651,6 +670,7 @@ public class NachaFileBuilder : INachaFileBuilder
                     if (paddingNeeded > 0)
                     {
                         var paddingRecord = new string('9', layoutCache["9"].TotalLength);
+                        EnsureRecordLength("9", paddingRecord, layoutCache["9"].TotalLength);
                         for (int i = 0; i < paddingNeeded; i++)
                         {
                             sb.Append(paddingRecord);
@@ -720,6 +740,7 @@ public class NachaFileBuilder : INachaFileBuilder
         CancellationToken ct)
     {
         var mode = (_generationOptions.Mode ?? "LEGACY").Trim().ToUpperInvariant();
+        var settlementPolicy = ResolveSettlementPolicyByChamber(audit.ClearingHouseCode);
         var shouldUseResolver = mode is "HYBRID" or "TABLE_DRIVEN" or "SHADOW_COMPARE";
 
         if (!shouldUseResolver || _configResolver is null || !resolution.LayoutsByRecordCode.TryGetValue(recordCode, out var layoutVariant))
@@ -736,6 +757,83 @@ public class NachaFileBuilder : INachaFileBuilder
         var lineCount = 0;
         foreach (var record in records)
         {
+            if (recordCode == "1" && ShouldUseRecord1MappingEngine(mode) && _recordMappingEngine is not null && _mappingPlanCompiler is not null)
+            {
+                var mapped = await TryRenderRecord1WithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
+                if (!string.IsNullOrWhiteSpace(mapped))
+                {
+                    audit.Trace.Add("R1:MAPPING_ENGINE_APPLIED:BASE_OBJECT=FileHeaderRecord.From");
+                    audit.Trace.Add($"R1:CHAMBER={audit.ClearingHouseCode};SETTLEMENT_POLICY={settlementPolicy}");
+                    sb.Append(mapped);
+                    lineCount++;
+                    continue;
+                }
+
+                audit.Warnings.Add("RecordCode=1 usó fallback legado por cobertura insuficiente del mapping engine.");
+                audit.Trace.Add("R1:MAPPING_ENGINE_FALLBACK:BASE_OBJECT=FileHeaderRecord.From");
+                audit.Trace.Add($"R1:CHAMBER={audit.ClearingHouseCode};SETTLEMENT_POLICY={settlementPolicy}");
+            }
+
+            if (recordCode == "5" && ShouldUseRecord5MappingEngine(mode) && _recordMappingEngine is not null && _mappingPlanCompiler is not null)
+            {
+                var mapped = await TryRenderRecord5WithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
+                if (!string.IsNullOrWhiteSpace(mapped))
+                {
+                    audit.Trace.Add("R5:MAPPING_ENGINE_APPLIED:BASE_OBJECT=BatchHeaderRecord.From");
+                    audit.Trace.Add($"R5:CHAMBER={audit.ClearingHouseCode};SETTLEMENT_POLICY={settlementPolicy}");
+                    sb.Append(mapped);
+                    lineCount++;
+                    continue;
+                }
+
+                audit.Warnings.Add("RecordCode=5 usó fallback legado por cobertura insuficiente del mapping engine.");
+                audit.Trace.Add("R5:MAPPING_ENGINE_FALLBACK:BASE_OBJECT=BatchHeaderRecord.From");
+                audit.Trace.Add($"R5:CHAMBER={audit.ClearingHouseCode};SETTLEMENT_POLICY={settlementPolicy}");
+            }
+
+            if (recordCode == "6" && ShouldUseRecord6MappingEngine(mode) && _recordMappingEngine is not null && _mappingPlanCompiler is not null)
+            {
+                var mapped = await TryRenderRecord6WithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, audit, ct);
+                if (!string.IsNullOrWhiteSpace(mapped))
+                {
+                    sb.Append(mapped);
+                    lineCount++;
+                    continue;
+                }
+
+                audit.Warnings.Add("RecordCode=6 usó fallback legado por cobertura insuficiente del mapping engine.");
+            }
+
+            if (recordCode == "8" && ShouldUseRecord8MappingEngine(mode) && _recordMappingEngine is not null && _mappingPlanCompiler is not null)
+            {
+                var mapped = await TryRenderRecord8WithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
+                if (!string.IsNullOrWhiteSpace(mapped))
+                {
+                    audit.Trace.Add("R8:MAPPING_ENGINE_APPLIED:BASE_OBJECT=BatchControlRecord.From");
+                    sb.Append(mapped);
+                    lineCount++;
+                    continue;
+                }
+
+                audit.Warnings.Add("RecordCode=8 usó fallback legado por cobertura insuficiente del mapping engine.");
+                audit.Trace.Add("R8:MAPPING_ENGINE_FALLBACK:BASE_OBJECT=BatchControlRecord.From");
+            }
+
+            if (recordCode == "9" && ShouldUseRecord9MappingEngine(mode) && _recordMappingEngine is not null && _mappingPlanCompiler is not null)
+            {
+                var mapped = await TryRenderRecord9WithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
+                if (!string.IsNullOrWhiteSpace(mapped))
+                {
+                    audit.Trace.Add("R9:MAPPING_ENGINE_APPLIED:BASE_OBJECT=FileControlRecord.From");
+                    sb.Append(mapped);
+                    lineCount++;
+                    continue;
+                }
+
+                audit.Warnings.Add("RecordCode=9 usó fallback legado por cobertura insuficiente del mapping engine.");
+                audit.Trace.Add("R9:MAPPING_ENGINE_FALLBACK:BASE_OBJECT=FileControlRecord.From");
+            }
+
             var rendered = await RenderWithResolvedLayoutAsync(recordCode, record, layoutVariant);
             if (mode == "SHADOW_COMPARE" && layoutCache.TryGetValue(recordCode, out var legacyLayout))
             {
@@ -748,9 +846,11 @@ public class NachaFileBuilder : INachaFileBuilder
                 {
                     audit.EquivalenceDiffs.Add(diff);
                     audit.Warnings.Add($"Diferencia detectada en shadow compare para RecordCode={recordCode}.");
+                    RegisterShadowDiff(audit, diff);
                 }
             }
 
+            EnsureRecordLength(recordCode, rendered, layoutVariant.TotalLength);
             sb.Append(rendered);
             lineCount++;
         }
@@ -826,10 +926,28 @@ public class NachaFileBuilder : INachaFileBuilder
         foreach (var candidate in candidates)
         {
             var alignedValues = AlignType7ValuesWithLayout(layoutVariant, candidate.FieldValues, audit);
-            var rendered = await RenderWithResolvedLayoutAsync("7", alignedValues, layoutVariant);
+            var rendered = await TryRenderType7WithMappingEngineAsync(layoutVariant, alignedValues, mode, layoutCache, candidate, audit, ct);
+            if (string.IsNullOrWhiteSpace(rendered))
+            {
+                var renderer = _type7LegacyRenderer ?? new NachaType7LegacyRenderer();
+                if (!rolloutDecision.AllowLegacyFallback)
+                {
+                    throw new InvalidOperationException($"Rollout policy bloqueó fallback type7 para candidato Trace={candidate.Transaction.TraceNumber}.");
+                }
+
+                rendered = renderer.Render(candidate.Batch, candidate.Transaction, candidate.Addenda);
+                audit.Type7GeneratedLegacy++;
+                IncrementCounter(audit.Type7FallbackReasons, "MappingEngineFallbackToLegacy");
+                IncrementCounter(audit.Type7FallbackByLayout, layoutVariant.VariantCode);
+            }
+            else
+            {
+                audit.Type7GeneratedTableDriven++;
+            }
+
+            EnsureRecordLength("7", rendered, layoutVariant.TotalLength);
             sb.Append(rendered);
             lineCount++;
-            audit.Type7GeneratedTableDriven++;
 
             if (mode == "SHADOW_COMPARE")
             {
@@ -840,6 +958,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 {
                     audit.EquivalenceDiffs.Add(diff);
                     audit.Warnings.Add("Diferencia detectada en SHADOW_COMPARE para RecordCode=7.");
+                    RegisterShadowDiff(audit, diff);
                 }
 
                 foreach (var fieldDiff in BuildType7FieldDiffs(layoutVariant, legacy, rendered))
@@ -861,6 +980,71 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return lineCount;
+    }
+
+    private async Task<string?> TryRenderType7WithMappingEngineAsync(
+        CfgLayoutVariant layoutVariant,
+        IReadOnlyDictionary<string, object?> alignedValues,
+        string mode,
+        IReadOnlyDictionary<string, NachaRecordLayout> layoutCache,
+        NachaType7RecordCandidate candidate,
+        NachaGenerationAuditResult audit,
+        CancellationToken ct)
+    {
+        if (!_generationOptions.EnableType7CommonMappingEngine || _recordMappingEngine is null || _mappingPlanCompiler is null)
+        {
+            return await RenderWithResolvedLayoutAsync("7", alignedValues, layoutVariant);
+        }
+
+        var issues = new List<string>();
+        var plan = _mappingPlanCompiler.CompileRecordPlan(layoutVariant, issues);
+        if (issues.Count > 0)
+        {
+            audit.Warnings.AddRange(issues.Select(x => $"Type7PlanIssue:{x}"));
+        }
+
+        var mapped = await _recordMappingEngine.MapRecordAsync(new RecordMappingRequest
+        {
+            RecordCode = "7",
+            SourceRecord = alignedValues,
+            RecordPlan = plan,
+            ContextValues = new Dictionary<string, object?>(alignedValues, StringComparer.OrdinalIgnoreCase),
+            EnableDiagnostics = _generationOptions.Record6MappingDiagnostics,
+            ShadowCompare = string.Equals(mode, "SHADOW_COMPARE", StringComparison.OrdinalIgnoreCase),
+            LegacyLayout = layoutCache.TryGetValue("7", out var legacyLayout) ? legacyLayout : null
+        }, ct);
+
+        foreach (var trace in mapped.FieldTraces.Take(_generationOptions.Record6MappingDiagnostics ? mapped.FieldTraces.Count : 5))
+        {
+            audit.Trace.Add($"R7:{trace.FieldCode}:SRC={trace.SourceUsed}:CAN={trace.CanonicalKey}:RAW={trace.RawValue}:FINAL={trace.FinalValue}:FB={trace.FallbackStrategy}");
+        }
+
+        if (!mapped.Success && mapped.ValuesByFieldCode.Count == 0)
+        {
+            audit.Warnings.Add($"Type7 mapping engine devolvió fallback para Trace={candidate.Transaction.TraceNumber}.");
+            return null;
+        }
+
+        var mappedLayout = new NachaRecordLayout
+        {
+            RecordCode = "7",
+            TotalLength = layoutVariant.TotalLength,
+            Fields = layoutVariant.Fields
+                .OrderBy(x => x.StartPosition)
+                .Select(x => new NachaRecordField
+                {
+                    FieldName = x.FieldCode,
+                    DbColumn = x.FieldCode,
+                    StartPosition = x.StartPosition,
+                    Length = x.Length,
+                    Justification = x.Justification,
+                    PadChar = x.PadChar,
+                    Format = x.FormatMask
+                })
+                .ToList()
+        };
+
+        return await _recordRenderer.RenderRecordAsync("7", mapped.ValuesByFieldCode, mappedLayout);
     }
 
     private IReadOnlyDictionary<string, object?> AlignType7ValuesWithLayout(
@@ -1074,6 +1258,307 @@ public class NachaFileBuilder : INachaFileBuilder
             : "SALIDA";
     }
 
+    private async Task<string?> TryRenderRecord6WithMappingEngineAsync(
+        string recordCode,
+        object record,
+        CfgLayoutVariant layoutVariant,
+        string mode,
+        IReadOnlyDictionary<string, NachaRecordLayout> layoutCache,
+        NachaGenerationAuditResult audit,
+        CancellationToken ct)
+    {
+        if (_recordMappingEngine is null || _mappingPlanCompiler is null)
+        {
+            return null;
+        }
+
+        var issues = new List<string>();
+        var plan = _mappingPlanCompiler.CompileRecordPlan(layoutVariant, issues);
+        if (issues.Count > 0)
+        {
+            audit.Warnings.AddRange(issues.Select(x => $"Record6PlanIssue:{x}"));
+        }
+
+        var contextValues = BuildRecord6ContextValues(record);
+        var mapped = await _recordMappingEngine.MapRecordAsync(new RecordMappingRequest
+        {
+            RecordCode = recordCode,
+            SourceRecord = record,
+            RecordPlan = plan,
+            ContextValues = contextValues,
+            EnableDiagnostics = _generationOptions.Record6MappingDiagnostics,
+            ShadowCompare = string.Equals(mode, "SHADOW_COMPARE", StringComparison.OrdinalIgnoreCase),
+            LegacyLayout = layoutCache.TryGetValue(recordCode, out var legacyLayout) ? legacyLayout : null
+        }, ct);
+
+        foreach (var trace in mapped.FieldTraces.Take(_generationOptions.Record6MappingDiagnostics ? mapped.FieldTraces.Count : 5))
+        {
+            var transforms = trace.TransformSteps.Count == 0 ? "none" : string.Join(",", trace.TransformSteps);
+            var issuesText = trace.ValidationIssues.Count == 0
+                ? "none"
+                : string.Join("|", trace.ValidationIssues.Select(x => $"{x.RuleCode}:{x.Severity}"));
+            audit.Trace.Add($"R6:{trace.FieldCode}:SRC={trace.SourceUsed}:CAN={trace.CanonicalKey}:RAW={trace.RawValue}:TF={transforms}:RULES={issuesText}:FB={trace.FallbackStrategy}:FINAL={trace.FinalValue}");
+        }
+
+        if (!mapped.Success && mapped.ValuesByFieldCode.Count == 0)
+        {
+            return null;
+        }
+
+        var mappedLayout = new NachaRecordLayout
+        {
+            RecordCode = recordCode,
+            TotalLength = layoutVariant.TotalLength,
+            Fields = layoutVariant.Fields
+                .OrderBy(x => x.StartPosition)
+                .Select(x => new NachaRecordField
+                {
+                    FieldName = x.FieldCode,
+                    DbColumn = x.FieldCode,
+                    StartPosition = x.StartPosition,
+                    Length = x.Length,
+                    Justification = x.Justification,
+                    PadChar = x.PadChar,
+                    Format = x.FormatMask
+                })
+                .ToList()
+        };
+
+        var rendered = await _recordRenderer.RenderRecordAsync(recordCode, mapped.ValuesByFieldCode, mappedLayout);
+        if (mode == "SHADOW_COMPARE" && layoutCache.TryGetValue(recordCode, out var legacy))
+        {
+            var legacyRendered = await _recordRenderer.RenderRecordAsync(recordCode, record, legacy);
+            var diff = CompareRenderedLines(recordCode, legacyRendered, rendered);
+            if (!string.IsNullOrWhiteSpace(diff))
+            {
+                audit.EquivalenceDiffs.Add($"R6_MAPPING:{diff}");
+                audit.Warnings.Add("Diferencia SHADOW_COMPARE en record 6 mapping engine.");
+                RegisterShadowDiff(audit, $"R6_MAPPING:{diff}");
+            }
+        }
+
+        EnsureRecordLength(recordCode, rendered, mappedLayout.TotalLength);
+        return rendered;
+    }
+
+    private Task<string?> TryRenderRecord1WithMappingEngineAsync(
+        string recordCode,
+        object record,
+        CfgLayoutVariant layoutVariant,
+        string mode,
+        IReadOnlyDictionary<string, NachaRecordLayout> layoutCache,
+        NachaBuildContext context,
+        NachaGenerationAuditResult audit,
+        CancellationToken ct)
+    {
+        return TryRenderHeaderWithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
+    }
+
+    private Task<string?> TryRenderRecord5WithMappingEngineAsync(
+        string recordCode,
+        object record,
+        CfgLayoutVariant layoutVariant,
+        string mode,
+        IReadOnlyDictionary<string, NachaRecordLayout> layoutCache,
+        NachaBuildContext context,
+        NachaGenerationAuditResult audit,
+        CancellationToken ct)
+    {
+        return TryRenderHeaderWithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
+    }
+
+    private Task<string?> TryRenderRecord8WithMappingEngineAsync(
+        string recordCode,
+        object record,
+        CfgLayoutVariant layoutVariant,
+        string mode,
+        IReadOnlyDictionary<string, NachaRecordLayout> layoutCache,
+        NachaBuildContext context,
+        NachaGenerationAuditResult audit,
+        CancellationToken ct)
+    {
+        return TryRenderHeaderWithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
+    }
+
+    private Task<string?> TryRenderRecord9WithMappingEngineAsync(
+        string recordCode,
+        object record,
+        CfgLayoutVariant layoutVariant,
+        string mode,
+        IReadOnlyDictionary<string, NachaRecordLayout> layoutCache,
+        NachaBuildContext context,
+        NachaGenerationAuditResult audit,
+        CancellationToken ct)
+    {
+        return TryRenderHeaderWithMappingEngineAsync(recordCode, record, layoutVariant, mode, layoutCache, context, audit, ct);
+    }
+
+    private async Task<string?> TryRenderHeaderWithMappingEngineAsync(
+        string recordCode,
+        object record,
+        CfgLayoutVariant layoutVariant,
+        string mode,
+        IReadOnlyDictionary<string, NachaRecordLayout> layoutCache,
+        NachaBuildContext context,
+        NachaGenerationAuditResult audit,
+        CancellationToken ct)
+    {
+        if (_recordMappingEngine is null || _mappingPlanCompiler is null)
+        {
+            return null;
+        }
+
+        var issues = new List<string>();
+        var plan = _mappingPlanCompiler.CompileRecordPlan(layoutVariant, issues);
+        if (issues.Count > 0)
+        {
+            audit.Warnings.AddRange(issues.Select(x => $"Record{recordCode}PlanIssue:{x}"));
+        }
+
+        var contextValues = BuildHeaderContextValues(record, context);
+        var mapped = await _recordMappingEngine.MapRecordAsync(new RecordMappingRequest
+        {
+            RecordCode = recordCode,
+            SourceRecord = record,
+            RecordPlan = plan,
+            ContextValues = contextValues,
+            EnableDiagnostics = _generationOptions.Record6MappingDiagnostics,
+            ShadowCompare = string.Equals(mode, "SHADOW_COMPARE", StringComparison.OrdinalIgnoreCase),
+            LegacyLayout = layoutCache.TryGetValue(recordCode, out var legacyLayout) ? legacyLayout : null
+        }, ct);
+
+        foreach (var trace in mapped.FieldTraces.Take(_generationOptions.Record6MappingDiagnostics ? mapped.FieldTraces.Count : 5))
+        {
+            var transforms = trace.TransformSteps.Count == 0 ? "none" : string.Join(",", trace.TransformSteps);
+            audit.Trace.Add($"R{recordCode}:{trace.FieldCode}:SRC={trace.SourceUsed}:CAN={trace.CanonicalKey}:RAW={trace.RawValue}:TF={transforms}:FB={trace.FallbackStrategy}:FINAL={trace.FinalValue}");
+        }
+
+        if (!mapped.Success && mapped.ValuesByFieldCode.Count == 0)
+        {
+            return null;
+        }
+
+        var mappedLayout = new NachaRecordLayout
+        {
+            RecordCode = recordCode,
+            TotalLength = layoutVariant.TotalLength,
+            Fields = layoutVariant.Fields
+                .OrderBy(x => x.StartPosition)
+                .Select(x => new NachaRecordField
+                {
+                    FieldName = x.FieldCode,
+                    DbColumn = x.FieldCode,
+                    StartPosition = x.StartPosition,
+                    Length = x.Length,
+                    Justification = x.Justification,
+                    PadChar = x.PadChar,
+                    Format = x.FormatMask
+                })
+                .ToList()
+        };
+
+        var rendered = await _recordRenderer.RenderRecordAsync(recordCode, mapped.ValuesByFieldCode, mappedLayout);
+        if (mode == "SHADOW_COMPARE" && layoutCache.TryGetValue(recordCode, out var legacy))
+        {
+            var legacyRendered = await _recordRenderer.RenderRecordAsync(recordCode, record, legacy);
+            var diff = CompareRenderedLines(recordCode, legacyRendered, rendered);
+            if (!string.IsNullOrWhiteSpace(diff))
+            {
+                audit.EquivalenceDiffs.Add($"R{recordCode}_MAPPING:{diff}");
+                audit.Warnings.Add($"Diferencia SHADOW_COMPARE en record {recordCode} mapping engine.");
+                RegisterShadowDiff(audit, $"R{recordCode}_MAPPING:{diff}");
+            }
+        }
+
+        EnsureRecordLength(recordCode, rendered, mappedLayout.TotalLength);
+        return rendered;
+    }
+
+    private bool ShouldUseRecord6MappingEngine(string mode)
+    {
+        if (!_generationOptions.EnableRecord6MappingEngine)
+        {
+            return false;
+        }
+
+        return mode is "HYBRID" or "TABLE_DRIVEN" or "SHADOW_COMPARE";
+    }
+
+    private bool ShouldUseRecord1MappingEngine(string mode)
+    {
+        if (!_generationOptions.EnableRecord1MappingEngine)
+        {
+            return false;
+        }
+
+        return mode is "HYBRID" or "TABLE_DRIVEN" or "SHADOW_COMPARE";
+    }
+
+    private bool ShouldUseRecord5MappingEngine(string mode)
+    {
+        if (!_generationOptions.EnableRecord5MappingEngine)
+        {
+            return false;
+        }
+
+        return mode is "HYBRID" or "TABLE_DRIVEN" or "SHADOW_COMPARE";
+    }
+
+    private bool ShouldUseRecord8MappingEngine(string mode)
+    {
+        if (!_generationOptions.EnableRecord8MappingEngine)
+        {
+            return false;
+        }
+
+        return mode is "HYBRID" or "TABLE_DRIVEN" or "SHADOW_COMPARE";
+    }
+
+    private bool ShouldUseRecord9MappingEngine(string mode)
+    {
+        if (!_generationOptions.EnableRecord9MappingEngine)
+        {
+            return false;
+        }
+
+        return mode is "HYBRID" or "TABLE_DRIVEN" or "SHADOW_COMPARE";
+    }
+
+    private static IReadOnlyDictionary<string, object?> BuildRecord6ContextValues(object record)
+    {
+        var map = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        var type = record.GetType();
+        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            map[property.Name] = property.GetValue(record);
+            map[$"ctx.{property.Name}"] = property.GetValue(record);
+        }
+
+        return map;
+    }
+
+    private static IReadOnlyDictionary<string, object?> BuildHeaderContextValues(object record, NachaBuildContext context)
+    {
+        var map = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["CycleName"] = context.Cycle.CycleName,
+            ["ProcessingDateUtc"] = context.Cycle.ProcessingDate,
+            ["ClearingHouseName"] = context.Cycle.ClearingHouse?.Name,
+            ["ClearingHouseId"] = context.Cycle.ClearingHouseId,
+            ["TransactionCount"] = context.Transactions.Count
+        };
+
+        var type = record.GetType();
+        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            var value = property.GetValue(record);
+            map[property.Name] = value;
+            map[$"ctx.{property.Name}"] = value;
+        }
+
+        return map;
+    }
+
     private static string? CompareRenderedLines(string recordCode, string legacyRendered, string newRendered)
     {
         if (string.Equals(legacyRendered, newRendered, StringComparison.Ordinal))
@@ -1082,15 +1567,52 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         var max = Math.Min(legacyRendered.Length, newRendered.Length);
+        var diffs = new List<string>(capacity: 3);
+        var totalDiffs = 0;
         for (var i = 0; i < max; i++)
         {
             if (legacyRendered[i] != newRendered[i])
             {
-                return $"RecordCode={recordCode}, posición={i + 1}, legado='{legacyRendered[i]}', nuevo='{newRendered[i]}'";
+                totalDiffs++;
+                if (diffs.Count < 3)
+                {
+                    diffs.Add($"pos={i + 1},legacy='{legacyRendered[i]}',new='{newRendered[i]}'");
+                }
             }
         }
 
+        totalDiffs += Math.Abs(legacyRendered.Length - newRendered.Length);
+
+        if (diffs.Count > 0)
+        {
+            return $"RecordCode={recordCode};DiffCount={totalDiffs};Diffs={string.Join("|", diffs)};LenLegacy={legacyRendered.Length};LenNew={newRendered.Length}";
+        }
+
         return $"RecordCode={recordCode}, longitud legado={legacyRendered.Length}, longitud nuevo={newRendered.Length}";
+    }
+
+    private static void RegisterShadowDiff(NachaGenerationAuditResult audit, string diff)
+    {
+        audit.ShadowDiffCount++;
+        if (audit.ShadowDiffDetails.Count < 200)
+        {
+            audit.ShadowDiffDetails.Add(diff);
+        }
+    }
+
+    private static void EnsureRecordLength(string recordCode, string rendered, int expectedLength)
+    {
+        if (rendered.Length != expectedLength)
+        {
+            throw new InvalidOperationException($"RecordCode={recordCode} renderizó longitud {rendered.Length} y se esperaba {expectedLength}.");
+        }
+    }
+
+    private static string ResolveSettlementPolicyByChamber(string? chamberCode)
+    {
+        return string.Equals(chamberCode, "CENIT", StringComparison.OrdinalIgnoreCase)
+            ? "CENIT_BLANK_ONLY"
+            : "ACH_BLANK_OR_JULIAN3";
     }
 
     private async Task PersistGenerationAuditAsync(NachaGenerationAuditResult audit, int? profileId, CancellationToken ct)
@@ -1106,6 +1628,7 @@ public class NachaFileBuilder : INachaFileBuilder
             var type7DiffCount = audit.Type7DiffByField.Values.Sum();
             var type7MatchRate = 100m * (type7Compared - Math.Min(type7Compared, type7DiffCount)) / type7Compared;
             audit.Trace.Add($"Type7Summary:Candidates={audit.Type7TotalCandidates};New={audit.Type7GeneratedTableDriven};Legacy={audit.Type7GeneratedLegacy};Diffs={type7DiffCount};MatchRate={type7MatchRate:0.00}%");
+            audit.Trace.Add($"ShadowCompareSummary:DiffCount={audit.ShadowDiffCount};StoredDetails={audit.ShadowDiffDetails.Count}");
 
             _context.HistConfigChanges.Add(new Domain.Models.ACH.Config.HistConfigChange
             {

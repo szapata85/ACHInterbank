@@ -78,6 +78,9 @@ public class NachaConfigResolver : INachaConfigResolver
             .Include(x => x.Fields.Where(f => f.IsEnabled))
                 .ThenInclude(f => f.SourceDefinition)
                     .ThenInclude(sd => sd.DataSourceType)
+            .Include(x => x.Fields.Where(f => f.IsEnabled))
+                .ThenInclude(f => f.Rules.Where(r => r.IsEnabled))
+                    .ThenInclude(r => r.RuleType)
             .Where(x => x.ProfileId == profile.Id
                         && neededRecordCodes.Contains(x.RecordCode.Code)
                         && x.Status.Code == "PUBLICADO"
