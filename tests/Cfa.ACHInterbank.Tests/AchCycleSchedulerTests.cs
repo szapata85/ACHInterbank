@@ -27,7 +27,8 @@ public class AchCycleSchedulerTests
         context.ClearingHouseConfigs.Add(new ClearingHouseConfig
         {
             Id = 1,
-                                                        });
+            HolidayStrategy = "Colombian"
+        });
 
         context.ClearingHouses.Add(new ClearingHouse
         {
@@ -81,10 +82,11 @@ public class AchCycleSchedulerTests
 
         await scheduler.ScheduleCyclesForClearingHouseAsync(1, new DateTime(2026, 03, 23));
 
-        var cycles = await context.AchCycles
+        var cycles = (await context.AchCycles
             .Where(x => x.ClearingHouseId == 1)
+            .ToListAsync())
             .OrderBy(x => x.CutoffTime)
-            .ToListAsync();
+            .ToList();
 
         Assert.Equal(3, cycles.Count);
         Assert.Contains(cycles, x => x.CycleName == "CICLO-1");
@@ -109,7 +111,8 @@ public class AchCycleSchedulerTests
         context.ClearingHouseConfigs.Add(new ClearingHouseConfig
         {
             Id = 1,
-                                                        });
+            HolidayStrategy = "Colombian"
+        });
 
         context.ClearingHouses.Add(new ClearingHouse
         {
@@ -167,10 +170,11 @@ public class AchCycleSchedulerTests
 
         await scheduler.ScheduleCyclesForClearingHouseAsync(1, new DateTime(2026, 02, 10));
 
-        var cycles = await context.AchCycles
+        var cycles = (await context.AchCycles
             .Where(x => x.ClearingHouseId == 1)
+            .ToListAsync())
             .OrderBy(x => x.CutoffTime)
-            .ToListAsync();
+            .ToList();
 
         Assert.Equal(2, cycles.Count);
         Assert.Contains(cycles, c => c.CycleName == "CICLO-1" && c.StartTime == new TimeSpan(8, 10, 0));

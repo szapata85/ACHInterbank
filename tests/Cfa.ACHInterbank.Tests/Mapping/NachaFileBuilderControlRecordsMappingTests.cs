@@ -9,6 +9,7 @@ using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using FluentAssertions;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -60,8 +61,8 @@ public class NachaFileBuilderControlRecordsMappingTests
 
         await sut.BuildNachaFileAsync([100], CancellationToken.None);
 
-        renderer.Verify(x => x.RenderRecordAsync("8", It.IsAny<IReadOnlyDictionary<string, object?>>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
-        renderer.Verify(x => x.RenderRecordAsync("9", It.IsAny<IReadOnlyDictionary<string, object?>>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
+        renderer.Verify(x => x.RenderRecordAsync("8", It.IsAny<Dictionary<string, object?>>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
+        renderer.Verify(x => x.RenderRecordAsync("9", It.IsAny<Dictionary<string, object?>>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
     }
 
     private static NachaFileBuilder CreateSut(
@@ -100,12 +101,20 @@ public class NachaFileBuilderControlRecordsMappingTests
             EnableRecord9MappingEngine = enableRecord9
         });
 
-        var dbOptions = new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
-        var db = new Mock<AchDbContext>(dbOptions).Object;
+        var dbOptions = new DbContextOptionsBuilder<AchDbContext>().UseSqlite(CreateOpenConnection()).Options;
+        var db = new AchDbContext(dbOptions);
+        db.Database.EnsureCreated();
 
         return new NachaFileBuilder(
             db, holiday.Object, loader.Object, validationService.Object, renderer.Object, recordProvider.Object, semanticValidator.Object,
             resolver.Object, null, null, null, null, mappingEngine.Object, compiler.Object, options, null, batchNumberGenerator.Object);
+    }
+
+    private static SqliteConnection CreateOpenConnection()
+    {
+        var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+        return connection;
     }
 
     private static void SetupScenario(

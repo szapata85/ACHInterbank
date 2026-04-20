@@ -9,6 +9,7 @@ using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using FluentAssertions;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -113,9 +114,10 @@ public class NachaFileBuilderRecord6HardeningTests
         });
 
         var dbOptions = new DbContextOptionsBuilder<AchDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseSqlite(CreateOpenConnection())
             .Options;
-        var db = new Mock<AchDbContext>(dbOptions).Object;
+        var db = new AchDbContext(dbOptions);
+        db.Database.EnsureCreated();
 
         return new NachaFileBuilder(
             db,
@@ -133,6 +135,13 @@ public class NachaFileBuilderRecord6HardeningTests
             recordMappingEngine.Object,
             planCompiler.Object,
             options);
+    }
+
+    private static SqliteConnection CreateOpenConnection()
+    {
+        var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+        return connection;
     }
 
     private static void SetupScenario(

@@ -4,6 +4,7 @@ using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Security.Cryptography;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -50,7 +51,8 @@ public sealed class BatchNumberSequenceStore(
                         OriginatingDfi = scope.OriginatingDfi,
                         ProcessingDate = scope.ProcessingDate,
                         PolicyCode = scope.PolicyCode,
-                        LastAssignedValue = count
+                        LastAssignedValue = count,
+                        RowVersion = RandomNumberGenerator.GetBytes(8)
                     };
 
                     context.BatchNumberSequences.Add(sequence);
@@ -61,6 +63,7 @@ public sealed class BatchNumberSequenceStore(
                     start = previous + 1;
                     end = previous + count;
                     sequence.LastAssignedValue = end;
+                    sequence.RowVersion = RandomNumberGenerator.GetBytes(8);
                 }
 
                 await context.SaveChangesAsync(ct);

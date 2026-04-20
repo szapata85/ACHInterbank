@@ -459,6 +459,11 @@ public sealed class NachaConfigAdminServicesHardeningTests
 
     private static async Task SeedCatalogAsync(AchDbContext context)
     {
+        if (await context.CatClearingHouses.AnyAsync())
+        {
+            return;
+        }
+
         context.CatClearingHouses.AddRange(
             new CatClearingHouse { Id = 1, Code = "ACH", Name = "ACH Colombia", IsActive = true },
             new CatClearingHouse { Id = 2, Code = "CENIT", Name = "CENIT", IsActive = true });

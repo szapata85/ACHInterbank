@@ -5,8 +5,11 @@ using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Persistence.Integrations.Services;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Xunit;
 
 namespace Cfa.ACHInterbank.Tests;
@@ -205,10 +208,52 @@ public class IntegrationMappingEndToEndTests
 
         public async Task SeedAsync()
         {
+            await new IntegrationMappingScenarioSeeder(Context, new TestingHostEnvironment()).SeedAsync();
+
             await Catalog.GetMethodsAsync();
             var methods = await Catalog.GetMethodsAsync();
             MethodId = methods.First(x => x.Code == "WSCFAACH.Proc_Contrapartidas").Id;
             Parameters = await Context.IntegrationMethodParameters.Where(x => x.MethodId == MethodId).ToListAsync();
+
+            Context.ClearingHouseConfigs.Add(new ClearingHouseConfig
+            {
+                Id = 1,
+                HolidayStrategy = "Colombian"
+            });
+
+            Context.ClearingHouses.Add(new ClearingHouse
+            {
+                Id = 10,
+                Code = "ACH",
+                Name = "ACH",
+                OriginCode = "ORG",
+                ClearingHouseId = 1
+            });
+
+            var source = new FinancialInstitution
+            {
+                Id = 1,
+                Name = "Origen",
+                RoutingNumber = "12345",
+                TransitCode = "678",
+                IsDefaultSource = true,
+                Status = FinancialInstitutionStatus.Active
+            };
+            source.CalculateCheckDigit();
+
+            var destination = new FinancialInstitution
+            {
+                Id = 2,
+                Name = "Destino",
+                RoutingNumber = "76543",
+                TransitCode = "210",
+                Status = FinancialInstitutionStatus.Active
+            };
+            destination.CalculateCheckDigit();
+            Context.FinancialInstitutions.AddRange(source, destination);
+            await Context.SaveChangesAsync();
+
+            var clearingHouse = await Context.ClearingHouses.FirstAsync(x => x.Id == 10);
 
             Cycle = new AchCycle
             {
@@ -219,7 +264,7 @@ public class IntegrationMappingEndToEndTests
                 EndTime = TimeSpan.FromHours(17),
                 CutoffTime = TimeSpan.FromHours(16),
                 ClearingHouseId = 10,
-                ClearingHouse = new ClearingHouse { Id = 10, Code = "ACH", Name = "ACH", OriginCode = "ORG", ClearingHouseId = 1 }
+                ClearingHouse = clearingHouse
             };
 
             var batch = new AchBatch { Id = 999, AchCycleId = Cycle.Id, EffectiveEntryDate = Cycle.ProcessingDate, BatchSequenceNumber = 1, CompanyEntryDescriptionId = 1 };
@@ -306,5 +351,13 @@ public class IntegrationMappingEndToEndTests
             await Context.DisposeAsync();
             await _connection.DisposeAsync();
         }
+    }
+
+    private sealed class TestingHostEnvironment : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = "Testing";
+        public string ApplicationName { get; set; } = "Cfa.ACHInterbank.Tests";
+        public string ContentRootPath { get; set; } = Directory.GetCurrentDirectory();
+        public IFileProvider ContentRootFileProvider { get; set; } = new PhysicalFileProvider(Directory.GetCurrentDirectory());
     }
 }

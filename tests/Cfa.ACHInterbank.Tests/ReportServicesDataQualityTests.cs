@@ -199,13 +199,16 @@ public class ReportServicesDataQualityTests
                 GeneratedAtUtc = new DateTime(2026, 04, 01, 9, 30, 0, DateTimeKind.Utc)
             });
 
-        context.ReturnReasons.Add(new ReturnReason
+        if (!await context.ReturnReasons.AnyAsync(x => x.Code == "DEV14"))
         {
-            Code = "DEV14",
-            Description = "Cuenta cerrada",
-            Category = "Return",
-            IsForReturn = true
-        });
+            context.ReturnReasons.Add(new ReturnReason
+            {
+                Code = "DEV14",
+                Description = "Cuenta cerrada",
+                Category = "Return",
+                IsForReturn = true
+            });
+        }
 
         context.AchTransactions.AddRange(
             CreateTransaction(1001, 250m, "REF-SENT-NEW", TransactionTypeEnum.Credit, AchTransferStateEnum.Certified, "123456780000001", string.Empty, string.Empty, 1, 2, "cycle-1", 201, new DateTimeOffset(2026, 04, 01, 10, 30, 0, TimeSpan.Zero)),

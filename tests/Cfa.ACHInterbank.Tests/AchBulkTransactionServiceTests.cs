@@ -250,6 +250,21 @@ public class AchBulkTransactionServiceTests
             IsActive = true
         });
 
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig
+        {
+            Id = 1,
+            HolidayStrategy = "Colombian"
+        });
+
+        context.ClearingHouses.Add(new ClearingHouse
+        {
+            Id = 1,
+            Name = "ACH Colombia",
+            Code = "ACHCOL",
+            OriginCode = "12345678",
+            ClearingHouseId = 1
+        });
+
         context.AchCycles.Add(new AchCycle
         {
             Id = "CYCLE-1",
@@ -278,6 +293,10 @@ public class AchBulkTransactionServiceTests
             new FinancialInstitution { Id = 1, Name = "Origen", RoutingNumber = "00001", TransitCode = "007" , IsDefaultSource = true, Status = FinancialInstitutionStatus.Active },
             new FinancialInstitution { Id = 2, Name = "Destino", RoutingNumber = "00001", TransitCode = "001" , Status = FinancialInstitutionStatus.Active }
         );
+        foreach (var institution in context.FinancialInstitutions.Local)
+        {
+            institution.CalculateCheckDigit();
+        }
 
         context.SaveChanges();
     }

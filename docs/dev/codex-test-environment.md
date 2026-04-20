@@ -147,3 +147,47 @@ Fallas runtime dominantes observadas:
 Conclusión de esta fase:
 - El objetivo principal de reintegración y compilación del proyecto de pruebas existente se cumplió.
 - La siguiente fase es saneamiento de ejecución (asserts/fixtures/infra test data) sobre la suite ya compilable.
+
+## 10) Fase de saneamiento runtime de fixtures (2026-04-20 UTC)
+
+### Ejecución inicial (runtime)
+Comando:
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build -v minimal
+```
+Resumen observado al inicio de esta fase:
+- 98 fallos / 144 exitosas (242 total).
+- Categorías dominantes:
+  1. FK/seeding (orden y catálogos padres faltantes).
+  2. RowVersion en `BatchNumberSequences` (`NOT NULL`).
+  3. Mocks frágiles de `AchDbContext` en pruebas de `NachaFileBuilder`.
+  4. Limitaciones SQLite/InMemory (`ORDER BY TimeSpan`, `ExecuteUpdate`, transacciones en InMemory).
+  5. Asserts legacy de tipos genéricos en shadow compare.
+
+### Correcciones aplicadas
+- `BatchNumberSequenceStore`: ahora asigna `RowVersion` explícito al crear/actualizar secuencias para evitar `NOT NULL` en SQLite y mantener concurrencia optimista.
+- `BatchNumberSequenceConfiguration`: `RowVersion` configurado como `IsRequired + IsConcurrencyToken + ValueGeneratedNever` (cross-provider para tests relacionales).
+- Eliminación de mocks de `AchDbContext` en suites de `NachaFileBuilder`/mapping, cambiando a `AchDbContext` real con SQLite in-memory + `EnsureCreated`.
+- Seeds FK corregidos en tests clave:
+  - alta explícita de `ClearingHouseConfig` padre cuando se crea `ClearingHouse`.
+  - entidades financieras con `RoutingNumber + TransitCode = 8` para cálculo válido de dígito.
+  - guardas de idempotencia en seeds de catálogos para evitar `UNIQUE` repetidos.
+- Ajustes en asserts de shadow compare para tipo concreto usado por renderer (`Dictionary<string, object?>`).
+- `AchCycleSchedulerTests`: ordenamiento `TimeSpan` trasladado a memoria para evitar limitación de traducción SQLite.
+
+### Estado final medido
+Comandos:
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build -v minimal
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~BatchNumber|FullyQualifiedName~NachaFileBuilder|FullyQualifiedName~Mapping" -v minimal
+```
+
+Resultados finales de esta fase:
+- Suite completa: 78 fallos / 164 exitosas (mejora desde 98 fallos).
+- Filtro BatchNumber/NachaFileBuilder/Mapping: 21 fallos / 39 exitosas (60 total), mejora desde 33 fallos.
+
+### Pendientes para siguiente fase
+- Casos que siguen fallando por dependencia fuerte en provider o infraestructura:
+  - `ExecuteUpdate` no soportado por InMemory.
+  - escenarios de integración/mapping que requieren harness relacional más cercano a PostgreSQL.
+  - duplicados de catálogo en seeds legacy aún no normalizados en toda la suite.
