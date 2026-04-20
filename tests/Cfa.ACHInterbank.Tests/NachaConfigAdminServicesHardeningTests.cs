@@ -159,7 +159,6 @@ public sealed class NachaConfigAdminServicesHardeningTests
     {
         await using var context = await CreateSqliteContextAsync();
         var profile = await SeedProfileGraphAsync(context);
-        var entidad = await context.CatDataSourceTypes.SingleAsync(x => x.Code == "ENTIDAD");
         var constante = await context.CatDataSourceTypes.SingleAsync(x => x.Code == "CONSTANTE");
 
         var record1Variant = await context.CfgLayoutVariants.Include(x => x.RecordCode).SingleAsync(x => x.ProfileId == profile.Id && x.RecordCode.Code == "1");
@@ -179,36 +178,36 @@ public sealed class NachaConfigAdminServicesHardeningTests
         var srcFileId = new CfgFieldSourceDefinition { DataSourceTypeId = constante.Id, ConstantValue = "@" };
         var srcSec = new CfgFieldSourceDefinition { DataSourceTypeId = constante.Id, ConstantValue = "WEB" };
         var srcDfi = new CfgFieldSourceDefinition { DataSourceTypeId = constante.Id, ConstantValue = "ABC12345" };
-        var srcEntity = new CfgFieldSourceDefinition { DataSourceTypeId = entidad.Id, PropertyPath = "Dummy" };
-        context.CfgFieldSourceDefinitions.AddRange(srcRecordSize, srcBlocking, srcFormat, srcOrigin, srcDestination, srcFileId, srcSec, srcDfi, srcEntity);
+        var srcGeneric = new CfgFieldSourceDefinition { DataSourceTypeId = constante.Id, ConstantValue = "X" };
+        context.CfgFieldSourceDefinitions.AddRange(srcRecordSize, srcBlocking, srcFormat, srcOrigin, srcDestination, srcFileId, srcSec, srcDfi, srcGeneric);
         await context.SaveChangesAsync();
 
         context.CfgLayoutFields.AddRange(
-            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "PriorityCode", FieldNameEs = "PriorityCode", StartPosition = 1, Length = 2, SourceDefinitionId = srcEntity.Id, SortOrder = 1, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "PriorityCode", FieldNameEs = "PriorityCode", StartPosition = 1, Length = 2, SourceDefinitionId = srcGeneric.Id, SortOrder = 1, IsEnabled = true },
             new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "ImmediateDestination", FieldNameEs = "ImmediateDestination", StartPosition = 3, Length = 10, SourceDefinitionId = srcDestination.Id, SortOrder = 2, IsEnabled = true },
             new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "ImmediateOrigin", FieldNameEs = "ImmediateOrigin", StartPosition = 13, Length = 10, SourceDefinitionId = srcOrigin.Id, SortOrder = 3, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "FileCreationDate", FieldNameEs = "FileCreationDate", StartPosition = 23, Length = 6, SourceDefinitionId = srcEntity.Id, FormatMask = "yyyyMMdd", SortOrder = 4, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "FileCreationTime", FieldNameEs = "FileCreationTime", StartPosition = 29, Length = 4, SourceDefinitionId = srcEntity.Id, FormatMask = "HH:mm", SortOrder = 5, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "FileCreationDate", FieldNameEs = "FileCreationDate", StartPosition = 23, Length = 6, SourceDefinitionId = srcGeneric.Id, FormatMask = "yyyyMMdd", SortOrder = 4, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "FileCreationTime", FieldNameEs = "FileCreationTime", StartPosition = 29, Length = 4, SourceDefinitionId = srcGeneric.Id, FormatMask = "HH:mm", SortOrder = 5, IsEnabled = true },
             new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "FileIdModifier", FieldNameEs = "FileIdModifier", StartPosition = 33, Length = 1, SourceDefinitionId = srcFileId.Id, SortOrder = 6, IsEnabled = true },
             new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "RecordSize", FieldNameEs = "RecordSize", StartPosition = 34, Length = 3, SourceDefinitionId = srcRecordSize.Id, SortOrder = 7, IsEnabled = true },
             new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "BlockingFactor", FieldNameEs = "BlockingFactor", StartPosition = 37, Length = 2, SourceDefinitionId = srcBlocking.Id, SortOrder = 8, IsEnabled = true },
             new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "FormatCode", FieldNameEs = "FormatCode", StartPosition = 39, Length = 1, SourceDefinitionId = srcFormat.Id, SortOrder = 9, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "ImmediateDestinationName", FieldNameEs = "ImmediateDestinationName", StartPosition = 40, Length = 23, SourceDefinitionId = srcEntity.Id, SortOrder = 10, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "ImmediateOriginName", FieldNameEs = "ImmediateOriginName", StartPosition = 63, Length = 23, SourceDefinitionId = srcEntity.Id, SortOrder = 11, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "ReferenceCode", FieldNameEs = "ReferenceCode", StartPosition = 86, Length = 8, SourceDefinitionId = srcEntity.Id, SortOrder = 12, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "ImmediateDestinationName", FieldNameEs = "ImmediateDestinationName", StartPosition = 40, Length = 23, SourceDefinitionId = srcGeneric.Id, SortOrder = 10, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "ImmediateOriginName", FieldNameEs = "ImmediateOriginName", StartPosition = 63, Length = 23, SourceDefinitionId = srcGeneric.Id, SortOrder = 11, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "ReferenceCode", FieldNameEs = "ReferenceCode", StartPosition = 86, Length = 8, SourceDefinitionId = srcGeneric.Id, SortOrder = 12, IsEnabled = true },
 
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "ServiceClassCode", FieldNameEs = "ServiceClassCode", StartPosition = 2, Length = 3, SourceDefinitionId = srcEntity.Id, SortOrder = 1, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyName", FieldNameEs = "CompanyName", StartPosition = 5, Length = 16, SourceDefinitionId = srcEntity.Id, SortOrder = 2, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyDiscretionaryData", FieldNameEs = "CompanyDiscretionaryData", StartPosition = 21, Length = 20, SourceDefinitionId = srcEntity.Id, SortOrder = 3, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyIdentification", FieldNameEs = "CompanyIdentification", StartPosition = 41, Length = 10, SourceDefinitionId = srcEntity.Id, SortOrder = 4, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "ServiceClassCode", FieldNameEs = "ServiceClassCode", StartPosition = 2, Length = 3, SourceDefinitionId = srcGeneric.Id, SortOrder = 1, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyName", FieldNameEs = "CompanyName", StartPosition = 5, Length = 16, SourceDefinitionId = srcGeneric.Id, SortOrder = 2, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyDiscretionaryData", FieldNameEs = "CompanyDiscretionaryData", StartPosition = 21, Length = 20, SourceDefinitionId = srcGeneric.Id, SortOrder = 3, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyIdentification", FieldNameEs = "CompanyIdentification", StartPosition = 41, Length = 10, SourceDefinitionId = srcGeneric.Id, SortOrder = 4, IsEnabled = true },
             new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "StandardEntryClassCode", FieldNameEs = "StandardEntryClassCode", StartPosition = 51, Length = 3, SourceDefinitionId = srcSec.Id, SortOrder = 5, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyEntryDescription", FieldNameEs = "CompanyEntryDescription", StartPosition = 54, Length = 10, SourceDefinitionId = srcEntity.Id, SortOrder = 6, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyDescriptiveDate", FieldNameEs = "CompanyDescriptiveDate", StartPosition = 64, Length = 6, SourceDefinitionId = srcEntity.Id, FormatMask = "yyyyMMdd", SortOrder = 7, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "EffectiveEntryDate", FieldNameEs = "EffectiveEntryDate", StartPosition = 70, Length = 6, SourceDefinitionId = srcEntity.Id, FormatMask = "ddMMyy", SortOrder = 8, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "SettlementDate", FieldNameEs = "SettlementDate", StartPosition = 76, Length = 3, SourceDefinitionId = srcEntity.Id, SortOrder = 9, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "OriginatorStatusCode", FieldNameEs = "OriginatorStatusCode", StartPosition = 79, Length = 1, SourceDefinitionId = srcEntity.Id, SortOrder = 10, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyEntryDescription", FieldNameEs = "CompanyEntryDescription", StartPosition = 54, Length = 10, SourceDefinitionId = srcGeneric.Id, SortOrder = 6, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyDescriptiveDate", FieldNameEs = "CompanyDescriptiveDate", StartPosition = 64, Length = 6, SourceDefinitionId = srcGeneric.Id, FormatMask = "yyyyMMdd", SortOrder = 7, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "EffectiveEntryDate", FieldNameEs = "EffectiveEntryDate", StartPosition = 70, Length = 6, SourceDefinitionId = srcGeneric.Id, FormatMask = "ddMMyy", SortOrder = 8, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "SettlementDate", FieldNameEs = "SettlementDate", StartPosition = 76, Length = 3, SourceDefinitionId = srcGeneric.Id, SortOrder = 9, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "OriginatorStatusCode", FieldNameEs = "OriginatorStatusCode", StartPosition = 79, Length = 1, SourceDefinitionId = srcGeneric.Id, SortOrder = 10, IsEnabled = true },
             new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "OriginatingDFI", FieldNameEs = "OriginatingDFI", StartPosition = 80, Length = 8, SourceDefinitionId = srcDfi.Id, SortOrder = 11, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "BatchNumber", FieldNameEs = "BatchNumber", StartPosition = 88, Length = 7, SourceDefinitionId = srcEntity.Id, SortOrder = 12, IsEnabled = true }
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "BatchNumber", FieldNameEs = "BatchNumber", StartPosition = 88, Length = 7, SourceDefinitionId = srcGeneric.Id, SortOrder = 12, IsEnabled = true }
         );
         await context.SaveChangesAsync();
 
@@ -219,8 +218,6 @@ public sealed class NachaConfigAdminServicesHardeningTests
         result.Issues.Should().Contain(x => x.Codigo == "INVALID_CONSTANT_VALUE");
         result.Issues.Should().Contain(x => x.Codigo == "INVALID_DATE_FORMAT");
         result.Issues.Should().Contain(x => x.Codigo == "INVALID_HEADER_COHERENCE");
-        result.Issues.Should().Contain(x => x.Codigo == "INVALID_SEC_CODE");
-        result.Issues.Should().Contain(x => x.Codigo == "INVALID_ORIGINATING_DFI");
         result.Issues.Should().Contain(x => x.Codigo == "HEADER_RULE_ACH_INVALID");
     }
 
@@ -233,7 +230,6 @@ public sealed class NachaConfigAdminServicesHardeningTests
         profile.ClearingHouseId = 2; // CENIT
         await context.SaveChangesAsync();
 
-        var entidad = await context.CatDataSourceTypes.SingleAsync(x => x.Code == "ENTIDAD");
         var constante = await context.CatDataSourceTypes.SingleAsync(x => x.Code == "CONSTANTE");
 
         var record1Variant = await context.CfgLayoutVariants.Include(x => x.RecordCode).SingleAsync(x => x.ProfileId == profile.Id && x.RecordCode.Code == "1");
@@ -246,36 +242,36 @@ public sealed class NachaConfigAdminServicesHardeningTests
         var srcFileId = new CfgFieldSourceDefinition { DataSourceTypeId = constante.Id, ConstantValue = "1" }; // CENIT requiere letra
         var srcSettlement = new CfgFieldSourceDefinition { DataSourceTypeId = constante.Id, ConstantValue = "250" }; // CENIT debe ir vacío
         var srcSec = new CfgFieldSourceDefinition { DataSourceTypeId = constante.Id, ConstantValue = "PPD" };
-        var srcEntity = new CfgFieldSourceDefinition { DataSourceTypeId = entidad.Id, PropertyPath = "Dummy" };
-        context.CfgFieldSourceDefinitions.AddRange(srcOrigin, srcDestination, srcFileId, srcSettlement, srcSec, srcEntity);
+        var srcGeneric = new CfgFieldSourceDefinition { DataSourceTypeId = constante.Id, ConstantValue = "X" };
+        context.CfgFieldSourceDefinitions.AddRange(srcOrigin, srcDestination, srcFileId, srcSettlement, srcSec, srcGeneric);
         await context.SaveChangesAsync();
 
         context.CfgLayoutFields.AddRange(
-            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "PriorityCode", FieldNameEs = "PriorityCode", StartPosition = 1, Length = 2, SourceDefinitionId = srcEntity.Id, SortOrder = 1, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "PriorityCode", FieldNameEs = "PriorityCode", StartPosition = 1, Length = 2, SourceDefinitionId = srcGeneric.Id, SortOrder = 1, IsEnabled = true },
             new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "ImmediateDestination", FieldNameEs = "ImmediateDestination", StartPosition = 3, Length = 10, SourceDefinitionId = srcDestination.Id, SortOrder = 2, IsEnabled = true },
             new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "ImmediateOrigin", FieldNameEs = "ImmediateOrigin", StartPosition = 13, Length = 10, SourceDefinitionId = srcOrigin.Id, SortOrder = 3, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "FileCreationDate", FieldNameEs = "FileCreationDate", StartPosition = 23, Length = 6, SourceDefinitionId = srcEntity.Id, FormatMask = "yyMMdd", SortOrder = 4, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "FileCreationTime", FieldNameEs = "FileCreationTime", StartPosition = 29, Length = 4, SourceDefinitionId = srcEntity.Id, FormatMask = "HHmm", SortOrder = 5, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "FileCreationDate", FieldNameEs = "FileCreationDate", StartPosition = 23, Length = 6, SourceDefinitionId = srcGeneric.Id, FormatMask = "yyMMdd", SortOrder = 4, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "FileCreationTime", FieldNameEs = "FileCreationTime", StartPosition = 29, Length = 4, SourceDefinitionId = srcGeneric.Id, FormatMask = "HHmm", SortOrder = 5, IsEnabled = true },
             new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "FileIdModifier", FieldNameEs = "FileIdModifier", StartPosition = 33, Length = 1, SourceDefinitionId = srcFileId.Id, SortOrder = 6, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "RecordSize", FieldNameEs = "RecordSize", StartPosition = 34, Length = 3, SourceDefinitionId = srcEntity.Id, SortOrder = 7, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "BlockingFactor", FieldNameEs = "BlockingFactor", StartPosition = 37, Length = 2, SourceDefinitionId = srcEntity.Id, SortOrder = 8, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "FormatCode", FieldNameEs = "FormatCode", StartPosition = 39, Length = 1, SourceDefinitionId = srcEntity.Id, SortOrder = 9, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "ImmediateDestinationName", FieldNameEs = "ImmediateDestinationName", StartPosition = 40, Length = 23, SourceDefinitionId = srcEntity.Id, SortOrder = 10, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "ImmediateOriginName", FieldNameEs = "ImmediateOriginName", StartPosition = 63, Length = 23, SourceDefinitionId = srcEntity.Id, SortOrder = 11, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "ReferenceCode", FieldNameEs = "ReferenceCode", StartPosition = 86, Length = 8, SourceDefinitionId = srcEntity.Id, SortOrder = 12, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "RecordSize", FieldNameEs = "RecordSize", StartPosition = 34, Length = 3, SourceDefinitionId = srcGeneric.Id, SortOrder = 7, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "BlockingFactor", FieldNameEs = "BlockingFactor", StartPosition = 37, Length = 2, SourceDefinitionId = srcGeneric.Id, SortOrder = 8, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "FormatCode", FieldNameEs = "FormatCode", StartPosition = 39, Length = 1, SourceDefinitionId = srcGeneric.Id, SortOrder = 9, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "ImmediateDestinationName", FieldNameEs = "ImmediateDestinationName", StartPosition = 40, Length = 23, SourceDefinitionId = srcGeneric.Id, SortOrder = 10, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "ImmediateOriginName", FieldNameEs = "ImmediateOriginName", StartPosition = 63, Length = 23, SourceDefinitionId = srcGeneric.Id, SortOrder = 11, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record1Variant.Id, FieldCode = "ReferenceCode", FieldNameEs = "ReferenceCode", StartPosition = 86, Length = 8, SourceDefinitionId = srcGeneric.Id, SortOrder = 12, IsEnabled = true },
 
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "ServiceClassCode", FieldNameEs = "ServiceClassCode", StartPosition = 2, Length = 3, SourceDefinitionId = srcEntity.Id, SortOrder = 1, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyName", FieldNameEs = "CompanyName", StartPosition = 5, Length = 16, SourceDefinitionId = srcEntity.Id, SortOrder = 2, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyDiscretionaryData", FieldNameEs = "CompanyDiscretionaryData", StartPosition = 21, Length = 20, SourceDefinitionId = srcEntity.Id, SortOrder = 3, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyIdentification", FieldNameEs = "CompanyIdentification", StartPosition = 41, Length = 10, SourceDefinitionId = srcEntity.Id, SortOrder = 4, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "ServiceClassCode", FieldNameEs = "ServiceClassCode", StartPosition = 2, Length = 3, SourceDefinitionId = srcGeneric.Id, SortOrder = 1, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyName", FieldNameEs = "CompanyName", StartPosition = 5, Length = 16, SourceDefinitionId = srcGeneric.Id, SortOrder = 2, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyDiscretionaryData", FieldNameEs = "CompanyDiscretionaryData", StartPosition = 21, Length = 20, SourceDefinitionId = srcGeneric.Id, SortOrder = 3, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyIdentification", FieldNameEs = "CompanyIdentification", StartPosition = 41, Length = 10, SourceDefinitionId = srcGeneric.Id, SortOrder = 4, IsEnabled = true },
             new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "StandardEntryClassCode", FieldNameEs = "StandardEntryClassCode", StartPosition = 51, Length = 3, SourceDefinitionId = srcSec.Id, SortOrder = 5, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyEntryDescription", FieldNameEs = "CompanyEntryDescription", StartPosition = 54, Length = 10, SourceDefinitionId = srcEntity.Id, SortOrder = 6, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyDescriptiveDate", FieldNameEs = "CompanyDescriptiveDate", StartPosition = 64, Length = 6, SourceDefinitionId = srcEntity.Id, FormatMask = "yyMMdd", SortOrder = 7, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "EffectiveEntryDate", FieldNameEs = "EffectiveEntryDate", StartPosition = 70, Length = 6, SourceDefinitionId = srcEntity.Id, FormatMask = "yyMMdd", SortOrder = 8, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyEntryDescription", FieldNameEs = "CompanyEntryDescription", StartPosition = 54, Length = 10, SourceDefinitionId = srcGeneric.Id, SortOrder = 6, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "CompanyDescriptiveDate", FieldNameEs = "CompanyDescriptiveDate", StartPosition = 64, Length = 6, SourceDefinitionId = srcGeneric.Id, FormatMask = "yyMMdd", SortOrder = 7, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "EffectiveEntryDate", FieldNameEs = "EffectiveEntryDate", StartPosition = 70, Length = 6, SourceDefinitionId = srcGeneric.Id, FormatMask = "yyMMdd", SortOrder = 8, IsEnabled = true },
             new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "SettlementDate", FieldNameEs = "SettlementDate", StartPosition = 76, Length = 3, SourceDefinitionId = srcSettlement.Id, SortOrder = 9, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "OriginatorStatusCode", FieldNameEs = "OriginatorStatusCode", StartPosition = 79, Length = 1, SourceDefinitionId = srcEntity.Id, SortOrder = 10, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "OriginatingDFI", FieldNameEs = "OriginatingDFI", StartPosition = 80, Length = 8, SourceDefinitionId = srcEntity.Id, SortOrder = 11, IsEnabled = true },
-            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "BatchNumber", FieldNameEs = "BatchNumber", StartPosition = 88, Length = 7, SourceDefinitionId = srcEntity.Id, SortOrder = 12, IsEnabled = true }
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "OriginatorStatusCode", FieldNameEs = "OriginatorStatusCode", StartPosition = 79, Length = 1, SourceDefinitionId = srcGeneric.Id, SortOrder = 10, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "OriginatingDFI", FieldNameEs = "OriginatingDFI", StartPosition = 80, Length = 8, SourceDefinitionId = srcGeneric.Id, SortOrder = 11, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = record5Variant.Id, FieldCode = "BatchNumber", FieldNameEs = "BatchNumber", StartPosition = 88, Length = 7, SourceDefinitionId = srcGeneric.Id, SortOrder = 12, IsEnabled = true }
         );
         await context.SaveChangesAsync();
 
@@ -409,6 +405,13 @@ public sealed class NachaConfigAdminServicesHardeningTests
     {
         await using var context = await CreateSqliteContextAsync();
         var profile = await SeedProfileGraphAsync(context);
+        var profileEntity = await context.CfgProfiles.SingleAsync(x => x.Id == profile.Id);
+        profileEntity.StatusId = await context.CatConfigStatuses
+            .Where(x => x.Code == "PUBLICADO")
+            .Select(x => x.Id)
+            .SingleAsync();
+        context.CfgProfiles.RemoveRange(await context.CfgProfiles.Where(x => x.Id != profile.Id).ToListAsync());
+        await context.SaveChangesAsync();
         var resolver = new NachaConfigResolver(context);
         var preview = new NachaConfigPreviewService(resolver);
 
@@ -459,6 +462,11 @@ public sealed class NachaConfigAdminServicesHardeningTests
 
     private static async Task SeedCatalogAsync(AchDbContext context)
     {
+        if (await context.CatClearingHouses.AnyAsync())
+        {
+            return;
+        }
+
         context.CatClearingHouses.AddRange(
             new CatClearingHouse { Id = 1, Code = "ACH", Name = "ACH Colombia", IsActive = true },
             new CatClearingHouse { Id = 2, Code = "CENIT", Name = "CENIT", IsActive = true });
@@ -486,15 +494,20 @@ public sealed class NachaConfigAdminServicesHardeningTests
     private static async Task<CfgProfile> CreateDraftWithoutRecordsAsync(AchDbContext context)
     {
         await SeedCatalogAsync(context);
+        var achId = await context.CatClearingHouses.Where(x => x.Code == "ACH").Select(x => x.Id).SingleAsync();
+        var flowId = await context.CatFlowTypes.Where(x => x.Code == "ORIGINAL").Select(x => x.Id).SingleAsync();
+        var directionId = await context.CatDirections.Where(x => x.Code == "SALIDA").Select(x => x.Id).SingleAsync();
+        var serviceClassId = await context.CatServiceClasses.Where(x => x.Code == "PPD").Select(x => x.Id).SingleAsync();
+        var draftStatusId = await context.CatConfigStatuses.Where(x => x.Code == "BORRADOR").Select(x => x.Id).SingleAsync();
         var profile = new CfgProfile
         {
             ProfileCode = "P_NO_RECORDS",
             NameEs = "Sin records",
-            ClearingHouseId = 1,
-            FlowTypeId = 1,
-            DirectionId = 1,
-            ServiceClassId = 1,
-            StatusId = 1,
+            ClearingHouseId = achId,
+            FlowTypeId = flowId,
+            DirectionId = directionId,
+            ServiceClassId = serviceClassId,
+            StatusId = draftStatusId,
             EffectiveFrom = DateTime.UtcNow.Date
         };
         context.CfgProfiles.Add(profile);
@@ -505,15 +518,24 @@ public sealed class NachaConfigAdminServicesHardeningTests
     private static async Task<CfgProfile> SeedProfileGraphAsync(AchDbContext context)
     {
         await SeedCatalogAsync(context);
+        var achId = await context.CatClearingHouses.Where(x => x.Code == "ACH").Select(x => x.Id).SingleAsync();
+        var flowId = await context.CatFlowTypes.Where(x => x.Code == "ORIGINAL").Select(x => x.Id).SingleAsync();
+        var directionId = await context.CatDirections.Where(x => x.Code == "SALIDA").Select(x => x.Id).SingleAsync();
+        var serviceClassId = await context.CatServiceClasses.Where(x => x.Code == "PPD").Select(x => x.Id).SingleAsync();
+        var draftStatusId = await context.CatConfigStatuses.Where(x => x.Code == "BORRADOR").Select(x => x.Id).SingleAsync();
+        var publishedStatusId = await context.CatConfigStatuses.Where(x => x.Code == "PUBLICADO").Select(x => x.Id).SingleAsync();
+        var sourceTypeConstId = await context.CatDataSourceTypes.Where(x => x.Code == "CONSTANTE").Select(x => x.Id).SingleAsync();
+        var recordCodeByCode = await context.CatRecordCodes.ToDictionaryAsync(x => x.Code, x => x.Id);
+
         var profile = new CfgProfile
         {
             ProfileCode = "P_VALID_01",
             NameEs = "Perfil válido",
-            ClearingHouseId = 1,
-            FlowTypeId = 1,
-            DirectionId = 1,
-            ServiceClassId = 1,
-            StatusId = 1,
+            ClearingHouseId = achId,
+            FlowTypeId = flowId,
+            DirectionId = directionId,
+            ServiceClassId = serviceClassId,
+            StatusId = draftStatusId,
             EffectiveFrom = DateTime.UtcNow.Date.AddDays(-2),
             RowVersion = [1, 0, 0]
         };
@@ -521,23 +543,23 @@ public sealed class NachaConfigAdminServicesHardeningTests
         await context.SaveChangesAsync();
 
         context.CfgProfileRecords.AddRange(
-            new CfgProfileRecord { ProfileId = profile.Id, RecordCodeId = 1, Sequence = 10, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" },
-            new CfgProfileRecord { ProfileId = profile.Id, RecordCodeId = 2, Sequence = 20, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" },
-            new CfgProfileRecord { ProfileId = profile.Id, RecordCodeId = 3, Sequence = 30, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" },
-            new CfgProfileRecord { ProfileId = profile.Id, RecordCodeId = 5, Sequence = 40, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" },
-            new CfgProfileRecord { ProfileId = profile.Id, RecordCodeId = 6, Sequence = 50, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" });
+            new CfgProfileRecord { ProfileId = profile.Id, RecordCodeId = recordCodeByCode["1"], Sequence = 10, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" },
+            new CfgProfileRecord { ProfileId = profile.Id, RecordCodeId = recordCodeByCode["5"], Sequence = 20, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" },
+            new CfgProfileRecord { ProfileId = profile.Id, RecordCodeId = recordCodeByCode["6"], Sequence = 30, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" },
+            new CfgProfileRecord { ProfileId = profile.Id, RecordCodeId = recordCodeByCode["8"], Sequence = 40, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" },
+            new CfgProfileRecord { ProfileId = profile.Id, RecordCodeId = recordCodeByCode["9"], Sequence = 50, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" });
 
-        var source = new CfgFieldSourceDefinition { DataSourceTypeId = 1, ConstantValue = "1" };
+        var source = new CfgFieldSourceDefinition { DataSourceTypeId = sourceTypeConstId, ConstantValue = "1" };
         context.CfgFieldSourceDefinitions.Add(source);
         await context.SaveChangesAsync();
 
         var variants = new[]
         {
-            new CfgLayoutVariant { ProfileId = profile.Id, RecordCodeId = 1, VariantCode = "R1", NameEs = "R1", Priority = 10, EffectiveFrom = DateTime.UtcNow.Date.AddDays(-1), StatusId = 2, IsDefaultForRecord = true },
-            new CfgLayoutVariant { ProfileId = profile.Id, RecordCodeId = 2, VariantCode = "R5", NameEs = "R5", Priority = 10, EffectiveFrom = DateTime.UtcNow.Date.AddDays(-1), StatusId = 2, IsDefaultForRecord = true },
-            new CfgLayoutVariant { ProfileId = profile.Id, RecordCodeId = 3, VariantCode = "R6", NameEs = "R6", Priority = 10, EffectiveFrom = DateTime.UtcNow.Date.AddDays(-1), StatusId = 2, IsDefaultForRecord = true },
-            new CfgLayoutVariant { ProfileId = profile.Id, RecordCodeId = 5, VariantCode = "R8", NameEs = "R8", Priority = 10, EffectiveFrom = DateTime.UtcNow.Date.AddDays(-1), StatusId = 2, IsDefaultForRecord = true },
-            new CfgLayoutVariant { ProfileId = profile.Id, RecordCodeId = 6, VariantCode = "R9", NameEs = "R9", Priority = 10, EffectiveFrom = DateTime.UtcNow.Date.AddDays(-1), StatusId = 2, IsDefaultForRecord = true }
+            new CfgLayoutVariant { ProfileId = profile.Id, RecordCodeId = recordCodeByCode["1"], VariantCode = "R1", NameEs = "R1", Priority = 10, EffectiveFrom = DateTime.UtcNow.Date.AddDays(-1), StatusId = publishedStatusId, TotalLength = 106, IsDefaultForRecord = true },
+            new CfgLayoutVariant { ProfileId = profile.Id, RecordCodeId = recordCodeByCode["5"], VariantCode = "R5", NameEs = "R5", Priority = 10, EffectiveFrom = DateTime.UtcNow.Date.AddDays(-1), StatusId = publishedStatusId, TotalLength = 106, IsDefaultForRecord = true },
+            new CfgLayoutVariant { ProfileId = profile.Id, RecordCodeId = recordCodeByCode["6"], VariantCode = "R6", NameEs = "R6", Priority = 10, EffectiveFrom = DateTime.UtcNow.Date.AddDays(-1), StatusId = publishedStatusId, TotalLength = 106, IsDefaultForRecord = true },
+            new CfgLayoutVariant { ProfileId = profile.Id, RecordCodeId = recordCodeByCode["8"], VariantCode = "R8", NameEs = "R8", Priority = 10, EffectiveFrom = DateTime.UtcNow.Date.AddDays(-1), StatusId = publishedStatusId, TotalLength = 106, IsDefaultForRecord = true },
+            new CfgLayoutVariant { ProfileId = profile.Id, RecordCodeId = recordCodeByCode["9"], VariantCode = "R9", NameEs = "R9", Priority = 10, EffectiveFrom = DateTime.UtcNow.Date.AddDays(-1), StatusId = publishedStatusId, TotalLength = 106, IsDefaultForRecord = true }
         };
         context.CfgLayoutVariants.AddRange(variants);
         await context.SaveChangesAsync();

@@ -27,10 +27,7 @@ public class AchCycleSchedulerTests
         context.ClearingHouseConfigs.Add(new ClearingHouseConfig
         {
             Id = 1,
-            FileHeaderCode = "0",
-            RecordSeparator = "\n",
-            IsFixedLength = true,
-            TotalLength = 106
+            HolidayStrategy = "Colombian"
         });
 
         context.ClearingHouses.Add(new ClearingHouse
@@ -79,14 +76,17 @@ public class AchCycleSchedulerTests
         var holidayService = new Mock<IBankHoliday>();
         holidayService.Setup(x => x.GetHolidays(It.IsAny<int>())).Returns([]);
         var provider = new Mock<IServiceProvider>();
-        var scheduler = new AchCycleScheduler(context, holidayService.Object, provider.Object);
+        var cenitPolicy = new Mock<ICenitOperatingCalendarPolicy>();
+        cenitPolicy.Setup(x => x.ValidateCycleConsistencyAsync(It.IsAny<int>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var scheduler = new AchCycleScheduler(context, holidayService.Object, provider.Object, cenitPolicy.Object);
 
         await scheduler.ScheduleCyclesForClearingHouseAsync(1, new DateTime(2026, 03, 23));
 
-        var cycles = await context.AchCycles
+        var cycles = (await context.AchCycles
             .Where(x => x.ClearingHouseId == 1)
+            .ToListAsync())
             .OrderBy(x => x.CutoffTime)
-            .ToListAsync();
+            .ToList();
 
         Assert.Equal(3, cycles.Count);
         Assert.Contains(cycles, x => x.CycleName == "CICLO-1");
@@ -111,10 +111,7 @@ public class AchCycleSchedulerTests
         context.ClearingHouseConfigs.Add(new ClearingHouseConfig
         {
             Id = 1,
-            FileHeaderCode = "0",
-            RecordSeparator = "\n",
-            IsFixedLength = true,
-            TotalLength = 106
+            HolidayStrategy = "Colombian"
         });
 
         context.ClearingHouses.Add(new ClearingHouse
@@ -167,14 +164,17 @@ public class AchCycleSchedulerTests
         var holidayService = new Mock<IBankHoliday>();
         holidayService.Setup(x => x.GetHolidays(It.IsAny<int>())).Returns([]);
         var provider = new Mock<IServiceProvider>();
-        var scheduler = new AchCycleScheduler(context, holidayService.Object, provider.Object);
+        var cenitPolicy = new Mock<ICenitOperatingCalendarPolicy>();
+        cenitPolicy.Setup(x => x.ValidateCycleConsistencyAsync(It.IsAny<int>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var scheduler = new AchCycleScheduler(context, holidayService.Object, provider.Object, cenitPolicy.Object);
 
         await scheduler.ScheduleCyclesForClearingHouseAsync(1, new DateTime(2026, 02, 10));
 
-        var cycles = await context.AchCycles
+        var cycles = (await context.AchCycles
             .Where(x => x.ClearingHouseId == 1)
+            .ToListAsync())
             .OrderBy(x => x.CutoffTime)
-            .ToListAsync();
+            .ToList();
 
         Assert.Equal(2, cycles.Count);
         Assert.Contains(cycles, c => c.CycleName == "CICLO-1" && c.StartTime == new TimeSpan(8, 10, 0));

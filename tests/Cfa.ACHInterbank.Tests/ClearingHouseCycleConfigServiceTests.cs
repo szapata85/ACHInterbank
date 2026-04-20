@@ -252,6 +252,12 @@ public class ClearingHouseCycleConfigServiceTests
 
     private static async Task SeedClearingHouseAsync(AchDbContext context)
     {
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig
+        {
+            Id = 1,
+            HolidayStrategy = "Colombian"
+        });
+
         context.ClearingHouses.Add(new ClearingHouse
         {
             Id = 1,

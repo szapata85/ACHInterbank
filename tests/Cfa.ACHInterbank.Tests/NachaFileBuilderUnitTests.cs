@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using FluentAssertions;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Xunit;
@@ -197,9 +198,10 @@ public class NachaFileBuilderUnitTests
         holidayService = new Mock<IBankHoliday>(MockBehavior.Strict);
 
         var options = new DbContextOptionsBuilder<AchDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseSqlite(CreateOpenConnection())
             .Options;
-        var dbContext = new Mock<AchDbContext>(options).Object;
+        var dbContext = new AchDbContext(options);
+        dbContext.Database.EnsureCreated();
 
         return new NachaFileBuilder(
             dbContext,
@@ -209,5 +211,12 @@ public class NachaFileBuilderUnitTests
             renderer.Object,
             recordDataProvider.Object,
             semanticValidator.Object);
+    }
+
+    private static SqliteConnection CreateOpenConnection()
+    {
+        var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+        return connection;
     }
 }

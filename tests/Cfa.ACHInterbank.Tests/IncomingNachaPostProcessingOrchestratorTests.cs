@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Xunit;
@@ -87,6 +88,43 @@ public class IncomingNachaPostProcessingOrchestratorTests
 
     private static void SeedDispatchItem(AchDbContext context)
     {
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, HolidayStrategy = "Colombian" });
+        context.ClearingHouses.Add(new ClearingHouse
+        {
+            Id = 1,
+            Name = "ACH Colombia",
+            Code = "ACH",
+            OriginCode = "12345678",
+            ClearingHouseId = 1
+        });
+        var companyEntryDescriptionId = context.CompanyEntryDescriptionCatalogs
+            .Where(x => x.Term == "PAGOS")
+            .Select(x => x.Id)
+            .FirstOrDefault();
+        if (companyEntryDescriptionId == 0)
+        {
+            companyEntryDescriptionId = 999;
+            context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog
+            {
+                Id = companyEntryDescriptionId,
+                Term = "PAGOS",
+                Description = "Pagos",
+                StandardEntryClassCode = "PPD",
+                IsActive = true
+            });
+        }
+        var fi = new FinancialInstitution
+        {
+            Id = 1,
+            Name = "Banco Test",
+            RoutingNumber = "12345",
+            TransitCode = "678",
+            IsDefaultSource = true,
+            Status = FinancialInstitutionStatus.Active
+        };
+        fi.CalculateCheckDigit();
+        context.FinancialInstitutions.Add(fi);
+
         var ingestion = new IncomingNachaFileIngestion
         {
             Id = Guid.NewGuid(),
@@ -109,7 +147,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
             CutoffTime = new TimeSpan(23, 0, 0)
         };
         context.AchCycles.Add(cycle);
-        context.AchBatches.Add(new AchBatch { Id = 1, AchCycleId = "C1", CompanyEntryDescriptionId = 1, EffectiveEntryDate = DateTime.Today });
+        context.AchBatches.Add(new AchBatch { Id = 1, AchCycleId = "C1", CompanyEntryDescriptionId = companyEntryDescriptionId, EffectiveEntryDate = DateTime.Today });
         var tx = new AchTransaction
         {
             Id = 100,
@@ -132,6 +170,15 @@ public class IncomingNachaPostProcessingOrchestratorTests
             EffectiveEntryDate = DateTime.Today
         };
         context.AchTransactions.Add(tx);
+        context.EntryDetails.Add(new EntryDetail
+        {
+            EntryDetailID = 1,
+            TransactionCode = "22",
+            ReceivingParticipantEntityCode = "22222222",
+            AccountNumber = "D",
+            Amount = 100m,
+            RecipUserName = "Receiver"
+        });
         var classification = new IncomingNachaEntryClassification { Id = Guid.NewGuid(), IncomingNachaFileIngestionId = ingestion.Id, EntryDetailId = 1 };
         var link = new IncomingNachaTransactionLink { Id = Guid.NewGuid(), IncomingNachaFileIngestionId = ingestion.Id, EntryDetailId = 1, AchTransactionId = tx.Id, IsFinal = true, LinkType = IncomingNachaLinkType.ExactTrace15 };
 
@@ -158,9 +205,13 @@ public class IncomingNachaPostProcessingOrchestratorTests
 
     private static AchDbContext BuildContext()
     {
+        var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
         var options = new DbContextOptionsBuilder<AchDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseSqlite(connection)
             .Options;
-        return new AchDbContext(options);
+        var context = new AchDbContext(options);
+        context.Database.EnsureCreated();
+        return context;
     }
 }

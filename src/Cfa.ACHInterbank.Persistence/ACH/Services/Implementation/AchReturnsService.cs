@@ -304,13 +304,17 @@ public class AchReturnsService(
 
     private async Task<Dictionary<string, int>> GetCycleOrderAsync(int clearingHouseId, CancellationToken ct)
     {
-        var cycles = await context.AchCycles
+        var buffered = await context.AchCycles
             .AsNoTracking()
             .Where(c => c.ClearingHouseId == clearingHouseId)
             .OrderBy(c => c.ProcessingDate)
+            .ToListAsync(ct);
+
+        var cycles = buffered
+            .OrderBy(c => c.ProcessingDate)
             .ThenBy(c => c.CutoffTime)
             .Select(c => c.Id)
-            .ToListAsync(ct);
+            .ToList();
 
         return cycles.Select((id, index) => new { id, index }).ToDictionary(x => x.id, x => x.index, StringComparer.OrdinalIgnoreCase);
     }

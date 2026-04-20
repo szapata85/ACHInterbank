@@ -121,11 +121,7 @@ public class ReportServicesDataQualityTests
         context.ClearingHouseConfigs.Add(new ClearingHouseConfig
         {
             Id = 1,
-            FileHeaderCode = "0",
-            RecordSeparator = "\n",
-            IsFixedLength = true,
-            TotalLength = 106
-        });
+                                                        });
 
         context.ClearingHouses.Add(new ClearingHouse
         {
@@ -203,13 +199,16 @@ public class ReportServicesDataQualityTests
                 GeneratedAtUtc = new DateTime(2026, 04, 01, 9, 30, 0, DateTimeKind.Utc)
             });
 
-        context.ReturnReasons.Add(new ReturnReason
+        if (!await context.ReturnReasons.AnyAsync(x => x.Code == "DEV14"))
         {
-            Code = "DEV14",
-            Description = "Cuenta cerrada",
-            Category = "Return",
-            IsForReturn = true
-        });
+            context.ReturnReasons.Add(new ReturnReason
+            {
+                Code = "DEV14",
+                Description = "Cuenta cerrada",
+                Category = "Return",
+                IsForReturn = true
+            });
+        }
 
         context.AchTransactions.AddRange(
             CreateTransaction(1001, 250m, "REF-SENT-NEW", TransactionTypeEnum.Credit, AchTransferStateEnum.Certified, "123456780000001", string.Empty, string.Empty, 1, 2, "cycle-1", 201, new DateTimeOffset(2026, 04, 01, 10, 30, 0, TimeSpan.Zero)),
@@ -219,7 +218,7 @@ public class ReportServicesDataQualityTests
             CreateTransaction(1005, -5m, "REF-NEGATIVE", TransactionTypeEnum.Credit, AchTransferStateEnum.Pending, "123456780000005", string.Empty, string.Empty, 2, 3, "cycle-1", 202, new DateTimeOffset(2026, 04, 01, 11, 20, 0, TimeSpan.Zero)),
             CreateTransaction(1006, 4m, "REF-RETURN-NO-CAUSAL", TransactionTypeEnum.Credit, AchTransferStateEnum.ReturnedByEpr, "123456780000006", string.Empty, string.Empty, 1, 3, "cycle-1", 201, new DateTimeOffset(2026, 04, 01, 11, 30, 0, TimeSpan.Zero)),
             CreateTransaction(1007, 215m, "REF-CAUSAL-WRONG-STATE", TransactionTypeEnum.Credit, AchTransferStateEnum.Pending, "123456780000007", "R01", string.Empty, 1, 2, "cycle-1", 201, new DateTimeOffset(2026, 04, 01, 11, 45, 0, TimeSpan.Zero)),
-            CreateTransaction(1008, 0m, "REF-REJECT-D01", TransactionTypeEnum.Credit, AchTransferStateEnum.RejectedByOperator, "123456780000008", "D01", string.Empty, 1, 2, "cycle-1", 201, new DateTimeOffset(2026, 04, 01, 12, 00, 0, TimeSpan.Zero)));
+            CreateTransaction(1008, 0m, "REF-REJECT-D01", TransactionTypeEnum.Credit, AchTransferStateEnum.ReturnedByOperator, "123456780000008", "D01", string.Empty, 1, 2, "cycle-1", 201, new DateTimeOffset(2026, 04, 01, 12, 00, 0, TimeSpan.Zero)));
 
         await context.SaveChangesAsync();
     }

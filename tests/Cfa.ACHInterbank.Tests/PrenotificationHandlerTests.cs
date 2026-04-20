@@ -25,11 +25,18 @@ public class PrenotificationHandlerTests
         await using var context = new AchDbContext(options);
         await context.Database.EnsureCreatedAsync();
 
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig
+        {
+            Id = 1,
+            HolidayStrategy = "Colombian"
+        });
+
         context.ClearingHouses.Add(new ClearingHouse
         {
             Id = 1,
             Name = "ACH Colombia",
             Code = "ACH",
+            OriginCode = "12345678",
             ClearingHouseId = 1
         });
 
@@ -39,8 +46,8 @@ public class PrenotificationHandlerTests
             Name = "Banco Origen",
             Status = FinancialInstitutionStatus.Active,
             IsDefaultSource = true,
-            RoutingNumber = "123",
-            TransitCode = "4567"
+            RoutingNumber = "12345",
+            TransitCode = "678"
         };
         sourceFi.CalculateCheckDigit();
 
@@ -50,8 +57,8 @@ public class PrenotificationHandlerTests
             Name = "Banco Destino",
             Status = FinancialInstitutionStatus.Active,
             IsDefaultSource = false,
-            RoutingNumber = "765",
-            TransitCode = "4321"
+            RoutingNumber = "76543",
+            TransitCode = "210"
         };
         destinationFi.CalculateCheckDigit();
         context.FinancialInstitutions.AddRange(sourceFi, destinationFi);
@@ -92,6 +99,8 @@ public class PrenotificationHandlerTests
 
         var customer = new Customer
         {
+            FirstName = "Empresa",
+            LastName = "Demo",
             PersonType = "PJ",
             DocumentType = "NIT",
             DocumentNumber = "900123456",

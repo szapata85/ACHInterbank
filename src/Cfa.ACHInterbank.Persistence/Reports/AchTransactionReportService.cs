@@ -77,6 +77,14 @@ public sealed class AchTransactionReportService : IAchTransactionReportService
             query = query.Where(t => t.Type == filter.TransactionType.Value);
         }
 
+        if (isSent)
+        {
+            query = query.Where(t =>
+                t.State != AchTransferStateEnum.ReturnedByOperator &&
+                t.State != AchTransferStateEnum.ReturnedByEpr &&
+                string.IsNullOrWhiteSpace(t.ReturnReasonCode));
+        }
+
         var total = await query.CountAsync(ct);
         var totalCreditAmount = await query
             .Where(t => t.Type == TransactionTypeEnum.Credit)
@@ -88,11 +96,10 @@ public sealed class AchTransactionReportService : IAchTransactionReportService
             .Select(t => (decimal?)t.Amount)
             .SumAsync(ct) ?? 0m;
 
-        var items = await query
-            .OrderByDescending(t => t.CreatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(t => new AchTransactionReportRowDto
+        var projectedQuery = query.Select(t => new
+        {
+            t.CreatedAt,
+            Row = new AchTransactionReportRowDto
             {
                 TransactionId = t.Id,
                 EffectiveEntryDate = t.EffectiveEntryDate,
@@ -113,8 +120,29 @@ public sealed class AchTransactionReportService : IAchTransactionReportService
                     .OrderByDescending(f => f.GeneratedAtUtc)
                     .Select(f => f.FileName)
                     .FirstOrDefault() ?? "-"
-            })
-            .ToListAsync(ct);
+            }
+        });
+
+        List<AchTransactionReportRowDto> items;
+        if (string.Equals(_context.Database.ProviderName, "Microsoft.EntityFrameworkCore.Sqlite", StringComparison.Ordinal))
+        {
+            var bufferedRows = await projectedQuery.ToListAsync(ct);
+            items = bufferedRows
+                .OrderByDescending(x => x.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(x => x.Row)
+                .ToList();
+        }
+        else
+        {
+            items = await projectedQuery
+                .OrderByDescending(x => x.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(x => x.Row)
+                .ToListAsync(ct);
+        }
 
         return new AchTransactionReportResponseDto
         {

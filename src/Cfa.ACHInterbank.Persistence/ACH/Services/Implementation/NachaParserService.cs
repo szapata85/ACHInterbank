@@ -552,12 +552,29 @@ public class NachaParserService : INachaParserService
                 cycleQuery = cycleQuery.Where(c => c.CycleName.Contains(cycleNumber.ToString()));
             }
 
-            string? achCycleId = request?.ResolvedAchCycleId
-                ?? cycleQuery
-                    .OrderByDescending(c => c.ProcessingDate)
-                    .ThenByDescending(c => c.CutoffTime)
-                    .Select(c => c.Id)
-                    .FirstOrDefault();
+            string? achCycleId = request?.ResolvedAchCycleId;
+            if (achCycleId is null)
+            {
+                if (string.Equals(_context.Database.ProviderName, "Microsoft.EntityFrameworkCore.Sqlite", StringComparison.OrdinalIgnoreCase))
+                {
+                    achCycleId = cycleQuery
+                        .AsNoTracking()
+                        .Select(c => new { c.Id, c.ProcessingDate, c.CutoffTime })
+                        .ToList()
+                        .OrderByDescending(c => c.ProcessingDate)
+                        .ThenByDescending(c => c.CutoffTime)
+                        .Select(c => c.Id)
+                        .FirstOrDefault();
+                }
+                else
+                {
+                    achCycleId = cycleQuery
+                        .OrderByDescending(c => c.ProcessingDate)
+                        .ThenByDescending(c => c.CutoffTime)
+                        .Select(c => c.Id)
+                        .FirstOrDefault();
+                }
+            }
 
             return new NachaHeader
             {

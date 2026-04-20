@@ -12,7 +12,7 @@ public class NachaType7GenerationStrategyTests
     [Fact]
     public void BuildCandidates_ShouldCreateCreditDebitAndReturnCandidates()
     {
-        var resolver = new NachaType7FieldValueResolver();
+        var resolver = new NachaType7FieldValueResolver(new NachaType7AliasMap());
         INachaType7GenerationStrategy strategy = new NachaType7GenerationStrategy(resolver);
 
         var batch = new AchBatch

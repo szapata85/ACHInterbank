@@ -9,6 +9,7 @@ using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using FluentAssertions;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -43,7 +44,8 @@ public class Type7CommonMappingConvergenceTests
         var content = await sut.BuildNachaFileAsync([100], CancellationToken.None);
 
         content.Should().NotBeNullOrWhiteSpace();
-        renderer.Verify(x => x.RenderRecordAsync("7", It.IsAny<IReadOnlyDictionary<string, object?>>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
+        mappingEngine.Verify(x => x.MapRecordAsync(It.Is<RecordMappingRequest>(r => r.RecordCode == "7"), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+        content.Should().Contain("7");
     }
 
     [Fact]
@@ -86,9 +88,10 @@ public class Type7CommonMappingConvergenceTests
         });
 
         var dbOptions = new DbContextOptionsBuilder<AchDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseSqlite(CreateOpenConnection())
             .Options;
-        var db = new Mock<AchDbContext>(dbOptions).Object;
+        var db = new AchDbContext(dbOptions);
+        db.Database.EnsureCreated();
 
         return new NachaFileBuilder(
             db,
@@ -108,6 +111,13 @@ public class Type7CommonMappingConvergenceTests
             options);
     }
 
+    private static SqliteConnection CreateOpenConnection()
+    {
+        var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+        return connection;
+    }
+
     private static void SetupScenario(
         Mock<INachaDataLoader> loader,
         Mock<INachaConfigResolver> configResolver,
@@ -125,7 +135,7 @@ public class Type7CommonMappingConvergenceTests
             ClearingHouse = new ClearingHouse { Name = "ACH Colombia", OriginCode = "12345678" }
         };
 
-        var addenda = new AchTransactionAddenda { AddendaType = "05", Purpose = "PAGO", SequenceNumber = 1 };
+        var addenda = new AchTransactionAddenda { AddendaType = "05", Purpose = "PAGOS", SequenceNumber = 1 };
         var tx = new AchTransaction
         {
             Id = 10,

@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -51,13 +52,16 @@ public class NachaConfigBackfillSeederTests
             ]
         });
 
-        context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog
+        if (!await context.CompanyEntryDescriptionCatalogs.AnyAsync(x => x.Term == "NOMINAS"))
         {
-            Term = "NOMINAS",
-            Description = "Nóminas",
-            StandardEntryClassCode = "PPD",
-            IsActive = true
-        });
+            context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog
+            {
+                Term = "NOMINAS",
+                Description = "Nóminas",
+                StandardEntryClassCode = "PPD",
+                IsActive = true
+            });
+        }
 
         await context.SaveChangesAsync();
 
@@ -122,7 +126,8 @@ public class NachaConfigBackfillSeederTests
         await using var context = new AchDbContext(options);
         await context.Database.EnsureCreatedAsync();
 
-        var profileEntity = context.Model.FindEntityType(typeof(CfgProfile));
+        var designModel = context.GetService<IDesignTimeModel>().Model;
+        var profileEntity = designModel.FindEntityType(typeof(CfgProfile));
         Assert.NotNull(profileEntity);
         Assert.Contains(profileEntity!.GetIndexes(), index =>
             index.IsUnique &&
@@ -138,7 +143,7 @@ public class NachaConfigBackfillSeederTests
 
         Assert.Contains(profileEntity.GetCheckConstraints(), constraint => constraint.Name == "CK_CfgProfile_EffectiveRange");
 
-        var layoutFieldEntity = context.Model.FindEntityType(typeof(CfgLayoutField));
+        var layoutFieldEntity = designModel.FindEntityType(typeof(CfgLayoutField));
         Assert.NotNull(layoutFieldEntity);
         Assert.Contains(layoutFieldEntity!.GetIndexes(), index =>
             index.IsUnique &&

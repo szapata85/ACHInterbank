@@ -19,6 +19,7 @@ public class NachaSemanticValidator : INachaSemanticValidator
     private const int NewTraceLength = 15;
     private const int EntrySequenceStart = 99;
     private const int EntrySequenceLength = 7;
+    private const string RequiredMassCreditDescription = "MULTICREDIT";
 
     public void Validate(string fileContent, NachaBuildContext context)
     {
@@ -67,7 +68,11 @@ public class NachaSemanticValidator : INachaSemanticValidator
 
             var creditLikeTransactions = batchTransactions.Where(IsCreditLike).ToList();
             var exportedDescription = batchHeaderRecord.Substring(BatchHeaderDescriptionStart, BatchHeaderDescriptionLength).Trim();
-            if (creditLikeTransactions.Count > 1 && !string.Equals(exportedDescription, "MULTICREDIT", StringComparison.OrdinalIgnoreCase))
+            var expectedDescription = RequiredMassCreditDescription.Length > BatchHeaderDescriptionLength
+                ? RequiredMassCreditDescription[..BatchHeaderDescriptionLength]
+                : RequiredMassCreditDescription;
+
+            if (creditLikeTransactions.Count > 1 && !string.Equals(exportedDescription, expectedDescription, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException($"El lote {batch.Id} debe usar la descripción MULTICREDIT para créditos/prenotificaciones masivas.");
             }
@@ -96,14 +101,22 @@ public class NachaSemanticValidator : INachaSemanticValidator
                 {
                     throw new InvalidOperationException($"La transacción {tx.Id} debe exportarse con monto monetario mayor a cero.");
                 }
+            }
 
+            foreach (var tx in batchTransactions)
+            {
                 foreach (var addenda in tx.Addendas)
                 {
                     EnsureRecordType(records, currentRecordIndex, '7', $"La transacción {tx.Id} debe generar un registro tipo 7 por cada addenda.");
                     var addendaRecord = records[currentRecordIndex];
                     currentRecordIndex++;
 
-                    if (addenda.AddendaType == "99" && tx.Type != TransactionTypeEnum.Return)
+                    if (addenda.BusinessType == AchAddendaBusinessType.Return && tx.Type is not (TransactionTypeEnum.Return or TransactionTypeEnum.Reversal))
+                    {
+                        throw new InvalidOperationException($"La transacción {tx.Id} tiene una addenda de devolución incompatible con su tipo efectivo.");
+                    }
+
+                    if (addenda.AddendaType == "99" && tx.Type is not (TransactionTypeEnum.Return or TransactionTypeEnum.Reversal))
                     {
                         throw new InvalidOperationException($"La transacción {tx.Id} solo puede usar addenda 99 cuando el tipo efectivo es Return.");
                     }

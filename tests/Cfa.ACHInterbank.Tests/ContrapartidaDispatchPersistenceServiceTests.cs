@@ -23,11 +23,18 @@ public class ContrapartidaDispatchPersistenceServiceTests
         await using var context = new AchDbContext(options);
         await context.Database.EnsureCreatedAsync();
 
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig
+        {
+            Id = 1,
+            HolidayStrategy = "Colombian"
+        });
+
         context.ClearingHouses.Add(new ClearingHouse
         {
             Id = 1,
             Name = "ACH Colombia",
             Code = "ACH",
+            OriginCode = "12345678",
             ClearingHouseId = 1
         });
 
@@ -37,8 +44,8 @@ public class ContrapartidaDispatchPersistenceServiceTests
             Name = "Banco Origen",
             Status = FinancialInstitutionStatus.Active,
             IsDefaultSource = true,
-            RoutingNumber = "123",
-            TransitCode = "4567"
+            RoutingNumber = "12345",
+            TransitCode = "678"
         };
         sourceFi.CalculateCheckDigit();
 
@@ -48,8 +55,8 @@ public class ContrapartidaDispatchPersistenceServiceTests
             Name = "Banco Destino",
             Status = FinancialInstitutionStatus.Active,
             IsDefaultSource = false,
-            RoutingNumber = "765",
-            TransitCode = "4321"
+            RoutingNumber = "76543",
+            TransitCode = "210"
         };
         destinationFi.CalculateCheckDigit();
 

@@ -26,8 +26,8 @@ public class IntegrationMappingEndToEndTests
     {
         await using var fixture = await IntegrationFixture.CreateAsync();
         var parameters = await fixture.Catalog.GetMethodParametersAsync(fixture.MethodId);
-        Assert.Contains(parameters, x => x.ParameterPath == "CycleId");
-        Assert.Contains(parameters, x => x.ParameterPath == "Transactions[].Reference");
+        Assert.Contains(parameters, x => x.ParameterPath == "OFIDLOT");
+        Assert.Contains(parameters, x => x.ParameterPath == "OFIDTX");
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public class IntegrationMappingEndToEndTests
         await using var fixture = await IntegrationFixture.CreateAsync();
         var source = await fixture.Catalog.GetSourceCatalogAsync(fixture.MethodId);
         Assert.Contains(source, x => x.FieldPath == "transaction.reference");
-        Assert.Contains(source, x => x.FieldPath == "addenda.information");
+        Assert.Contains(source, x => x.FieldPath == "execution.dateYyyyMMdd");
         Assert.Contains(source, x => x.FieldPath == "cycle.id");
     }
 
@@ -116,9 +116,9 @@ public class IntegrationMappingEndToEndTests
         var contract = await fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow);
 
         Assert.NotNull(contract);
-        Assert.Equal(fixture.Cycle.Id, contract!.CycleId);
-        Assert.Single(contract.Transactions);
-        Assert.Equal(fixture.Transaction.Reference, contract.Transactions[0].Reference);
+        Assert.NotNull(contract!.Contract);
+        Assert.Equal(fixture.Transaction.TransactionExternalId, contract.Contract.OFIDTX);
+        Assert.False(string.IsNullOrWhiteSpace(contract.Contract.OFFECHEFEC));
     }
 
     [Fact]
@@ -210,6 +210,46 @@ public class IntegrationMappingEndToEndTests
             MethodId = methods.First(x => x.Code == "WSCFAACH.Proc_Contrapartidas").Id;
             Parameters = await Context.IntegrationMethodParameters.Where(x => x.MethodId == MethodId).ToListAsync();
 
+            Context.ClearingHouseConfigs.Add(new ClearingHouseConfig
+            {
+                Id = 1,
+                HolidayStrategy = "Colombian"
+            });
+
+            Context.ClearingHouses.Add(new ClearingHouse
+            {
+                Id = 10,
+                Code = "ACH",
+                Name = "ACH",
+                OriginCode = "ORG",
+                ClearingHouseId = 1
+            });
+
+            var source = new FinancialInstitution
+            {
+                Id = 1,
+                Name = "Origen",
+                RoutingNumber = "12345",
+                TransitCode = "678",
+                IsDefaultSource = true,
+                Status = FinancialInstitutionStatus.Active
+            };
+            source.CalculateCheckDigit();
+
+            var destination = new FinancialInstitution
+            {
+                Id = 2,
+                Name = "Destino",
+                RoutingNumber = "76543",
+                TransitCode = "210",
+                Status = FinancialInstitutionStatus.Active
+            };
+            destination.CalculateCheckDigit();
+            Context.FinancialInstitutions.AddRange(source, destination);
+            await Context.SaveChangesAsync();
+
+            var clearingHouse = await Context.ClearingHouses.FirstAsync(x => x.Id == 10);
+
             Cycle = new AchCycle
             {
                 Id = "CYCLE-T-001",
@@ -219,13 +259,14 @@ public class IntegrationMappingEndToEndTests
                 EndTime = TimeSpan.FromHours(17),
                 CutoffTime = TimeSpan.FromHours(16),
                 ClearingHouseId = 10,
-                ClearingHouse = new ClearingHouse { Id = 10, Code = "ACH", Name = "ACH", OriginCode = "ORG", ClearingHouseId = 1 }
+                ClearingHouse = clearingHouse
             };
 
             var batch = new AchBatch { Id = 999, AchCycleId = Cycle.Id, EffectiveEntryDate = Cycle.ProcessingDate, BatchSequenceNumber = 1, CompanyEntryDescriptionId = 1 };
             Transaction = new AchTransaction
             {
                 Id = 1001,
+                TransactionExternalId = "TX-1001",
                 AchCycleId = Cycle.Id,
                 AchCycle = Cycle,
                 AchBatch = batch,
@@ -272,6 +313,8 @@ public class IntegrationMappingEndToEndTests
             {
                 var (kind, path, fixedVal) = parameter.ParameterPath switch
                 {
+                    "OFIDLOT" => (IntegrationSourceKindEnum.Cycle, "cycle.id", (string?)null),
+                    "OFIDTX" => (IntegrationSourceKindEnum.Transaction, "transaction.transactionExternalId", (string?)null),
                     "CycleId" => (IntegrationSourceKindEnum.Cycle, "cycle.id", (string?)null),
                     "CycleName" => (IntegrationSourceKindEnum.Cycle, "cycle.cycleName", (string?)null),
                     "ClearingHouseId" => (IntegrationSourceKindEnum.ClearingHouse, "clearinghouse.id", (string?)null),
@@ -307,4 +350,5 @@ public class IntegrationMappingEndToEndTests
             await _connection.DisposeAsync();
         }
     }
+
 }
