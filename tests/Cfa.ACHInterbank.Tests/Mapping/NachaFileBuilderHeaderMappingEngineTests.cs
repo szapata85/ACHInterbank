@@ -89,7 +89,7 @@ public class NachaFileBuilderHeaderMappingEngineTests
 
         await sut.BuildNachaFileAsync([100], CancellationToken.None);
 
-        renderer.Verify(x => x.RenderRecordAsync("1", It.IsAny<IReadOnlyDictionary<string, object?>>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
+        renderer.Verify(x => x.RenderRecordAsync("1", It.IsAny<Dictionary<string, object?>>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
         renderer.Verify(x => x.RenderRecordAsync("1", It.IsAny<object>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
     }
 
@@ -104,7 +104,7 @@ public class NachaFileBuilderHeaderMappingEngineTests
 
         await sut.BuildNachaFileAsync([100], CancellationToken.None);
 
-        renderer.Verify(x => x.RenderRecordAsync("5", It.IsAny<IReadOnlyDictionary<string, object?>>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
+        renderer.Verify(x => x.RenderRecordAsync("5", It.IsAny<Dictionary<string, object?>>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
         renderer.Verify(x => x.RenderRecordAsync("5", It.IsAny<object>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
     }
 

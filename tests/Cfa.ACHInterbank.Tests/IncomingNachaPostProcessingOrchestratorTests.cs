@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Xunit;
@@ -87,6 +88,35 @@ public class IncomingNachaPostProcessingOrchestratorTests
 
     private static void SeedDispatchItem(AchDbContext context)
     {
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, HolidayStrategy = "Colombian" });
+        context.ClearingHouses.Add(new ClearingHouse
+        {
+            Id = 1,
+            Name = "ACH Colombia",
+            Code = "ACH",
+            OriginCode = "12345678",
+            ClearingHouseId = 1
+        });
+        context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog
+        {
+            Id = 1,
+            Term = "PAGOS",
+            Description = "Pagos",
+            StandardEntryClassCode = "PPD",
+            IsActive = true
+        });
+        var fi = new FinancialInstitution
+        {
+            Id = 1,
+            Name = "Banco Test",
+            RoutingNumber = "12345",
+            TransitCode = "678",
+            IsDefaultSource = true,
+            Status = FinancialInstitutionStatus.Active
+        };
+        fi.CalculateCheckDigit();
+        context.FinancialInstitutions.Add(fi);
+
         var ingestion = new IncomingNachaFileIngestion
         {
             Id = Guid.NewGuid(),
@@ -158,9 +188,13 @@ public class IncomingNachaPostProcessingOrchestratorTests
 
     private static AchDbContext BuildContext()
     {
+        var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
         var options = new DbContextOptionsBuilder<AchDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseSqlite(connection)
             .Options;
-        return new AchDbContext(options);
+        var context = new AchDbContext(options);
+        context.Database.EnsureCreated();
+        return context;
     }
 }

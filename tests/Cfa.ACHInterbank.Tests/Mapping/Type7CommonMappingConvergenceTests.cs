@@ -134,7 +134,7 @@ public class Type7CommonMappingConvergenceTests
             ClearingHouse = new ClearingHouse { Name = "ACH Colombia", OriginCode = "12345678" }
         };
 
-        var addenda = new AchTransactionAddenda { AddendaType = "05", Purpose = "PAGO", SequenceNumber = 1 };
+        var addenda = new AchTransactionAddenda { AddendaType = "05", Purpose = "PAGOS", SequenceNumber = 1 };
         var tx = new AchTransaction
         {
             Id = 10,

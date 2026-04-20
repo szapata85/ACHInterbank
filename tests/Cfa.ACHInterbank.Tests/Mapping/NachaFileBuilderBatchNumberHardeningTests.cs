@@ -7,6 +7,7 @@ using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using FluentAssertions;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -96,6 +97,8 @@ public class NachaFileBuilderBatchNumberHardeningTests
             .ReturnsAsync([(Term: "PAGOS", StandardEntryClassCode: "PPD")]);
         validation.Setup(x => x.ValidateTransactionsForSendAsync(It.IsAny<IReadOnlyList<AchTransaction>>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         semantic.Setup(x => x.Validate(It.IsAny<string>(), It.IsAny<NachaBuildContext>()));
+        resolver.Setup(x => x.ResolveAsync(It.IsAny<NachaConfigResolutionRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NachaConfigResolutionResult { Success = false, Trace = [], Warnings = [] });
 
         renderer.Setup(x => x.RenderRecordAsync("1", It.IsAny<object>(), It.IsAny<NachaRecordLayout>())).ReturnsAsync(new string('1', 106));
         renderer.Setup(x => x.RenderRecordAsync("6", It.IsAny<object>(), It.IsAny<NachaRecordLayout>())).ReturnsAsync(new string('6', 106));
@@ -118,8 +121,9 @@ public class NachaFileBuilderBatchNumberHardeningTests
             EnableRecord8MappingEngine = true
         });
 
-        var dbOptions = new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        var dbOptions = new DbContextOptionsBuilder<AchDbContext>().UseSqlite(CreateOpenConnection()).Options;
         var db = new AchDbContext(dbOptions);
+        db.Database.EnsureCreated();
 
         var sut = new NachaFileBuilder(db, holiday.Object, loader.Object, validation.Object, renderer.Object, recordProvider.Object, semantic.Object,
             resolver.Object, null, null, null, null, null, null, options, null, batchGenerator.Object);
@@ -128,4 +132,11 @@ public class NachaFileBuilderBatchNumberHardeningTests
     }
 
     private sealed record SutSetup(NachaFileBuilder Sut, Mock<INachaFixedWidthRecordRenderer> Renderer, Mock<IBatchNumberGenerator> BatchGenerator);
+
+    private static SqliteConnection CreateOpenConnection()
+    {
+        var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+        return connection;
+    }
 }

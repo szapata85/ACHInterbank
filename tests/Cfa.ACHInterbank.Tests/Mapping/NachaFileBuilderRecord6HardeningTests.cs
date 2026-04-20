@@ -81,7 +81,7 @@ public class NachaFileBuilderRecord6HardeningTests
 
         await sut.BuildNachaFileAsync([100], CancellationToken.None);
 
-        renderer.Verify(x => x.RenderRecordAsync("6", It.IsAny<IReadOnlyDictionary<string, object?>>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
+        renderer.Verify(x => x.RenderRecordAsync("6", It.IsAny<Dictionary<string, object?>>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
         renderer.Verify(x => x.RenderRecordAsync("6", It.IsAny<object>(), It.IsAny<NachaRecordLayout>()), Times.AtLeastOnce);
     }
 

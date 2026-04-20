@@ -5,11 +5,8 @@ using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Persistence.Integrations.Services;
-using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Hosting;
 using Xunit;
 
 namespace Cfa.ACHInterbank.Tests;
@@ -29,8 +26,8 @@ public class IntegrationMappingEndToEndTests
     {
         await using var fixture = await IntegrationFixture.CreateAsync();
         var parameters = await fixture.Catalog.GetMethodParametersAsync(fixture.MethodId);
-        Assert.Contains(parameters, x => x.ParameterPath == "CycleId");
-        Assert.Contains(parameters, x => x.ParameterPath == "Transactions[].Reference");
+        Assert.Contains(parameters, x => x.ParameterPath == "OFIDLOT");
+        Assert.Contains(parameters, x => x.ParameterPath == "OFIDTX");
     }
 
     [Fact]
@@ -39,7 +36,7 @@ public class IntegrationMappingEndToEndTests
         await using var fixture = await IntegrationFixture.CreateAsync();
         var source = await fixture.Catalog.GetSourceCatalogAsync(fixture.MethodId);
         Assert.Contains(source, x => x.FieldPath == "transaction.reference");
-        Assert.Contains(source, x => x.FieldPath == "addenda.information");
+        Assert.Contains(source, x => x.FieldPath == "execution.dateYyyyMMdd");
         Assert.Contains(source, x => x.FieldPath == "cycle.id");
     }
 
@@ -208,8 +205,6 @@ public class IntegrationMappingEndToEndTests
 
         public async Task SeedAsync()
         {
-            await new IntegrationMappingScenarioSeeder(Context, new TestingHostEnvironment()).SeedAsync();
-
             await Catalog.GetMethodsAsync();
             var methods = await Catalog.GetMethodsAsync();
             MethodId = methods.First(x => x.Code == "WSCFAACH.Proc_Contrapartidas").Id;
@@ -271,6 +266,7 @@ public class IntegrationMappingEndToEndTests
             Transaction = new AchTransaction
             {
                 Id = 1001,
+                TransactionExternalId = "TX-1001",
                 AchCycleId = Cycle.Id,
                 AchCycle = Cycle,
                 AchBatch = batch,
@@ -353,11 +349,4 @@ public class IntegrationMappingEndToEndTests
         }
     }
 
-    private sealed class TestingHostEnvironment : IHostEnvironment
-    {
-        public string EnvironmentName { get; set; } = "Testing";
-        public string ApplicationName { get; set; } = "Cfa.ACHInterbank.Tests";
-        public string ContentRootPath { get; set; } = Directory.GetCurrentDirectory();
-        public IFileProvider ContentRootFileProvider { get; set; } = new PhysicalFileProvider(Directory.GetCurrentDirectory());
-    }
 }
