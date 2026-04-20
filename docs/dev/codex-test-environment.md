@@ -111,3 +111,39 @@ Bloqueadores principales vigentes:
 Conclusión de esta fase:
 - El entorno .NET quedó funcional para compilar backend y ejecutar comandos reales.
 - La ejecución de tests filtrados continúa bloqueada por deuda de mantenimiento del proyecto de pruebas (baseline legacy), no por falta de setup.
+
+## 9) Fase de reintegración formal del test project (2026-04-20 UTC)
+
+Comandos ejecutados:
+```bash
+dotnet sln ACHInterbank.sln list
+dotnet sln ACHInterbank.sln add tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj
+dotnet build tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release -v minimal
+dotnet build ACHInterbank.sln -c Release -v minimal
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build -v minimal
+dotnet test ACHInterbank.sln -c Release -v minimal --no-build
+```
+
+Estado inicial confirmado:
+- `tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj` **no estaba listado** en la solución.
+
+Cambios aplicados:
+- Se agregó formalmente el proyecto de pruebas a `ACHInterbank.sln`.
+- Se actualizaron pruebas legacy para alinear contratos actuales (constructores, enums, propiedades removidas, DbSet renombrados, dependencias obligatorias de servicios).
+- Se ajustaron semillas/mocks de pruebas para firmas actuales de servicios transaccionales y de NACHA.
+
+Estado final medido:
+- `dotnet build tests/...csproj -c Release -v minimal`: **OK** (compila).
+- `dotnet build ACHInterbank.sln -c Release -v minimal`: **OK** (incluyendo tests).
+- `dotnet test tests/...csproj -c Release --no-build -v minimal`: **FALLA en runtime** por deuda funcional y de fixtures legacy (no por compilación).
+- `dotnet test ACHInterbank.sln -c Release -v minimal --no-build`: **FALLA** por los mismos tests en runtime.
+
+Fallas runtime dominantes observadas:
+- `FOREIGN KEY constraint failed` en múltiples fixtures/seed de SQLite.
+- `NOT NULL constraint failed: BatchNumberSequences.RowVersion` en flujos de batch number durante generación NACHA.
+- Tests que mockean `AchDbContext` con constructores no compatibles con el contexto actual.
+- Casos que asumen capacidades SQL de SQLite no soportadas (`ORDER BY TimeSpan`).
+
+Conclusión de esta fase:
+- El objetivo principal de reintegración y compilación del proyecto de pruebas existente se cumplió.
+- La siguiente fase es saneamiento de ejecución (asserts/fixtures/infra test data) sobre la suite ya compilable.

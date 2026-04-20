@@ -54,11 +54,11 @@ public class AchBulkBatchQueryAndRetryTests
         );
         await context.SaveChangesAsync();
 
-        var scheduler = new Mock<IAchBulkJobScheduler>();
-        scheduler.Setup(x => x.EnqueueBatchAsync(batch.Id, It.IsAny<long>(), It.IsAny<CancellationToken>()))
+        var dispatcher = new Mock<IBulkIngestionWorkDispatcher>();
+        dispatcher.Setup(x => x.DispatchProcessingAsync(batch.Id, It.IsAny<long>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("job-retry-1");
 
-        var service = new AchBulkBatchRetryService(context, scheduler.Object);
+        var service = new AchBulkBatchRetryService(context, dispatcher.Object);
         var response = await service.RetryAsync(batch.Id, new RetryBatchRequest { Scope = BulkIngestionRetryScopeEnum.FailedOnly }, "ops.user");
 
         Assert.Equal(batch.Id, response.BatchId);

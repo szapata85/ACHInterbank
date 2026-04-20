@@ -27,11 +27,7 @@ public class AchCycleSchedulerTests
         context.ClearingHouseConfigs.Add(new ClearingHouseConfig
         {
             Id = 1,
-            FileHeaderCode = "0",
-            RecordSeparator = "\n",
-            IsFixedLength = true,
-            TotalLength = 106
-        });
+                                                        });
 
         context.ClearingHouses.Add(new ClearingHouse
         {
@@ -79,7 +75,9 @@ public class AchCycleSchedulerTests
         var holidayService = new Mock<IBankHoliday>();
         holidayService.Setup(x => x.GetHolidays(It.IsAny<int>())).Returns([]);
         var provider = new Mock<IServiceProvider>();
-        var scheduler = new AchCycleScheduler(context, holidayService.Object, provider.Object);
+        var cenitPolicy = new Mock<ICenitOperatingCalendarPolicy>();
+        cenitPolicy.Setup(x => x.ValidateCycleConsistencyAsync(It.IsAny<int>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var scheduler = new AchCycleScheduler(context, holidayService.Object, provider.Object, cenitPolicy.Object);
 
         await scheduler.ScheduleCyclesForClearingHouseAsync(1, new DateTime(2026, 03, 23));
 
@@ -111,11 +109,7 @@ public class AchCycleSchedulerTests
         context.ClearingHouseConfigs.Add(new ClearingHouseConfig
         {
             Id = 1,
-            FileHeaderCode = "0",
-            RecordSeparator = "\n",
-            IsFixedLength = true,
-            TotalLength = 106
-        });
+                                                        });
 
         context.ClearingHouses.Add(new ClearingHouse
         {
@@ -167,7 +161,9 @@ public class AchCycleSchedulerTests
         var holidayService = new Mock<IBankHoliday>();
         holidayService.Setup(x => x.GetHolidays(It.IsAny<int>())).Returns([]);
         var provider = new Mock<IServiceProvider>();
-        var scheduler = new AchCycleScheduler(context, holidayService.Object, provider.Object);
+        var cenitPolicy = new Mock<ICenitOperatingCalendarPolicy>();
+        cenitPolicy.Setup(x => x.ValidateCycleConsistencyAsync(It.IsAny<int>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var scheduler = new AchCycleScheduler(context, holidayService.Object, provider.Object, cenitPolicy.Object);
 
         await scheduler.ScheduleCyclesForClearingHouseAsync(1, new DateTime(2026, 02, 10));
 

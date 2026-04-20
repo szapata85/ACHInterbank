@@ -146,7 +146,7 @@ public class AchBulkTransactionServiceTests
         Mock<ITransactionValidator>? validator = null)
     {
         var unitOfWork = new Mock<IUnitOfWork>();
-        unitOfWork.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        unitOfWork.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
         var customerRepository = new Mock<IAchCustomerRepository>();
         customerRepository.Setup(r => r.ResolveDocumentTypeCodeAsync("NIT", It.IsAny<CancellationToken>())).ReturnsAsync("NIT");
@@ -190,6 +190,9 @@ public class AchBulkTransactionServiceTests
         var prenotification = new Mock<IPrenotificationHandler>();
         prenotification.Setup(x => x.HandleAsync(It.IsAny<AchTransactionRequestData>(), It.IsAny<AchTransaction>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
+        var contrapartida = new Mock<IContrapartidaDispatchPersistenceService>();
+        contrapartida.Setup(x => x.EnsurePendingDispatchAsync(It.IsAny<AchTransaction>(), It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(new ContrapartidaDispatchItem());
+
         return new AchBulkTransactionService(
             context,
             unitOfWork.Object,
@@ -202,7 +205,8 @@ public class AchBulkTransactionServiceTests
             {
                 ["Transactions:Bulk:MaxItems"] = "2000",
                 ["Transactions:Bulk:ChunkSize"] = "50"
-            }).Build());
+            }).Build(),
+            contrapartida.Object);
     }
 
     private static BulkAchTransactionRequest BuildRequest(string prefix, int count)
@@ -271,8 +275,8 @@ public class AchBulkTransactionServiceTests
         });
 
         context.FinancialInstitutions.AddRange(
-            new FinancialInstitution { Id = 1, Name = "Origen", RoutingNumber = "00001", TransitCode = "007", CheckDigit = "0", IsDefaultSource = true, Status = FinancialInstitutionStatus.Active },
-            new FinancialInstitution { Id = 2, Name = "Destino", RoutingNumber = "00001", TransitCode = "001", CheckDigit = "0", Status = FinancialInstitutionStatus.Active }
+            new FinancialInstitution { Id = 1, Name = "Origen", RoutingNumber = "00001", TransitCode = "007" , IsDefaultSource = true, Status = FinancialInstitutionStatus.Active },
+            new FinancialInstitution { Id = 2, Name = "Destino", RoutingNumber = "00001", TransitCode = "001" , Status = FinancialInstitutionStatus.Active }
         );
 
         context.SaveChanges();

@@ -116,9 +116,9 @@ public class IntegrationMappingEndToEndTests
         var contract = await fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow);
 
         Assert.NotNull(contract);
-        Assert.Equal(fixture.Cycle.Id, contract!.CycleId);
-        Assert.Single(contract.Transactions);
-        Assert.Equal(fixture.Transaction.Reference, contract.Transactions[0].Reference);
+        Assert.NotNull(contract!.Contract);
+        Assert.Equal(fixture.Transaction.TransactionExternalId, contract.Contract.OFIDTX);
+        Assert.False(string.IsNullOrWhiteSpace(contract.Contract.OFFECHEFEC));
     }
 
     [Fact]

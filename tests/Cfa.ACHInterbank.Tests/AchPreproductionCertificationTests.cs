@@ -8,6 +8,7 @@ using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.External;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
+using Cfa.ACHInterbank.Persistence.ACH.Repositories.Implementation;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.Data.Sqlite;
@@ -47,7 +48,8 @@ public class AchPreproductionCertificationTests
             .Setup(x => x.ResolveClearingHouseForTransactionAsync(2, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("cycle-closed");
 
-        var resolver = new BatchResolver(context, routing.Object, new FixedTimeProvider(new DateTimeOffset(2026, 03, 23, 12, 00, 00, TimeSpan.Zero)));
+        var batchRepo = new AchBatchRepository(context);
+        var resolver = new BatchResolver(context, batchRepo, routing.Object, new FixedTimeProvider(new DateTimeOffset(2026, 03, 23, 12, 00, 00, TimeSpan.Zero)));
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new AchTransactionRequestData
         {
@@ -87,8 +89,11 @@ public class AchPreproductionCertificationTests
 
         var holidayService = new Mock<IBankHoliday>();
         holidayService.Setup(x => x.GetHolidays(It.IsAny<int>())).Returns([]);
-        var recordDataProvider = new Mock<INachaRecordDataProvider>(MockBehavior.Strict);
-        var builder = new NachaFileBuilder(context, holidayService.Object, recordDataProvider.Object, new NachaSemanticValidator());
+        var loader = new NachaDataLoader(context);
+        var validation = new NachaTransactionValidationService(context, holidayService.Object);
+        var renderer = new NachaFixedWidthRecordRenderer();
+        var recordDataProvider = new NachaRecordDataProvider(context);
+        var builder = new NachaFileBuilder(context, holidayService.Object, loader, validation, renderer, recordDataProvider, new NachaSemanticValidator());
 
         var content = await builder.BuildNachaFileAsync([100], CancellationToken.None);
         var expected = BuildExpectedNachaGoldenMaster(type, transactionCode, isPrenotification, amount, recipientIdNumber, receiverName, batchDescription, traceNumber);
@@ -663,13 +668,13 @@ public class AchPreproductionCertificationTests
 
     private static void SeedReferenceData(AchDbContext context)
     {
-        if (!context.DocumentTypeCatalogs.Any())
+        if (!context.DocumentTypes.Any())
         {
-            context.DocumentTypeCatalogs.Add(new DocumentTypeCatalog { Code = "CC", Name = "Cédula" });
-            context.PersonTypeCatalogs.AddRange(
+            context.DocumentTypes.Add(new DocumentTypeCatalog { Code = "CC", Name = "Cédula" });
+            context.PersonTypes.AddRange(
                 new PersonTypeCatalog { Code = "PJ", Name = "Jurídica" },
                 new PersonTypeCatalog { Code = "PN", Name = "Natural" });
-            context.GenderCatalogs.Add(new GenderCatalog { Code = "M", Name = "Masculino" });
+            context.GenderTypes.Add(new GenderCatalog { Code = "M", Name = "Masculino" });
         }
 
         if (!context.ClearingHouseConfigs.Any())
@@ -678,11 +683,7 @@ public class AchPreproductionCertificationTests
             {
                 Id = 1,
                 ClearingHouseId = 1,
-                FileHeaderCode = "0",
-                RecordSeparator = "",
-                IsFixedLength = true,
-                TotalLength = 106,
-                HolidayStrategy = "TEST"
+                                                                                HolidayStrategy = "TEST"
             });
         }
 

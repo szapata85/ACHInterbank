@@ -31,7 +31,7 @@ public class NachaFileBuilderHeaderMappingEngineTests
 
         content.Should().NotBeNullOrWhiteSpace();
         content.Length.Should().BeGreaterThan(0);
-        content.Length.Should().BeMultipleOf(106);
+        (content.Length % 106).Should().Be(0);
         recordMappingEngine.Verify(x => x.MapRecordAsync(It.Is<RecordMappingRequest>(r => r.RecordCode == "1"), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
     }
 

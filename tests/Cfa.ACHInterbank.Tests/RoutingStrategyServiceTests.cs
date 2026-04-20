@@ -95,11 +95,7 @@ public class RoutingStrategyServiceTests
         var config = new ClearingHouseConfig
         {
             Id = 1,
-            FileHeaderCode = "0",
-            RecordSeparator = "\n",
-            IsFixedLength = true,
-            TotalLength = 106
-        };
+                                                        };
 
         var clearingHouse = new ClearingHouse
         {

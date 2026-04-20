@@ -29,11 +29,7 @@ public class AchTraceabilityServiceTests
             arrangeContext.ClearingHouseConfigs.Add(new ClearingHouseConfig
             {
                 Id = 1,
-                FileHeaderCode = "0",
-                RecordSeparator = "\n",
-                IsFixedLength = true,
-                TotalLength = 106
-            });
+                                                                            });
 
             arrangeContext.ClearingHouses.Add(new ClearingHouse
             {

@@ -96,7 +96,7 @@ public class ReportsControllerTests
             .Returns(async (TraceabilityReportFilter _, CancellationToken token) =>
             {
                 await Task.Delay(TimeSpan.FromMinutes(2), token);
-                return new GeneratedReportFile();
+                return new GeneratedReportFile { Content = [0], ContentType = "application/pdf", FileName = "timeout.pdf" };
             });
 
         var controller = CreateController(generator.Object);

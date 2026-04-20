@@ -91,10 +91,10 @@ public class BulkTransactionScenarioSeederTests
         });
 
         context.FinancialInstitutions.AddRange(
-            new FinancialInstitution { Id = 1, Name = "Origen", RoutingNumber = "00001", TransitCode = "007", CheckDigit = "0", IsDefaultSource = true, Status = FinancialInstitutionStatus.Active },
-            new FinancialInstitution { Id = 2, Name = "Destino 1", RoutingNumber = "00001", TransitCode = "001", CheckDigit = "0", Status = FinancialInstitutionStatus.Active },
-            new FinancialInstitution { Id = 3, Name = "Destino 2", RoutingNumber = "00001", TransitCode = "002", CheckDigit = "0", Status = FinancialInstitutionStatus.Active },
-            new FinancialInstitution { Id = 4, Name = "Destino 3", RoutingNumber = "00001", TransitCode = "003", CheckDigit = "0", Status = FinancialInstitutionStatus.Active }
+            new FinancialInstitution { Id = 1, Name = "Origen", RoutingNumber = "00001", TransitCode = "007" , IsDefaultSource = true, Status = FinancialInstitutionStatus.Active },
+            new FinancialInstitution { Id = 2, Name = "Destino 1", RoutingNumber = "00001", TransitCode = "001" , Status = FinancialInstitutionStatus.Active },
+            new FinancialInstitution { Id = 3, Name = "Destino 2", RoutingNumber = "00001", TransitCode = "002" , Status = FinancialInstitutionStatus.Active },
+            new FinancialInstitution { Id = 4, Name = "Destino 3", RoutingNumber = "00001", TransitCode = "003" , Status = FinancialInstitutionStatus.Active }
         );
 
         context.SaveChanges();
