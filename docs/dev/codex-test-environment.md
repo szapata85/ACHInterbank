@@ -977,3 +977,31 @@ Resultados:
 - Build: OK.
 - Certificate/DigitalEnvelope: 11/11.
 - NACHA/Mapping/BatchNumber: 154/154.
+
+## 15) Integración controlada Certificate Management -> Sobre Digital (2026-04-21 UTC)
+
+Comandos ejecutados:
+```bash
+dotnet build ACHInterbank.sln -c Release
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~DigitalEnvelope|FullyQualifiedName~CertificateManagement|FullyQualifiedName~CertificateResolver|FullyQualifiedName~ExportEncrypted" \
+  -v minimal
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" \
+  -v minimal
+```
+
+Resultados:
+- Build solución: OK.
+- Filtro DigitalEnvelope/CertificateManagement/CertificateResolver/ExportEncrypted: 19/19 passed.
+- No regresión NACHA/Mapping/BatchNumber: 154/154 passed.
+
+Notas:
+- Se integró resolver de certificados con opción de Certificate Management + fallback legacy controlado por configuración.
+- No se cambiaron XML/identifier/IV/algoritmos criptográficos del sobre digital en esta fase.

@@ -168,7 +168,7 @@ public class CryptoServiceScoped : ICryptoServiceScoped
     public Task<byte[]> OpenEnvelopeAsync(byte[] contenidoBytes, string FileName)
     {
         //X509Certificate2 certificadoFirmante = _keys.ObtenerCertificate("CertSign");
-        X509Certificate2 certificadoReceptor = _keys.ObtenerCertificate("CertSign");
+        X509Certificate2 certificadoReceptor = _keys.ObtenerCertificate("CertDecrypt");
         string sobre = Encoding.UTF8.GetString(contenidoBytes);
 
 
@@ -231,4 +231,3 @@ public class CryptoServiceScoped : ICryptoServiceScoped
         return Task.FromResult(contenidobytesResp);
     }
 }
-
