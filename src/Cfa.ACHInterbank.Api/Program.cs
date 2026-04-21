@@ -20,6 +20,7 @@ builder.Host.UseNLog();
 //});
 builder.Services.Configure<DigitalEnvelopeOptions>(builder.Configuration.GetSection("DigitalEnvelope"));
 builder.Services.Configure<DigitalEnvelopeCertificateOptions>(builder.Configuration.GetSection("DigitalEnvelope:CertificateResolver"));
+builder.Services.Configure<DigitalEnvelopeSignatureValidationOptions>(builder.Configuration.GetSection("DigitalEnvelope:SignatureValidation"));
 builder.Services.AddSingleton<IDigitalEnvelopePolicy, DigitalEnvelopePolicy>();
 builder.Services.AddWebApi(builder.Configuration)
                 .AddApplication()

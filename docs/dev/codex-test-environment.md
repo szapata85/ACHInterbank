@@ -982,6 +982,12 @@ Resultados:
 
 Comandos ejecutados:
 ```bash
+bash scripts/codex/setup-codex-env.sh
+export DOTNET_ROOT=$HOME/.dotnet
+export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH
+dotnet --info
+dotnet ef --version
+
 dotnet build ACHInterbank.sln -c Release
 
 dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
@@ -1061,3 +1067,35 @@ Resultados (ejecución en este entorno):
 
 Nota CI:
 - `.github/workflows/postgres-integration-tests.yml` sigue manual-only (`workflow_dispatch` + guard de job).
+
+## 18) Digital Envelope signature fail-close phase 1 (2026-04-21 UTC)
+
+Comandos ejecutados:
+```bash
+dotnet build ACHInterbank.sln -c Release
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~Signature|FullyQualifiedName~OpenEnvelope|FullyQualifiedName~DigitalEnvelope|FullyQualifiedName~CertificateResolver|FullyQualifiedName~SecretResolver" \
+  -v minimal
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" \
+  -v minimal
+
+rg -n "Password|PfxPassword|PrivateKey|RawPrivate|SecretRef|Secret|RawData|ToBase64String|Export" \
+  src/Cfa.ACHInterbank.* tests/Cfa.ACHInterbank.Tests -S
+```
+
+Resultados:
+- Build: OK.
+- Filtro Signature/OpenEnvelope/DigitalEnvelope/CertificateResolver/SecretResolver: `21/21 passed`.
+- No regresión NACHA/Mapping/BatchNumber: `154/154 passed`.
+- Workflow PostgreSQL se mantiene manual-only (`workflow_dispatch` + guard de job).
+
+Notas:
+- Se endureció verificación de firma en `OpenEnvelopeAsync` con fail-close configurable.
+- No se modificó XML/identifier/IV/AES/RSA/padding.
