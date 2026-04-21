@@ -1026,6 +1026,12 @@ Ejecución local (sin GitHub Actions):
 
 Comandos ejecutados:
 ```bash
+bash scripts/codex/setup-codex-env.sh
+export DOTNET_ROOT=$HOME/.dotnet
+export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH
+dotnet --info
+dotnet ef --version
+dotnet restore ACHInterbank.sln
 dotnet build ACHInterbank.sln -c Release
 
 dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
@@ -1045,9 +1051,12 @@ rg -n "Password|PfxPassword|PrivateKey|RawPrivate|SecretRef|Secret|RawData|ToBas
 ```
 
 Resultados (ejecución en este entorno):
-- Build solución: bloqueado (`dotnet: command not found`).
-- Filtro SecretRef/SecretResolver/CertificateResolver/DigitalEnvelope/CertificateManagement: bloqueado (`dotnet: command not found`).
-- No regresión NACHA/Mapping/BatchNumber: bloqueado (`dotnet: command not found`).
+- dotnet SDK: `10.0.201`.
+- dotnet-ef: `10.0.7`.
+- Restore solución: OK.
+- Build solución: OK (0 errores, warnings de nulabilidad preexistentes en Persistence).
+- Filtro SecretRef/SecretResolver/CertificateResolver/DigitalEnvelope/CertificateManagement: `24/24 passed`.
+- No regresión NACHA/Mapping/BatchNumber: `154/154 passed`.
 - Escaneo de secretos (`rg`): ejecutado; sin hallazgos inseguros nuevos atribuibles a SecretRef fase 1.
 
 Nota CI:

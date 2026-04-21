@@ -88,9 +88,17 @@ Se agregaron pruebas para:
 - fallback legacy cuando SecretRef falla y está permitido,
 - fallo claro cuando SecretRef falla y fallback está deshabilitado.
 
-Estado de ejecución en este entorno Codex:
-- `dotnet` no está disponible (`dotnet: command not found`), por lo que build/tests quedan bloqueados en esta sesión.
-- La no-regresión NACHA 154/154 debe revalidarse en entorno con SDK .NET 10 instalado.
+Revalidación ejecutada en este entorno Codex (2026-04-21 UTC):
+- Setup: `bash scripts/codex/setup-codex-env.sh`
+- Variables:
+  - `export DOTNET_ROOT=$HOME/.dotnet`
+  - `export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH`
+- `dotnet --info`: SDK `10.0.201`.
+- `dotnet ef --version`: `10.0.7`.
+- `dotnet restore ACHInterbank.sln`: OK.
+- `dotnet build ACHInterbank.sln -c Release`: OK (0 errores, warnings de nulabilidad preexistentes).
+- Filtro SecretRef/SecretResolver/CertificateResolver/DigitalEnvelope/CertificateManagement: `24/24 passed`.
+- No regresión NACHA/Mapping/BatchNumber: `154/154 passed`.
 
 ## 8) Riesgos residuales
 
