@@ -153,7 +153,7 @@ public class CertificateManagementController : ControllerBase
         return secretRef.Length <= 4 ? "****" : $"****{secretRef[^4..]}";
     }
 
-    public sealed class UploadPublicCertificateApiRequest
+    public class UploadPublicCertificateApiRequest
     {
         public string Code { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;

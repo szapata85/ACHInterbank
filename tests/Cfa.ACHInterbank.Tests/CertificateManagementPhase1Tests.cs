@@ -306,7 +306,8 @@ public class CertificateManagementPhase1Tests
         await logger.LogUsageAsync(version.Id, "Encrypt", "op-1", "FAIL", "INVALID_CERT", "proc");
 
         var log = context.CertificateUsageLogs.Single();
-        log.ErrorCode.Should().NotContain("pass", StringComparison.OrdinalIgnoreCase);
+        log.ErrorCode.Should().NotBeNull();
+        log.ErrorCode!.ToLowerInvariant().Should().NotContain("pass");
     }
 
     [Fact]

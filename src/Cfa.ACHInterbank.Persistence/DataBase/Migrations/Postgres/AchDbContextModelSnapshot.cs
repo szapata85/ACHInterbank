@@ -8172,6 +8172,336 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         });
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.CertificateLoadAudit", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("CertificateVersionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LoadSource")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime>("LoadedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LoadedBy")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("ValidationErrorsJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("ValidationResult")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CertificateVersionId");
+
+                    b.HasIndex("LoadedAtUtc");
+
+                    b.ToTable("CertificateLoadAudits", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.CertificateRotationHistory", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("NewVersionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PreviousVersionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("RotatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RotatedBy")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("TicketRef")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NewVersionId");
+
+                    b.HasIndex("PreviousVersionId", "NewVersionId")
+                        .IsUnique();
+
+                    b.ToTable("CertificateRotationHistories", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.CertificateUsageLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("CertificateVersionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ContextJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("CreatedByProcess")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("OperationId")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("OperationType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CertificateVersionId");
+
+                    b.HasIndex("OccurredAtUtc");
+
+                    b.HasIndex("Result");
+
+                    b.ToTable("CertificateUsageLogs", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalCertificate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("IsDeletedLogical")
+                        .HasColumnType("boolean");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("DigitalCertificates", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalCertificateVersion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ActivatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ClearingHouseId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DigitalCertificateId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Environment")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("FileRef")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("FingerprintSha256")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("HasPrivateKey")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("HolderType")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Issuer")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("KeyAlgorithm")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("KeySize")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MaterialType")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("NotAfter")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("NotBefore")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PrivateMaterialStorageMode")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Purpose")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("RawPublicCertificate")
+                        .HasColumnType("bytea");
+
+                    b.Property<int?>("ReplacedByVersionId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("SecretRef")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("SerialNumber")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SignatureAlgorithm")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Thumbprint")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("UploadedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UploadedBy")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("ValidationSummaryJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<int>("VersionNumber")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DigitalCertificateId");
+
+                    b.HasIndex("NotAfter");
+
+                    b.HasIndex("ReplacedByVersionId");
+
+                    b.HasIndex("SerialNumber");
+
+                    b.HasIndex("Thumbprint");
+
+                    b.HasIndex("ClearingHouseId", "Environment", "Purpose", "HolderType")
+                        .IsUnique()
+                        .HasDatabaseName("UX_DCV_Active_Context")
+                        .HasFilter("\"Status\" = 2");
+
+                    b.ToTable("DigitalCertificateVersions", (string)null);
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalEnvelopeCertificate", b =>
                 {
                     b.Property<int>("Id")
@@ -8225,6 +8555,79 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasKey("Id");
 
                     b.ToTable("DigitalEnvelopeCertificates", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalEnvelopeOperationLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int?>("CertificateVersionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ClearingHouseId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("Environment")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("FileNameIn")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("FileNameOut")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("HashEncryptedSha256")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("HashPlainSha256")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Purpose")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<long?>("SizeAfter")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("SizeBefore")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CertificateVersionId");
+
+                    b.HasIndex("OccurredAtUtc", "ClearingHouseId", "Environment", "Purpose", "Result");
+
+                    b.ToTable("DigitalEnvelopeOperationLogs", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.Integrations.IntegrationMappingRule", b =>
@@ -9431,6 +9834,75 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Navigation("SourceReturnTransaction");
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.CertificateLoadAudit", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalCertificateVersion", "CertificateVersion")
+                        .WithMany()
+                        .HasForeignKey("CertificateVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CertificateVersion");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.CertificateRotationHistory", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalCertificateVersion", "NewVersion")
+                        .WithMany()
+                        .HasForeignKey("NewVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalCertificateVersion", "PreviousVersion")
+                        .WithMany()
+                        .HasForeignKey("PreviousVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("NewVersion");
+
+                    b.Navigation("PreviousVersion");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.CertificateUsageLog", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalCertificateVersion", "CertificateVersion")
+                        .WithMany()
+                        .HasForeignKey("CertificateVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CertificateVersion");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalCertificateVersion", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalCertificate", "DigitalCertificate")
+                        .WithMany("Versions")
+                        .HasForeignKey("DigitalCertificateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalCertificateVersion", "ReplacedByVersion")
+                        .WithMany()
+                        .HasForeignKey("ReplacedByVersionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("DigitalCertificate");
+
+                    b.Navigation("ReplacedByVersion");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalEnvelopeOperationLog", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalCertificateVersion", "CertificateVersion")
+                        .WithMany()
+                        .HasForeignKey("CertificateVersionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CertificateVersion");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.Integrations.IntegrationMappingSet", b =>
                 {
                     b.Navigation("History");
@@ -9760,6 +10232,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.PhoneTypeCatalog", b =>
                 {
                     b.Navigation("CustomerPhones");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalCertificate", b =>
+                {
+                    b.Navigation("Versions");
                 });
 #pragma warning restore 612, 618
         }
