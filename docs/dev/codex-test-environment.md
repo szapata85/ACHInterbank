@@ -833,3 +833,57 @@ Resultado inicial:
 - Failed: 25
 - Skipped: 0
 - Observación: las 25 fallas restantes están fuera del alcance de este cierre (deuda legacy transversal, principalmente seeds/FK y queries no portables en otros módulos).
+
+## 13) Implementación fase 1 ExternalFileNamePolicy (2026-04-20 UTC)
+
+Comandos ejecutados:
+```bash
+bash scripts/codex/setup-codex-env.sh
+
+export DOTNET_ROOT=/root/.dotnet
+export PATH=/root/.dotnet:/root/.dotnet/tools:$PATH
+
+dotnet build ACHInterbank.sln -c Release
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release --no-build \
+  --filter "FullyQualifiedName~ExternalFileNamePolicyPhase1Tests|FullyQualifiedName~NachaExportControllerTests|FullyQualifiedName~IncomingNachaIngestionAppServiceTests" -v minimal
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release --no-build \
+  --filter "FullyQualifiedName~BatchNumber|FullyQualifiedName~NachaFileBuilder|FullyQualifiedName~Mapping" -v minimal
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release --no-build \
+  --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" -v minimal
+```
+
+Resultados reales:
+- Build solución: **OK**.
+- Tests de fase 1 filename/integración mínima: **20/20 OK**.
+- No regresión núcleo solicitado: **60/60 OK**.
+- No regresión filtro amplio NACHA/Mapping/BatchNumber: **154/154 OK**.
+
+Alcance/no alcance:
+- Se implementó fase 1 segura con bloqueo parcial controlado.
+- No se ejecutó PostgreSQL harness (fuera de alcance de esta fase).
+- No hubo cambios en frontend ni SOAP E2E.
+
+
+## PostgreSQL Integration Harness (local/CI)
+
+Este entorno Codex **no tiene Docker/Podman**, por lo tanto aquí no se puede validar PostgreSQL real.
+
+Harness creado para ejecución fuera de Codex:
+
+```bash
+bash scripts/test/run-postgres-integration-tests.sh
+```
+
+PowerShell:
+
+```powershell
+.\scripts\test\run-postgres-integration-tests.ps1
+```
+
+El harness levanta `docker-compose.test.yml`, aplica migraciones EF y ejecuta tests PostgreSQL + filtros NACHA de no regresión.

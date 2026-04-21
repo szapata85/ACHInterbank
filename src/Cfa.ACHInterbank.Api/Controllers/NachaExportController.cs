@@ -1,4 +1,6 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
+using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
 using Cfa.ACHInterbank.Api.Encryption;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
@@ -20,6 +22,7 @@ public class NachaExportController : ControllerBase
     private readonly IDigitalEnvelopePolicy _envelopePolicy;
     private readonly INachaFileIdentifierMapService _identifierMapService;
     private readonly IAchFileExportAuditService _fileExportAuditService;
+    private readonly IExternalFileNamePolicy _externalFileNamePolicy;
 
     public NachaExportController(
         INachaFileBuilder nachaBuilder,
@@ -28,7 +31,8 @@ public class NachaExportController : ControllerBase
         IClearingHouseService clearingHouseService,
         IDigitalEnvelopePolicy envelopePolicy,
         INachaFileIdentifierMapService identifierMapService,
-        IAchFileExportAuditService fileExportAuditService)
+        IAchFileExportAuditService fileExportAuditService,
+        IExternalFileNamePolicy externalFileNamePolicy)
     {
         _nachaBuilder = nachaBuilder;
         _crypto = crypto;
@@ -37,6 +41,7 @@ public class NachaExportController : ControllerBase
         _envelopePolicy = envelopePolicy;
         _identifierMapService = identifierMapService;
         _fileExportAuditService = fileExportAuditService;
+        _externalFileNamePolicy = externalFileNamePolicy;
     }
     /// <summary>
     /// Endpoint de la API ACH Interbank.
@@ -61,8 +66,10 @@ public class NachaExportController : ControllerBase
             }
 
             string nachaContent = await _nachaBuilder.BuildNachaFileByCycleAsync(cycleId, ct);
-            string fileName = BuildNachaFileName(clearingHouse, cycle);
-            string normalizedNachaContent = await NormalizeFileHeaderIdentifierForCenitAsync(nachaContent, clearingHouse, fileName, ct);
+            string legacyFileName = BuildNachaFileName(clearingHouse, cycle);
+            string normalizedNachaContent = await NormalizeFileHeaderIdentifierForCenitAsync(nachaContent, clearingHouse, legacyFileName, ct);
+            var fileNamePolicyResult = await GenerateAndEnforceExternalFileNamePolicyAsync(cycle, clearingHouse, legacyFileName, normalizedNachaContent, ct);
+            string fileName = fileNamePolicyResult.ExternalFileName;
             await _fileExportAuditService.RecordGeneratedFileAsync(
                 cycle.Id,
                 cycle.ClearingHouseId,
@@ -108,8 +115,10 @@ public class NachaExportController : ControllerBase
                 return NotFound();
             }
 
-            string fileName = BuildNachaFileName(clearingHouse, cycle);
-            string normalizedNachaContent = await NormalizeFileHeaderIdentifierForCenitAsync(nachaContent, clearingHouse, fileName, ct);
+            string legacyFileName = BuildNachaFileName(clearingHouse, cycle);
+            string normalizedNachaContent = await NormalizeFileHeaderIdentifierForCenitAsync(nachaContent, clearingHouse, legacyFileName, ct);
+            var fileNamePolicyResult = await GenerateAndEnforceExternalFileNamePolicyAsync(cycle, clearingHouse, legacyFileName, normalizedNachaContent, ct);
+            string fileName = fileNamePolicyResult.ExternalFileName;
             await _fileExportAuditService.RecordGeneratedFileAsync(
                 cycle.Id,
                 cycle.ClearingHouseId,
@@ -227,5 +236,40 @@ public class NachaExportController : ControllerBase
         return Enumerable.Range(0, nachaContent.Length / 106)
             .Select(index => nachaContent[index * 106])
             .Count(recordType => recordType == '6');
+    }
+
+    private async Task<ExternalFileNamePolicyResult> GenerateAndEnforceExternalFileNamePolicyAsync(
+        AchCycleDto cycle,
+        ClearingHouseDto clearingHouse,
+        string legacyFileName,
+        string nachaContent,
+        CancellationToken ct)
+    {
+        var isAch = string.Equals(clearingHouse.Code, "ACH", StringComparison.OrdinalIgnoreCase);
+        var context = new ExternalFileNameContext
+        {
+            ClearingHouseId = clearingHouse.Id,
+            ClearingHouseCode = clearingHouse.Code,
+            ClearingHouseOriginCode = clearingHouse.OriginCode,
+            CycleId = cycle.Id,
+            CycleName = cycle.CycleName,
+            ProcessingDate = cycle.ProcessingDate,
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound,
+            ProvidedExternalFileName = isAch ? null : legacyFileName,
+            InternalFileName = legacyFileName,
+            NachaContent = nachaContent,
+            RequestedBy = User?.Identity?.Name ?? "system"
+        };
+
+        var result = await _externalFileNamePolicy.GenerateExternalNameAsync(context, ct);
+        if (result.Validation.IsHardBlocked)
+        {
+            var details = string.Join(" | ", result.Validation.Issues.Select(x => $"{x.RuleCode}:{x.Message}"));
+            throw new InvalidOperationException($"Error Fatal ID: External filename validation failed. {details}");
+        }
+
+        return result;
     }
 }

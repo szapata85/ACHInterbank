@@ -3,6 +3,8 @@ using System.Text;
 using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
+using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -18,6 +20,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
     private readonly IIncomingNachaCycleResolver _cycleResolver;
     private readonly INachaParserService _parserService;
     private readonly IIncomingNachaPostParseProcessor _postParseProcessor;
+    private readonly IExternalFileNamePolicy _externalFileNamePolicy;
     private readonly ILogger<IncomingNachaIngestionAppService> _logger;
 
     public IncomingNachaIngestionAppService(
@@ -25,12 +28,14 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         IIncomingNachaCycleResolver cycleResolver,
         INachaParserService parserService,
         IIncomingNachaPostParseProcessor postParseProcessor,
+        IExternalFileNamePolicy externalFileNamePolicy,
         ILogger<IncomingNachaIngestionAppService> logger)
     {
         _context = context;
         _cycleResolver = cycleResolver;
         _parserService = parserService;
         _postParseProcessor = postParseProcessor;
+        _externalFileNamePolicy = externalFileNamePolicy;
         _logger = logger;
     }
 
@@ -202,6 +207,44 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         ingestion.ParsingStatus = IncomingNachaParsingStatus.EnProceso;
         await _context.SaveChangesAsync(ct);
 
+        var policyContext = new ExternalFileNameContext
+        {
+            ClearingHouseId = ingestion.ResolvedClearingHouseId ?? 0,
+            ClearingHouseCode = await ResolveClearingHouseCodeAsync(ingestion.ResolvedClearingHouseId, ct),
+            ProcessingDate = ingestion.OperationalDate ?? DateTime.UtcNow.Date,
+            ExternalFileType = ExternalFileType.NachaIn,
+            Flow = ExternalFileFlow.Recepcion,
+            Direction = ExternalFileDirection.Inbound,
+            ProvidedExternalFileName = request.FileName,
+            InternalFileName = request.FileName,
+            NachaContent = Encoding.UTF8.GetString(fileBytes),
+            FileHash = fileHash,
+            FileSize = fileBytes.LongLength,
+            CycleId = ingestion.ResolvedAchCycleId,
+            RequestedBy = request.RequestedBy ?? "system"
+        };
+
+        var policyResult = await _externalFileNamePolicy.GenerateExternalNameAsync(policyContext, ct);
+        if (policyResult.Validation.IsHardBlocked)
+        {
+            ingestion.IngestionStatus = IncomingNachaIngestionStatus.Bloqueado;
+            ingestion.ParsingStatus = IncomingNachaParsingStatus.NoEjecutado;
+            _context.IncomingNachaFileProcessingResults.Add(new IncomingNachaFileProcessingResult
+            {
+                IncomingNachaFileIngestionId = ingestion.Id,
+                AttemptNumber = 1,
+                StartedAtUtc = DateTime.UtcNow,
+                FinishedAtUtc = DateTime.UtcNow,
+                OutcomeStatus = IncomingNachaProcessingOutcomeStatus.BloqueadoAmbiguo,
+                FailureStage = "ExternalFileNamePolicy",
+                ErrorCount = policyResult.Validation.Issues.Count,
+                ParserErrorsJson = JsonSerializer.Serialize(policyResult.Validation.Issues.Select(x => x.Message).ToArray()),
+                IsReprocessable = true
+            });
+            await _context.SaveChangesAsync(ct);
+            return BuildResponse(ingestion, null, policyResult.Validation.Issues.Select(x => x.Message).ToArray());
+        }
+
         var processingResult = new IncomingNachaFileProcessingResult
         {
             IncomingNachaFileIngestionId = ingestion.Id,
@@ -335,5 +378,19 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         }
 
         return [content];
+    }
+
+    private async Task<string> ResolveClearingHouseCodeAsync(int? clearingHouseId, CancellationToken ct)
+    {
+        if (!clearingHouseId.HasValue)
+        {
+            return string.Empty;
+        }
+
+        return await _context.ClearingHouses
+            .AsNoTracking()
+            .Where(x => x.Id == clearingHouseId.Value)
+            .Select(x => x.Code)
+            .FirstOrDefaultAsync(ct) ?? string.Empty;
     }
 }

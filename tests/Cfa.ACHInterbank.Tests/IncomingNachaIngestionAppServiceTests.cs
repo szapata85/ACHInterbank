@@ -1,5 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -35,7 +37,7 @@ public class IncomingNachaIngestionAppServiceTests
         parser.Setup(x => x.ParseAndSaveDetailedAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<NachaParseRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new NachaParseResult { TotalBatches = 1, TotalEntries = 2, TotalAddendas = 1, ErrorCount = 0, WarningCount = 0, Failures = [] });
 
-        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, parser.Object, Mock.Of<IIncomingNachaPostParseProcessor>(), Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
+        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, parser.Object, Mock.Of<IIncomingNachaPostParseProcessor>(), BuildExternalPolicyMock().Object, Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
 
         var response = await sut.IngestAsync(new IncomingNachaIngestionRequest
         {
@@ -68,7 +70,7 @@ public class IncomingNachaIngestionAppServiceTests
 
         var resolver = new Mock<IIncomingNachaCycleResolver>();
         var parser = new Mock<INachaParserService>();
-        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, parser.Object, Mock.Of<IIncomingNachaPostParseProcessor>(), Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
+        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, parser.Object, Mock.Of<IIncomingNachaPostParseProcessor>(), BuildExternalPolicyMock().Object, Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
 
         var response = await sut.IngestAsync(new IncomingNachaIngestionRequest
         {
@@ -96,7 +98,7 @@ public class IncomingNachaIngestionAppServiceTests
                 Errors = ["Múltiples candidatos"]
             });
 
-        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, Mock.Of<INachaParserService>(), Mock.Of<IIncomingNachaPostParseProcessor>(), Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
+        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, Mock.Of<INachaParserService>(), Mock.Of<IIncomingNachaPostParseProcessor>(), BuildExternalPolicyMock().Object, Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
 
         var response = await sut.IngestAsync(new IncomingNachaIngestionRequest { FileStream = BuildStream(), FileName = "amb.ach" });
 
@@ -118,7 +120,7 @@ public class IncomingNachaIngestionAppServiceTests
                 Errors = ["Sin ciclo candidato"]
             });
 
-        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, Mock.Of<INachaParserService>(), Mock.Of<IIncomingNachaPostParseProcessor>(), Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
+        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, Mock.Of<INachaParserService>(), Mock.Of<IIncomingNachaPostParseProcessor>(), BuildExternalPolicyMock().Object, Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
         var response = await sut.IngestAsync(new IncomingNachaIngestionRequest { FileStream = BuildStream(), FileName = "sin.ach" });
 
         Assert.Equal(IncomingNachaIngestionStatus.PendienteResolucion, response.IngestionStatus);
@@ -128,7 +130,7 @@ public class IncomingNachaIngestionAppServiceTests
     public async Task IngestAsync_ForceReprocess_RequiresBaseIngestion()
     {
         using var context = BuildContext();
-        var sut = new IncomingNachaIngestionAppService(context, Mock.Of<IIncomingNachaCycleResolver>(), Mock.Of<INachaParserService>(), Mock.Of<IIncomingNachaPostParseProcessor>(), Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
+        var sut = new IncomingNachaIngestionAppService(context, Mock.Of<IIncomingNachaCycleResolver>(), Mock.Of<INachaParserService>(), Mock.Of<IIncomingNachaPostParseProcessor>(), BuildExternalPolicyMock().Object, Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
 
         await Assert.ThrowsAsync<ArgumentException>(() => sut.IngestAsync(new IncomingNachaIngestionRequest
         {
@@ -174,7 +176,7 @@ public class IncomingNachaIngestionAppServiceTests
         parser.Setup(x => x.ParseAndSaveDetailedAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<NachaParseRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new NachaParseResult());
 
-        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, parser.Object, Mock.Of<IIncomingNachaPostParseProcessor>(), Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
+        var sut = new IncomingNachaIngestionAppService(context, resolver.Object, parser.Object, Mock.Of<IIncomingNachaPostParseProcessor>(), BuildExternalPolicyMock().Object, Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
         var response = await sut.IngestAsync(new IncomingNachaIngestionRequest
         {
             FileStream = BuildStream(),
@@ -204,5 +206,19 @@ public class IncomingNachaIngestionAppServiceTests
     private static MemoryStream BuildStream()
     {
         return new MemoryStream(System.Text.Encoding.UTF8.GetBytes(new string('1', 106)));
+    }
+
+    private static Mock<IExternalFileNamePolicy> BuildExternalPolicyMock()
+    {
+        var mock = new Mock<IExternalFileNamePolicy>();
+        mock.Setup(x => x.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ExternalFileNameContext context, CancellationToken _) => new ExternalFileNamePolicyResult
+            {
+                ExternalFileName = context.ProvidedExternalFileName ?? context.InternalFileName ?? "incoming.txt",
+                Validation = new ExternalFileNameValidationResult { Disposition = ExternalFileValidationDisposition.Passed },
+                CorrelationEvidence = new ExternalFileNameCorrelationEvidence(),
+                Components = new ExternalFileNameComponents { FullName = context.ProvidedExternalFileName ?? "incoming.txt" }
+            });
+        return mock;
     }
 }

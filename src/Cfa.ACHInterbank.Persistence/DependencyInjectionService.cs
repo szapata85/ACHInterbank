@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Mapping;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -91,6 +92,10 @@ public static class DependencyInjectionService
         });
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+        services.AddScoped<IExternalFileNameSequenceProvider, PostgresExternalFileNameSequenceService>();
+        services.AddScoped<IExternalFileNameSequenceProvider, SqlServerExternalFileNameSequenceService>();
+        services.AddScoped<IExternalFileNameSequenceProvider, EfGenericExternalFileNameSequenceService>();
 
         services.AddQuartz(q =>
         {
