@@ -1005,3 +1005,19 @@ Resultados:
 Notas:
 - Se integró resolver de certificados con opción de Certificate Management + fallback legacy controlado por configuración.
 - No se cambiaron XML/identifier/IV/algoritmos criptográficos del sobre digital en esta fase.
+
+## 16) GitHub Actions PostgreSQL manual-only (2026-04-21 UTC)
+
+Se ajustó `.github/workflows/postgres-integration-tests.yml` para ejecución **manual-only**:
+- Trigger único: `workflow_dispatch`.
+- Sin triggers automáticos por `push`, `pull_request`, `schedule`, `workflow_run`, `pull_request_target`.
+- Guard adicional a nivel de job:
+  - `if: github.event_name == 'workflow_dispatch'`
+
+Ejecución manual en GitHub:
+1. Actions → `postgres-integration-tests`.
+2. `Run workflow`.
+
+Ejecución local (sin GitHub Actions):
+- `bash scripts/test/run-postgres-integration-tests.sh`
+- `.\scripts\test\run-postgres-integration-tests.ps1`

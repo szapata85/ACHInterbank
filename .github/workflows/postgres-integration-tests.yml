@@ -2,17 +2,10 @@ name: postgres-integration-tests
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'docker-compose.test.yml'
-      - '.env.test.example'
-      - 'scripts/test/**'
-      - '.github/workflows/postgres-integration-tests.yml'
 
 jobs:
   postgres-integration:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     services:
