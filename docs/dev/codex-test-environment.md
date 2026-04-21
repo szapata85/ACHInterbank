@@ -1021,3 +1021,34 @@ Ejecución manual en GitHub:
 Ejecución local (sin GitHub Actions):
 - `bash scripts/test/run-postgres-integration-tests.sh`
 - `.\scripts\test\run-postgres-integration-tests.ps1`
+
+## 17) SecretRef resolver phase 1 (2026-04-21 UTC)
+
+Comandos ejecutados:
+```bash
+dotnet build ACHInterbank.sln -c Release
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~SecretRef|FullyQualifiedName~SecretResolver|FullyQualifiedName~CertificateResolver|FullyQualifiedName~DigitalEnvelope|FullyQualifiedName~CertificateManagement" \
+  -v minimal
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" \
+  -v minimal
+
+rg -n "Password|PfxPassword|PrivateKey|RawPrivate|SecretRef|Secret|RawData|ToBase64String|Export" \
+  src/Cfa.ACHInterbank.* tests/Cfa.ACHInterbank.Tests -S
+```
+
+Resultados (ejecución en este entorno):
+- Build solución: bloqueado (`dotnet: command not found`).
+- Filtro SecretRef/SecretResolver/CertificateResolver/DigitalEnvelope/CertificateManagement: bloqueado (`dotnet: command not found`).
+- No regresión NACHA/Mapping/BatchNumber: bloqueado (`dotnet: command not found`).
+- Escaneo de secretos (`rg`): ejecutado; sin hallazgos inseguros nuevos atribuibles a SecretRef fase 1.
+
+Nota CI:
+- `.github/workflows/postgres-integration-tests.yml` sigue manual-only (`workflow_dispatch` + guard de job).

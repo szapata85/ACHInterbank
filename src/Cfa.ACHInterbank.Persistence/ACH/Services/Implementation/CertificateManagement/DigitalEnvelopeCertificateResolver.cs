@@ -16,6 +16,7 @@ public class DigitalEnvelopeCertificateResolver : IDigitalEnvelopeCertificateRes
     private readonly ICertificateSelectionService _certificateSelectionService;
     private readonly IDigitalEnvelopeCertificateRepository _legacyRepository;
     private readonly ICertificateUsageLogger _certificateUsageLogger;
+    private readonly ICertificateSecretResolver _certificateSecretResolver;
     private readonly AchDbContext _context;
     private readonly DigitalEnvelopeCertificateOptions _options;
     private readonly ILogger<DigitalEnvelopeCertificateResolver> _logger;
@@ -24,6 +25,7 @@ public class DigitalEnvelopeCertificateResolver : IDigitalEnvelopeCertificateRes
         ICertificateSelectionService certificateSelectionService,
         IDigitalEnvelopeCertificateRepository legacyRepository,
         ICertificateUsageLogger certificateUsageLogger,
+        ICertificateSecretResolver certificateSecretResolver,
         AchDbContext context,
         IOptions<DigitalEnvelopeCertificateOptions> options,
         ILogger<DigitalEnvelopeCertificateResolver> logger)
@@ -31,6 +33,7 @@ public class DigitalEnvelopeCertificateResolver : IDigitalEnvelopeCertificateRes
         _certificateSelectionService = certificateSelectionService;
         _legacyRepository = legacyRepository;
         _certificateUsageLogger = certificateUsageLogger;
+        _certificateSecretResolver = certificateSecretResolver;
         _context = context;
         _logger = logger;
         _options = options.Value ?? new DigitalEnvelopeCertificateOptions();
@@ -108,6 +111,15 @@ public class DigitalEnvelopeCertificateResolver : IDigitalEnvelopeCertificateRes
 
         if (version == null || version.RawPublicCertificate == null || version.RawPublicCertificate.Length == 0)
         {
+            if (descriptor.RequiresPrivateKey && !string.IsNullOrWhiteSpace(version?.SecretRef))
+            {
+                var fromSecret = await TryResolvePrivateFromSecretRefAsync(descriptor, selected, version!, warnings, cancellationToken);
+                if (fromSecret != null)
+                {
+                    return fromSecret;
+                }
+            }
+
             warnings.Add("Certificate Management no tiene material de certificado utilizable para el propósito solicitado.");
             return null;
         }
@@ -115,6 +127,15 @@ public class DigitalEnvelopeCertificateResolver : IDigitalEnvelopeCertificateRes
         var cert = TryLoadCertificate(version.RawPublicCertificate, descriptor.RequiresPrivateKey);
         if (cert == null || (descriptor.RequiresPrivateKey && !cert.HasPrivateKey))
         {
+            if (descriptor.RequiresPrivateKey && !string.IsNullOrWhiteSpace(version.SecretRef))
+            {
+                var fromSecret = await TryResolvePrivateFromSecretRefAsync(descriptor, selected, version, warnings, cancellationToken);
+                if (fromSecret != null)
+                {
+                    return fromSecret;
+                }
+            }
+
             warnings.Add("Certificate Management no tiene private key material disponible para este propósito.");
             return null;
         }
@@ -139,6 +160,52 @@ public class DigitalEnvelopeCertificateResolver : IDigitalEnvelopeCertificateRes
             selected.Thumbprint,
             selected.SerialNumber,
             selected.Subject,
+            null,
+            null,
+            warnings);
+    }
+
+    private async Task<DigitalEnvelopeCertificateResolutionResult?> TryResolvePrivateFromSecretRefAsync(
+        (CertificatePurpose Purpose, CertificateHolderType HolderType, bool RequiresPrivateKey, DigitalEnvelopeCertificateType LegacyType, string OperationType) descriptor,
+        CertificateVersionDto selected,
+        DigitalCertificateVersion version,
+        List<string> warnings,
+        CancellationToken cancellationToken)
+    {
+        var request = new CertificateSecretResolutionRequest(
+            selected.Id,
+            descriptor.Purpose,
+            version.PrivateMaterialStorageMode,
+            version.SecretRef!,
+            "DigitalEnvelopeCertificateResolver");
+
+        var secretResolution = await _certificateSecretResolver.ResolveAsync(request, cancellationToken);
+        if (!secretResolution.Success || secretResolution.Material == null || !secretResolution.Material.HasPrivateKey)
+        {
+            warnings.Add($"SecretRef no resoluble para private key ({secretResolution.ErrorCode ?? "SECRET_RESOLUTION_FAILED"}) {secretResolution.SecretRefMasked}.");
+            return null;
+        }
+
+        await _certificateUsageLogger.LogUsageAsync(
+            selected.Id,
+            descriptor.OperationType,
+            Guid.NewGuid().ToString("N"),
+            "SUCCESS",
+            null,
+            "DigitalEnvelopeCertificateResolver",
+            cancellationToken);
+
+        await LogResolutionAsync(descriptor, selected.Id, "SUCCESS", null, cancellationToken);
+
+        return new DigitalEnvelopeCertificateResolutionResult(
+            true,
+            secretResolution.Material.Certificate,
+            selected.Id,
+            DigitalEnvelopeCertificateSource.CertificateManagement,
+            descriptor.Purpose,
+            secretResolution.Material.Thumbprint,
+            secretResolution.Material.SerialNumber,
+            secretResolution.Material.Subject,
             null,
             null,
             warnings);

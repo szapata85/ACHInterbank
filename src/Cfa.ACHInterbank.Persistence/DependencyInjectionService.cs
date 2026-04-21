@@ -26,6 +26,7 @@ public static class DependencyInjectionService
     {
         services.Configure<TransactionPolicyOptions>(configuration.GetSection("TransactionPolicies"));
         services.Configure<NachaGenerationOptions>(configuration.GetSection(NachaGenerationOptions.SectionName));
+        services.Configure<CertificateSecretResolverOptions>(configuration.GetSection("DigitalEnvelope:CertificateSecretResolver"));
         //services.AddDbContext<DataBaseService>(options => options.UseAseClient(configuration.GetConnectionString("SybaseConnection")));
 
         //using (var connection = new AseConnection(""))
@@ -103,6 +104,13 @@ public static class DependencyInjectionService
         services.AddScoped<ICertificateSecretProtector, ACH.Services.Implementation.CertificateManagement.CertificateSecretProtectorService>();
         services.AddScoped<ICertificateAuditService, ACH.Services.Implementation.CertificateManagement.CertificateAuditService>();
         services.AddScoped<ICertificateUsageLogger, ACH.Services.Implementation.CertificateManagement.CertificateUsageLoggerService>();
+        services.AddSingleton<IInMemoryCertificateSecretStore, ACH.Services.Implementation.CertificateManagement.InMemoryCertificateSecretStore>();
+        services.AddScoped<ICertificateSecretProvider, ACH.Services.Implementation.CertificateManagement.InMemoryCertificateSecretProvider>();
+        services.AddScoped<ICertificateSecretProvider, ACH.Services.Implementation.CertificateManagement.ExternalSecretReferenceCertificateProvider>();
+        services.AddScoped<ICertificateSecretProvider, ACH.Services.Implementation.CertificateManagement.KeyVaultCertificateSecretProvider>();
+        services.AddScoped<ICertificateSecretProvider, ACH.Services.Implementation.CertificateManagement.HsmCertificateSecretProvider>();
+        services.AddScoped<ICertificateSecretProviderResolver, ACH.Services.Implementation.CertificateManagement.CertificateSecretProviderResolver>();
+        services.AddScoped<ICertificateSecretResolver, ACH.Services.Implementation.CertificateManagement.CertificateSecretResolver>();
 
         services.AddScoped<IExternalFileNameSequenceProvider, PostgresExternalFileNameSequenceService>();
         services.AddScoped<IExternalFileNameSequenceProvider, SqlServerExternalFileNameSequenceService>();
