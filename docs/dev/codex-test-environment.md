@@ -891,3 +891,38 @@ El harness levanta `docker-compose.test.yml`, aplica migraciones EF y ejecuta te
 ## Certificate Management Phase 1
 - Nuevas pruebas: `CertificateManagementPhase1Tests`.
 - Ejecutar: `dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~CertificateManagementPhase1Tests"`.
+
+## 13) Revalidación Prompt 5B (2026-04-21 UTC)
+
+Comandos ejecutados (exactos):
+```bash
+export DOTNET_ROOT=$HOME/.dotnet
+export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH
+
+dotnet --info
+dotnet ef --version
+ls -la src/Cfa.ACHInterbank.Persistence/DataBase/Migrations/Postgres | grep Certificate
+dotnet ef migrations list \
+  --project src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj \
+  --startup-project src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj \
+  --context AchDbContext
+rg -n "Password|PfxPassword|PrivateKey|RawPrivate|SecretRef|Secret|RawData|ToBase64String|Export" src/Cfa.ACHInterbank.* tests/Cfa.ACHInterbank.Tests -S
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~Certificate|FullyQualifiedName~DigitalEnvelope" -v minimal
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" -v minimal
+
+dotnet test ACHInterbank.sln -c Release --no-build -v minimal
+
+git diff -- src/Cfa.ACHInterbank.Application/ACHSobreDigital/Implementation/CryptoServiceScoped.cs
+git diff -- src/Cfa.ACHInterbank.Application/Services/EncryptionService/Implementations/RsaKeyProvider.cs
+```
+
+Resultados:
+- Tooling: dotnet SDK `10.0.201`, `dotnet-ef 10.0.6`.
+- Migración EF: `grep Certificate` sin resultados; `migrations list` solo muestra `20260420215632_AddExternalFileNamePolicyPhase1` y no puede confirmar aplicadas por falta de conexión Postgres local.
+- Seguridad secretos (scope Certificate Management): sin hallazgos inseguros nuevos; `SecretRef` enmascarado, password no expuesto por DTO/API.
+- Tests Certificate/DigitalEnvelope: **11/11 passed**.
+- No regresión NACHA (`Nacha|Mapping|BatchNumber`): **154/154 passed**.
+- Suite completa: **278 total / 253 passed / 25 failed / 0 skipped** (igual baseline reciente documentado).
+- `git diff` en `CryptoServiceScoped` y `RsaKeyProvider`: vacío.
