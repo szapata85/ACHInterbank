@@ -1099,3 +1099,31 @@ Resultados:
 Notas:
 - Se endureció verificación de firma en `OpenEnvelopeAsync` con fail-close configurable.
 - No se modificó XML/identifier/IV/AES/RSA/padding.
+
+## 19) Digital Envelope interoperability harness (2026-04-21 UTC)
+
+Comandos ejecutados:
+```bash
+dotnet build ACHInterbank.sln -c Release
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~Interoperability|FullyQualifiedName~DigitalEnvelope|FullyQualifiedName~Signature|FullyQualifiedName~OpenEnvelope" \
+  -v minimal
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" \
+  -v minimal
+
+rg -n "Password|PfxPassword|PrivateKey|RawPrivate|SecretRef|Secret|RawData|ToBase64String|Export" \
+  src/Cfa.ACHInterbank.* tests/Cfa.ACHInterbank.Tests -S
+```
+
+Resultados:
+- Build: OK.
+- Filtro Interoperability/DigitalEnvelope/Signature/OpenEnvelope: OK.
+- No regresión NACHA/Mapping/BatchNumber: `154/154 passed`.
+- Workflow PostgreSQL se mantiene manual-only (`workflow_dispatch` + guard de job).
