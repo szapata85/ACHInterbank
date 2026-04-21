@@ -1,6 +1,7 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.Mapping;
+using Cfa.ACHInterbank.Application.ACHSobreDigital.CertificateManagement;
 using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -92,6 +93,16 @@ public static class DependencyInjectionService
         });
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+        services.AddScoped<ICertificateCatalogService, ACH.Services.Implementation.CertificateManagement.CertificateCatalogService>();
+        services.AddScoped<ICertificateLoadService, ACH.Services.Implementation.CertificateManagement.CertificateLoadService>();
+        services.AddScoped<ICertificateSelectionService, ACH.Services.Implementation.CertificateManagement.CertificateSelectionService>();
+        services.AddScoped<ICertificateActivationService, ACH.Services.Implementation.CertificateManagement.CertificateActivationService>();
+        services.AddScoped<ICertificateRotationService, ACH.Services.Implementation.CertificateManagement.CertificateRotationService>();
+        services.AddScoped<ICertificateValidationService, ACH.Services.Implementation.CertificateManagement.CertificateValidationService>();
+        services.AddScoped<ICertificateSecretProtector, ACH.Services.Implementation.CertificateManagement.CertificateSecretProtectorService>();
+        services.AddScoped<ICertificateAuditService, ACH.Services.Implementation.CertificateManagement.CertificateAuditService>();
+        services.AddScoped<ICertificateUsageLogger, ACH.Services.Implementation.CertificateManagement.CertificateUsageLoggerService>();
 
         services.AddScoped<IExternalFileNameSequenceProvider, PostgresExternalFileNameSequenceService>();
         services.AddScoped<IExternalFileNameSequenceProvider, SqlServerExternalFileNameSequenceService>();

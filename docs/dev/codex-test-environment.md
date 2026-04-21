@@ -887,3 +887,7 @@ PowerShell:
 ```
 
 El harness levanta `docker-compose.test.yml`, aplica migraciones EF y ejecuta tests PostgreSQL + filtros NACHA de no regresión.
+
+## Certificate Management Phase 1
+- Nuevas pruebas: `CertificateManagementPhase1Tests`.
+- Ejecutar: `dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~CertificateManagementPhase1Tests"`.
