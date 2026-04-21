@@ -202,3 +202,62 @@ git diff -- src/Cfa.ACHInterbank.Application/Services/EncryptionService/Implemen
 ```
 Resultado:
 - Ambos diffs vacíos en esta revalidación.
+
+## 14. Corrección de gap bloqueante EF (Prompt) — 2026-04-21 UTC
+
+### Problema encontrado
+- El `AchDbContextModelSnapshot` contenía entidades/índices de Certificate Management, pero en `Migrations/Postgres` no existía migración física `AddCertificateManagementDigitalEnvelope`.
+- `dotnet ef migrations list` solo mostraba `20260420215632_AddExternalFileNamePolicyPhase1`.
+
+### Corrección aplicada
+1. Se restauró el snapshot a un estado consistente previo al cambio de Certificate Management (baseline anterior al commit de fase 1).
+2. Se ejecutó migración EF real:
+   ```bash
+   dotnet ef migrations add AddCertificateManagementDigitalEnvelope \
+     --project src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj \
+     --startup-project src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj \
+     --context AchDbContext \
+     --output-dir DataBase/Migrations/Postgres
+   ```
+3. EF generó los artefactos:
+   - `20260421183417_AddCertificateManagementDigitalEnvelope.cs`
+   - `20260421183417_AddCertificateManagementDigitalEnvelope.Designer.cs`
+   - snapshot actualizado consistente.
+
+### Validación de contenido de migración
+`Up()` crea:
+- `DigitalCertificates`
+- `DigitalCertificateVersions`
+- `CertificateLoadAudits`
+- `CertificateRotationHistories`
+- `CertificateUsageLogs`
+- `DigitalEnvelopeOperationLogs`
+
+También crea índices/constraints relevantes, incluyendo:
+- `IX_DigitalCertificates_Code` (unique)
+- `UX_DCV_Active_Context` (unique filtered: `"Status" = 2`)
+- índices por fechas/resultado/contexto para logs de carga/uso/operación.
+
+`Down()` elimina en orden:
+- `CertificateLoadAudits`
+- `CertificateRotationHistories`
+- `CertificateUsageLogs`
+- `DigitalEnvelopeOperationLogs`
+- `DigitalCertificateVersions`
+- `DigitalCertificates`
+
+### Resultado de migrations list (post-fix)
+Lista real:
+- `20260420215632_AddExternalFileNamePolicyPhase1`
+- `20260421183417_AddCertificateManagementDigitalEnvelope`
+
+(Con advertencia de conexión a PostgreSQL local no disponible en este entorno.)
+
+### Build y no regresión
+- `dotnet build ACHInterbank.sln -c Release`: OK.
+- `Certificate|DigitalEnvelope`: 11/11 OK.
+- `Nacha|Mapping|BatchNumber`: 154/154 OK.
+
+Conclusión:
+- Gap EF bloqueante corregido a nivel de artefactos de migración.
+- No se tocaron CryptoServiceScoped/RsaKeyProvider ni lógica de cifrado real.

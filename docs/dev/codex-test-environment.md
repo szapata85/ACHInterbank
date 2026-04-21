@@ -926,3 +926,54 @@ Resultados:
 - No regresión NACHA (`Nacha|Mapping|BatchNumber`): **154/154 passed**.
 - Suite completa: **278 total / 253 passed / 25 failed / 0 skipped** (igual baseline reciente documentado).
 - `git diff` en `CryptoServiceScoped` y `RsaKeyProvider`: vacío.
+
+## 14) Fix EF migration gap - Certificate Management (2026-04-21 UTC)
+
+Problema:
+- Snapshot con entidades Certificate Management, pero sin archivo de migración física `AddCertificateManagementDigitalEnvelope` en Postgres.
+
+Acción:
+```bash
+dotnet restore ACHInterbank.sln
+
+dotnet ef migrations add AddCertificateManagementDigitalEnvelope \
+  --project src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj \
+  --startup-project src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj \
+  --context AchDbContext \
+  --output-dir DataBase/Migrations/Postgres
+```
+
+Artefactos generados:
+- `20260421183417_AddCertificateManagementDigitalEnvelope.cs`
+- `20260421183417_AddCertificateManagementDigitalEnvelope.Designer.cs`
+- `AchDbContextModelSnapshot.cs` consistente.
+
+Validación:
+```bash
+dotnet ef migrations list \
+  --project src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj \
+  --startup-project src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj \
+  --context AchDbContext
+```
+
+Resultado:
+- `20260420215632_AddExternalFileNamePolicyPhase1`
+- `20260421183417_AddCertificateManagementDigitalEnvelope`
+
+Checks de regresión ejecutados:
+```bash
+dotnet build ACHInterbank.sln -c Release
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release --no-build \
+  --filter "FullyQualifiedName~Certificate|FullyQualifiedName~DigitalEnvelope" -v minimal
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release --no-build \
+  --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" -v minimal
+```
+
+Resultados:
+- Build: OK.
+- Certificate/DigitalEnvelope: 11/11.
+- NACHA/Mapping/BatchNumber: 154/154.
