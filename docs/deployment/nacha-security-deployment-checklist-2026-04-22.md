@@ -143,7 +143,20 @@ export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH
 dotnet --info
 dotnet restore ACHInterbank.sln
 dotnet build ACHInterbank.sln -c Release
-dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --filter "FullyQualifiedName~NachaSecurityOperation|FullyQualifiedName~ManualEncrypt|FullyQualifiedName~ManualDecrypt|FullyQualifiedName~GenerateEncrypted|FullyQualifiedName~Download|FullyQualifiedName~Permission|FullyQualifiedName~Authorization" \
+  -v minimal
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --filter "FullyQualifiedName~Signature|FullyQualifiedName~OpenEnvelope|FullyQualifiedName~DigitalEnvelope|FullyQualifiedName~CertificateResolver|FullyQualifiedName~SecretResolver" \
+  -v minimal
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" \
+  -v minimal
 ```
 
 ### 13.2 EF Core y migraciones (PostgreSQL)
