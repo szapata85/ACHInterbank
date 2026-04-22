@@ -184,9 +184,13 @@ npm test -- --watch=false --browsers=ChromeHeadless
 ```bash
 git log --oneline -n 20
 git diff --name-only HEAD~1..HEAD
-git diff -- src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ACH/CryptoServiceScoped.cs
-git diff -- src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ACHSobreDigital/OpenEnvelopeAsyncService.cs
-git diff -- src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ACH/RsaKeyProvider.cs
+
+git diff -- src/Cfa.ACHInterbank.Application/ACHSobreDigital/Implementation/CryptoServiceScoped.cs
+
+git diff -- src/Cfa.ACHInterbank.Application/Services/EncryptionService/Implementations/RsaKeyProvider.cs
+
+rg -n "OpenEnvelopeAsync|CreateEnvelopeAsync|GenerarIVDesdeIdentifier|identifier|SignedData" \
+  src/Cfa.ACHInterbank.Application src/Cfa.ACHInterbank.Persistence -S
 ```
 
 ### 13.5 Verificación workflow PostgreSQL manual-only
@@ -201,4 +205,30 @@ rg -n "workflow_dispatch|if: github.event_name == 'workflow_dispatch'|pull_reque
 git status --short
 rg -n "BEGIN (RSA|PRIVATE|EC) KEY|-----BEGIN|SecretRef|PFX|password" src web docs
 rg -n "nacha-security/operations|authorize-download|download" src/Cfa.ACHInterbank.Api web/ach-interbank-ui
+```
+
+### 13.7 Smoke test API sugerido
+```bash
+# Definir URL base y token antes de ejecutar.
+export API_BASE_URL="https://<host-uat>/api"
+export ACCESS_TOKEN="<token>"
+
+# 1) Consultar operación por operationId (reemplazar OP_ID).
+curl -i -X GET "$API_BASE_URL/nacha-security/operations/OP_ID" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+# 2) Autorizar descarga temporal (reemplazar OP_ID).
+curl -i -X POST "$API_BASE_URL/nacha-security/operations/OP_ID/authorize-download" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"minutes":10}'
+
+# 3) Descargar artefacto autorizado (reemplazar OP_ID).
+curl -i -X GET "$API_BASE_URL/nacha-security/operations/OP_ID/download" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -o artifact.bin
+
+# 4) Consultar auditoría (ajustar query params según ambiente).
+curl -i -X GET "$API_BASE_URL/nacha-security/operations/audit?page=1&pageSize=20" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
