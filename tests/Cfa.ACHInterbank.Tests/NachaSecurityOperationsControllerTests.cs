@@ -2,7 +2,9 @@ using Cfa.ACHInterbank.Api.Controllers;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Operations;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using Moq;
+using System.IO;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -68,5 +70,56 @@ public class NachaSecurityOperationsControllerTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsType<DigitalEnvelopeOperationDto>(ok.Value);
         Assert.Equal("op_1", payload.OperationId);
+    }
+
+
+    [Fact]
+    public async Task Download_ReturnsBadRequest_WhenUnauthorized()
+    {
+        var service = new Mock<INachaSecurityOperationService>();
+        service
+            .Setup(s => s.OpenDownloadAsync("op_denied", It.IsAny<OperationRequestContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((OperationDownloadDescriptor?)null);
+
+        var controller = new NachaSecurityOperationsController(service.Object);
+
+        var result = await controller.DownloadAsync("op_denied", CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task ManualDecrypt_ReturnsSanitizedFailure_WithoutPlainContentInResponse()
+    {
+        var dto = new DigitalEnvelopeOperationDto(
+            "op_fail",
+            NachaSecurityOperationType.ManualEnvelopeDecrypt,
+            NachaSecurityOperationStatus.Failed,
+            1,
+            "tester",
+            DateTime.UtcNow,
+            DateTime.UtcNow,
+            true,
+            false,
+            new DigitalEnvelopeOperationArtifactDto(null, null, null, null, false, null, null),
+            new DigitalEnvelopeOperationErrorDto("SIGNATURE_VALIDATION_FAILED", "No fue posible validar la firma del sobre digital.", false),
+            new DigitalEnvelopeCertificateSummaryDto(null, null, null));
+
+        var service = new Mock<INachaSecurityOperationService>();
+        service
+            .Setup(s => s.ManualDecryptAsync(It.IsAny<ManualEnvelopeRequest>(), It.IsAny<OperationRequestContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(dto);
+
+        var controller = new NachaSecurityOperationsController(service.Object);
+        var content = new MemoryStream(new byte[] { 1, 2, 3 });
+        var file = new FormFile(content, 0, content.Length, "file", "sample.env");
+
+        var result = await controller.ManualDecryptAsync(file, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<DigitalEnvelopeOperationDto>(ok.Value);
+        Assert.Equal(NachaSecurityOperationStatus.Failed, payload.Status);
+        Assert.False(payload.Artifact.DownloadAvailable);
+        Assert.Null(payload.Artifact.ExternalFileName);
     }
 }

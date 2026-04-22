@@ -371,7 +371,7 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
                 x.ArtifactSizeBytes),
             string.IsNullOrWhiteSpace(x.ErrorCode)
                 ? null
-                : new DigitalEnvelopeOperationErrorDto(x.ErrorCode!, x.ErrorMessageSanitized ?? "Error en operación.", retryable: false),
+                : new DigitalEnvelopeOperationErrorDto(x.ErrorCode!, x.ErrorMessageSanitized ?? "Error en operación.", Retryable: false),
             new DigitalEnvelopeCertificateSummaryDto(x.SigningCertificateThumbprintMasked, x.EncryptionCertificateThumbprintMasked, null));
     }
 

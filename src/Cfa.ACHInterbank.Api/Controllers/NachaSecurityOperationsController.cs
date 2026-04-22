@@ -130,7 +130,7 @@ public class NachaSecurityOperationsController : ControllerBase
 
     private OperationRequestContext BuildContext()
     {
-        return new OperationRequestContext(User?.Identity?.Name ?? "api", HttpContext.Connection.RemoteIpAddress?.ToString());
+        return new OperationRequestContext(User?.Identity?.Name ?? "api", HttpContext?.Connection?.RemoteIpAddress?.ToString());
     }
 
     public sealed class NachaGenerateApiRequest

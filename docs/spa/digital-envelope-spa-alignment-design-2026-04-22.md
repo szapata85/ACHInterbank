@@ -345,3 +345,27 @@ El repositorio ya tiene base funcional para:
 - auditar partes críticas.
 
 La alineación objetivo del Prompt 11 requiere **orquestación operacional y de seguridad** (operationId, autorizaciones finas, contratos unificados, rutas SPA especializadas, descarga segura y observabilidad), sin alterar criptografía ni reglas bloqueadas por vector oficial.
+
+---
+
+## Addendum de implementación backend (Prompt 12) — 2026-04-22
+
+Se implementó backend para operación SPA en `nacha-security/operations` con `operationId`, descarga segura con autorización temporal y persistencia de metadata/hashes sin almacenar contenido en BD.
+
+Endpoints implementados:
+
+- `POST /nacha-security/operations/nacha/generate`
+- `POST /nacha-security/operations/nacha/generate-encrypted`
+- `POST /nacha-security/operations/envelope/manual-encrypt`
+- `POST /nacha-security/operations/envelope/manual-decrypt`
+- `GET /nacha-security/operations/{operationId}`
+- `POST /nacha-security/operations/{operationId}/authorize-download`
+- `GET /nacha-security/operations/{operationId}/download`
+- `GET /nacha-security/operations/audit`
+
+Validación de no regresión ejecutada en entorno codex (real):
+
+- DigitalEnvelope/Signature/OpenEnvelope/Resolver: **35/35 passed**.
+- Nacha/Mapping/BatchNumber: **159/159 passed**.
+
+No se realizaron cambios en criptografía base (`CryptoServiceScoped`, `OpenEnvelopeAsync`, `RsaKeyProvider`, `identifier/IV`, XML/AES/RSA/padding).
