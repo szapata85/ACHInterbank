@@ -1,6 +1,5 @@
 ﻿using Cfa.ACHInterbank.Application.Services.EncryptionService.Interfaces;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
-using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -14,20 +13,20 @@ namespace Cfa.ACHInterbank.Application.Services.EncryptionService.Implementation
 public class RsaKeyProvider : IRsaKeyProvider
 {
     private readonly AppSettings _appSettings = AppSettings.Settings;
-    private readonly IDigitalEnvelopeCertificateRepository _certificateRepository;
+    private readonly IDigitalEnvelopeCertificateResolver _certificateResolver;
 
-    public RsaKeyProvider(IDigitalEnvelopeCertificateRepository certificateRepository)
+    public RsaKeyProvider(IDigitalEnvelopeCertificateResolver certificateResolver)
     {
-        _certificateRepository = certificateRepository;
+        _certificateResolver = certificateResolver;
     }
 
 
     public X509Certificate2 ObtenerCertificate(string Key_cert)
     {
-        var fromRepository = ResolveFromRepository(Key_cert);
-        if (fromRepository != null)
+        var fromResolver = _certificateResolver.ResolveAsync(Key_cert).GetAwaiter().GetResult();
+        if (fromResolver.Success && fromResolver.Certificate != null)
         {
-            return fromRepository;
+            return fromResolver.Certificate;
         }
 
         var jsonresult = JsonConvert.SerializeObject(_appSettings.Certificates);
@@ -70,30 +69,6 @@ public class RsaKeyProvider : IRsaKeyProvider
 
             // Retorna el primer certificado encontrado
             return certCollection[0];
-        }
-    }
-
-    private X509Certificate2? ResolveFromRepository(string key)
-    {
-        var type = key?.Equals("CertCrypt", StringComparison.OrdinalIgnoreCase) == true
-            ? DigitalEnvelopeCertificateType.EncryptionPublic
-            : DigitalEnvelopeCertificateType.SigningKeyPair;
-
-        var stored = _certificateRepository.GetLatestAsync(type).GetAwaiter().GetResult();
-        if (stored == null)
-        {
-            return null;
-        }
-
-        try
-        {
-            return string.IsNullOrWhiteSpace(stored.Password)
-                ? X509CertificateLoader.LoadCertificate(stored.RawData)
-                : X509CertificateLoader.LoadPkcs12(stored.RawData, stored.Password, X509KeyStorageFlags.MachineKeySet);
-        }
-        catch
-        {
-            return null;
         }
     }
 

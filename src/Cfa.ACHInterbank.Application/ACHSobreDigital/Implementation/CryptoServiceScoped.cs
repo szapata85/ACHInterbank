@@ -2,6 +2,8 @@
 using Cfa.ACHInterbank.Application.Services.EncryptionService.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -13,8 +15,24 @@ namespace Cfa.ACHInterbank.Application.ACHSobreDigital.Implementation;
 public class CryptoServiceScoped : ICryptoServiceScoped
 {
     private readonly IRsaKeyProvider _keys;
+    private readonly IDigitalEnvelopeSignatureValidator _signatureValidator;
+    private readonly IDigitalEnvelopeSignatureAuditService _signatureAuditService;
+    private readonly DigitalEnvelopeSignatureValidationOptions _signatureOptions;
+    private readonly ILogger<CryptoServiceScoped> _logger;
 
-    public CryptoServiceScoped(IRsaKeyProvider keys) => _keys = keys;
+    public CryptoServiceScoped(
+        IRsaKeyProvider keys,
+        IDigitalEnvelopeSignatureValidator signatureValidator,
+        IDigitalEnvelopeSignatureAuditService signatureAuditService,
+        IOptions<DigitalEnvelopeSignatureValidationOptions> signatureOptions,
+        ILogger<CryptoServiceScoped> logger)
+    {
+        _keys = keys;
+        _signatureValidator = signatureValidator;
+        _signatureAuditService = signatureAuditService;
+        _signatureOptions = signatureOptions.Value ?? new DigitalEnvelopeSignatureValidationOptions();
+        _logger = logger;
+    }
 
     //public async Task<DigitalEnvelopeModel> CreateEnvelopeAsync(byte[] plaintext, IDictionary<string, string>? aad = null, CancellationToken ct = default)
     public Task<byte[]> CreateEnvelopeAsync(byte[] contenidoBytes, string FileName)
@@ -167,68 +185,106 @@ public class CryptoServiceScoped : ICryptoServiceScoped
 
     public Task<byte[]> OpenEnvelopeAsync(byte[] contenidoBytes, string FileName)
     {
-        //X509Certificate2 certificadoFirmante = _keys.ObtenerCertificate("CertSign");
-        X509Certificate2 certificadoReceptor = _keys.ObtenerCertificate("CertSign");
-        string sobre = Encoding.UTF8.GetString(contenidoBytes);
+        var validationActor = "CryptoServiceScoped.OpenEnvelopeAsync";
+        var failCloseApplied = false;
+        var legacyBypassUsed = false;
+        string result = "FAILED";
+        string? errorCode = null;
+        string? signerThumbprint = null;
+        string? signerSerial = null;
+        string? signatureAlgorithm = null;
 
+        try
+        {
+            X509Certificate2 certificadoReceptor = _keys.ObtenerCertificate("CertDecrypt");
+            string sobre = Encoding.UTF8.GetString(contenidoBytes);
 
-        DigitalEnvelopeModel objsobre = DeserializeXml<DigitalEnvelopeModel>(sobre);
+            DigitalEnvelopeModel objsobre = DeserializeXml<DigitalEnvelopeModel>(sobre);
 
-        byte[] encryptedKey = Convert.FromBase64String(objsobre.RecipientInfo.EncryptedKey);
-        byte[] encryptedContent = Convert.FromBase64String(objsobre.EncryptedContentInfo.EncryptedContent);
+            byte[] encryptedKey = Convert.FromBase64String(objsobre.RecipientInfo.EncryptedKey);
+            byte[] encryptedContent = Convert.FromBase64String(objsobre.EncryptedContentInfo.EncryptedContent);
 
+            RSA rsaReceptor = certificadoReceptor.GetRSAPrivateKey()!;
+            byte[] aesKey = rsaReceptor.Decrypt(encryptedKey, RSAEncryptionPadding.Pkcs1);
 
-        // Desencriptar llave simétrica con clave privada del receptor
-        RSA rsaReceptor = certificadoReceptor.GetRSAPrivateKey()!;
-        byte[] aesKey = rsaReceptor.Decrypt(encryptedKey, RSAEncryptionPadding.Pkcs1);
+            byte[] iv = GenerarIVDesdeIdentifier(objsobre.Identifier);
+            byte[] contenidoFirmadoBytes = DescifrarAES(encryptedContent, aesKey, iv);
 
-        byte[] iv = GenerarIVDesdeIdentifier(objsobre.Identifier); // Método adicional
+            string xmlFirmadoStr = Encoding.UTF8.GetString(contenidoFirmadoBytes);
+            xmlFirmadoStr = xmlFirmadoStr.Substring(xmlFirmadoStr.IndexOf("\n") + 1);
 
-        byte[] contenidoFirmadoBytes = DescifrarAES(encryptedContent, aesKey, iv);
+            SignedData objSignedMessageFirmado = DeserializeXml<SignedData>(xmlFirmadoStr);
+            string contentinfo = objSignedMessageFirmado.ContentInfo.Replace("\n", "");
+            byte[] zipBytes = Convert.FromBase64String(contentinfo);
+            (byte[] PlainContent, string _) = Helpers.ZIP.ZipHelper.UnZipContend(zipBytes);
 
-        string xmlFirmadoStr = Encoding.UTF8.GetString(contenidoFirmadoBytes);
-        xmlFirmadoStr = xmlFirmadoStr.Substring(xmlFirmadoStr.IndexOf("\n") + 1);
+            if (!_signatureOptions.EnableSignatureValidation)
+            {
+                if (!_signatureOptions.AllowLegacyUnsignedEnvelope)
+                {
+                    failCloseApplied = true;
+                    errorCode = "LEGACY_UNSIGNED_ENVELOPE_NOT_ALLOWED";
+                    throw new DigitalEnvelopeSignatureValidationException(errorCode, "La validación de firma está deshabilitada y el bypass legacy no está permitido.");
+                }
 
-        SignedData objSignedMessageFirmado = DeserializeXml<SignedData>(xmlFirmadoStr);
+                legacyBypassUsed = true;
+                result = "SUCCESS";
+                errorCode = "SIGNATURE_VALIDATION_DISABLED_WARNING";
+                _logger.LogWarning("Signature validation deshabilitada para OpenEnvelopeAsync; se aplicó bypass legacy controlado.");
+                return Task.FromResult(PlainContent);
+            }
 
-        string contentinfo = objSignedMessageFirmado.ContentInfo.Replace("\n", "");
+            var validation = _signatureValidator
+                .ValidateAsync(new DigitalEnvelopeSignatureValidationRequest(objSignedMessageFirmado, PlainContent))
+                .GetAwaiter()
+                .GetResult();
 
-        byte[] zipBytes = Convert.FromBase64String(contentinfo);
+            signerThumbprint = validation.SignerCertificateThumbprint;
+            signerSerial = validation.SignerCertificateSerialNumber;
+            signatureAlgorithm = validation.SignatureAlgorithm;
 
-        (byte[], string) contenidoOriginal = Helpers.ZIP.ZipHelper.UnZipContend(zipBytes);
+            if (!validation.IsValid || !validation.IsVerified)
+            {
+                errorCode = validation.ErrorCode ?? "SIGNATURE_VALIDATION_FAILED";
+                failCloseApplied = _signatureOptions.FailCloseOnInvalidSignature;
+                if (failCloseApplied)
+                {
+                    throw new DigitalEnvelopeSignatureValidationException(errorCode, validation.ErrorMessage ?? "La firma del sobre digital no es válida.");
+                }
 
-        string firmaB64 = objSignedMessageFirmado.EncryptedDigest.Replace("\n", "");
+                _logger.LogWarning("Firma inválida detectada pero FailCloseOnInvalidSignature=false. ErrorCode={ErrorCode}", errorCode);
+            }
 
-        byte[] hash = SHA256.Create().ComputeHash(contenidoOriginal.Item1);
-
-        byte[] firma = Convert.FromBase64String(firmaB64);
-
-        //X509Certificate2 certificadoFirmante = new X509Certificate2(Convert.FromBase64String(objSignedMessageFirmado.SignerInfo.Certificate));
-
-        X509Certificate2 certificadoFirmante = X509CertificateLoader.LoadPkcs12(Convert.FromBase64String(objSignedMessageFirmado.SignerInfo.Certificate), password: null);
-        RSA rsaFirmante = certificadoFirmante.GetRSAPublicKey()!;
-
-
-
-        //Process.Start("explorer.exe", pathENVRelative);
-        //bool VERIFICADO = false;
-        //if (rsaFirmante.VerifyHash(hash, firma, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1))
-        //{
-        //    VERIFICADO = true;
-        //    string filePath = @$"{pathENVRelative}\{contenidoOriginal.Item2}";
-        //    File.WriteAllBytes(filePath, contenidoOriginal.Item1);
-
-
-        //    Process.Start("explorer.exe", pathENVRelative);
-        //};
-
-        //rsaFirmante.VerifyHash(hash, firma, HashAlgorithmName.SHA256 , RSASignaturePadding.Pkcs1);
-
-
-        byte[] contenidobytesResp = contenidoOriginal.Item1;
-
-
-        return Task.FromResult(contenidobytesResp);
+            result = "SUCCESS";
+            return Task.FromResult(PlainContent);
+        }
+        catch (DigitalEnvelopeSignatureValidationException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            errorCode ??= "SIGNATURE_VALIDATION_FAILED";
+            failCloseApplied = true;
+            throw new DigitalEnvelopeSignatureValidationException(errorCode, $"No fue posible validar la firma del sobre digital: {ex.Message}");
+        }
+        finally
+        {
+            if (_signatureOptions.AuditInvalidSignature || result == "SUCCESS")
+            {
+                _signatureAuditService
+                    .AuditAsync(
+                        result,
+                        errorCode,
+                        signerThumbprint,
+                        signerSerial,
+                        signatureAlgorithm,
+                        failCloseApplied,
+                        legacyBypassUsed,
+                        validationActor)
+                    .GetAwaiter()
+                    .GetResult();
+            }
+        }
     }
 }
-
