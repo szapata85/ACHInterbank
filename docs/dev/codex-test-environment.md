@@ -1127,3 +1127,15 @@ Resultados:
 - Filtro Interoperability/DigitalEnvelope/Signature/OpenEnvelope: OK.
 - No regresión NACHA/Mapping/BatchNumber: `154/154 passed`.
 - Workflow PostgreSQL se mantiene manual-only (`workflow_dispatch` + guard de job).
+
+
+## 20) Official vector request package (2026-04-22 UTC)
+
+Se agregó paquete documental de certificación para solicitud/custodia/carga/validación de vector oficial ACH/CENIT del sobre digital:
+
+- `docs/certification/digital-envelope-official-vector-request-2026-04-21.md`
+
+Notas:
+- Sin cambios en criptografía productiva.
+- Sin cambios en `identifier`/IV/XML/AES/RSA/padding/SignedData.
+- Workflow PostgreSQL permanece manual-only (`workflow_dispatch` + guard de job).

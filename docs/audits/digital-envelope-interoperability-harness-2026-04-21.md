@@ -74,3 +74,9 @@ Si faltan, tests oficiales quedan en modo pending (no fallan).
 1. Cargar vector oficial en `OfficialVectors/`.
 2. Ejecutar pruebas de comparación oficial estructura/contenido/firma/identifier-IV.
 3. Registrar brechas observadas sin cambiar criptografía productiva hasta aprobación formal.
+
+
+## 10) Referencia de certificación
+
+- Solicitud formal y runbook operativo del vector oficial: `docs/certification/digital-envelope-official-vector-request-2026-04-21.md`.
+- Mantener `OfficialVectors/` sin secretos y ejecutar validación oficial solo con artefactos entregados por ACH/CENIT.
