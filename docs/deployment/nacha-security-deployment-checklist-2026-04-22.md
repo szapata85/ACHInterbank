@@ -128,3 +128,64 @@ Resultado retest:
 - `identifier/IV` permanece sin hardening hasta vector oficial ACH/CENIT.
 - Este estado no bloquea operación interna controlada.
 - Sí bloquea certificación oficial de interoperabilidad.
+
+## 13) Comandos técnicos de validación
+
+> Registrar en acta: comando ejecutado, fecha/hora UTC, ejecutor, resultado real y evidencia.
+> No exponer secretos, PFX, passwords ni contenido NACHA sensible en salidas adjuntas.
+
+### 13.1 Backend build y tests críticos
+```bash
+bash scripts/codex/setup-codex-env.sh
+export DOTNET_ROOT=$HOME/.dotnet
+export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH
+
+dotnet --info
+dotnet restore ACHInterbank.sln
+dotnet build ACHInterbank.sln -c Release
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release
+```
+
+### 13.2 EF Core y migraciones (PostgreSQL)
+```bash
+dotnet ef migrations list \
+  --project src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj \
+  --startup-project src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj \
+  --context AchDbContext
+
+dotnet ef database update \
+  --project src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj \
+  --startup-project src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj \
+  --context AchDbContext
+```
+
+### 13.3 SPA build y estado de tests
+```bash
+cd web/ach-interbank-ui
+npm ci
+npm run build
+npm test -- --watch=false --browsers=ChromeHeadless
+```
+
+### 13.4 Verificación de no cambios criptográficos restringidos
+```bash
+git log --oneline -n 20
+git diff --name-only HEAD~1..HEAD
+git diff -- src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ACH/CryptoServiceScoped.cs
+git diff -- src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ACHSobreDigital/OpenEnvelopeAsyncService.cs
+git diff -- src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ACH/RsaKeyProvider.cs
+```
+
+### 13.5 Verificación workflow PostgreSQL manual-only
+```bash
+sed -n '1,220p' .github/workflows/postgres-integration-tests.yml
+rg -n "workflow_dispatch|if: github.event_name == 'workflow_dispatch'|pull_request|push|schedule|workflow_run" \
+  .github/workflows/postgres-integration-tests.yml
+```
+
+### 13.6 Verificación rápida de secretos y artefactos sensibles
+```bash
+git status --short
+rg -n "BEGIN (RSA|PRIVATE|EC) KEY|-----BEGIN|SecretRef|PFX|password" src web docs
+rg -n "nacha-security/operations|authorize-download|download" src/Cfa.ACHInterbank.Api web/ach-interbank-ui
+```

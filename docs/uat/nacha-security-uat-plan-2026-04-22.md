@@ -211,3 +211,7 @@ Observaciones:
 - `identifier/IV` permanece sin hardening hasta vector oficial ACH/CENIT.
 - Esto no bloquea UAT interna controlada.
 - Sí bloquea certificación oficial de interoperabilidad.
+
+## 17) Referencia cruzada de validación técnica
+- Antes de ejecutar la matriz UAT (sección 8), correr los comandos de validación técnica del checklist de despliegue, sección **13) Comandos técnicos de validación**.
+- Registrar los resultados (comando + salida + fecha/hora UTC + ejecutor) como evidencia base para los escenarios P0/P1.
