@@ -142,6 +142,12 @@ public class AchDbContext : DbContext
     public DbSet<MenuItemPermission> MenuItemPermissions => Set<MenuItemPermission>();
 
     public DbSet<DigitalEnvelopeCertificate> DigitalEnvelopeCertificates => Set<DigitalEnvelopeCertificate>();
+    public DbSet<DigitalCertificate> DigitalCertificates => Set<DigitalCertificate>();
+    public DbSet<DigitalCertificateVersion> DigitalCertificateVersions => Set<DigitalCertificateVersion>();
+    public DbSet<CertificateUsageLog> CertificateUsageLogs => Set<CertificateUsageLog>();
+    public DbSet<CertificateRotationHistory> CertificateRotationHistories => Set<CertificateRotationHistory>();
+    public DbSet<CertificateLoadAudit> CertificateLoadAudits => Set<CertificateLoadAudit>();
+    public DbSet<DigitalEnvelopeOperationLog> DigitalEnvelopeOperationLogs => Set<DigitalEnvelopeOperationLog>();
     public DbSet<BrandingSetting> BrandingSettings => Set<BrandingSetting>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<AuthLog> AuthLogs => Set<AuthLog>();
@@ -166,6 +172,14 @@ public class AchDbContext : DbContext
         modelBuilder.Entity<DigitalEnvelopeCertificate>()
             .Property(c => c.UploadedAt)
             .HasDefaultValueSql(isPostgres ? "timezone('utc', now())" : "GETUTCDATE()");
+
+        modelBuilder.Entity<DigitalCertificateVersion>()
+            .HasIndex(c => new { c.ClearingHouseId, c.Environment, c.Purpose, c.HolderType })
+            .HasDatabaseName("UX_DCV_Active_Context")
+            .IsUnique()
+            .HasFilter(isPostgres
+                ? "\"Status\" = 2"
+                : "[Status] = 2");
 
         if (isPostgres)
         {

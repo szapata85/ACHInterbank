@@ -887,3 +887,255 @@ PowerShell:
 ```
 
 El harness levanta `docker-compose.test.yml`, aplica migraciones EF y ejecuta tests PostgreSQL + filtros NACHA de no regresión.
+
+## Certificate Management Phase 1
+- Nuevas pruebas: `CertificateManagementPhase1Tests`.
+- Ejecutar: `dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~CertificateManagementPhase1Tests"`.
+
+## 13) Revalidación Prompt 5B (2026-04-21 UTC)
+
+Comandos ejecutados (exactos):
+```bash
+export DOTNET_ROOT=$HOME/.dotnet
+export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH
+
+dotnet --info
+dotnet ef --version
+ls -la src/Cfa.ACHInterbank.Persistence/DataBase/Migrations/Postgres | grep Certificate
+dotnet ef migrations list \
+  --project src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj \
+  --startup-project src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj \
+  --context AchDbContext
+rg -n "Password|PfxPassword|PrivateKey|RawPrivate|SecretRef|Secret|RawData|ToBase64String|Export" src/Cfa.ACHInterbank.* tests/Cfa.ACHInterbank.Tests -S
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~Certificate|FullyQualifiedName~DigitalEnvelope" -v minimal
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" -v minimal
+
+dotnet test ACHInterbank.sln -c Release --no-build -v minimal
+
+git diff -- src/Cfa.ACHInterbank.Application/ACHSobreDigital/Implementation/CryptoServiceScoped.cs
+git diff -- src/Cfa.ACHInterbank.Application/Services/EncryptionService/Implementations/RsaKeyProvider.cs
+```
+
+Resultados:
+- Tooling: dotnet SDK `10.0.201`, `dotnet-ef 10.0.6`.
+- Migración EF: `grep Certificate` sin resultados; `migrations list` solo muestra `20260420215632_AddExternalFileNamePolicyPhase1` y no puede confirmar aplicadas por falta de conexión Postgres local.
+- Seguridad secretos (scope Certificate Management): sin hallazgos inseguros nuevos; `SecretRef` enmascarado, password no expuesto por DTO/API.
+- Tests Certificate/DigitalEnvelope: **11/11 passed**.
+- No regresión NACHA (`Nacha|Mapping|BatchNumber`): **154/154 passed**.
+- Suite completa: **278 total / 253 passed / 25 failed / 0 skipped** (igual baseline reciente documentado).
+- `git diff` en `CryptoServiceScoped` y `RsaKeyProvider`: vacío.
+
+## 14) Fix EF migration gap - Certificate Management (2026-04-21 UTC)
+
+Problema:
+- Snapshot con entidades Certificate Management, pero sin archivo de migración física `AddCertificateManagementDigitalEnvelope` en Postgres.
+
+Acción:
+```bash
+dotnet restore ACHInterbank.sln
+
+dotnet ef migrations add AddCertificateManagementDigitalEnvelope \
+  --project src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj \
+  --startup-project src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj \
+  --context AchDbContext \
+  --output-dir DataBase/Migrations/Postgres
+```
+
+Artefactos generados:
+- `20260421183417_AddCertificateManagementDigitalEnvelope.cs`
+- `20260421183417_AddCertificateManagementDigitalEnvelope.Designer.cs`
+- `AchDbContextModelSnapshot.cs` consistente.
+
+Validación:
+```bash
+dotnet ef migrations list \
+  --project src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj \
+  --startup-project src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj \
+  --context AchDbContext
+```
+
+Resultado:
+- `20260420215632_AddExternalFileNamePolicyPhase1`
+- `20260421183417_AddCertificateManagementDigitalEnvelope`
+
+Checks de regresión ejecutados:
+```bash
+dotnet build ACHInterbank.sln -c Release
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release --no-build \
+  --filter "FullyQualifiedName~Certificate|FullyQualifiedName~DigitalEnvelope" -v minimal
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release --no-build \
+  --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" -v minimal
+```
+
+Resultados:
+- Build: OK.
+- Certificate/DigitalEnvelope: 11/11.
+- NACHA/Mapping/BatchNumber: 154/154.
+
+## 15) Integración controlada Certificate Management -> Sobre Digital (2026-04-21 UTC)
+
+Comandos ejecutados:
+```bash
+bash scripts/codex/setup-codex-env.sh
+export DOTNET_ROOT=$HOME/.dotnet
+export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH
+dotnet --info
+dotnet ef --version
+
+dotnet build ACHInterbank.sln -c Release
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~DigitalEnvelope|FullyQualifiedName~CertificateManagement|FullyQualifiedName~CertificateResolver|FullyQualifiedName~ExportEncrypted" \
+  -v minimal
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" \
+  -v minimal
+```
+
+Resultados:
+- Build solución: OK.
+- Filtro DigitalEnvelope/CertificateManagement/CertificateResolver/ExportEncrypted: 19/19 passed.
+- No regresión NACHA/Mapping/BatchNumber: 154/154 passed.
+
+Notas:
+- Se integró resolver de certificados con opción de Certificate Management + fallback legacy controlado por configuración.
+- No se cambiaron XML/identifier/IV/algoritmos criptográficos del sobre digital en esta fase.
+
+## 16) GitHub Actions PostgreSQL manual-only (2026-04-21 UTC)
+
+Se ajustó `.github/workflows/postgres-integration-tests.yml` para ejecución **manual-only**:
+- Trigger único: `workflow_dispatch`.
+- Sin triggers automáticos por `push`, `pull_request`, `schedule`, `workflow_run`, `pull_request_target`.
+- Guard adicional a nivel de job:
+  - `if: github.event_name == 'workflow_dispatch'`
+
+Ejecución manual en GitHub:
+1. Actions → `postgres-integration-tests`.
+2. `Run workflow`.
+
+Ejecución local (sin GitHub Actions):
+- `bash scripts/test/run-postgres-integration-tests.sh`
+- `.\scripts\test\run-postgres-integration-tests.ps1`
+
+## 17) SecretRef resolver phase 1 (2026-04-21 UTC)
+
+Comandos ejecutados:
+```bash
+bash scripts/codex/setup-codex-env.sh
+export DOTNET_ROOT=$HOME/.dotnet
+export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH
+dotnet --info
+dotnet ef --version
+dotnet restore ACHInterbank.sln
+dotnet build ACHInterbank.sln -c Release
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~SecretRef|FullyQualifiedName~SecretResolver|FullyQualifiedName~CertificateResolver|FullyQualifiedName~DigitalEnvelope|FullyQualifiedName~CertificateManagement" \
+  -v minimal
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" \
+  -v minimal
+
+rg -n "Password|PfxPassword|PrivateKey|RawPrivate|SecretRef|Secret|RawData|ToBase64String|Export" \
+  src/Cfa.ACHInterbank.* tests/Cfa.ACHInterbank.Tests -S
+```
+
+Resultados (ejecución en este entorno):
+- dotnet SDK: `10.0.201`.
+- dotnet-ef: `10.0.7`.
+- Restore solución: OK.
+- Build solución: OK (0 errores, warnings de nulabilidad preexistentes en Persistence).
+- Filtro SecretRef/SecretResolver/CertificateResolver/DigitalEnvelope/CertificateManagement: `24/24 passed`.
+- No regresión NACHA/Mapping/BatchNumber: `154/154 passed`.
+- Escaneo de secretos (`rg`): ejecutado; sin hallazgos inseguros nuevos atribuibles a SecretRef fase 1.
+
+Nota CI:
+- `.github/workflows/postgres-integration-tests.yml` sigue manual-only (`workflow_dispatch` + guard de job).
+
+## 18) Digital Envelope signature fail-close phase 1 (2026-04-21 UTC)
+
+Comandos ejecutados:
+```bash
+dotnet build ACHInterbank.sln -c Release
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~Signature|FullyQualifiedName~OpenEnvelope|FullyQualifiedName~DigitalEnvelope|FullyQualifiedName~CertificateResolver|FullyQualifiedName~SecretResolver" \
+  -v minimal
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" \
+  -v minimal
+
+rg -n "Password|PfxPassword|PrivateKey|RawPrivate|SecretRef|Secret|RawData|ToBase64String|Export" \
+  src/Cfa.ACHInterbank.* tests/Cfa.ACHInterbank.Tests -S
+```
+
+Resultados:
+- Build: OK.
+- Filtro Signature/OpenEnvelope/DigitalEnvelope/CertificateResolver/SecretResolver: `21/21 passed`.
+- No regresión NACHA/Mapping/BatchNumber: `154/154 passed`.
+- Workflow PostgreSQL se mantiene manual-only (`workflow_dispatch` + guard de job).
+
+Notas:
+- Se endureció verificación de firma en `OpenEnvelopeAsync` con fail-close configurable.
+- No se modificó XML/identifier/IV/AES/RSA/padding.
+
+## 19) Digital Envelope interoperability harness (2026-04-21 UTC)
+
+Comandos ejecutados:
+```bash
+dotnet build ACHInterbank.sln -c Release
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~Interoperability|FullyQualifiedName~DigitalEnvelope|FullyQualifiedName~Signature|FullyQualifiedName~OpenEnvelope" \
+  -v minimal
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+  -c Release \
+  --no-build \
+  --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" \
+  -v minimal
+
+rg -n "Password|PfxPassword|PrivateKey|RawPrivate|SecretRef|Secret|RawData|ToBase64String|Export" \
+  src/Cfa.ACHInterbank.* tests/Cfa.ACHInterbank.Tests -S
+```
+
+Resultados:
+- Build: OK.
+- Filtro Interoperability/DigitalEnvelope/Signature/OpenEnvelope: OK.
+- No regresión NACHA/Mapping/BatchNumber: `154/154 passed`.
+- Workflow PostgreSQL se mantiene manual-only (`workflow_dispatch` + guard de job).
+
+
+## 20) Official vector request package (2026-04-22 UTC)
+
+Se agregó paquete documental de certificación para solicitud/custodia/carga/validación de vector oficial ACH/CENIT del sobre digital:
+
+- `docs/certification/digital-envelope-official-vector-request-2026-04-21.md`
+
+Notas:
+- Sin cambios en criptografía productiva.
+- Sin cambios en `identifier`/IV/XML/AES/RSA/padding/SignedData.
+- Workflow PostgreSQL permanece manual-only (`workflow_dispatch` + guard de job).

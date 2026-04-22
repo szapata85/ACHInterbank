@@ -7,6 +7,14 @@ Este harness permite validar localmente/CI en PostgreSQL real:
 - integración `ExternalFileNamePolicy` (secuencia, duplicate guard, registry/log, validaciones ACH/STA),
 - no regresión NACHA (filtros 60/60 y 154/154).
 
+## 1.1) GitHub Actions (manual-only)
+- Workflow: `.github/workflows/postgres-integration-tests.yml`.
+- **No corre automáticamente** por `push`, `pull_request`, `schedule`, `workflow_run` ni `pull_request_target`.
+- Se ejecuta **solo manualmente** desde GitHub:
+  1. Ir a **Actions**.
+  2. Seleccionar **postgres-integration-tests**.
+  3. Clic en **Run workflow**.
+
 ## 2) Pre-requisitos
 - Docker + Docker Compose
 - .NET SDK 10
