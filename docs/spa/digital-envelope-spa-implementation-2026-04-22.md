@@ -51,3 +51,24 @@ sed -n '1,220p' .github/workflows/postgres-integration-tests.yml
 - No se implementó criptografía en Angular.
 - No se cambió `CryptoServiceScoped`, `OpenEnvelopeAsync`, `RsaKeyProvider`, ni `identifier/IV`.
 - Workflow de PostgreSQL permanece manual-only (`workflow_dispatch`).
+
+---
+
+## Revalidación Prompt 14 (2026-04-22 UTC)
+
+- Se validó implementación de permisos finos (`CanGenerate*`, `CanManual*`, `CanDownload*`, `CanViewNachaSecurityAudit`, `CanManageCertificates`) en backend + SPA.
+- Se confirmó endurecimiento de descarga segura en backend y frontend:
+  - autorización previa,
+  - permisos por tipo de artefacto,
+  - bloqueo de plano si `SIGNATURE_VALIDATION_FAILED`,
+  - sanitización de filename en cliente.
+- No se introdujo WebCrypto para cifrado/firma/descifrado de negocio en Angular.
+- No se modificó criptografía restringida (identifier/IV/XML/AES/RSA/padding).
+- Pruebas de no regresión ejecutadas:
+  - backend permisos/descarga: 12/12,
+  - DigitalEnvelope/Signature/OpenEnvelope/SecretResolver: 36/36,
+  - NACHA/Mapping/BatchNumber: 166/166.
+- Frontend:
+  - `npm ci`: OK,
+  - `npm run build`: OK,
+  - `npm test`: pendiente por limitación de entorno (CHROME_BIN + karma/rimraf).

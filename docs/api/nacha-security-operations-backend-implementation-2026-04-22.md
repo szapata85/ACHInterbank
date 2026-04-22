@@ -70,3 +70,17 @@ Comandos ejecutados y resultado real:
 - `on: workflow_dispatch`
 - job guard: `if: github.event_name == 'workflow_dispatch'`
 - sin triggers automáticos (`push/pull_request/schedule/workflow_run`).
+
+## Revalidación Prompt 14 (2026-04-22 UTC)
+
+- Permisos finos vigentes para endpoints de operaciones NACHA security y certificados.
+- Validación de descarga segura confirmada:
+  - autorización temporal previa a descarga,
+  - expiración/autorización verificadas,
+  - verificación de permisos por tipo de artefacto (`CanDownloadPlainNacha`/`CanDownloadEnvelope`),
+  - bloqueo explícito de descarga de plano cuando existe `SIGNATURE_VALIDATION_FAILED`.
+- Evidencia de no regresión backend:
+  - operaciones/permisos/descarga: 12/12,
+  - DigitalEnvelope/Signature/OpenEnvelope/SecretResolver: 36/36,
+  - NACHA/Mapping/BatchNumber: 166/166.
+- Confirmado: no se cambió criptografía base ni hardening de `identifier/IV`.

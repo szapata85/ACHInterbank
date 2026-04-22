@@ -1221,3 +1221,29 @@ Verificado `.github/workflows/postgres-integration-tests.yml`:
 - `on: workflow_dispatch`.
 - `if: github.event_name == 'workflow_dispatch'`.
 - Sin triggers automáticos.
+
+## 12) Prompt 14 — cierre operativo (2026-04-22 UTC)
+
+Comandos ejecutados:
+- `bash scripts/codex/setup-codex-env.sh`
+- `dotnet --info`
+- `dotnet restore ACHInterbank.sln`
+- `dotnet build ACHInterbank.sln -c Release --no-restore`
+- filtros `dotnet test` (operaciones/permisos/descarga, DigitalEnvelope/Signature/OpenEnvelope/SecretResolver, NACHA/Mapping/BatchNumber)
+- `cd web/ach-interbank-ui && npm ci --include=dev && npm run build && npm test -- --watch=false --browsers=ChromeHeadless`
+
+Resultados reales:
+- Build backend: OK.
+- Test backend filtros:
+  - operaciones/permisos/descarga: 12/12.
+  - DigitalEnvelope/Signature/OpenEnvelope/SecretResolver: 36/36.
+  - NACHA/Mapping/BatchNumber: 166/166.
+- Frontend:
+  - npm ci: OK.
+  - npm run build: OK.
+  - npm test: falla por entorno (`CHROME_BIN` ausente) y errores de karma/rimraf (`file-list filter`, `invalid rimraf options`).
+
+Confirmaciones de seguridad/alcance:
+- No WebCrypto para criptografía de negocio en Angular.
+- No cambios en `CryptoServiceScoped`, `OpenEnvelopeAsync`, `RsaKeyProvider`, `identifier/IV`.
+- Workflow PostgreSQL manual-only sin triggers automáticos.
