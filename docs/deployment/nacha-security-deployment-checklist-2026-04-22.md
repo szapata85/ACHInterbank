@@ -1,109 +1,130 @@
-# Deployment Checklist — NACHA Security (Backend + SPA) — 2026-04-22
+# Deployment Checklist Ejecutable — NACHA Security (Backend + SPA) — 2026-04-22
 
 ## 1) Prechecks globales
-- [ ] Confirmar alcance: solo operación NACHA security ya implementada.
-- [ ] Confirmar no cambios criptográficos (`CryptoServiceScoped`, `OpenEnvelopeAsync`, `RsaKeyProvider`, `identifier/IV`).
-- [ ] Confirmar workflow PostgreSQL manual-only (`workflow_dispatch`).
-- [ ] Confirmar plan de rollback aprobado.
-- [ ] Confirmar responsables on-call (backend, frontend, DB, seguridad).
+| CheckId | Control | Responsable | Estado | Resultado real | Evidencia | Observaciones |
+|---|---|---|---|---|---|---|
+| PRE-01 | Alcance: sin funcionalidades nuevas | Líder Técnico | Pendiente | N/A | N/A | |
+| PRE-02 | Sin cambios criptográficos restringidos | Arquitecto Backend | Pendiente | N/A | N/A | |
+| PRE-03 | Workflow PostgreSQL manual-only | DevOps | Pendiente | N/A | N/A | |
+| PRE-04 | Plan rollback aprobado | Operaciones | Pendiente | N/A | N/A | |
+| PRE-05 | On-call asignado (BE/FE/DB/Sec) | PM Técnico | Pendiente | N/A | N/A | |
 
 ## 2) Backend checklist
-- [ ] Variables/appsettings validadas (sin secretos en texto plano).
-- [ ] ConnectionStrings correctas para ambiente.
-- [ ] `OperationArtifactOptions`/artifact store configurado fuera de repo.
-- [ ] Límite de upload validado.
-- [ ] Políticas/permisos finos cargados y claims disponibles.
-- [ ] Endpoints `nacha-security/operations` smoke-tested.
-- [ ] Endpoints certificados smoke-tested.
-- [ ] Logs y auditoría sanitizados.
-- [ ] HTTPS/CORS conforme política.
+| CheckId | Control | Responsable | Estado | Resultado real | Evidencia | Observaciones |
+|---|---|---|---|---|---|---|
+| BE-01 | appsettings sin secretos | Seguridad | Pendiente | N/A | N/A | |
+| BE-02 | ConnectionStrings correctas | DBA | Pendiente | N/A | N/A | |
+| BE-03 | Artifact store fuera de repo | Backend | Pendiente | N/A | N/A | |
+| BE-04 | Límite upload validado | Backend | Pendiente | N/A | N/A | |
+| BE-05 | Claims/permisos finos disponibles | Seguridad | Pendiente | N/A | N/A | |
+| BE-06 | Smoke endpoints operations | QA Backend | Pendiente | N/A | N/A | |
+| BE-07 | Smoke endpoints certificados | QA Backend | Pendiente | N/A | N/A | |
+| BE-08 | Logs/auditoría sanitizados | Seguridad | Pendiente | N/A | N/A | |
+| BE-09 | HTTPS/CORS conforme política | DevOps | Pendiente | N/A | N/A | |
 
 ## 3) SPA checklist
-- [ ] API base URL correcta en environment.
-- [ ] Build producción validado.
-- [ ] Rutas `nacha-security` accesibles por rol.
-- [ ] Errores sanitizados visibles al usuario.
-- [ ] Flujo `authorizeDownload -> downloadArtifact` validado.
-- [ ] `sanitizeDownloadFileName` activo.
-- [ ] Sin secretos en build/env públicos.
-- [ ] Smoke test de navegación por rol completado.
+| CheckId | Control | Responsable | Estado | Resultado real | Evidencia | Observaciones |
+|---|---|---|---|---|---|---|
+| FE-01 | API base URL correcta | Frontend | Pendiente | N/A | N/A | |
+| FE-02 | Build producción validado | Frontend | Pendiente | N/A | N/A | |
+| FE-03 | Rutas por rol validadas | QA Frontend | Pendiente | N/A | N/A | |
+| FE-04 | Errores sanitizados | QA Frontend | Pendiente | N/A | N/A | |
+| FE-05 | authorizeDownload -> downloadArtifact | QA Frontend | Pendiente | N/A | N/A | |
+| FE-06 | sanitizeDownloadFileName activo | QA Frontend | Pendiente | N/A | N/A | |
+| FE-07 | Sin secretos en bundle/env | Seguridad | Pendiente | N/A | N/A | |
+| FE-08 | Smoke navegación por rol | QA Frontend | Pendiente | N/A | N/A | |
 
 ## 4) BD / migraciones
-- [ ] Backup previo a despliegue.
-- [ ] Orden de migraciones validado.
-- [ ] Migraciones aplicadas en ambiente:
-  - [ ] ExternalFileName*
-  - [ ] DigitalCertificate*
-  - [ ] DigitalEnvelopeOperationLogs
-  - [ ] NachaSecurityOperations
-- [ ] Validar índices/constraints/RowVersion.
-- [ ] Validar consultas críticas post-migración.
+| CheckId | Control | Responsable | Estado | Resultado real | Evidencia | Observaciones |
+|---|---|---|---|---|---|---|
+| DB-01 | Backup previo | DBA | Pendiente | N/A | N/A | |
+| DB-02 | Orden migraciones validado | DBA | Pendiente | N/A | N/A | |
+| DB-03 | ExternalFileName* aplicado | DBA | Pendiente | N/A | N/A | |
+| DB-04 | DigitalCertificate* aplicado | DBA | Pendiente | N/A | N/A | |
+| DB-05 | DigitalEnvelopeOperationLogs aplicado | DBA | Pendiente | N/A | N/A | |
+| DB-06 | NachaSecurityOperations aplicado | DBA | Pendiente | N/A | N/A | |
+| DB-07 | Índices/constraints/RowVersion OK | DBA | Pendiente | N/A | N/A | |
+| DB-08 | Validación post-migración | QA Backend | Pendiente | N/A | N/A | |
 
-## 5) Certificados / SecretRef
-- [ ] Certificados de prueba/no productivos cargados.
-- [ ] PFX fuera de repositorio.
-- [ ] Passwords fuera de repositorio.
-- [ ] SecretRef en gestor seguro (no exposición completa).
-- [ ] Revocación/rotación de material de prueba planificada.
+## 5) Seguridad y secretos
+| CheckId | Control | Responsable | Estado | Resultado real | Evidencia | Observaciones |
+|---|---|---|---|---|---|---|
+| SEC-01 | No secretos en repo/config | Seguridad | Pendiente | N/A | N/A | |
+| SEC-02 | Descarga autorizada+expirable | QA Seguridad | Pendiente | N/A | N/A | |
+| SEC-03 | No plano con firma inválida | QA Seguridad | Pendiente | N/A | N/A | |
+| SEC-04 | Logs sin contenido sensible | Seguridad | Pendiente | N/A | N/A | |
+| SEC-05 | PFX/password fuera de repo | Seguridad | Pendiente | N/A | N/A | |
+| SEC-06 | SecretRef no expuesto completo | Seguridad | Pendiente | N/A | N/A | |
+| SEC-07 | Identifier/IV bloqueado (sin hardening) | Arquitecto | Pendiente | N/A | N/A | |
 
-## 6) Seguridad
-- [ ] No secretos en appsettings/versionado.
-- [ ] Descarga autorizada y expirable validada.
-- [ ] No descarga de plano si firma falla.
-- [ ] No contenido sensible en logs/auditoría.
-- [ ] Revisión OWASP básica de endpoints de archivo.
-- [ ] Antivirus/antimalware de archivos (si política del cliente lo exige).
-- [ ] `identifier/IV` permanece sin hardening hasta vector oficial.
+## 6) Smoke test post-despliegue
+| SmokeId | Paso | Responsable | Estado | Resultado real | Evidencia | Observaciones |
+|---|---|---|---|---|---|---|
+| SMK-01 | Listar certificados | QA | Pendiente | N/A | N/A | |
+| SMK-02 | Generar NACHA plano | QA | Pendiente | N/A | N/A | |
+| SMK-03 | Generar NACHA cifrado `.ENV` | QA | Pendiente | N/A | N/A | |
+| SMK-04 | Manual encrypt/decrypt | QA | Pendiente | N/A | N/A | |
+| SMK-05 | Validar `SIGNATURE_VALIDATION_FAILED` | QA | Pendiente | N/A | N/A | |
+| SMK-06 | Auditoría por operationId | QA | Pendiente | N/A | N/A | |
+| SMK-07 | Denegaciones por permisos | QA Seguridad | Pendiente | N/A | N/A | |
 
-## 7) Post-deploy smoke test operativo
-- [ ] Listar certificados.
-- [ ] Generar NACHA plano.
-- [ ] Generar NACHA cifrado `.ENV`.
-- [ ] Manual encrypt y manual decrypt.
-- [ ] Validar `SIGNATURE_VALIDATION_FAILED` en caso alterado.
-- [ ] Validar auditoría por `operationId`.
-- [ ] Validar denegaciones por permisos faltantes.
+## 7) Monitoreo postdespliegue (primeras 48h)
+| MonitorId | Métrica | Umbral | Responsable | Estado | Evidencia |
+|---|---|---|---|---|---|
+| MON-01 | Error rate endpoints NACHA security | <= 2% | SoporteTecnico | Pendiente | N/A |
+| MON-02 | Fallos autorización descarga | tendencia estable | SoporteTecnico | Pendiente | N/A |
+| MON-03 | Eventos fail-close | monitoreo activo | Seguridad | Pendiente | N/A |
+| MON-04 | Latencia operaciones críticas | dentro SLO | Backend | Pendiente | N/A |
+| MON-05 | Alertas de seguridad | 0 críticas sin atender | Seguridad | Pendiente | N/A |
 
-## 8) Rollback
-### Backend
-- [ ] Revertir release a versión previa estable.
-- [ ] Reaplicar configuración previa.
-- [ ] Revertir migración si procedimiento aprobado lo requiere.
-- [ ] Limpiar artefactos temporales de versión fallida.
+## 8) Rollback drill
+| DrillId | Ejercicio | Responsable | Estado | Resultado real | Evidencia | Observaciones |
+|---|---|---|---|---|---|---|
+| RB-01 | Rollback backend a versión previa | DevOps | Pendiente | N/A | N/A | |
+| RB-02 | Rollback SPA + limpieza cache/CDN | Frontend/DevOps | Pendiente | N/A | N/A | |
+| RB-03 | Validación post-rollback | QA | Pendiente | N/A | N/A | |
+| RB-04 | Restauración backup DB (simulado) | DBA | Pendiente | N/A | N/A | |
+| RB-05 | Acta de drill y tiempos | PM Técnico | Pendiente | N/A | N/A | |
 
-### SPA
-- [ ] Revertir bundle a versión previa.
-- [ ] Invalidar caché/CDN.
-- [ ] Verificar rutas críticas post-rollback.
+## 9) Criterios formales de cierre despliegue
 
-### BD
-- [ ] Restaurar backup si rollback lógico no es suficiente.
-- [ ] Preservar evidencia de auditoría.
+### Cierre aprobado si:
+- 100% de prechecks críticos (`PRE-*`, `SEC-*`) en Aprobado.
+- 100% de smoke test críticos (`SMK-02`, `SMK-03`, `SMK-05`, `SMK-07`) aprobados.
+- 0 incidentes críticos abiertos tras ventana inicial de monitoreo.
+- Rollback drill ejecutado/documentado o evidencia de ejecución previa vigente.
 
-### Certificados
-- [ ] Desactivar/revocar material de prueba comprometido.
-- [ ] Limpiar referencias temporales de secretos.
+### Cierre rechazado si:
+- Falla de seguridad crítica.
+- Descarga sin autorización.
+- Exposición de secretos.
+- Retorno de plano con firma inválida.
+- Fallo de migraciones críticas sin plan de recuperación.
 
-## 9) Go / No-Go
-### GO (todos deben cumplirse)
-- [ ] Backend build OK.
-- [ ] SPA build OK.
-- [ ] Tests backend críticos no regresión OK.
-- [ ] Escenarios UAT P0/P1 aprobados.
-- [ ] Permisos finos y descarga segura OK.
-- [ ] Auditoría y trazabilidad OK.
-- [ ] Sin exposición de secretos.
-- [ ] Rollback listo y probado documentalmente.
+## 10) Defect tracking despliegue (template)
+```text
+DefectId:
+CheckId/SmokeId:
+Severidad:
+Estado:
+Ambiente:
+Fecha/Hora UTC:
+Responsable:
+Descripción:
+Resultado esperado:
+Resultado obtenido:
+Evidencia:
+OperationId (si aplica):
+Acción correctiva:
+Fecha compromiso:
+Resultado retest:
+```
 
-### NO-GO (cualquiera bloquea)
-- [ ] Plano devuelto con firma inválida.
-- [ ] Descarga sin autorización.
-- [ ] Exposición de PFX/password/SecretRef completo.
-- [ ] Falla de migraciones críticas.
-- [ ] Auditoría ausente en operaciones críticas.
-- [ ] Permisos no efectivos.
+## 11) Deuda conocida `npm test` Angular
+- Estado: no estable en entorno actual (CHROME_BIN/Karma/rimraf).
+- Acción: no bloquea despliegue controlado si backend crítico y build SPA están OK, pero queda issue QA obligatorio con fecha compromiso.
 
-## 10) Nota regulatoria/interoperabilidad
-- `identifier/IV` **no** se endurece hasta vector oficial.
-- Estado pendiente de vector oficial **no bloquea** UAT interna controlada.
-- Estado pendiente **sí bloquea** certificación oficial de interoperabilidad.
+## 12) Regla regulatoria
+- `identifier/IV` permanece sin hardening hasta vector oficial ACH/CENIT.
+- Este estado no bloquea operación interna controlada.
+- Sí bloquea certificación oficial de interoperabilidad.
