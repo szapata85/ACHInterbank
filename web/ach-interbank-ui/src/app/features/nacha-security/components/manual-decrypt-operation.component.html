@@ -1,0 +1,13 @@
+<section class="page-header"><h1>Descifrado manual de sobre digital</h1></section>
+<form [formGroup]="form" (ngSubmit)="submit()" class="upload">
+  <input type="file" (change)="onFileChange($event)" />
+  <button appButton type="submit" [disabled]="loading">{{ loading ? 'Procesando...' : 'Descifrar .ENV' }}</button>
+</form>
+<section *ngIf="operation">
+  <p><b>operationId:</b> {{ operation.operationId }}</p>
+  <p><b>estado:</b> {{ operation.status }}</p>
+  <p *ngIf="operation.error"><b>Error:</b> {{ operation.error.code }} - {{ operation.error.message }}</p>
+  <button appButton type="button" [disabled]="authorizing || !operation.artifact.downloadAvailable" (click)="authorizeAndDownload()">
+    {{ authorizing ? 'Autorizando...' : 'Autorizar y descargar' }}
+  </button>
+</section>
