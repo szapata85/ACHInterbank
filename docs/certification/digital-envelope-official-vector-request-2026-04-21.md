@@ -5,6 +5,8 @@
 **Estado:** Preparación de certificación (sin cambios criptográficos productivos)  
 **Alcance:** Solicitar/recibir/custodiar/cargar/validar vector oficial para interoperabilidad `.ENV/.env` en backend.
 
+**Nota operativa:** Este documento actúa también como runbook operativo interno.
+
 ---
 
 ## 1) Objetivo de la solicitud
