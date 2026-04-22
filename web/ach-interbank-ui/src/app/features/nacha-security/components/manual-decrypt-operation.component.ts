@@ -6,6 +6,9 @@ import { SharedModule } from '../../../shared/shared.module';
 import { NotificationService } from '../../../core/services/notification.service';
 import { NachaSecurityOperationsApiService } from '../services/nacha-security-operations-api.service';
 import { NachaSecurityOperationResponse } from '../models/nacha-security-operation.model';
+import { sanitizeDownloadFileName } from '../utils/download-file-name.util';
+import { AuthService } from '../../../core/services/auth.service';
+import { NACHA_SECURITY_PERMISSIONS } from '../nacha-security-permissions';
 
 @Component({
   selector: 'app-manual-decrypt-operation',
@@ -19,6 +22,7 @@ export class ManualDecryptOperationComponent {
   private readonly service = inject(NachaSecurityOperationsApiService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly auth = inject(AuthService);
 
   loading = false;
   authorizing = false;
@@ -27,6 +31,22 @@ export class ManualDecryptOperationComponent {
   readonly form = this.fb.group({
     file: [null as File | null, Validators.required]
   });
+
+  get canDownload(): boolean {
+    if (!this.operation || !this.operation.artifact.downloadAvailable || this.authorizing) {
+      return false;
+    }
+
+    if (this.operation.error?.code === 'SIGNATURE_VALIDATION_FAILED') {
+      return false;
+    }
+
+    const requiredPermission = this.requiresPlainDownloadPermission(this.operation)
+      ? NACHA_SECURITY_PERMISSIONS.canDownloadPlainNacha
+      : NACHA_SECURITY_PERMISSIONS.canDownloadEnvelope;
+
+    return this.auth.hasPermission([requiredPermission, NACHA_SECURITY_PERMISSIONS.canManageAch, NACHA_SECURITY_PERMISSIONS.canReadAch]);
+  }
 
   onFileChange(event: Event): void {
     const input = event.target as HTMLInputElement;
@@ -56,7 +76,7 @@ export class ManualDecryptOperationComponent {
   }
 
   authorizeAndDownload(): void {
-    if (!this.operation) {
+    if (!this.operation || !this.canDownload) {
       return;
     }
 
@@ -74,7 +94,9 @@ export class ManualDecryptOperationComponent {
               const url = window.URL.createObjectURL(blob);
               const a = document.createElement('a');
               a.href = url;
-              a.download = this.operation?.artifact.externalFileName || `${this.operation?.operationId}.txt`;
+
+              const fallback = `${this.operation?.operationId ?? 'operacion'}.txt`;
+              a.download = sanitizeDownloadFileName(this.operation?.artifact.externalFileName, fallback);
               a.click();
               window.URL.revokeObjectURL(url);
             },
@@ -83,5 +105,11 @@ export class ManualDecryptOperationComponent {
         },
         error: () => this.notifications.error('No fue posible autorizar la descarga.')
       });
+  }
+
+  private requiresPlainDownloadPermission(operation: NachaSecurityOperationResponse): boolean {
+    return operation.operationType === 'ManualEnvelopeDecrypt'
+      || operation.operationType === 'NachaGeneratePlain'
+      || (operation.artifact.contentType ?? '').toLowerCase() === 'text/plain';
   }
 }

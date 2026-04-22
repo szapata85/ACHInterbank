@@ -1,4 +1,6 @@
+using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Operations;
+using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,7 +19,7 @@ public class NachaSecurityOperationsController : ControllerBase
     }
 
     [HttpPost("nacha/generate")]
-    [Authorize(Policy = "CanReadAch")]
+    [Authorize(Policy = FineGrainedPermissions.CanGenerateNacha)]
     public async Task<ActionResult<DigitalEnvelopeOperationDto>> GeneratePlainAsync([FromBody] NachaGenerateApiRequest request, CancellationToken cancellationToken)
     {
         var result = await _service.GeneratePlainAsync(
@@ -29,7 +31,7 @@ public class NachaSecurityOperationsController : ControllerBase
     }
 
     [HttpPost("nacha/generate-encrypted")]
-    [Authorize(Policy = "CanReadAch")]
+    [Authorize(Policy = FineGrainedPermissions.CanGenerateEncryptedNacha)]
     public async Task<ActionResult<DigitalEnvelopeOperationDto>> GenerateEncryptedAsync([FromBody] NachaGenerateApiRequest request, CancellationToken cancellationToken)
     {
         var result = await _service.GenerateEncryptedAsync(
@@ -41,7 +43,7 @@ public class NachaSecurityOperationsController : ControllerBase
     }
 
     [HttpPost("envelope/manual-encrypt")]
-    [Authorize(Policy = "CanReadAch")]
+    [Authorize(Policy = FineGrainedPermissions.CanManualEncryptEnvelope)]
     [RequestSizeLimit(50 * 1024 * 1024)]
     public async Task<ActionResult<DigitalEnvelopeOperationDto>> ManualEncryptAsync(IFormFile file, CancellationToken cancellationToken)
     {
@@ -62,7 +64,7 @@ public class NachaSecurityOperationsController : ControllerBase
     }
 
     [HttpPost("envelope/manual-decrypt")]
-    [Authorize(Policy = "CanReadAch")]
+    [Authorize(Policy = FineGrainedPermissions.CanManualDecryptEnvelope)]
     [RequestSizeLimit(50 * 1024 * 1024)]
     public async Task<ActionResult<DigitalEnvelopeOperationDto>> ManualDecryptAsync(IFormFile file, CancellationToken cancellationToken)
     {
@@ -96,7 +98,7 @@ public class NachaSecurityOperationsController : ControllerBase
     }
 
     [HttpGet("audit")]
-    [Authorize(Policy = "CanReadAch")]
+    [Authorize(Policy = FineGrainedPermissions.CanViewNachaSecurityAudit)]
     public async Task<ActionResult<IReadOnlyList<DigitalEnvelopeOperationDto>>> AuditAsync([FromQuery] int take = 100, CancellationToken cancellationToken = default)
     {
         return Ok(await _service.ListAuditAsync(take, cancellationToken));
@@ -106,6 +108,24 @@ public class NachaSecurityOperationsController : ControllerBase
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> AuthorizeDownloadAsync(string operationId, CancellationToken cancellationToken)
     {
+        var operation = await _service.GetByOperationIdAsync(operationId, cancellationToken);
+        if (operation is null)
+        {
+            return NotFound(new { code = "OPERATION_NOT_FOUND", message = "Operación no encontrada.", operationId });
+        }
+
+        var requiredPermission = ResolveRequiredDownloadPermission(operation);
+        if (!HasPermission(requiredPermission))
+        {
+            return Forbid();
+        }
+
+        if (requiredPermission == FineGrainedPermissions.CanDownloadPlainNacha
+            && string.Equals(operation.Error?.Code, "SIGNATURE_VALIDATION_FAILED", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { code = "SIGNATURE_VALIDATION_FAILED", message = "No está permitida la descarga de plano cuando la firma falla.", operationId });
+        }
+
         var result = await _service.AuthorizeDownloadAsync(operationId, BuildContext(), cancellationToken);
         if (!result.Authorized)
         {
@@ -119,6 +139,24 @@ public class NachaSecurityOperationsController : ControllerBase
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> DownloadAsync(string operationId, CancellationToken cancellationToken)
     {
+        var operation = await _service.GetByOperationIdAsync(operationId, cancellationToken);
+        if (operation is null)
+        {
+            return NotFound(new { code = "OPERATION_NOT_FOUND", message = "Operación no encontrada.", operationId });
+        }
+
+        var requiredPermission = ResolveRequiredDownloadPermission(operation);
+        if (!HasPermission(requiredPermission))
+        {
+            return Forbid();
+        }
+
+        if (requiredPermission == FineGrainedPermissions.CanDownloadPlainNacha
+            && string.Equals(operation.Error?.Code, "SIGNATURE_VALIDATION_FAILED", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { code = "SIGNATURE_VALIDATION_FAILED", message = "No está permitida la descarga de plano cuando la firma falla.", operationId });
+        }
+
         var descriptor = await _service.OpenDownloadAsync(operationId, BuildContext(), cancellationToken);
         if (descriptor is null)
         {
@@ -127,6 +165,21 @@ public class NachaSecurityOperationsController : ControllerBase
 
         return File(descriptor.Content, descriptor.ContentType, descriptor.FileName);
     }
+
+    private static string ResolveRequiredDownloadPermission(DigitalEnvelopeOperationDto operation)
+    {
+        var contentType = operation.Artifact.ContentType ?? string.Empty;
+        var isPlain = string.Equals(contentType, "text/plain", StringComparison.OrdinalIgnoreCase)
+                      || operation.OperationType == NachaSecurityOperationType.NachaGeneratePlain
+                      || operation.OperationType == NachaSecurityOperationType.ManualEnvelopeDecrypt;
+
+        return isPlain ? FineGrainedPermissions.CanDownloadPlainNacha : FineGrainedPermissions.CanDownloadEnvelope;
+    }
+
+    private bool HasPermission(string permission)
+        => User.HasClaim("permission", permission)
+           || User.HasClaim("permission", "CanManageAch")
+           || User.HasClaim("permission", "CanReadAch");
 
     private OperationRequestContext BuildContext()
     {

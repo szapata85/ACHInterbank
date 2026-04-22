@@ -1,3 +1,4 @@
+using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Application.Services.Notifications.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -103,6 +104,58 @@ public static class DependencyInjectionService
             options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
             options.AddPolicy("CanManageAch", policy => policy.RequireClaim("permission", "CanManageAch"));
             options.AddPolicy("CanReadAch", policy => policy.RequireClaim("permission", "CanReadAch"));
+
+            options.AddPolicy(FineGrainedPermissions.CanGenerateNacha,
+                policy => policy.RequireAssertion(ctx =>
+                    ctx.User.HasClaim("permission", FineGrainedPermissions.CanGenerateNacha)
+                    || ctx.User.HasClaim("permission", "CanManageAch")
+                    || ctx.User.HasClaim("permission", "CanReadAch")));
+
+            options.AddPolicy(FineGrainedPermissions.CanGenerateEncryptedNacha,
+                policy => policy.RequireAssertion(ctx =>
+                    ctx.User.HasClaim("permission", FineGrainedPermissions.CanGenerateEncryptedNacha)
+                    || ctx.User.HasClaim("permission", "CanManageAch")
+                    || ctx.User.HasClaim("permission", "CanReadAch")));
+
+            options.AddPolicy(FineGrainedPermissions.CanManualEncryptEnvelope,
+                policy => policy.RequireAssertion(ctx =>
+                    ctx.User.HasClaim("permission", FineGrainedPermissions.CanManualEncryptEnvelope)
+                    || ctx.User.HasClaim("permission", "CanManageAch")
+                    || ctx.User.HasClaim("permission", "CanReadAch")));
+
+            options.AddPolicy(FineGrainedPermissions.CanManualDecryptEnvelope,
+                policy => policy.RequireAssertion(ctx =>
+                    ctx.User.HasClaim("permission", FineGrainedPermissions.CanManualDecryptEnvelope)
+                    || ctx.User.HasClaim("permission", "CanManageAch")
+                    || ctx.User.HasClaim("permission", "CanReadAch")));
+
+            options.AddPolicy(FineGrainedPermissions.CanDownloadPlainNacha,
+                policy => policy.RequireAssertion(ctx =>
+                    ctx.User.HasClaim("permission", FineGrainedPermissions.CanDownloadPlainNacha)
+                    || ctx.User.HasClaim("permission", "CanManageAch")
+                    || ctx.User.HasClaim("permission", "CanReadAch")));
+
+            options.AddPolicy(FineGrainedPermissions.CanDownloadEnvelope,
+                policy => policy.RequireAssertion(ctx =>
+                    ctx.User.HasClaim("permission", FineGrainedPermissions.CanDownloadEnvelope)
+                    || ctx.User.HasClaim("permission", "CanManageAch")
+                    || ctx.User.HasClaim("permission", "CanReadAch")));
+
+            options.AddPolicy(FineGrainedPermissions.CanViewNachaSecurityAudit,
+                policy => policy.RequireAssertion(ctx =>
+                    ctx.User.HasClaim("permission", FineGrainedPermissions.CanViewNachaSecurityAudit)
+                    || ctx.User.HasClaim("permission", "CanManageAch")
+                    || ctx.User.HasClaim("permission", "CanReadAch")));
+
+            options.AddPolicy(FineGrainedPermissions.CanManageCertificates,
+                policy => policy.RequireAssertion(ctx =>
+                    ctx.User.HasClaim("permission", FineGrainedPermissions.CanManageCertificates)
+                    || ctx.User.HasClaim("permission", "CanManageAch")));
+
+            options.AddPolicy(FineGrainedPermissions.CanRunInteroperabilityHarness,
+                policy => policy.RequireAssertion(ctx =>
+                    ctx.User.HasClaim("permission", FineGrainedPermissions.CanRunInteroperabilityHarness)
+                    || ctx.User.HasClaim("permission", "CanManageAch")));
         });
 
         #region Services

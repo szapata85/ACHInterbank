@@ -7,7 +7,7 @@
   <p><b>operationId:</b> {{ operation.operationId }}</p>
   <p><b>estado:</b> {{ operation.status }}</p>
   <p *ngIf="operation.error"><b>Error:</b> {{ operation.error.code }} - {{ operation.error.message }}</p>
-  <button appButton type="button" [disabled]="authorizing || !operation.artifact.downloadAvailable" (click)="authorizeAndDownload()">
+  <button appButton type="button" [disabled]="!canDownload" (click)="authorizeAndDownload()">
     {{ authorizing ? 'Autorizando...' : 'Autorizar y descargar' }}
   </button>
 </section>
