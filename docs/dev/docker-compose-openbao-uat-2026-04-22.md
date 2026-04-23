@@ -53,3 +53,10 @@ bash scripts/openbao/run-historical-decrypt-e2e-uat.sh
 ```
 
 El caso usa resolución histórica por `recipientInfo.certificateInfo.issuer + serial` (con fallback opcional por thumbprint) y exige auditoría `OperationType=HistoricalDecrypt`.
+
+## Ejecución en este entorno (2026-04-23 UTC)
+Se intentó ejecutar la secuencia E2E completa, pero este entorno no dispone de Docker (`docker: command not found`).
+Para evidencia real, ejecutar exactamente el script en un host Docker-capable:
+```bash
+bash scripts/openbao/run-historical-decrypt-e2e-uat.sh
+```

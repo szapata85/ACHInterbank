@@ -1256,3 +1256,34 @@ Confirmaciones de seguridad/alcance:
 - Actualización 2026-04-23 (bootstrap UAT): se añadió `openbao-bootstrap` en `docker-compose.yml` para init/unseal/policy/token automático y entrega de token por volumen a la API (`/openbao-bootstrap/api-token`).
 - Addendum 2026-04-23 (HistoricalDecrypt): se validó política `expired-but-retained` en tests con resolución por issuer/serial y auditoría `HistoricalDecrypt`.
 - E2E real Docker/OpenBao en este entorno de ejecución: no ejecutable por ausencia de Docker; se dejó script determinístico `scripts/openbao/run-historical-decrypt-e2e-uat.sh` para validación local completa.
+
+## 19) Evidencia ejecución E2E historical decrypt (2026-04-23 UTC)
+Comandos ejecutados en este entorno:
+
+```bash
+cp -f .env.example .env
+docker compose up -d --build
+```
+Salida:
+`/bin/bash: line 1: docker: command not found`
+
+```bash
+docker compose ps
+docker compose logs openbao --tail=100
+docker compose logs openbao-bootstrap --tail=100
+docker compose logs achinterbank-api --tail=200
+docker compose exec achinterbank-api sh -c 'test -s /openbao-bootstrap/api-token && echo token-ok'
+```
+Salida en todos los comandos:
+`/bin/bash: line 1: docker: command not found`
+
+```bash
+bash scripts/openbao/run-historical-decrypt-e2e-uat.sh
+```
+Salida:
+- `Docker no disponible en este entorno.`
+- `Ejecute este script en una máquina con Docker/Compose para el E2E real.`
+
+Conclusión:
+- En este runner no es posible levantar evidencia E2E real con OpenBao por ausencia de Docker.
+- El cierre operativo queda preparado mediante `scripts/openbao/run-historical-decrypt-e2e-uat.sh` para ejecución directa en host local con Docker.
