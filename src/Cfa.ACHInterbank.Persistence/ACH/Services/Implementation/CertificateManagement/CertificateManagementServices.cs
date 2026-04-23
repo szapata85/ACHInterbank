@@ -393,13 +393,14 @@ public class CertificateUsageLoggerService : ICertificateUsageLogger
         _context = context;
     }
 
-    public async Task LogUsageAsync(int versionId, string operationType, string operationId, string result, string? errorCode, string actor, CancellationToken cancellationToken = default)
+    public async Task LogUsageAsync(int versionId, string operationType, string operationId, string result, string? errorCode, string actor, string? contextJson = null, CancellationToken cancellationToken = default)
     {
         _context.CertificateUsageLogs.Add(new CertificateUsageLog
         {
             CertificateVersionId = versionId,
             OperationType = operationType,
             OperationId = operationId,
+            ContextJson = contextJson,
             Result = result,
             ErrorCode = errorCode,
             CreatedByProcess = actor,

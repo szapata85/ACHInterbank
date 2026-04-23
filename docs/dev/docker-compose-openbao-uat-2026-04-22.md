@@ -38,3 +38,10 @@ docker compose exec achinterbank-api sh -c 'test -s /openbao-bootstrap/api-token
 - No usar secretos/certificados reales en este modo.
 - El bootstrap UAT prioriza reproducibilidad operativa sobre hardening.
 - Para producción: separar init/unseal, usar auth method no-token estático de operación, y controles de rotación/segregación de funciones.
+
+## Caso real controlado: expired-but-retained historical decrypt
+1. Levantar stack con `docker compose up -d --build`.
+2. Cargar certificado privado de prueba y activar versión.
+3. Simular versión histórica vencida (`NotAfter` pasado) reteniendo `SecretRef`.
+4. Ejecutar decrypt de sobre histórico con `recipientInfo.certificateInfo` del cert vencido.
+5. Verificar auditoría `OperationType=HistoricalDecrypt` y `contextJson` con `SecretRefMasked`.

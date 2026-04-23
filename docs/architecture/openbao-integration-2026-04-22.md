@@ -34,3 +34,7 @@
 - Evita persistencia de private key/password en BD.
 - Mantiene backend como único ejecutor criptográfico.
 - Permite trazabilidad vía metadata + logs de uso/auditoría.
+
+## Addendum: Historical decrypt policy (2026-04-23)
+- Se adopta política `expired-but-retained`: certificados vencidos no sirven para operaciones nuevas, pero sí para decrypt histórico con resolución por versión histórica.
+- Resolver usa `issuer/serial` del sobre para localizar versión histórica correcta y audita `HistoricalDecrypt`.

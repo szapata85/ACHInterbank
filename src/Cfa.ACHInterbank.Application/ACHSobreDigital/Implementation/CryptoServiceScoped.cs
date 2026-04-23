@@ -196,10 +196,12 @@ public class CryptoServiceScoped : ICryptoServiceScoped
 
         try
         {
-            X509Certificate2 certificadoReceptor = _keys.ObtenerCertificate("CertDecrypt");
             string sobre = Encoding.UTF8.GetString(contenidoBytes);
 
             DigitalEnvelopeModel objsobre = DeserializeXml<DigitalEnvelopeModel>(sobre);
+            X509Certificate2 certificadoReceptor = _keys.ObtenerCertificateForDecrypt(
+                objsobre.RecipientInfo?.CertificateInfo?.Issuer,
+                objsobre.RecipientInfo?.CertificateInfo?.Serial);
 
             byte[] encryptedKey = Convert.FromBase64String(objsobre.RecipientInfo.EncryptedKey);
             byte[] encryptedContent = Convert.FromBase64String(objsobre.EncryptedContentInfo.EncryptedContent);

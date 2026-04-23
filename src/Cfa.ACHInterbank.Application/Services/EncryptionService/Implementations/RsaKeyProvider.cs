@@ -72,6 +72,25 @@ public class RsaKeyProvider : IRsaKeyProvider
         }
     }
 
+    public X509Certificate2 ObtenerCertificateForDecrypt(string? recipientIssuer, string? recipientSerial, string? recipientThumbprint = null)
+    {
+        var result = _certificateResolver.ResolveHistoricalDecryptAsync(
+                new HistoricalDecryptCertificateCriteria(
+                    recipientIssuer,
+                    recipientSerial,
+                    recipientThumbprint,
+                    "RsaKeyProvider.ObtenerCertificateForDecrypt"))
+            .GetAwaiter()
+            .GetResult();
+
+        if (result.Success && result.Certificate != null)
+        {
+            return result.Certificate;
+        }
+
+        return ObtenerCertificate("CertDecrypt");
+    }
+
     //public X509Certificate2 ObtenerCertificado(string Key_cert)
     //{
 

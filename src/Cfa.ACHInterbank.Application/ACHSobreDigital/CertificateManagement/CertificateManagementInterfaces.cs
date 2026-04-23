@@ -47,5 +47,5 @@ public interface ICertificateAuditService
 
 public interface ICertificateUsageLogger
 {
-    Task LogUsageAsync(int versionId, string operationType, string operationId, string result, string? errorCode, string actor, CancellationToken cancellationToken = default);
+    Task LogUsageAsync(int versionId, string operationType, string operationId, string result, string? errorCode, string actor, string? contextJson = null, CancellationToken cancellationToken = default);
 }
