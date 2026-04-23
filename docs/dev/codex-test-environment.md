@@ -1139,3 +1139,111 @@ Notas:
 - Sin cambios en criptografía productiva.
 - Sin cambios en `identifier`/IV/XML/AES/RSA/padding/SignedData.
 - Workflow PostgreSQL permanece manual-only (`workflow_dispatch` + guard de job).
+
+## 12) Revalidación Prompt 12 — Backend operations SPA (2026-04-22 UTC)
+
+### Setup ejecutado
+
+```bash
+bash scripts/codex/setup-codex-env.sh
+export DOTNET_ROOT=$HOME/.dotnet
+export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH
+dotnet --info
+dotnet ef --version
+```
+
+Resultado: SDK `10.0.201` y `dotnet-ef 10.0.7` disponibles.
+
+### Build y corrección aplicada
+
+Comandos:
+
+```bash
+dotnet restore ACHInterbank.sln
+dotnet build ACHInterbank.sln -c Release
+```
+
+- Se detectó y corrigió error de compilación en `NachaSecurityOperationService` (`DigitalEnvelopeOperationErrorDto` con named argument incorrecto).
+- Build final: **OK** (warnings preexistentes de nulabilidad en módulos no relacionados a Prompt 12).
+
+### EF migration
+
+Comandos:
+
+```bash
+dotnet ef migrations list \
+ --project src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj \
+ --startup-project src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj \
+ --context AchDbContext
+
+dotnet ef migrations add AddNachaSecurityOperations \
+ --project src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj \
+ --startup-project src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj \
+ --context AchDbContext \
+ --output-dir DataBase/Migrations/Postgres
+```
+
+Resultado:
+
+- Migración creada: `20260422112419_AddNachaSecurityOperations`.
+- Incluye creación de tabla `NachaSecurityOperations`, índices y columna `RowVersion`.
+
+### Tests ejecutados
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+ -c Release --no-build \
+ --filter "FullyQualifiedName~NachaSecurityOperation|FullyQualifiedName~ManualEncrypt|FullyQualifiedName~ManualDecrypt|FullyQualifiedName~GenerateEncrypted|FullyQualifiedName~Download" -v minimal
+```
+
+- Resultado: **5/5 passed**.
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+ -c Release --no-build \
+ --filter "FullyQualifiedName~Signature|FullyQualifiedName~OpenEnvelope|FullyQualifiedName~DigitalEnvelope|FullyQualifiedName~CertificateResolver|FullyQualifiedName~SecretResolver" -v minimal
+```
+
+- Resultado: **35/35 passed**.
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+ -c Release --no-build \
+ --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber" -v minimal
+```
+
+- Resultado: **159/159 passed**.
+
+### CI workflow
+
+Verificado `.github/workflows/postgres-integration-tests.yml`:
+
+- `on: workflow_dispatch`.
+- `if: github.event_name == 'workflow_dispatch'`.
+- Sin triggers automáticos.
+
+## 12) Prompt 14 — cierre operativo (2026-04-22 UTC)
+
+Comandos ejecutados:
+- `bash scripts/codex/setup-codex-env.sh`
+- `dotnet --info`
+- `dotnet restore ACHInterbank.sln`
+- `dotnet build ACHInterbank.sln -c Release --no-restore`
+- filtros `dotnet test` (operaciones/permisos/descarga, DigitalEnvelope/Signature/OpenEnvelope/SecretResolver, NACHA/Mapping/BatchNumber)
+- `cd web/ach-interbank-ui && npm ci --include=dev && npm run build && npm test -- --watch=false --browsers=ChromeHeadless`
+
+Resultados reales:
+- Build backend: OK.
+- Test backend filtros:
+  - operaciones/permisos/descarga: 12/12.
+  - DigitalEnvelope/Signature/OpenEnvelope/SecretResolver: 36/36.
+  - NACHA/Mapping/BatchNumber: 166/166.
+- Frontend:
+  - npm ci: OK.
+  - npm run build: OK.
+  - npm test: falla por entorno (`CHROME_BIN` ausente) y errores de karma/rimraf (`file-list filter`, `invalid rimraf options`).
+
+Confirmaciones de seguridad/alcance:
+- No WebCrypto para criptografía de negocio en Angular.
+- No cambios en `CryptoServiceScoped`, `OpenEnvelopeAsync`, `RsaKeyProvider`, `identifier/IV`.
+- Workflow PostgreSQL manual-only sin triggers automáticos.

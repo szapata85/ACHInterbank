@@ -1,0 +1,20 @@
+<section class="page-header">
+  <h1>Generar NACHA-M cifrado (.ENV)</h1>
+</section>
+
+<form [formGroup]="form" (ngSubmit)="submit()" class="upload">
+  <label class="field">
+    <span>ID de ciclo</span>
+    <input formControlName="cycleId" placeholder="cycle-123" />
+  </label>
+  <button appButton type="submit" [disabled]="loading">{{ loading ? 'Procesando...' : 'Generar cifrado' }}</button>
+</form>
+
+<section *ngIf="operation">
+  <h3>Resultado</h3>
+  <p><b>operationId:</b> {{ operation.operationId }}</p>
+  <p><b>status:</b> {{ operation.status }}</p>
+  <p><b>archivo:</b> {{ operation.artifact.externalFileName || '-' }}</p>
+  <p><b>hash plano:</b> {{ operation.artifact.plainHashSha256 || '-' }}</p>
+  <p><b>hash sobre:</b> {{ operation.artifact.envelopeHashSha256 || '-' }}</p>
+</section>

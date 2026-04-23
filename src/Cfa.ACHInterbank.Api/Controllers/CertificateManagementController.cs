@@ -1,3 +1,4 @@
+using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.CertificateManagement;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Microsoft.AspNetCore.Authorization;
@@ -31,6 +32,7 @@ public class CertificateManagementController : ControllerBase
     }
 
     [HttpPost("public")]
+    [Authorize(Policy = FineGrainedPermissions.CanManageCertificates)]
     [RequestSizeLimit(15 * 1024 * 1024)]
     public async Task<ActionResult<CertificateVersionApiDto>> UploadPublicAsync([FromForm] UploadPublicCertificateApiRequest request, CancellationToken cancellationToken)
     {
@@ -53,6 +55,7 @@ public class CertificateManagementController : ControllerBase
     }
 
     [HttpPost("private")]
+    [Authorize(Policy = FineGrainedPermissions.CanManageCertificates)]
     [RequestSizeLimit(15 * 1024 * 1024)]
     public async Task<ActionResult<CertificateVersionApiDto>> UploadPrivateAsync([FromForm] UploadPrivateCertificateApiRequest request, CancellationToken cancellationToken)
     {
@@ -78,6 +81,7 @@ public class CertificateManagementController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = "CanReadAch")]
     public async Task<ActionResult<IEnumerable<CertificateVersionApiDto>>> ListAsync([FromQuery] int? clearingHouseId, [FromQuery] CertificateEnvironment? environment, [FromQuery] CertificatePurpose? purpose, [FromQuery] CertificateHolderType? holderType, [FromQuery] CertificateStatus? status, CancellationToken cancellationToken)
     {
         var items = await _catalogService.GetCertificatesAsync(new CertificateFilterDto(clearingHouseId, environment, purpose, holderType, status), cancellationToken);
@@ -85,6 +89,7 @@ public class CertificateManagementController : ControllerBase
     }
 
     [HttpGet("{id:int}/versions")]
+    [Authorize(Policy = "CanReadAch")]
     public async Task<ActionResult<IEnumerable<CertificateVersionApiDto>>> ListVersionsAsync(int id, CancellationToken cancellationToken)
     {
         var items = await _catalogService.GetVersionsAsync(id, cancellationToken);
@@ -92,6 +97,7 @@ public class CertificateManagementController : ControllerBase
     }
 
     [HttpPost("versions/{id:int}/activate")]
+    [Authorize(Policy = FineGrainedPermissions.CanManageCertificates)]
     public async Task<ActionResult<CertificateVersionApiDto>> ActivateAsync(int id, CancellationToken cancellationToken)
     {
         var dto = await _activationService.ActivateVersionAsync(new ActivateCertificateVersionRequest(id, User?.Identity?.Name ?? "api"), cancellationToken);
@@ -99,6 +105,7 @@ public class CertificateManagementController : ControllerBase
     }
 
     [HttpPost("versions/{id:int}/revoke")]
+    [Authorize(Policy = FineGrainedPermissions.CanManageCertificates)]
     public async Task<ActionResult<CertificateVersionApiDto>> RevokeAsync(int id, [FromBody] RevokeVersionBody body, CancellationToken cancellationToken)
     {
         var dto = await _activationService.RevokeVersionAsync(new RevokeCertificateVersionRequest(id, User?.Identity?.Name ?? "api", body.Reason ?? "Revoked by API"), cancellationToken);
@@ -106,12 +113,14 @@ public class CertificateManagementController : ControllerBase
     }
 
     [HttpPost("versions/{id:int}/validate")]
+    [Authorize(Policy = FineGrainedPermissions.CanManageCertificates)]
     public async Task<ActionResult<CertificateValidationResultDto>> ValidateAsync(int id, CancellationToken cancellationToken)
     {
         return Ok(await _validationService.ValidateForActivationAsync(id, cancellationToken));
     }
 
     [HttpGet("audit")]
+    [Authorize(Policy = FineGrainedPermissions.CanViewNachaSecurityAudit)]
     public async Task<ActionResult<IEnumerable<CertificateAuditDto>>> AuditAsync(CancellationToken cancellationToken)
     {
         return Ok(await _auditService.ListLoadAuditsAsync(cancellationToken));

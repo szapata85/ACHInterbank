@@ -148,6 +148,7 @@ public class AchDbContext : DbContext
     public DbSet<CertificateRotationHistory> CertificateRotationHistories => Set<CertificateRotationHistory>();
     public DbSet<CertificateLoadAudit> CertificateLoadAudits => Set<CertificateLoadAudit>();
     public DbSet<DigitalEnvelopeOperationLog> DigitalEnvelopeOperationLogs => Set<DigitalEnvelopeOperationLog>();
+    public DbSet<NachaSecurityOperation> NachaSecurityOperations => Set<NachaSecurityOperation>();
     public DbSet<BrandingSetting> BrandingSettings => Set<BrandingSetting>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<AuthLog> AuthLogs => Set<AuthLog>();

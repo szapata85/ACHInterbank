@@ -2,6 +2,7 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.Mapping;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.CertificateManagement;
+using Cfa.ACHInterbank.Application.ACHSobreDigital.Operations;
 using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -27,6 +28,7 @@ public static class DependencyInjectionService
         services.Configure<TransactionPolicyOptions>(configuration.GetSection("TransactionPolicies"));
         services.Configure<NachaGenerationOptions>(configuration.GetSection(NachaGenerationOptions.SectionName));
         services.Configure<CertificateSecretResolverOptions>(configuration.GetSection("DigitalEnvelope:CertificateSecretResolver"));
+        services.Configure<OperationArtifactOptions>(configuration.GetSection(OperationArtifactOptions.SectionName));
         //services.AddDbContext<DataBaseService>(options => options.UseAseClient(configuration.GetConnectionString("SybaseConnection")));
 
         //using (var connection = new AseConnection(""))

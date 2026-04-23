@@ -87,6 +87,26 @@ export class NavigationService {
     };
 
 
+
+    const nachaSecurityChildren: MenuItem[] = [
+      { id: -2601, label: 'Dashboard seguridad', route: '/nacha-security/dashboard', icon: 'shield' },
+      { id: -2602, label: 'Certificados', route: '/nacha-security/certificates', icon: 'badge' },
+      { id: -2603, label: 'Generar NACHA-M', route: '/nacha-security/nacha/generate', icon: 'description' },
+      { id: -2604, label: 'Generar NACHA-M cifrado', route: '/nacha-security/nacha/generate-encrypted', icon: 'encrypted' },
+      { id: -2605, label: 'Cifrado manual', route: '/nacha-security/digital-envelope/manual-encrypt', icon: 'lock' },
+      { id: -2606, label: 'Descifrado manual', route: '/nacha-security/digital-envelope/manual-decrypt', icon: 'lock_open' },
+      { id: -2607, label: 'Auditoría operaciones', route: '/nacha-security/digital-envelope/audit', icon: 'fact_check' },
+      { id: -2608, label: 'Interoperabilidad', route: '/nacha-security/digital-envelope/interoperability', icon: 'hub' }
+    ];
+
+    const nachaSecurityGroup: MenuItem = {
+      id: -260,
+      label: 'Seguridad NACHA',
+      route: '/nacha-security/dashboard',
+      icon: 'security',
+      children: nachaSecurityChildren
+    };
+
     const logsChildren: MenuItem[] = [
       { id: -231, label: 'Log de auditoría', route: '/audit-logs', icon: 'fact_check' },
       { id: -232, label: 'Log de autenticaciones', route: '/auth-logs', icon: 'shield' },
@@ -102,7 +122,7 @@ export class NavigationService {
     };
 
     if (!items.length) {
-      return [transactionsGroup, customerItem, reportsItem, cenitGroup, logsGroup, catalogGroup];
+      return [transactionsGroup, customerItem, reportsItem, cenitGroup, nachaSecurityGroup, logsGroup, catalogGroup];
     }
 
     const hasRoute = (menu: MenuItem[], route: string): boolean =>
@@ -144,6 +164,10 @@ export class NavigationService {
         }
       }
 
+      if (!hasRoute(next, nachaSecurityGroup.route)) {
+        next = [...next, nachaSecurityGroup];
+      }
+
       const existingLogsGroup = next.find((item) => item.route === '/audit-logs' || item.label === 'Logs');
       if (existingLogsGroup) {
         const existingLogChildren = existingLogsGroup.children ?? [];
@@ -161,9 +185,10 @@ export class NavigationService {
     const withCustomer = hasRoute(withTransactions, customerItem.route) ? withTransactions : [...withTransactions, customerItem];
     const withReports = hasRoute(withCustomer, reportsItem.route) ? withCustomer : [...withCustomer, reportsItem];
     const withCenit = hasRoute(withReports, cenitGroup.route) ? withReports : [...withReports, cenitGroup];
-    const withLogs = hasRoute(withCenit, '/navigation-logs') || hasRoute(withCenit, '/auth-logs') || hasRoute(withCenit, '/audit-logs')
-      ? withCenit
-      : [...withCenit, logsGroup];
+    const withNachaSecurity = hasRoute(withCenit, nachaSecurityGroup.route) ? withCenit : [...withCenit, nachaSecurityGroup];
+    const withLogs = hasRoute(withNachaSecurity, '/navigation-logs') || hasRoute(withNachaSecurity, '/auth-logs') || hasRoute(withNachaSecurity, '/audit-logs')
+      ? withNachaSecurity
+      : [...withNachaSecurity, logsGroup];
 
     return [...withLogs, catalogGroup];
   }

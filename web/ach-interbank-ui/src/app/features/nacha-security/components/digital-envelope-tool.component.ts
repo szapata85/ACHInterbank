@@ -5,6 +5,7 @@ import { finalize } from 'rxjs';
 import { SharedModule } from '../../../shared/shared.module';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SobreDigitalService } from '../services/sobre-digital.service';
+import { sanitizeDownloadFileName } from '../utils/download-file-name.util';
 
 @Component({
   selector: 'app-digital-envelope-tool',
@@ -109,7 +110,7 @@ export class DigitalEnvelopeToolComponent {
   }
 
   private downloadResponse(response: { body: Blob | null; headers: { get: (name: string) => string | null } }, fallbackName: string): void {
-    const fileName = this.extractFileName(response.headers.get('content-disposition')) ?? fallbackName;
+    const fileName = sanitizeDownloadFileName(this.extractFileName(response.headers.get('content-disposition')), fallbackName);
     const blob = response.body ?? new Blob();
     const url = window.URL.createObjectURL(blob);
 

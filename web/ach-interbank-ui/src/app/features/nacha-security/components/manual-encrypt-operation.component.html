@@ -1,0 +1,10 @@
+<section class="page-header"><h1>Cifrado manual de sobre digital</h1></section>
+<form [formGroup]="form" (ngSubmit)="submit()" class="upload">
+  <input type="file" (change)="onFileChange($event)" />
+  <button appButton type="submit" [disabled]="loading">{{ loading ? 'Procesando...' : 'Cifrar .ENV' }}</button>
+</form>
+<section *ngIf="operation">
+  <p><b>operationId:</b> {{ operation.operationId }}</p>
+  <p><b>estado:</b> {{ operation.status }}</p>
+  <p><b>descarga:</b> {{ operation.artifact.downloadAvailable ? 'Disponible' : 'No disponible' }}</p>
+</section>
