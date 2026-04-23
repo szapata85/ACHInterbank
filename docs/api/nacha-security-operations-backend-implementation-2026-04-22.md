@@ -89,3 +89,4 @@ Comandos ejecutados y resultado real:
 - `CertificateStorageMode.OpenBaoReference` habilita persistencia de material privado en OpenBao KVv2.
 - Upload de `.pfx` privado ahora permite que backend genere `SecretRef` automáticamente (`openbao://...`) y persista solo metadata+ref.
 - Resolución de secretos para firma/descifrado usa `OpenBaoCertificateSecretProvider`.
+- Bootstrap UAT: la API ahora puede leer token OpenBao desde archivo (`ApiTokenFilePath`) para evitar pasos manuales posteriores al `compose up`.

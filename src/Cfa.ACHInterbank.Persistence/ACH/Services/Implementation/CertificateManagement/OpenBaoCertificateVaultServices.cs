@@ -35,7 +35,8 @@ public sealed class OpenBaoCertificatePrivateMaterialStore : ICertificatePrivate
     {
         if (!_options.Enabled)
             throw new InvalidOperationException("OpenBao está deshabilitado para este entorno.");
-        if (string.IsNullOrWhiteSpace(_options.ApiToken))
+        var token = ResolveToken();
+        if (string.IsNullOrWhiteSpace(token))
             throw new InvalidOperationException("OpenBao token no configurado.");
 
         var environment = request.Environment.Trim().ToLowerInvariant();
@@ -45,7 +46,7 @@ public sealed class OpenBaoCertificatePrivateMaterialStore : ICertificatePrivate
         using var client = _httpClientFactory.CreateClient(nameof(OpenBaoCertificatePrivateMaterialStore));
         client.BaseAddress = new Uri(_options.BaseUrl);
         client.Timeout = TimeSpan.FromSeconds(Math.Max(1, _options.TimeoutSeconds));
-        client.DefaultRequestHeaders.Add("X-Vault-Token", _options.ApiToken);
+        client.DefaultRequestHeaders.Add("X-Vault-Token", token);
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         var writeBody = new OpenBaoKvV2WriteRequest(new OpenBaoKvV2WritePayload(Convert.ToBase64String(request.RawPkcs12), request.Password));
@@ -58,6 +59,17 @@ public sealed class OpenBaoCertificatePrivateMaterialStore : ICertificatePrivate
 
         var secretRef = $"openbao://{path}";
         return new CertificatePrivateMaterialStoreResult(secretRef, CertificateSecretMasker.Mask(secretRef), "openbao");
+    }
+
+    private string ResolveToken()
+    {
+        if (!string.IsNullOrWhiteSpace(_options.ApiToken))
+            return _options.ApiToken;
+
+        if (!string.IsNullOrWhiteSpace(_options.ApiTokenFilePath) && File.Exists(_options.ApiTokenFilePath))
+            return File.ReadAllText(_options.ApiTokenFilePath).Trim();
+
+        return string.Empty;
     }
 }
 
@@ -81,9 +93,10 @@ public class OpenBaoCertificateSecretProvider : ICertificateSecretProvider
     public async Task<CertificateSecretResolutionResult> ResolveAsync(CertificateSecretResolutionRequest request, CancellationToken cancellationToken = default)
     {
         var masked = CertificateSecretMasker.Mask(request.SecretRef);
+        var token = ResolveToken();
         if (!_options.Enabled)
             return new CertificateSecretResolutionResult(false, ProviderType, null, "OPENBAO_DISABLED", "OpenBao está deshabilitado.", masked);
-        if (string.IsNullOrWhiteSpace(_options.ApiToken))
+        if (string.IsNullOrWhiteSpace(token))
             return new CertificateSecretResolutionResult(false, ProviderType, null, "OPENBAO_TOKEN_MISSING", "OpenBao token no configurado.", masked);
         if (!request.SecretRef.StartsWith("openbao://", StringComparison.OrdinalIgnoreCase))
             return new CertificateSecretResolutionResult(false, ProviderType, null, "OPENBAO_SECRETREF_INVALID", "SecretRef no usa esquema openbao://.", masked);
@@ -92,7 +105,7 @@ public class OpenBaoCertificateSecretProvider : ICertificateSecretProvider
         using var client = _httpClientFactory.CreateClient(nameof(OpenBaoCertificateSecretProvider));
         client.BaseAddress = new Uri(_options.BaseUrl);
         client.Timeout = TimeSpan.FromSeconds(Math.Max(1, _options.TimeoutSeconds));
-        client.DefaultRequestHeaders.Add("X-Vault-Token", _options.ApiToken);
+        client.DefaultRequestHeaders.Add("X-Vault-Token", token);
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         var response = await client.GetAsync($"/v1/{_options.KvMount.Trim('/')}/data/{path}", cancellationToken);
@@ -115,5 +128,16 @@ public class OpenBaoCertificateSecretProvider : ICertificateSecretProvider
         {
             return new CertificateSecretResolutionResult(false, ProviderType, null, "OPENBAO_SECRET_INVALID", "PKCS#12 inválido en OpenBao.", masked);
         }
+    }
+
+    private string ResolveToken()
+    {
+        if (!string.IsNullOrWhiteSpace(_options.ApiToken))
+            return _options.ApiToken;
+
+        if (!string.IsNullOrWhiteSpace(_options.ApiTokenFilePath) && File.Exists(_options.ApiTokenFilePath))
+            return File.ReadAllText(_options.ApiTokenFilePath).Trim();
+
+        return string.Empty;
     }
 }

@@ -9,5 +9,6 @@ public class OpenBaoOptions
     public string KvMount { get; set; } = "secret";
     public string CertificatesPrefix { get; set; } = "certificates";
     public string ApiToken { get; set; } = string.Empty;
+    public string ApiTokenFilePath { get; set; } = "/openbao-bootstrap/api-token";
     public int TimeoutSeconds { get; set; } = 10;
 }

@@ -127,6 +127,44 @@ public class CertificateSecretResolverTests
         result.ErrorCode.Should().Be("OPENBAO_READ_FAILED");
     }
 
+    [Fact]
+    public async Task OpenBaoProvider_ShouldReadTokenFromFile_WhenApiTokenEmpty()
+    {
+        var tokenFile = Path.GetTempFileName();
+        await File.WriteAllTextAsync(tokenFile, "token-from-file");
+        string? sentToken = null;
+
+        try
+        {
+            var provider = new OpenBaoCertificateSecretProvider(
+                new StaticHttpClientFactory(new HttpClient(new StubHttpHandler(req =>
+                {
+                    sentToken = req.Headers.GetValues("X-Vault-Token").FirstOrDefault();
+                    return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+                }))),
+                Options.Create(new OpenBaoOptions
+                {
+                    Enabled = true,
+                    ApiToken = string.Empty,
+                    ApiTokenFilePath = tokenFile,
+                    BaseUrl = "http://openbao:8200"
+                }));
+
+            await provider.ResolveAsync(new CertificateSecretResolutionRequest(
+                2003,
+                CertificatePurpose.OutboundSigning,
+                CertificateStorageMode.OpenBaoReference,
+                "openbao://certificates/test/ch-1/outboundsigning/v1",
+                "test"));
+
+            sentToken.Should().Be("token-from-file");
+        }
+        finally
+        {
+            File.Delete(tokenFile);
+        }
+    }
+
     private static X509Certificate2 CreateSelfSignedCertificate()
     {
         using var rsa = RSA.Create(2048);

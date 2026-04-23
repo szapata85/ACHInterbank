@@ -1253,3 +1253,4 @@ Confirmaciones de seguridad/alcance:
 - Se agregó `ops/openbao/openbao.hcl` (raft storage persistente) y `ops/openbao/policy-ach-api.hcl`.
 - Se agregó `scripts/openbao/init-openbao.sh` para init operativa.
 - API parametrizada por `DigitalEnvelope:OpenBao:*` para resolver y persistir secretos reales por `SecretRef`.
+- Actualización 2026-04-23 (bootstrap UAT): se añadió `openbao-bootstrap` en `docker-compose.yml` para init/unseal/policy/token automático y entrega de token por volumen a la API (`/openbao-bootstrap/api-token`).
