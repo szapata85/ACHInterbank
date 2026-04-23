@@ -1247,3 +1247,9 @@ Confirmaciones de seguridad/alcance:
 - No WebCrypto para criptografía de negocio en Angular.
 - No cambios en `CryptoServiceScoped`, `OpenEnvelopeAsync`, `RsaKeyProvider`, `identifier/IV`.
 - Workflow PostgreSQL manual-only sin triggers automáticos.
+
+## 18) OpenBao on-prem / compose integral (2026-04-23 UTC)
+- Se agregó `docker-compose.yml` integral con `openbao + postgres + api + spa`.
+- Se agregó `ops/openbao/openbao.hcl` (raft storage persistente) y `ops/openbao/policy-ach-api.hcl`.
+- Se agregó `scripts/openbao/init-openbao.sh` para init operativa.
+- API parametrizada por `DigitalEnvelope:OpenBao:*` para resolver y persistir secretos reales por `SecretRef`.

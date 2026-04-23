@@ -39,7 +39,7 @@ public class CertificateManagementPhase1Tests
     public async Task LoadPublicCertificate_ShouldExtractMetadata()
     {
         using var context = CreateContext(nameof(LoadPublicCertificate_ShouldExtractMetadata));
-        var service = new CertificateLoadService(context, new CertificateSecretProtectorService());
+        var service = new CertificateLoadService(context, new CertificateSecretProtectorService(), new FakeStore());
         var (cer, _) = CreateTestCertificate();
 
         var result = await service.LoadPublicCertificateAsync(new LoadPublicCertificateRequest(
@@ -54,7 +54,7 @@ public class CertificateManagementPhase1Tests
     public async Task RegisterPrivateCertificate_ShouldExtractMetadataWithoutPersistingPassword()
     {
         using var context = CreateContext(nameof(RegisterPrivateCertificate_ShouldExtractMetadataWithoutPersistingPassword));
-        var service = new CertificateLoadService(context, new CertificateSecretProtectorService());
+        var service = new CertificateLoadService(context, new CertificateSecretProtectorService(), new FakeStore());
         var (_, pfx) = CreateTestCertificate("CN=Private Test");
 
         var result = await service.RegisterPrivateCertificateAsync(new RegisterPrivateCertificateRequest(
@@ -68,13 +68,28 @@ public class CertificateManagementPhase1Tests
     public async Task RegisterPrivateCertificate_ShouldRejectInvalidPassword()
     {
         using var context = CreateContext(nameof(RegisterPrivateCertificate_ShouldRejectInvalidPassword));
-        var service = new CertificateLoadService(context, new CertificateSecretProtectorService());
+        var service = new CertificateLoadService(context, new CertificateSecretProtectorService(), new FakeStore());
         var (_, pfx) = CreateTestCertificate();
 
         var act = () => service.RegisterPrivateCertificateAsync(new RegisterPrivateCertificateRequest(
             "CERT-PRV", "Private", 1, CertificateEnvironment.Test, CertificatePurpose.OutboundSigning, CertificateHolderType.Participant, pfx, "wrong", "tester", CertificateStorageMode.ExternalSecretReference, "kv://cert/001"));
 
         await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task RegisterPrivateCertificate_OpenBaoMode_ShouldGenerateAndPersistSecretRef()
+    {
+        using var context = CreateContext(nameof(RegisterPrivateCertificate_OpenBaoMode_ShouldGenerateAndPersistSecretRef));
+        var store = new FakeStore();
+        var service = new CertificateLoadService(context, new CertificateSecretProtectorService(), store);
+        var (_, pfx) = CreateTestCertificate("CN=OpenBao Test");
+
+        var result = await service.RegisterPrivateCertificateAsync(new RegisterPrivateCertificateRequest(
+            "CERT-OB", "Private", 1, CertificateEnvironment.Test, CertificatePurpose.OutboundSigning, CertificateHolderType.Participant, pfx, "test-pass", "tester", CertificateStorageMode.OpenBaoReference, null));
+
+        result.SecretRef.Should().StartWith("openbao://");
+        context.DigitalCertificateVersions.Single().PrivateMaterialStorageMode.Should().Be(CertificateStorageMode.OpenBaoReference);
     }
 
     [Fact]
@@ -318,5 +333,11 @@ public class CertificateManagementPhase1Tests
         entity.Should().NotBeNull();
         entity!.FindProperty(nameof(DigitalCertificateVersion.RowVersion)).Should().NotBeNull();
         entity.GetIndexes().Any(i => i.Properties.Any(p => p.Name == nameof(DigitalCertificateVersion.Thumbprint))).Should().BeTrue();
+    }
+
+    private sealed class FakeStore : ICertificatePrivateMaterialStore
+    {
+        public Task<CertificatePrivateMaterialStoreResult> StorePkcs12Async(CertificatePrivateMaterialStoreRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult(new CertificatePrivateMaterialStoreResult("openbao://certificates/test/ch-1/outboundsigning/v1", "****ng/v1", "openbao"));
     }
 }

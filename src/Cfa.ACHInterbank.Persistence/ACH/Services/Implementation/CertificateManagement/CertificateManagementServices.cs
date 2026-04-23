@@ -89,7 +89,7 @@ public class CertificateValidationService : ICertificateValidationService
         var requiresPrivate = version.Purpose is CertificatePurpose.OutboundSigning or CertificatePurpose.InboundDecryption;
         if (requiresPrivate && !version.HasPrivateKey) errors.Add("El propósito requiere llave privada y el certificado no la tiene.");
 
-        var requiresSecretRef = version.PrivateMaterialStorageMode is CertificateStorageMode.ExternalSecretReference or CertificateStorageMode.KeyVaultReference;
+        var requiresSecretRef = version.PrivateMaterialStorageMode is CertificateStorageMode.ExternalSecretReference or CertificateStorageMode.KeyVaultReference or CertificateStorageMode.OpenBaoReference;
         if (requiresPrivate && requiresSecretRef && string.IsNullOrWhiteSpace(version.SecretRef))
             errors.Add("SecretRef requerido para certificado privado en modo de referencia externa.");
 
@@ -102,11 +102,16 @@ public class CertificateLoadService : ICertificateLoadService
 {
     private readonly AchDbContext _context;
     private readonly ICertificateSecretProtector _secretProtector;
+    private readonly ICertificatePrivateMaterialStore _privateMaterialStore;
 
-    public CertificateLoadService(AchDbContext context, ICertificateSecretProtector secretProtector)
+    public CertificateLoadService(
+        AchDbContext context,
+        ICertificateSecretProtector secretProtector,
+        ICertificatePrivateMaterialStore privateMaterialStore)
     {
         _context = context;
         _secretProtector = secretProtector;
+        _privateMaterialStore = privateMaterialStore;
     }
 
     public async Task<CertificateVersionDto> LoadPublicCertificateAsync(LoadPublicCertificateRequest request, CancellationToken cancellationToken = default)
@@ -151,7 +156,23 @@ public class CertificateLoadService : ICertificateLoadService
         var aggregate = await EnsureAggregateAsync(request.Code, request.DisplayName, request.UploadedBy, cancellationToken);
         var nextVersion = await GetNextVersionAsync(aggregate.Id, request.ClearingHouseId, request.Environment, request.Purpose, request.HolderType, cancellationToken);
 
-        var entity = BuildVersionFromCertificate(request.ClearingHouseId, request.Environment, request.Purpose, request.HolderType, cert, request.UploadedBy, CertificateMaterialType.PrivateKeyPair, request.StorageMode, request.SecretRef);
+        var resolvedSecretRef = request.SecretRef;
+        if (request.StorageMode == CertificateStorageMode.OpenBaoReference)
+        {
+            var stored = await _privateMaterialStore.StorePkcs12Async(
+                new CertificatePrivateMaterialStoreRequest(
+                    request.ClearingHouseId,
+                    request.Environment.ToString(),
+                    request.Purpose.ToString(),
+                    nextVersion,
+                    request.RawPkcs12,
+                    request.Password,
+                    request.UploadedBy),
+                cancellationToken);
+            resolvedSecretRef = stored.SecretRef;
+        }
+
+        var entity = BuildVersionFromCertificate(request.ClearingHouseId, request.Environment, request.Purpose, request.HolderType, cert, request.UploadedBy, CertificateMaterialType.PrivateKeyPair, request.StorageMode, resolvedSecretRef);
         entity.DigitalCertificateId = aggregate.Id;
         entity.VersionNumber = nextVersion;
 

@@ -1,96 +1,90 @@
+name: achinterbank-onprem
+
 services:
-  db-sqlserver:
-    profiles: ["sqlserver"]
-    image: mcr.microsoft.com/mssql/server:2025-latest
-    container_name: ACHinterbank-sqlserver
-    environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "Cooperativa1*"
-    ports:
-      - "1433:1433"
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c '>/dev/tcp/localhost/1433'"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  db-postgres:
-    profiles: ["postgres"]
+  postgres:
     image: postgres:16
-    container_name: ACHinterbank-postgres
+    container_name: achinterbank-postgres
     environment:
-      POSTGRES_DB: "ACHInterbank"
-      POSTGRES_USER: "sa"
-      POSTGRES_PASSWORD: "Cooperativa1*"
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB:-ACHInterbank}
+      POSTGRES_USER: ${POSTGRES_USER:-sa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Cooperativa1*}
+    volumes:
+      - ach_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sa -d ACHInterbank"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sa} -d ${POSTGRES_DB:-ACHInterbank}"]
       interval: 10s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
+    networks: [ach_onprem]
 
-  api-sqlserver:
-    profiles: ["sqlserver"]
-    image: achinterbank-api:sqlserver
+  openbao:
+    image: openbao/openbao:2.2.0
+    container_name: achinterbank-openbao
+    command: ["server", "-config=/openbao/config/openbao.hcl"]
+    cap_add:
+      - IPC_LOCK
+    environment:
+      BAO_ADDR: http://127.0.0.1:8200
+    volumes:
+      - ./ops/openbao/openbao.hcl:/openbao/config/openbao.hcl:ro
+      - ach_openbao_data:/openbao/data
+    ports:
+      - "8200:8200"
+    healthcheck:
+      test: ["CMD-SHELL", "bao status >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks: [ach_onprem]
+
+  achinterbank-api:
     build:
       context: .
       dockerfile: src/Cfa.ACHInterbank.Api/Dockerfile
-    container_name: Cfa.ACHInterbank.Api
+    image: achinterbank-api:openbao
+    container_name: achinterbank-api
     environment:
-      ASPNETCORE_URLS: "${ASPNETCORE_URLS:-http://+:8080}"
-      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
-      EnableHttpsRedirection: "${ENABLE_HTTPS_REDIRECTION:-false}"
-      ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/aspnetapp.pfx"
-      ASPNETCORE_Kestrel__Certificates__Default__Password: "changeit"
-      Database__Provider: "SqlServer"
-      ConnectionStrings__SqlConnection: "Server=db-sqlserver,1433;Database=ACHInterbank;User Id=sa;Password=Cooperativa1*;TrustServerCertificate=True"
+      ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      EnableHttpsRedirection: ${ENABLE_HTTPS_REDIRECTION:-false}
+      Database__Provider: Postgres
+      ConnectionStrings__PostgresConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB:-ACHInterbank};Username=${POSTGRES_USER:-sa};Password=${POSTGRES_PASSWORD:-Cooperativa1*}
       Database__ApplyMigrations: "true"
-      Database__CommandTimeoutSeconds: "180"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      DigitalEnvelope__OpenBao__Enabled: "true"
+      DigitalEnvelope__OpenBao__BaseUrl: http://openbao:8200
+      DigitalEnvelope__OpenBao__KvMount: ${OPENBAO_KV_MOUNT:-secret}
+      DigitalEnvelope__OpenBao__CertificatesPrefix: ${OPENBAO_CERTIFICATES_PREFIX:-certificates}
+      DigitalEnvelope__OpenBao__ApiToken: ${OPENBAO_API_TOKEN:-}
+      DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable: "true"
     ports:
       - "843:8080"
-    volumes:
-      - ./certs:/https:rw
     depends_on:
-      db-sqlserver:
+      postgres:
         condition: service_healthy
-
-  api-postgres:
-    profiles: ["postgres"]
-    image: achinterbank-api:postgres
-    build:
-      context: .
-      dockerfile: src/Cfa.ACHInterbank.Api/Dockerfile
-    container_name: Cfa.ACHInterbank.Api
-    environment:
-      ASPNETCORE_URLS: "${ASPNETCORE_URLS:-http://+:8080}"
-      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
-      EnableHttpsRedirection: "${ENABLE_HTTPS_REDIRECTION:-false}"
-      ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/aspnetapp.pfx"
-      ASPNETCORE_Kestrel__Certificates__Default__Password: "changeit"
-      Database__Provider: "Postgres"
-      ConnectionStrings__PostgresConnection: "Host=db-postgres;Port=5432;Database=ACHInterbank;Username=sa;Password=Cooperativa1*"
-      Database__ApplyMigrations: "true"
-      Database__CommandTimeoutSeconds: "180"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    ports:
-      - "843:8080"
-    volumes:
-      - ./certs:/https:rw
-    depends_on:
-      db-postgres:
+      openbao:
         condition: service_healthy
+    restart: unless-stopped
+    networks: [ach_onprem]
 
-  web:
-    image: achinterbank-web:latest
+  achinterbank-spa:
     build:
       context: ./web/ach-interbank-ui
       dockerfile: Dockerfile
-    container_name: ach-interbank-ui
-    volumes:
-      - ./certs:/https:rw
+    image: achinterbank-spa:openbao
+    container_name: achinterbank-spa
     ports:
       - "743:80"
+    depends_on:
+      - achinterbank-api
+    restart: unless-stopped
+    networks: [ach_onprem]
+
+networks:
+  ach_onprem:
+    driver: bridge
+
+volumes:
+  ach_postgres_data:
+  ach_openbao_data:

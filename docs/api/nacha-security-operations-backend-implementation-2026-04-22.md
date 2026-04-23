@@ -84,3 +84,8 @@ Comandos ejecutados y resultado real:
   - DigitalEnvelope/Signature/OpenEnvelope/SecretResolver: 36/36,
   - NACHA/Mapping/BatchNumber: 166/166.
 - Confirmado: no se cambió criptografía base ni hardening de `identifier/IV`.
+
+## Addendum OpenBao (2026-04-23)
+- `CertificateStorageMode.OpenBaoReference` habilita persistencia de material privado en OpenBao KVv2.
+- Upload de `.pfx` privado ahora permite que backend genere `SecretRef` automáticamente (`openbao://...`) y persista solo metadata+ref.
+- Resolución de secretos para firma/descifrado usa `OpenBaoCertificateSecretProvider`.
