@@ -40,3 +40,10 @@
 - `SecretRef` faltante/inválido;
 - secreto purgado/no resoluble en OpenBao;
 - `Revoked` sin permiso explícito de historical decrypt.
+
+## Evidencia operativa recomendada (UAT)
+- Ejecutar `scripts/openbao/run-historical-decrypt-e2e-uat.sh`.
+- Confirmar en logs y BD:
+  - `CertificateUsageLogs.OperationType = HistoricalDecrypt`.
+  - `ContextJson` incluye `UsageReason=HistoricalDecrypt` y `SecretRefMasked`.
+  - no hay persistencia de material privado en tablas de metadata.

@@ -74,6 +74,10 @@ public class RsaKeyProvider : IRsaKeyProvider
 
     public X509Certificate2 ObtenerCertificateForDecrypt(string? recipientIssuer, string? recipientSerial, string? recipientThumbprint = null)
     {
+        var hasHistoricalCriteria = !string.IsNullOrWhiteSpace(recipientIssuer)
+                                    || !string.IsNullOrWhiteSpace(recipientSerial)
+                                    || !string.IsNullOrWhiteSpace(recipientThumbprint);
+
         var result = _certificateResolver.ResolveHistoricalDecryptAsync(
                 new HistoricalDecryptCertificateCriteria(
                     recipientIssuer,
@@ -86,6 +90,11 @@ public class RsaKeyProvider : IRsaKeyProvider
         if (result.Success && result.Certificate != null)
         {
             return result.Certificate;
+        }
+
+        if (hasHistoricalCriteria)
+        {
+            throw new InvalidOperationException($"No fue posible resolver certificado histórico para decrypt. Error={result.ErrorCode ?? "HISTORICAL_DECRYPT_FAILED"}.");
         }
 
         return ObtenerCertificate("CertDecrypt");

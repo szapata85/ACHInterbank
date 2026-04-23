@@ -36,6 +36,55 @@ public class RsaKeyProviderSecretResolverTests
         await Task.CompletedTask;
     }
 
+    [Fact]
+    public void RsaKeyProvider_HistoricalDecrypt_ShouldUseHistoricalCertificate_WhenResolvable()
+    {
+        var cert = CreateSelfSignedCertificate();
+        var resolver = new Mock<IDigitalEnvelopeCertificateResolver>(MockBehavior.Strict);
+        resolver.Setup(x => x.ResolveHistoricalDecryptAsync(It.IsAny<HistoricalDecryptCertificateCriteria>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DigitalEnvelopeCertificateResolutionResult(
+                true,
+                cert,
+                7001,
+                DigitalEnvelopeCertificateSource.CertificateManagement,
+                CertificatePurpose.InboundDecryption,
+                cert.Thumbprint,
+                cert.SerialNumber,
+                cert.Subject,
+                null,
+                null,
+                Array.Empty<string>()));
+
+        var provider = new RsaKeyProvider(resolver.Object);
+        var resolved = provider.ObtenerCertificateForDecrypt("CN=hist", "SER-1");
+
+        resolved.Should().NotBeNull();
+        resolved.Thumbprint.Should().Be(cert.Thumbprint);
+    }
+
+    [Fact]
+    public void RsaKeyProvider_HistoricalDecrypt_ShouldFailClose_WhenCriteriaPresentAndNotResolvable()
+    {
+        var resolver = new Mock<IDigitalEnvelopeCertificateResolver>(MockBehavior.Strict);
+        resolver.Setup(x => x.ResolveHistoricalDecryptAsync(It.IsAny<HistoricalDecryptCertificateCriteria>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DigitalEnvelopeCertificateResolutionResult(
+                false,
+                null,
+                null,
+                DigitalEnvelopeCertificateSource.CertificateManagement,
+                CertificatePurpose.InboundDecryption,
+                null,
+                null,
+                null,
+                "HISTORICAL_CERT_NOT_FOUND",
+                "missing",
+                Array.Empty<string>()));
+
+        var provider = new RsaKeyProvider(resolver.Object);
+        var act = () => provider.ObtenerCertificateForDecrypt("CN=hist", "SER-1");
+        act.Should().Throw<InvalidOperationException>();
+    }
+
     private static X509Certificate2 CreateSelfSignedCertificate()
     {
         using var rsa = RSA.Create(2048);

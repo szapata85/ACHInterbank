@@ -45,3 +45,11 @@ docker compose exec achinterbank-api sh -c 'test -s /openbao-bootstrap/api-token
 3. Simular versión histórica vencida (`NotAfter` pasado) reteniendo `SecretRef`.
 4. Ejecutar decrypt de sobre histórico con `recipientInfo.certificateInfo` del cert vencido.
 5. Verificar auditoría `OperationType=HistoricalDecrypt` y `contextJson` con `SecretRefMasked`.
+
+## Script de ejecución E2E controlado
+Para ejecutar el caso completo en ambiente con Docker:
+```bash
+bash scripts/openbao/run-historical-decrypt-e2e-uat.sh
+```
+
+El caso usa resolución histórica por `recipientInfo.certificateInfo.issuer + serial` (con fallback opcional por thumbprint) y exige auditoría `OperationType=HistoricalDecrypt`.

@@ -1255,3 +1255,4 @@ Confirmaciones de seguridad/alcance:
 - API parametrizada por `DigitalEnvelope:OpenBao:*` para resolver y persistir secretos reales por `SecretRef`.
 - Actualización 2026-04-23 (bootstrap UAT): se añadió `openbao-bootstrap` en `docker-compose.yml` para init/unseal/policy/token automático y entrega de token por volumen a la API (`/openbao-bootstrap/api-token`).
 - Addendum 2026-04-23 (HistoricalDecrypt): se validó política `expired-but-retained` en tests con resolución por issuer/serial y auditoría `HistoricalDecrypt`.
+- E2E real Docker/OpenBao en este entorno de ejecución: no ejecutable por ausencia de Docker; se dejó script determinístico `scripts/openbao/run-historical-decrypt-e2e-uat.sh` para validación local completa.
