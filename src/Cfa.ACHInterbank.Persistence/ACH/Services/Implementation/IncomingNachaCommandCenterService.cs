@@ -59,19 +59,29 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
         var averageQueueAgeMinutes = ageMinutes.Count > 0 ? ageMinutes.Average() : 0d;
         var oldestQueueAgeMinutes = ageMinutes.Count > 0 ? ageMinutes.Max() : 0d;
 
-        var ingestionsByStatus = await ingestionsQ
+        var ingestionsByStatusRaw = await ingestionsQ
             .GroupBy(x => x.IngestionStatus)
-            .Select(g => new IncomingNachaKpiCountDto(g.Key.ToString(), g.Count()))
+            .Select(g => new { g.Key, Count = g.Count() })
             .OrderByDescending(x => x.Count)
             .ToListAsync(ct);
+        var ingestionsByStatus = ingestionsByStatusRaw
+            .Select(x => new IncomingNachaKpiCountDto(x.Key.ToString(), x.Count))
+            .ToList();
 
-        var queueByStatus = await queueQ
+        var queueByStatusRaw = await queueQ
             .GroupBy(x => x.QueueStatus)
-            .Select(g => new IncomingNachaKpiCountDto(g.Key.ToString(), g.Count()))
+            .Select(g => new { g.Key, Count = g.Count() })
             .OrderByDescending(x => x.Count)
             .ToListAsync(ct);
+        var queueByStatus = queueByStatusRaw
+            .Select(x => new IncomingNachaKpiCountDto(x.Key.ToString(), x.Count))
+            .ToList();
 
-        var byClearingCycle = await queueQ
+        var queueSnapshot = await queueQ
+            .Select(x => new { x.ClearingHouseId, x.AchCycleId, x.QueueStatus, x.LastErrorCode, x.LastAttemptAtUtc })
+            .ToListAsync(ct);
+
+        var byClearingCycle = queueSnapshot
             .GroupBy(x => new { x.ClearingHouseId, x.AchCycleId })
             .Select(g => new IncomingNachaClearingCycleKpiDto(
                 g.Key.ClearingHouseId,
@@ -84,15 +94,15 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
                 g.Count(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.Confirmed)))
             .OrderByDescending(x => x.TotalItems)
             .Take(25)
-            .ToListAsync(ct);
+            .ToList();
 
-        var topErrors = await queueQ
+        var topErrors = queueSnapshot
             .Where(x => !string.IsNullOrWhiteSpace(x.LastErrorCode))
             .GroupBy(x => x.LastErrorCode)
             .Select(g => new IncomingNachaTopErrorDto(g.Key, g.Count(), g.Max(x => x.LastAttemptAtUtc)))
             .OrderByDescending(x => x.Count)
             .Take(10)
-            .ToListAsync(ct);
+            .ToList();
 
         var timelineEvents = await eventsQ
             .Select(x => new { x.OccurredAtUtc, x.EventStatus, x.Message })

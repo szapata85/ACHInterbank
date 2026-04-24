@@ -160,6 +160,40 @@ public class IncomingNachaCommandCenterServiceTests
             && x.Message == "Event:ManualRequeue;IdempotencyKey:requeue-failed-final"));
     }
 
+    [Fact]
+    public async Task GetObservabilitySummaryAsync_ShouldReturnAggregatedOperationalKpis()
+    {
+        await using var context = await CreateContextAsync();
+        var blocked = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Blocked);
+        context.IncomingNachaDispatchQueue.Add(new IncomingNachaDispatchQueue
+        {
+            IncomingNachaFileIngestionId = blocked.IncomingNachaFileIngestionId,
+            IncomingNachaEntryClassificationId = blocked.IncomingNachaEntryClassificationId,
+            IncomingNachaTransactionLinkId = blocked.IncomingNachaTransactionLinkId,
+            AchTransactionId = blocked.AchTransactionId,
+            AchCycleId = blocked.AchCycleId,
+            ClearingHouseId = blocked.ClearingHouseId,
+            OperationalDate = DateTime.UtcNow.Date,
+            QueueStatus = IncomingNachaDispatchQueueStatus.RetryPending,
+            IdempotencyDispatchKey = Guid.NewGuid().ToString("N"),
+            Priority = 15
+        });
+        await context.SaveChangesAsync();
+        var sut = CreateSut(context);
+
+        var summary = await sut.GetObservabilitySummaryAsync(24);
+
+        Assert.True(summary.WindowHours >= 1);
+        Assert.True(summary.PipelineHealth.TotalIngestions >= 1);
+        Assert.True(summary.PipelineHealth.TotalQueueItems >= 2);
+        Assert.True(summary.PipelineHealth.BlockedItems >= 1);
+        Assert.True(summary.PipelineHealth.RetryPendingItems >= 1);
+        Assert.NotNull(summary.QueueByStatus);
+        Assert.NotNull(summary.IngestionsByStatus);
+        Assert.NotNull(summary.ByClearingHouseCycle);
+        Assert.NotNull(summary.Timeline);
+    }
+
     private static async Task<IncomingNachaDispatchQueue> SeedQueueAsync(AchDbContext context, IncomingNachaDispatchQueueStatus status)
     {
         var clearing = new ClearingHouse { Id = 1, Name = "CENIT", Code = "CENIT", OriginCode = "00000000", ClearingHouseId = 1 };
