@@ -124,3 +124,58 @@ export interface IncomingNachaManualActionResult {
   isIdempotentReplay: boolean;
   message: string;
 }
+
+export interface IncomingNachaPipelineHealth {
+  totalIngestions: number;
+  totalQueueItems: number;
+  backlogItems: number;
+  blockedItems: number;
+  retryPendingItems: number;
+  waitingWindowItems: number;
+  failedFinalItems: number;
+  confirmedItems: number;
+  averageQueueAgeMinutes: number;
+  oldestQueueAgeMinutes: number;
+}
+
+export interface IncomingNachaKpiCount {
+  key: string;
+  count: number;
+}
+
+export interface IncomingNachaClearingCycleKpi {
+  clearingHouseId: number;
+  achCycleId: string;
+  totalItems: number;
+  blockedItems: number;
+  retryPendingItems: number;
+  waitingWindowItems: number;
+  failedFinalItems: number;
+  confirmedItems: number;
+}
+
+export interface IncomingNachaTopError {
+  errorCode: string;
+  count: number;
+  lastSeenAtUtc?: string | null;
+}
+
+export interface IncomingNachaTimelinePoint {
+  bucketAtUtc: string;
+  totalEvents: number;
+  manualApplied: number;
+  manualRejected: number;
+  retryPendingTransitions: number;
+  failedFinalTransitions: number;
+}
+
+export interface IncomingNachaObservabilitySummary {
+  generatedAtUtc: string;
+  windowHours: number;
+  pipelineHealth: IncomingNachaPipelineHealth;
+  ingestionsByStatus: IncomingNachaKpiCount[];
+  queueByStatus: IncomingNachaKpiCount[];
+  byClearingHouseCycle: IncomingNachaClearingCycleKpi[];
+  topErrors: IncomingNachaTopError[];
+  timeline: IncomingNachaTimelinePoint[];
+}

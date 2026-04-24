@@ -131,3 +131,50 @@ public sealed record IncomingNachaManualActionResultDto(
     IncomingNachaDispatchQueueStatus CurrentStatus,
     bool IsIdempotentReplay,
     string Message);
+
+public sealed record IncomingNachaObservabilitySummaryDto(
+    DateTime GeneratedAtUtc,
+    int WindowHours,
+    IncomingNachaPipelineHealthDto PipelineHealth,
+    IReadOnlyList<IncomingNachaKpiCountDto> IngestionsByStatus,
+    IReadOnlyList<IncomingNachaKpiCountDto> QueueByStatus,
+    IReadOnlyList<IncomingNachaClearingCycleKpiDto> ByClearingHouseCycle,
+    IReadOnlyList<IncomingNachaTopErrorDto> TopErrors,
+    IReadOnlyList<IncomingNachaTimelinePointDto> Timeline);
+
+public sealed record IncomingNachaPipelineHealthDto(
+    int TotalIngestions,
+    int TotalQueueItems,
+    int BacklogItems,
+    int BlockedItems,
+    int RetryPendingItems,
+    int WaitingWindowItems,
+    int FailedFinalItems,
+    int ConfirmedItems,
+    double AverageQueueAgeMinutes,
+    double OldestQueueAgeMinutes);
+
+public sealed record IncomingNachaKpiCountDto(string Key, int Count);
+
+public sealed record IncomingNachaClearingCycleKpiDto(
+    int ClearingHouseId,
+    string AchCycleId,
+    int TotalItems,
+    int BlockedItems,
+    int RetryPendingItems,
+    int WaitingWindowItems,
+    int FailedFinalItems,
+    int ConfirmedItems);
+
+public sealed record IncomingNachaTopErrorDto(
+    string ErrorCode,
+    int Count,
+    DateTime? LastSeenAtUtc);
+
+public sealed record IncomingNachaTimelinePointDto(
+    DateTime BucketAtUtc,
+    int TotalEvents,
+    int ManualApplied,
+    int ManualRejected,
+    int RetryPendingTransitions,
+    int FailedFinalTransitions);

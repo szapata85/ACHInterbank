@@ -19,6 +19,10 @@ public class IncomingNachaCommandCenterController : ControllerBase
         _service = service;
     }
 
+    [HttpGet("observability/summary")]
+    public async Task<IActionResult> GetObservabilitySummary([FromQuery] int windowHours = 24, CancellationToken ct = default)
+        => Ok(await _service.GetObservabilitySummaryAsync(windowHours, ct));
+
     [HttpGet("ingestions")]
     public async Task<IActionResult> GetIngestions([FromQuery] IncomingNachaIngestionQuery query, CancellationToken ct)
         => Ok(await _service.GetIngestionsAsync(query, ct));

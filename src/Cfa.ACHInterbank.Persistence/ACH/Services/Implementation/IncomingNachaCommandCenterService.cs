@@ -22,6 +22,125 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
         _stateMachineService = stateMachineService;
     }
 
+    public async Task<IncomingNachaObservabilitySummaryDto> GetObservabilitySummaryAsync(int windowHours = 24, CancellationToken ct = default)
+    {
+        var safeWindowHours = Math.Clamp(windowHours, 1, 168);
+        var fromUtc = DateTime.UtcNow.AddHours(-safeWindowHours);
+        var nowUtc = DateTime.UtcNow;
+        var fromOffsetUtc = new DateTimeOffset(fromUtc, TimeSpan.Zero);
+
+        var ingestionsQ = _context.IncomingNachaFileIngestions
+            .AsNoTracking()
+            .Where(x => x.UploadedAtUtc >= fromUtc);
+
+        var queueQ = _context.IncomingNachaDispatchQueue
+            .AsNoTracking()
+            .Where(x => x.CreatedAt >= fromOffsetUtc);
+
+        var eventsQ = _context.IncomingNachaProcessingEvents
+            .AsNoTracking()
+            .Where(x => x.OccurredAtUtc >= fromUtc);
+
+        var totalIngestions = await ingestionsQ.CountAsync(ct);
+        var totalQueueItems = await queueQ.CountAsync(ct);
+        var backlogItems = await queueQ.CountAsync(x =>
+            x.QueueStatus != IncomingNachaDispatchQueueStatus.Confirmed
+            && x.QueueStatus != IncomingNachaDispatchQueueStatus.FailedFinal, ct);
+        var blockedItems = await queueQ.CountAsync(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.Blocked, ct);
+        var retryPendingItems = await queueQ.CountAsync(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.RetryPending, ct);
+        var waitingWindowItems = await queueQ.CountAsync(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.WaitingWindow, ct);
+        var failedFinalItems = await queueQ.CountAsync(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.FailedFinal, ct);
+        var confirmedItems = await queueQ.CountAsync(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.Confirmed, ct);
+
+        var createdAtValues = totalQueueItems > 0
+            ? await queueQ.Select(x => x.CreatedAt).ToListAsync(ct)
+            : [];
+        var ageMinutes = createdAtValues.Select(x => Math.Max(0d, (nowUtc - x.UtcDateTime).TotalMinutes)).ToList();
+        var averageQueueAgeMinutes = ageMinutes.Count > 0 ? ageMinutes.Average() : 0d;
+        var oldestQueueAgeMinutes = ageMinutes.Count > 0 ? ageMinutes.Max() : 0d;
+
+        var ingestionsByStatus = await ingestionsQ
+            .GroupBy(x => x.IngestionStatus)
+            .Select(g => new IncomingNachaKpiCountDto(g.Key.ToString(), g.Count()))
+            .OrderByDescending(x => x.Count)
+            .ToListAsync(ct);
+
+        var queueByStatus = await queueQ
+            .GroupBy(x => x.QueueStatus)
+            .Select(g => new IncomingNachaKpiCountDto(g.Key.ToString(), g.Count()))
+            .OrderByDescending(x => x.Count)
+            .ToListAsync(ct);
+
+        var byClearingCycle = await queueQ
+            .GroupBy(x => new { x.ClearingHouseId, x.AchCycleId })
+            .Select(g => new IncomingNachaClearingCycleKpiDto(
+                g.Key.ClearingHouseId,
+                g.Key.AchCycleId,
+                g.Count(),
+                g.Count(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.Blocked),
+                g.Count(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.RetryPending),
+                g.Count(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.WaitingWindow),
+                g.Count(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.FailedFinal),
+                g.Count(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.Confirmed)))
+            .OrderByDescending(x => x.TotalItems)
+            .Take(25)
+            .ToListAsync(ct);
+
+        var topErrors = await queueQ
+            .Where(x => !string.IsNullOrWhiteSpace(x.LastErrorCode))
+            .GroupBy(x => x.LastErrorCode)
+            .Select(g => new IncomingNachaTopErrorDto(g.Key, g.Count(), g.Max(x => x.LastAttemptAtUtc)))
+            .OrderByDescending(x => x.Count)
+            .Take(10)
+            .ToListAsync(ct);
+
+        var timelineEvents = await eventsQ
+            .Select(x => new { x.OccurredAtUtc, x.EventStatus, x.Message })
+            .ToListAsync(ct);
+        var rawTimeline = timelineEvents
+            .GroupBy(x => new DateTime(
+                x.OccurredAtUtc.Year,
+                x.OccurredAtUtc.Month,
+                x.OccurredAtUtc.Day,
+                x.OccurredAtUtc.Hour,
+                0,
+                0,
+                DateTimeKind.Utc))
+            .Select(g => new IncomingNachaTimelinePointDto(
+                g.Key,
+                g.Count(),
+                g.Count(x => x.EventStatus == "Applied"),
+                g.Count(x => x.EventStatus == "Rejected"),
+                g.Count(x => x.Message.Contains("RetryPending", StringComparison.OrdinalIgnoreCase)),
+                g.Count(x => x.Message.Contains("FailedFinal", StringComparison.OrdinalIgnoreCase))))
+            .OrderBy(x => x.BucketAtUtc)
+            .ToList();
+
+        var timeline = BuildTimelineWithEmptyBuckets(fromUtc, nowUtc, rawTimeline);
+
+        var pipelineHealth = new IncomingNachaPipelineHealthDto(
+            totalIngestions,
+            totalQueueItems,
+            backlogItems,
+            blockedItems,
+            retryPendingItems,
+            waitingWindowItems,
+            failedFinalItems,
+            confirmedItems,
+            averageQueueAgeMinutes,
+            oldestQueueAgeMinutes);
+
+        return new IncomingNachaObservabilitySummaryDto(
+            nowUtc,
+            safeWindowHours,
+            pipelineHealth,
+            ingestionsByStatus,
+            queueByStatus,
+            byClearingCycle,
+            topErrors,
+            timeline);
+    }
+
     public async Task<IncomingNachaPageResult<IncomingNachaIngestionListItemDto>> GetIngestionsAsync(IncomingNachaIngestionQuery query, CancellationToken ct = default)
     {
         var page = Math.Max(1, query.Page);
@@ -465,4 +584,28 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
         string LastResponseCode,
         DateTime? ConfirmedAtUtc,
         DateTimeOffset CreatedAt);
+
+    private static IReadOnlyList<IncomingNachaTimelinePointDto> BuildTimelineWithEmptyBuckets(
+        DateTime fromUtc,
+        DateTime toUtc,
+        IReadOnlyList<IncomingNachaTimelinePointDto> rawTimeline)
+    {
+        var normalizedFrom = new DateTime(fromUtc.Year, fromUtc.Month, fromUtc.Day, fromUtc.Hour, 0, 0, DateTimeKind.Utc);
+        var normalizedTo = new DateTime(toUtc.Year, toUtc.Month, toUtc.Day, toUtc.Hour, 0, 0, DateTimeKind.Utc);
+        var map = rawTimeline.ToDictionary(x => x.BucketAtUtc, x => x);
+        var results = new List<IncomingNachaTimelinePointDto>();
+
+        for (var bucket = normalizedFrom; bucket <= normalizedTo; bucket = bucket.AddHours(1))
+        {
+            if (map.TryGetValue(bucket, out var item))
+            {
+                results.Add(item);
+                continue;
+            }
+
+            results.Add(new IncomingNachaTimelinePointDto(bucket, 0, 0, 0, 0, 0));
+        }
+
+        return results;
+    }
 }

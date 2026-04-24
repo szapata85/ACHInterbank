@@ -3,6 +3,7 @@ import { RouterModule, Routes } from '@angular/router';
 import { permissionGuard } from '../../core/guards/permission.guard';
 import { IncomingNachaIngestionDetailPageComponent } from './pages/incoming-nacha-ingestion-detail-page.component';
 import { IncomingNachaIngestionsPageComponent } from './pages/incoming-nacha-ingestions-page.component';
+import { IncomingNachaObservabilityPageComponent } from './pages/incoming-nacha-observability-page.component';
 import { IncomingNachaQueueDetailPageComponent } from './pages/incoming-nacha-queue-detail-page.component';
 import { IncomingNachaQueuePageComponent } from './pages/incoming-nacha-queue-page.component';
 
@@ -18,6 +19,12 @@ const routes: Routes = [
     component: IncomingNachaIngestionDetailPageComponent,
     canActivate: [permissionGuard],
     data: { permissions: ['CanReadAch'], breadcrumb: 'Detalle ingesta', title: 'Detalle de ingesta inbound NACHA' }
+  },
+  {
+    path: 'observability',
+    component: IncomingNachaObservabilityPageComponent,
+    canActivate: [permissionGuard],
+    data: { permissions: ['CanReadAch'], breadcrumb: 'Observabilidad', title: 'Observabilidad inbound NACHA' }
   },
   {
     path: 'queue',

@@ -113,6 +113,10 @@ export class IncomingNachaIngestionsPageComponent implements OnInit {
     this.router.navigate(['/incoming-nacha-command-center/queue']);
   }
 
+  irAObservabilidad(): void {
+    this.router.navigate(['/incoming-nacha-command-center/observability']);
+  }
+
   private formatDate(value?: string | null): string {
     if (!value) return '—';
     return new Date(value).toLocaleString('es-CO');

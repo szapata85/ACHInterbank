@@ -1,0 +1,62 @@
+<section class="observability-page">
+  <ui-migas-pan [items]="[
+    { etiqueta: 'Inicio', ruta: '/dashboard' },
+    { etiqueta: 'Command Center Inbound NACHA', ruta: '/incoming-nacha-command-center' },
+    { etiqueta: 'Observabilidad' }
+  ]"></ui-migas-pan>
+
+  <ui-encabezado-pagina
+    titulo="Observabilidad Operativa Inbound NACHA-M"
+    descripcion="Salud del pipeline, aging de cola, errores frecuentes y timeline operativo para toma de decisión."
+  ></ui-encabezado-pagina>
+
+  <ui-tarjeta titulo="Ventana de observación" subtitulo="Use un rango de 1 a 168 horas para analizar comportamiento operativo.">
+    <form [formGroup]="filtrosForm" class="filtros-grid">
+      <ui-campo-numero etiqueta="Horas" [control]="$any(filtrosForm.controls.windowHours)" [min]="1" [max]="168"></ui-campo-numero>
+    </form>
+    <div class="acciones">
+      <ui-boton texto="Actualizar" icono="refresh" (accion)="cargar()"></ui-boton>
+      <ui-boton texto="Ir a cola dispatch" variante="secundario" icono="queue" (accion)="irACola()"></ui-boton>
+      <ui-boton texto="Ir a ingestas" variante="contorno" icono="account_tree" (accion)="irAIngestas()"></ui-boton>
+    </div>
+  </ui-tarjeta>
+
+  <ui-alerta *ngIf="error" tipo="error" titulo="Error" [mensaje]="error"></ui-alerta>
+
+  <ui-tarjeta *ngIf="summary" titulo="KPIs de salud del pipeline" [subtitulo]="'Generado: ' + (summary.generatedAtUtc | date:'yyyy-MM-dd HH:mm:ss':'UTC') + ' UTC'">
+    <div class="kpi-grid">
+      <article><small>Ingestas</small><strong>{{ formatNumber(summary.pipelineHealth.totalIngestions) }}</strong></article>
+      <article><small>Items en cola</small><strong>{{ formatNumber(summary.pipelineHealth.totalQueueItems) }}</strong></article>
+      <article [class]="alertaClass(summary.pipelineHealth.backlogItems, 20)"><small>Backlog</small><strong>{{ formatNumber(summary.pipelineHealth.backlogItems) }}</strong></article>
+      <article [class]="alertaClass(summary.pipelineHealth.blockedItems, 1)"><small>Blocked</small><strong>{{ formatNumber(summary.pipelineHealth.blockedItems) }}</strong></article>
+      <article [class]="alertaClass(summary.pipelineHealth.retryPendingItems, 5)"><small>RetryPending</small><strong>{{ formatNumber(summary.pipelineHealth.retryPendingItems) }}</strong></article>
+      <article [class]="alertaClass(summary.pipelineHealth.waitingWindowItems, 5)"><small>WaitingWindow</small><strong>{{ formatNumber(summary.pipelineHealth.waitingWindowItems) }}</strong></article>
+      <article [class]="alertaClass(summary.pipelineHealth.failedFinalItems, 1)"><small>FailedFinal</small><strong>{{ formatNumber(summary.pipelineHealth.failedFinalItems) }}</strong></article>
+      <article><small>Confirmed</small><strong>{{ formatNumber(summary.pipelineHealth.confirmedItems) }}</strong></article>
+      <article><small>Edad promedio cola (min)</small><strong>{{ formatNumber(summary.pipelineHealth.averageQueueAgeMinutes) }}</strong></article>
+      <article [class]="alertaClass(summary.pipelineHealth.oldestQueueAgeMinutes, 60)"><small>Edad máxima cola (min)</small><strong>{{ formatNumber(summary.pipelineHealth.oldestQueueAgeMinutes) }}</strong></article>
+    </div>
+  </ui-tarjeta>
+
+  <div class="two-col" *ngIf="summary">
+    <ui-tarjeta titulo="Ingestas por estado" subtitulo="Distribución de estatus de ingesta en la ventana seleccionada.">
+      <ui-grilla-empresarial [columnas]="columnasEstatus" [datos]="summary.ingestionsByStatus" [cargando]="cargando"></ui-grilla-empresarial>
+    </ui-tarjeta>
+
+    <ui-tarjeta titulo="Cola por estado" subtitulo="Indicador directo de presión operativa por queue status.">
+      <ui-grilla-empresarial [columnas]="columnasEstatus" [datos]="summary.queueByStatus" [cargando]="cargando"></ui-grilla-empresarial>
+    </ui-tarjeta>
+  </div>
+
+  <ui-tarjeta *ngIf="summary" titulo="Top errores" subtitulo="Errores recurrentes para priorizar remediación operacional.">
+    <ui-grilla-empresarial [columnas]="columnasErrores" [datos]="summary.topErrors" [cargando]="cargando"></ui-grilla-empresarial>
+  </ui-tarjeta>
+
+  <ui-tarjeta *ngIf="summary" titulo="Métricas por cámara / ciclo" subtitulo="Vista agregada para detección de focos de riesgo.">
+    <ui-grilla-empresarial [columnas]="columnasCiclo" [datos]="summary.byClearingHouseCycle" [cargando]="cargando"></ui-grilla-empresarial>
+  </ui-tarjeta>
+
+  <ui-tarjeta *ngIf="summary" titulo="Timeline operativo" subtitulo="Volumen de eventos y transición manual por hora (UTC).">
+    <ui-grilla-empresarial [columnas]="columnasTimeline" [datos]="summary.timeline" [cargando]="cargando"></ui-grilla-empresarial>
+  </ui-tarjeta>
+</section>

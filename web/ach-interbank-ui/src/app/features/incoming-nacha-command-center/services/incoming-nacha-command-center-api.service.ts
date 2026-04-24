@@ -6,6 +6,7 @@ import {
   IncomingNachaIngestionListItem,
   IncomingNachaManualActionRequest,
   IncomingNachaManualActionResult,
+  IncomingNachaObservabilitySummary,
   IncomingNachaPageResult,
   IncomingNachaQueueDetail,
   IncomingNachaQueueListItem
@@ -15,6 +16,12 @@ import {
 export class IncomingNachaCommandCenterApiService {
   private readonly api = inject(ApiService);
   private readonly basePath = 'incoming-nacha-command-center';
+
+  getObservabilitySummary(windowHours = 24): Observable<IncomingNachaObservabilitySummary> {
+    return this.api.get<IncomingNachaObservabilitySummary>(`${this.basePath}/observability/summary`, {
+      params: { windowHours }
+    });
+  }
 
   getIngestions(params: Record<string, string | number | boolean>): Observable<IncomingNachaPageResult<IncomingNachaIngestionListItem>> {
     return this.api.get<IncomingNachaPageResult<IncomingNachaIngestionListItem>>(`${this.basePath}/ingestions`, { params });
