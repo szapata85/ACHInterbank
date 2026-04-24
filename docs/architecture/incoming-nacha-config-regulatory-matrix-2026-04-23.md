@@ -103,3 +103,32 @@ Esto permite homologar DEV/UAT/PROD sin depender de “tabla vacía”.
   - reparar drift en DB parcial,
   - garantizar presencia de códigos regulatorios críticos (`DEV14`, `ITIMEOUT`, `IFUNC`).
 
+
+## 7) Revalidación ejecutada (Prompt 2B) — 2026-04-24
+
+### Entorno
+
+- .NET SDK instalado con `scripts/codex/setup-codex-env.sh`.
+- `dotnet --info` validado (SDK `10.0.201`).
+- `dotnet ef --version` validado (`10.0.7`).
+
+### Build
+
+- `dotnet restore ACHInterbank.sln` ✅
+- `dotnet build ACHInterbank.sln -c Release` ✅ (sin errores; warnings de nullability preexistentes fuera de alcance Prompt 2).
+
+### Tests ejecutados
+
+1. Catálogos / políticas / seeders (Prompt 2)
+   - `dotnet test ... --filter "FullyQualifiedName~AchRegulatoryCatalogServiceTests|FullyQualifiedName~RegulatoryCatalogSeederTests"`
+   - Resultado: **9/9 passed**.
+
+2. No regresión NACHA / Mapping / BatchNumber
+   - `dotnet test ... --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber"`
+   - Resultado: **166/166 passed**.
+
+### Verificaciones adicionales
+
+- Consistencia matriz-documento vs códigos baseline (`DEV14`, `D01..D06`, `I500`, `I503`, `ITIMEOUT`, `ISOAP`, `IFUNC`) validada.
+- Confirmado: cambios de Prompt 2 se limitaron a seeder, tests y documentación (sin cambios criptográficos).
+- Confirmado: GitHub Actions disponible en modo manual (`workflow_dispatch`) para `postgres-integration-tests.yml`.
