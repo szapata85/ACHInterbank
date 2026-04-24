@@ -151,6 +151,20 @@ const routes: Routes = [
         loadChildren: () => import('./features/nacha-config-admin/nacha-config-admin.module').then((m) => m.NachaConfigAdminModule)
       },
       {
+        path: 'incoming-nacha-command-center',
+        canActivate: [roleGuard, permissionGuard],
+        data: {
+          roles: ['Admin', 'ACH.Operator'],
+          permissions: ['CanReadAch'],
+          breadcrumb: 'Inbound NACHA',
+          title: 'Command Center inbound NACHA'
+        },
+        loadChildren: () =>
+          import('./features/incoming-nacha-command-center/incoming-nacha-command-center.module').then(
+            (m) => m.IncomingNachaCommandCenterModule
+          )
+      },
+      {
         path: 'unauthorized',
         data: { title: 'No autorizado', breadcrumb: 'Error 403' },
         loadComponent: () =>

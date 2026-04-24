@@ -13,12 +13,12 @@
 
   <ui-tarjeta titulo="Filtros de ingesta" subtitulo="Use criterios de búsqueda para focalizar operación y auditoría.">
     <form [formGroup]="filtrosForm" class="filtros-grid">
-      <ui-campo-texto etiqueta="CorrelationId" controlName="correlationId" [grupo]="filtrosForm"></ui-campo-texto>
-      <ui-campo-texto etiqueta="Archivo" controlName="fileName" [grupo]="filtrosForm"></ui-campo-texto>
-      <ui-campo-texto etiqueta="Estado ingesta" controlName="ingestionStatus" [grupo]="filtrosForm"></ui-campo-texto>
-      <ui-campo-texto etiqueta="Estado parser" controlName="parsingStatus" [grupo]="filtrosForm"></ui-campo-texto>
-      <ui-campo-numero etiqueta="Página" controlName="page" [grupo]="filtrosForm"></ui-campo-numero>
-      <ui-campo-numero etiqueta="Tamaño" controlName="pageSize" [grupo]="filtrosForm"></ui-campo-numero>
+      <ui-campo-texto etiqueta="CorrelationId" [control]="$any(filtrosForm.controls.correlationId)"></ui-campo-texto>
+      <ui-campo-texto etiqueta="Archivo" [control]="$any(filtrosForm.controls.fileName)"></ui-campo-texto>
+      <ui-campo-texto etiqueta="Estado ingesta" [control]="$any(filtrosForm.controls.ingestionStatus)"></ui-campo-texto>
+      <ui-campo-texto etiqueta="Estado parser" [control]="$any(filtrosForm.controls.parsingStatus)"></ui-campo-texto>
+      <ui-campo-numero etiqueta="Página" [control]="$any(filtrosForm.controls.page)"></ui-campo-numero>
+      <ui-campo-numero etiqueta="Tamaño" [control]="$any(filtrosForm.controls.pageSize)"></ui-campo-numero>
     </form>
     <div class="acciones">
       <ui-boton texto="Buscar" icono="search" (accion)="buscar()"></ui-boton>
