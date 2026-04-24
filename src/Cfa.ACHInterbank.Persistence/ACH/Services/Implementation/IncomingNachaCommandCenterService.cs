@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
@@ -13,10 +12,14 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterService
 {
     private readonly AchDbContext _context;
+    private readonly IIncomingNachaStateMachineService _stateMachineService;
 
-    public IncomingNachaCommandCenterService(AchDbContext context)
+    public IncomingNachaCommandCenterService(
+        AchDbContext context,
+        IIncomingNachaStateMachineService stateMachineService)
     {
         _context = context;
+        _stateMachineService = stateMachineService;
     }
 
     public async Task<IncomingNachaPageResult<IncomingNachaIngestionListItemDto>> GetIngestionsAsync(IncomingNachaIngestionQuery query, CancellationToken ct = default)
@@ -133,12 +136,28 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
         }
 
         var total = await q.CountAsync(ct);
-        var items = await q.OrderBy(x => x.Priority)
+        var queueRows = await q.OrderBy(x => x.Priority)
             .ThenBy(x => x.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(ToQueueListDto())
+            .Select(x => new QueueProjection(
+                x.Id,
+                x.IncomingNachaFileIngestionId,
+                x.AchTransactionId,
+                x.AchCycleId,
+                x.ClearingHouseId,
+                x.QueueStatus,
+                x.Priority,
+                x.AttemptCount,
+                x.NextAttemptAtUtc,
+                x.LastAttemptAtUtc,
+                x.LastErrorCode,
+                x.LastErrorMessage,
+                x.LastResponseCode,
+                x.ConfirmedAtUtc,
+                x.CreatedAt))
             .ToListAsync(ct);
+        var items = queueRows.Select(ToQueueListDto).ToList();
 
         return new IncomingNachaPageResult<IncomingNachaQueueListItemDto>(items, page, pageSize, total);
     }
@@ -187,7 +206,8 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             queue.LastErrorMessage,
             queue.LastResponseCode,
             queue.ConfirmedAtUtc,
-            queue.CreatedAt);
+            queue.CreatedAt,
+            _stateMachineService.GetAllowedDispatchActions(queue.QueueStatus));
 
         var ingestionDto = new IncomingNachaIngestionListItemDto(
             ingestion.Id,
@@ -220,9 +240,8 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
     }
 
     public Task<IncomingNachaManualActionResultDto> RetryManualAsync(Guid queueId, IncomingNachaManualActionRequest request, string performedBy, CancellationToken ct = default)
-        => ApplyManualActionAsync(queueId, request, performedBy, "Retry", ValidateRetryAllowed, (q, req) =>
+        => ApplyManualActionAsync(queueId, request, performedBy, IncomingNachaDispatchEvent.ManualRetry, (q, req) =>
         {
-            q.QueueStatus = IncomingNachaDispatchQueueStatus.Queued;
             q.NextAttemptAtUtc = DateTime.UtcNow;
             q.LastErrorCode = string.Empty;
             q.LastErrorMessage = string.Empty;
@@ -235,15 +254,8 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
         }, ct);
 
     public Task<IncomingNachaManualActionResultDto> UnblockManualAsync(Guid queueId, IncomingNachaManualActionRequest request, string performedBy, CancellationToken ct = default)
-        => ApplyManualActionAsync(queueId, request, performedBy, "Unblock", q =>
+        => ApplyManualActionAsync(queueId, request, performedBy, IncomingNachaDispatchEvent.ManualUnblock, (q, req) =>
         {
-            if (q.QueueStatus != IncomingNachaDispatchQueueStatus.Blocked)
-            {
-                throw new InvalidOperationException("Solo se permite desbloquear items en estado Blocked.");
-            }
-        }, (q, req) =>
-        {
-            q.QueueStatus = IncomingNachaDispatchQueueStatus.Queued;
             q.NextAttemptAtUtc = DateTime.UtcNow;
             q.LastErrorCode = string.Empty;
             q.LastErrorMessage = string.Empty;
@@ -256,15 +268,8 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
         }, ct);
 
     public Task<IncomingNachaManualActionResultDto> RequeueManualAsync(Guid queueId, IncomingNachaManualActionRequest request, string performedBy, CancellationToken ct = default)
-        => ApplyManualActionAsync(queueId, request, performedBy, "Requeue", q =>
+        => ApplyManualActionAsync(queueId, request, performedBy, IncomingNachaDispatchEvent.ManualRequeue, (q, req) =>
         {
-            if (q.QueueStatus == IncomingNachaDispatchQueueStatus.Confirmed)
-            {
-                throw new InvalidOperationException("No se permite requeue sobre items confirmados.");
-            }
-        }, (q, req) =>
-        {
-            q.QueueStatus = IncomingNachaDispatchQueueStatus.Queued;
             q.NextAttemptAtUtc = DateTime.UtcNow;
             if (req.Priority.HasValue)
             {
@@ -275,15 +280,8 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
         }, ct);
 
     public Task<IncomingNachaManualActionResultDto> MarkFailedFinalManualAsync(Guid queueId, IncomingNachaManualActionRequest request, string performedBy, CancellationToken ct = default)
-        => ApplyManualActionAsync(queueId, request, performedBy, "MarkFailedFinal", q =>
+        => ApplyManualActionAsync(queueId, request, performedBy, IncomingNachaDispatchEvent.ManualMarkFailedFinal, (q, _) =>
         {
-            if (q.QueueStatus == IncomingNachaDispatchQueueStatus.Confirmed)
-            {
-                throw new InvalidOperationException("No se permite marcar FailedFinal sobre items confirmados.");
-            }
-        }, (q, _) =>
-        {
-            q.QueueStatus = IncomingNachaDispatchQueueStatus.FailedFinal;
             q.NextAttemptAtUtc = null;
             return "Marcado manual como FailedFinal.";
         }, ct);
@@ -292,8 +290,7 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
         Guid queueId,
         IncomingNachaManualActionRequest request,
         string performedBy,
-        string action,
-        Action<IncomingNachaDispatchQueue> validate,
+        IncomingNachaDispatchEvent transitionEvent,
         Func<IncomingNachaDispatchQueue, IncomingNachaManualActionRequest, string> apply,
         CancellationToken ct)
     {
@@ -318,8 +315,8 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
         var queue = await _context.IncomingNachaDispatchQueue.FirstOrDefaultAsync(x => x.Id == queueId, ct)
                     ?? throw new InvalidOperationException("No existe item de cola indicado.");
 
-        var idempotentEventType = $"ManualAction{action}";
-        var idempotentMessage = $"IdempotencyKey:{normalizedKey}";
+        var idempotentEventType = "DispatchTransition";
+        var idempotentMessage = $"Event:{transitionEvent};IdempotencyKey:{normalizedKey}";
         var replayed = await _context.IncomingNachaProcessingEvents.AsNoTracking().AnyAsync(x =>
             x.IncomingNachaFileIngestionId == queue.IncomingNachaFileIngestionId
             && x.EventType == idempotentEventType
@@ -333,11 +330,17 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
                 await tx.CommitAsync(ct);
             }
 
-            return new IncomingNachaManualActionResultDto(queue.Id, action, queue.QueueStatus, queue.QueueStatus, true, "Solicitud idempotente ya aplicada previamente.");
+            return new IncomingNachaManualActionResultDto(queue.Id, ToActionLabel(transitionEvent), queue.QueueStatus, queue.QueueStatus, true, "Solicitud idempotente ya aplicada previamente.");
         }
 
         var previousStatus = queue.QueueStatus;
-        validate(queue);
+        var transition = _stateMachineService.EvaluateDispatchTransition(previousStatus, transitionEvent);
+        if (!transition.IsAllowed || !transition.NextStatus.HasValue)
+        {
+            throw new InvalidOperationException($"[{transition.ResultCode}] {transition.Message}");
+        }
+
+        queue.QueueStatus = transition.NextStatus.Value;
         var appliedMessage = apply(queue, request);
 
         _context.IncomingNachaProcessingEvents.Add(new IncomingNachaProcessingEvent
@@ -350,7 +353,10 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             EvidenceJson = JsonSerializer.Serialize(new
             {
                 queueId,
-                action,
+                action = ToActionLabel(transitionEvent),
+                transitionEvent,
+                transition.ResultCode,
+                transition.Message,
                 previousStatus,
                 currentStatus = queue.QueueStatus,
                 request.Justification,
@@ -368,19 +374,12 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             await tx.CommitAsync(ct);
         }
 
-        return new IncomingNachaManualActionResultDto(queue.Id, action, previousStatus, queue.QueueStatus, false, appliedMessage);
+        return new IncomingNachaManualActionResultDto(queue.Id, ToActionLabel(transitionEvent), previousStatus, queue.QueueStatus, false, $"{appliedMessage} [{transition.ResultCode}]");
     }
 
-    private static void ValidateRetryAllowed(IncomingNachaDispatchQueue q)
+    private IncomingNachaQueueListItemDto ToQueueListDto(QueueProjection x)
     {
-        if (q.QueueStatus is IncomingNachaDispatchQueueStatus.Confirmed or IncomingNachaDispatchQueueStatus.FailedFinal or IncomingNachaDispatchQueueStatus.Dispatching)
-        {
-            throw new InvalidOperationException($"No se permite retry manual para estado {q.QueueStatus}.");
-        }
-    }
-
-    private static Expression<Func<IncomingNachaDispatchQueue, IncomingNachaQueueListItemDto>> ToQueueListDto()
-        => x => new IncomingNachaQueueListItemDto(
+        return new IncomingNachaQueueListItemDto(
             x.Id,
             x.IncomingNachaFileIngestionId,
             x.AchTransactionId,
@@ -395,5 +394,34 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             x.LastErrorMessage,
             x.LastResponseCode,
             x.ConfirmedAtUtc,
-            x.CreatedAt);
+            x.CreatedAt,
+            _stateMachineService.GetAllowedDispatchActions(x.QueueStatus));
+    }
+
+    private static string ToActionLabel(IncomingNachaDispatchEvent transitionEvent)
+        => transitionEvent switch
+        {
+            IncomingNachaDispatchEvent.ManualRetry => "Retry",
+            IncomingNachaDispatchEvent.ManualUnblock => "Unblock",
+            IncomingNachaDispatchEvent.ManualRequeue => "Requeue",
+            IncomingNachaDispatchEvent.ManualMarkFailedFinal => "MarkFailedFinal",
+            _ => transitionEvent.ToString()
+        };
+
+    private sealed record QueueProjection(
+        Guid Id,
+        Guid IncomingNachaFileIngestionId,
+        int AchTransactionId,
+        string AchCycleId,
+        int ClearingHouseId,
+        IncomingNachaDispatchQueueStatus QueueStatus,
+        int Priority,
+        int AttemptCount,
+        DateTime? NextAttemptAtUtc,
+        DateTime? LastAttemptAtUtc,
+        string LastErrorCode,
+        string LastErrorMessage,
+        string LastResponseCode,
+        DateTime? ConfirmedAtUtc,
+        DateTimeOffset CreatedAt);
 }

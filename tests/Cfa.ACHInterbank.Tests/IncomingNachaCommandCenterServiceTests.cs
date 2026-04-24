@@ -14,7 +14,7 @@ public class IncomingNachaCommandCenterServiceTests
     {
         await using var context = await CreateContextAsync();
         var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Blocked);
-        var sut = new IncomingNachaCommandCenterService(context);
+        var sut = CreateSut(context);
 
         var result = await sut.RetryManualAsync(queue.Id, new IncomingNachaManualActionRequest
         {
@@ -28,7 +28,9 @@ public class IncomingNachaCommandCenterServiceTests
 
         var refreshed = await context.IncomingNachaDispatchQueue.FirstAsync(x => x.Id == queue.Id);
         Assert.Equal(IncomingNachaDispatchQueueStatus.Queued, refreshed.QueueStatus);
-        Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(x => x.EventType == "ManualActionRetry" && x.Message == "IdempotencyKey:retry-1"));
+        Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(x =>
+            x.EventType == "DispatchTransition"
+            && x.Message == "Event:ManualRetry;IdempotencyKey:retry-1"));
     }
 
     [Fact]
@@ -36,13 +38,15 @@ public class IncomingNachaCommandCenterServiceTests
     {
         await using var context = await CreateContextAsync();
         var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Confirmed);
-        var sut = new IncomingNachaCommandCenterService(context);
+        var sut = CreateSut(context);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RetryManualAsync(queue.Id, new IncomingNachaManualActionRequest
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RetryManualAsync(queue.Id, new IncomingNachaManualActionRequest
         {
             IdempotencyKey = "retry-confirmed",
             Justification = "retry manual no permitido"
         }, "ops.user"));
+
+        Assert.Contains("INCOMING_NACHA_STATE_MACHINE_GUARD_MANUAL_RETRY", ex.Message);
     }
 
     [Fact]
@@ -50,7 +54,7 @@ public class IncomingNachaCommandCenterServiceTests
     {
         await using var context = await CreateContextAsync();
         var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.RetryPending);
-        var sut = new IncomingNachaCommandCenterService(context);
+        var sut = CreateSut(context);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => sut.UnblockManualAsync(queue.Id, new IncomingNachaManualActionRequest
         {
@@ -64,7 +68,7 @@ public class IncomingNachaCommandCenterServiceTests
     {
         await using var context = await CreateContextAsync();
         var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Blocked);
-        var sut = new IncomingNachaCommandCenterService(context);
+        var sut = CreateSut(context);
 
         _ = await sut.RetryManualAsync(queue.Id, new IncomingNachaManualActionRequest
         {
@@ -79,7 +83,40 @@ public class IncomingNachaCommandCenterServiceTests
         }, "ops.user");
 
         Assert.True(replay.IsIdempotentReplay);
-        Assert.Equal(1, await context.IncomingNachaProcessingEvents.CountAsync(x => x.EventType == "ManualActionRetry" && x.Message == "IdempotencyKey:retry-replay"));
+        Assert.Equal(1, await context.IncomingNachaProcessingEvents.CountAsync(x =>
+            x.EventType == "DispatchTransition"
+            && x.Message == "Event:ManualRetry;IdempotencyKey:retry-replay"));
+    }
+
+    [Fact]
+    public async Task GetQueueDetailAsync_ShouldReturnAllowedActions_FromStateMachine()
+    {
+        await using var context = await CreateContextAsync();
+        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Blocked);
+        var sut = CreateSut(context);
+
+        var detail = await sut.GetQueueDetailAsync(queue.Id);
+
+        Assert.NotNull(detail);
+        Assert.True(detail!.Queue.AllowedActions.CanUnblock);
+        Assert.True(detail.Queue.AllowedActions.CanRetry);
+        Assert.Contains("unblock", detail.Queue.AllowedActions.AllowedActions);
+    }
+
+    [Fact]
+    public async Task MarkFailedFinalManualAsync_ShouldRejectConfirmed_ByStateMachineGuard()
+    {
+        await using var context = await CreateContextAsync();
+        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Confirmed);
+        var sut = CreateSut(context);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.MarkFailedFinalManualAsync(queue.Id, new IncomingNachaManualActionRequest
+        {
+            IdempotencyKey = "mark-final-confirmed",
+            Justification = "cerrar como final"
+        }, "ops.user"));
+
+        Assert.Contains("INCOMING_NACHA_STATE_MACHINE_GUARD_MANUAL_MARK_FAILED_FINAL", ex.Message);
     }
 
     private static async Task<IncomingNachaDispatchQueue> SeedQueueAsync(AchDbContext context, IncomingNachaDispatchQueueStatus status)
@@ -151,4 +188,7 @@ public class IncomingNachaCommandCenterServiceTests
         var context = new AchDbContext(options);
         return Task.FromResult(context);
     }
+
+    private static IncomingNachaCommandCenterService CreateSut(AchDbContext context)
+        => new(context, new IncomingNachaStateMachineService());
 }

@@ -75,7 +75,8 @@ public sealed record IncomingNachaQueueListItemDto(
     string LastErrorMessage,
     string LastResponseCode,
     DateTime? ConfirmedAtUtc,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc,
+    IncomingNachaAllowedActionsDto AllowedActions);
 
 public sealed record IncomingNachaQueueDetailDto(
     IncomingNachaQueueListItemDto Queue,
