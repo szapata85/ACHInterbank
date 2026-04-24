@@ -10,10 +10,10 @@ namespace Cfa.ACHInterbank.Tests;
 public class IncomingNachaCommandCenterServiceTests
 {
     [Fact]
-    public async Task RetryManualAsync_ShouldQueueBlockedItem_AndCreateAuditEvent()
+    public async Task RetryManualAsync_ShouldQueueRetryPendingItem_AndCreateAuditEvent()
     {
         await using var context = await CreateContextAsync();
-        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Blocked);
+        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.RetryPending);
         var sut = CreateSut(context);
 
         var result = await sut.RetryManualAsync(queue.Id, new IncomingNachaManualActionRequest
@@ -22,7 +22,7 @@ public class IncomingNachaCommandCenterServiceTests
             Justification = "retry manual por incidente"
         }, "ops.user");
 
-        Assert.Equal(IncomingNachaDispatchQueueStatus.Blocked, result.PreviousStatus);
+        Assert.Equal(IncomingNachaDispatchQueueStatus.RetryPending, result.PreviousStatus);
         Assert.Equal(IncomingNachaDispatchQueueStatus.Queued, result.CurrentStatus);
         Assert.False(result.IsIdempotentReplay);
 
@@ -67,7 +67,7 @@ public class IncomingNachaCommandCenterServiceTests
     public async Task RetryManualAsync_ShouldBeIdempotent_OnRepeatedIdempotencyKey()
     {
         await using var context = await CreateContextAsync();
-        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Blocked);
+        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.RetryPending);
         var sut = CreateSut(context);
 
         _ = await sut.RetryManualAsync(queue.Id, new IncomingNachaManualActionRequest
@@ -99,8 +99,29 @@ public class IncomingNachaCommandCenterServiceTests
 
         Assert.NotNull(detail);
         Assert.True(detail!.Queue.AllowedActions.CanUnblock);
-        Assert.True(detail.Queue.AllowedActions.CanRetry);
+        Assert.False(detail.Queue.AllowedActions.CanRetry);
         Assert.Contains("unblock", detail.Queue.AllowedActions.AllowedActions);
+        Assert.DoesNotContain("retry", detail.Queue.AllowedActions.AllowedActions);
+    }
+
+    [Fact]
+    public async Task RetryManualAsync_ShouldRejectBlocked_AndRegisterRejectedAudit()
+    {
+        await using var context = await CreateContextAsync();
+        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Blocked);
+        var sut = CreateSut(context);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RetryManualAsync(queue.Id, new IncomingNachaManualActionRequest
+        {
+            IdempotencyKey = "retry-blocked-rejected",
+            Justification = "retry directo bloqueado"
+        }, "ops.user"));
+
+        Assert.Contains("INCOMING_NACHA_STATE_MACHINE_GUARD_MANUAL_RETRY", ex.Message);
+        Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(x =>
+            x.EventType == "DispatchTransition"
+            && x.EventStatus == "Rejected"
+            && x.Message == "Event:ManualRetry;IdempotencyKey:retry-blocked-rejected"));
     }
 
     [Fact]
@@ -117,6 +138,26 @@ public class IncomingNachaCommandCenterServiceTests
         }, "ops.user"));
 
         Assert.Contains("INCOMING_NACHA_STATE_MACHINE_GUARD_MANUAL_MARK_FAILED_FINAL", ex.Message);
+    }
+
+    [Fact]
+    public async Task RequeueManualAsync_ShouldRejectFailedFinal_ByStateMachineGuard()
+    {
+        await using var context = await CreateContextAsync();
+        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.FailedFinal);
+        var sut = CreateSut(context);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RequeueManualAsync(queue.Id, new IncomingNachaManualActionRequest
+        {
+            IdempotencyKey = "requeue-failed-final",
+            Justification = "requeue no permitido en terminal"
+        }, "ops.user"));
+
+        Assert.Contains("INCOMING_NACHA_STATE_MACHINE_GUARD_MANUAL_REQUEUE", ex.Message);
+        Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(x =>
+            x.EventType == "DispatchTransition"
+            && x.EventStatus == "Rejected"
+            && x.Message == "Event:ManualRequeue;IdempotencyKey:requeue-failed-final"));
     }
 
     private static async Task<IncomingNachaDispatchQueue> SeedQueueAsync(AchDbContext context, IncomingNachaDispatchQueueStatus status)

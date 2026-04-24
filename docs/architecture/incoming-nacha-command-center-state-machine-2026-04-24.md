@@ -34,10 +34,18 @@ Eventos manuales:
 
 ### Guardas
 
-- `ManualRetry`: permitido desde `Queued`, `Dispatched`, `RetryPending`, `Blocked`, `WaitingWindow`.
+- `ManualRetry`: permitido desde `Queued`, `Dispatched`, `RetryPending`.
 - `ManualUnblock`: permitido solo desde `Blocked`.
-- `ManualRequeue`: permitido desde `Queued`, `Dispatched`, `RetryPending`, `FailedFinal`, `Blocked`, `WaitingWindow`.
-- `ManualMarkFailedFinal`: permitido desde `Queued`, `Dispatched`, `RetryPending`, `FailedFinal`, `Blocked`, `WaitingWindow`.
+- `ManualRequeue`: permitido desde `Queued`, `Dispatched`, `RetryPending`, `Blocked`, `WaitingWindow`.
+- `ManualMarkFailedFinal`: permitido desde `Queued`, `Dispatched`, `RetryPending`, `Blocked`, `WaitingWindow`.
+
+Restricciones operativas de hardening (Prompt 4B):
+
+- `Confirmed` es terminal (sin acciones manuales).
+- `FailedFinal` es terminal en esta fase (sin acciones manuales).
+- `Blocked` no permite `retry` directo; solo `unblock` o `mark-failed-final`.
+- `Dispatching` no permite acciones manuales.
+- `WaitingWindow` no habilita `retry` manual sin política explícita (feature flag interno actual: deshabilitado).
 
 Para transiciones inválidas, se retorna código:
 
@@ -56,6 +64,7 @@ Para transiciones válidas:
 3. Registra auditoría homogénea con:
    - `EventType = "DispatchTransition"`
    - `Message = "Event:<Event>;IdempotencyKey:<Key>"`
+   - `EventStatus = "Applied"` para transiciones válidas y `EventStatus = "Rejected"` para rechazos por guarda.
    - `EvidenceJson` con `previousStatus`, `currentStatus`, `transitionEvent`, `resultCode`, `justification` y `performedBy`.
 
 Además, `GetQueue` y `GetQueueDetail` exponen `AllowedActions` por item.

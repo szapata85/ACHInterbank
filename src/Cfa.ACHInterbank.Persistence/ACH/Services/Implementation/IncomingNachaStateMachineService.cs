@@ -8,6 +8,10 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public class IncomingNachaStateMachineService : IIncomingNachaStateMachineService
 {
+    // Fase actual (Prompt 4B hardening):
+    // WaitingWindow NO permite retry manual salvo política explícita.
+    private const bool AllowRetryFromWaitingWindowByPolicy = false;
+
     private static readonly IReadOnlyDictionary<IncomingNachaDispatchEvent, TransitionRule> RuleByEvent =
         new Dictionary<IncomingNachaDispatchEvent, TransitionRule>
         {
@@ -20,9 +24,7 @@ public class IncomingNachaStateMachineService : IIncomingNachaStateMachineServic
                 {
                     IncomingNachaDispatchQueueStatus.Queued,
                     IncomingNachaDispatchQueueStatus.Dispatched,
-                    IncomingNachaDispatchQueueStatus.RetryPending,
-                    IncomingNachaDispatchQueueStatus.Blocked,
-                    IncomingNachaDispatchQueueStatus.WaitingWindow
+                    IncomingNachaDispatchQueueStatus.RetryPending
                 }),
             [IncomingNachaDispatchEvent.ManualUnblock] = new(
                 IncomingNachaDispatchEvent.ManualUnblock,
@@ -40,7 +42,6 @@ public class IncomingNachaStateMachineService : IIncomingNachaStateMachineServic
                     IncomingNachaDispatchQueueStatus.Queued,
                     IncomingNachaDispatchQueueStatus.Dispatched,
                     IncomingNachaDispatchQueueStatus.RetryPending,
-                    IncomingNachaDispatchQueueStatus.FailedFinal,
                     IncomingNachaDispatchQueueStatus.Blocked,
                     IncomingNachaDispatchQueueStatus.WaitingWindow
                 }),
@@ -54,7 +55,6 @@ public class IncomingNachaStateMachineService : IIncomingNachaStateMachineServic
                     IncomingNachaDispatchQueueStatus.Queued,
                     IncomingNachaDispatchQueueStatus.Dispatched,
                     IncomingNachaDispatchQueueStatus.RetryPending,
-                    IncomingNachaDispatchQueueStatus.FailedFinal,
                     IncomingNachaDispatchQueueStatus.Blocked,
                     IncomingNachaDispatchQueueStatus.WaitingWindow
                 })
@@ -97,7 +97,7 @@ public class IncomingNachaStateMachineService : IIncomingNachaStateMachineServic
                 $"Evento de transición no soportado: {transitionEvent}.");
         }
 
-        if (!rule.AllowedSources.Contains(currentStatus))
+        if (!IsTransitionAllowed(currentStatus, transitionEvent))
         {
             return new IncomingNachaDispatchTransitionDecision(
                 currentStatus,
@@ -118,7 +118,21 @@ public class IncomingNachaStateMachineService : IIncomingNachaStateMachineServic
     }
 
     private static bool IsTransitionAllowed(IncomingNachaDispatchQueueStatus status, IncomingNachaDispatchEvent transitionEvent)
-        => RuleByEvent.TryGetValue(transitionEvent, out var rule) && rule.AllowedSources.Contains(status);
+    {
+        if (!RuleByEvent.TryGetValue(transitionEvent, out var rule))
+        {
+            return false;
+        }
+
+        if (status == IncomingNachaDispatchQueueStatus.WaitingWindow
+            && transitionEvent == IncomingNachaDispatchEvent.ManualRetry
+            && !AllowRetryFromWaitingWindowByPolicy)
+        {
+            return false;
+        }
+
+        return rule.AllowedSources.Contains(status);
+    }
 
     private sealed record TransitionRule(
         IncomingNachaDispatchEvent Event,

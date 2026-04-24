@@ -337,38 +337,38 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
         var transition = _stateMachineService.EvaluateDispatchTransition(previousStatus, transitionEvent);
         if (!transition.IsAllowed || !transition.NextStatus.HasValue)
         {
+            await RegisterTransitionEventAsync(
+                queue,
+                normalizedBy,
+                transitionEvent,
+                idempotentEventType,
+                idempotentMessage,
+                "Rejected",
+                previousStatus,
+                previousStatus,
+                request,
+                transition,
+                ct);
+
             throw new InvalidOperationException($"[{transition.ResultCode}] {transition.Message}");
         }
 
         queue.QueueStatus = transition.NextStatus.Value;
         var appliedMessage = apply(queue, request);
 
-        _context.IncomingNachaProcessingEvents.Add(new IncomingNachaProcessingEvent
-        {
-            IncomingNachaFileIngestionId = queue.IncomingNachaFileIngestionId,
-            AchTransactionId = queue.AchTransactionId,
-            EventType = idempotentEventType,
-            EventStatus = "Applied",
-            Message = idempotentMessage,
-            EvidenceJson = JsonSerializer.Serialize(new
-            {
-                queueId,
-                action = ToActionLabel(transitionEvent),
-                transitionEvent,
-                transition.ResultCode,
-                transition.Message,
-                previousStatus,
-                currentStatus = queue.QueueStatus,
-                request.Justification,
-                request.Priority,
-                idempotencyKey = normalizedKey,
-                performedBy = normalizedBy
-            }),
-            OccurredAtUtc = DateTime.UtcNow,
-            RaisedBy = normalizedBy
-        });
+        await RegisterTransitionEventAsync(
+            queue,
+            normalizedBy,
+            transitionEvent,
+            idempotentEventType,
+            idempotentMessage,
+            "Applied",
+            previousStatus,
+            queue.QueueStatus,
+            request,
+            transition,
+            ct);
 
-        await _context.SaveChangesAsync(ct);
         if (tx is not null)
         {
             await tx.CommitAsync(ct);
@@ -407,6 +407,47 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             IncomingNachaDispatchEvent.ManualMarkFailedFinal => "MarkFailedFinal",
             _ => transitionEvent.ToString()
         };
+
+    private async Task RegisterTransitionEventAsync(
+        IncomingNachaDispatchQueue queue,
+        string normalizedBy,
+        IncomingNachaDispatchEvent transitionEvent,
+        string eventType,
+        string eventMessage,
+        string eventStatus,
+        IncomingNachaDispatchQueueStatus previousStatus,
+        IncomingNachaDispatchQueueStatus currentStatus,
+        IncomingNachaManualActionRequest request,
+        IncomingNachaDispatchTransitionDecision transition,
+        CancellationToken ct)
+    {
+        _context.IncomingNachaProcessingEvents.Add(new IncomingNachaProcessingEvent
+        {
+            IncomingNachaFileIngestionId = queue.IncomingNachaFileIngestionId,
+            AchTransactionId = queue.AchTransactionId,
+            EventType = eventType,
+            EventStatus = eventStatus,
+            Message = eventMessage,
+            EvidenceJson = JsonSerializer.Serialize(new
+            {
+                queueId = queue.Id,
+                action = ToActionLabel(transitionEvent),
+                transitionEvent,
+                transition.ResultCode,
+                transition.Message,
+                previousStatus,
+                currentStatus,
+                request.Justification,
+                request.Priority,
+                request.IdempotencyKey,
+                performedBy = normalizedBy
+            }),
+            OccurredAtUtc = DateTime.UtcNow,
+            RaisedBy = normalizedBy
+        });
+
+        await _context.SaveChangesAsync(ct);
+    }
 
     private sealed record QueueProjection(
         Guid Id,
