@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.External.Connections;
@@ -7,28 +8,31 @@ using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
 public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcessingOrchestrator
 {
-    private const int MaxAttempts = 5;
     private readonly AchDbContext _context;
     private readonly IProcTransaccionesRequestMapper _mapper;
     private readonly IProcTransaccionesResponseParser _parser;
     private readonly IWscfaachSoapClient _soapClient;
+    private readonly IncomingNachaDispatchResilienceOptions _resilienceOptions;
 
     public IncomingNachaPostProcessingOrchestrator(
         AchDbContext context,
         IProcTransaccionesRequestMapper mapper,
         IProcTransaccionesResponseParser parser,
-        IWscfaachSoapClient soapClient)
+        IWscfaachSoapClient soapClient,
+        IOptions<IncomingNachaDispatchResilienceOptions>? resilienceOptions = null)
     {
         _context = context;
         _mapper = mapper;
         _parser = parser;
         _soapClient = soapClient;
+        _resilienceOptions = resilienceOptions?.Value ?? new IncomingNachaDispatchResilienceOptions();
     }
 
     public async Task<IncomingNachaPostProcessingRunResult> ExecuteAsync(
@@ -38,8 +42,12 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
     {
         var safeChunk = Math.Clamp(chunkSize, 10, 500);
         var nowUtc = DateTime.UtcNow;
+        var integrationCodePolicies = await _context.AchFileRejectionCodes
+            .AsNoTracking()
+            .Where(x => x.IsActive && x.AppliesToStage == "Integration")
+            .ToDictionaryAsync(x => x.Code.ToUpper(), x => x.IsRetryable, ct);
 
-        await _context.IncomingNachaDispatchQueue
+        var releasedFromWaitingWindow = await _context.IncomingNachaDispatchQueue
             .Where(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.WaitingWindow)
             .Where(x => x.NextAttemptAtUtc == null || x.NextAttemptAtUtc <= nowUtc)
             .ExecuteUpdateAsync(setters => setters
@@ -76,13 +84,14 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         var retryPending = 0;
         var failedFinal = 0;
         var blocked = 0;
-        var waitingWindow = 0;
+        var waitingWindow = releasedFromWaitingWindow;
 
         foreach (var queue in queues)
         {
             queue.QueueStatus = IncomingNachaDispatchQueueStatus.Dispatching;
             queue.LastAttemptAtUtc = nowUtc;
             queue.AttemptCount += 1;
+            AddAutomaticEvent(queue, "DispatchStarted", "Applied", "Dispatch automático iniciado.");
 
             var correlationId = $"in-nacha-{queue.Id:N}-{queue.AttemptCount}";
             var execution = new IncomingNachaIntegrationExecution
@@ -102,6 +111,8 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                     queue.QueueStatus = IncomingNachaDispatchQueueStatus.Blocked;
                     queue.LastErrorCode = "MISSING_CONTEXT";
                     queue.LastErrorMessage = "No se encontró contexto de ingesta/clasificación.";
+                    queue.NextAttemptAtUtc = null;
+                    AddAutomaticEvent(queue, "IntegrationContextMissing", "Blocked", queue.LastErrorMessage, queue.LastErrorCode);
                     blocked++;
                     continue;
                 }
@@ -133,18 +144,36 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                     queue.QueueStatus = IncomingNachaDispatchQueueStatus.Confirmed;
                     queue.ConfirmedAtUtc = DateTime.UtcNow;
                     queue.NextAttemptAtUtc = null;
+                    AddAutomaticEvent(queue, "IntegrationSucceeded", "Applied", "Integración confirmada exitosamente.");
                     confirmed++;
                 }
-                else if (parsed.IsRetryable && queue.AttemptCount < MaxAttempts)
+                else if (parsed.IsRetryable)
                 {
-                    queue.QueueStatus = IncomingNachaDispatchQueueStatus.RetryPending;
-                    queue.NextAttemptAtUtc = DateTime.UtcNow.AddMinutes(Math.Min(30, 2 * queue.AttemptCount));
-                    retryPending++;
+                    var normalizedCode = NormalizeTechnicalIntegrationCode(parsed.ResponseCode, parsed.ResponseMessage, integrationCodePolicies);
+                    queue.LastErrorCode = normalizedCode;
+                    queue.LastErrorMessage = parsed.ResponseMessage;
+
+                    if (queue.AttemptCount < _resilienceOptions.MaxAttempts)
+                    {
+                        queue.QueueStatus = IncomingNachaDispatchQueueStatus.RetryPending;
+                        queue.NextAttemptAtUtc = ComputeNextAttemptUtc(nowUtc, queue.AttemptCount);
+                        AddAutomaticEvent(queue, "IntegrationRetryableFailed", "RetryPending", $"Falla técnica retryable. Reintento programado para {queue.NextAttemptAtUtc:O}.", normalizedCode);
+                        retryPending++;
+                    }
+                    else
+                    {
+                        queue.QueueStatus = IncomingNachaDispatchQueueStatus.FailedFinal;
+                        queue.NextAttemptAtUtc = null;
+                        AddAutomaticEvent(queue, "MaxAttemptsExceeded", "FailedFinal", "Se agotó la política de reintentos para error técnico.", normalizedCode);
+                        failedFinal++;
+                    }
                 }
                 else
                 {
                     queue.QueueStatus = IncomingNachaDispatchQueueStatus.FailedFinal;
                     queue.NextAttemptAtUtc = null;
+                    queue.LastErrorCode = "IFUNC";
+                    AddAutomaticEvent(queue, "IntegrationNonRetryableFailed", "FailedFinal", "Rechazo funcional no retryable.", queue.LastErrorCode);
                     failedFinal++;
                 }
             }
@@ -157,27 +186,32 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 execution.ResponseMessage = ex.Message;
                 execution.RequestHash = execution.RequestHash == string.Empty ? Hash(ex.Message) : execution.RequestHash;
                 execution.FinishedAtUtc = DateTime.UtcNow;
+                queue.NextAttemptAtUtc = null;
+                AddAutomaticEvent(queue, "DispatchBlockedByMapping", "Blocked", ex.Message, queue.LastErrorCode);
                 blocked++;
             }
             catch (Exception ex)
             {
-                queue.LastErrorCode = "TECHNICAL_ERROR";
+                queue.LastErrorCode = NormalizeTechnicalIntegrationCode("TECHNICAL_ERROR", ex.Message, integrationCodePolicies);
                 queue.LastErrorMessage = ex.Message;
-                execution.ResponseCode = "TECHNICAL_ERROR";
+                execution.ResponseCode = queue.LastErrorCode;
                 execution.ResponseMessage = ex.Message;
                 execution.FinishedAtUtc = DateTime.UtcNow;
                 execution.IsSuccess = false;
                 execution.IsRetryable = true;
 
-                if (queue.AttemptCount < MaxAttempts)
+                if (queue.AttemptCount < _resilienceOptions.MaxAttempts)
                 {
                     queue.QueueStatus = IncomingNachaDispatchQueueStatus.RetryPending;
-                    queue.NextAttemptAtUtc = DateTime.UtcNow.AddMinutes(Math.Min(30, 2 * queue.AttemptCount));
+                    queue.NextAttemptAtUtc = ComputeNextAttemptUtc(nowUtc, queue.AttemptCount);
+                    AddAutomaticEvent(queue, "IntegrationTechnicalFailed", "RetryPending", $"Excepción técnica. Reintento programado para {queue.NextAttemptAtUtc:O}.", queue.LastErrorCode);
                     retryPending++;
                 }
                 else
                 {
                     queue.QueueStatus = IncomingNachaDispatchQueueStatus.FailedFinal;
+                    queue.NextAttemptAtUtc = null;
+                    AddAutomaticEvent(queue, "MaxAttemptsExceeded", "FailedFinal", "Excepción técnica con política de reintentos agotada.", queue.LastErrorCode);
                     failedFinal++;
                 }
             }
@@ -200,5 +234,68 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(payload ?? string.Empty));
         return Convert.ToHexString(bytes);
+    }
+
+    private DateTime ComputeNextAttemptUtc(DateTime nowUtc, int attemptCount)
+    {
+        var safeInitial = Math.Max(1, _resilienceOptions.InitialBackoffSeconds);
+        var safeMultiplier = _resilienceOptions.BackoffMultiplier <= 1 ? 2d : _resilienceOptions.BackoffMultiplier;
+        var exp = Math.Pow(safeMultiplier, Math.Max(0, attemptCount - 1));
+        var seconds = Math.Min(_resilienceOptions.MaxBackoffSeconds, (int)Math.Round(safeInitial * exp, MidpointRounding.AwayFromZero));
+
+        if (_resilienceOptions.EnableJitter)
+        {
+            seconds += Random.Shared.Next(0, Math.Max(1, _resilienceOptions.JitterMaxSeconds + 1));
+        }
+
+        return nowUtc.AddSeconds(seconds);
+    }
+
+    private static string NormalizeTechnicalIntegrationCode(
+        string responseCode,
+        string message,
+        IReadOnlyDictionary<string, bool> integrationCodePolicies)
+    {
+        var normalizedCode = (responseCode ?? string.Empty).Trim().ToUpperInvariant();
+        var normalizedMessage = (message ?? string.Empty).ToUpperInvariant();
+
+        var candidate = normalizedCode.Contains("503") ? "I503"
+            : normalizedCode.Contains("500") ? "I500"
+            : normalizedCode.Contains("TIMEOUT") || normalizedMessage.Contains("TIMEOUT") ? "ITIMEOUT"
+            : normalizedCode.Contains("SOAP") || normalizedMessage.Contains("SOAP") ? "ISOAP"
+            : "I500";
+
+        if (integrationCodePolicies.Count == 0)
+        {
+            return candidate;
+        }
+
+        return integrationCodePolicies.ContainsKey(candidate) ? candidate : "I500";
+    }
+
+    private void AddAutomaticEvent(
+        IncomingNachaDispatchQueue queue,
+        string eventType,
+        string eventStatus,
+        string message,
+        string? code = null)
+    {
+        _context.IncomingNachaProcessingEvents.Add(new IncomingNachaProcessingEvent
+        {
+            IncomingNachaFileIngestionId = queue.IncomingNachaFileIngestionId,
+            AchTransactionId = queue.AchTransactionId,
+            EventType = eventType,
+            EventStatus = eventStatus,
+            Message = string.IsNullOrWhiteSpace(code) ? message : $"{code}: {message}",
+            EvidenceJson = JsonSerializer.Serialize(new
+            {
+                queueId = queue.Id,
+                status = queue.QueueStatus,
+                queue.AttemptCount,
+                code = code ?? string.Empty
+            }),
+            OccurredAtUtc = DateTime.UtcNow,
+            RaisedBy = "inbound.dispatch.orchestrator"
+        });
     }
 }

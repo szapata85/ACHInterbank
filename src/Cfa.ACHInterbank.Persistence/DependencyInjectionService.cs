@@ -29,6 +29,7 @@ public static class DependencyInjectionService
         services.Configure<NachaGenerationOptions>(configuration.GetSection(NachaGenerationOptions.SectionName));
         services.Configure<CertificateSecretResolverOptions>(configuration.GetSection("DigitalEnvelope:CertificateSecretResolver"));
         services.Configure<OpenBaoOptions>(configuration.GetSection(OpenBaoOptions.SectionName));
+        services.Configure<IncomingNachaDispatchResilienceOptions>(configuration.GetSection(IncomingNachaDispatchResilienceOptions.SectionName));
         services.Configure<OperationArtifactOptions>(configuration.GetSection(OperationArtifactOptions.SectionName));
         services.AddHttpClient();
         //services.AddDbContext<DataBaseService>(options => options.UseAseClient(configuration.GetConnectionString("SybaseConnection")));

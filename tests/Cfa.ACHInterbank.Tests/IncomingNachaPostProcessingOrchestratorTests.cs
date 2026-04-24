@@ -3,10 +3,12 @@ using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.External.Connections;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -84,6 +86,95 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
         Assert.Equal(IncomingNachaDispatchQueueStatus.RetryPending, queue.QueueStatus);
         Assert.NotNull(queue.NextAttemptAtUtc);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SetsFailedFinal_WhenFunctionalRejectionOccurs()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+
+        var mapper = BuildMapperSuccess();
+        var soap = new Mock<IWscfaachSoapClient>();
+        soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("<Envelope><Body><Proc_TransaccionesResponse><RTAACH>105</RTAACH><RTALOC>Saldo insuficiente</RTALOC></Proc_TransaccionesResponse></Body></Envelope>");
+
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object);
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.FailedFinal);
+        var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        Assert.Equal(IncomingNachaDispatchQueueStatus.FailedFinal, queue.QueueStatus);
+        Assert.Equal("IFUNC", queue.LastErrorCode);
+        Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(x => x.EventType == "IntegrationNonRetryableFailed"));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SetsFailedFinal_WhenRetryableButMaxAttemptsExceeded()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+        var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        queue.AttemptCount = 1;
+        await context.SaveChangesAsync();
+
+        var mapper = BuildMapperSuccess();
+        var soap = new Mock<IWscfaachSoapClient>();
+        soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("<Envelope><Body><Fault><faultstring>SOAP timeout</faultstring></Fault></Body></Envelope>");
+
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            Options.Create(new IncomingNachaDispatchResilienceOptions
+            {
+                MaxAttempts = 2,
+                InitialBackoffSeconds = 1,
+                MaxBackoffSeconds = 10
+            }));
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.FailedFinal);
+        queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        Assert.Equal(IncomingNachaDispatchQueueStatus.FailedFinal, queue.QueueStatus);
+        Assert.Equal("ITIMEOUT", queue.LastErrorCode);
+        Assert.Null(queue.NextAttemptAtUtc);
+        Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(x => x.EventType == "MaxAttemptsExceeded"));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ReleasesWaitingWindowItems_WhenDue()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+        var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        queue.QueueStatus = IncomingNachaDispatchQueueStatus.WaitingWindow;
+        queue.NextAttemptAtUtc = DateTime.UtcNow.AddMinutes(-2);
+        await context.SaveChangesAsync();
+
+        var mapper = BuildMapperSuccess();
+        var soap = new Mock<IWscfaachSoapClient>();
+        soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("<Envelope><Body><Proc_TransaccionesResponse><RTAACH>00</RTAACH><RTALOC>OK</RTALOC></Proc_TransaccionesResponse></Body></Envelope>");
+
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object);
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.WaitingWindow);
+        Assert.Equal(1, result.Confirmed);
     }
 
     private static void SeedDispatchItem(AchDbContext context)
@@ -213,5 +304,25 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var context = new AchDbContext(options);
         context.Database.EnsureCreated();
         return context;
+    }
+
+    private static Mock<IProcTransaccionesRequestMapper> BuildMapperSuccess()
+    {
+        var mapper = new Mock<IProcTransaccionesRequestMapper>();
+        mapper.Setup(x => x.ResolveAsync(
+                It.IsAny<IncomingNachaDispatchQueue>(),
+                It.IsAny<IncomingNachaFileIngestion>(),
+                It.IsAny<IncomingNachaEntryClassification>(),
+                It.IsAny<AchTransaction>(),
+                It.IsAny<AchCycle>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcTransaccionesRequestResolution(
+                new ProcTransaccionesRequestContract(new Dictionary<string, string> { ["TREG"] = "6", ["TIPTRAN"] = "22", ["MONTO"] = "10", ["IDTRAN"] = "1", ["IDCAMCOMPE"] = "1" }),
+                Guid.NewGuid(),
+                1,
+                "hash"));
+        mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcTransaccionesRequestContract>())).Returns("<request/>");
+        return mapper;
     }
 }
