@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
+using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -22,7 +24,7 @@ public class RoutingStrategyServiceTests
         using var connection = CreateOpenConnection();
         using var context = CreateContext(connection);
 
-        var today = DateTime.Today;
+        var today = new DateTime(2026, 4, 22);
         SeedRoutingData(context, today);
 
         var holidayService = new Mock<IBankHoliday>();
@@ -50,7 +52,7 @@ public class RoutingStrategyServiceTests
         using var connection = CreateOpenConnection();
         using var context = CreateContext(connection);
 
-        var today = DateTime.Today;
+        var today = new DateTime(2026, 4, 22);
         SeedRoutingData(context, today);
 
         var holidayService = new Mock<IBankHoliday>();
@@ -70,6 +72,63 @@ public class RoutingStrategyServiceTests
             .Id;
 
         Assert.Equal(expected, resolved);
+    }
+
+    [Fact]
+    public async Task ResolveClearingHouseForTransactionAsync_WithPaymentRailBridge_LeavesLegacyDecisionUnchanged()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateContext(connection);
+
+        var today = new DateTime(2026, 4, 22);
+        SeedRoutingData(context, today);
+
+        var holidayService = new Mock<IBankHoliday>();
+        holidayService.Setup(h => h.GetHolidays(It.IsAny<int>())).Returns(new List<BankHolidayModel>());
+
+        var scheduler = new Mock<IAchCycleScheduler>();
+        scheduler
+            .Setup(s => s.ScheduleCyclesForClearingHouseAsync(It.IsAny<int>(), It.IsAny<DateTime>()))
+            .Returns(Task.CompletedTask);
+
+        var paymentRailContextService = new Mock<IPaymentRailContextService>();
+        paymentRailContextService
+            .Setup(x => x.ResolveContext(
+                It.IsAny<int?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<DateTime?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>()))
+            .Returns(new PaymentRailResolvedContext(
+                RailCode: PaymentRailCodes.AchColombia,
+                IsKnownRail: true,
+                ResolutionSource: "Test",
+                ResolutionMessage: "Test",
+                StrategyRailCode: PaymentRailCodes.AchColombia,
+                Capabilities: new PaymentRailCapabilityDescriptor(true, true, true, false, false, true, "Test"),
+                OperationalContext: new PaymentRailOperationalContext(1, "ACHCOL", "cycle", today, Guid.NewGuid().ToString("N"))));
+        paymentRailContextService
+            .Setup(x => x.BuildShadowSnapshot(It.IsAny<PaymentRailResolvedContext>(), It.IsAny<string>(), It.IsAny<string>()))
+            .Returns((PaymentRailResolvedContext resolved, string legacySource, string legacyValue) =>
+                new PaymentRailShadowCompareSnapshot(legacySource, legacyValue, resolved.RailCode, resolved.IsKnownRail, resolved.StrategyRailCode, resolved.OperationalContext.CorrelationId, DateTime.UtcNow));
+
+        var service = new RoutingStrategyService(context, holidayService.Object, scheduler.Object, paymentRailContextService.Object);
+
+        var resolved = await service.ResolveClearingHouseForTransactionAsync(2, today.AddHours(15), CancellationToken.None);
+
+        var expected = context.AchCycles
+            .Single(c => c.ProcessingDate == today && c.CycleName == "CICLO-4")
+            .Id;
+
+        Assert.Equal(expected, resolved);
+        paymentRailContextService.Verify(x => x.ResolveContext(
+            It.IsAny<int?>(),
+            It.IsAny<string?>(),
+            It.IsAny<string?>(),
+            It.IsAny<DateTime?>(),
+            It.IsAny<string?>(),
+            It.IsAny<string?>()), Times.Once);
     }
 
     private static SqliteConnection CreateOpenConnection()

@@ -38,6 +38,7 @@ public static class DependencyInjectionService
         services.AddSingleton<IPaymentRailOperationalStrategy, CenitPaymentRailOperationalStrategy>();
         services.AddSingleton<IPaymentRailOperationalStrategy, UnknownPaymentRailOperationalStrategy>();
         services.AddSingleton<IPaymentRailOperationalStrategyResolver, PaymentRailOperationalStrategyResolver>();
+        services.AddSingleton<IPaymentRailContextService, PaymentRailContextService>();
         #endregion
 
         #region Services
