@@ -1,4 +1,6 @@
 using Cfa.ACHInterbank.Application.Configuration;
+using Cfa.ACHInterbank.Application.ACH.Implementation.PaymentRails;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Application.Services.TokenClient.Model;
 using Cfa.ACHInterbank.Application.Validators.NachaValidator;
@@ -29,6 +31,13 @@ public static class DependencyInjectionService
         services.AddSingleton(MapperBootstrapper.Instance);
 
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<ApplicationMediatorEntryPoint>());
+
+        // Payment rail strategy base contracts (Fase 1 bridge, no-op operational)
+        services.AddSingleton<IClearingHouseToPaymentRailMapper, ClearingHouseToPaymentRailMapper>();
+        services.AddSingleton<IPaymentRailOperationalStrategy, AchColombiaPaymentRailOperationalStrategy>();
+        services.AddSingleton<IPaymentRailOperationalStrategy, CenitPaymentRailOperationalStrategy>();
+        services.AddSingleton<IPaymentRailOperationalStrategy, UnknownPaymentRailOperationalStrategy>();
+        services.AddSingleton<IPaymentRailOperationalStrategyResolver, PaymentRailOperationalStrategyResolver>();
         #endregion
 
         #region Services
