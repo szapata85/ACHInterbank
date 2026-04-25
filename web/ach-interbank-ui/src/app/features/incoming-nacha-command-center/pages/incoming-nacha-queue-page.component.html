@@ -1,0 +1,37 @@
+<section class="queue-page">
+  <ui-migas-pan [items]="migas"></ui-migas-pan>
+
+  <ui-encabezado-pagina
+    titulo="Cola dispatch inbound NACHA-M"
+    descripcion="Supervisión operativa de reintentos y acciones manuales autorizadas por AllowedActions del backend."
+  ></ui-encabezado-pagina>
+
+  <ui-tarjeta titulo="Filtros de cola" subtitulo="La disponibilidad de acciones se decide exclusivamente en backend.">
+    <form [formGroup]="filtrosForm" class="filtros-grid">
+      <ui-campo-texto etiqueta="IngestionId" [control]="$any(filtrosForm.controls.ingestionId)"></ui-campo-texto>
+      <ui-campo-texto etiqueta="Estado cola" [control]="$any(filtrosForm.controls.queueStatus)"></ui-campo-texto>
+      <ui-campo-texto etiqueta="Tx ACH" [control]="$any(filtrosForm.controls.achTransactionId)"></ui-campo-texto>
+      <ui-campo-texto etiqueta="CorrelationId" [control]="$any(filtrosForm.controls.correlationId)"></ui-campo-texto>
+      <ui-campo-numero etiqueta="Página" [control]="$any(filtrosForm.controls.page)"></ui-campo-numero>
+      <ui-campo-numero etiqueta="Tamaño" [control]="$any(filtrosForm.controls.pageSize)"></ui-campo-numero>
+    </form>
+
+    <div class="acciones">
+      <ui-boton texto="Buscar" icono="search" (accion)="buscar()"></ui-boton>
+      <ui-boton texto="Limpiar" variante="contorno" icono="filter_alt_off" (accion)="limpiar()"></ui-boton>
+      <ui-boton texto="Volver a ingestas" variante="secundario" icono="arrow_back" (accion)="volverIngestas()"></ui-boton>
+    </div>
+  </ui-tarjeta>
+
+  <ui-alerta *ngIf="error" tipo="error" titulo="Error de consulta" [mensaje]="error"></ui-alerta>
+
+  <ui-tarjeta [titulo]="'Items en cola (' + totalItems + ')'" subtitulo="Solo se muestran acciones permitidas por backend (state machine enterprise).">
+    <ui-grilla-empresarial
+      [columnas]="columnas"
+      [datos]="items"
+      [cargando]="cargando"
+      tituloVacio="Sin items"
+      mensajeVacio="No se encontraron resultados con los filtros actuales."
+    ></ui-grilla-empresarial>
+  </ui-tarjeta>
+</section>

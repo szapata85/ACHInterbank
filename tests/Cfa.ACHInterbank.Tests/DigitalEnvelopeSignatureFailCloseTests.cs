@@ -299,6 +299,9 @@ public class DigitalEnvelopeSignatureFailCloseTests
                 _ => throw new InvalidOperationException($"Certificado no soportado en test: {Key_cert}.")
             };
         }
+
+        public X509Certificate2 ObtenerCertificateForDecrypt(string? recipientIssuer, string? recipientSerial, string? recipientThumbprint = null)
+            => _receiver;
     }
 
     private sealed class InMemorySignatureAudit : IDigitalEnvelopeSignatureAuditService

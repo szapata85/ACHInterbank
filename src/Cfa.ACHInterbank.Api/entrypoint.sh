@@ -8,6 +8,19 @@ if [ -z "${Database__Provider:-}" ] && [ -n "${ConnectionStrings__PostgresConnec
   export Database__Provider="Postgres"
 fi
 
+openbao_token_file="${DigitalEnvelope__OpenBao__ApiTokenFilePath:-/openbao-bootstrap/api-token}"
+wait_openbao_token="${WAIT_FOR_OPENBAO_TOKEN_FILE:-true}"
+wait_openbao_timeout="${WAIT_FOR_OPENBAO_TIMEOUT_SECONDS:-90}"
+
+if [ "$wait_openbao_token" = "true" ] && [ -z "${DigitalEnvelope__OpenBao__ApiToken:-}" ]; then
+  elapsed=0
+  while [ ! -s "$openbao_token_file" ] && [ "$elapsed" -lt "$wait_openbao_timeout" ]; do
+    echo "Waiting for OpenBao API token file at $openbao_token_file (${elapsed}s/${wait_openbao_timeout}s)"
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+fi
+
 if [ "${ASPNETCORE_URLS:-}" != "" ] && [ ! -f "$cert_path" ] && command -v openssl >/dev/null 2>&1; then
   cert_dir="$(dirname "$cert_path")"
   mkdir -p "$cert_dir"

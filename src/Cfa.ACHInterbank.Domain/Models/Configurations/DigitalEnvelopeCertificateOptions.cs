@@ -9,4 +9,6 @@ public class DigitalEnvelopeCertificateOptions
     public int DefaultClearingHouseId { get; set; } = 1;
     public bool PreferActiveCertificateManagementVersion { get; set; } = true;
     public bool LogCertificateSource { get; set; } = true;
+    public bool AllowHistoricalDecryptWhenExpired { get; set; } = true;
+    public bool AllowHistoricalDecryptWhenRevoked { get; set; } = false;
 }

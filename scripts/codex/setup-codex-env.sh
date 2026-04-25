@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-DOTNET_VERSION="10.0.201"
+DOTNET_VERSION="10.0.203"
 DOTNET_CHANNEL="10.0"
 DOTNET_INSTALL_DIR="${HOME}/.dotnet"
 TOOLS_DIR="${HOME}/.dotnet/tools"
@@ -35,6 +35,9 @@ else
 fi
 
 if [[ -z "${CURRENT_SDK}" ]]; then
+  install_dotnet
+elif [[ "${CURRENT_SDK}" != "${DOTNET_VERSION}" ]]; then
+  log "dotnet detectado (${CURRENT_SDK}) pero se requiere ${DOTNET_VERSION}. Actualizando SDK..."
   install_dotnet
 else
   log "dotnet detectado (${CURRENT_SDK})."

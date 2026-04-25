@@ -1,0 +1,35 @@
+.ingestion-detail-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.resumen-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.7rem;
+
+  article {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 0.65rem;
+    background: #fff;
+  }
+
+  small {
+    display: block;
+    color: var(--color-text-soft);
+    margin-bottom: 0.3rem;
+  }
+
+  strong {
+    word-break: break-word;
+  }
+}
+
+.acciones {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

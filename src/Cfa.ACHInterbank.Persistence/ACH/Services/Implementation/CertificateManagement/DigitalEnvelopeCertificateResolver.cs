@@ -87,6 +87,124 @@ public class DigitalEnvelopeCertificateResolver : IDigitalEnvelopeCertificateRes
         return legacy;
     }
 
+    public async Task<DigitalEnvelopeCertificateResolutionResult> ResolveHistoricalDecryptAsync(HistoricalDecryptCertificateCriteria criteria, CancellationToken cancellationToken = default)
+    {
+        var warnings = new List<string>();
+        var env = ParseEnvironment(_options.Environment);
+
+        var query = _context.DigitalCertificateVersions
+            .AsNoTracking()
+            .Where(x => x.ClearingHouseId == _options.DefaultClearingHouseId
+                        && x.Environment == env
+                        && x.Purpose == CertificatePurpose.InboundDecryption
+                        && x.HolderType == CertificateHolderType.Participant);
+
+        if (!string.IsNullOrWhiteSpace(criteria.RecipientSerial))
+            query = query.Where(x => x.SerialNumber == criteria.RecipientSerial);
+        if (!string.IsNullOrWhiteSpace(criteria.RecipientIssuer))
+            query = query.Where(x => x.Issuer == criteria.RecipientIssuer);
+        if (!string.IsNullOrWhiteSpace(criteria.RecipientThumbprint))
+            query = query.Where(x => x.Thumbprint == criteria.RecipientThumbprint);
+
+        var historical = await query
+            .OrderByDescending(x => x.VersionNumber)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (historical == null)
+        {
+            return new DigitalEnvelopeCertificateResolutionResult(
+                false, null, null, DigitalEnvelopeCertificateSource.None, CertificatePurpose.InboundDecryption,
+                null, null, null, "HISTORICAL_CERT_NOT_FOUND", "No se encontró versión histórica para decrypt.", warnings);
+        }
+
+        if (historical.Status == CertificateStatus.Revoked && !_options.AllowHistoricalDecryptWhenRevoked)
+        {
+            await LogResolutionAsync((CertificatePurpose.InboundDecryption, CertificateHolderType.Participant, true, DigitalEnvelopeCertificateType.SigningKeyPair, "HistoricalDecrypt"),
+                historical.Id, "ERROR", "HISTORICAL_DECRYPT_REVOKED_FORBIDDEN", cancellationToken);
+            return new DigitalEnvelopeCertificateResolutionResult(
+                false, null, historical.Id, DigitalEnvelopeCertificateSource.CertificateManagement, CertificatePurpose.InboundDecryption,
+                historical.Thumbprint, historical.SerialNumber, historical.Subject, "HISTORICAL_DECRYPT_REVOKED_FORBIDDEN",
+                "La política prohíbe decrypt histórico con certificado revocado.", warnings);
+        }
+
+        if (historical.Status == CertificateStatus.Expired && !_options.AllowHistoricalDecryptWhenExpired)
+        {
+            return new DigitalEnvelopeCertificateResolutionResult(
+                false, null, historical.Id, DigitalEnvelopeCertificateSource.CertificateManagement, CertificatePurpose.InboundDecryption,
+                historical.Thumbprint, historical.SerialNumber, historical.Subject, "HISTORICAL_DECRYPT_EXPIRED_FORBIDDEN",
+                "La política prohíbe decrypt histórico con certificado expirado.", warnings);
+        }
+
+        if (string.IsNullOrWhiteSpace(historical.SecretRef))
+        {
+            return new DigitalEnvelopeCertificateResolutionResult(
+                false, null, historical.Id, DigitalEnvelopeCertificateSource.CertificateManagement, CertificatePurpose.InboundDecryption,
+                historical.Thumbprint, historical.SerialNumber, historical.Subject, "HISTORICAL_SECRETREF_MISSING",
+                "La versión histórica no tiene SecretRef.", warnings);
+        }
+
+        var secretResolution = await _certificateSecretResolver.ResolveAsync(
+            new CertificateSecretResolutionRequest(
+                historical.Id,
+                CertificatePurpose.InboundDecryption,
+                historical.PrivateMaterialStorageMode,
+                historical.SecretRef,
+                criteria.Actor),
+            cancellationToken);
+
+        var contextJson = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            UsageReason = "HistoricalDecrypt",
+            historical.Id,
+            historical.Thumbprint,
+            secretResolution.SecretRefMasked
+        });
+
+        if (!secretResolution.Success || secretResolution.Material == null || !secretResolution.Material.HasPrivateKey)
+        {
+            await _certificateUsageLogger.LogUsageAsync(
+                historical.Id,
+                "HistoricalDecrypt",
+                Guid.NewGuid().ToString("N"),
+                "ERROR",
+                secretResolution.ErrorCode ?? "SECRET_RESOLUTION_FAILED",
+                criteria.Actor,
+                contextJson,
+                cancellationToken);
+
+            return new DigitalEnvelopeCertificateResolutionResult(
+                false, null, historical.Id, DigitalEnvelopeCertificateSource.CertificateManagement, CertificatePurpose.InboundDecryption,
+                historical.Thumbprint, historical.SerialNumber, historical.Subject, secretResolution.ErrorCode ?? "SECRET_RESOLUTION_FAILED",
+                "No fue posible resolver el material privado histórico.", warnings);
+        }
+
+        await _certificateUsageLogger.LogUsageAsync(
+            historical.Id,
+            "HistoricalDecrypt",
+            Guid.NewGuid().ToString("N"),
+            "SUCCESS",
+            null,
+            criteria.Actor,
+            contextJson,
+            cancellationToken);
+
+        await LogResolutionAsync((CertificatePurpose.InboundDecryption, CertificateHolderType.Participant, true, DigitalEnvelopeCertificateType.SigningKeyPair, "HistoricalDecrypt"),
+            historical.Id, "SUCCESS_HISTORICAL_DECRYPT", null, cancellationToken);
+
+        return new DigitalEnvelopeCertificateResolutionResult(
+            true,
+            secretResolution.Material.Certificate,
+            historical.Id,
+            DigitalEnvelopeCertificateSource.CertificateManagement,
+            CertificatePurpose.InboundDecryption,
+            secretResolution.Material.Thumbprint,
+            secretResolution.Material.SerialNumber,
+            secretResolution.Material.Subject,
+            null,
+            null,
+            warnings);
+    }
+
     private async Task<DigitalEnvelopeCertificateResolutionResult?> TryResolveFromCertificateManagementAsync(
         (CertificatePurpose Purpose, CertificateHolderType HolderType, bool RequiresPrivateKey, DigitalEnvelopeCertificateType LegacyType, string OperationType) descriptor,
         List<string> warnings,
@@ -147,7 +265,7 @@ public class DigitalEnvelopeCertificateResolver : IDigitalEnvelopeCertificateRes
             "SUCCESS",
             null,
             "DigitalEnvelopeCertificateResolver",
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         await LogResolutionAsync(descriptor, selected.Id, "SUCCESS", null, cancellationToken);
 
@@ -193,7 +311,7 @@ public class DigitalEnvelopeCertificateResolver : IDigitalEnvelopeCertificateRes
             "SUCCESS",
             null,
             "DigitalEnvelopeCertificateResolver",
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         await LogResolutionAsync(descriptor, selected.Id, "SUCCESS", null, cancellationToken);
 

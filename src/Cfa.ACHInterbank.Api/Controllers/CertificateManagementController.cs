@@ -75,7 +75,7 @@ public class CertificateManagementController : ControllerBase
             request.Password,
             User?.Identity?.Name ?? "api",
             request.StorageMode,
-            request.SecretRef), cancellationToken);
+            request.StorageMode == CertificateStorageMode.OpenBaoReference ? null : request.SecretRef), cancellationToken);
 
         return Ok(ToApiDto(dto));
     }
@@ -176,7 +176,7 @@ public class CertificateManagementController : ControllerBase
     public sealed class UploadPrivateCertificateApiRequest : UploadPublicCertificateApiRequest
     {
         public string Password { get; set; } = string.Empty;
-        public CertificateStorageMode StorageMode { get; set; } = CertificateStorageMode.ExternalSecretReference;
+        public CertificateStorageMode StorageMode { get; set; } = CertificateStorageMode.OpenBaoReference;
         public string? SecretRef { get; set; }
     }
 
