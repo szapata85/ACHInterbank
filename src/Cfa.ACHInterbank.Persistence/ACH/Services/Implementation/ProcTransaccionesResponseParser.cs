@@ -32,11 +32,18 @@ public class ProcTransaccionesResponseParser : IProcTransaccionesResponseParser
                           ?? ExtractValue(xml, "ANSMEN")
                           ?? ExtractValue(xml, "Mensaje")
                           ?? ExtractValue(xml, "Message")
+                          ?? ExtractValue(xml, "faultstring")
                           ?? string.Empty;
+
+            var isSoapFault = IsSoapFault(xml);
+            if (isSoapFault && code.Equals("UNKNOWN", StringComparison.OrdinalIgnoreCase))
+            {
+                code = "SOAP_FAULT";
+            }
 
             var isSuccess = SuccessCodes.Contains(code);
             var isPartial = !isSuccess && PartialCodes.Contains(code);
-            var isRetryable = !isSuccess && (RetryableCodes.Contains(code) || IsSoapFault(xml));
+            var isRetryable = !isSuccess && (RetryableCodes.Contains(code) || isSoapFault);
             var isFunctionalRejection = !isSuccess && !isRetryable;
 
             return new ProcTransaccionesParsedResponse(

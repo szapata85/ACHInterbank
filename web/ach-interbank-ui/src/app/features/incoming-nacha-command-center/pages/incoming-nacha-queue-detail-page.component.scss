@@ -1,0 +1,68 @@
+.queue-detail-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.resumen-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+
+  article {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 0.65rem;
+    background: #fff;
+  }
+
+  small {
+    display: block;
+    color: var(--color-text-soft);
+    margin-bottom: 0.25rem;
+  }
+
+  strong {
+    word-break: break-word;
+  }
+}
+
+.acciones-manuales,
+.acciones-nav {
+  margin-top: 0.85rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: grid;
+  place-items: center;
+  z-index: 90;
+}
+
+.dialog {
+  width: min(560px, 94vw);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  padding: 1rem 1.05rem;
+}
+
+.dialog h3 {
+  margin: 0;
+}
+
+.dialog p {
+  margin: 0.4rem 0 0.9rem;
+  color: var(--color-text-soft);
+}
+
+.dialog-actions {
+  margin-top: 0.9rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}

@@ -258,6 +258,9 @@ internal sealed class DigitalEnvelopeInteroperabilityHarness
                 _ => throw new InvalidOperationException($"Key cert no soportado en harness: {Key_cert}.")
             };
         }
+
+        public X509Certificate2 ObtenerCertificateForDecrypt(string? recipientIssuer, string? recipientSerial, string? recipientThumbprint = null)
+            => _decrypt;
     }
 
     private sealed class HarnessAudit : IDigitalEnvelopeSignatureAuditService

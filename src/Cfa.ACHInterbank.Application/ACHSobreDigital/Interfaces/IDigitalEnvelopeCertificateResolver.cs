@@ -23,7 +23,14 @@ public sealed record DigitalEnvelopeCertificateResolutionResult(
     string? ErrorMessage,
     IReadOnlyList<string> Warnings);
 
+public sealed record HistoricalDecryptCertificateCriteria(
+    string? RecipientIssuer,
+    string? RecipientSerial,
+    string? RecipientThumbprint,
+    string Actor);
+
 public interface IDigitalEnvelopeCertificateResolver
 {
     Task<DigitalEnvelopeCertificateResolutionResult> ResolveAsync(string keyCert, CancellationToken cancellationToken = default);
+    Task<DigitalEnvelopeCertificateResolutionResult> ResolveHistoricalDecryptAsync(HistoricalDecryptCertificateCriteria criteria, CancellationToken cancellationToken = default);
 }

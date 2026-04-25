@@ -14,6 +14,14 @@ public enum IncomingNachaDispatchQueueStatus
     WaitingWindow = 8
 }
 
+public enum IncomingNachaDispatchEvent
+{
+    ManualRetry = 1,
+    ManualUnblock = 2,
+    ManualRequeue = 3,
+    ManualMarkFailedFinal = 4
+}
+
 public class IncomingNachaDispatchQueue : AuditableEntity
 {
     public Guid Id { get; set; } = Guid.NewGuid();

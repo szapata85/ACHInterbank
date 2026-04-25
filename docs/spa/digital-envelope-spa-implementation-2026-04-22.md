@@ -72,3 +72,7 @@ sed -n '1,220p' .github/workflows/postgres-integration-tests.yml
   - `npm ci`: OK,
   - `npm run build`: OK,
   - `npm test`: pendiente por limitación de entorno (CHROME_BIN + karma/rimraf).
+
+## Addendum consola operativa + OpenBao (2026-04-23)
+- SPA permanece como consola operativa: envía archivo `.pfx` y password temporal en request.
+- SPA no persiste secreto ni private key; consume únicamente metadata sanitizada y `SecretRefMasked`.

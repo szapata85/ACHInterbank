@@ -1,0 +1,120 @@
+<section class="queue-detail-page">
+  <ui-migas-pan [items]="[
+    { etiqueta: 'Inicio', ruta: '/dashboard' },
+    { etiqueta: 'Command Center Inbound NACHA', ruta: '/incoming-nacha-command-center' },
+    { etiqueta: 'Cola dispatch', ruta: '/incoming-nacha-command-center/queue' },
+    { etiqueta: 'Detalle item' }
+  ]"></ui-migas-pan>
+
+  <ui-encabezado-pagina
+    titulo="Detalle de item de cola inbound"
+    descripcion="Operación manual controlada por AllowedActions + justificación + idempotency key."
+  ></ui-encabezado-pagina>
+
+  <ui-alerta *ngIf="error" tipo="error" titulo="Error" [mensaje]="error"></ui-alerta>
+  <ui-alerta *ngIf="resultadoAccion" tipo="info" titulo="Resultado de acción" [mensaje]="resultadoAccion"></ui-alerta>
+
+  <ui-tarjeta *ngIf="detalle" titulo="Resumen operativo" subtitulo="Datos de estado y trazabilidad del item de cola.">
+    <div class="resumen-grid">
+      <article><small>QueueId</small><strong>{{ detalle.queue.id }}</strong></article>
+      <article><small>Estado actual</small><strong>{{ detalle.queue.queueStatus }}</strong></article>
+      <article><small>Prioridad</small><strong>{{ detalle.queue.priority }}</strong></article>
+      <article><small>Intentos</small><strong>{{ detalle.queue.attemptCount }}</strong></article>
+      <article><small>Último error</small><strong>{{ detalle.queue.lastErrorCode || '—' }} {{ detalle.queue.lastErrorMessage || '' }}</strong></article>
+      <article><small>AllowedActions</small><strong>{{ detalle.queue.allowedActions.allowedActions.join(', ') || '—' }}</strong></article>
+    </div>
+
+    <div class="acciones-manuales">
+      <ui-boton
+        texto="retry"
+        variante="primario"
+        [deshabilitado]="!estaPermitida('retry')"
+        [cargando]="ejecutando && accionSeleccionada === 'retry'"
+        (accion)="abrirAccion('retry')"
+      ></ui-boton>
+      <ui-boton
+        texto="unblock"
+        variante="secundario"
+        [deshabilitado]="!estaPermitida('unblock')"
+        [cargando]="ejecutando && accionSeleccionada === 'unblock'"
+        (accion)="abrirAccion('unblock')"
+      ></ui-boton>
+      <ui-boton
+        texto="requeue"
+        variante="contorno"
+        [deshabilitado]="!estaPermitida('requeue')"
+        [cargando]="ejecutando && accionSeleccionada === 'requeue'"
+        (accion)="abrirAccion('requeue')"
+      ></ui-boton>
+      <ui-boton
+        texto="mark-failed-final"
+        variante="peligro"
+        [deshabilitado]="!estaPermitida('mark-failed-final')"
+        [cargando]="ejecutando && accionSeleccionada === 'mark-failed-final'"
+        (accion)="abrirAccion('mark-failed-final')"
+      ></ui-boton>
+    </div>
+
+    <div class="acciones-nav">
+      <ui-boton texto="Ver ingesta" variante="secundario" icono="account_tree" (accion)="irAIngesta()"></ui-boton>
+      <ui-boton texto="Volver a cola" variante="contorno" icono="arrow_back" (accion)="volverCola()"></ui-boton>
+    </div>
+  </ui-tarjeta>
+
+  <ui-tarjeta *ngIf="detalle" titulo="Clasificación operativa" subtitulo="Contexto parser/prenote/devolución para auditoría.">
+    <div class="resumen-grid">
+      <article><small>Functional class</small><strong>{{ detalle.classification.functionalClass }}</strong></article>
+      <article><small>Eligibility</small><strong>{{ detalle.classification.eligibilityStatus }}</strong></article>
+      <article><small>Prenote</small><strong>{{ detalle.classification.prenoteStatus }}</strong></article>
+      <article><small>Requires manual</small><strong>{{ detalle.classification.requiresManualResolution ? 'Sí' : 'No' }}</strong></article>
+      <article><small>Return code</small><strong>{{ detalle.classification.returnReasonCode || '—' }}</strong></article>
+      <article><small>Business meaning</small><strong>{{ detalle.classification.businessMeaning }}</strong></article>
+    </div>
+  </ui-tarjeta>
+
+  <ui-tarjeta *ngIf="detalle" titulo="Historial de ejecuciones" subtitulo="Integraciones y resiliencia por cada intento.">
+    <ui-grilla-empresarial
+      [columnas]="columnasExec"
+      [datos]="detalle.executions"
+      [cargando]="cargando"
+      tituloVacio="Sin ejecuciones"
+      mensajeVacio="No hay ejecuciones registradas para este item."
+    ></ui-grilla-empresarial>
+  </ui-tarjeta>
+
+  <ui-tarjeta *ngIf="detalle" titulo="Eventos de auditoría" subtitulo="Trazabilidad end-to-end de acciones y sistema.">
+    <ui-grilla-empresarial
+      [columnas]="columnasEvents"
+      [datos]="detalle.events"
+      [cargando]="cargando"
+      tituloVacio="Sin eventos"
+      mensajeVacio="No hay eventos para mostrar en este item."
+    ></ui-grilla-empresarial>
+  </ui-tarjeta>
+</section>
+
+<div class="overlay" *ngIf="modalAbierto" role="dialog" aria-modal="true" aria-label="Confirmar acción manual">
+  <section class="dialog">
+    <h3>Confirmar acción: {{ accionSeleccionada ? etiquetaAccion(accionSeleccionada) : '' }}</h3>
+    <p>Esta operación será auditada y requiere justificación obligatoria.</p>
+
+    <form [formGroup]="accionForm" class="dialog-form">
+      <ui-campo-textarea
+        etiqueta="Justificación"
+        ayuda="Mínimo 10 caracteres. El backend valida AllowedActions y guarda auditoría."
+        [control]="$any(accionForm.controls.justification)"
+      ></ui-campo-textarea>
+    </form>
+
+    <div class="dialog-actions">
+      <ui-boton texto="Cancelar" variante="contorno" [deshabilitado]="ejecutando" (accion)="cancelarAccion()"></ui-boton>
+      <ui-boton
+        texto="Confirmar"
+        variante="primario"
+        [deshabilitado]="accionForm.invalid"
+        [cargando]="ejecutando"
+        (accion)="confirmarAccion()"
+      ></ui-boton>
+    </div>
+  </section>
+</div>
