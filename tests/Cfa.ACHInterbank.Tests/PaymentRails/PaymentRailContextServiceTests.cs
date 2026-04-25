@@ -37,6 +37,7 @@ public class PaymentRailContextServiceTests
         result.OperationalContext.ClearingHouseId.Should().Be(1);
         result.OperationalContext.ClearingHouseCode.Should().Be("ACHCOL");
         result.OperationalContext.AchCycleId.Should().Be("ACH-20260425-01");
+        result.CapabilityStatuses.Should().NotBeEmpty();
     }
 
     [Fact]

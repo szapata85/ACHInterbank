@@ -7,6 +7,7 @@ public sealed record PaymentRailResolvedContext(
     string ResolutionMessage,
     string StrategyRailCode,
     PaymentRailCapabilityDescriptor Capabilities,
+    IReadOnlyCollection<PaymentRailCapabilityStatus> CapabilityStatuses,
     PaymentRailOperationalContext OperationalContext);
 
 public sealed record PaymentRailShadowCompareSnapshot(

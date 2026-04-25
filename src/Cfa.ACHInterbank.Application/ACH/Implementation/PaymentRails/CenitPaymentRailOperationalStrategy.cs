@@ -1,29 +1,36 @@
-using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
 using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
 
 namespace Cfa.ACHInterbank.Application.ACH.Implementation.PaymentRails;
 
-public sealed class CenitPaymentRailOperationalStrategy : IPaymentRailOperationalStrategy
+public sealed class CenitPaymentRailOperationalStrategy : PaymentRailOperationalStrategyBase
 {
-    public string RailCode => PaymentRailCodes.Cenit;
+    public override string RailCode => PaymentRailCodes.Cenit;
 
-    public PaymentRailCapabilityDescriptor Capabilities { get; } = new(
+    public override PaymentRailCapabilityDescriptor Capabilities { get; } = new(
         SupportsCycleOperations: true,
         SupportsDispatchOperations: true,
         SupportsReturnsOperations: true,
         SupportsNettingOperations: true,
         SupportsLiquidityOperations: true,
         SupportsObservability: true,
-        Notes: "Bridge Fase 1: sin mover lógica existente de CENIT netting/liquidez.");
+        Notes: "Wrapper fase 4: capacidades CENIT activas en modo pasivo con owner legacy.");
 
-    public bool CanHandle(string railCode) => string.Equals(railCode, RailCode, StringComparison.OrdinalIgnoreCase);
+    public override IReadOnlyCollection<PaymentRailCapabilityStatus> CapabilityStatuses { get; } =
+    [
+        new(PaymentRailCapabilityKind.Cycle, true, PaymentRailCapabilityExecutionMode.WrapperPassive, true, "Legacy-AchCycleScheduler/Routing", "Resolución de ciclo sigue legacy; wrapper sólo transporta contexto."),
+        new(PaymentRailCapabilityKind.Dispatch, true, PaymentRailCapabilityExecutionMode.WrapperPassive, true, "Legacy-IncomingNachaDispatch", "Dispatch sigue legacy; wrapper preparado para shadow compare."),
+        new(PaymentRailCapabilityKind.Return, true, PaymentRailCapabilityExecutionMode.WrapperPassive, true, "Legacy-AchReturns/ReturnOfReturn", "Returns/return-of-return sigue legacy."),
+        new(PaymentRailCapabilityKind.Netting, true, PaymentRailCapabilityExecutionMode.WrapperPassive, true, "Legacy-CenitNetting", "Neteo CENIT sigue legacy; wrapper sólo expone contrato."),
+        new(PaymentRailCapabilityKind.Liquidity, true, PaymentRailCapabilityExecutionMode.WrapperPassive, true, "Legacy-LiquidityOptimization", "Liquidez CENIT sigue legacy; wrapper sólo expone contrato.")
+    ];
 
-    public PaymentRailBridgeResult EvaluateBridge(PaymentRailBridgeRequest request)
+    public override PaymentRailBridgeResult EvaluateBridge(PaymentRailBridgeRequest request)
     {
         return new PaymentRailBridgeResult(
             IsAllowed: true,
             RailCode,
             ResultCode: "PAYMENT_RAIL_BRIDGE_READY_CENIT",
-            Message: "Estrategia CENIT registrada en modo bridge (fase 1, no-op operacional).");
+            Message: "Wrapper CENIT activo en modo pasivo (owner legacy)."
+        );
     }
 }

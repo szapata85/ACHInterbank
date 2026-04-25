@@ -107,6 +107,10 @@ public class RoutingStrategyServiceTests
                 ResolutionMessage: "Test",
                 StrategyRailCode: PaymentRailCodes.AchColombia,
                 Capabilities: new PaymentRailCapabilityDescriptor(true, true, true, false, false, true, "Test"),
+                CapabilityStatuses:
+                [
+                    new(PaymentRailCapabilityKind.Cycle, true, PaymentRailCapabilityExecutionMode.WrapperPassive, true, "Legacy", "Test")
+                ],
                 OperationalContext: new PaymentRailOperationalContext(1, "ACHCOL", "cycle", today, Guid.NewGuid().ToString("N"))));
         paymentRailContextService
             .Setup(x => x.BuildShadowSnapshot(It.IsAny<PaymentRailResolvedContext>(), It.IsAny<string>(), It.IsAny<string>()))

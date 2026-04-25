@@ -6,7 +6,10 @@ public interface IPaymentRailOperationalStrategy
 {
     string RailCode { get; }
     PaymentRailCapabilityDescriptor Capabilities { get; }
+    IReadOnlyCollection<PaymentRailCapabilityStatus> CapabilityStatuses { get; }
 
     bool CanHandle(string railCode);
     PaymentRailBridgeResult EvaluateBridge(PaymentRailBridgeRequest request);
+    PaymentRailWrapperCallResult EvaluateCapabilityWrapper(PaymentRailWrapperCallRequest request);
+    PaymentRailShadowCompareSnapshot BuildCapabilityShadowSnapshot(PaymentRailWrapperCallRequest request, PaymentRailWrapperCallResult wrapperResult);
 }

@@ -38,6 +38,7 @@ public sealed class PaymentRailContextService : IPaymentRailContextService
             ResolutionMessage: resolution.Message,
             StrategyRailCode: strategy.RailCode,
             Capabilities: strategy.Capabilities,
+            CapabilityStatuses: strategy.CapabilityStatuses,
             OperationalContext: context);
     }
 

@@ -223,6 +223,14 @@ public class RoutingStrategyService : IRoutingStrategyService
                 ResolutionMessage: "PaymentRailContextService no registrado; bridge en modo pasivo.",
                 StrategyRailCode: PaymentRailCodes.Unknown,
                 Capabilities: new PaymentRailCapabilityDescriptor(false, false, false, false, false, false, "Null bridge"),
+                CapabilityStatuses:
+                [
+                    new(PaymentRailCapabilityKind.Cycle, false, PaymentRailCapabilityExecutionMode.NotSupported, false, "N/A", "Null bridge"),
+                    new(PaymentRailCapabilityKind.Dispatch, false, PaymentRailCapabilityExecutionMode.NotSupported, false, "N/A", "Null bridge"),
+                    new(PaymentRailCapabilityKind.Return, false, PaymentRailCapabilityExecutionMode.NotSupported, false, "N/A", "Null bridge"),
+                    new(PaymentRailCapabilityKind.Netting, false, PaymentRailCapabilityExecutionMode.NotSupported, false, "N/A", "Null bridge"),
+                    new(PaymentRailCapabilityKind.Liquidity, false, PaymentRailCapabilityExecutionMode.NotSupported, false, "N/A", "Null bridge")
+                ],
                 OperationalContext: ctx);
         }
 
