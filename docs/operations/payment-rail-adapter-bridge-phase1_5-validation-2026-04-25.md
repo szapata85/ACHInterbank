@@ -53,3 +53,54 @@ dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Releas
 - No se tocaron parser NACHA, command center, state machine, resiliencia ni observabilidad funcional.
 - No se hicieron cambios en criptografía ni esquema de base de datos.
 - El bridge agrega instrumentación/contexto paralelo para fases futuras (incluyendo shadow compare).
+
+## Revalidación formal Prompt 3B (2026-04-25)
+
+Ejecución adicional para cerrar la brecha de no-regresión completa:
+
+```bash
+bash scripts/codex/setup-codex-env.sh
+dotnet --info
+dotnet --list-sdks
+dotnet ef --version
+cat global.json
+```
+
+- SDK confirmado: `10.0.203`
+- `dotnet ef`: `10.0.7`
+
+```bash
+dotnet build ACHInterbank.sln -c Release
+```
+
+- Build: OK (0 errores, warnings legacy de nulabilidad preexistentes).
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~PaymentRail|FullyQualifiedName~RoutingStrategyServiceTests"
+```
+
+- Passed: 8
+- Failed: 0
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~IncomingNacha"
+```
+
+- Passed: 63
+- Failed: 0
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber"
+```
+
+- Passed: 193
+- Failed: 0
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~DependencyInjection"
+```
+
+- Passed: 2
+- Failed: 0
+
+Conclusión Prompt 3B: Adapter Bridge Fase 1.5 revalidado sin regresión funcional en los grupos amplios solicitados.
