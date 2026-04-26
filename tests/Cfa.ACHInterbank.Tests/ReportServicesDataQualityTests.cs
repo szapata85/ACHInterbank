@@ -71,9 +71,9 @@ public class ReportServicesDataQualityTests
         Assert.Single(response.Items);
         var row = response.Items[0];
         Assert.Equal("DEV14", row.CausalCode);
-        Assert.Equal("Cuenta cerrada", row.CausalDescription);
+        Assert.Equal("No consentimiento / revocación expresa del usuario receptor.", row.CausalDescription);
         Assert.Equal("REF-SENT-OLD", row.OriginalTransactionReference);
-        Assert.Equal(1001, row.OriginalTransactionId);
+        Assert.Equal(1002, row.OriginalTransactionId);
     }
 
     [Fact]
@@ -99,15 +99,15 @@ public class ReportServicesDataQualityTests
             ClearingHouseId = 1
         });
 
-        Assert.Equal(7, response.Totals.SentCount);
+        Assert.Equal(8, response.Totals.SentCount);
         Assert.Equal(1054m, response.Totals.SentAmount);
         Assert.Equal(2, response.Totals.ReceivedCount);
-        Assert.Equal(300m, response.Totals.ReceivedAmount);
+        Assert.Equal(340m, response.Totals.ReceivedAmount);
         Assert.Equal(3, response.Totals.ReturnedCount);
         Assert.Equal(304m, response.Totals.ReturnedAmount);
 
-        Assert.Equal(5, response.Differences.SentVsReceivedCountDiff);
-        Assert.Equal(754m, response.Differences.SentVsReceivedAmountDiff);
+        Assert.Equal(6, response.Differences.SentVsReceivedCountDiff);
+        Assert.Equal(714m, response.Differences.SentVsReceivedAmountDiff);
 
         Assert.Contains(response.Inconsistencies, x => x.Code == "INC-RET-NO-CAUSAL" && x.AffectedCount == 1);
         Assert.Contains(response.Inconsistencies, x => x.Code == "INC-CAUSAL-STATE" && x.AffectedCount == 1);
@@ -204,7 +204,7 @@ public class ReportServicesDataQualityTests
             context.ReturnReasons.Add(new ReturnReason
             {
                 Code = "DEV14",
-                Description = "Cuenta cerrada",
+                Description = "No consentimiento / retorno de débito por operador",
                 Category = "Return",
                 IsForReturn = true
             });

@@ -22,6 +22,8 @@ public class ClearingHouseCycleConfigSeederTests
         using var context = new AchDbContext(options);
         context.Database.EnsureCreated();
 
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, HolidayStrategy = "Colombian" });
+
         context.ClearingHouses.AddRange(
             new ClearingHouse { Id = 1, Name = "ACH Colombia", Code = "ACHCOL", OriginCode = "12345678", ClearingHouseId = 1 },
             new ClearingHouse { Id = 2, Name = "CENIT", Code = "CENIT", OriginCode = "87654321", ClearingHouseId = 1 });

@@ -1,0 +1,18 @@
+25:    .OrderBy(e0 => e0.CutoffTime)' could not be translated. Either rewrite the query in a form that can be translated, or switch to client evaluation explicitly by inserting a call to 'AsEnumerable', 'AsAsyncEnumerable', 'ToList', or 'ToListAsync'. See https://go.microsoft.com/fwlink/?linkid=2101038 for more information.
+49:---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'UNIQUE constraint failed: CompanyEntryDescription.Id'.
+77:---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'UNIQUE constraint failed: CompanyEntryDescription.Id'.
+105:---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'UNIQUE constraint failed: CompanyEntryDescription.Id'.
+134:---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'UNIQUE constraint failed: CompanyEntryDescription.Id'.
+163:---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'UNIQUE constraint failed: CompanyEntryDescription.Id'.
+192:---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'UNIQUE constraint failed: CompanyEntryDescription.Id'.
+220:---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'FOREIGN KEY constraint failed'.
+249:---- System.NotSupportedException : SQLite does not support expressions of type 'TimeSpan' in ORDER BY clauses. Convert the values to a supported type, or use LINQ to Objects to order the results on the client side.
+276:   Assert.Equal() Failure: Values differ
+285:   Assert.Equal() Failure: Strings differ
+299:---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'FOREIGN KEY constraint failed'.
+325:---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'FOREIGN KEY constraint failed'.
+353:---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'UNIQUE constraint failed: CompanyEntryDescription.Id'.
+378:---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'FOREIGN KEY constraint failed'.
+407:---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'FOREIGN KEY constraint failed'.
+433:---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'FOREIGN KEY constraint failed'.
+459:---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'FOREIGN KEY constraint failed'.

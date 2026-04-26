@@ -15,16 +15,21 @@ namespace Cfa.ACHInterbank.Tests;
 
 public class TransactionPolicyServiceTests
 {
+    private const int TestClearingHouseConfigId = 9301;
+    private const int TestClearingHouseId = 9301;
+    private const int TestSourceInstitutionId = 9401;
+    private const int TestDestinationInstitutionId = 9402;
+
     [Fact]
     public async Task PreviewAsync_RejectsWhenOutsideCycleWindow()
     {
         using var connection = CreateOpenConnection();
         using var context = CreateContext(connection);
-        SeedCatalog(context);
+        var companyEntryDescriptionId = SeedCatalog(context);
         var cycle = SeedCycle(context, "cycle-outside", DateTime.Today, new TimeSpan(0, 0, 0), new TimeSpan(0, 30, 0));
 
         var routing = new Mock<IRoutingStrategyService>();
-        routing.Setup(x => x.ResolveClearingHouseForTransactionAsync(2, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+        routing.Setup(x => x.ResolveClearingHouseForTransactionAsync(TestDestinationInstitutionId, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(cycle.Id);
 
         var service = CreateService(context, routing.Object);
@@ -35,7 +40,7 @@ public class TransactionPolicyServiceTests
             TransactionTypeEnum.Credit,
             AccountTypeEnum.Checking,
             false,
-            2,
+            TestDestinationInstitutionId,
             "1234567890",
             "9876543210",
             "900123456",
@@ -50,7 +55,7 @@ public class TransactionPolicyServiceTests
     {
         using var connection = CreateOpenConnection();
         using var context = CreateContext(connection);
-        SeedCatalog(context);
+        var companyEntryDescriptionId = SeedCatalog(context);
         var cycle = SeedCycle(context, "cycle-open", DateTime.Today, TimeSpan.Zero, new TimeSpan(23, 59, 0));
         context.AchBatches.Add(new AchBatch
         {
@@ -59,7 +64,7 @@ public class TransactionPolicyServiceTests
             CompanyName = "EMPRESA DEMO",
             CompanyIdentification = "900123456",
             CompanyEntryDescription = "NOMINAS",
-            CompanyEntryDescriptionId = 1,
+            CompanyEntryDescriptionId = companyEntryDescriptionId,
             OriginOrOdfi = "12345678",
             EffectiveEntryDate = DateTime.Today
         });
@@ -78,12 +83,15 @@ public class TransactionPolicyServiceTests
             OriginatingDFI = "123456780",
             ReceivingDFI = "765432100",
             AchBatchId = 1,
-            CompanyEntryDescriptionId = 1
+            CompanyEntryDescriptionId = companyEntryDescriptionId,
+            SourceInstitutionId = TestSourceInstitutionId,
+            DestinationInstitutionId = TestDestinationInstitutionId,
+            EffectiveEntryDate = DateTime.Today
         });
         await context.SaveChangesAsync();
 
         var routing = new Mock<IRoutingStrategyService>();
-        routing.Setup(x => x.ResolveClearingHouseForTransactionAsync(2, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+        routing.Setup(x => x.ResolveClearingHouseForTransactionAsync(TestDestinationInstitutionId, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(cycle.Id);
 
         var service = CreateService(context, routing.Object);
@@ -94,7 +102,7 @@ public class TransactionPolicyServiceTests
             TransactionTypeEnum.Credit,
             AccountTypeEnum.Checking,
             false,
-            2,
+            TestDestinationInstitutionId,
             "1234567890",
             "9876543210",
             "900123456",
@@ -109,7 +117,7 @@ public class TransactionPolicyServiceTests
     {
         using var connection = CreateOpenConnection();
         using var context = CreateContext(connection);
-        SeedCatalog(context);
+        var companyEntryDescriptionId = SeedCatalog(context);
         var validator = new TransactionValidator(context);
 
         var request = new AchTransactionRequestData
@@ -119,12 +127,12 @@ public class TransactionPolicyServiceTests
             Type = TransactionTypeEnum.Debit,
             AccountType = AccountTypeEnum.Checking,
             IsPrenotification = false,
-            DestinationInstitutionId = 2,
+            DestinationInstitutionId = TestDestinationInstitutionId,
             SourceAccountNumber = "1234567890",
             DestinationAccountNumber = "9876543210",
             CompanyName = "EMPRESA DEMO",
             CompanyIdentification = "900123456",
-            CompanyEntryDescriptionId = 1,
+            CompanyEntryDescriptionId = companyEntryDescriptionId,
             SourcePersonType = "PJ",
             RecipientPersonType = "PN",
             RecipientIdNumber = "ABCD1234",
@@ -140,7 +148,7 @@ public class TransactionPolicyServiceTests
     {
         using var connection = CreateOpenConnection();
         using var context = CreateContext(connection);
-        SeedCatalog(context);
+        var companyEntryDescriptionId = SeedCatalog(context);
         var cycle = SeedCycle(context, "cycle-opid", DateTime.Today, TimeSpan.Zero, new TimeSpan(23, 59, 0));
         context.AchBatches.Add(new AchBatch
         {
@@ -149,7 +157,7 @@ public class TransactionPolicyServiceTests
             CompanyName = "EMPRESA DEMO",
             CompanyIdentification = "900123456",
             CompanyEntryDescription = "NOMINAS",
-            CompanyEntryDescriptionId = 1,
+            CompanyEntryDescriptionId = companyEntryDescriptionId,
             OriginOrOdfi = "12345678",
             EffectiveEntryDate = DateTime.Today
         });
@@ -169,12 +177,15 @@ public class TransactionPolicyServiceTests
             OriginatingDFI = "123456780",
             ReceivingDFI = "765432100",
             AchBatchId = 2,
-            CompanyEntryDescriptionId = 1
+            CompanyEntryDescriptionId = companyEntryDescriptionId,
+            SourceInstitutionId = TestSourceInstitutionId,
+            DestinationInstitutionId = TestDestinationInstitutionId,
+            EffectiveEntryDate = DateTime.Today
         });
         await context.SaveChangesAsync();
 
         var routing = new Mock<IRoutingStrategyService>();
-        routing.Setup(x => x.ResolveClearingHouseForTransactionAsync(2, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+        routing.Setup(x => x.ResolveClearingHouseForTransactionAsync(TestDestinationInstitutionId, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(cycle.Id);
 
         var service = CreateService(context, routing.Object);
@@ -185,7 +196,7 @@ public class TransactionPolicyServiceTests
             TransactionTypeEnum.Credit,
             AccountTypeEnum.Checking,
             false,
-            2,
+            TestDestinationInstitutionId,
             "1234567890",
             "9876543210",
             "900123456",
@@ -211,27 +222,67 @@ public class TransactionPolicyServiceTests
         return new TransactionPolicyService(context, routing, options);
     }
 
-    private static void SeedCatalog(AchDbContext context)
+    private static int SeedCatalog(AchDbContext context)
     {
-        context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog
-        {
-            Id = 1,
-            Term = "NOMINAS",
-            Description = "Pago de nómina",
-            StandardEntryClassCode = "PPD",
-            IsActive = true
-        });
+        var companyEntryDescriptionId = context.CompanyEntryDescriptionCatalogs
+            .Where(x => x.Term == "NOMINAS" && x.IsActive)
+            .Select(x => x.Id)
+            .First();
 
-        context.ClearingHouses.Add(new ClearingHouse
+        if (!context.ClearingHouseConfigs.Any(x => x.Id == TestClearingHouseConfigId))
         {
-            Id = 1,
-            Name = "ACH Colombia",
-            Code = "ACH",
-            OriginCode = "12345678",
-            ClearingHouseId = 1
-        });
+            context.ClearingHouseConfigs.Add(new ClearingHouseConfig
+            {
+                Id = TestClearingHouseConfigId,
+                HolidayStrategy = "Colombian"
+            });
+        }
+
+        if (!context.ClearingHouses.Any(x => x.Id == TestClearingHouseId))
+        {
+            context.ClearingHouses.Add(new ClearingHouse
+            {
+                Id = TestClearingHouseId,
+                Name = "ACH Colombia",
+                Code = "ACH",
+                OriginCode = "12345678",
+                ClearingHouseId = TestClearingHouseConfigId
+            });
+        }
+
+        if (!context.FinancialInstitutions.Any(x => x.Id == TestSourceInstitutionId))
+        {
+            context.FinancialInstitutions.Add(new FinancialInstitution
+            {
+                Id = TestSourceInstitutionId,
+                Name = "Banco Origen",
+                RoutingNumber = "12345",
+                TransitCode = "678",
+                Status = FinancialInstitutionStatus.Active,
+                IsDefaultSource = true
+            });
+        }
+
+        if (!context.FinancialInstitutions.Any(x => x.Id == TestDestinationInstitutionId))
+        {
+            context.FinancialInstitutions.Add(new FinancialInstitution
+            {
+                Id = TestDestinationInstitutionId,
+                Name = "Banco Destino",
+                RoutingNumber = "76543",
+                TransitCode = "210",
+                Status = FinancialInstitutionStatus.Active,
+                IsDefaultSource = false
+            });
+        }
+
+        foreach (var institution in context.FinancialInstitutions.Local)
+        {
+            institution.CalculateCheckDigit();
+        }
 
         context.SaveChanges();
+        return companyEntryDescriptionId;
     }
 
     private static AchCycle SeedCycle(AchDbContext context, string id, DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
@@ -244,7 +295,7 @@ public class TransactionPolicyServiceTests
             StartTime = startTime,
             EndTime = endTime,
             CutoffTime = endTime,
-            ClearingHouseId = 1
+            ClearingHouseId = TestClearingHouseId
         };
 
         context.AchCycles.Add(cycle);

@@ -1,0 +1,12 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Cfa.ACHInterbank.Domain -> /workspace/ACHInterbank/src/Cfa.ACHInterbank.Domain/bin/Release/net10.0/Cfa.ACHInterbank.Domain.dll
+  Cfa.ACHInterbank.Application -> /workspace/ACHInterbank/src/Cfa.ACHInterbank.Application/bin/Release/net10.0/Cfa.ACHInterbank.Application.dll
+  Cfa.ACHInterbank.Persistence -> /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/bin/Release/net10.0/Cfa.ACHInterbank.Persistence.dll
+  Cfa.ACHInterbank.External -> /workspace/ACHInterbank/src/Cfa.ACHInterbank.External/bin/Release/net10.0/Cfa.ACHInterbank.External.dll
+  Cfa.ACHInterbank.Api -> /workspace/ACHInterbank/src/Cfa.ACHInterbank.Api/bin/Release/net10.0/Cfa.ACHInterbank.Api.dll
+  Cfa.ACHInterbank.Tests -> /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/bin/Release/net10.0/Cfa.ACHInterbank.Tests.dll
+Test run for /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/bin/Release/net10.0/Cfa.ACHInterbank.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:    14, Skipped:     0, Total:    14, Duration: 10 s - Cfa.ACHInterbank.Tests.dll (net10.0)
