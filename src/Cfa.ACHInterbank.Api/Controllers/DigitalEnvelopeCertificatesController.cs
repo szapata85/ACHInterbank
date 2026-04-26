@@ -22,10 +22,8 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
     {
         _service = service;
     }
-    /// <summary>
-    /// Endpoint de la API ACH Interbank.
-    /// </summary>
-
+    [EndpointSummary("Inventario de certificados de sobre digital")]
+    [EndpointDescription("Qué hace: lista certificados de sobre digital registrados con metadatos de vigencia y huella. Cuándo se usa: en revisiones operativas previas a cifrado, descifrado y validación de firma. Perfil consumidor: seguridad bancaria, operación ACH y auditoría técnica. Permiso requerido: policy del controller/método vigente en código. Tipo de operación: solo consulta. Genera auditoría: sí, por trazas de acceso. Riesgos operativos: no identificar un certificado expirado puede interrumpir intercambio seguro con contrapartes. Errores esperados: 401/403 por autorización y 500 ante fallas internas. Relación ACH/CENIT/NACHA-M: administra confianza criptográfica usada por operaciones de sobre digital NACHA-M. Precauciones para desarrollo u operación: validar vigencia y tipo de certificado antes de usarlo en productivo.")]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<DigitalEnvelopeCertificateResponse>>> GetAsync(CancellationToken cancellationToken)
     {
@@ -33,10 +31,8 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
         var response = certificates.Select(MapToResponse);
         return Ok(response);
     }
-    /// <summary>
-    /// Endpoint de la API ACH Interbank.
-    /// </summary>
-
+    [EndpointSummary("Cargar o actualizar certificado de sobre digital")]
+    [EndpointDescription("Qué hace: carga certificado público o con clave privada y registra/actualiza su información en catálogo. Cuándo se usa: en alta, renovación o corrección de material criptográfico de sobre digital. Perfil consumidor: administradores de seguridad y operación ACH autorizada. Permiso requerido: policy del controller/método vigente en código. Tipo de operación: modifica información. Genera auditoría: sí, por trazabilidad de altas y cambios. Riesgos operativos: cargar archivo o contraseña incorrecta puede dejar inoperante el cifrado/descifrado. Errores esperados: 400 por archivo/contraseña inválidos; 401/403 por autorización; 500 por fallas internas. Relación ACH/CENIT/NACHA-M: soporta protección de archivos NACHA-M en tránsito mediante sobre digital. Precauciones para desarrollo u operación: validar formato, cadena de confianza y vigencia antes de activar uso operativo.")]
     [HttpPost]
     [RequestSizeLimit(15 * 1024 * 1024)]
     public async Task<ActionResult<DigitalEnvelopeCertificateResponse>> UploadAsync([FromForm] UploadCertificateRequest request, CancellationToken cancellationToken)
@@ -79,12 +75,8 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
         var saved = await _service.UpsertAsync(entity, cancellationToken);
         return Ok(MapToResponse(saved));
     }
-    /// <summary>
-    /// Endpoint de la API ACH Interbank.
-    /// </summary>
-
-    [EndpointSummary("DELETE {id:int}: servicio documentado para operación ACH/CENIT/NACHA-M.")]
-    [EndpointDescription("Descripción funcional: expone la operación '{id:int}'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: modifica información. Genera auditoría: sí, mediante los servicios de operación/auditoría cuando aplica al flujo.")]
+    [EndpointSummary("Eliminar certificado de sobre digital")]
+    [EndpointDescription("Qué hace: elimina un certificado registrado en inventario de sobre digital. Cuándo se usa: en limpieza controlada o retiro operativo. Perfil consumidor: seguridad bancaria y administradores ACH. Permiso requerido: policy del controller/método vigente en código. Tipo de operación: modifica información. Genera auditoría: sí. Riesgos operativos: borrar certificado activo puede interrumpir cifrado/validación. Errores esperados: 404 no encontrado; 409 por reglas de uso; 401/403. Relación ACH/CENIT/NACHA-M: gestiona material de confianza para NACHA-M seguro. Precauciones para desarrollo u operación: validar dependencia activa antes de eliminar.")]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteAsync(int id, CancellationToken cancellationToken)
     {

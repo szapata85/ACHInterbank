@@ -44,12 +44,8 @@ public class NachaExportController : ControllerBase
         _fileExportAuditService = fileExportAuditService;
         _externalFileNamePolicy = externalFileNamePolicy;
     }
-    /// <summary>
-    /// Endpoint de la API ACH Interbank.
-    /// </summary>
-
-    [EndpointSummary("GET {cycleId}: servicio documentado para operación ACH/CENIT/NACHA-M.")]
-    [EndpointDescription("Descripción funcional: expone la operación '{cycleId}'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: solo consulta. Genera auditoría: consulta sin modificación directa; trazable por logs de acceso.")]
+    [EndpointSummary("Exportar archivo NACHA de un ciclo")]
+    [EndpointDescription("Qué hace: genera/retorna archivo NACHA del ciclo con política de nombre externo y control de duplicados. Cuándo se usa: en cierre de ciclo para entrega interbancaria. Perfil consumidor: operación ACH de compensación. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por auditoría de exportación y nombre externo. Riesgos operativos: exportar ciclo no listo produce archivo inconsistente. Errores esperados: 404 ciclo/cámara no encontrada; 409 por política de nombre duplicado; 400 por validación. Relación ACH/CENIT/NACHA-M: salida NACHA-M oficial para flujo ACH/CENIT. Precauciones para desarrollo u operación: verificar estado de ciclo y correlación externa antes de distribuir.")]
     [HttpGet("{cycleId}")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> Export(string cycleId, CancellationToken ct)
@@ -95,12 +91,8 @@ public class NachaExportController : ControllerBase
             });
         }
     }
-    /// <summary>
-    /// Endpoint de la API ACH Interbank.
-    /// </summary>
-
-    [EndpointSummary("GET {cycleId}/sobre-digital: servicio documentado para operación ACH/CENIT/NACHA-M.")]
-    [EndpointDescription("Descripción funcional: expone la operación '{cycleId}/sobre-digital'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: solo consulta. Genera auditoría: consulta sin modificación directa; trazable por logs de acceso.")]
+    [EndpointSummary("Exportar NACHA con sobre digital")]
+    [EndpointDescription("Qué hace: genera exportación aplicando cifrado según política o forzado explícito. Cuándo se usa: cuando la contraparte exige sobre digital. Perfil consumidor: operación ACH y seguridad. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por auditoría de exportación y seguridad. Riesgos operativos: cifrado inadecuado impide recepción por contraparte. Errores esperados: 400 por parámetros/política; 404 ciclo; 409 por conflictos de nombre. Relación ACH/CENIT/NACHA-M: integra generación NACHA-M con seguridad criptográfica operativa. Precauciones para desarrollo u operación: confirmar certificados activos y política de cifrado vigente.")]
     [HttpGet("{cycleId}/sobre-digital")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> ExportEncrypted(string cycleId, [FromQuery] bool forceEncryption = false, CancellationToken ct = default)

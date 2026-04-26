@@ -19,8 +19,8 @@ public class CenitOperationsController : ControllerBase
         _dbContext = dbContext;
     }
 
-    [EndpointSummary("GET queues: servicio documentado para operación ACH/CENIT/NACHA-M.")]
-    [EndpointDescription("Descripción funcional: expone la operación 'queues'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: solo consulta. Genera auditoría: consulta sin modificación directa; trazable por logs de acceso.")]
+    [EndpointSummary("Cola de ejecución de ciclos CENIT")]
+    [EndpointDescription("Qué hace: consulta elementos en cola de ciclo CENIT con estado y contexto transaccional. Cuándo se usa: en monitoreo de encolamiento y despacho. Perfil consumidor: operación CENIT y soporte ACH. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por bitácoras y eventos de ejecución. Riesgos operativos: paginación/filtros inadecuados pueden ocultar cuellos de botella. Errores esperados: 400 por parámetros; 401/403. Relación ACH/CENIT/NACHA-M: observa interacción entre transacciones ACH y ciclo CENIT. Precauciones para desarrollo u operación: usar page/pageSize dentro de límites operativos.")]
     [HttpGet("queues")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetQueueAsync(
@@ -78,8 +78,8 @@ public class CenitOperationsController : ControllerBase
         return Ok(new { items, total, page, pageSize });
     }
 
-    [EndpointSummary("GET net-positions: servicio documentado para operación ACH/CENIT/NACHA-M.")]
-    [EndpointDescription("Descripción funcional: expone la operación 'net-positions'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: solo consulta. Genera auditoría: consulta sin modificación directa; trazable por logs de acceso.")]
+    [EndpointSummary("Posiciones netas de liquidez por ejecución")]
+    [EndpointDescription("Qué hace: muestra débitos, créditos y liquidez por entidad financiera en una ejecución CENIT. Cuándo se usa: en conciliación de liquidez y priorización operativa. Perfil consumidor: tesorería operativa y operación ACH. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por consulta y trazas. Riesgos operativos: lectura fuera de ejecución correcta puede llevar a decisiones de liquidez erradas. Errores esperados: 401/403; resultados vacíos cuando no hay ejecución. Relación ACH/CENIT/NACHA-M: conecta neteo CENIT con operación ACH. Precauciones para desarrollo u operación: confirmar cenitCycleExecutionId antes de decisiones.")]
     [HttpGet("net-positions")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetNetPositionsAsync(
@@ -132,8 +132,8 @@ public class CenitOperationsController : ControllerBase
         return Ok(new { items, total, page, pageSize, cenitCycleExecutionId = latestExecutionId.Value });
     }
 
-    [EndpointSummary("GET optimization-decisions: servicio documentado para operación ACH/CENIT/NACHA-M.")]
-    [EndpointDescription("Descripción funcional: expone la operación 'optimization-decisions'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: solo consulta. Genera auditoría: consulta sin modificación directa; trazable por logs de acceso.")]
+    [EndpointSummary("Decisiones de optimización de liquidez")]
+    [EndpointDescription("Qué hace: lista decisiones de optimización aplicadas sobre transacciones. Cuándo se usa: en análisis de por qué una transacción fue priorizada o movida de ciclo. Perfil consumidor: operación CENIT, riesgo y auditoría. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí. Riesgos operativos: interpretar decisiones fuera de contexto puede afectar post-mortem. Errores esperados: 400 por filtros inválidos; 401/403. Relación ACH/CENIT/NACHA-M: explica lógica operativa de neteo y enrutamiento ACH/CENIT. Precauciones para desarrollo u operación: correlacionar con estado de transacción y ciclo origen/destino.")]
     [HttpGet("optimization-decisions")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetOptimizationDecisionsAsync(
@@ -190,8 +190,8 @@ public class CenitOperationsController : ControllerBase
         return Ok(new { items, total, page, pageSize });
     }
 
-    [EndpointSummary("GET traceability: servicio documentado para operación ACH/CENIT/NACHA-M.")]
-    [EndpointDescription("Descripción funcional: expone la operación 'traceability'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: solo consulta. Genera auditoría: consulta sin modificación directa; trazable por logs de acceso.")]
+    [EndpointSummary("Trazabilidad CENIT de transacciones")]
+    [EndpointDescription("Qué hace: entrega vista trazable con causales de devolución/rechazo y estado. Cuándo se usa: en conciliación operativa y gestión de excepciones. Perfil consumidor: operación ACH/CENIT y auditoría. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí. Riesgos operativos: códigos normalizados incorrectamente pueden sesgar análisis. Errores esperados: 400 filtros inválidos; 401/403. Relación ACH/CENIT/NACHA-M: une catálogo regulatorio con ejecución transaccional ACH/CENIT. Precauciones para desarrollo u operación: validar estado y ciclo antes de emitir conclusiones.")]
     [HttpGet("traceability")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetTraceabilityAsync(
