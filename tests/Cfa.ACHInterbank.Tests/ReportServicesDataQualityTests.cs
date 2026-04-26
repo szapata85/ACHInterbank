@@ -71,7 +71,7 @@ public class ReportServicesDataQualityTests
         Assert.Single(response.Items);
         var row = response.Items[0];
         Assert.Equal("DEV14", row.CausalCode);
-        Assert.Equal("No consentimiento / retorno de débito por operador", row.CausalDescription);
+        Assert.Equal("No consentimiento / revocación expresa del usuario receptor.", row.CausalDescription);
         Assert.Equal("REF-SENT-OLD", row.OriginalTransactionReference);
         Assert.Equal(1002, row.OriginalTransactionId);
     }
@@ -102,12 +102,12 @@ public class ReportServicesDataQualityTests
         Assert.Equal(8, response.Totals.SentCount);
         Assert.Equal(1054m, response.Totals.SentAmount);
         Assert.Equal(2, response.Totals.ReceivedCount);
-        Assert.Equal(300m, response.Totals.ReceivedAmount);
+        Assert.Equal(340m, response.Totals.ReceivedAmount);
         Assert.Equal(3, response.Totals.ReturnedCount);
         Assert.Equal(304m, response.Totals.ReturnedAmount);
 
-        Assert.Equal(5, response.Differences.SentVsReceivedCountDiff);
-        Assert.Equal(754m, response.Differences.SentVsReceivedAmountDiff);
+        Assert.Equal(6, response.Differences.SentVsReceivedCountDiff);
+        Assert.Equal(714m, response.Differences.SentVsReceivedAmountDiff);
 
         Assert.Contains(response.Inconsistencies, x => x.Code == "INC-RET-NO-CAUSAL" && x.AffectedCount == 1);
         Assert.Contains(response.Inconsistencies, x => x.Code == "INC-CAUSAL-STATE" && x.AffectedCount == 1);
