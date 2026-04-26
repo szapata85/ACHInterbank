@@ -1,0 +1,486 @@
+Test run for /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/bin/Release/net10.0/Cfa.ACHInterbank.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+[xUnit.net 00:00:09.68]     Cfa.ACHInterbank.Tests.ClearingHouseCycleConfigServiceTests.GetCurrentByClearingHouseAsync_ReturnsLatestVersionPerCycleForDate [FAIL]
+  Failed Cfa.ACHInterbank.Tests.ClearingHouseCycleConfigServiceTests.GetCurrentByClearingHouseAsync_ReturnsLatestVersionPerCycleForDate [599 ms]
+  Error Message:
+   System.InvalidOperationException : The LINQ expression 'DbSet<ClearingHouseCycleConfig>()
+    .Where(c => c.ClearingHouseId == @clearingHouseId && c.IsActive && c.EffectiveFrom.Date <= @effectiveDate_Date && !(c.EffectiveTo.HasValue) || c.EffectiveTo.Value.Date >= @effectiveDate_Date)
+    .GroupBy(c => c.CycleName)
+    .Select(g => g
+        .AsQueryable()
+        .OrderByDescending(e => e.EffectiveFrom)
+        .ThenByDescending(e => e.Id)
+        .Join(
+            inner: DbSet<ClearingHouse>(), 
+            outerKeySelector: e => EF.Property<int?>(e, "ClearingHouseId"), 
+            innerKeySelector: c0 => EF.Property<int?>(c0, "Id"), 
+            resultSelector: (o, i) => new TransparentIdentifier<ClearingHouseCycleConfig, ClearingHouse>(
+                Outer = o, 
+                Inner = i
+            ))
+        .Select(e => Include(
+            Entity: e.Outer, 
+            Navigation: ClearingHouse, e.Inner)
+        .First())
+    .OrderBy(e0 => e0.CutoffTime)' could not be translated. Either rewrite the query in a form that can be translated, or switch to client evaluation explicitly by inserting a call to 'AsEnumerable', 'AsAsyncEnumerable', 'ToList', or 'ToListAsync'. See https://go.microsoft.com/fwlink/?linkid=2101038 for more information.
+  Stack Trace:
+     at Microsoft.EntityFrameworkCore.Query.QueryableMethodTranslatingExpressionVisitor.Translate(Expression expression)
+   at Microsoft.EntityFrameworkCore.Query.QueryCompilationContext.CreateQueryExecutorExpression[TResult](Expression query)
+   at Microsoft.EntityFrameworkCore.Query.QueryCompilationContext.CreateQueryExecutor[TResult](Expression query)
+   at Microsoft.EntityFrameworkCore.Storage.Database.CompileQuery[TResult](Expression query, Boolean async)
+   at Microsoft.EntityFrameworkCore.Query.Internal.QueryCompiler.CompileQueryCore[TResult](IDatabase database, Expression query, IModel model, Boolean async)
+   at Microsoft.EntityFrameworkCore.Query.Internal.QueryCompiler.<>c__DisplayClass11_0`1.<ExecuteCore>b__0()
+   at Microsoft.EntityFrameworkCore.Query.Internal.CompiledQueryCache.GetOrAddQuery[TResult](Object cacheKey, Func`1 compiler)
+   at Microsoft.EntityFrameworkCore.Query.Internal.QueryCompiler.ExecuteCore[TResult](Expression query, Boolean async, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.QueryCompiler.ExecuteAsync[TResult](Expression query, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.EntityQueryProvider.ExecuteAsync[TResult](Expression expression, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.EntityQueryable`1.GetAsyncEnumerator(CancellationToken cancellationToken)
+   at System.Runtime.CompilerServices.ConfiguredCancelableAsyncEnumerable`1.GetAsyncEnumerator()
+   at Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync[TSource](IQueryable`1 source, CancellationToken cancellationToken)
+   at Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ClearingHouseCycleConfigService.GetCurrentByClearingHouseAsync(Int32 clearingHouseId, Nullable`1 effectiveAt, CancellationToken ct) in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ClearingHouseCycleConfigService.cs:line 64
+   at Cfa.ACHInterbank.Tests.ClearingHouseCycleConfigServiceTests.GetCurrentByClearingHouseAsync_ReturnsLatestVersionPerCycleForDate() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/ClearingHouseCycleConfigServiceTests.cs:line 183
+--- End of stack trace from previous location ---
+[xUnit.net 00:00:12.31]     Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.RegisterBulkAsync_ReturnsTotalSuccess_WhenAllItemsAreValid [FAIL]
+[xUnit.net 00:00:12.62]     Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.RegisterBulkAsync_ReturnsTotalFailure_WhenAllItemsFailValidation [FAIL]
+[xUnit.net 00:00:12.86]     Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.RegisterBulkAsync_ReturnsPartialSuccess_WhenOneItemFailsValidation [FAIL]
+  Failed Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.RegisterBulkAsync_ReturnsTotalSuccess_WhenAllItemsAreValid [412 ms]
+  Error Message:
+   Microsoft.EntityFrameworkCore.DbUpdateException : An error occurred while saving the entity changes. See the inner exception for details.
+---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'UNIQUE constraint failed: CompanyEntryDescription.Id'.
+  Stack Trace:
+     at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChangesAsync(CancellationToken cancellationToken) in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 411
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChanges() in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 368
+   at Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.SeedCatalog(AchDbContext context) in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/AchBulkTransactionServiceTests.cs:line 301
+   at Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.RegisterBulkAsync_ReturnsTotalSuccess_WhenAllItemsAreValid() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/AchBulkTransactionServiceTests.cs:line 25
+--- End of stack trace from previous location ---
+----- Inner Stack Trace -----
+   at Microsoft.Data.Sqlite.SqliteException.ThrowExceptionForRC(Int32 rc, sqlite3 db)
+   at Microsoft.Data.Sqlite.SqliteDataReader.NextResult()
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader(CommandBehavior behavior)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+  Failed Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.RegisterBulkAsync_ReturnsTotalFailure_WhenAllItemsFailValidation [310 ms]
+  Error Message:
+   Microsoft.EntityFrameworkCore.DbUpdateException : An error occurred while saving the entity changes. See the inner exception for details.
+---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'UNIQUE constraint failed: CompanyEntryDescription.Id'.
+  Stack Trace:
+     at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChangesAsync(CancellationToken cancellationToken) in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 411
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChanges() in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 368
+   at Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.SeedCatalog(AchDbContext context) in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/AchBulkTransactionServiceTests.cs:line 301
+   at Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.RegisterBulkAsync_ReturnsTotalFailure_WhenAllItemsFailValidation() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/AchBulkTransactionServiceTests.cs:line 66
+--- End of stack trace from previous location ---
+----- Inner Stack Trace -----
+   at Microsoft.Data.Sqlite.SqliteException.ThrowExceptionForRC(Int32 rc, sqlite3 db)
+   at Microsoft.Data.Sqlite.SqliteDataReader.NextResult()
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader(CommandBehavior behavior)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+  Failed Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.RegisterBulkAsync_ReturnsPartialSuccess_WhenOneItemFailsValidation [232 ms]
+  Error Message:
+   Microsoft.EntityFrameworkCore.DbUpdateException : An error occurred while saving the entity changes. See the inner exception for details.
+---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'UNIQUE constraint failed: CompanyEntryDescription.Id'.
+  Stack Trace:
+     at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChangesAsync(CancellationToken cancellationToken) in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 411
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChanges() in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 368
+   at Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.SeedCatalog(AchDbContext context) in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/AchBulkTransactionServiceTests.cs:line 301
+   at Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.RegisterBulkAsync_ReturnsPartialSuccess_WhenOneItemFailsValidation() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/AchBulkTransactionServiceTests.cs:line 43
+--- End of stack trace from previous location ---
+----- Inner Stack Trace -----
+   at Microsoft.Data.Sqlite.SqliteException.ThrowExceptionForRC(Int32 rc, sqlite3 db)
+   at Microsoft.Data.Sqlite.SqliteDataReader.NextResult()
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader(CommandBehavior behavior)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+[xUnit.net 00:00:13.11]     Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.RegisterBulkAsync_FailsItems_WhenDuplicateReferencesExistInRequestOrPersistence [FAIL]
+  Failed Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.RegisterBulkAsync_FailsItems_WhenDuplicateReferencesExistInRequestOrPersistence [246 ms]
+  Error Message:
+   Microsoft.EntityFrameworkCore.DbUpdateException : An error occurred while saving the entity changes. See the inner exception for details.
+---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'UNIQUE constraint failed: CompanyEntryDescription.Id'.
+  Stack Trace:
+     at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChangesAsync(CancellationToken cancellationToken) in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 411
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChanges() in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 368
+   at Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.SeedCatalog(AchDbContext context) in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/AchBulkTransactionServiceTests.cs:line 301
+   at Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.RegisterBulkAsync_FailsItems_WhenDuplicateReferencesExistInRequestOrPersistence() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/AchBulkTransactionServiceTests.cs:line 87
+--- End of stack trace from previous location ---
+----- Inner Stack Trace -----
+   at Microsoft.Data.Sqlite.SqliteException.ThrowExceptionForRC(Int32 rc, sqlite3 db)
+   at Microsoft.Data.Sqlite.SqliteDataReader.NextResult()
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader(CommandBehavior behavior)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+[xUnit.net 00:00:13.38]     Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.RegisterBulkAsync_Throws_WhenBatchExceedsMaxItems [FAIL]
+  Failed Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.RegisterBulkAsync_Throws_WhenBatchExceedsMaxItems [273 ms]
+  Error Message:
+   Microsoft.EntityFrameworkCore.DbUpdateException : An error occurred while saving the entity changes. See the inner exception for details.
+---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'UNIQUE constraint failed: CompanyEntryDescription.Id'.
+  Stack Trace:
+     at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChangesAsync(CancellationToken cancellationToken) in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 411
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChanges() in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 368
+   at Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.SeedCatalog(AchDbContext context) in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/AchBulkTransactionServiceTests.cs:line 301
+   at Cfa.ACHInterbank.Tests.AchBulkTransactionServiceTests.RegisterBulkAsync_Throws_WhenBatchExceedsMaxItems() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/AchBulkTransactionServiceTests.cs:line 128
+--- End of stack trace from previous location ---
+----- Inner Stack Trace -----
+   at Microsoft.Data.Sqlite.SqliteException.ThrowExceptionForRC(Int32 rc, sqlite3 db)
+   at Microsoft.Data.Sqlite.SqliteDataReader.NextResult()
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader(CommandBehavior behavior)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+[xUnit.net 00:00:19.44]     Cfa.ACHInterbank.Tests.PrenotificationHandlerTests.HandleAsync_CreatesThirdParty_WithCustomerNavigation_WhenCustomerIsTrackedWithTemporaryKey [FAIL]
+  Failed Cfa.ACHInterbank.Tests.PrenotificationHandlerTests.HandleAsync_CreatesThirdParty_WithCustomerNavigation_WhenCustomerIsTrackedWithTemporaryKey [275 ms]
+  Error Message:
+   Microsoft.EntityFrameworkCore.DbUpdateException : An error occurred while saving the entity changes. See the inner exception for details.
+---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'UNIQUE constraint failed: CompanyEntryDescription.Id'.
+  Stack Trace:
+     at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChangesAsync(CancellationToken cancellationToken) in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 411
+   at Cfa.ACHInterbank.Tests.PrenotificationHandlerTests.HandleAsync_CreatesThirdParty_WithCustomerNavigation_WhenCustomerIsTrackedWithTemporaryKey() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/PrenotificationHandlerTests.cs:line 153
+   at Cfa.ACHInterbank.Tests.PrenotificationHandlerTests.HandleAsync_CreatesThirdParty_WithCustomerNavigation_WhenCustomerIsTrackedWithTemporaryKey() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/PrenotificationHandlerTests.cs:line 157
+--- End of stack trace from previous location ---
+----- Inner Stack Trace -----
+   at Microsoft.Data.Sqlite.SqliteException.ThrowExceptionForRC(Int32 rc, sqlite3 db)
+   at Microsoft.Data.Sqlite.SqliteDataReader.NextResult()
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader(CommandBehavior behavior)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+[xUnit.net 00:00:21.30]     Cfa.ACHInterbank.Tests.ClearingHouseCycleConfigSeederTests.SeedAsync_CreatesUsefulScenariosForAchAndCenit [FAIL]
+  Failed Cfa.ACHInterbank.Tests.ClearingHouseCycleConfigSeederTests.SeedAsync_CreatesUsefulScenariosForAchAndCenit [262 ms]
+  Error Message:
+   Microsoft.EntityFrameworkCore.DbUpdateException : An error occurred while saving the entity changes. See the inner exception for details.
+---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'FOREIGN KEY constraint failed'.
+  Stack Trace:
+     at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChangesAsync(CancellationToken cancellationToken) in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 411
+   at Cfa.ACHInterbank.Tests.ClearingHouseCycleConfigSeederTests.SeedAsync_CreatesUsefulScenariosForAchAndCenit() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/ClearingHouseCycleConfigSeederTests.cs:line 29
+--- End of stack trace from previous location ---
+----- Inner Stack Trace -----
+   at Microsoft.Data.Sqlite.SqliteException.ThrowExceptionForRC(Int32 rc, sqlite3 db)
+   at Microsoft.Data.Sqlite.SqliteDataReader.NextResult()
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader(CommandBehavior behavior)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+[xUnit.net 00:00:37.58]     Cfa.ACHInterbank.Tests.CenitOperationalGovernanceTests.CenitCalendarPolicy_Throws_WhenCycleCountIsNotFive [FAIL]
+  Failed Cfa.ACHInterbank.Tests.CenitOperationalGovernanceTests.CenitCalendarPolicy_Throws_WhenCycleCountIsNotFive [153 ms]
+  Error Message:
+   Assert.Throws() Failure: Exception type was not an exact match
+Expected: typeof(System.InvalidOperationException)
+Actual:   typeof(System.NotSupportedException)
+---- System.NotSupportedException : SQLite does not support expressions of type 'TimeSpan' in ORDER BY clauses. Convert the values to a supported type, or use LINQ to Objects to order the results on the client side.
+  Stack Trace:
+     at Cfa.ACHInterbank.Tests.CenitOperationalGovernanceTests.CenitCalendarPolicy_Throws_WhenCycleCountIsNotFive() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/CenitOperationalGovernanceTests.cs:line 32
+   at Cfa.ACHInterbank.Tests.CenitOperationalGovernanceTests.CenitCalendarPolicy_Throws_WhenCycleCountIsNotFive() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/CenitOperationalGovernanceTests.cs:line 32
+--- End of stack trace from previous location ---
+----- Inner Stack Trace -----
+   at Microsoft.EntityFrameworkCore.Sqlite.Query.Internal.SqliteQueryableMethodTranslatingExpressionVisitor.TranslateOrderBy(ShapedQueryExpression source, LambdaExpression keySelector, Boolean ascending)
+   at Microsoft.EntityFrameworkCore.Query.QueryableMethodTranslatingExpressionVisitor.VisitMethodCall(MethodCallExpression methodCallExpression)
+   at Microsoft.EntityFrameworkCore.Query.RelationalQueryableMethodTranslatingExpressionVisitor.VisitMethodCall(MethodCallExpression methodCallExpression)
+   at Microsoft.EntityFrameworkCore.Query.QueryableMethodTranslatingExpressionVisitor.Translate(Expression expression)
+   at Microsoft.EntityFrameworkCore.Query.QueryCompilationContext.CreateQueryExecutorExpression[TResult](Expression query)
+   at Microsoft.EntityFrameworkCore.Query.QueryCompilationContext.CreateQueryExecutor[TResult](Expression query)
+   at Microsoft.EntityFrameworkCore.Storage.Database.CompileQuery[TResult](Expression query, Boolean async)
+   at Microsoft.EntityFrameworkCore.Query.Internal.QueryCompiler.CompileQueryCore[TResult](IDatabase database, Expression query, IModel model, Boolean async)
+   at Microsoft.EntityFrameworkCore.Query.Internal.QueryCompiler.<>c__DisplayClass11_0`1.<ExecuteCore>b__0()
+   at Microsoft.EntityFrameworkCore.Query.Internal.CompiledQueryCache.GetOrAddQuery[TResult](Object cacheKey, Func`1 compiler)
+   at Microsoft.EntityFrameworkCore.Query.Internal.QueryCompiler.ExecuteCore[TResult](Expression query, Boolean async, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.QueryCompiler.ExecuteAsync[TResult](Expression query, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.EntityQueryProvider.ExecuteAsync[TResult](Expression expression, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.EntityQueryable`1.GetAsyncEnumerator(CancellationToken cancellationToken)
+   at System.Runtime.CompilerServices.ConfiguredCancelableAsyncEnumerable`1.GetAsyncEnumerator()
+   at Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync[TSource](IQueryable`1 source, CancellationToken cancellationToken)
+   at Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.CenitOperatingCalendarPolicy.ValidateCycleConsistencyAsync(Int32 clearingHouseId, DateTime processingDate, CancellationToken ct) in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/CenitOperatingCalendarPolicy.cs:line 31
+[xUnit.net 00:00:40.23]     Cfa.ACHInterbank.Tests.ReportServicesDataQualityTests.ReconciliationReport_CalculatesTotalsDiffsAndInconsistencies [FAIL]
+[xUnit.net 00:00:40.55]     Cfa.ACHInterbank.Tests.ReportServicesDataQualityTests.ReturnsReport_FiltersByReturnCodes_AndResolvesCausalAndOriginalTransaction [FAIL]
+  Failed Cfa.ACHInterbank.Tests.ReportServicesDataQualityTests.ReconciliationReport_CalculatesTotalsDiffsAndInconsistencies [225 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 7
+Actual:   8
+  Stack Trace:
+     at Cfa.ACHInterbank.Tests.ReportServicesDataQualityTests.ReconciliationReport_CalculatesTotalsDiffsAndInconsistencies() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/ReportServicesDataQualityTests.cs:line 102
+   at Cfa.ACHInterbank.Tests.ReportServicesDataQualityTests.ReconciliationReport_CalculatesTotalsDiffsAndInconsistencies() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/ReportServicesDataQualityTests.cs:line 114
+--- End of stack trace from previous location ---
+  Failed Cfa.ACHInterbank.Tests.ReportServicesDataQualityTests.ReturnsReport_FiltersByReturnCodes_AndResolvesCausalAndOriginalTransaction [140 ms]
+  Error Message:
+   Assert.Equal() Failure: Strings differ
+           ↓ (pos 0)
+Expected: "Cuenta cerrada"
+Actual:   "No consentimiento / revocación expresa de"···
+           ↑ (pos 0)
+  Stack Trace:
+     at Cfa.ACHInterbank.Tests.ReportServicesDataQualityTests.ReturnsReport_FiltersByReturnCodes_AndResolvesCausalAndOriginalTransaction() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/ReportServicesDataQualityTests.cs:line 74
+   at Cfa.ACHInterbank.Tests.ReportServicesDataQualityTests.ReturnsReport_FiltersByReturnCodes_AndResolvesCausalAndOriginalTransaction() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/ReportServicesDataQualityTests.cs:line 76
+--- End of stack trace from previous location ---
+[xUnit.net 00:00:49.90]     Cfa.ACHInterbank.Tests.BulkTransactionScenarioSeederTests.SeedAsync_IsIdempotent [FAIL]
+[xUnit.net 00:00:49.99]     Cfa.ACHInterbank.Tests.BulkTransactionScenarioSeederTests.SeedAsync_CreatesBulkScenarioTransactions_InDevelopment [FAIL]
+  Failed Cfa.ACHInterbank.Tests.BulkTransactionScenarioSeederTests.SeedAsync_IsIdempotent [92 ms]
+  Error Message:
+   Microsoft.EntityFrameworkCore.DbUpdateException : An error occurred while saving the entity changes. See the inner exception for details.
+---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'FOREIGN KEY constraint failed'.
+  Stack Trace:
+     at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChangesAsync(CancellationToken cancellationToken) in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 411
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChanges() in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 368
+   at Cfa.ACHInterbank.Tests.BulkTransactionScenarioSeederTests.SeedPrerequisites(AchDbContext context) in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/BulkTransactionScenarioSeederTests.cs:line 100
+   at Cfa.ACHInterbank.Tests.BulkTransactionScenarioSeederTests.SeedAsync_IsIdempotent() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/BulkTransactionScenarioSeederTests.cs:line 45
+--- End of stack trace from previous location ---
+----- Inner Stack Trace -----
+   at Microsoft.Data.Sqlite.SqliteDataReader.NextResult()
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader(CommandBehavior behavior)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+  Failed Cfa.ACHInterbank.Tests.BulkTransactionScenarioSeederTests.SeedAsync_CreatesBulkScenarioTransactions_InDevelopment [86 ms]
+  Error Message:
+   Microsoft.EntityFrameworkCore.DbUpdateException : An error occurred while saving the entity changes. See the inner exception for details.
+---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'FOREIGN KEY constraint failed'.
+  Stack Trace:
+     at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChangesAsync(CancellationToken cancellationToken) in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 411
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChanges() in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 368
+   at Cfa.ACHInterbank.Tests.BulkTransactionScenarioSeederTests.SeedPrerequisites(AchDbContext context) in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/BulkTransactionScenarioSeederTests.cs:line 100
+   at Cfa.ACHInterbank.Tests.BulkTransactionScenarioSeederTests.SeedAsync_CreatesBulkScenarioTransactions_InDevelopment() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/BulkTransactionScenarioSeederTests.cs:line 19
+--- End of stack trace from previous location ---
+----- Inner Stack Trace -----
+   at Microsoft.Data.Sqlite.SqliteDataReader.NextResult()
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader(CommandBehavior behavior)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+[xUnit.net 00:00:50.68]     Cfa.ACHInterbank.Tests.ContrapartidaDispatchPersistenceServiceTests.EnsurePendingDispatchAsync_UsesBatchNavigation_WhenTransactionBatchIdIsTemporary [FAIL]
+[xUnit.net 00:00:51.21]     Cfa.ACHInterbank.Tests.TransactionPolicyServiceTests.PreviewAsync_RejectsDuplicateTransactionsWithinCycle [FAIL]
+  Failed Cfa.ACHInterbank.Tests.ContrapartidaDispatchPersistenceServiceTests.EnsurePendingDispatchAsync_UsesBatchNavigation_WhenTransactionBatchIdIsTemporary [175 ms]
+  Error Message:
+   Microsoft.EntityFrameworkCore.DbUpdateException : An error occurred while saving the entity changes. See the inner exception for details.
+---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'UNIQUE constraint failed: CompanyEntryDescription.Id'.
+  Stack Trace:
+     at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChangesAsync(CancellationToken cancellationToken) in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 411
+   at Cfa.ACHInterbank.Tests.ContrapartidaDispatchPersistenceServiceTests.EnsurePendingDispatchAsync_UsesBatchNavigation_WhenTransactionBatchIdIsTemporary() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/ContrapartidaDispatchPersistenceServiceTests.cs:line 129
+   at Cfa.ACHInterbank.Tests.ContrapartidaDispatchPersistenceServiceTests.EnsurePendingDispatchAsync_UsesBatchNavigation_WhenTransactionBatchIdIsTemporary() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/ContrapartidaDispatchPersistenceServiceTests.cs:line 133
+--- End of stack trace from previous location ---
+----- Inner Stack Trace -----
+   at Microsoft.Data.Sqlite.SqliteDataReader.NextResult()
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader(CommandBehavior behavior)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+  Failed Cfa.ACHInterbank.Tests.TransactionPolicyServiceTests.PreviewAsync_RejectsDuplicateTransactionsWithinCycle [94 ms]
+  Error Message:
+   Microsoft.EntityFrameworkCore.DbUpdateException : An error occurred while saving the entity changes. See the inner exception for details.
+---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'FOREIGN KEY constraint failed'.
+  Stack Trace:
+     at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChangesAsync(CancellationToken cancellationToken) in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 411
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChanges() in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 368
+   at Cfa.ACHInterbank.Tests.TransactionPolicyServiceTests.SeedCatalog(AchDbContext context) in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/TransactionPolicyServiceTests.cs:line 234
+   at Cfa.ACHInterbank.Tests.TransactionPolicyServiceTests.PreviewAsync_RejectsDuplicateTransactionsWithinCycle() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/TransactionPolicyServiceTests.cs:line 53
+--- End of stack trace from previous location ---
+----- Inner Stack Trace -----
+   at Microsoft.Data.Sqlite.SqliteDataReader.NextResult()
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader(CommandBehavior behavior)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+[xUnit.net 00:00:51.30]     Cfa.ACHInterbank.Tests.TransactionPolicyServiceTests.PreviewAsync_RejectsWhenOutsideCycleWindow [FAIL]
+[xUnit.net 00:00:51.40]     Cfa.ACHInterbank.Tests.TransactionPolicyServiceTests.PreviewAsync_DetectsDuplicateByTransactionExternalId_WithoutDependingOnLegacyReference [FAIL]
+[xUnit.net 00:00:51.49]     Cfa.ACHInterbank.Tests.TransactionPolicyServiceTests.ValidateRequest_RejectsInvalidNaturalPersonIdentity [FAIL]
+  Failed Cfa.ACHInterbank.Tests.TransactionPolicyServiceTests.PreviewAsync_RejectsWhenOutsideCycleWindow [89 ms]
+  Error Message:
+   Microsoft.EntityFrameworkCore.DbUpdateException : An error occurred while saving the entity changes. See the inner exception for details.
+---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'FOREIGN KEY constraint failed'.
+  Stack Trace:
+     at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChangesAsync(CancellationToken cancellationToken) in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 411
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChanges() in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 368
+   at Cfa.ACHInterbank.Tests.TransactionPolicyServiceTests.SeedCatalog(AchDbContext context) in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/TransactionPolicyServiceTests.cs:line 234
+   at Cfa.ACHInterbank.Tests.TransactionPolicyServiceTests.PreviewAsync_RejectsWhenOutsideCycleWindow() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/TransactionPolicyServiceTests.cs:line 23
+--- End of stack trace from previous location ---
+----- Inner Stack Trace -----
+   at Microsoft.Data.Sqlite.SqliteDataReader.NextResult()
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader(CommandBehavior behavior)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+  Failed Cfa.ACHInterbank.Tests.TransactionPolicyServiceTests.PreviewAsync_DetectsDuplicateByTransactionExternalId_WithoutDependingOnLegacyReference [90 ms]
+  Error Message:
+   Microsoft.EntityFrameworkCore.DbUpdateException : An error occurred while saving the entity changes. See the inner exception for details.
+---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'FOREIGN KEY constraint failed'.
+  Stack Trace:
+     at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChangesAsync(CancellationToken cancellationToken) in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 411
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChanges() in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 368
+   at Cfa.ACHInterbank.Tests.TransactionPolicyServiceTests.SeedCatalog(AchDbContext context) in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/TransactionPolicyServiceTests.cs:line 234
+   at Cfa.ACHInterbank.Tests.TransactionPolicyServiceTests.PreviewAsync_DetectsDuplicateByTransactionExternalId_WithoutDependingOnLegacyReference() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/TransactionPolicyServiceTests.cs:line 143
+--- End of stack trace from previous location ---
+----- Inner Stack Trace -----
+   at Microsoft.Data.Sqlite.SqliteDataReader.NextResult()
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader(CommandBehavior behavior)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+  Failed Cfa.ACHInterbank.Tests.TransactionPolicyServiceTests.ValidateRequest_RejectsInvalidNaturalPersonIdentity [96 ms]
+  Error Message:
+   Microsoft.EntityFrameworkCore.DbUpdateException : An error occurred while saving the entity changes. See the inner exception for details.
+---- Microsoft.Data.Sqlite.SqliteException : SQLite Error 19: 'FOREIGN KEY constraint failed'.
+  Stack Trace:
+     at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChangesAsync(CancellationToken cancellationToken) in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 411
+   at Cfa.ACHInterbank.Persistence.DataBase.AchDbContext.SaveChanges() in /workspace/ACHInterbank/src/Cfa.ACHInterbank.Persistence/DataBase/AchDbContext.cs:line 368
+   at Cfa.ACHInterbank.Tests.TransactionPolicyServiceTests.SeedCatalog(AchDbContext context) in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/TransactionPolicyServiceTests.cs:line 234
+   at Cfa.ACHInterbank.Tests.TransactionPolicyServiceTests.ValidateRequest_RejectsInvalidNaturalPersonIdentity() in /workspace/ACHInterbank/tests/Cfa.ACHInterbank.Tests/TransactionPolicyServiceTests.cs:line 112
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+----- Inner Stack Trace -----
+   at Microsoft.Data.Sqlite.SqliteDataReader.NextResult()
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader(CommandBehavior behavior)
+   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+
+Failed!  - Failed:    18, Passed:   376, Skipped:     0, Total:   394, Duration: 53 s - Cfa.ACHInterbank.Tests.dll (net10.0)
