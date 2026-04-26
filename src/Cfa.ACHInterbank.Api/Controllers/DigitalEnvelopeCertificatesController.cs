@@ -7,6 +7,7 @@ using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http.Metadata;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
@@ -82,6 +83,8 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
     /// Endpoint de la API ACH Interbank.
     /// </summary>
 
+    [EndpointSummary("DELETE {id:int}: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación '{id:int}'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: modifica información. Genera auditoría: sí, mediante los servicios de operación/auditoría cuando aplica al flujo.")]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteAsync(int id, CancellationToken cancellationToken)
     {

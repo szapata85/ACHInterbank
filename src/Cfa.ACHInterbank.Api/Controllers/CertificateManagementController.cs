@@ -3,6 +3,7 @@ using Cfa.ACHInterbank.Application.ACHSobreDigital.CertificateManagement;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http.Metadata;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
@@ -31,6 +32,8 @@ public class CertificateManagementController : ControllerBase
         _auditService = auditService;
     }
 
+    [EndpointSummary("POST public: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación 'public'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: modifica información. Genera auditoría: sí, mediante los servicios de operación/auditoría cuando aplica al flujo.")]
     [HttpPost("public")]
     [Authorize(Policy = FineGrainedPermissions.CanManageCertificates)]
     [RequestSizeLimit(15 * 1024 * 1024)]
@@ -54,6 +57,8 @@ public class CertificateManagementController : ControllerBase
         return Ok(ToApiDto(dto));
     }
 
+    [EndpointSummary("POST private: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación 'private'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: modifica información. Genera auditoría: sí, mediante los servicios de operación/auditoría cuando aplica al flujo.")]
     [HttpPost("private")]
     [Authorize(Policy = FineGrainedPermissions.CanManageCertificates)]
     [RequestSizeLimit(15 * 1024 * 1024)]
@@ -88,6 +93,8 @@ public class CertificateManagementController : ControllerBase
         return Ok(items.Select(ToApiDto));
     }
 
+    [EndpointSummary("GET {id:int}/versions: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación '{id:int}/versions'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: solo consulta. Genera auditoría: consulta sin modificación directa; trazable por logs de acceso.")]
     [HttpGet("{id:int}/versions")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<ActionResult<IEnumerable<CertificateVersionApiDto>>> ListVersionsAsync(int id, CancellationToken cancellationToken)
@@ -96,6 +103,8 @@ public class CertificateManagementController : ControllerBase
         return Ok(items.Select(ToApiDto));
     }
 
+    [EndpointSummary("POST versions/{id:int}/activate: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación 'versions/{id:int}/activate'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: modifica información. Genera auditoría: sí, mediante los servicios de operación/auditoría cuando aplica al flujo.")]
     [HttpPost("versions/{id:int}/activate")]
     [Authorize(Policy = FineGrainedPermissions.CanManageCertificates)]
     public async Task<ActionResult<CertificateVersionApiDto>> ActivateAsync(int id, CancellationToken cancellationToken)
@@ -104,6 +113,8 @@ public class CertificateManagementController : ControllerBase
         return Ok(ToApiDto(dto));
     }
 
+    [EndpointSummary("POST versions/{id:int}/revoke: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación 'versions/{id:int}/revoke'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: modifica información. Genera auditoría: sí, mediante los servicios de operación/auditoría cuando aplica al flujo.")]
     [HttpPost("versions/{id:int}/revoke")]
     [Authorize(Policy = FineGrainedPermissions.CanManageCertificates)]
     public async Task<ActionResult<CertificateVersionApiDto>> RevokeAsync(int id, [FromBody] RevokeVersionBody body, CancellationToken cancellationToken)
@@ -112,6 +123,8 @@ public class CertificateManagementController : ControllerBase
         return Ok(ToApiDto(dto));
     }
 
+    [EndpointSummary("POST versions/{id:int}/validate: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación 'versions/{id:int}/validate'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: modifica información. Genera auditoría: sí, mediante los servicios de operación/auditoría cuando aplica al flujo.")]
     [HttpPost("versions/{id:int}/validate")]
     [Authorize(Policy = FineGrainedPermissions.CanManageCertificates)]
     public async Task<ActionResult<CertificateValidationResultDto>> ValidateAsync(int id, CancellationToken cancellationToken)
@@ -119,6 +132,8 @@ public class CertificateManagementController : ControllerBase
         return Ok(await _validationService.ValidateForActivationAsync(id, cancellationToken));
     }
 
+    [EndpointSummary("GET audit: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación 'audit'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: solo consulta. Genera auditoría: consulta sin modificación directa; trazable por logs de acceso.")]
     [HttpGet("audit")]
     [Authorize(Policy = FineGrainedPermissions.CanViewNachaSecurityAudit)]
     public async Task<ActionResult<IEnumerable<CertificateAuditDto>>> AuditAsync(CancellationToken cancellationToken)

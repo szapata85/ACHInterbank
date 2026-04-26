@@ -3,6 +3,7 @@ using Cfa.ACHInterbank.Application.ACHSobreDigital.Operations;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http.Metadata;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
@@ -18,6 +19,8 @@ public class NachaSecurityOperationsController : ControllerBase
         _service = service;
     }
 
+    [EndpointSummary("POST nacha/generate: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación 'nacha/generate'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: modifica información. Genera auditoría: sí, mediante los servicios de operación/auditoría cuando aplica al flujo.")]
     [HttpPost("nacha/generate")]
     [Authorize(Policy = FineGrainedPermissions.CanGenerateNacha)]
     public async Task<ActionResult<DigitalEnvelopeOperationDto>> GeneratePlainAsync([FromBody] NachaGenerateApiRequest request, CancellationToken cancellationToken)
@@ -30,6 +33,8 @@ public class NachaSecurityOperationsController : ControllerBase
         return Ok(result);
     }
 
+    [EndpointSummary("POST nacha/generate-encrypted: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación 'nacha/generate-encrypted'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: modifica información. Genera auditoría: sí, mediante los servicios de operación/auditoría cuando aplica al flujo.")]
     [HttpPost("nacha/generate-encrypted")]
     [Authorize(Policy = FineGrainedPermissions.CanGenerateEncryptedNacha)]
     public async Task<ActionResult<DigitalEnvelopeOperationDto>> GenerateEncryptedAsync([FromBody] NachaGenerateApiRequest request, CancellationToken cancellationToken)
@@ -42,6 +47,8 @@ public class NachaSecurityOperationsController : ControllerBase
         return Ok(result);
     }
 
+    [EndpointSummary("POST envelope/manual-encrypt: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación 'envelope/manual-encrypt'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: modifica información. Genera auditoría: sí, mediante los servicios de operación/auditoría cuando aplica al flujo.")]
     [HttpPost("envelope/manual-encrypt")]
     [Authorize(Policy = FineGrainedPermissions.CanManualEncryptEnvelope)]
     [RequestSizeLimit(50 * 1024 * 1024)]
@@ -63,6 +70,8 @@ public class NachaSecurityOperationsController : ControllerBase
         return Ok(result);
     }
 
+    [EndpointSummary("POST envelope/manual-decrypt: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación 'envelope/manual-decrypt'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: modifica información. Genera auditoría: sí, mediante los servicios de operación/auditoría cuando aplica al flujo.")]
     [HttpPost("envelope/manual-decrypt")]
     [Authorize(Policy = FineGrainedPermissions.CanManualDecryptEnvelope)]
     [RequestSizeLimit(50 * 1024 * 1024)]
@@ -84,6 +93,8 @@ public class NachaSecurityOperationsController : ControllerBase
         return Ok(result);
     }
 
+    [EndpointSummary("GET {operationId}: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación '{operationId}'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: solo consulta. Genera auditoría: consulta sin modificación directa; trazable por logs de acceso.")]
     [HttpGet("{operationId}")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<ActionResult<DigitalEnvelopeOperationDto>> GetByOperationIdAsync(string operationId, CancellationToken cancellationToken)
@@ -97,6 +108,8 @@ public class NachaSecurityOperationsController : ControllerBase
         return Ok(result);
     }
 
+    [EndpointSummary("GET audit: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación 'audit'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: solo consulta. Genera auditoría: consulta sin modificación directa; trazable por logs de acceso.")]
     [HttpGet("audit")]
     [Authorize(Policy = FineGrainedPermissions.CanViewNachaSecurityAudit)]
     public async Task<ActionResult<IReadOnlyList<DigitalEnvelopeOperationDto>>> AuditAsync([FromQuery] int take = 100, CancellationToken cancellationToken = default)
@@ -104,6 +117,8 @@ public class NachaSecurityOperationsController : ControllerBase
         return Ok(await _service.ListAuditAsync(take, cancellationToken));
     }
 
+    [EndpointSummary("POST {operationId}/authorize-download: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación '{operationId}/authorize-download'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: modifica información. Genera auditoría: sí, mediante los servicios de operación/auditoría cuando aplica al flujo.")]
     [HttpPost("{operationId}/authorize-download")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> AuthorizeDownloadAsync(string operationId, CancellationToken cancellationToken)
@@ -135,6 +150,8 @@ public class NachaSecurityOperationsController : ControllerBase
         return Ok(new { operationId, authorized = true, expiresAtUtc = result.ExpiresAtUtc });
     }
 
+    [EndpointSummary("GET {operationId}/download: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación '{operationId}/download'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: solo consulta. Genera auditoría: consulta sin modificación directa; trazable por logs de acceso.")]
     [HttpGet("{operationId}/download")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> DownloadAsync(string operationId, CancellationToken cancellationToken)

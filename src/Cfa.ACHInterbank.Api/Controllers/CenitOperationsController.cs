@@ -2,6 +2,7 @@ using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
@@ -18,6 +19,8 @@ public class CenitOperationsController : ControllerBase
         _dbContext = dbContext;
     }
 
+    [EndpointSummary("GET queues: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación 'queues'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: solo consulta. Genera auditoría: consulta sin modificación directa; trazable por logs de acceso.")]
     [HttpGet("queues")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetQueueAsync(
@@ -75,6 +78,8 @@ public class CenitOperationsController : ControllerBase
         return Ok(new { items, total, page, pageSize });
     }
 
+    [EndpointSummary("GET net-positions: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación 'net-positions'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: solo consulta. Genera auditoría: consulta sin modificación directa; trazable por logs de acceso.")]
     [HttpGet("net-positions")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetNetPositionsAsync(
@@ -127,6 +132,8 @@ public class CenitOperationsController : ControllerBase
         return Ok(new { items, total, page, pageSize, cenitCycleExecutionId = latestExecutionId.Value });
     }
 
+    [EndpointSummary("GET optimization-decisions: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación 'optimization-decisions'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: solo consulta. Genera auditoría: consulta sin modificación directa; trazable por logs de acceso.")]
     [HttpGet("optimization-decisions")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetOptimizationDecisionsAsync(
@@ -183,6 +190,8 @@ public class CenitOperationsController : ControllerBase
         return Ok(new { items, total, page, pageSize });
     }
 
+    [EndpointSummary("GET traceability: servicio documentado para operación ACH/CENIT/NACHA-M.")]
+    [EndpointDescription("Descripción funcional: expone la operación 'traceability'. Cuándo se usa: durante operación diaria y soporte. Perfil que consume: operador ACH, seguridad, auditor o integrador según el módulo. Permiso requerido: revisar [Authorize]/Policy del método y del controller. Parámetros: revisar parámetros de ruta y consulta definidos en la firma. Cuerpo de solicitud: aplica en métodos de escritura y se valida por modelo. Respuesta exitosa: 200 OK (o archivo cuando corresponda). Errores esperados: 400 validación, 401/403 autorización, 404 no encontrado, 409 conflicto cuando aplique. Notas operativas: respetar trazabilidad, controles NACHA-M y segregación de funciones. Tipo de operación: solo consulta. Genera auditoría: consulta sin modificación directa; trazable por logs de acceso.")]
     [HttpGet("traceability")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetTraceabilityAsync(
