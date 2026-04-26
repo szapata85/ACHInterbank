@@ -1,8 +1,12 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
+using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -10,10 +14,23 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class CenitNettingService : ICenitNettingService
 {
     private readonly AchDbContext _context;
+    private readonly IPaymentRailContextService? _paymentRailContextService;
+    private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver;
+    private readonly IPaymentRailShadowCompareService? _shadowCompareService;
+    private readonly ILogger<CenitNettingService> _logger;
 
-    public CenitNettingService(AchDbContext context)
+    public CenitNettingService(
+        AchDbContext context,
+        IPaymentRailContextService? paymentRailContextService = null,
+        IPaymentRailOperationalStrategyResolver? strategyResolver = null,
+        IPaymentRailShadowCompareService? shadowCompareService = null,
+        ILogger<CenitNettingService>? logger = null)
     {
         _context = context;
+        _paymentRailContextService = paymentRailContextService;
+        _strategyResolver = strategyResolver;
+        _shadowCompareService = shadowCompareService;
+        _logger = logger ?? NullLogger<CenitNettingService>.Instance;
     }
 
     public async Task<CenitNettingExecution> CalculateAsync(CenitCycleExecution execution, CancellationToken ct)
@@ -83,6 +100,52 @@ public class CenitNettingService : ICenitNettingService
 
         _context.CenitNettingExecutions.Add(netting);
         await _context.SaveChangesAsync(ct);
+        CompareNettingShadow(cycle, execution, details.Count, netting.TotalDebit, netting.TotalCredit);
         return netting;
+    }
+
+    private void CompareNettingShadow(AchCycle cycle, CenitCycleExecution execution, int legacyDetailCount, decimal legacyTotalDebit, decimal legacyTotalCredit)
+    {
+        if (_paymentRailContextService is null || _strategyResolver is null || _shadowCompareService is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var context = _paymentRailContextService.ResolveContext(
+                cycle.ClearingHouseId,
+                cycle.ClearingHouse?.Code,
+                execution.AchCycleId,
+                cycle.ProcessingDate.Date);
+            var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(
+                cycle.ClearingHouseId,
+                cycle.ClearingHouse?.Code,
+                execution.AchCycleId));
+            const string legacyDecisionCode = "CENIT_NETTING_CALCULATED";
+            var wrapperResult = strategy.EvaluateCapabilityWrapper(new PaymentRailWrapperCallRequest(
+                context.OperationalContext,
+                PaymentRailCapabilityKind.Netting,
+                legacyDecisionCode));
+            var shadowResult = _shadowCompareService.CompareNettingOperation(
+                context,
+                wrapperResult,
+                legacyDecisionCode,
+                legacyDetailCount,
+                legacyTotalDebit,
+                legacyTotalCredit);
+
+            _logger.LogInformation(
+                "PAYMENT_RAIL_SHADOW_COMPARE_NETTING|RailCode={RailCode}|LegacyDecision={LegacyDecision}|WrapperDecision={WrapperDecision}|Equivalent={Equivalent}|Code={Code}",
+                shadowResult.RailCode,
+                shadowResult.LegacyDecisionCode,
+                shadowResult.WrapperDecisionCode,
+                shadowResult.IsEquivalent,
+                shadowResult.ComparisonCode);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "PAYMENT_RAIL_SHADOW_COMPARE_NETTING_FAILED");
+        }
     }
 }

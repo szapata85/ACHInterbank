@@ -1,9 +1,13 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
+using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -12,11 +16,25 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
 {
     private readonly AchDbContext _context;
     private readonly IAchRegulatoryCatalogService _catalogService;
+    private readonly IPaymentRailContextService? _paymentRailContextService;
+    private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver;
+    private readonly IPaymentRailShadowCompareService? _shadowCompareService;
+    private readonly ILogger<ReturnOfReturnOrchestrator> _logger;
 
-    public ReturnOfReturnOrchestrator(AchDbContext context, IAchRegulatoryCatalogService catalogService)
+    public ReturnOfReturnOrchestrator(
+        AchDbContext context,
+        IAchRegulatoryCatalogService catalogService,
+        IPaymentRailContextService? paymentRailContextService = null,
+        IPaymentRailOperationalStrategyResolver? strategyResolver = null,
+        IPaymentRailShadowCompareService? shadowCompareService = null,
+        ILogger<ReturnOfReturnOrchestrator>? logger = null)
     {
         _context = context;
         _catalogService = catalogService;
+        _paymentRailContextService = paymentRailContextService;
+        _strategyResolver = strategyResolver;
+        _shadowCompareService = shadowCompareService;
+        _logger = logger ?? NullLogger<ReturnOfReturnOrchestrator>.Instance;
     }
 
     public async Task<ReturnOfReturnFlow> RegisterAsync(AchTransaction sourceReturn, AchTransaction returnOfReturn, string reasonCode, CancellationToken ct)
@@ -90,6 +108,55 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
 
         _context.ReturnOfReturnFlows.Add(flow);
         await _context.SaveChangesAsync(ct);
+        CompareReturnOfReturnShadow(sourceReturn, reasonCode);
         return flow;
+    }
+
+    private void CompareReturnOfReturnShadow(AchTransaction sourceReturn, string reasonCode)
+    {
+        if (_paymentRailContextService is null || _strategyResolver is null || _shadowCompareService is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var cycleInfo = _context.AchCycles
+                .AsNoTracking()
+                .Where(x => x.Id == sourceReturn.AchCycleId)
+                .Select(x => new { x.ClearingHouseId, x.ClearingHouse.Code, x.ProcessingDate })
+                .FirstOrDefault();
+            var context = _paymentRailContextService.ResolveContext(
+                cycleInfo?.ClearingHouseId,
+                cycleInfo?.Code,
+                sourceReturn.AchCycleId,
+                cycleInfo?.ProcessingDate.Date ?? sourceReturn.EffectiveEntryDate.Date);
+            var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(
+                cycleInfo?.ClearingHouseId,
+                cycleInfo?.Code,
+                sourceReturn.AchCycleId));
+            var legacyDecisionCode = $"RETURN_OF_RETURN_REGISTERED:{reasonCode}";
+            var wrapperResult = strategy.EvaluateCapabilityWrapper(new PaymentRailWrapperCallRequest(
+                context.OperationalContext,
+                PaymentRailCapabilityKind.Return,
+                legacyDecisionCode));
+            var shadowResult = _shadowCompareService.CompareReturnOperation(
+                context,
+                wrapperResult,
+                legacyDecisionCode,
+                legacyOperationSucceeded: true);
+
+            _logger.LogInformation(
+                "PAYMENT_RAIL_SHADOW_COMPARE_RETURN_OF_RETURN|RailCode={RailCode}|LegacyDecision={LegacyDecision}|WrapperDecision={WrapperDecision}|Equivalent={Equivalent}|Code={Code}",
+                shadowResult.RailCode,
+                shadowResult.LegacyDecisionCode,
+                shadowResult.WrapperDecisionCode,
+                shadowResult.IsEquivalent,
+                shadowResult.ComparisonCode);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "PAYMENT_RAIL_SHADOW_COMPARE_RETURN_OF_RETURN_FAILED");
+        }
     }
 }

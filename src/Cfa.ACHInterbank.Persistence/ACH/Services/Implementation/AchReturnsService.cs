@@ -1,9 +1,13 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Text;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
@@ -12,11 +16,19 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class AchReturnsService(
     AchDbContext context,
     TimeProvider? timeProvider = null,
-    IAchRegulatoryCatalogService? regulatoryCatalogService = null) : IAchReturnsService
+    IAchRegulatoryCatalogService? regulatoryCatalogService = null,
+    IPaymentRailContextService? paymentRailContextService = null,
+    IPaymentRailOperationalStrategyResolver? strategyResolver = null,
+    IPaymentRailShadowCompareService? shadowCompareService = null,
+    ILogger<AchReturnsService>? logger = null) : IAchReturnsService
 {
     private readonly IAchRegulatoryCatalogService _regulatoryCatalogService = regulatoryCatalogService
                                                                            ?? throw new InvalidOperationException("IAchRegulatoryCatalogService es requerido para gobernanza regulatoria de devoluciones.");
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly IPaymentRailContextService? _paymentRailContextService = paymentRailContextService;
+    private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver = strategyResolver;
+    private readonly IPaymentRailShadowCompareService? _shadowCompareService = shadowCompareService;
+    private readonly ILogger<AchReturnsService> _logger = logger ?? NullLogger<AchReturnsService>.Instance;
     private const int MaxCyclesForReturn = 4;
     private const string ImmediateDestinationAchColombia = "000101006";
     private const string ReturnOriginatorId = "BANCORET";
@@ -183,6 +195,14 @@ public class AchReturnsService(
                 FileName = string.Empty,
                 GeneratedAtUtc = now
             });
+
+            CompareReturnShadow(
+                cycle.ClearingHouseId,
+                cycle.ClearingHouse?.Code,
+                request.CycleId,
+                tx.EffectiveEntryDate.Date,
+                $"RETURN_GENERATED:{reasonCode}",
+                legacyOperationSucceeded: true);
         }
 
         var serviceClassCode = ResolveServiceClassCode(returnEntries);
@@ -270,6 +290,47 @@ public class AchReturnsService(
 
         var fileContent = string.Concat(lines);
         return new GenerateReturnsFileResponse(fileName, "text/plain", Encoding.UTF8.GetBytes(fileContent), lines.Count, generatedRows.Count);
+    }
+
+    private void CompareReturnShadow(
+        int? clearingHouseId,
+        string? clearingHouseCode,
+        string? achCycleId,
+        DateTime? operationalDate,
+        string legacyDecisionCode,
+        bool legacyOperationSucceeded)
+    {
+        if (_paymentRailContextService is null || _strategyResolver is null || _shadowCompareService is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var context = _paymentRailContextService.ResolveContext(clearingHouseId, clearingHouseCode, achCycleId, operationalDate);
+            var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(clearingHouseId, clearingHouseCode, achCycleId));
+            var wrapperResult = strategy.EvaluateCapabilityWrapper(new PaymentRailWrapperCallRequest(
+                context.OperationalContext,
+                PaymentRailCapabilityKind.Return,
+                legacyDecisionCode));
+            var shadowResult = _shadowCompareService.CompareReturnOperation(
+                context,
+                wrapperResult,
+                legacyDecisionCode,
+                legacyOperationSucceeded);
+
+            _logger.LogInformation(
+                "PAYMENT_RAIL_SHADOW_COMPARE_RETURN|RailCode={RailCode}|LegacyDecision={LegacyDecision}|WrapperDecision={WrapperDecision}|Equivalent={Equivalent}|Code={Code}",
+                shadowResult.RailCode,
+                shadowResult.LegacyDecisionCode,
+                shadowResult.WrapperDecisionCode,
+                shadowResult.IsEquivalent,
+                shadowResult.ComparisonCode);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "PAYMENT_RAIL_SHADOW_COMPARE_RETURN_FAILED");
+        }
     }
 
 

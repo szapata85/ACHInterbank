@@ -17,4 +17,26 @@ public interface IPaymentRailShadowCompareService
         bool legacyEligible,
         bool legacyWaitingWindow,
         int legacyPriority);
+
+    PaymentRailShadowCompareResult CompareReturnOperation(
+        PaymentRailResolvedContext resolvedContext,
+        PaymentRailWrapperCallResult wrapperResult,
+        string legacyDecisionCode,
+        bool legacyOperationSucceeded);
+
+    PaymentRailShadowCompareResult CompareNettingOperation(
+        PaymentRailResolvedContext resolvedContext,
+        PaymentRailWrapperCallResult wrapperResult,
+        string legacyDecisionCode,
+        int legacyDetailCount,
+        decimal legacyTotalDebit,
+        decimal legacyTotalCredit);
+
+    PaymentRailShadowCompareResult CompareLiquidityOperation(
+        PaymentRailResolvedContext resolvedContext,
+        PaymentRailWrapperCallResult wrapperResult,
+        string legacyDecisionCode,
+        int processedCount,
+        int deferredCount,
+        int rejectedCount);
 }
