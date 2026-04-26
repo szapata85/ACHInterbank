@@ -39,7 +39,57 @@ public class PaymentRailCapabilityRegistryServiceTests
         var netting = result.Single(x => x.CapabilityCode == PaymentRailCapabilityRegistryCodes.Netting);
 
         netting.State.Should().Be(PaymentRailCapabilityRegistryState.Disabled);
-        netting.Source.Should().Be("RegistryOverride");
+        netting.Source.Should().Be(PaymentRailCapabilityRegistrySources.RegistryOverride);
+        netting.Version.Should().StartWith("registry:");
+        netting.ChangeTicket.Should().Be("P7-001");
+    }
+
+    [Fact]
+    public async Task GetEffectiveCapabilitiesByRailAsync_WithKnownRail_ReturnsCatalog()
+    {
+        await using var context = BuildContext();
+        var sut = BuildService(context);
+
+        var result = await sut.GetEffectiveCapabilitiesByRailAsync(PaymentRailCodes.AchColombia);
+
+        result.Should().HaveCount(PaymentRailCapabilityRegistryCodes.All.Count);
+        result.Should().OnlyContain(x => x.RailCode == PaymentRailCodes.AchColombia);
+        result.Should().Contain(x => x.Source == PaymentRailCapabilityRegistrySources.StrategyDefault);
+    }
+
+    [Fact]
+    public async Task GetEffectiveCapabilityByRailAsync_WithOverride_ReturnsSpecificCapability()
+    {
+        await using var context = BuildContext();
+        var sut = BuildService(context);
+
+        await sut.UpsertCapabilityAsync(new UpsertPaymentRailCapabilityRegistryRequest(
+            RailCode: PaymentRailCodes.Cenit,
+            CapabilityCode: PaymentRailCapabilityRegistryCodes.Liquidity,
+            State: PaymentRailCapabilityRegistryState.Disabled,
+            ChangedBy: "qa.prompt8",
+            ChangeTicket: "P8-RO-01",
+            Notes: "Solo consulta"));
+
+        var capability = await sut.GetEffectiveCapabilityByRailAsync(PaymentRailCodes.Cenit, PaymentRailCapabilityRegistryCodes.Liquidity);
+
+        capability.Should().NotBeNull();
+        capability!.Source.Should().Be(PaymentRailCapabilityRegistrySources.RegistryOverride);
+        capability.State.Should().Be(PaymentRailCapabilityRegistryState.Disabled);
+        capability.ChangeSource.Should().Be("Manual");
+    }
+
+    [Fact]
+    public void GetAvailableRails_ReturnsOperationalRailsAndFailClosedRail()
+    {
+        using var context = BuildContext();
+        var sut = BuildService(context);
+
+        var rails = sut.GetAvailableRails();
+
+        rails.Should().Contain(x => x.RailCode == PaymentRailCodes.AchColombia && x.IsOperational);
+        rails.Should().Contain(x => x.RailCode == PaymentRailCodes.Cenit && x.IsOperational);
+        rails.Should().Contain(x => x.RailCode == PaymentRailCodes.Unknown && !x.IsOperational);
     }
 
     private static PaymentRailCapabilityRegistryService BuildService(AchDbContext context)

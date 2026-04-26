@@ -45,6 +45,20 @@ public static class PaymentRailCapabilityRegistryCodes
     ];
 }
 
+public static class PaymentRailCapabilityRegistrySources
+{
+    public const string RegistryOverride = "RegistryOverride";
+    public const string StrategyDefault = "StrategyDefault";
+}
+
+public sealed record PaymentRailRegistryRailItem(
+    string RailCode,
+    string DisplayName,
+    bool IsKnownRail,
+    bool IsOperational,
+    string Source,
+    string Version);
+
 public sealed record PaymentRailCapabilityRegistryItem(
     string RailCode,
     string CapabilityCode,
@@ -53,7 +67,12 @@ public sealed record PaymentRailCapabilityRegistryItem(
     string? Notes,
     DateTime EvaluatedAtUtc,
     DateTime? EffectiveFromUtc,
-    DateTime? EffectiveToUtc);
+    DateTime? EffectiveToUtc,
+    string Version = "v1",
+    string? ChangeSource = null,
+    string? ChangeTicket = null,
+    string? ChangedBy = null,
+    DateTimeOffset? ChangedAtUtc = null);
 
 public sealed record UpsertPaymentRailCapabilityRegistryRequest(
     string RailCode,

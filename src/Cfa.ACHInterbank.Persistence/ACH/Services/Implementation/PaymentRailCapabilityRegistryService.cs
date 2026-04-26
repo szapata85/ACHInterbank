@@ -24,6 +24,13 @@ public class PaymentRailCapabilityRegistryService : IPaymentRailCapabilityRegist
             [PaymentRailCapabilityRegistryCodes.Liquidity] = PaymentRailCapabilityKind.Liquidity
         };
 
+    private static readonly IReadOnlyList<PaymentRailRegistryRailItem> AvailableRails =
+    [
+        new(PaymentRailCodes.AchColombia, "ACH Colombia", IsKnownRail: true, IsOperational: true, Source: "StrategyCatalog", Version: "prompt8.v1"),
+        new(PaymentRailCodes.Cenit, "CENIT", IsKnownRail: true, IsOperational: true, Source: "StrategyCatalog", Version: "prompt8.v1"),
+        new(PaymentRailCodes.Unknown, "UNKNOWN (fail-closed)", IsKnownRail: false, IsOperational: false, Source: "StrategyCatalog", Version: "prompt8.v1")
+    ];
+
     public PaymentRailCapabilityRegistryService(
         AchDbContext context,
         IPaymentRailContextService paymentRailContextService,
@@ -32,6 +39,31 @@ public class PaymentRailCapabilityRegistryService : IPaymentRailCapabilityRegist
         _context = context;
         _paymentRailContextService = paymentRailContextService;
         _strategyResolver = strategyResolver;
+    }
+
+    public IReadOnlyList<PaymentRailRegistryRailItem> GetAvailableRails()
+        => AvailableRails;
+
+    public async Task<IReadOnlyList<PaymentRailCapabilityRegistryItem>> GetEffectiveCapabilitiesByRailAsync(
+        string railCode,
+        DateTime? asOfUtc = null,
+        CancellationToken ct = default)
+    {
+        var normalizedRail = NormalizeRailCode(railCode);
+        var now = (asOfUtc ?? DateTime.UtcNow).ToUniversalTime();
+        var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(null, null, normalizedRail));
+
+        return await BuildEffectiveCapabilitiesAsync(normalizedRail, strategy, now, ct);
+    }
+
+    public async Task<PaymentRailCapabilityRegistryItem?> GetEffectiveCapabilityByRailAsync(
+        string railCode,
+        string capabilityCode,
+        DateTime? asOfUtc = null,
+        CancellationToken ct = default)
+    {
+        var capabilities = await GetEffectiveCapabilitiesByRailAsync(railCode, asOfUtc, ct);
+        return capabilities.FirstOrDefault(x => string.Equals(x.CapabilityCode, capabilityCode?.Trim(), StringComparison.OrdinalIgnoreCase));
     }
 
     public async Task<IReadOnlyList<PaymentRailCapabilityRegistryItem>> GetEffectiveCapabilitiesAsync(
@@ -44,58 +76,14 @@ public class PaymentRailCapabilityRegistryService : IPaymentRailCapabilityRegist
         var resolvedContext = _paymentRailContextService.ResolveContext(clearingHouseId, clearingHouseCode, null, now.Date);
         var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(clearingHouseId, clearingHouseCode, null));
 
-        var overrides = await _context.Set<PaymentRailCapabilityRegistryEntry>()
-            .AsNoTracking()
-            .Where(x => x.RailCode == resolvedContext.RailCode
-                        && x.IsActive
-                        && x.EffectiveFromUtc <= now
-                        && (x.EffectiveToUtc == null || x.EffectiveToUtc >= now))
-            .OrderByDescending(x => x.EffectiveFromUtc)
-            .ThenByDescending(x => x.Id)
-            .ToListAsync(ct);
-
-        var overrideMap = overrides
-            .GroupBy(x => x.CapabilityCode, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
-
-        var evaluatedAt = DateTime.UtcNow;
-        var result = new List<PaymentRailCapabilityRegistryItem>(PaymentRailCapabilityRegistryCodes.All.Count);
-
-        foreach (var capabilityCode in PaymentRailCapabilityRegistryCodes.All)
-        {
-            if (overrideMap.TryGetValue(capabilityCode, out var entry))
-            {
-                result.Add(new PaymentRailCapabilityRegistryItem(
-                    resolvedContext.RailCode,
-                    capabilityCode,
-                    ParseState(entry.State),
-                    Source: "RegistryOverride",
-                    Notes: entry.Notes,
-                    EvaluatedAtUtc: evaluatedAt,
-                    EffectiveFromUtc: entry.EffectiveFromUtc,
-                    EffectiveToUtc: entry.EffectiveToUtc));
-                continue;
-            }
-
-            result.Add(new PaymentRailCapabilityRegistryItem(
-                resolvedContext.RailCode,
-                capabilityCode,
-                ResolveDefaultState(strategy, capabilityCode),
-                Source: "StrategyDefault",
-                Notes: "Estado derivado de strategy/wrapper pasivo; legacy owner preservado.",
-                EvaluatedAtUtc: evaluatedAt,
-                EffectiveFromUtc: null,
-                EffectiveToUtc: null));
-        }
-
-        return result;
+        return await BuildEffectiveCapabilitiesAsync(resolvedContext.RailCode, strategy, now, ct);
     }
 
     public async Task<PaymentRailCapabilityRegistryItem> UpsertCapabilityAsync(
         UpsertPaymentRailCapabilityRegistryRequest request,
         CancellationToken ct = default)
     {
-        var normalizedRail = request.RailCode.Trim().ToUpperInvariant();
+        var normalizedRail = NormalizeRailCode(request.RailCode);
         var normalizedCapability = request.CapabilityCode.Trim();
         var effectiveFromUtc = (request.EffectiveFromUtc ?? DateTime.UtcNow).ToUniversalTime();
 
@@ -134,11 +122,92 @@ public class PaymentRailCapabilityRegistryService : IPaymentRailCapabilityRegist
             entry.RailCode,
             entry.CapabilityCode,
             request.State,
-            entry.ChangeSource,
+            PaymentRailCapabilityRegistrySources.RegistryOverride,
             entry.Notes,
             DateTime.UtcNow,
             entry.EffectiveFromUtc,
-            entry.EffectiveToUtc);
+            entry.EffectiveToUtc,
+            Version: $"registry:{entry.Id}",
+            ChangeSource: entry.ChangeSource,
+            ChangeTicket: entry.ChangeTicket,
+            ChangedBy: entry.ChangedBy,
+            ChangedAtUtc: entry.UpdatedAt);
+    }
+
+    private async Task<IReadOnlyList<PaymentRailCapabilityRegistryItem>> BuildEffectiveCapabilitiesAsync(
+        string railCode,
+        IPaymentRailOperationalStrategy strategy,
+        DateTime now,
+        CancellationToken ct)
+    {
+        var overrides = await _context.Set<PaymentRailCapabilityRegistryEntry>()
+            .AsNoTracking()
+            .Where(x => x.RailCode == railCode
+                        && x.IsActive
+                        && x.EffectiveFromUtc <= now
+                        && (x.EffectiveToUtc == null || x.EffectiveToUtc >= now))
+            .OrderByDescending(x => x.EffectiveFromUtc)
+            .ThenByDescending(x => x.Id)
+            .ToListAsync(ct);
+
+        var overrideMap = overrides
+            .GroupBy(x => x.CapabilityCode, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
+
+        var evaluatedAt = DateTime.UtcNow;
+        var result = new List<PaymentRailCapabilityRegistryItem>(PaymentRailCapabilityRegistryCodes.All.Count);
+
+        foreach (var capabilityCode in PaymentRailCapabilityRegistryCodes.All)
+        {
+            if (overrideMap.TryGetValue(capabilityCode, out var entry))
+            {
+                result.Add(new PaymentRailCapabilityRegistryItem(
+                    railCode,
+                    capabilityCode,
+                    ParseState(entry.State),
+                    Source: PaymentRailCapabilityRegistrySources.RegistryOverride,
+                    Notes: entry.Notes,
+                    EvaluatedAtUtc: evaluatedAt,
+                    EffectiveFromUtc: entry.EffectiveFromUtc,
+                    EffectiveToUtc: entry.EffectiveToUtc,
+                    Version: $"registry:{entry.Id}",
+                    ChangeSource: entry.ChangeSource,
+                    ChangeTicket: entry.ChangeTicket,
+                    ChangedBy: entry.ChangedBy,
+                    ChangedAtUtc: entry.UpdatedAt));
+                continue;
+            }
+
+            result.Add(new PaymentRailCapabilityRegistryItem(
+                railCode,
+                capabilityCode,
+                ResolveDefaultState(strategy, capabilityCode),
+                Source: PaymentRailCapabilityRegistrySources.StrategyDefault,
+                Notes: "Estado derivado de strategy/wrapper pasivo; legacy owner preservado.",
+                EvaluatedAtUtc: evaluatedAt,
+                EffectiveFromUtc: null,
+                EffectiveToUtc: null,
+                Version: $"strategy:{railCode}:v1"));
+        }
+
+        return result;
+    }
+
+    private static string NormalizeRailCode(string railCode)
+    {
+        if (string.IsNullOrWhiteSpace(railCode))
+        {
+            throw new ArgumentException("RailCode requerido.", nameof(railCode));
+        }
+
+        var normalized = railCode.Trim().ToUpperInvariant();
+        return normalized switch
+        {
+            PaymentRailCodes.AchColombia => PaymentRailCodes.AchColombia,
+            PaymentRailCodes.Cenit => PaymentRailCodes.Cenit,
+            PaymentRailCodes.Unknown => PaymentRailCodes.Unknown,
+            _ => throw new ArgumentException($"RailCode no soportado: {railCode}", nameof(railCode))
+        };
     }
 
     private static PaymentRailCapabilityRegistryState ResolveDefaultState(IPaymentRailOperationalStrategy strategy, string capabilityCode)
