@@ -7,6 +7,8 @@
 
 ## 1) Evidencia recolectada en repositorio
 
+> Actualización P0 (2026-04-26): análisis raíz detallado de los 18 fallos backend en `docs/audits/p0-cierre-analisis-raiz-18-fallos-backend-2026-04-26.md`.
+
 Se ejecutó el inventario solicitado y se guardó evidencia cruda:
 
 - `git status --short` → `docs/audits/evidence/git-status-short.txt`
