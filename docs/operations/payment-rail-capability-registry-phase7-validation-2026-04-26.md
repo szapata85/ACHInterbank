@@ -24,12 +24,49 @@ Se implementa registro auditable de capacidades por riel para gobernanza y consu
 ## Validación ejecutada
 
 ```bash
+dotnet ef migrations list \
+  --project src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj \
+  --startup-project src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj \
+  --context AchDbContext
+```
+- Migrations detectadas:
+  - `20260420215632_AddExternalFileNamePolicyPhase1`
+  - `20260421183417_AddCertificateManagementDigitalEnvelope`
+  - `20260422112419_AddNachaSecurityOperations`
+  - `20260426025056_AddPaymentRailCapabilityRegistryPhase7`
+- Nota de entorno: sin PostgreSQL local activo no se pudo determinar estado aplicado/pending, pero sí se validó generación/listado de migraciones.
+
+```bash
 dotnet build ACHInterbank.sln -c Release
 ```
 - Build OK.
 
 ```bash
 dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~PaymentRailCapabilityRegistryServiceTests"
+```
+- Passed: 2
+- Failed: 0
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~PaymentRail|FullyQualifiedName~RoutingStrategyServiceTests"
+```
+- Passed: 17
+- Failed: 0
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~IncomingNacha"
+```
+- Passed: 63
+- Failed: 0
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber"
+```
+- Passed: 193
+- Failed: 0
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~DependencyInjection"
 ```
 - Passed: 2
 - Failed: 0
@@ -41,4 +78,6 @@ Prompt 7 implementado en modo gobernanza:
 - legacy sigue decidiendo;
 - PaymentRail continúa en paralelo/shadow;
 - capability registry es auditable y consultable;
-- sin cutover.
+- sin cutover;
+- sin cambios criptográficos;
+- workflow manual-only (sin reactivar automatismos).
