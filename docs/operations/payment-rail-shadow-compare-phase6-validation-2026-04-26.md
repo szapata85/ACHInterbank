@@ -18,12 +18,47 @@ Implementación de shadow compare pasivo para capacidades de retorno y ciclo CEN
 3. Pruebas actualizadas:
    - `PaymentRailShadowCompareServiceTests` cubre Return/Netting/Liquidity.
 
-## Validación ejecutada
+## Revalidación formal Prompt 6A (2026-04-26)
+
+### Setup y verificación SDK
+
+```bash
+bash scripts/codex/setup-codex-env.sh
+export DOTNET_ROOT=$HOME/.dotnet
+export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH
+dotnet --info
+dotnet --list-sdks
+dotnet ef --version
+cat global.json
+git status --short
+git log --oneline -10
+```
+
+Resultado:
+
+- SDK activo: **10.0.203**
+- EF CLI: **10.0.7**
+- `global.json` fijo en `10.0.203` (`rollForward: disable`)
+
+### Validación ejecutada
 
 ```bash
 dotnet build ACHInterbank.sln -c Release
 ```
-- Build OK.
+- Build OK (0 errores, warnings preexistentes).
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~PaymentRail|FullyQualifiedName~RoutingStrategyServiceTests"
+```
+- Passed: 15
+- Failed: 0
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~PaymentRail|FullyQualifiedName~AchReturns|FullyQualifiedName~ReturnOfReturn|FullyQualifiedName~CenitNetting|FullyQualifiedName~LiquidityOptimization"
+```
+- Passed: 14
+- Failed: 4
+- Nota: fallas reportadas por `SQLite Error 19: FOREIGN KEY constraint failed` en `CenitOperationalGovernanceTests` (escenarios de liquidity y return-of-return).
 
 ```bash
 dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~PaymentRailShadowCompareServiceTests"
@@ -31,6 +66,30 @@ dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Releas
 - Passed: 4
 - Failed: 0
 
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~IncomingNacha"
+```
+- Passed: 63
+- Failed: 0
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~Nacha|FullyQualifiedName~Mapping|FullyQualifiedName~BatchNumber"
+```
+- Passed: 193
+- Failed: 0
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~DependencyInjection"
+```
+- Passed: 2
+- Failed: 0
+
 ## Conclusión
 
-Prompt 6 implementado en modo pasivo: comparación shadow activa para returns/return-of-return/netting/liquidity, operación legacy intacta, sin cutover.
+Prompt 6A revalidado con ejecución real y conteos explícitos:
+
+- legacy se mantiene como source of truth;
+- shadow compare se mantiene pasivo/fail-open;
+- sin cutover;
+- sin cambios criptográficos;
+- workflow se mantiene manual-only (no reactivación automática).
