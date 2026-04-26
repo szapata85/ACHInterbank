@@ -35,17 +35,13 @@
     "karma-coverage": "^2.2.1",
     "karma-jasmine": "^5.1.0",
     "karma-jasmine-html-reporter": "^2.1.0",
+    "puppeteer": "^24.9.0",
     "typescript": "~5.9.2"
   },
   "overrides": {
     "@modelcontextprotocol/sdk": "^1.25.1",
     "ajv": "^8.18.0",
     "hono": "^4.12.1",
-    "karma": {
-      "glob": "^9.3.5",
-      "rimraf": "^4.4.1"
-    },
-    "minimatch": "^10.2.2",
     "tar": "^7.5.9",
     "undici": "^7.18.2"
   }
