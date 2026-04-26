@@ -34,8 +34,13 @@ public class CenitOperatingCalendarPolicy : ICenitOperatingCalendarPolicy
                         && x.IsActive
                         && x.EffectiveFrom.Date <= processingDate.Date
                         && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= processingDate.Date))
-            .OrderBy(x => x.StartTime)
             .ToListAsync(ct);
+
+        // Provider compatibility: SQLite can't translate ORDER BY TimeSpan in all cases.
+        // Sort in-memory after materialization; configuration set is small and bounded.
+        cycleConfigs = cycleConfigs
+            .OrderBy(x => x.StartTime)
+            .ToList();
 
         if (cycleConfigs.Count != 5)
         {

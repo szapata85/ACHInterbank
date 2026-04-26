@@ -49,22 +49,27 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
 
         var effectiveDate = NormalizeUtcDate(effectiveAt) ?? DateTime.UtcNow.Date;
 
-        var baseQuery = _context.ClearingHouseCycleConfigs
+        // EF provider compatibility note:
+        // SQLite fails translating GroupBy(...).Select(First...).OrderBy(TimeSpan),
+        // so we materialize the filtered slice (single clearing house + date window)
+        // and then apply grouping/ordering in-memory. Dataset is bounded/configuration-sized.
+        var filteredConfigs = await _context.ClearingHouseCycleConfigs
             .AsNoTracking()
             .Include(c => c.ClearingHouse)
             .Where(c => c.ClearingHouseId == clearingHouseId &&
                         c.IsActive &&
                         c.EffectiveFrom.Date <= effectiveDate.Date &&
-                        (!c.EffectiveTo.HasValue || c.EffectiveTo.Value.Date >= effectiveDate.Date));
+                        (!c.EffectiveTo.HasValue || c.EffectiveTo.Value.Date >= effectiveDate.Date))
+            .ToListAsync(ct);
 
-        var grouped = baseQuery
+        var grouped = filteredConfigs
             .GroupBy(c => c.CycleName)
             .Select(g => g.OrderByDescending(c => c.EffectiveFrom).ThenByDescending(c => c.Id).First());
 
-        var configs = await grouped
+        var configs = grouped
             .OrderBy(c => c.CutoffTime)
             .Select(c => MapToDto(c, effectiveDate))
-            .ToListAsync(ct);
+            .ToList();
 
         return configs;
     }
