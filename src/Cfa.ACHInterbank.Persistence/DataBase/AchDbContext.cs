@@ -99,6 +99,7 @@ public class AchDbContext : DbContext
     public DbSet<CenitNettingDetail> CenitNettingDetails => Set<CenitNettingDetail>();
     public DbSet<LiquidityOptimizationDecision> LiquidityOptimizationDecisions => Set<LiquidityOptimizationDecision>();
     public DbSet<ReturnOfReturnFlow> ReturnOfReturnFlows => Set<ReturnOfReturnFlow>();
+    public DbSet<PaymentRailCapabilityRegistryEntry> PaymentRailCapabilityRegistry => Set<PaymentRailCapabilityRegistryEntry>();
     public DbSet<ExternalFileSequence> ExternalFileSequences => Set<ExternalFileSequence>();
     public DbSet<ExternalFileNameRegistry> ExternalFileNameRegistry => Set<ExternalFileNameRegistry>();
     public DbSet<ExternalFileNameValidationLog> ExternalFileNameValidationLog => Set<ExternalFileNameValidationLog>();

@@ -2,11 +2,15 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -14,10 +18,23 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
 {
     private readonly AchDbContext _context;
+    private readonly IPaymentRailContextService? _paymentRailContextService;
+    private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver;
+    private readonly IPaymentRailShadowCompareService? _shadowCompareService;
+    private readonly ILogger<IncomingNachaCycleResolver> _logger;
 
-    public IncomingNachaCycleResolver(AchDbContext context)
+    public IncomingNachaCycleResolver(
+        AchDbContext context,
+        IPaymentRailContextService? paymentRailContextService = null,
+        IPaymentRailOperationalStrategyResolver? strategyResolver = null,
+        IPaymentRailShadowCompareService? shadowCompareService = null,
+        ILogger<IncomingNachaCycleResolver>? logger = null)
     {
         _context = context;
+        _paymentRailContextService = paymentRailContextService;
+        _strategyResolver = strategyResolver;
+        _shadowCompareService = shadowCompareService;
+        _logger = logger ?? NullLogger<IncomingNachaCycleResolver>.Instance;
     }
 
     public async Task<IncomingNachaCycleResolutionResult> ResolveAsync(IncomingNachaCycleResolutionRequest request, CancellationToken ct = default)
@@ -53,12 +70,19 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
 
         if (clearingHouse is null || !operationalDate.HasValue)
         {
+            var shadowResult = CompareCycleShadow(
+                clearingHouseId: clearingHouse?.Id,
+                clearingHouseCode: clearingHouse?.Code,
+                operationalDate: operationalDate,
+                legacyDecisionCode: "LEGACY_CYCLE_UNRESOLVED",
+                legacyResolved: false);
             return Build(false, false, clearingHouse?.Id, operationalDate, null, 0.2m, IncomingNachaCycleResolutionStatus.NoResuelto, "NoResuelto", warnings, errors, new
             {
                 request.FileName,
                 immediateOrigin,
                 headerDateRaw,
-                fileCycleNumber
+                fileCycleNumber,
+                shadowCompare = shadowResult
             });
         }
 
@@ -86,6 +110,13 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
                 warnings.Add("El número de ciclo del nombre no coincide con el ciclo operativo seleccionado por fecha/cámara.");
             }
 
+            var shadowResult = CompareCycleShadow(
+                clearingHouse.Id,
+                clearingHouse.Code,
+                operationalDate,
+                cycle.Id,
+                legacyResolved: true);
+
             return Build(true, false, clearingHouse.Id, operationalDate, cycle.Id, 0.95m, inferredStatus, fileCycleNumber.HasValue ? "Header+Nombre" : "Header", warnings, errors, new
             {
                 request.FileName,
@@ -93,31 +124,85 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
                 headerDateRaw,
                 fileCycleNumber,
                 candidateCount = candidates.Count,
-                selectedCycleId = cycle.Id
+                selectedCycleId = cycle.Id,
+                shadowCompare = shadowResult
             });
         }
 
         if (effectiveCandidates.Count > 1)
         {
             errors.Add("Se detectaron múltiples ciclos candidatos para la misma cámara y fecha operativa.");
+            var shadowResult = CompareCycleShadow(
+                clearingHouse.Id,
+                clearingHouse.Code,
+                operationalDate,
+                "LEGACY_CYCLE_AMBIGUOUS",
+                legacyResolved: false);
             return Build(false, true, clearingHouse.Id, operationalDate, null, 0.45m, IncomingNachaCycleResolutionStatus.Ambiguo, "Ambiguo", warnings, errors, new
             {
                 request.FileName,
                 immediateOrigin,
                 headerDateRaw,
                 fileCycleNumber,
-                candidateIds = effectiveCandidates.Select(x => x.Id).ToList()
+                candidateIds = effectiveCandidates.Select(x => x.Id).ToList(),
+                shadowCompare = shadowResult
             });
         }
 
         errors.Add("No se encontró ciclo operativo candidato para cámara y fecha operativa.");
+        var unresolvedShadow = CompareCycleShadow(
+            clearingHouse.Id,
+            clearingHouse.Code,
+            operationalDate,
+            "LEGACY_CYCLE_NO_CANDIDATE",
+            legacyResolved: false);
         return Build(false, false, clearingHouse.Id, operationalDate, null, 0.35m, IncomingNachaCycleResolutionStatus.NoResuelto, "SinCandidatos", warnings, errors, new
         {
             request.FileName,
             immediateOrigin,
             headerDateRaw,
-            fileCycleNumber
+            fileCycleNumber,
+            shadowCompare = unresolvedShadow
         });
+    }
+
+    private PaymentRailShadowCompareResult? CompareCycleShadow(
+        int? clearingHouseId,
+        string? clearingHouseCode,
+        DateTime? operationalDate,
+        string legacyDecisionCode,
+        bool legacyResolved)
+    {
+        if (_paymentRailContextService is null || _strategyResolver is null || _shadowCompareService is null)
+        {
+            return null;
+        }
+
+        var context = _paymentRailContextService.ResolveContext(
+            clearingHouseId,
+            clearingHouseCode,
+            achCycleId: legacyResolved ? legacyDecisionCode : null,
+            operationalDate: operationalDate);
+        var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(clearingHouseId, clearingHouseCode, null));
+        var wrapperResult = strategy.EvaluateCapabilityWrapper(new PaymentRailWrapperCallRequest(
+            context.OperationalContext,
+            PaymentRailCapabilityKind.Cycle,
+            legacyDecisionCode));
+        var shadowResult = _shadowCompareService.CompareCycleResolution(
+            context,
+            wrapperResult,
+            legacyDecisionCode,
+            legacyResolved);
+
+        _logger.LogInformation(
+            "PAYMENT_RAIL_SHADOW_COMPARE_CYCLE|RailCode={RailCode}|LegacyDecision={LegacyDecision}|WrapperDecision={WrapperDecision}|Equivalent={Equivalent}|Code={Code}",
+            shadowResult.RailCode,
+            shadowResult.LegacyDecisionCode,
+            shadowResult.WrapperDecisionCode,
+            shadowResult.IsEquivalent,
+            shadowResult.ComparisonCode);
+
+        return shadowResult;
     }
 
     private static IncomingNachaCycleResolutionResult Build(

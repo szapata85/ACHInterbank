@@ -11,4 +11,5 @@ public static class FineGrainedPermissions
     public const string CanViewNachaSecurityAudit = "CanViewNachaSecurityAudit";
     public const string CanManageCertificates = "CanManageCertificates";
     public const string CanRunInteroperabilityHarness = "CanRunInteroperabilityHarness";
+    public const string CanViewPaymentRailCapabilityRegistry = "CanViewPaymentRailCapabilityRegistry";
 }

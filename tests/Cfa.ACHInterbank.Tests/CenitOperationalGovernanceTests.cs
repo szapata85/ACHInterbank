@@ -13,6 +13,7 @@ namespace Cfa.ACHInterbank.Tests;
 
 public class CenitOperationalGovernanceTests
 {
+    private const int TestCompanyEntryDescriptionId = 9001;
     [Fact]
     public async Task CenitCalendarPolicy_Throws_WhenCycleCountIsNotFive()
     {
@@ -20,6 +21,7 @@ public class CenitOperationalGovernanceTests
         await connection.OpenAsync();
         await using var context = CreateContext(connection);
 
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, HolidayStrategy = "Colombian" });
         context.ClearingHouses.Add(new ClearingHouse { Id = 2, Code = "CENIT", Name = "CENIT", OriginCode = "011111111", ClearingHouseId = 1 });
         context.ClearingHouseCycleConfigs.AddRange(
             new ClearingHouseCycleConfig { ClearingHouseId = 2, CycleName = "Ciclo 1", IsActive = true, EffectiveFrom = DateTime.UtcNow.Date, StartTime = new TimeSpan(8, 0, 0), EndTime = new TimeSpan(9, 0, 0), CutoffTime = new TimeSpan(9, 0, 0) },
@@ -37,9 +39,12 @@ public class CenitOperationalGovernanceTests
         await connection.OpenAsync();
         await using var context = CreateContext(connection);
 
-        context.FinancialInstitutions.AddRange(
-            new FinancialInstitution { Id = 1, Name = "Banco Origen", IsDefaultSource = true, RoutingNumber = "1234", TransitCode = "5678", Status = FinancialInstitutionStatus.Active },
-            new FinancialInstitution { Id = 2, Name = "Banco Destino", RoutingNumber = "8765", TransitCode = "4321", Status = FinancialInstitutionStatus.Active });
+        var fiSource = new FinancialInstitution { Id = 1, Name = "Banco Origen", IsDefaultSource = true, RoutingNumber = "1234", TransitCode = "5678", Status = FinancialInstitutionStatus.Active };
+        fiSource.CalculateCheckDigit();
+        var fiDestination = new FinancialInstitution { Id = 2, Name = "Banco Destino", RoutingNumber = "8765", TransitCode = "4321", Status = FinancialInstitutionStatus.Active };
+        fiDestination.CalculateCheckDigit();
+        context.FinancialInstitutions.AddRange(fiSource, fiDestination);
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, HolidayStrategy = "Colombian" });
         context.ClearingHouses.Add(new ClearingHouse { Id = 2, Code = "CENIT", Name = "CENIT", OriginCode = "011111111", ClearingHouseId = 1 });
         context.AchCycles.Add(new AchCycle
         {
@@ -51,12 +56,12 @@ public class CenitOperationalGovernanceTests
             EndTime = DateTime.UtcNow.AddHours(4).TimeOfDay,
             CutoffTime = DateTime.UtcNow.AddHours(4).TimeOfDay
         });
-        context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog { Id = 1, Term = "PAGO", Description = "Pago", IsActive = true, StandardEntryClassCode = "PPD" });
+        context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog { Id = TestCompanyEntryDescriptionId, Term = "PAGO", Description = "Pago", IsActive = true, StandardEntryClassCode = "PPD" });
         await context.SaveChangesAsync();
 
         var batchRepo = new Mock<IAchBatchRepository>();
         batchRepo.Setup(x => x.FindForTransactionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AchBatch { Id = 9, AchCycleId = "cycle-1", CompanyName = "Comp", CompanyIdentification = "NIT", CompanyEntryDescription = "PAGO", CompanyEntryDescriptionId = 1, EffectiveEntryDate = DateTime.UtcNow.Date, OriginOrOdfi = "12345678" });
+            .ReturnsAsync(new AchBatch { Id = 9, AchCycleId = "cycle-1", CompanyName = "Comp", CompanyIdentification = "NIT", CompanyEntryDescription = "PAGO", CompanyEntryDescriptionId = TestCompanyEntryDescriptionId, EffectiveEntryDate = DateTime.UtcNow.Date, OriginOrOdfi = "12345678" });
         batchRepo.Setup(x => x.GetUpcomingCyclesAsync(It.IsAny<int>(), It.IsAny<DateTime>(), It.IsAny<TimeSpan>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AchCycle>());
 
@@ -76,7 +81,7 @@ public class CenitOperationalGovernanceTests
             DestinationAccountNumber = "222",
             CompanyName = "Comp",
             CompanyIdentification = "NIT",
-            CompanyEntryDescriptionId = 1
+            CompanyEntryDescriptionId = TestCompanyEntryDescriptionId
         }, CancellationToken.None);
 
         Assert.True(result.MustQueueForTargetCycle);
@@ -128,8 +133,9 @@ public class CenitOperationalGovernanceTests
         await connection.OpenAsync();
         await using var context = CreateContext(connection);
 
-        var source = new AchTransaction { Id = 10, Type = TransactionTypeEnum.Return, State = AchTransferStateEnum.ReturnedByOperator, SlaDeadlineAtUtc = DateTime.UtcNow.AddMinutes(-1), AchCycleId = "c1", Reference = "r", TransactionExternalId = "op-r", CompanyName = "C", CompanyIdentification = "N", CompanyEntryDescriptionId = 1, OriginatingDFI = "123456789", ReceivingDFI = "987654321", TraceNumber = "123456780000010", SourceAccountNumber = "1", DestinationAccountNumber = "2", SourceInstitutionId = 1, DestinationInstitutionId = 2, AchBatchId = 1, EffectiveEntryDate = DateTime.UtcNow.Date };
-        var ror = new AchTransaction { Id = 11, Type = TransactionTypeEnum.Return, AchCycleId = "c1", Reference = "r2", TransactionExternalId = "op-r2", CompanyName = "C", CompanyIdentification = "N", CompanyEntryDescriptionId = 1, OriginatingDFI = "123456789", ReceivingDFI = "987654321", TraceNumber = "123456780000011", SourceAccountNumber = "1", DestinationAccountNumber = "2", SourceInstitutionId = 1, DestinationInstitutionId = 2, AchBatchId = 1, EffectiveEntryDate = DateTime.UtcNow.Date };
+        SeedReturnOfReturnPrerequisites(context);
+        var source = new AchTransaction { Id = 10, Type = TransactionTypeEnum.Return, State = AchTransferStateEnum.ReturnedByOperator, SlaDeadlineAtUtc = DateTime.UtcNow.AddMinutes(-1), AchCycleId = "c1", Reference = "r", TransactionExternalId = "op-r", CompanyName = "C", CompanyIdentification = "N", CompanyEntryDescriptionId = TestCompanyEntryDescriptionId, OriginatingDFI = "123456789", ReceivingDFI = "987654321", TraceNumber = "123456780000010", SourceAccountNumber = "1", DestinationAccountNumber = "2", SourceInstitutionId = 1, DestinationInstitutionId = 2, AchBatchId = 1, EffectiveEntryDate = DateTime.UtcNow.Date };
+        var ror = new AchTransaction { Id = 11, Type = TransactionTypeEnum.Return, AchCycleId = "c1", Reference = "r2", TransactionExternalId = "op-r2", CompanyName = "C", CompanyIdentification = "N", CompanyEntryDescriptionId = TestCompanyEntryDescriptionId, OriginatingDFI = "123456789", ReceivingDFI = "987654321", TraceNumber = "123456780000011", SourceAccountNumber = "1", DestinationAccountNumber = "2", SourceInstitutionId = 1, DestinationInstitutionId = 2, AchBatchId = 1, EffectiveEntryDate = DateTime.UtcNow.Date };
         context.AchTransactions.AddRange(source, ror);
         await context.SaveChangesAsync();
 
@@ -144,8 +150,9 @@ public class CenitOperationalGovernanceTests
         await connection.OpenAsync();
         await using var context = CreateContext(connection);
 
-        var source = new AchTransaction { Id = 21, Type = TransactionTypeEnum.Return, State = AchTransferStateEnum.ReturnedByOperator, SlaDeadlineAtUtc = DateTime.UtcNow.AddHours(2), AchCycleId = "c1", Reference = "r21", TransactionExternalId = "op21", CompanyName = "C", CompanyIdentification = "N", CompanyEntryDescriptionId = 1, OriginatingDFI = "123456789", ReceivingDFI = "987654321", TraceNumber = "123456780000021", SourceAccountNumber = "1", DestinationAccountNumber = "2", SourceInstitutionId = 1, DestinationInstitutionId = 2, AchBatchId = 1, EffectiveEntryDate = DateTime.UtcNow.Date };
-        var ror = new AchTransaction { Id = 22, Type = TransactionTypeEnum.Return, AchCycleId = "c1", Reference = "r22", TransactionExternalId = "op22", CompanyName = "C", CompanyIdentification = "N", CompanyEntryDescriptionId = 1, OriginatingDFI = "123456789", ReceivingDFI = "987654321", TraceNumber = "123456780000022", SourceAccountNumber = "1", DestinationAccountNumber = "2", SourceInstitutionId = 1, DestinationInstitutionId = 2, AchBatchId = 1, EffectiveEntryDate = DateTime.UtcNow.Date };
+        SeedReturnOfReturnPrerequisites(context);
+        var source = new AchTransaction { Id = 21, Type = TransactionTypeEnum.Return, State = AchTransferStateEnum.ReturnedByOperator, SlaDeadlineAtUtc = DateTime.UtcNow.AddHours(2), AchCycleId = "c1", Reference = "r21", TransactionExternalId = "op21", CompanyName = "C", CompanyIdentification = "N", CompanyEntryDescriptionId = TestCompanyEntryDescriptionId, OriginatingDFI = "123456789", ReceivingDFI = "987654321", TraceNumber = "123456780000021", SourceAccountNumber = "1", DestinationAccountNumber = "2", SourceInstitutionId = 1, DestinationInstitutionId = 2, AchBatchId = 1, EffectiveEntryDate = DateTime.UtcNow.Date };
+        var ror = new AchTransaction { Id = 22, Type = TransactionTypeEnum.Return, AchCycleId = "c1", Reference = "r22", TransactionExternalId = "op22", CompanyName = "C", CompanyIdentification = "N", CompanyEntryDescriptionId = TestCompanyEntryDescriptionId, OriginatingDFI = "123456789", ReceivingDFI = "987654321", TraceNumber = "123456780000022", SourceAccountNumber = "1", DestinationAccountNumber = "2", SourceInstitutionId = 1, DestinationInstitutionId = 2, AchBatchId = 1, EffectiveEntryDate = DateTime.UtcNow.Date };
         context.AchTransactions.AddRange(source, ror);
         context.ReturnOfReturnFlows.Add(new ReturnOfReturnFlow { SourceReturnTransactionId = 21, ReturnOfReturnTransactionId = 22, ReasonCode = "R01" });
         await context.SaveChangesAsync();
@@ -156,16 +163,20 @@ public class CenitOperationalGovernanceTests
 
     private static async Task<(CenitCycleExecution Execution, string NextCycleId)> SeedCycleExecutionScenarioAsync(AchDbContext context, string cycleName, decimal availableLiquidity)
     {
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, HolidayStrategy = "Colombian" });
         context.ClearingHouses.Add(new ClearingHouse { Id = 2, Code = "CENIT", Name = "CENIT", OriginCode = "011111111", ClearingHouseId = 1 });
-        context.FinancialInstitutions.AddRange(
-            new FinancialInstitution { Id = 1, Name = "A", RoutingNumber = "1234", TransitCode = "5678", Status = FinancialInstitutionStatus.Active },
-            new FinancialInstitution { Id = 2, Name = "B", RoutingNumber = "8765", TransitCode = "4321", Status = FinancialInstitutionStatus.Active });
+        context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog { Id = TestCompanyEntryDescriptionId, Term = "PAGO", Description = "Pago", IsActive = true, StandardEntryClassCode = "PPD" });
+        var fi1 = new FinancialInstitution { Id = 1, Name = "A", RoutingNumber = "1234", TransitCode = "5678", Status = FinancialInstitutionStatus.Active };
+        fi1.CalculateCheckDigit();
+        var fi2 = new FinancialInstitution { Id = 2, Name = "B", RoutingNumber = "8765", TransitCode = "4321", Status = FinancialInstitutionStatus.Active };
+        fi2.CalculateCheckDigit();
+        context.FinancialInstitutions.AddRange(fi1, fi2);
         var cycle = new AchCycle { Id = "c1", ClearingHouseId = 2, CycleName = cycleName, ProcessingDate = DateTime.UtcNow.Date, StartTime = new TimeSpan(8, 0, 0), EndTime = new TimeSpan(9, 0, 0), CutoffTime = new TimeSpan(9, 0, 0) };
         var next = new AchCycle { Id = "c2", ClearingHouseId = 2, CycleName = "Ciclo 5", ProcessingDate = DateTime.UtcNow.Date, StartTime = new TimeSpan(9, 1, 0), EndTime = new TimeSpan(10, 0, 0), CutoffTime = new TimeSpan(10, 0, 0) };
         context.AchCycles.AddRange(cycle, next);
-        var batch = new AchBatch { Id = 77, AchCycleId = "c1", CompanyName = "C", CompanyIdentification = "N", CompanyEntryDescription = "PAGO", EffectiveEntryDate = DateTime.UtcNow.Date, OriginOrOdfi = "12345678", CompanyEntryDescriptionId = 1 };
+        var batch = new AchBatch { Id = 77, AchCycleId = "c1", CompanyName = "C", CompanyIdentification = "N", CompanyEntryDescription = "PAGO", EffectiveEntryDate = DateTime.UtcNow.Date, OriginOrOdfi = "12345678", CompanyEntryDescriptionId = TestCompanyEntryDescriptionId };
         context.AchBatches.Add(batch);
-        var tx = new AchTransaction { Id = 100, Amount = 100, Reference = "ref", TransactionExternalId = "op", Type = TransactionTypeEnum.Credit, AchCycleId = "c1", AchBatchId = 77, CompanyName = "C", CompanyIdentification = "N", CompanyEntryDescriptionId = 1, OriginatingDFI = "123456789", ReceivingDFI = "987654321", TraceNumber = "123456780000001", SourceAccountNumber = "1", DestinationAccountNumber = "2", SourceInstitutionId = 1, DestinationInstitutionId = 2, EffectiveEntryDate = DateTime.UtcNow.Date };
+        var tx = new AchTransaction { Id = 100, Amount = 100, Reference = "ref", TransactionExternalId = "op", Type = TransactionTypeEnum.Credit, AchCycleId = "c1", AchBatchId = 77, CompanyName = "C", CompanyIdentification = "N", CompanyEntryDescriptionId = TestCompanyEntryDescriptionId, OriginatingDFI = "123456789", ReceivingDFI = "987654321", TraceNumber = "123456780000001", SourceAccountNumber = "1", DestinationAccountNumber = "2", SourceInstitutionId = 1, DestinationInstitutionId = 2, EffectiveEntryDate = DateTime.UtcNow.Date };
         context.AchTransactions.Add(tx);
         var execution = new CenitCycleExecution { Id = 500, AchCycleId = "c1", Status = "Running" };
         var netting = new CenitNettingExecution { Id = 600, CenitCycleExecutionId = 500, TotalCredit = 0, TotalDebit = 0 };
@@ -177,6 +188,39 @@ public class CenitOperationalGovernanceTests
         context.CenitNetPositions.Add(new CenitNetPosition { CenitNettingExecutionId = 600, FinancialInstitutionId = 1, DebitAmount = 0, CreditAmount = 0, NetAmount = 0, AvailableLiquidity = availableLiquidity, SimulatedLiquidity = availableLiquidity, LiquiditySourceType = "Simulated" });
         await context.SaveChangesAsync();
         return (execution, "c2");
+    }
+
+    private static void SeedReturnOfReturnPrerequisites(AchDbContext context)
+    {
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, HolidayStrategy = "Colombian" });
+        context.ClearingHouses.Add(new ClearingHouse { Id = 2, Code = "CENIT", Name = "CENIT", OriginCode = "011111111", ClearingHouseId = 1 });
+        context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog { Id = TestCompanyEntryDescriptionId, Term = "PAGO", Description = "Pago", IsActive = true, StandardEntryClassCode = "PPD" });
+        var fi1 = new FinancialInstitution { Id = 1, Name = "Banco A", RoutingNumber = "1234", TransitCode = "5678", Status = FinancialInstitutionStatus.Active };
+        fi1.CalculateCheckDigit();
+        var fi2 = new FinancialInstitution { Id = 2, Name = "Banco B", RoutingNumber = "8765", TransitCode = "4321", Status = FinancialInstitutionStatus.Active };
+        fi2.CalculateCheckDigit();
+        context.FinancialInstitutions.AddRange(fi1, fi2);
+        context.AchCycles.Add(new AchCycle
+        {
+            Id = "c1",
+            ClearingHouseId = 2,
+            CycleName = "Ciclo 1",
+            ProcessingDate = DateTime.UtcNow.Date,
+            StartTime = new TimeSpan(8, 0, 0),
+            EndTime = new TimeSpan(9, 0, 0),
+            CutoffTime = new TimeSpan(9, 0, 0)
+        });
+        context.AchBatches.Add(new AchBatch
+        {
+            Id = 1,
+            AchCycleId = "c1",
+            CompanyName = "C",
+            CompanyIdentification = "N",
+            CompanyEntryDescription = "PAGO",
+            EffectiveEntryDate = DateTime.UtcNow.Date,
+            OriginOrOdfi = "12345678",
+            CompanyEntryDescriptionId = TestCompanyEntryDescriptionId
+        });
     }
 
     private static AchDbContext CreateContext(SqliteConnection connection)

@@ -40,8 +40,8 @@ describe('CycleConfigManagementComponent', () => {
     component.openCreateForm();
     fixture.detectChanges();
 
-    const title = fixture.nativeElement.querySelector('section.panel h3')?.textContent;
-    expect(title).toContain('Crear configuración');
+    expect(component.showForm).toBeTrue();
+    expect(component.editingSource).toBeNull();
   });
 
   it('loads grid results after search', () => {
