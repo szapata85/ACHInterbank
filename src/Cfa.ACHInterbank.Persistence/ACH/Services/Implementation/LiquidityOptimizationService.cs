@@ -215,14 +215,18 @@ public class LiquidityOptimizationService : ILiquidityOptimizationService
 
     private async Task<string?> ResolveNextCycleIdAsync(AchCycle currentCycle, CancellationToken ct)
     {
-        return await _context.AchCycles
-            .Where(x => x.ClearingHouseId == currentCycle.ClearingHouseId
-                        && (x.ProcessingDate > currentCycle.ProcessingDate
-                            || (x.ProcessingDate == currentCycle.ProcessingDate && x.CutoffTime > currentCycle.CutoffTime)))
+        var candidateCycles = await _context.AchCycles
+            .Where(x => x.ClearingHouseId == currentCycle.ClearingHouseId)
+            .Select(x => new { x.Id, x.ProcessingDate, x.CutoffTime })
+            .ToListAsync(ct);
+
+        return candidateCycles
+            .Where(x => x.ProcessingDate > currentCycle.ProcessingDate
+                        || (x.ProcessingDate == currentCycle.ProcessingDate && x.CutoffTime > currentCycle.CutoffTime))
             .OrderBy(x => x.ProcessingDate)
             .ThenBy(x => x.CutoffTime)
             .Select(x => x.Id)
-            .FirstOrDefaultAsync(ct);
+            .FirstOrDefault();
     }
 
     private static int ExtractCycleIndex(string cycleName)

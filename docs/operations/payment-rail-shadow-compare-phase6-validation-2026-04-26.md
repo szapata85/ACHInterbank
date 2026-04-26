@@ -56,9 +56,13 @@ dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Releas
 ```bash
 dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~PaymentRail|FullyQualifiedName~AchReturns|FullyQualifiedName~ReturnOfReturn|FullyQualifiedName~CenitNetting|FullyQualifiedName~LiquidityOptimization"
 ```
-- Passed: 14
-- Failed: 4
-- Nota: fallas reportadas por `SQLite Error 19: FOREIGN KEY constraint failed` en `CenitOperationalGovernanceTests` (escenarios de liquidity y return-of-return).
+- Passed: 18
+- Failed: 0
+
+Corrección aplicada para estabilizar suite SQLite (sin cambios funcionales operativos):
+
+- se completó seed de prerequisitos FK/NOT NULL en `CenitOperationalGovernanceTests` (configuración de cámara, catálogo de descripción, instituciones con `CheckDigit`);
+- se ajustó `ResolveNextCycleIdAsync` para evaluación equivalente y compatible con traducción EF Core SQLite.
 
 ```bash
 dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~PaymentRailShadowCompareServiceTests"
