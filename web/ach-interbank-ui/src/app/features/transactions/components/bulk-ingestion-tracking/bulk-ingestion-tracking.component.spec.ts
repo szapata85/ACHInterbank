@@ -11,7 +11,26 @@ describe('BulkIngestionTrackingComponent', () => {
   let api: jasmine.SpyObj<BulkIngestionTrackingApiService>;
 
   beforeEach(async () => {
+    localStorage.removeItem('ach.bulk.recentBatchIds');
+
     api = jasmine.createSpyObj<BulkIngestionTrackingApiService>('BulkIngestionTrackingApiService', ['getBatch', 'retry']);
+    api.getBatch.and.returnValue(of({
+      batchId: 'batch-default',
+      batchReference: 'REF-DEFAULT',
+      status: 4,
+      totalRecords: 0,
+      totalValid: 0,
+      totalInvalid: 0,
+      totalProcessed: 0,
+      totalSucceeded: 0,
+      totalFailed: 0,
+      progressPercent: 0,
+      uploadedAtUtc: new Date().toISOString(),
+      retryCount: 0,
+      lastJobMessage: '',
+      errorSummary: []
+    }));
+    api.retry.and.returnValue(of({ batchId: 'batch-default', attemptId: 1, attemptNumber: 1, jobId: 'job', status: 9 }));
 
     await TestBed.configureTestingModule({
       imports: [BulkIngestionTrackingComponent, RouterTestingModule],

@@ -156,6 +156,12 @@ public static class DependencyInjectionService
                 policy => policy.RequireAssertion(ctx =>
                     ctx.User.HasClaim("permission", FineGrainedPermissions.CanRunInteroperabilityHarness)
                     || ctx.User.HasClaim("permission", "CanManageAch")));
+
+            options.AddPolicy(FineGrainedPermissions.CanViewPaymentRailCapabilityRegistry,
+                policy => policy.RequireAssertion(ctx =>
+                    ctx.User.HasClaim("permission", FineGrainedPermissions.CanViewPaymentRailCapabilityRegistry)
+                    || ctx.User.HasClaim("permission", "CanManageAch")
+                    || ctx.User.HasClaim("permission", "CanReadAch")));
         });
 
         #region Services

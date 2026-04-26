@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+import { convertToParamMap } from '@angular/router';
 import { of } from 'rxjs';
 import { IntegrationMappingAdminService } from '../../../core/services/integration-mapping-admin.service';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -28,6 +29,7 @@ describe('MappingEditorPageComponent', () => {
     getMethodParameters: jasmine.createSpy().and.returnValue(of([{ id: 1, methodId: 1, parameterPath: 'CycleId', displayName: 'Cycle', dataType: 'string', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true }])),
     getSourceCatalog: jasmine.createSpy().and.returnValue(of([])),
     getTransformations: jasmine.createSpy().and.returnValue(of([])),
+    getHistory: jasmine.createSpy().and.returnValue(of([])),
     upsertRules: jasmine.createSpy().and.returnValue(of({ id: 'set-1', methodId: 1, methodCode: 'WSCFAACH.Proc_Contrapartidas', name: 'Draft', version: 0, status: 'Draft', isActive: true, notes: '', publishedBy: '', rules: [] })),
     validate: jasmine.createSpy().and.returnValue(of({ mappingSetId: 'set-1', isValid: true, issues: [], coverage: { totalParameters: 1, validParameters: 1, incompleteParameters: 0, invalidParameters: 0, inactiveParameters: 0, coveredByDefaultOrFixed: 1, coveredBySourceField: 0 }, parameters: [{ parameterId: 1, parameterPath: 'CycleId', required: true, status: 'valid', resolutionKind: 'default-fixed', hints: ['ok'] }] })),
     preview: jasmine.createSpy().and.returnValue(of({ mappingSetId: 'set-1', methodId: 1, methodCode: 'WSCFAACH.Proc_Contrapartidas', contextMode: 'controlled-sample', items: [], payloadPreviewJson: '{}', rawPreviewJson: '[]' })),
@@ -44,11 +46,12 @@ describe('MappingEditorPageComponent', () => {
         {
           provide: ActivatedRoute,
           useValue: {
-            snapshot: {
-              paramMap: {
-                get: (key: string) => (key === 'mappingSetId' ? 'set-1' : 'WSCFAACH.Proc_Contrapartidas')
-              }
-            }
+            paramMap: of(
+              convertToParamMap({
+                mappingSetId: 'set-1',
+                methodCode: 'WSCFAACH.Proc_Contrapartidas'
+              })
+            )
           }
         }
       ]

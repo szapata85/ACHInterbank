@@ -1,3 +1,7 @@
+const puppeteer = require('puppeteer');
+
+process.env.CHROME_BIN = process.env.CHROME_BIN || puppeteer.executablePath();
+
 module.exports = function (config) {
   config.set({
     basePath: '',
@@ -19,7 +23,13 @@ module.exports = function (config) {
       reporters: [{ type: 'html' }, { type: 'text-summary' }]
     },
     reporters: ['progress', 'kjhtml'],
-    browsers: ['ChromeHeadless'],
+    browsers: ['ChromeHeadlessNoSandbox'],
+    customLaunchers: {
+      ChromeHeadlessNoSandbox: {
+        base: 'ChromeHeadless',
+        flags: ['--no-sandbox', '--disable-dev-shm-usage']
+      }
+    },
     restartOnFileChange: true
   });
 };

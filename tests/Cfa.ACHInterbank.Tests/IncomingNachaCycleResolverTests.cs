@@ -24,6 +24,7 @@ public class IncomingNachaCycleResolverTests
 
         Assert.True(result.IsResolved);
         Assert.Equal("ACH-20260417-01", result.AchCycleId);
+        Assert.Contains("shadowCompare", result.EvidenceJson, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

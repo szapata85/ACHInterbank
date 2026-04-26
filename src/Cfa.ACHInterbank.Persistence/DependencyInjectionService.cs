@@ -1,5 +1,6 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.Mapping;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.CertificateManagement;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Operations;
@@ -130,6 +131,7 @@ public static class DependencyInjectionService
         services.AddScoped<IExternalFileNameSequenceProvider, PostgresExternalFileNameSequenceService>();
         services.AddScoped<IExternalFileNameSequenceProvider, SqlServerExternalFileNameSequenceService>();
         services.AddScoped<IExternalFileNameSequenceProvider, EfGenericExternalFileNameSequenceService>();
+        services.AddScoped<IPaymentRailCapabilityRegistryService, ACH.Services.Implementation.PaymentRailCapabilityRegistryService>();
 
         services.AddQuartz(q =>
         {

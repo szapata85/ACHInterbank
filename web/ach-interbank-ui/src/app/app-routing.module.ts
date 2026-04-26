@@ -165,6 +165,21 @@ const routes: Routes = [
           )
       },
       {
+        path: 'payment-rail-capability-registry',
+        canActivate: [roleGuard, permissionGuard],
+        data: {
+          roles: ['Admin', 'ACH.Operator'],
+          permissions: ['CanViewPaymentRailCapabilityRegistry', 'CanManageAch', 'CanReadAch'],
+          breadcrumb: 'Capability Registry',
+          title: 'Capability Registry multi-riel (solo lectura)'
+        },
+        loadChildren: () =>
+          import('./features/payment-rail-capability-registry/payment-rail-capability-registry.module').then(
+            (m) => m.PaymentRailCapabilityRegistryModule
+          )
+      },
+
+      {
         path: 'unauthorized',
         data: { title: 'No autorizado', breadcrumb: 'Error 403' },
         loadComponent: () =>
