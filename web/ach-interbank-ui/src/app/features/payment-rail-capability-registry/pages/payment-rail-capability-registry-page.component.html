@@ -1,0 +1,68 @@
+<section class="registry-page">
+  <ui-migas-pan [items]="migas"></ui-migas-pan>
+  <ui-encabezado-pagina
+    titulo="Capability Registry por riel"
+    descripcion="Consulta administrativa en modo solo lectura para gobernanza multi-riel (sin cutover)."
+  ></ui-encabezado-pagina>
+
+  <ui-alerta
+    tipo="info"
+    mensaje="Legacy sigue decidiendo. PaymentRail se mantiene paralelo/shadow. Esta pantalla no permite edición."
+  ></ui-alerta>
+
+  <ng-template #resumenTpl>
+    <section class="resumen-grid">
+      <article class="resumen-item" *ngFor="let indicador of indicadores">
+        <p class="resumen-etiqueta">{{ indicador.etiqueta }}</p>
+        <div class="resumen-valor">{{ indicador.valor }}</div>
+        <ui-etiqueta-estado [estado]="indicador.estado" [texto]="indicador.estado | titlecase"></ui-etiqueta-estado>
+      </article>
+    </section>
+  </ng-template>
+  <ui-tarjeta titulo="Resumen operativo" subtitulo="Visibilidad read-only del estado efectivo por riel." [contenido]="resumenTpl"></ui-tarjeta>
+
+  <ng-template #filtrosTpl>
+    <form class="filtros-grid" [formGroup]="form" (ngSubmit)="consultar()">
+      <label class="campo-filtro">
+        <span>Riel</span>
+        <select formControlName="railCode" [disabled]="loadingRails || loading">
+          <option value="">Seleccione...</option>
+          <option *ngFor="let rail of rails" [value]="rail.railCode">
+            {{ rail.displayName }} ({{ rail.railCode }})
+          </option>
+        </select>
+      </label>
+
+      <label class="campo-filtro">
+        <span>Capability (opcional)</span>
+        <input type="text" formControlName="capabilityCode" placeholder="Ej: Netting" [disabled]="loading" />
+      </label>
+
+      <label class="campo-filtro">
+        <span>As Of UTC (opcional)</span>
+        <input type="datetime-local" formControlName="asOfUtc" [disabled]="loading" />
+      </label>
+
+      <div class="acciones-filtro">
+        <ui-boton texto="Consultar" tipo="submit" [deshabilitado]="loading || loadingRails" [loading]="loading"></ui-boton>
+        <ui-boton texto="Limpiar" variante="contorno" (accion)="limpiar()" [deshabilitado]="loading"></ui-boton>
+      </div>
+    </form>
+  </ng-template>
+  <ui-barra-filtros [contenido]="filtrosTpl"></ui-barra-filtros>
+
+  <ui-alerta *ngIf="error" tipo="warning" [mensaje]="error"></ui-alerta>
+
+  <ui-grilla-empresarial
+    [columnas]="columnas"
+    [datos]="capabilities"
+    [cargando]="loading"
+    [error]="!!error"
+    [mensajeError]="error"
+    [placeholderBusqueda]="'Buscar capability, estado, origen, ticket o versión'"
+    [mensajeVacio]="'No hay capacidades para el filtro seleccionado.'"
+    [mensajeCargando]="'Consultando Capability Registry...'"
+    [tamanoPagina]="20"
+    [tituloVacio]="'Sin capacidades visibles'"
+  ></ui-grilla-empresarial>
+</section>
