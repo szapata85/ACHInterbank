@@ -2,6 +2,8 @@
 
 ## Alcance
 
+> Nota: Ver revalidación cruzada en `docs/operations/payment-rail-capability-registry-phase7b-revalidation-2026-04-26.md` para evidencia ejecutada nuevamente en entorno con .NET disponible.
+
 Se implementa registro auditable de capacidades por riel para gobernanza y consulta de estado efectivo, sin cambio de comportamiento operacional.
 
 ## Cambios ejecutados
