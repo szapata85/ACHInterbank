@@ -311,3 +311,63 @@ Resultado observado:
 
 - Para el alcance solicitado en SOAP-2B-C, la evidencia de compilación, pruebas específicas, validación amplia SOAP y suite completa backend queda **cerrada satisfactoriamente**.
 - Las brechas remanentes quedan acotadas a `AchContrapartidasByCycleHandler` y contrato externo SOAP, sin fallas observadas en la corrida backend completa.
+
+---
+
+## Resultado SOAP-2C — Pruebas completas `AchContrapartidasByCycleHandler`
+
+### 1) Contexto
+
+SOAP-2C cierra la brecha pendiente sobre ausencia de suite dedicada para `AchContrapartidasByCycleHandler`, manteniendo sin cambios contratos SOAP, serialización y lógica de negocio fuera del defecto evidenciado por pruebas.
+
+### 2) Implementación y defecto detectado
+
+Durante la primera corrida de la nueva suite se detectó un defecto real:
+
+- la consulta de `AchContrapartidasByCycleHandler` usaba `IsWithinCycleWindow(...)` dentro de `Where(...)` de EF Core, y esa llamada no fue traducible por el provider (`could not be translated`).
+
+Corrección aplicada (mínima y acotada):
+
+- obtener ciclos candidatos con EF Core y aplicar `IsWithinCycleWindow(...)` en memoria para completar el filtrado activo.
+
+### 3) Comandos ejecutados para SOAP-2C
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter AchContrapartidasByCycleHandlerTests
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release
+```
+
+### 4) Resultado de pruebas dedicadas `AchContrapartidasByCycleHandler`
+
+- **Passed:** `4`
+- **Failed:** `0`
+- **Skipped:** `0`
+
+Escenarios cubiertos:
+
+1. sin ciclos activos;
+2. ciclo activo con `ChunkSize` configurado;
+3. continuidad ante error en un ciclo y procesamiento del siguiente;
+4. respeto de `MaxCyclesPerRun` cuando hay más ciclos activos que el límite.
+
+### 5) Resultado de suite completa backend posterior a SOAP-2C
+
+- **Passed:** `408`
+- **Failed:** `0`
+- **Skipped:** `0`
+- **Duración reportada:** `1 m 25 s`.
+
+### 6) Estado actualizado por componente (post SOAP-2C)
+
+| Componente | Estado |
+|---|---|
+| `Proc_Transacciones` | Cobertura automatizada vigente |
+| `ProcContrapartidasResponseParser` | Cobertura automatizada vigente |
+| `ContrapartidaDispatchJobService` | Cobertura automatizada vigente |
+| `AchContrapartidasByCycleHandler` | **Brecha cerrada** con suite dedicada (`4/4`) |
+| Contrato externo SOAP | Sigue pendiente en ambiente de integración controlado |
+
+### 7) Veredicto SOAP-2C
+
+Para el alcance de este prompt, la brecha de `AchContrapartidasByCycleHandler` queda **cerrada** con evidencia automatizada y corrida completa backend en verde.

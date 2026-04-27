@@ -31,15 +31,18 @@ public class AchContrapartidasByCycleHandler : ITaskHandler
         var chunkSize = ParsePositiveInt(task, "ChunkSize", 300);
         var maxCyclesPerRun = ParsePositiveInt(task, "MaxCyclesPerRun", 20);
 
-        var activeCycles = await _db.AchCycles
+        var candidateCycles = await _db.AchCycles
             .AsNoTracking()
             .Include(c => c.ClearingHouse)
             .Include(c => c.ClearingHouseCycleConfig)
+            .ToListAsync(cancellationToken);
+
+        var activeCycles = candidateCycles
             .Where(c => IsWithinCycleWindow(now, c.ProcessingDate, c.StartTime, c.EndTime))
             .OrderBy(c => c.ClearingHouseId)
             .ThenBy(c => c.CutoffTime)
             .Take(maxCyclesPerRun)
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         if (!activeCycles.Any())
         {
