@@ -33,11 +33,20 @@ docker compose exec achinterbank-api sh -c 'test -s /openbao-bootstrap/api-token
 - **Síntoma:** `failed to open bolt file: open /openbao/data/vault.db: permission denied`.
   - **Causa probable:** el volumen nombrado `ach_openbao_data` queda con permisos del host que impiden escritura durante el bootstrap local.
   - **Mitigación aplicada en `docker-compose.yml`:**
-    - `openbao` se ejecuta con `user: "0:0"` para garantizar acceso de escritura al volumen de datos en laboratorio.
+    - se agrega servicio previo `openbao-volume-perms` (BusyBox) que ejecuta `chmod -R 0777 /openbao/data` sobre el volumen antes de iniciar `openbao`.
     - La configuración se monta en `/openbao/local-config/openbao.hcl` para evitar advertencia de configuración duplicada en `/openbao/config`.
+  - **Si persiste por volumen ya inicializado con permisos inválidos:**
+    ```bash
+    docker compose down -v
+    docker volume rm achinterbank-onprem_ach_openbao_data 2>/dev/null || true
+    docker compose up -d --build
+    ```
 - **Síntoma:** `WARNING: ignoring duplicate configuration found in directory: /openbao/config/openbao.hcl`.
   - **Interpretación:** advertencia no bloqueante por lectura duplicada de archivo en el directorio por defecto.
   - **Estado actual:** mitigado al usar path de configuración dedicado (`/openbao/local-config/openbao.hcl`).
+- **Síntoma:** `unknown or unsupported field disable_mlock`.
+  - **Causa:** la imagen `openbao/openbao:2.2.0` no reconoce `disable_mlock` en ese formato de configuración.
+  - **Estado actual:** mitigado eliminando `disable_mlock` del archivo `ops/openbao/openbao.hcl`.
 
 ## Validación funcional
 1. Cargar `.pfx` privado desde la consola de certificados.
