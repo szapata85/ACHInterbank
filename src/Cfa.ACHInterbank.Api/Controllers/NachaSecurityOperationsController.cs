@@ -3,6 +3,7 @@ using Cfa.ACHInterbank.Application.ACHSobreDigital.Operations;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http.Metadata;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
@@ -18,6 +19,8 @@ public class NachaSecurityOperationsController : ControllerBase
         _service = service;
     }
 
+    [EndpointSummary("Generación de archivo NACHA plano")]
+    [EndpointDescription("Qué hace: genera artefacto NACHA-M sin cifrado para flujos permitidos. Cuándo se usa: en exportaciones internas o pruebas operativas controladas. Perfil consumidor: equipo ACH con funciones de generación. Permiso requerido: FineGrainedPermissions.CanGenerateNacha. Tipo de operación: modifica información. Genera auditoría: sí, en auditoría de operaciones de seguridad. Riesgos operativos: usar plano fuera de política puede exponer información sensible. Errores esperados: 400 validación, 401/403, 404 operación/ciclo no disponible. Relación ACH/CENIT/NACHA-M: creación de salida NACHA-M en módulo de seguridad. Precauciones para desarrollo u operación: aplicar políticas de manejo seguro de archivos planos.")]
     [HttpPost("nacha/generate")]
     [Authorize(Policy = FineGrainedPermissions.CanGenerateNacha)]
     public async Task<ActionResult<DigitalEnvelopeOperationDto>> GeneratePlainAsync([FromBody] NachaGenerateApiRequest request, CancellationToken cancellationToken)
@@ -30,6 +33,8 @@ public class NachaSecurityOperationsController : ControllerBase
         return Ok(result);
     }
 
+    [EndpointSummary("Generación de NACHA cifrado")]
+    [EndpointDescription("Qué hace: genera artefacto NACHA-M con cifrado de sobre digital. Cuándo se usa: para intercambio seguro con contrapartes o cámaras. Perfil consumidor: operación ACH y seguridad bancaria. Permiso requerido: FineGrainedPermissions.CanGenerateEncryptedNacha. Tipo de operación: modifica información. Genera auditoría: sí, explícita. Riesgos operativos: cifrado con insumos inválidos bloquea despacho interbancario. Errores esperados: 400 validación, 401/403, 404. Relación ACH/CENIT/NACHA-M: cumple requisito de protección de NACHA-M en tránsito. Precauciones para desarrollo u operación: verificar certificados activos antes de generar.")]
     [HttpPost("nacha/generate-encrypted")]
     [Authorize(Policy = FineGrainedPermissions.CanGenerateEncryptedNacha)]
     public async Task<ActionResult<DigitalEnvelopeOperationDto>> GenerateEncryptedAsync([FromBody] NachaGenerateApiRequest request, CancellationToken cancellationToken)
@@ -42,6 +47,8 @@ public class NachaSecurityOperationsController : ControllerBase
         return Ok(result);
     }
 
+    [EndpointSummary("Cifrado manual de archivo")]
+    [EndpointDescription("Qué hace: cifra manualmente un archivo cargado por operador. Cuándo se usa: en contingencia o validación técnica controlada. Perfil consumidor: seguridad operativa. Permiso requerido: FineGrainedPermissions.CanManualEncryptEnvelope. Tipo de operación: modifica información. Genera auditoría: sí. Riesgos operativos: cifrar archivo equivocado puede producir envío inválido. Errores esperados: 400 archivo requerido/invalidación; 401/403. Relación ACH/CENIT/NACHA-M: aplica controles de sobre digital para NACHA-M. Precauciones para desarrollo u operación: confirmar nombre, origen y contenido antes de cifrar.")]
     [HttpPost("envelope/manual-encrypt")]
     [Authorize(Policy = FineGrainedPermissions.CanManualEncryptEnvelope)]
     [RequestSizeLimit(50 * 1024 * 1024)]
@@ -63,6 +70,8 @@ public class NachaSecurityOperationsController : ControllerBase
         return Ok(result);
     }
 
+    [EndpointSummary("Descifrado manual de sobre digital")]
+    [EndpointDescription("Qué hace: descifra manualmente un archivo de sobre digital. Cuándo se usa: en análisis de incidentes o soporte interoperabilidad. Perfil consumidor: seguridad y soporte especializado. Permiso requerido: FineGrainedPermissions.CanManualDecryptEnvelope. Tipo de operación: modifica información. Genera auditoría: sí. Riesgos operativos: descifrar material no autorizado compromete confidencialidad. Errores esperados: 400 archivo requerido; 401/403. Relación ACH/CENIT/NACHA-M: soporta validación de interoperabilidad NACHA-M/CENIT. Precauciones para desarrollo u operación: resguardar el archivo plano resultante bajo controles estrictos.")]
     [HttpPost("envelope/manual-decrypt")]
     [Authorize(Policy = FineGrainedPermissions.CanManualDecryptEnvelope)]
     [RequestSizeLimit(50 * 1024 * 1024)]
@@ -84,6 +93,8 @@ public class NachaSecurityOperationsController : ControllerBase
         return Ok(result);
     }
 
+    [EndpointSummary("Consulta de operación de seguridad")]
+    [EndpointDescription("Qué hace: recupera estado y metadatos de una operación de seguridad digital. Cuándo se usa: para seguimiento de generación/cifrado/descifrado. Perfil consumidor: operación ACH y auditoría. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por trazas. Riesgos operativos: interpretar estado incompleto puede causar descargas no autorizadas. Errores esperados: 404 operación no encontrada; 401/403. Relación ACH/CENIT/NACHA-M: trazabilidad de ciclo de artefactos NACHA-M. Precauciones para desarrollo u operación: verificar código de error antes de habilitar descarga.")]
     [HttpGet("{operationId}")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<ActionResult<DigitalEnvelopeOperationDto>> GetByOperationIdAsync(string operationId, CancellationToken cancellationToken)
@@ -97,6 +108,8 @@ public class NachaSecurityOperationsController : ControllerBase
         return Ok(result);
     }
 
+    [EndpointSummary("Bitácora de auditoría de seguridad NACHA")]
+    [EndpointDescription("Qué hace: lista operaciones de seguridad recientes para control y forénsica. Cuándo se usa: en revisiones de cumplimiento y post-mortem. Perfil consumidor: auditoría y seguridad. Permiso requerido: FineGrainedPermissions.CanViewNachaSecurityAudit. Tipo de operación: solo consulta. Genera auditoría: sí, es fuente directa de auditoría. Riesgos operativos: omitir revisión periódica reduce detección temprana de desvíos. Errores esperados: 401/403 y 400 por parámetro take fuera de rango lógico. Relación ACH/CENIT/NACHA-M: gobierna evidencia de seguridad para NACHA-M. Precauciones para desarrollo u operación: limitar acceso y exportar evidencia bajo cadena de custodia.")]
     [HttpGet("audit")]
     [Authorize(Policy = FineGrainedPermissions.CanViewNachaSecurityAudit)]
     public async Task<ActionResult<IReadOnlyList<DigitalEnvelopeOperationDto>>> AuditAsync([FromQuery] int take = 100, CancellationToken cancellationToken = default)
@@ -104,6 +117,8 @@ public class NachaSecurityOperationsController : ControllerBase
         return Ok(await _service.ListAuditAsync(take, cancellationToken));
     }
 
+    [EndpointSummary("Autorizar descarga de artefacto")]
+    [EndpointDescription("Qué hace: emite autorización temporal para descargar artefacto de una operación. Cuándo se usa: antes de descarga por canal controlado. Perfil consumidor: operación ACH con permisos finos. Permiso requerido: CanReadAch + permiso fino de descarga según tipo de artefacto. Tipo de operación: modifica información. Genera auditoría: sí. Riesgos operativos: autorizar de forma indebida habilita exfiltración de información. Errores esperados: 404 operación; 400 firma inválida o autorización no posible; 401/403. Relación ACH/CENIT/NACHA-M: controla liberación de archivos NACHA-M y sobres digitales. Precauciones para desarrollo u operación: validar tipo de artefacto y vigencia antes de autorizar.")]
     [HttpPost("{operationId}/authorize-download")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> AuthorizeDownloadAsync(string operationId, CancellationToken cancellationToken)
@@ -135,6 +150,8 @@ public class NachaSecurityOperationsController : ControllerBase
         return Ok(new { operationId, authorized = true, expiresAtUtc = result.ExpiresAtUtc });
     }
 
+    [EndpointSummary("Descarga de artefacto autorizado")]
+    [EndpointDescription("Qué hace: descarga el contenido de la operación si existe autorización válida. Cuándo se usa: después de autorizar descarga y dentro de vigencia. Perfil consumidor: operación ACH y seguridad. Permiso requerido: CanReadAch + permiso fino de descarga. Tipo de operación: solo consulta. Genera auditoría: sí, por registro de descarga. Riesgos operativos: descargar sin controles puede filtrar datos sensibles. Errores esperados: 404 operación; 400 descarga no autorizada/firma inválida; 401/403. Relación ACH/CENIT/NACHA-M: entrega final de artefactos NACHA-M/ sobre digital. Precauciones para desarrollo u operación: respetar ventanas de autorización y almacenamiento seguro.")]
     [HttpGet("{operationId}/download")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> DownloadAsync(string operationId, CancellationToken cancellationToken)
