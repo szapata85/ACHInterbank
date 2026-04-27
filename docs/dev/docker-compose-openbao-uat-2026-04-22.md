@@ -30,6 +30,9 @@ docker compose exec achinterbank-api sh -c 'test -s /openbao-bootstrap/api-token
 ```
 
 ## Troubleshooting de arranque OpenBao
+- **Síntoma:** `/bootstrap/bootstrap-openbao-uat.sh: set: line 2: illegal option -`.
+  - **Causa probable:** script ejecutado por `/bin/sh` con opción no POSIX (`pipefail`) o archivo con CRLF.
+  - **Mitigación aplicada:** el bootstrap se mantiene en sintaxis POSIX (`#!/bin/sh`, `set -eu`) y el `entrypoint` normaliza CRLF→LF antes de ejecutar.
 - **Síntoma:** `failed to open bolt file: open /openbao/data/vault.db: permission denied`.
   - **Causa probable:** el volumen nombrado `ach_openbao_data` queda con permisos del host que impiden escritura durante el bootstrap local.
   - **Mitigación aplicada en `docker-compose.yml`:**
@@ -47,6 +50,9 @@ docker compose exec achinterbank-api sh -c 'test -s /openbao-bootstrap/api-token
 - **Síntoma:** `unknown or unsupported field disable_mlock`.
   - **Causa:** la imagen `openbao/openbao:2.2.0` no reconoce `disable_mlock` en ese formato de configuración.
   - **Estado actual:** mitigado eliminando `disable_mlock` del archivo `ops/openbao/openbao.hcl`.
+- **Síntoma:** `security barrier not initialized` o `seal configuration missing, not initialized`.
+  - **Interpretación:** OpenBao arrancó, pero no se completó `init/unseal`.
+  - **Estado actual:** mitigado con bootstrap idempotente (init solo si corresponde, unseal si está sealed y validación final `initialized=true` + `sealed=false`).
 
 ## Validación funcional
 1. Cargar `.pfx` privado desde la consola de certificados.

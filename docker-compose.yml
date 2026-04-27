@@ -41,10 +41,11 @@ services:
     ports:
       - "8200:8200"
     healthcheck:
-      test: ["CMD-SHELL", "bao status >/dev/null 2>&1; code=$$?; [ $$code -eq 0 ] || [ $$code -eq 1 ] || [ $$code -eq 2 ]"]
+      test: ["CMD-SHELL", "status=$$(bao status -format=json 2>/dev/null || true); echo \"$$status\" | grep -q '\"initialized\"[[:space:]]*:[[:space:]]*true' && echo \"$$status\" | grep -q '\"sealed\"[[:space:]]*:[[:space:]]*false'"]
       interval: 10s
       timeout: 5s
-      retries: 20
+      retries: 30
+      start_period: 20s
     depends_on:
       openbao-volume-perms:
         condition: service_completed_successfully
@@ -54,7 +55,10 @@ services:
   openbao-bootstrap:
     image: openbao/openbao:2.2.0
     container_name: achinterbank-openbao-bootstrap
-    entrypoint: ["/bin/sh", "/bootstrap/bootstrap-openbao-uat.sh"]
+    entrypoint:
+      - /bin/sh
+      - -c
+      - sed 's/\r$//' /bootstrap/bootstrap-openbao-uat.sh > /tmp/bootstrap-openbao-uat.sh && chmod +x /tmp/bootstrap-openbao-uat.sh && /bin/sh /tmp/bootstrap-openbao-uat.sh
     environment:
       BAO_ADDR: http://openbao:8200
       OPENBAO_KV_MOUNT: ${OPENBAO_KV_MOUNT:-secret}
