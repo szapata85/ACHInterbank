@@ -140,3 +140,83 @@ Hasta ejecutar prueba de contrato externo SOAP en ambiente controlado, **no** de
 - El defecto técnico real identificado en handler fue corregido y revalidado con pruebas automáticas y corrida backend completa.
 - La brecha restante es única y explícita: **contrato externo SOAP en ambiente controlado**.
 - Esta consolidación habilita transición ordenada a SOAP-3, sin declarar cierre externo ni readiness de producción por contrato externo.
+
+---
+
+## Resultado SOAP-2D-A — Revalidación técnica final
+
+### 1) `dotnet build`
+
+Comando ejecutado:
+
+```bash
+dotnet build ACHInterbank.sln -c Release
+```
+
+Resultado observado:
+
+- **Estado:** exitoso.
+- **Errores:** `0`.
+- **Warnings:** `9` (nulabilidad preexistente).
+
+### 2) Pruebas específicas SOAP
+
+Comando ejecutado:
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "ProcContrapartidasResponseParserTests|ContrapartidaDispatchJobServiceTests|AchContrapartidasByCycleHandlerTests"
+```
+
+Resultado observado:
+
+- **Passed:** `14`
+- **Failed:** `0`
+- **Skipped:** `0`
+
+### 3) Validación amplia SOAP
+
+Comando ejecutado:
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "ProcTransaccionesResponseParserTests|IncomingNachaPostProcessingOrchestratorTests|ProcContrapartidasResponseParserTests|ContrapartidaDispatchJobServiceTests|AchContrapartidasByCycleHandlerTests|ProcTransaccionesRequestMapperTests"
+```
+
+Resultado observado:
+
+- **Passed:** `24`
+- **Failed:** `0`
+- **Skipped:** `0`
+
+### 4) Suite completa backend
+
+Comando ejecutado:
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release
+```
+
+Resultado observado:
+
+- **Passed:** `408`
+- **Failed:** `0`
+- **Skipped:** `0`
+- **Duración reportada:** `57 s`.
+
+### 5) Conteos reales consolidados
+
+| Bloque | Passed | Failed | Skipped |
+|---|---:|---:|---:|
+| Build Release | N/A | 0 errores | N/A |
+| Específicas SOAP | 14 | 0 | 0 |
+| Validación amplia SOAP | 24 | 0 | 0 |
+| Suite completa backend | 408 | 0 | 0 |
+
+### 6) Veredicto final de cobertura interna
+
+- La revalidación técnica SOAP-2D-A confirma cobertura interna estable para parser, job y handler de `Proc_Contrapartidas`, así como para componentes internos críticos de `Proc_Transacciones`.
+- No se observaron fallas en las corridas específica, amplia y completa backend.
+
+### 7) Brechas restantes
+
+1. La única brecha técnica pendiente sigue siendo la prueba de contrato externo SOAP en ambiente controlado.
+2. No corresponde declarar cierre de contrato externo ni readiness de producción hasta cerrar esa evidencia.
