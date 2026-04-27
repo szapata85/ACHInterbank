@@ -198,3 +198,116 @@ Se inspeccionó `tests/Cfa.ACHInterbank.Tests` para ubicar cobertura sobre parse
 - La implementación de integración SOAP para `Proc_Transacciones` muestra madurez de cobertura superior respecto a `Proc_Contrapartidas`.
 - Para `Proc_Contrapartidas`, la cobertura técnica actual es parcial y requiere completar suites dedicadas de parser/job/handler y contrato.
 - En esta corrida **no procede declarar cierre técnico final** por bloqueo de compilación y ausencia de ejecución de pruebas .NET en el entorno disponible.
+
+---
+
+## Resultado SOAP-2B-C — Validación amplia y suite completa
+
+### 1) Contexto breve
+
+Esta actualización cierra los pendientes de SOAP-2B-B que habían quedado abiertos en la revalidación original:
+
+- validación amplia SOAP;
+- ejecución de suite completa backend;
+- consolidación del estado real en el documento principal.
+
+### 2) Comandos ejecutados
+
+```bash
+git status --short
+git log --oneline -20
+
+bash scripts/codex/setup-codex-env.sh
+export DOTNET_ROOT=$HOME/.dotnet
+export PATH=$HOME/.dotnet:$HOME/.dotnet/tools:$PATH
+
+dotnet --info
+
+dotnet build ACHInterbank.sln -c Release
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "ProcContrapartidasResponseParserTests|ContrapartidaDispatchJobServiceTests"
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "ProcTransaccionesResponseParserTests|IncomingNachaPostProcessingOrchestratorTests|ProcContrapartidasResponseParserTests|ContrapartidaDispatchJobServiceTests|ProcTransaccionesRequestMapperTests"
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release
+```
+
+### 3) Resultado de `dotnet build`
+
+- **Estado:** exitoso.
+- **Errores:** `0`.
+- **Warnings:** `9` (nulabilidad preexistente).
+
+### 4) Resultado de pruebas específicas
+
+Comando ejecutado:
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "ProcContrapartidasResponseParserTests|ContrapartidaDispatchJobServiceTests"
+```
+
+Resultado observado:
+
+- **Passed:** `10`
+- **Failed:** `0`
+- **Skipped:** `0`
+
+Desglose funcional:
+
+- `ProcContrapartidasResponseParserTests`: `6/6`.
+- `ContrapartidaDispatchJobServiceTests`: `4/4`.
+
+### 5) Resultado de validación amplia SOAP
+
+Comando ejecutado:
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "ProcTransaccionesResponseParserTests|IncomingNachaPostProcessingOrchestratorTests|ProcContrapartidasResponseParserTests|ContrapartidaDispatchJobServiceTests|ProcTransaccionesRequestMapperTests"
+```
+
+Resultado observado:
+
+- **Passed:** `20`
+- **Failed:** `0`
+- **Skipped:** `0`
+
+Cobertura funcional incluida en esta corrida:
+
+- parser/request mapper/orquestador de `Proc_Transacciones`;
+- parser de `Proc_Contrapartidas`;
+- `ContrapartidaDispatchJobService`.
+
+### 6) Resultado de suite completa backend
+
+Comando ejecutado:
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release
+```
+
+Resultado observado:
+
+- **Passed:** `404`
+- **Failed:** `0`
+- **Skipped:** `0`
+- **Duración reportada:** `1 m 21 s`.
+
+### 7) Estado actualizado por componente
+
+| Componente | Estado actualizado SOAP-2B-C | Evidencia |
+|---|---|---|
+| `Proc_Transacciones` | Cobertura automatizada vigente en parser, mapper y orquestador | Validación amplia SOAP (`20/20`) |
+| `ProcContrapartidasResponseParser` | Cobertura automatizada vigente | Pruebas específicas (`6/6`) + validación amplia |
+| `ContrapartidaDispatchJobService` | Cobertura automatizada vigente para escenarios clave (vacío, éxito, retryable, mixto) | Pruebas específicas (`4/4`) + validación amplia |
+| `AchContrapartidasByCycleHandler` | Sin suite dedicada explícita todavía | No se identificó prueba unitaria específica con nombre de handler |
+| Contrato externo SOAP | Pendiente de prueba de contrato externa controlada | No aplica en esta corrida local de unit/integration tests internos |
+
+### 8) Brechas restantes
+
+1. Falta suite dedicada para `AchContrapartidasByCycleHandler`.
+2. Falta prueba de contrato externa SOAP en ambiente de integración controlado (sin credenciales ni URLs sensibles reales).
+
+### 9) Veredicto final de SOAP-2B-C
+
+- Para el alcance solicitado en SOAP-2B-C, la evidencia de compilación, pruebas específicas, validación amplia SOAP y suite completa backend queda **cerrada satisfactoriamente**.
+- Las brechas remanentes quedan acotadas a `AchContrapartidasByCycleHandler` y contrato externo SOAP, sin fallas observadas en la corrida backend completa.
