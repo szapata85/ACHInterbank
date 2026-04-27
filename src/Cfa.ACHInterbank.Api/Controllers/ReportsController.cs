@@ -4,6 +4,7 @@ using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http.Metadata;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
@@ -45,6 +46,8 @@ public class ReportsController : ControllerBase
         _logger = logger;
     }
 
+    [EndpointSummary("Reporte de transacciones enviadas")]
+    [EndpointDescription("Qué hace: obtiene reporte de transacciones enviadas con filtros operativos del módulo de reportes. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("transactions/sent")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetSentTransactions(
@@ -80,6 +83,8 @@ public class ReportsController : ControllerBase
         return Ok(response);
     }
 
+    [EndpointSummary("Reporte de transacciones recibidas")]
+    [EndpointDescription("Qué hace: obtiene reporte de transacciones recibidas con filtros operativos del módulo de reportes. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("transactions/received")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetReceivedTransactions(
@@ -115,6 +120,8 @@ public class ReportsController : ControllerBase
         return Ok(response);
     }
 
+    [EndpointSummary("PDF de transacciones enviadas")]
+    [EndpointDescription("Qué hace: genera y descarga pdf de transacciones enviadas en formato PDF con filtros de consulta. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("transactions/sent/pdf")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetSentTransactionsPdf(
@@ -148,6 +155,8 @@ public class ReportsController : ControllerBase
         return File(file.Content, file.ContentType, file.FileName);
     }
 
+    [EndpointSummary("PDF de transacciones recibidas")]
+    [EndpointDescription("Qué hace: genera y descarga pdf de transacciones recibidas en formato PDF con filtros de consulta. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("transactions/received/pdf")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetReceivedTransactionsPdf(
@@ -182,6 +191,8 @@ public class ReportsController : ControllerBase
     }
 
 
+    [EndpointSummary("Reporte de devoluciones")]
+    [EndpointDescription("Qué hace: obtiene reporte de devoluciones con filtros operativos del módulo de reportes. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("returns")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetReturns(
@@ -213,6 +224,8 @@ public class ReportsController : ControllerBase
         return Ok(response);
     }
 
+    [EndpointSummary("Reporte de rechazos de archivo")]
+    [EndpointDescription("Qué hace: obtiene reporte de rechazos de archivo con filtros operativos del módulo de reportes. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("rejections")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetRejections(
@@ -244,6 +257,8 @@ public class ReportsController : ControllerBase
         return Ok(response);
     }
 
+    [EndpointSummary("PDF de devoluciones")]
+    [EndpointDescription("Qué hace: genera y descarga pdf de devoluciones en formato PDF con filtros de consulta. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("returns/pdf")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetReturnsPdf(
@@ -273,6 +288,8 @@ public class ReportsController : ControllerBase
         return File(file.Content, file.ContentType, file.FileName);
     }
 
+    [EndpointSummary("PDF de rechazos")]
+    [EndpointDescription("Qué hace: genera y descarga pdf de rechazos en formato PDF con filtros de consulta. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("rejections/pdf")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetRejectionsPdf(
@@ -303,6 +320,8 @@ public class ReportsController : ControllerBase
     }
 
 
+    [EndpointSummary("Reporte de archivos NACHA")]
+    [EndpointDescription("Qué hace: obtiene reporte de archivos nacha con filtros operativos del módulo de reportes. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("nacha-files")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetNachaFiles(
@@ -328,6 +347,8 @@ public class ReportsController : ControllerBase
         return Ok(response);
     }
 
+    [EndpointSummary("PDF de archivos NACHA")]
+    [EndpointDescription("Qué hace: genera y descarga pdf de archivos nacha en formato PDF con filtros de consulta. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("nacha-files/pdf")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetNachaFilesPdf(
@@ -351,6 +372,8 @@ public class ReportsController : ControllerBase
         return File(file.Content, file.ContentType, file.FileName);
     }
 
+    [EndpointSummary("Reporte de ciclos ACH")]
+    [EndpointDescription("Qué hace: obtiene reporte de ciclos ach con filtros operativos del módulo de reportes. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("cycles")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetCycles(
@@ -378,6 +401,8 @@ public class ReportsController : ControllerBase
         return Ok(response);
     }
 
+    [EndpointSummary("PDF de ciclos ACH")]
+    [EndpointDescription("Qué hace: genera y descarga pdf de ciclos ach en formato PDF con filtros de consulta. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("cycles/pdf")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetCyclesPdf(
@@ -404,6 +429,8 @@ public class ReportsController : ControllerBase
     }
 
 
+    [EndpointSummary("Reporte de conciliación")]
+    [EndpointDescription("Qué hace: obtiene reporte de conciliación con filtros operativos del módulo de reportes. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("reconciliation")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetReconciliation(
@@ -427,6 +454,8 @@ public class ReportsController : ControllerBase
         return Ok(response);
     }
 
+    [EndpointSummary("PDF de conciliación")]
+    [EndpointDescription("Qué hace: genera y descarga pdf de conciliación en formato PDF con filtros de consulta. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("reconciliation/pdf")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetReconciliationPdf(
@@ -451,6 +480,8 @@ public class ReportsController : ControllerBase
     }
 
 
+    [EndpointSummary("Reporte de auditoría ACH")]
+    [EndpointDescription("Qué hace: obtiene reporte de auditoría ach con filtros operativos del módulo de reportes. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("audit")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetAudit(
@@ -479,6 +510,8 @@ public class ReportsController : ControllerBase
         return Ok(response);
     }
 
+    [EndpointSummary("PDF de auditoría ACH")]
+    [EndpointDescription("Qué hace: genera y descarga pdf de auditoría ach en formato PDF con filtros de consulta. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("audit/pdf")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetAuditPdf(
@@ -505,6 +538,8 @@ public class ReportsController : ControllerBase
         return File(file.Content, file.ContentType, file.FileName);
     }
 
+    [EndpointSummary("Histórico de transacciones ACH")]
+    [EndpointDescription("Qué hace: obtiene histórico de transacciones ach con filtros operativos del módulo de reportes. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("history")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetHistory(
@@ -533,6 +568,8 @@ public class ReportsController : ControllerBase
         return Ok(response);
     }
 
+    [EndpointSummary("PDF de histórico ACH")]
+    [EndpointDescription("Qué hace: genera y descarga pdf de histórico ach en formato PDF con filtros de consulta. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("history/pdf")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetHistoryPdf(
@@ -559,6 +596,8 @@ public class ReportsController : ControllerBase
         return File(file.Content, file.ContentType, file.FileName);
     }
 
+    [EndpointSummary("PDF de trazabilidad ACH")]
+    [EndpointDescription("Qué hace: genera y descarga pdf de trazabilidad ach en formato PDF con filtros de consulta. Cuándo se usa: en cierre diario, conciliación, atención de incidentes y evidencia regulatoria. Perfil consumidor: operación ACH, auditoría, cumplimiento y áreas de negocio. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por acceso a información regulatoria y operativa. Riesgos operativos: filtros amplios o fechas incorrectas pueden derivar en interpretaciones erróneas o sobrecarga. Errores esperados: 400 por parámetros inválidos; 401/403 por autorización; 404 cuando no existen datos de referencia. Relación ACH/CENIT/NACHA-M: presenta evidencia del comportamiento ACH/CENIT/NACHA-M en operación real. Precauciones para desarrollo u operación: verificar huso horario, ciclo y cámara antes de compartir resultados.")]
     [HttpGet("traceability/pdf")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetTraceabilityPdf(

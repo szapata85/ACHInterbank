@@ -62,14 +62,10 @@ public class ContrapartidaDispatchPersistenceServiceTests
 
         context.FinancialInstitutions.AddRange(sourceFi, destinationFi);
 
-        context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog
-        {
-            Id = 1,
-            Term = "NOMINAS",
-            Description = "Pago nómina",
-            StandardEntryClassCode = "PPD",
-            IsActive = true
-        });
+        var companyEntryDescriptionId = await context.CompanyEntryDescriptionCatalogs
+            .Where(x => x.Term == "NOMINAS" && x.IsActive)
+            .Select(x => x.Id)
+            .FirstAsync();
 
         var cycle = new AchCycle
         {
@@ -89,7 +85,7 @@ public class ContrapartidaDispatchPersistenceServiceTests
             CompanyName = "EMPRESA",
             CompanyIdentification = "900123456",
             CompanyEntryDescription = "NOMINAS",
-            CompanyEntryDescriptionId = 1,
+            CompanyEntryDescriptionId = companyEntryDescriptionId,
             OriginOrOdfi = "12345678",
             EffectiveEntryDate = cycle.ProcessingDate,
             ServiceClassCode = "220",
@@ -104,7 +100,7 @@ public class ContrapartidaDispatchPersistenceServiceTests
             Type = TransactionTypeEnum.Credit,
             TransactionCode = "22",
             ServiceClassCode = "220",
-            CompanyEntryDescriptionId = 1,
+            CompanyEntryDescriptionId = companyEntryDescriptionId,
             CompanyName = "EMPRESA",
             CompanyIdentification = "900123456",
             OriginatingDFI = "123456780",

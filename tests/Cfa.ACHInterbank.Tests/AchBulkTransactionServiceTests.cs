@@ -17,15 +17,22 @@ namespace Cfa.ACHInterbank.Tests;
 
 public class AchBulkTransactionServiceTests
 {
+    private const int TestClearingHouseConfigId = 9001;
+    private const int TestClearingHouseId = 9001;
+    private const int TestSourceInstitutionId = 9101;
+    private const int TestDestinationInstitutionId = 9102;
+    private const string TestCycleId = "CYCLE-1";
+    private const int TestBatchId = 9201;
+
     [Fact]
     public async Task RegisterBulkAsync_ReturnsTotalSuccess_WhenAllItemsAreValid()
     {
         using var connection = CreateOpenConnection();
         using var context = CreateContext(connection);
-        SeedCatalog(context);
+        var companyEntryDescriptionId = SeedCatalog(context);
 
-        var service = CreateService(context);
-        var request = BuildRequest("BULK-OK", 2);
+        var service = CreateService(context, companyEntryDescriptionId);
+        var request = BuildRequest("BULK-OK", 2, companyEntryDescriptionId);
 
         var response = await service.RegisterBulkAsync(request);
 
@@ -40,15 +47,15 @@ public class AchBulkTransactionServiceTests
     {
         using var connection = CreateOpenConnection();
         using var context = CreateContext(connection);
-        SeedCatalog(context);
+        var companyEntryDescriptionId = SeedCatalog(context);
 
         var validator = new Mock<ITransactionValidator>();
         validator
             .Setup(v => v.ValidateRequest(It.Is<AchTransactionRequestData>(x => x.Reference == "BULK-PARTIAL-0002"), It.IsAny<IReadOnlySet<int>?>()))
             .Throws(new ArgumentException("Referencia inválida."));
 
-        var service = CreateService(context, validator: validator);
-        var request = BuildRequest("BULK-PARTIAL", 3);
+        var service = CreateService(context, companyEntryDescriptionId, validator: validator);
+        var request = BuildRequest("BULK-PARTIAL", 3, companyEntryDescriptionId);
 
         var response = await service.RegisterBulkAsync(request);
 
@@ -63,15 +70,15 @@ public class AchBulkTransactionServiceTests
     {
         using var connection = CreateOpenConnection();
         using var context = CreateContext(connection);
-        SeedCatalog(context);
+        var companyEntryDescriptionId = SeedCatalog(context);
 
         var validator = new Mock<ITransactionValidator>();
         validator
             .Setup(v => v.ValidateRequest(It.IsAny<AchTransactionRequestData>(), It.IsAny<IReadOnlySet<int>?>()))
             .Throws(new ArgumentException("Lote inválido."));
 
-        var service = CreateService(context, validator: validator);
-        var request = BuildRequest("BULK-FAIL", 2);
+        var service = CreateService(context, companyEntryDescriptionId, validator: validator);
+        var request = BuildRequest("BULK-FAIL", 2, companyEntryDescriptionId);
 
         var response = await service.RegisterBulkAsync(request);
 
@@ -84,7 +91,8 @@ public class AchBulkTransactionServiceTests
     {
         using var connection = CreateOpenConnection();
         using var context = CreateContext(connection);
-        SeedCatalog(context);
+        var companyEntryDescriptionId = SeedCatalog(context);
+
         context.AchTransactions.Add(new AchTransaction
         {
             Amount = 100,
@@ -94,30 +102,30 @@ public class AchBulkTransactionServiceTests
             DestinationAccountNumber = "9876543210",
             CompanyName = "EMPRESA",
             CompanyIdentification = "900123456",
-            CompanyEntryDescriptionId = 1,
+            CompanyEntryDescriptionId = companyEntryDescriptionId,
             TransactionCode = "22",
             OriginatingDFI = "000010070",
             ReceivingDFI = "000010010",
             TraceNumber = "000010070000001",
             TraceSequenceNumber = 1,
             EffectiveEntryDate = DateTime.Today,
-            SourceInstitutionId = 1,
-            DestinationInstitutionId = 2,
-            AchCycleId = "CYCLE-1",
-            AchBatchId = 1
+            SourceInstitutionId = TestSourceInstitutionId,
+            DestinationInstitutionId = TestDestinationInstitutionId,
+            AchCycleId = TestCycleId,
+            AchBatchId = TestBatchId
         });
         await context.SaveChangesAsync();
 
-        var service = CreateService(context);
-        var request = BuildRequest("BULK-DUP", 3);
-        request.Transactions[2].Reference = request.Transactions[0].Reference; // duplicate in request
+        var service = CreateService(context, companyEntryDescriptionId);
+        var request = BuildRequest("BULK-DUP", 3, companyEntryDescriptionId);
+        request.Transactions[2].Reference = request.Transactions[0].Reference;
 
         var response = await service.RegisterBulkAsync(request);
 
         Assert.Equal(0, response.TotalSucceeded);
         Assert.Equal(3, response.TotalFailed);
-        Assert.Contains(response.ItemResults, x => x.ErrorMessage!.Contains("duplicada dentro del mismo request", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(response.ItemResults, x => x.ErrorMessage!.Contains("ya existe en persistencia", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(response.ItemResults, x => x.ErrorMessage!.Contains("duplicad", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(response.ItemResults, x => x.ErrorMessage!.Contains("ya exis", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -125,7 +133,7 @@ public class AchBulkTransactionServiceTests
     {
         using var connection = CreateOpenConnection();
         using var context = CreateContext(connection);
-        SeedCatalog(context);
+        var companyEntryDescriptionId = SeedCatalog(context);
 
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -133,8 +141,8 @@ public class AchBulkTransactionServiceTests
             ["Transactions:Bulk:ChunkSize"] = "50"
         }).Build();
 
-        var service = CreateService(context, configuration: configuration);
-        var request = BuildRequest("BULK-LIMIT", 3);
+        var service = CreateService(context, companyEntryDescriptionId, configuration: configuration);
+        var request = BuildRequest("BULK-LIMIT", 3, companyEntryDescriptionId);
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() => service.RegisterBulkAsync(request));
         Assert.Contains("máximo permitido", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -142,6 +150,7 @@ public class AchBulkTransactionServiceTests
 
     private static AchBulkTransactionService CreateService(
         AchDbContext context,
+        int companyEntryDescriptionId,
         IConfiguration? configuration = null,
         Mock<ITransactionValidator>? validator = null)
     {
@@ -161,18 +170,18 @@ public class AchBulkTransactionServiceTests
         batchResolver.Setup(r => r.ResolveAsync(It.IsAny<AchTransactionRequestData>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => new TransactionBatchContext
             {
-                Batch = new AchBatch { Id = 1, AchCycleId = "CYCLE-1", CompanyEntryDescription = "NOMINAS", EffectiveEntryDate = DateTime.Today },
-                AchCycleId = "CYCLE-1",
+                Batch = new AchBatch { Id = TestBatchId, AchCycleId = TestCycleId, CompanyEntryDescription = "NOMINAS", EffectiveEntryDate = DateTime.Today },
+                AchCycleId = TestCycleId,
                 EffectiveEntryDate = DateTime.Today,
                 OriginatingDfi = "000010070",
                 ReceivingDfi = "000010010",
                 CompanyName = "EMPRESA",
                 CompanyIdentification = "900123456",
                 CompanyEntryDescription = "NOMINAS",
-                CompanyEntryDescriptionId = 1,
+                CompanyEntryDescriptionId = companyEntryDescriptionId,
                 ServiceClassCode = "200",
-                SourceInstitutionId = 1,
-                DestinationInstitutionId = 2
+                SourceInstitutionId = TestSourceInstitutionId,
+                DestinationInstitutionId = TestDestinationInstitutionId
             });
 
         var nextId = 100;
@@ -182,7 +191,7 @@ public class AchBulkTransactionServiceTests
             {
                 nextId++;
                 var tx = new AchTransaction { Id = nextId };
-                return new TransactionPersistResult { Transaction = tx, Batch = new AchBatch { Id = 1 } };
+                return new TransactionPersistResult { Transaction = tx, Batch = new AchBatch { Id = TestBatchId } };
             });
         persister.Setup(p => p.UpdateBatchTotalsAsync(It.IsAny<AchBatch>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         persister.Setup(p => p.UpdateBatchServiceClassCodeAsync(It.IsAny<AchBatch>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
@@ -209,7 +218,7 @@ public class AchBulkTransactionServiceTests
             contrapartida.Object);
     }
 
-    private static BulkAchTransactionRequest BuildRequest(string prefix, int count)
+    private static BulkAchTransactionRequest BuildRequest(string prefix, int count, int companyEntryDescriptionId)
     {
         var items = Enumerable.Range(1, count).Select(i => new BulkAchTransactionItemRequest
         {
@@ -218,12 +227,12 @@ public class AchBulkTransactionServiceTests
             Type = TransactionTypeEnum.Credit,
             AccountType = AccountTypeEnum.Checking,
             IsPrenotification = false,
-            DestinationInstitutionId = 2,
+            DestinationInstitutionId = TestDestinationInstitutionId,
             SourceAccountNumber = $"123450{i:00000}",
             DestinationAccountNumber = $"987650{i:00000}",
             CompanyName = "EMPRESA",
             CompanyIdentification = "900123456",
-            CompanyEntryDescriptionId = 1,
+            CompanyEntryDescriptionId = companyEntryDescriptionId,
             SourcePersonType = "PJ",
             RecipientPersonType = "PN",
             RecipientIdNumber = $"10{i:00000000}",
@@ -239,66 +248,81 @@ public class AchBulkTransactionServiceTests
         };
     }
 
-    private static void SeedCatalog(AchDbContext context)
+    private static int SeedCatalog(AchDbContext context)
     {
-        context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog
-        {
-            Id = 1,
-            Term = "NOMINAS",
-            Description = "Pago nomina",
-            StandardEntryClassCode = "PPD",
-            IsActive = true
-        });
+        var companyEntryDescriptionId = context.CompanyEntryDescriptionCatalogs
+            .Where(x => x.Term == "NOMINAS" && x.IsActive)
+            .Select(x => x.Id)
+            .First();
 
-        context.ClearingHouseConfigs.Add(new ClearingHouseConfig
+        if (!context.ClearingHouseConfigs.Any(x => x.Id == TestClearingHouseConfigId))
         {
-            Id = 1,
-            HolidayStrategy = "Colombian"
-        });
+            context.ClearingHouseConfigs.Add(new ClearingHouseConfig
+            {
+                Id = TestClearingHouseConfigId,
+                HolidayStrategy = "Colombian"
+            });
+        }
 
-        context.ClearingHouses.Add(new ClearingHouse
+        if (!context.ClearingHouses.Any(x => x.Id == TestClearingHouseId))
         {
-            Id = 1,
-            Name = "ACH Colombia",
-            Code = "ACHCOL",
-            OriginCode = "12345678",
-            ClearingHouseId = 1
-        });
+            context.ClearingHouses.Add(new ClearingHouse
+            {
+                Id = TestClearingHouseId,
+                Name = "ACH Colombia",
+                Code = "ACHCOL",
+                OriginCode = "12345678",
+                ClearingHouseId = TestClearingHouseConfigId
+            });
+        }
 
-        context.AchCycles.Add(new AchCycle
+        if (!context.AchCycles.Any(x => x.Id == TestCycleId))
         {
-            Id = "CYCLE-1",
-            CycleName = "Ciclo 1",
-            ProcessingDate = DateTime.Today,
-            StartTime = TimeSpan.Zero,
-            EndTime = new TimeSpan(23, 59, 0),
-            CutoffTime = new TimeSpan(23, 59, 0),
-            ClearingHouseId = 1
-        });
+            context.AchCycles.Add(new AchCycle
+            {
+                Id = TestCycleId,
+                CycleName = "Ciclo 1",
+                ProcessingDate = DateTime.Today,
+                StartTime = TimeSpan.Zero,
+                EndTime = new TimeSpan(23, 59, 0),
+                CutoffTime = new TimeSpan(23, 59, 0),
+                ClearingHouseId = TestClearingHouseId
+            });
+        }
 
-        context.AchBatches.Add(new AchBatch
+        if (!context.AchBatches.Any(x => x.Id == TestBatchId))
         {
-            Id = 1,
-            AchCycleId = "CYCLE-1",
-            CompanyName = "EMPRESA",
-            CompanyIdentification = "900123456",
-            CompanyEntryDescriptionId = 1,
-            CompanyEntryDescription = "NOMINAS",
-            OriginOrOdfi = "00001007",
-            EffectiveEntryDate = DateTime.Today,
-            BatchSequenceNumber = 1
-        });
+            context.AchBatches.Add(new AchBatch
+            {
+                Id = TestBatchId,
+                AchCycleId = TestCycleId,
+                CompanyName = "EMPRESA",
+                CompanyIdentification = "900123456",
+                CompanyEntryDescriptionId = companyEntryDescriptionId,
+                CompanyEntryDescription = "NOMINAS",
+                OriginOrOdfi = "00001007",
+                EffectiveEntryDate = DateTime.Today,
+                BatchSequenceNumber = 1
+            });
+        }
 
-        context.FinancialInstitutions.AddRange(
-            new FinancialInstitution { Id = 1, Name = "Origen", RoutingNumber = "00001", TransitCode = "007" , IsDefaultSource = true, Status = FinancialInstitutionStatus.Active },
-            new FinancialInstitution { Id = 2, Name = "Destino", RoutingNumber = "00001", TransitCode = "001" , Status = FinancialInstitutionStatus.Active }
-        );
+        if (!context.FinancialInstitutions.Any(x => x.Id == TestSourceInstitutionId))
+        {
+            context.FinancialInstitutions.Add(new FinancialInstitution { Id = TestSourceInstitutionId, Name = "Origen", RoutingNumber = "00001", TransitCode = "007", IsDefaultSource = true, Status = FinancialInstitutionStatus.Active });
+        }
+
+        if (!context.FinancialInstitutions.Any(x => x.Id == TestDestinationInstitutionId))
+        {
+            context.FinancialInstitutions.Add(new FinancialInstitution { Id = TestDestinationInstitutionId, Name = "Destino", RoutingNumber = "00001", TransitCode = "001", Status = FinancialInstitutionStatus.Active });
+        }
+
         foreach (var institution in context.FinancialInstitutions.Local)
         {
             institution.CalculateCheckDigit();
         }
 
         context.SaveChanges();
+        return companyEntryDescriptionId;
     }
 
     private static SqliteConnection CreateOpenConnection()

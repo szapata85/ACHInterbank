@@ -1,0 +1,30 @@
+8e12931 Merge pull request #98 from szapata85/codex/conduct-architectural-audit-and-design-transition-blueprint
+bed14b7 test(ui): stabilize global karma suite after chromeheadless enablement
+9118ef7 fix(ui-tests): stabilize karma chromeheadless execution
+6dab8b2 docs(uat): add read-only capability registry api+spa go/no-go evidence
+293b092 docs: add strict revalidation evidence for prompt 9 spa
+9f553de feat(ui): add read-only payment rail capability registry screen
+9772b6e test: strict revalidation for prompt 8 read-only capability registry
+7ecf56b feat: add read-only payment rail capability registry API
+ad0a7b9 docs: add prompt 7b revalidation evidence
+1ddf2f3 docs: close phase 7 validation and sync postgres snapshot
+850e426 feat(payment-rail): add auditable capability registry service and tests
+a9827ac test(paymentrail): fix sqlite FK seeds and revalidate prompt 6 suites
+f1e1ec9 docs(validation): revalidate prompt 6A with explicit suite counts
+318b0fc feat(payment-rail): add passive shadow compare for returns netting and liquidity
+6bd0121 docs(validation): reconcile prompt 5A shadow-compare evidence with real re-run
+5a51cf8 feat(payment-rail): add passive shadow compare for cycle and dispatch
+92a22dc feat(payment-rail): enrich ach/cenit passive wrapper strategies
+a8cec72 docs(validation): add prompt 3b full non-regression evidence
+15cbd02 feat(payment-rail): add non-invasive adapter bridge instrumentation
+5583d76 docs(validation): record prompt2b runtime revalidation evidence
+b85dc3b feat(payment-rail): add base contracts resolver and fail-closed bridge
+2d7e7eb docs: add multi-rail payment strategy transition blueprint
+60308c2 Merge pull request #96 from szapata85/codex/implement-openbao-on-prem-with-docker-compose
+482c219 chore(uat): harden controlled inbound UAT reexecution against external deps
+a2b2a29 docs(uat): add controlled inbound NACHA UAT package and execution script
+f7eb00b chore: pin repository to .NET SDK 10.0.203
+a94ee26 test(obs): revalidate inbound observability build and suites
+6c5c5b5 feat(observability): add inbound nacha operational summary dashboard
+3f79acb docs(spa): add inbound nacha command center revalidation evidence
+bcd525c feat(ui): complete inbound nacha queue cockpit actions

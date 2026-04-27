@@ -19,8 +19,7 @@ public class BulkTransactionScenarioSeederTests
         SeedPrerequisites(context);
 
         var environment = new Mock<IHostEnvironment>();
-        environment.Setup(x => x.IsDevelopment()).Returns(true);
-        environment.Setup(x => x.IsEnvironment("Testing")).Returns(false);
+        environment.SetupProperty(x => x.EnvironmentName, Environments.Development);
 
         var seeder = new BulkTransactionScenarioSeeder(context, environment.Object);
 
@@ -45,8 +44,7 @@ public class BulkTransactionScenarioSeederTests
         SeedPrerequisites(context);
 
         var environment = new Mock<IHostEnvironment>();
-        environment.Setup(x => x.IsDevelopment()).Returns(true);
-        environment.Setup(x => x.IsEnvironment("Testing")).Returns(false);
+        environment.SetupProperty(x => x.EnvironmentName, Environments.Development);
 
         var seeder = new BulkTransactionScenarioSeeder(context, environment.Object);
 
@@ -61,13 +59,10 @@ public class BulkTransactionScenarioSeederTests
 
     private static void SeedPrerequisites(AchDbContext context)
     {
-        context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig
         {
             Id = 1,
-            Term = "NOMINAS",
-            Description = "Pago nómina",
-            StandardEntryClassCode = "PPD",
-            IsActive = true
+            HolidayStrategy = "Colombian"
         });
 
         context.ClearingHouses.Add(new ClearingHouse
@@ -96,6 +91,11 @@ public class BulkTransactionScenarioSeederTests
             new FinancialInstitution { Id = 3, Name = "Destino 2", RoutingNumber = "00001", TransitCode = "002" , Status = FinancialInstitutionStatus.Active },
             new FinancialInstitution { Id = 4, Name = "Destino 3", RoutingNumber = "00001", TransitCode = "003" , Status = FinancialInstitutionStatus.Active }
         );
+
+        foreach (var institution in context.FinancialInstitutions.Local)
+        {
+            institution.CalculateCheckDigit();
+        }
 
         context.SaveChanges();
     }

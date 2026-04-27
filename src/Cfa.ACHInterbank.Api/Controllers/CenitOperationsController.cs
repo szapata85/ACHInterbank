@@ -2,6 +2,7 @@ using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
@@ -18,6 +19,8 @@ public class CenitOperationsController : ControllerBase
         _dbContext = dbContext;
     }
 
+    [EndpointSummary("Cola de ejecución de ciclos CENIT")]
+    [EndpointDescription("Qué hace: consulta elementos en cola de ciclo CENIT con estado y contexto transaccional. Cuándo se usa: en monitoreo de encolamiento y despacho. Perfil consumidor: operación CENIT y soporte ACH. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por bitácoras y eventos de ejecución. Riesgos operativos: paginación/filtros inadecuados pueden ocultar cuellos de botella. Errores esperados: 400 por parámetros; 401/403. Relación ACH/CENIT/NACHA-M: observa interacción entre transacciones ACH y ciclo CENIT. Precauciones para desarrollo u operación: usar page/pageSize dentro de límites operativos.")]
     [HttpGet("queues")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetQueueAsync(
@@ -75,6 +78,8 @@ public class CenitOperationsController : ControllerBase
         return Ok(new { items, total, page, pageSize });
     }
 
+    [EndpointSummary("Posiciones netas de liquidez por ejecución")]
+    [EndpointDescription("Qué hace: muestra débitos, créditos y liquidez por entidad financiera en una ejecución CENIT. Cuándo se usa: en conciliación de liquidez y priorización operativa. Perfil consumidor: tesorería operativa y operación ACH. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por consulta y trazas. Riesgos operativos: lectura fuera de ejecución correcta puede llevar a decisiones de liquidez erradas. Errores esperados: 401/403; resultados vacíos cuando no hay ejecución. Relación ACH/CENIT/NACHA-M: conecta neteo CENIT con operación ACH. Precauciones para desarrollo u operación: confirmar cenitCycleExecutionId antes de decisiones.")]
     [HttpGet("net-positions")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetNetPositionsAsync(
@@ -127,6 +132,8 @@ public class CenitOperationsController : ControllerBase
         return Ok(new { items, total, page, pageSize, cenitCycleExecutionId = latestExecutionId.Value });
     }
 
+    [EndpointSummary("Decisiones de optimización de liquidez")]
+    [EndpointDescription("Qué hace: lista decisiones de optimización aplicadas sobre transacciones. Cuándo se usa: en análisis de por qué una transacción fue priorizada o movida de ciclo. Perfil consumidor: operación CENIT, riesgo y auditoría. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí. Riesgos operativos: interpretar decisiones fuera de contexto puede afectar post-mortem. Errores esperados: 400 por filtros inválidos; 401/403. Relación ACH/CENIT/NACHA-M: explica lógica operativa de neteo y enrutamiento ACH/CENIT. Precauciones para desarrollo u operación: correlacionar con estado de transacción y ciclo origen/destino.")]
     [HttpGet("optimization-decisions")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetOptimizationDecisionsAsync(
@@ -183,6 +190,8 @@ public class CenitOperationsController : ControllerBase
         return Ok(new { items, total, page, pageSize });
     }
 
+    [EndpointSummary("Trazabilidad CENIT de transacciones")]
+    [EndpointDescription("Qué hace: entrega vista trazable con causales de devolución/rechazo y estado. Cuándo se usa: en conciliación operativa y gestión de excepciones. Perfil consumidor: operación ACH/CENIT y auditoría. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí. Riesgos operativos: códigos normalizados incorrectamente pueden sesgar análisis. Errores esperados: 400 filtros inválidos; 401/403. Relación ACH/CENIT/NACHA-M: une catálogo regulatorio con ejecución transaccional ACH/CENIT. Precauciones para desarrollo u operación: validar estado y ciclo antes de emitir conclusiones.")]
     [HttpGet("traceability")]
     [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetTraceabilityAsync(

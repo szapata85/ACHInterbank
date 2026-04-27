@@ -75,27 +75,23 @@ public class PrenotificationHandlerTests
         };
         context.AchCycles.Add(cycle);
 
+        var companyEntryDescriptionId = await context.CompanyEntryDescriptionCatalogs
+            .Where(x => x.Term == "NOMINAS" && x.IsActive)
+            .Select(x => x.Id)
+            .FirstAsync();
+
         var batch = new AchBatch
         {
             AchCycleId = cycle.Id,
             CompanyName = "EMPRESA",
             CompanyIdentification = "900123456",
             CompanyEntryDescription = "NOMINAS",
-            CompanyEntryDescriptionId = 1,
+            CompanyEntryDescriptionId = companyEntryDescriptionId,
             OriginOrOdfi = "12345678",
             EffectiveEntryDate = cycle.ProcessingDate,
             ServiceClassCode = "220",
             BatchSequenceNumber = 1
         };
-
-        context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog
-        {
-            Id = 1,
-            Term = "NOMINAS",
-            Description = "Pago nómina",
-            StandardEntryClassCode = "PPD",
-            IsActive = true
-        });
 
         var customer = new Customer
         {
@@ -117,7 +113,7 @@ public class PrenotificationHandlerTests
             Type = TransactionTypeEnum.Prenotification,
             TransactionCode = "23",
             ServiceClassCode = "220",
-            CompanyEntryDescriptionId = 1,
+            CompanyEntryDescriptionId = companyEntryDescriptionId,
             CompanyName = "EMPRESA",
             CompanyIdentification = "900123456",
             OriginatingDFI = "123456780",
