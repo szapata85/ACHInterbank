@@ -137,6 +137,161 @@ public class ContrapartidaDispatchJobServiceTests
         Assert.Equal(0, batch.TotalFailed);
     }
 
+    [Fact]
+    public async Task ProcessCycleAsync_DebeEnviarAReintento_CuandoRespuestaEsRetryable()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var context = new AchDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+
+        var cycleId = await SembrarEstructuraBaseAsync(context);
+        await SembrarTransaccionYItemPendienteAsync(context, cycleId);
+
+        var mapper = new Mock<IProcContrapartidasRequestMapper>();
+        mapper
+            .Setup(x => x.ResolveAsync(It.IsAny<AchCycle>(), It.IsAny<IReadOnlyCollection<AchTransaction>>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcContrapartidasRequestResolution
+            {
+                Contract = ContratoValido(),
+                MappingSnapshotHash = "hash-retry",
+                UsedFallback = false
+            });
+        mapper
+            .Setup(x => x.BuildSoapBody(It.IsAny<ProcContrapartidasRequestContract>()))
+            .Returns("<request-retry/>");
+
+        var soap = new Mock<IWscfaachSoapClient>();
+        soap
+            .Setup(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("<Envelope><Body><Fault><faultstring>timeout</faultstring></Fault></Body></Envelope>");
+
+        var parser = new Mock<IProcContrapartidasResponseParser>();
+        parser
+            .Setup(x => x.Parse(It.IsAny<string>()))
+            .Returns(new ProcContrapartidasParsedResponse(
+                IsSuccess: false,
+                IsSoapFault: true,
+                IsRetryable: true,
+                IsFunctionalRejection: false,
+                ErrorCode: "R98",
+                ErrorMessage: "Temporal",
+                RawResponse: "<fault/>",
+                ResponseCode: "R98",
+                ItemResults: new Dictionary<int, ProcContrapartidasParsedItemResponse>()));
+
+        var sut = new ContrapartidaDispatchJobService(
+            context,
+            soap.Object,
+            mapper.Object,
+            parser.Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance);
+
+        var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-soap-2b", 100, CancellationToken.None);
+
+        Assert.Equal(1, result.Processed);
+        Assert.Equal(0, result.Succeeded);
+        Assert.Equal(1, result.Failed);
+        Assert.Equal(0, result.Partial);
+
+        var item = await context.ContrapartidaDispatchItems.SingleAsync();
+        Assert.Equal(ContrapartidaDispatchItemStateEnum.RetryPending, item.State);
+        Assert.NotNull(item.NextAttemptAtUtc);
+
+        var attempt = await context.ContrapartidaDispatchAttempts.SingleAsync();
+        Assert.Equal(ContrapartidaDispatchAttemptResultEnum.Failed, attempt.Result);
+        Assert.True(attempt.RetryEligible);
+
+        var batch = await context.ContrapartidaDispatchBatches.SingleAsync();
+        Assert.Equal(ContrapartidaDispatchBatchStatusEnum.Failed, batch.Status);
+    }
+
+    [Fact]
+    public async Task ProcessCycleAsync_DebeMarcarParcial_CuandoItemsTienenResultadoMixto()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var context = new AchDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+
+        var cycleId = await SembrarEstructuraBaseAsync(context);
+        var transactionIds = await SembrarVariasTransaccionesEItemsPendientesAsync(context, cycleId, 2);
+
+        var mapper = new Mock<IProcContrapartidasRequestMapper>();
+        mapper
+            .Setup(x => x.ResolveAsync(It.IsAny<AchCycle>(), It.IsAny<IReadOnlyCollection<AchTransaction>>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcContrapartidasRequestResolution
+            {
+                Contract = ContratoValido(),
+                MappingSnapshotHash = "hash-parcial",
+                UsedFallback = false
+            });
+        mapper
+            .Setup(x => x.BuildSoapBody(It.IsAny<ProcContrapartidasRequestContract>()))
+            .Returns("<request-parcial/>");
+
+        var soap = new Mock<IWscfaachSoapClient>();
+        soap
+            .Setup(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("<Envelope><Body><ok/></Body></Envelope>");
+
+        var parser = new Mock<IProcContrapartidasResponseParser>();
+        parser
+            .Setup(x => x.Parse(It.IsAny<string>()))
+            .Returns(new ProcContrapartidasParsedResponse(
+                IsSuccess: false,
+                IsSoapFault: false,
+                IsRetryable: false,
+                IsFunctionalRejection: true,
+                ErrorCode: "R10",
+                ErrorMessage: "Mixto",
+                RawResponse: "<mixed/>",
+                ResponseCode: "R10",
+                ItemResults: new Dictionary<int, ProcContrapartidasParsedItemResponse>
+                {
+                    [transactionIds[0]] = new(transactionIds[0], true, false, "R96", "Aplicado"),
+                    [transactionIds[1]] = new(transactionIds[1], false, false, "R10", "Rechazo funcional")
+                }));
+
+        var sut = new ContrapartidaDispatchJobService(
+            context,
+            soap.Object,
+            mapper.Object,
+            parser.Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance);
+
+        var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-soap-2b", 100, CancellationToken.None);
+
+        Assert.Equal(2, result.Processed);
+        Assert.Equal(1, result.Succeeded);
+        Assert.Equal(1, result.Failed);
+        Assert.Equal(1, result.Partial);
+
+        var items = await context.ContrapartidaDispatchItems.OrderBy(x => x.Id).ToListAsync();
+        Assert.Equal(ContrapartidaDispatchItemStateEnum.ReportedToContrapartida, items[0].State);
+        Assert.Equal(ContrapartidaDispatchItemStateEnum.ContrapartidaReportFailed, items[1].State);
+
+        var attempts = await context.ContrapartidaDispatchAttempts.OrderBy(x => x.Id).ToListAsync();
+        Assert.Contains(attempts, x => x.Result == ContrapartidaDispatchAttemptResultEnum.Success);
+        Assert.Contains(attempts, x => x.Result == ContrapartidaDispatchAttemptResultEnum.Partial);
+
+        var batch = await context.ContrapartidaDispatchBatches.SingleAsync();
+        Assert.Equal(ContrapartidaDispatchBatchStatusEnum.CompletedWithErrors, batch.Status);
+        Assert.Equal(1, batch.TotalSucceeded);
+        Assert.Equal(1, batch.TotalFailed);
+        Assert.Equal(1, batch.TotalPartial);
+    }
+
     private static async Task<string> SembrarEstructuraBaseAsync(AchDbContext context)
     {
         context.ClearingHouseConfigs.Add(new ClearingHouseConfig
@@ -196,6 +351,9 @@ public class ContrapartidaDispatchJobServiceTests
 
     private static async Task<int> SembrarTransaccionYItemPendienteAsync(AchDbContext context, string cycleId)
     {
+        var consecutivo = await context.AchTransactions.CountAsync() + 1;
+        var sufijo = consecutivo.ToString("D6");
+
         var companyEntryDescriptionId = await context.CompanyEntryDescriptionCatalogs
             .Where(x => x.Term == "NOMINAS" && x.IsActive)
             .Select(x => x.Id)
@@ -217,8 +375,8 @@ public class ContrapartidaDispatchJobServiceTests
         var tx = new AchTransaction
         {
             Amount = 1000m,
-            TransactionExternalId = "TX-CP-001",
-            Reference = "REF-CP-001",
+            TransactionExternalId = $"TX-CP-{sufijo}",
+            Reference = $"REF-CP-{sufijo}",
             Type = TransactionTypeEnum.Credit,
             TransactionCode = "22",
             ServiceClassCode = "220",
@@ -227,8 +385,8 @@ public class ContrapartidaDispatchJobServiceTests
             CompanyIdentification = "900123456",
             OriginatingDFI = "123456780",
             ReceivingDFI = "765432100",
-            TraceNumber = "123456780000001",
-            TraceSequenceNumber = 1,
+            TraceNumber = $"12345678{sufijo}",
+            TraceSequenceNumber = consecutivo,
             EffectiveEntryDate = DateTime.Today,
             AddendaRecordIndicator = true,
             IsPrenotification = false,
@@ -256,6 +414,17 @@ public class ContrapartidaDispatchJobServiceTests
 
         await context.SaveChangesAsync();
         return tx.Id;
+    }
+
+    private static async Task<List<int>> SembrarVariasTransaccionesEItemsPendientesAsync(AchDbContext context, string cycleId, int cantidad)
+    {
+        var ids = new List<int>();
+        for (var i = 0; i < cantidad; i++)
+        {
+            ids.Add(await SembrarTransaccionYItemPendienteAsync(context, cycleId));
+        }
+
+        return ids;
     }
 
     private static ProcContrapartidasRequestContract ContratoValido() => new()
