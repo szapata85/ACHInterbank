@@ -21,13 +21,14 @@ services:
   openbao:
     image: openbao/openbao:2.2.0
     container_name: achinterbank-openbao
-    command: ["server", "-config=/openbao/config/openbao.hcl"]
+    user: "0:0"
+    command: ["server", "-config=/openbao/local-config/openbao.hcl"]
     cap_add:
       - IPC_LOCK
     environment:
       BAO_ADDR: http://127.0.0.1:8200
     volumes:
-      - ./ops/openbao/openbao.hcl:/openbao/config/openbao.hcl:ro
+      - ./ops/openbao/openbao.hcl:/openbao/local-config/openbao.hcl:ro
       - ach_openbao_data:/openbao/data
     ports:
       - "8200:8200"
