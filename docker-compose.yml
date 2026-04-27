@@ -24,6 +24,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 20s
     restart: unless-stopped
     networks: [ach_onprem]
 
@@ -40,36 +41,57 @@ services:
       - ach_openbao_data:/openbao/data
     ports:
       - "8200:8200"
+
+    # Este healthcheck solo sirve para ver el estado real de OpenBao.
+    # No debe ser usado como dependencia del bootstrap.
     healthcheck:
-      test: ["CMD-SHELL", "status=$$(bao status -format=json 2>/dev/null || true); echo \"$$status\" | grep -q '\"initialized\"[[:space:]]*:[[:space:]]*true' && echo \"$$status\" | grep -q '\"sealed\"[[:space:]]*:[[:space:]]*false'"]
+      test:
+        [
+          "CMD-SHELL",
+          "bao status -format=json 2>/dev/null | grep -q '\"initialized\"[[:space:]]*:[[:space:]]*true' && bao status -format=json 2>/dev/null | grep -q '\"sealed\"[[:space:]]*:[[:space:]]*false'"
+        ]
       interval: 10s
       timeout: 5s
-      retries: 30
-      start_period: 20s
+      retries: 60
+      start_period: 30s
+
     depends_on:
       openbao-volume-perms:
         condition: service_completed_successfully
+
     restart: unless-stopped
     networks: [ach_onprem]
 
   openbao-bootstrap:
     image: openbao/openbao:2.2.0
     container_name: achinterbank-openbao-bootstrap
+
     entrypoint:
       - /bin/sh
       - -c
-      - sed 's/\r$//' /bootstrap/bootstrap-openbao-uat.sh > /tmp/bootstrap-openbao-uat.sh && chmod +x /tmp/bootstrap-openbao-uat.sh && /bin/sh /tmp/bootstrap-openbao-uat.sh
+      - |
+        sed 's/\r$//' /bootstrap/bootstrap-openbao-uat.sh > /tmp/bootstrap-openbao-uat.sh
+        chmod +x /tmp/bootstrap-openbao-uat.sh
+        /bin/sh /tmp/bootstrap-openbao-uat.sh
+
     environment:
       BAO_ADDR: http://openbao:8200
       OPENBAO_KV_MOUNT: ${OPENBAO_KV_MOUNT:-secret}
       OPENBAO_POLICY_NAME: ${OPENBAO_POLICY_NAME:-ach-api}
+      WAIT_FOR_OPENBAO_SECONDS: ${WAIT_FOR_OPENBAO_SECONDS:-180}
+
     volumes:
       - ./scripts/openbao/bootstrap-openbao-uat.sh:/bootstrap/bootstrap-openbao-uat.sh:ro
       - ./ops/openbao/policy-ach-api.hcl:/bootstrap/policy-ach-api.hcl:ro
       - ach_openbao_bootstrap:/bootstrap/state
+
+    # IMPORTANTE:
+    # No usar service_healthy aquí.
+    # OpenBao solo queda healthy después de que este bootstrap haga init + unseal.
     depends_on:
       openbao:
-        condition: service_healthy
+        condition: service_started
+
     restart: "no"
     networks: [ach_onprem]
 
@@ -79,33 +101,46 @@ services:
       dockerfile: src/Cfa.ACHInterbank.Api/Dockerfile
     image: achinterbank-api:openbao
     container_name: achinterbank-api
+
     environment:
       ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       EnableHttpsRedirection: ${ENABLE_HTTPS_REDIRECTION:-false}
+
       Database__Provider: Postgres
       ConnectionStrings__PostgresConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB:-ACHInterbank};Username=${POSTGRES_USER:-sa};Password=${POSTGRES_PASSWORD:-Cooperativa1*}
       Database__ApplyMigrations: "true"
+
       DigitalEnvelope__OpenBao__Enabled: "true"
       DigitalEnvelope__OpenBao__BaseUrl: http://openbao:8200
       DigitalEnvelope__OpenBao__KvMount: ${OPENBAO_KV_MOUNT:-secret}
       DigitalEnvelope__OpenBao__CertificatesPrefix: ${OPENBAO_CERTIFICATES_PREFIX:-certificates}
       DigitalEnvelope__OpenBao__ApiToken: ${OPENBAO_API_TOKEN:-}
       DigitalEnvelope__OpenBao__ApiTokenFilePath: /openbao-bootstrap/api-token
+
       DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable: "true"
+
       WAIT_FOR_OPENBAO_TOKEN_FILE: "true"
       WAIT_FOR_OPENBAO_TIMEOUT_SECONDS: ${WAIT_FOR_OPENBAO_TIMEOUT_SECONDS:-90}
+
     ports:
       - "843:8080"
+
     volumes:
       - ach_openbao_bootstrap:/openbao-bootstrap:ro
+
     depends_on:
       postgres:
         condition: service_healthy
+
+      # No dependemos de openbao service_healthy para evitar bloqueo por healthcheck.
+      # El bootstrap ya valida que OpenBao esté inicializado, unsealed y con token.
       openbao:
-        condition: service_healthy
+        condition: service_started
+
       openbao-bootstrap:
         condition: service_completed_successfully
+
     restart: unless-stopped
     networks: [ach_onprem]
 
@@ -115,10 +150,14 @@ services:
       dockerfile: Dockerfile
     image: achinterbank-spa:openbao
     container_name: achinterbank-spa
+
     ports:
       - "743:80"
+
     depends_on:
-      - achinterbank-api
+      achinterbank-api:
+        condition: service_started
+
     restart: unless-stopped
     networks: [ach_onprem]
 
