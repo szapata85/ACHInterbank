@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.Helpers.AddressIp;
 using Cfa.ACHInterbank.Application.Helpers.Middleware;
+using Cfa.ACHInterbank.Api.OpenApi;
 using Cfa.ACHInterbank.Persistence.ACH.Services;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Http;
@@ -38,7 +39,10 @@ public static class DependencyInjectionService
         });
 
         services.AddEndpointsApiExplorer();
-        services.AddOpenApi("v1");
+        services.AddOpenApi("v1", options =>
+        {
+            options.AddOperationTransformer<ScalarOperationDocumentationTransformer>();
+        });
 
         services.ConfigureHttpJsonOptions(options =>
         {
