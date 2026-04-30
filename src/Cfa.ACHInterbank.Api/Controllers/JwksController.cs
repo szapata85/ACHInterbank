@@ -18,6 +18,7 @@ public class JwksController : ControllerBase
     /// Endpoint de la API ACH Interbank.
     /// </summary>
     [HttpGet("jwks")]
+    [ApiExplorerSettings(IgnoreApi = true)] // Scalar-2D: pendiente de revisión de seguridad antes de publicar
     public async Task<IActionResult> GetJwks([FromServices] IJwksServiceScoped jwksService)
     {
         var data = jwksService.GetPublicJwks();
@@ -28,6 +29,7 @@ public class JwksController : ControllerBase
     /// </summary>
 
     [HttpGet("TokenClientAssertions")]
+    [ApiExplorerSettings(IgnoreApi = true)] // Scalar-2D: oculto explícitamente de OpenAPI por política
     public async Task<IActionResult> TokenClientAssertions([FromServices] IGetTokenWithClientAssertionScoped getToken)
     {
         var data = getToken.GenerateClientAssertion();
@@ -38,6 +40,7 @@ public class JwksController : ControllerBase
     /// </summary>
 
     [HttpPost("client-assertion")]
+    [ApiExplorerSettings(IgnoreApi = true)] // Scalar-2D: pendiente de revisión de seguridad antes de publicar
     public async Task<IActionResult> Authenticate([FromBody] string request, [FromServices] IClientAssertionValidatorScoped getToken)
     {
         if (getToken.ValidateAssertionAsync(request))
@@ -52,6 +55,7 @@ public class JwksController : ControllerBase
     /// </summary>
 
     [HttpPost("Genearte-client-assertion")]
+    [ApiExplorerSettings(IgnoreApi = true)] // Scalar-2D: no publicable hasta corregir nombre de ruta
     public async Task<IActionResult> GenerateClientAssertion([FromServices] IGetTokenWithClientAssertionScoped getToken)
     {
         var data = await getToken.GenerateClientAssertion();
