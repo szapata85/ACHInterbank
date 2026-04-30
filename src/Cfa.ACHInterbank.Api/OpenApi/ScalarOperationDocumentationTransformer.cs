@@ -25,12 +25,12 @@ public sealed class ScalarOperationDocumentationTransformer : IOpenApiOperationT
             ? "sí, por trazas de acceso y correlación operativa"
             : "sí, explícita por cambio de estado o acción operativa";
 
-        if (string.IsNullOrWhiteSpace(operation.Summary))
+        if (string.IsNullOrWhiteSpace(operation.Summary) || IsGenericText(operation.Summary))
         {
             operation.Summary = BuildFallbackSummary(httpMethod, domain, purpose);
         }
 
-        if (string.IsNullOrWhiteSpace(operation.Description))
+        if (string.IsNullOrWhiteSpace(operation.Description) || IsGenericText(operation.Description))
         {
             var responseCodes = BuildResponseCodes(operation, httpMethod);
             var risk = ResolveRisk(route, httpMethod);
@@ -283,6 +283,29 @@ public sealed class ScalarOperationDocumentationTransformer : IOpenApiOperationT
         }
 
         return $"aplicar segregación de funciones, bitácora de cambio y verificación de impacto antes de confirmar la acción en {route}";
+    }
+
+    private static bool IsGenericText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        var normalized = value.Trim().ToLowerInvariant();
+        if (normalized.Length <= 20)
+        {
+            return true;
+        }
+
+        return normalized.Contains("endpoint de la api ach interbank")
+               || normalized.Contains("servicio documentado")
+               || normalized.Contains("endpoint genérico")
+               || normalized.Contains("operación genérica")
+               || normalized.Contains("expone la operación")
+               || normalized.Contains("revisar permiso")
+               || normalized.Contains("según el módulo")
+               || normalized.Contains("durante operación diaria y soporte");
     }
 
     private static string Humanize(string value)
