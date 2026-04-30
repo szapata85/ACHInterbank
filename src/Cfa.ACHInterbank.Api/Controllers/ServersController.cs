@@ -10,6 +10,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 [Route("/[controller]")]
 [TypeFilter(typeof(ExceptionManager))]
 [AllowAnonymous]
+[ApiExplorerSettings(IgnoreApi = true)] // Scalar-2D: ruta interna, fuera de OpenAPI por gobierno API
 public class ServersController : ControllerBase
 {
     /// <summary>

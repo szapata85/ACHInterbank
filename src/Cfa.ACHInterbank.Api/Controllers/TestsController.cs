@@ -9,6 +9,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 [Authorize]
 [ApiController]
 [Route("/[controller]")]
+[ApiExplorerSettings(IgnoreApi = true)] // Scalar-2D: endpoints de prueba/desarrollo fuera de OpenAPI
 public class TestsController : ControllerBase
 {
     private readonly ILoggerManagerTransient _logger;
