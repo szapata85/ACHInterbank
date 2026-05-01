@@ -26,7 +26,7 @@ public class TransactionPolicyServiceTests
         using var connection = CreateOpenConnection();
         using var context = CreateContext(connection);
         var companyEntryDescriptionId = SeedCatalog(context);
-        var cycle = SeedCycle(context, "cycle-outside", DateTime.Today, new TimeSpan(0, 0, 0), new TimeSpan(0, 30, 0));
+        var cycle = SeedCycle(context, "cycle-outside", DateTime.Today.AddDays(1), new TimeSpan(0, 0, 0), new TimeSpan(0, 30, 0));
 
         var routing = new Mock<IRoutingStrategyService>();
         routing.Setup(x => x.ResolveClearingHouseForTransactionAsync(TestDestinationInstitutionId, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
