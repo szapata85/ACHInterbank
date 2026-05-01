@@ -1,0 +1,23 @@
+Metodo,Ruta,OperationId,Tags,TieneSecurity,Security,Summary
+GET,/ach-returns/cycles/{cycleId}/transactions,,AchReturns,Sí,[{'Bearer': []}],Transacciones elegibles para devoluciones por ciclo
+POST,/ach-returns/generate-file,,AchReturns,Sí,[{'Bearer': []}],Generación de archivo de devoluciones
+POST,/api/ach-traceability/sol02/{transactionId}/certify,,AchTraceability,Sí,[{'Bearer': []}],Aplicar certificación SOL02 a transacción
+GET,/api/ach-traceability/transactions/{transactionId},,AchTraceability,Sí,[{'Bearer': []}],Consulta trazabilidad de una transacción
+GET,/api/ach-traceability/report,,AchTraceability,Sí,[{'Bearer': []}],Reporte de trazabilidad por rango
+POST,/api/transactions/bulk-ingestion/upload,,BulkIngestion,Sí,[{'Bearer': []}],Carga masiva de archivo para procesamiento por lotes
+GET,/api/transactions/bulk-ingestion/{batchId},,BulkIngestion,Sí,[{'Bearer': []}],Consulta de estado general de lote masivo
+GET,/api/transactions/bulk-ingestion/{batchId}/items,,BulkIngestion,Sí,[{'Bearer': []}],Consulta paginada de ítems del lote masivo
+GET,/api/transactions/bulk-ingestion/{batchId}/summary,,BulkIngestion,Sí,[{'Bearer': []}],Resumen de procesamiento y errores del lote
+POST,/api/transactions/bulk-ingestion/{batchId}/retry,,BulkIngestion,Sí,[{'Bearer': []}],Reintento operativo de lote o subconjunto de ítems
+POST,/api/transactions/bulk-ingestion/{batchId}/cancel,,BulkIngestion,Sí,[{'Bearer': []}],Solicitud operativa de cancelación de lote masivo
+GET,/api/reports/transactions/sent,,Reports,Sí,[{'Bearer': []}],Reporte de transacciones enviadas
+GET,/api/reports/transactions/received,,Reports,Sí,[{'Bearer': []}],Reporte de transacciones recibidas
+GET,/api/reports/transactions/sent/pdf,,Reports,Sí,[{'Bearer': []}],PDF de transacciones enviadas
+GET,/api/reports/transactions/received/pdf,,Reports,Sí,[{'Bearer': []}],PDF de transacciones recibidas
+GET,/Transactions,,Transactions,Sí,[{'Bearer': []}],Listado operativo de transacciones ACH con filtros de ciclo y cámara
+POST,/Transactions,,Transactions,Sí,[{'Bearer': []}],Registro operativo de transacción ACH individual
+GET,/Transactions/company-entry-descriptions,,Transactions,Sí,[{'Bearer': []}],Catálogo de Company Entry Descriptions para originación ACH
+GET,/Transactions/policies/preview,,Transactions,Sí,[{'Bearer': []}],Prevalidación de políticas ACH antes de registrar transacción
+POST,/Transactions/bulk/submit,,Transactions,Sí,[{'Bearer': []}],Submit bulk legacy de ingestión transaccional
+POST,/Transactions/bulk,,Transactions,Sí,[{'Bearer': []}],Registro masivo legacy de transacciones en línea
+GET,/Transactions/{id},,Transactions,Sí,[{'Bearer': []}],Consulta puntual de transacción ACH por identificador
