@@ -16,27 +16,33 @@ public sealed class ScalarOperationDocumentationTransformer : IOpenApiOperationT
         var httpMethod = context.Description.HttpMethod?.ToUpperInvariant() ?? "GET";
         var route = NormalizeRoute(context.Description.RelativePath);
         var permission = ResolvePermission(action);
+        var domain = ResolveDomain(action, route);
+        var purpose = ResolvePurpose(httpMethod, action, route, domain);
+        var usage = ResolveUsage(httpMethod, route, domain);
+        var consumerProfile = ResolveConsumerProfile(route, domain);
         var operationType = IsReadOnlyOperation(httpMethod) ? "solo consulta" : "modifica información";
         var auditInfo = IsReadOnlyOperation(httpMethod)
             ? "sí, por trazas de acceso y correlación operativa"
             : "sí, explícita por cambio de estado o acción operativa";
 
-        if (string.IsNullOrWhiteSpace(operation.Summary))
+        if (string.IsNullOrWhiteSpace(operation.Summary) || IsGenericText(operation.Summary))
         {
-            operation.Summary = BuildFallbackSummary(action, httpMethod, route);
+            operation.Summary = BuildFallbackSummary(httpMethod, domain, purpose);
         }
 
-        if (string.IsNullOrWhiteSpace(operation.Description))
+        if (string.IsNullOrWhiteSpace(operation.Description) || IsGenericText(operation.Description))
         {
             var responseCodes = BuildResponseCodes(operation, httpMethod);
             var risk = ResolveRisk(route, httpMethod);
-            var actionName = action?.ActionName ?? "operación";
-
             var descriptionBuilder = new StringBuilder();
-            descriptionBuilder.Append("Qué hace: ejecuta ");
-            descriptionBuilder.Append(actionName);
-            descriptionBuilder.Append(" sobre la ruta ");
-            descriptionBuilder.Append(route);
+            descriptionBuilder.Append("Qué hace: ");
+            descriptionBuilder.Append(purpose);
+            descriptionBuilder.Append(". ");
+            descriptionBuilder.Append("Cuándo se usa: ");
+            descriptionBuilder.Append(usage);
+            descriptionBuilder.Append(". ");
+            descriptionBuilder.Append("Perfil consumidor: ");
+            descriptionBuilder.Append(consumerProfile);
             descriptionBuilder.Append(". ");
             descriptionBuilder.Append("Permiso requerido: ");
             descriptionBuilder.Append(permission);
@@ -56,7 +62,12 @@ public sealed class ScalarOperationDocumentationTransformer : IOpenApiOperationT
             descriptionBuilder.Append("Riesgo operativo: ");
             descriptionBuilder.Append(risk);
             descriptionBuilder.Append(". ");
-            descriptionBuilder.Append("Relación ACH/CENIT/NACHA-M: mantiene trazabilidad y control documental del flujo interbancario según la capacidad expuesta por este endpoint.");
+            descriptionBuilder.Append("Relación ACH/CENIT/NACHA-M: ");
+            descriptionBuilder.Append(ResolveBusinessRelation(route, domain));
+            descriptionBuilder.Append(". ");
+            descriptionBuilder.Append("Precauciones para desarrollo u operación: ");
+            descriptionBuilder.Append(ResolvePrecaution(httpMethod, route));
+            descriptionBuilder.Append(".");
 
             operation.Description = descriptionBuilder.ToString();
         }
@@ -64,15 +75,19 @@ public sealed class ScalarOperationDocumentationTransformer : IOpenApiOperationT
         return Task.CompletedTask;
     }
 
-    private static string BuildFallbackSummary(ControllerActionDescriptor? action, string httpMethod, string route)
+    private static string BuildFallbackSummary(string httpMethod, string domain, string purpose)
     {
-        if (action is null)
+        var verb = httpMethod switch
         {
-            return $"{httpMethod} {route}";
-        }
+            "GET" => "Consulta",
+            "POST" => "Registro",
+            "PUT" => "Actualización",
+            "PATCH" => "Ajuste",
+            "DELETE" => "Eliminación",
+            _ => "Operación"
+        };
 
-        var controllerName = action.ControllerName;
-        return $"{httpMethod} {controllerName}.{action.ActionName}";
+        return $"{verb} de {domain}: {purpose}";
     }
 
     private static string NormalizeRoute(string? relativePath)
@@ -167,5 +182,151 @@ public sealed class ScalarOperationDocumentationTransformer : IOpenApiOperationT
         }
 
         return "medio; consultas con filtros incorrectos pueden producir diagnósticos operativos erróneos";
+    }
+
+    private static string ResolveDomain(ControllerActionDescriptor? action, string route)
+    {
+        var controller = action?.ControllerName?.Replace("Controller", string.Empty, StringComparison.OrdinalIgnoreCase) ?? "Operaciones";
+        var routeLower = route.ToLowerInvariant();
+
+        if (routeLower.Contains("nacha"))
+        {
+            return "operación NACHA-M";
+        }
+
+        if (routeLower.Contains("certificate") || routeLower.Contains("security") || routeLower.Contains("auth"))
+        {
+            return "seguridad bancaria";
+        }
+
+        if (routeLower.Contains("report"))
+        {
+            return "reportería ACH";
+        }
+
+        if (routeLower.Contains("cycle") || routeLower.Contains("batch"))
+        {
+            return "ciclos y lotes ACH";
+        }
+
+        return Humanize(controller);
+    }
+
+    private static string ResolvePurpose(string httpMethod, ControllerActionDescriptor? action, string route, string domain)
+    {
+        var actionName = Humanize(action?.ActionName ?? "gestión");
+        return httpMethod switch
+        {
+            "GET" => $"consulta {actionName} dentro de {domain} para la ruta {route}",
+            "POST" => $"registra una solicitud de {actionName} dentro de {domain} para la ruta {route}",
+            "PUT" => $"actualiza información de {actionName} dentro de {domain} para la ruta {route}",
+            "PATCH" => $"aplica ajuste parcial de {actionName} dentro de {domain} para la ruta {route}",
+            "DELETE" => $"elimina recursos asociados a {actionName} dentro de {domain} para la ruta {route}",
+            _ => $"ejecuta {actionName} dentro de {domain} para la ruta {route}"
+        };
+    }
+
+    private static string ResolveUsage(string httpMethod, string route, string domain)
+    {
+        return IsReadOnlyOperation(httpMethod)
+            ? $"se utiliza en monitoreo operativo, conciliación y soporte cuando se requiere visibilidad puntual en {domain} ({route})"
+            : $"se utiliza durante ventanas operativas controladas cuando se requiere aplicar cambios en {domain} ({route})";
+    }
+
+    private static string ResolveConsumerProfile(string route, string domain)
+    {
+        var routeLower = route.ToLowerInvariant();
+        if (routeLower.Contains("security") || routeLower.Contains("certificate") || routeLower.Contains("auth"))
+        {
+            return "seguridad bancaria, administradores de plataforma y auditoría técnica";
+        }
+
+        if (routeLower.Contains("report"))
+        {
+            return "operación ACH, conciliación financiera, cumplimiento y auditoría interna";
+        }
+
+        if (routeLower.Contains("incoming") || routeLower.Contains("ingestion") || routeLower.Contains("queue"))
+        {
+            return "operación ACH, soporte de incidentes y monitoreo de procesamiento";
+        }
+
+        return $"equipos funcionales y técnicos responsables de {domain}";
+    }
+
+    private static string ResolveBusinessRelation(string route, string domain)
+    {
+        var routeLower = route.ToLowerInvariant();
+        if (routeLower.Contains("nacha"))
+        {
+            return "controla trazabilidad, generación, recepción o aseguramiento de archivos NACHA-M con impacto directo en compensación ACH/CENIT";
+        }
+
+        if (routeLower.Contains("cycle") || routeLower.Contains("batch"))
+        {
+            return "impacta la preparación y cierre de ciclos ACH con efectos en conciliación CENIT";
+        }
+
+        if (routeLower.Contains("report"))
+        {
+            return "provee evidencia operativa y regulatoria de flujos ACH/CENIT/NACHA-M";
+        }
+
+        return $"mantiene consistencia operativa del dominio {domain} dentro del circuito ACH/CENIT/NACHA-M";
+    }
+
+    private static string ResolvePrecaution(string httpMethod, string route)
+    {
+        if (IsReadOnlyOperation(httpMethod))
+        {
+            return $"validar filtros, rangos de fecha y correlación de identificadores antes de usar resultados de {route} en decisiones operativas";
+        }
+
+        return $"aplicar segregación de funciones, bitácora de cambio y verificación de impacto antes de confirmar la acción en {route}";
+    }
+
+    private static bool IsGenericText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        var normalized = value.Trim().ToLowerInvariant();
+        if (normalized.Length <= 20)
+        {
+            return true;
+        }
+
+        return normalized.Contains("endpoint de la api ach interbank")
+               || normalized.Contains("servicio documentado")
+               || normalized.Contains("endpoint genérico")
+               || normalized.Contains("operación genérica")
+               || normalized.Contains("expone la operación")
+               || normalized.Contains("revisar permiso")
+               || normalized.Contains("según el módulo")
+               || normalized.Contains("durante operación diaria y soporte");
+    }
+
+    private static string Humanize(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "operación";
+        }
+
+        var sb = new StringBuilder();
+        for (var i = 0; i < value.Length; i++)
+        {
+            var ch = value[i];
+            if (i > 0 && char.IsUpper(ch) && char.IsLetter(value[i - 1]))
+            {
+                sb.Append(' ');
+            }
+
+            sb.Append(char.ToLowerInvariant(ch));
+        }
+
+        return sb.ToString().Trim();
     }
 }
