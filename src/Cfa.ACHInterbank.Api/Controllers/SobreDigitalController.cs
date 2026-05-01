@@ -2,11 +2,13 @@
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
 using Cfa.ACHInterbank.Application.Services.EncryptionService.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cfa.ACHInterbank.Api.Controllers
 {
     [ApiController] // Es una buena práctica agregar este atributo para los controladores de API.
+    [Authorize]
     [Route("[controller]")] // Define la ruta base para el controlador.
     public class SobreDigitalController : ControllerBase // Se recomienda heredar de ControllerBase para APIs.
     {
@@ -31,6 +33,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
         /// </summary>
 
         [HttpPost("encrypt")]
+        [Authorize(Policy = "CanManageAch")]
         public async Task<IActionResult> Encrypt(IFormFile file)
         {
             // Valida que el archivo exista.
@@ -60,6 +63,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
         /// </summary>
 
         [HttpPost("decrypt")]
+        [Authorize(Policy = "CanManageAch")]
         public async Task<ActionResult<DecryptResponse>> Decrypt(IFormFile file)
         {
             //var plain = await _crypto.OpenEnvelopeAsync(req.Envelope, ct);
@@ -92,6 +96,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
         /// </summary>
 
         [HttpPost("testRSA")]
+        [Authorize(Policy = "CanManageAch")]
         public void testRSA([FromServices] IRsaKeyProvider _rsaKeyService)
         {
             var resultcert = _rsaKeyService.ObtenerCertificate("CertCrypt");
