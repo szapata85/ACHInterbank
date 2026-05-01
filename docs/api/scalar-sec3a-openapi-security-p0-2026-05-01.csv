@@ -1,0 +1,13 @@
+Metodo,Ruta,OperationId,Tags,TieneSecurity,Security,Summary
+GET,/ach-returns/cycles/{cycleId}/transactions,,AchReturns,Sí,[{'Bearer': []}],Transacciones elegibles para devoluciones por ciclo
+POST,/ach-returns/generate-file,,AchReturns,Sí,[{'Bearer': []}],Generación de archivo de devoluciones
+POST,/api/ach-traceability/sol02/{transactionId}/certify,,AchTraceability,Sí,[{'Bearer': []}],Aplicar certificación SOL02 a transacción
+GET,/api/ach-traceability/transactions/{transactionId},,AchTraceability,Sí,[{'Bearer': []}],Consulta trazabilidad de una transacción
+GET,/api/ach-traceability/report,,AchTraceability,Sí,[{'Bearer': []}],Reporte de trazabilidad por rango
+GET,/Transactions,,Transactions,Sí,[{'Bearer': []}],Listado operativo de transacciones ACH con filtros de ciclo y cámara
+POST,/Transactions,,Transactions,Sí,[{'Bearer': []}],Registro operativo de transacción ACH individual
+GET,/Transactions/company-entry-descriptions,,Transactions,Sí,[{'Bearer': []}],Catálogo de Company Entry Descriptions para originación ACH
+GET,/Transactions/policies/preview,,Transactions,Sí,[{'Bearer': []}],Prevalidación de políticas ACH antes de registrar transacción
+POST,/Transactions/bulk/submit,,Transactions,Sí,[{'Bearer': []}],Submit bulk legacy de ingestión transaccional
+POST,/Transactions/bulk,,Transactions,Sí,[{'Bearer': []}],Registro masivo legacy de transacciones en línea
+GET,/Transactions/{id},,Transactions,Sí,[{'Bearer': []}],Consulta puntual de transacción ACH por identificador
