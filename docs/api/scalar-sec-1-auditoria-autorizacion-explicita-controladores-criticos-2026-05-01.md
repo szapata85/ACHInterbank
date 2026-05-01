@@ -97,3 +97,12 @@ Objetivo recomendado:
 
 Alcance cerrado: identificación, clasificación y recomendación.  
 Hardening de seguridad API: **NO implementado en este prompt**.
+
+
+Nota Scalar-SEC-1A:
+la evidencia faltante de CSV OpenAPI security y build final fue cerrada en
+docs/api/scalar-sec1a-cierre-evidencia-autorizacion-openapi-2026-05-01.md.
+Se generaron los CSV:
+docs/api/scalar-sec1a-openapi-security-operaciones-2026-05-01.csv
+docs/api/scalar-sec1a-openapi-security-operaciones-criticas-2026-05-01.csv
+docs/api/scalar-sec1-openapi-security-operaciones-2026-05-01.csv
