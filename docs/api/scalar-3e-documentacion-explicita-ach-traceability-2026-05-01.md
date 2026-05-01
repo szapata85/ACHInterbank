@@ -93,3 +93,6 @@ Estado de esta ejecución: **PARCIAL / NO CERRADO** por bloqueo de generación O
 
 ## Siguiente prompt de seguridad recomendado
 **Scalar-SEC-1 — Auditoría de autorización explícita en controladores críticos**.
+
+
+Nota Scalar-3E-A: la validación runtime de OpenAPI que quedó bloqueada en Scalar-3E fue revalidada en docs/api/scalar-3ea-revalidacion-openapi-ach-traceability-2026-05-01.md.
