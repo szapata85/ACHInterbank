@@ -1,0 +1,23 @@
+Metodo,Ruta,OperationId,Tags,TieneSecurity,Security,Summary
+GET,/ach-returns/cycles/{cycleId}/transactions,,AchReturns,No,None,Transacciones elegibles para devoluciones por ciclo
+POST,/ach-returns/generate-file,,AchReturns,No,None,Generación de archivo de devoluciones
+POST,/api/ach-traceability/sol02/{transactionId}/certify,,AchTraceability,No,None,Aplicar certificación SOL02 a transacción
+GET,/api/ach-traceability/transactions/{transactionId},,AchTraceability,No,None,Consulta trazabilidad de una transacción
+GET,/api/ach-traceability/report,,AchTraceability,No,None,Reporte de trazabilidad por rango
+POST,/api/transactions/bulk-ingestion/upload,,BulkIngestion,No,None,Carga masiva de archivo para procesamiento por lotes
+GET,/api/transactions/bulk-ingestion/{batchId},,BulkIngestion,No,None,Consulta de estado general de lote masivo
+GET,/api/transactions/bulk-ingestion/{batchId}/items,,BulkIngestion,No,None,Consulta paginada de ítems del lote masivo
+GET,/api/transactions/bulk-ingestion/{batchId}/summary,,BulkIngestion,No,None,Resumen de procesamiento y errores del lote
+POST,/api/transactions/bulk-ingestion/{batchId}/retry,,BulkIngestion,No,None,Reintento operativo de lote o subconjunto de ítems
+POST,/api/transactions/bulk-ingestion/{batchId}/cancel,,BulkIngestion,No,None,Solicitud operativa de cancelación de lote masivo
+GET,/api/reports/transactions/sent,,Reports,No,None,Reporte de transacciones enviadas
+GET,/api/reports/transactions/received,,Reports,No,None,Reporte de transacciones recibidas
+GET,/api/reports/transactions/sent/pdf,,Reports,No,None,PDF de transacciones enviadas
+GET,/api/reports/transactions/received/pdf,,Reports,No,None,PDF de transacciones recibidas
+GET,/Transactions,,Transactions,No,None,Listado operativo de transacciones ACH con filtros de ciclo y cámara
+POST,/Transactions,,Transactions,No,None,Registro operativo de transacción ACH individual
+GET,/Transactions/company-entry-descriptions,,Transactions,No,None,Catálogo de Company Entry Descriptions para originación ACH
+GET,/Transactions/policies/preview,,Transactions,No,None,Prevalidación de políticas ACH antes de registrar transacción
+POST,/Transactions/bulk/submit,,Transactions,No,None,Submit bulk legacy de ingestión transaccional
+POST,/Transactions/bulk,,Transactions,No,None,Registro masivo legacy de transacciones en línea
+GET,/Transactions/{id},,Transactions,No,None,Consulta puntual de transacción ACH por identificador

@@ -31,9 +31,7 @@ public class BrandingController : ControllerBase
     /// Endpoint de la API ACH Interbank.
     /// </summary>
     [HttpPut]
-    // El sitio público también consume la identidad visual y esta instancia no usa JWT,
-    // por lo que el endpoint debe estar disponible sin autenticación.
-    [AllowAnonymous]
+    [Authorize(Policy = "CanManageAch")]
     public async Task<ActionResult<BrandingSettingsDto>> SaveBrandingAsync(
         [FromBody] BrandingSettingsDto request,
         CancellationToken cancellationToken)

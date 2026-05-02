@@ -1,0 +1,7 @@
+Metodo,Ruta,OperationId,Tags,Summary,JustificacionEsperada
+POST,/Auth/login,,Auth,Registro de seguridad bancaria: registra una solicitud de login dentro de seguridad bancaria para la ruta /Auth/login,Endpoint público de autenticación o recuperación de contraseña.
+POST,/Auth/forgot-password,,Auth,Registro de seguridad bancaria: registra una solicitud de forgot password dentro de seguridad bancaria para la ruta /Auth/forgot-password,Endpoint público de autenticación o recuperación de contraseña.
+POST,/Auth/reset-password,,Auth,Registro de seguridad bancaria: registra una solicitud de reset password dentro de seguridad bancaria para la ruta /Auth/reset-password,Endpoint público de autenticación o recuperación de contraseña.
+GET,/api/users/branding,,Branding,Consulta de branding: consulta get branding dentro de branding para la ruta /api/users/branding,Consulta pública de branding para pantalla de login.
+POST,/Oauths/GenerateToken,,Oauths,Registro de seguridad bancaria: registra una solicitud de generate token dentro de seguridad bancaria para la ruta /Oauths/GenerateToken,Endpoint público o preautenticado de generación de token.
+POST,/Oauths/GenerateTokenAsync,,Oauths,Registro de seguridad bancaria: registra una solicitud de generate token dentro de seguridad bancaria para la ruta /Oauths/GenerateTokenAsync,Endpoint público o preautenticado de generación de token.

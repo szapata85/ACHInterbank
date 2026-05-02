@@ -1,0 +1,4 @@
+Metodo,Ruta,Encontrado,TieneSecurity,Security,Summary
+GET,/api/users/branding,Sí,No,None,Consulta de branding: consulta get branding dentro de branding para la ruta /api/users/branding
+PUT,/api/users/branding,Sí,Sí,[{'Bearer': []}],Actualización de branding: actualiza información de save branding dentro de branding para la ruta /api/users/branding
+POST,/Nacha/header,Sí,Sí,[{'Bearer': []}],Registro de operación NACHA-M: registra una solicitud de save header dentro de operación NACHA-M para la ruta /Nacha/header

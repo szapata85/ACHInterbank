@@ -1,10 +1,12 @@
 ﻿using Cfa.ACHInterbank.Persistence.DataBase;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("[controller]")]
 public class MaintenanceController : ControllerBase
 {
@@ -21,6 +23,7 @@ public class MaintenanceController : ControllerBase
     /// </summary>
 
     [HttpPost("seed")]
+    [Authorize(Policy = "CanManageAch")]
     public async Task<IActionResult> RunDbInitializer()
     {
         var provider = _configuration.GetValue<string>("Database:Provider") ?? "SqlServer";
