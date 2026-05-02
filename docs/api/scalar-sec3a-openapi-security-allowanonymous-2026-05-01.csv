@@ -1,0 +1,6 @@
+Metodo,Ruta,TieneSecurity,Security,Summary
+POST,/Auth/login,No,None,Registro de seguridad bancaria: registra una solicitud de login dentro de seguridad bancaria para la ruta /Auth/login
+POST,/Auth/forgot-password,No,None,Registro de seguridad bancaria: registra una solicitud de forgot password dentro de seguridad bancaria para la ruta /Auth/forgot-password
+POST,/Auth/reset-password,No,None,Registro de seguridad bancaria: registra una solicitud de reset password dentro de seguridad bancaria para la ruta /Auth/reset-password
+POST,/Oauths/GenerateToken,No,None,Registro de seguridad bancaria: registra una solicitud de generate token dentro de seguridad bancaria para la ruta /Oauths/GenerateToken
+POST,/Oauths/GenerateTokenAsync,No,None,Registro de seguridad bancaria: registra una solicitud de generate token dentro de seguridad bancaria para la ruta /Oauths/GenerateTokenAsync

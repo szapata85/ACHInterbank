@@ -42,6 +42,8 @@ public static class DependencyInjectionService
         services.AddOpenApi("v1", options =>
         {
             options.AddOperationTransformer<ScalarOperationDocumentationTransformer>();
+            options.AddOperationTransformer<OpenApiSecurityMetadataTransformer>();
+            options.AddDocumentTransformer<OpenApiBearerSecuritySchemeTransformer>();
         });
 
         services.ConfigureHttpJsonOptions(options =>

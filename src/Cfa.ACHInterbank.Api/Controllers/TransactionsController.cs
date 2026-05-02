@@ -1,14 +1,17 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
 [Route("[controller]")]
+[Authorize]
 public class TransactionsController : ControllerBase
 {
     private readonly IAchTransactionService _transactionService;
@@ -30,12 +33,15 @@ public class TransactionsController : ControllerBase
         _bulkTransactionService = bulkTransactionService;
         _bulkIngestionService = bulkIngestionService;
     }
-    /// <summary>
-    /// Endpoint de la API ACH Interbank.
-    /// </summary>
-
+    [EndpointSummary("Listado operativo de transacciones ACH con filtros de ciclo y cámara")]
+    [EndpointDescription("Qué consulta: retorna transacciones ACH por filtros de ciclo, fecha efectiva y cámara para monitoreo operativo. Quién lo usa: operación, soporte y auditoría funcional para seguimiento diario. Permiso requerido: CanReadAch con autorización explícita en la acción. Tipo: consulta sin mutación. Impacto operacional: habilita visibilidad de volumen y estado para conciliación y priorización de incidentes. Auditoría/trazabilidad: la consulta debe quedar trazada con filtros aplicados y usuario consumidor en infraestructura de observabilidad. Riesgos: filtros incompletos pueden omitir transacciones críticas o sesgar diagnósticos. Errores esperados: 400 por parámetros inválidos cuando aplique; 401/403 según capa de seguridad global; 500 no controlado. Relación ACH/NACHA-M: permite trazar transacciones originadas desde flujos individuales o masivos; a diferencia de BulkIngestionController, aquí se consulta entidad transacción y no estado de lote de archivo.")]
     [HttpGet]
+    [Authorize(Policy = P0Policies.TransactionsRead)]
     [ProducesResponseType(typeof(IEnumerable<AchTransactionListDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? achCycleId,
         [FromQuery] string? achCycleName,
@@ -46,24 +52,29 @@ public class TransactionsController : ControllerBase
         var transactions = await _transactionService.GetAllAsync(achCycleId, achCycleName, effectiveDate, clearingHouseId, ct);
         return Ok(transactions);
     }
-    /// <summary>
-    /// Endpoint de la API ACH Interbank.
-    /// </summary>
 
-
+    [EndpointSummary("Catálogo de Company Entry Descriptions para originación ACH")]
+    [EndpointDescription("Qué consulta: obtiene descripciones de lote permitidas para construir transacciones y lotes ACH válidos. Quién lo usa: integración, operación y QA para validar parametrización de originación. Permiso requerido: CanReadAch con autorización explícita en la acción. Tipo: consulta. Impacto operacional: evita usar descripciones no permitidas que luego rompan validaciones de negocio. Auditoría/trazabilidad: debe quedar registro de acceso al catálogo por cambios o pruebas operativas. Riesgos: usar catálogo desactualizado puede causar rechazos en registro de transacciones. Errores esperados: 401/403 por seguridad global; 500 no controlado. Relación ACH/lotes: alimenta composición de batch y semántica transaccional; no reemplaza el procesamiento de archivos de BulkIngestionController.")]
     [HttpGet("company-entry-descriptions")]
+    [Authorize(Policy = P0Policies.TransactionsRead)]
     [ProducesResponseType(typeof(IEnumerable<CompanyEntryDescriptionDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetCompanyEntryDescriptions(CancellationToken ct)
     {
         var items = await _transactionService.GetCompanyEntryDescriptionsAsync(ct);
         return Ok(items);
     }
-    /// <summary>
-    /// Endpoint de la API ACH Interbank.
-    /// </summary>
-
+    [EndpointSummary("Prevalidación de políticas ACH antes de registrar transacción")]
+    [EndpointDescription("Qué consulta: evalúa reglas de política para una transacción candidata sin persistirla. Quién lo usa: canales de integración, soporte y operación para validar viabilidad previa. Permiso requerido: CanReadAch con autorización explícita en la acción. Tipo: consulta de simulación. Impacto operacional: reduce rechazos posteriores al anticipar reglas de prioridad, duplicidad y restricciones. Auditoría/trazabilidad: debe conservarse evidencia de solicitud y resultado de preview para diagnósticos. Riesgos: preview con datos incompletos puede generar falsa sensación de aprobación. Errores esperados: 400 solicitud inválida; 401/403 seguridad global; 500 no controlado. Relación ACH/transacciones: se centra en validación previa de entidad transacción; no procesa archivos ni lotes como BulkIngestionController.")]
     [HttpGet("policies/preview")]
+    [Authorize(Policy = P0Policies.TransactionsPolicyPreview)]
     [ProducesResponseType(typeof(TransactionPolicyPreview), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> PreviewPolicy(
         [FromQuery] decimal amount,
         [FromQuery] string? transactionExternalId,
@@ -94,9 +105,15 @@ public class TransactionsController : ControllerBase
         return Ok(preview);
     }
 
+    [EndpointSummary("Registro operativo de transacción ACH individual")]
+    [EndpointDescription("Qué acción ejecuta: crea una transacción ACH individual aplicando validaciones de negocio y datos regulatorios. Quién lo usa: canales transaccionales, operación de originación y soporte de incidencias. Permiso requerido: CanManageAch con autorización explícita en la acción. Tipo: acción operativa con impacto sobre entidad transacción y conciliación. Auditoría/trazabilidad: debe registrar usuario, referencia/transactionExternalId, cuentas y resultado de validación para trazabilidad. Riesgos: datos inválidos o duplicados pueden afectar conciliación y generar rechazos de cámara. Errores esperados: 400 validación/regla incumplida; 401/403 seguridad global; 409 cuando exista conflicto de estado/duplicidad en capas superiores; 500 no controlado. Relación con BulkIngestionController: este endpoint gestiona una transacción individual; BulkIngestionController orquesta cargas por archivo/lote.")]
     [HttpPost]
+    [Authorize(Policy = P0Policies.TransactionsCreate)]
     [ProducesResponseType(typeof(AchTransaction), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> CreateTransaction([FromBody] AchTransactionRequest request, CancellationToken ct)
     {
@@ -161,9 +178,14 @@ public class TransactionsController : ControllerBase
 
 
 
+    [EndpointSummary("Submit bulk legacy de ingestión transaccional")]
+    [EndpointDescription("Qué acción ejecuta: recibe una solicitud bulk legacy y la delega al servicio de ingestión masiva por modalidad declarada. Quién lo usa: integraciones legadas y operación en procesos de transición. Permiso requerido: CanManageAch con autorización explícita en la acción. Tipo: acción operativa de carga masiva con impacto en lote, validación y resultados agregados. Auditoría/trazabilidad: debe guardar usuario, sourceType, processingMode, batchReference y resultados para seguimiento. Riesgos: configuración errónea de origen/modo puede producir rechazos masivos. Errores esperados: 400 validación u origen no soportado; 401/403 seguridad global; 500 no controlado. Relación con BulkIngestionController: comparte dominio de masivos, pero este endpoint representa interfaz legacy de submit programático, mientras BulkIngestionController gestiona ciclo moderno por archivo y tracking de batch.")]
     [HttpPost("bulk/submit")]
+    [Authorize(Policy = P0Policies.TransactionsBulkSubmit)]
     [ProducesResponseType(typeof(BulkIngestionResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> SubmitBulkIngestion([FromBody] BulkIngestionRequest request, CancellationToken ct)
     {
@@ -189,9 +211,15 @@ public class TransactionsController : ControllerBase
         }
     }
 
+    [EndpointSummary("Registro masivo legacy de transacciones en línea")]
+    [EndpointDescription("Qué acción ejecuta: registra en bloque transacciones incluidas en el payload legacy bulk y retorna resultado agregado por ítem. Quién lo usa: integraciones heredadas, operación y soporte de cargas inline. Permiso requerido: CanManageAch con autorización explícita en la acción. Tipo: acción operativa con impacto en transacciones, batch y validación masiva. Auditoría/trazabilidad: debe guardar requestId/correlación, usuario invocante y detalle de resultados parciales. Riesgos: carga masiva sin controles previos puede introducir duplicados o inconsistencias de lote. Errores esperados: 400 validación global; 401/403 seguridad global; 409 conflictos de estado/duplicidad cuando aplique; 500 no controlado. Relación con BulkIngestionController: esta ruta mantiene compatibilidad legacy por payload de transacciones; BulkIngestionController cubre ingestión moderna orientada a archivo y lifecycle de batch.")]
     [HttpPost("bulk")]
+    [Authorize(Policy = P0Policies.TransactionsBulkSubmit)]
     [ProducesResponseType(typeof(BulkAchTransactionResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> CreateTransactionsBulk([FromBody] BulkAchTransactionRequest request, CancellationToken ct)
     {
@@ -212,13 +240,15 @@ public class TransactionsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Endpoint de la API ACH Interbank.
-    /// </summary>
-
+    [EndpointSummary("Consulta puntual de transacción ACH por identificador")]
+    [EndpointDescription("Qué consulta: recupera una transacción específica para soporte, conciliación o auditoría técnica. Quién lo usa: operación ACH, soporte de incidentes y auditoría. Permiso requerido: CanReadAch con autorización explícita en la acción. Tipo: consulta. Impacto operacional: habilita análisis de caso puntual sin modificar estado. Auditoría/trazabilidad: debe registrarse quién consultó, id solicitado y contexto de diagnóstico. Riesgos: consultar id incorrecto puede conducir a análisis equivocado. Errores esperados: 401/403 seguridad global; 404 transacción no encontrada; 500 no controlado. Relación con BulkIngestionController: consulta entidad transacción, no estado de batch de ingestión moderna.")]
     [HttpGet("{id:int}")]
+    [Authorize(Policy = P0Policies.TransactionsRead)]
     [ProducesResponseType(typeof(AchTransaction), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetById(int id, CancellationToken ct)
     {
         var tx = await _transactionService.GetTransactionByIdAsync(id, ct);

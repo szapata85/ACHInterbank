@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Validators.NachaValidator;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -9,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Cfa.ACHInterbank.Api.Controllers
 {
     [ApiController]
-    [Authorize(Policy = "CanReadAch")]
+    [Authorize(Policy = P1Policies.NachaRead)]
     [Route("[controller]")]
     public class NachaUploadController : Controller
     {
@@ -41,7 +42,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
         };
 
         [HttpPost("upload")]
-        [Authorize(Policy = "CanManageAch")]
+        [Authorize(Policy = P1Policies.NachaUpload)]
         [Consumes("multipart/form-data")]
         [RequestSizeLimit(MaxUploadSizeBytes)]
         [RequestFormLimits(MultipartBodyLengthLimit = MaxUploadSizeBytes)]
