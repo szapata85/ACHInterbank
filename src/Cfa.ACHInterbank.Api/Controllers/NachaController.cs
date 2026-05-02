@@ -7,7 +7,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
 {
     [ApiController]
     [Route("[controller]")]
-    [AllowAnonymous]
+    [Authorize]
     public class NachaController : Controller
     {
         private readonly INachaService _nachaService;
@@ -21,6 +21,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
         /// </summary>
 
         [HttpPost("header")]
+        [Authorize(Policy = "CanManageAch")]
         public async Task<IActionResult> SaveHeader([FromBody] NachaHeader header)
         {
             await _nachaService.SaveHeaderAsync(header);
