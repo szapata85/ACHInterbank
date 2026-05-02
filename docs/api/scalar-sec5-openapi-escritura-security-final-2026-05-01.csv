@@ -1,0 +1,105 @@
+Metodo,Ruta,TieneSecurity,Security,Summary
+POST,/ach-cycles,Sí,[{'Bearer': []}],Registro de ciclos y lotes ACH: registra una solicitud de create dentro de ciclos y lotes ACH para la ruta /ach-cycles
+PUT,/ach-cycles/{id},Sí,[{'Bearer': []}],Actualización de ciclos y lotes ACH: actualiza información de update dentro de ciclos y lotes ACH para la ruta /ach-cycles/{id}
+DELETE,/ach-cycles/{id},Sí,[{'Bearer': []}],Eliminación de ciclos y lotes ACH: elimina recursos asociados a delete dentro de ciclos y lotes ACH para la ruta /ach-cycles/{id}
+POST,/ach-returns/generate-file,Sí,[{'Bearer': []}],Generación de archivo de devoluciones
+POST,/api/ach-traceability/sol02/{transactionId}/certify,Sí,[{'Bearer': []}],Aplicar certificación SOL02 a transacción
+POST,/Auth/login,No,None,Registro de seguridad bancaria: registra una solicitud de login dentro de seguridad bancaria para la ruta /Auth/login
+POST,/Auth/forgot-password,No,None,Registro de seguridad bancaria: registra una solicitud de forgot password dentro de seguridad bancaria para la ruta /Auth/forgot-password
+POST,/Auth/reset-password,No,None,Registro de seguridad bancaria: registra una solicitud de reset password dentro de seguridad bancaria para la ruta /Auth/reset-password
+POST,/Auth/refresh,Sí,[{'Bearer': []}],Registro de seguridad bancaria: registra una solicitud de refresh session dentro de seguridad bancaria para la ruta /Auth/refresh
+POST,/bank-holidays,Sí,[{'Bearer': []}],Registro de bank holidays: registra una solicitud de create dentro de bank holidays para la ruta /bank-holidays
+PUT,/bank-holidays/{id},Sí,[{'Bearer': []}],Actualización de bank holidays: actualiza información de update dentro de bank holidays para la ruta /bank-holidays/{id}
+DELETE,/bank-holidays/{id},Sí,[{'Bearer': []}],Eliminación de bank holidays: elimina recursos asociados a delete dentro de bank holidays para la ruta /bank-holidays/{id}
+PUT,/api/users/branding,Sí,[{'Bearer': []}],Actualización de branding: actualiza información de save branding dentro de branding para la ruta /api/users/branding
+POST,/api/transactions/bulk-ingestion/upload,Sí,[{'Bearer': []}],Carga masiva de archivo para procesamiento por lotes
+POST,/api/transactions/bulk-ingestion/{batchId}/retry,Sí,[{'Bearer': []}],Reintento operativo de lote o subconjunto de ítems
+POST,/api/transactions/bulk-ingestion/{batchId}/cancel,Sí,[{'Bearer': []}],Solicitud operativa de cancelación de lote masivo
+POST,/catalog-types/{catalogType},Sí,[{'Bearer': []}],Registro de catalog types: registra una solicitud de create dentro de catalog types para la ruta /catalog-types/{catalogType}
+PUT,/catalog-types/{catalogType}/{code},Sí,[{'Bearer': []}],Actualización de catalog types: actualiza información de update dentro de catalog types para la ruta /catalog-types/{catalogType}/{code}
+DELETE,/catalog-types/{catalogType}/{code},Sí,[{'Bearer': []}],Eliminación de catalog types: elimina recursos asociados a delete dentro de catalog types para la ruta /catalog-types/{catalogType}/{code}
+POST,/nacha-security/certificates/management/public,Sí,[{'Bearer': []}],Cargar certificado público
+POST,/nacha-security/certificates/management/private,Sí,[{'Bearer': []}],Registrar certificado privado
+POST,/nacha-security/certificates/management/versions/{id}/activate,Sí,[{'Bearer': []}],Activar versión de certificado
+POST,/nacha-security/certificates/management/versions/{id}/revoke,Sí,[{'Bearer': []}],Revocar versión de certificado
+POST,/nacha-security/certificates/management/versions/{id}/validate,Sí,[{'Bearer': []}],Validar versión para activación
+POST,/clearing-house-cycle-configs,Sí,[{'Bearer': []}],Registro de ciclos y lotes ACH: registra una solicitud de create version dentro de ciclos y lotes ACH para la ruta /clearing-house-cycle-configs
+POST,/clearing-house-cycle-configs/{id}/inactivate,Sí,[{'Bearer': []}],Registro de ciclos y lotes ACH: registra una solicitud de inactivate dentro de ciclos y lotes ACH para la ruta /clearing-house-cycle-configs/{id}/inactivate
+POST,/clearing-house-special-dates,Sí,[{'Bearer': []}],Registro de clearing house special dates: registra una solicitud de create dentro de clearing house special dates para la ruta /clearing-house-special-dates
+PUT,/clearing-house-special-dates/{id},Sí,[{'Bearer': []}],Actualización de clearing house special dates: actualiza información de update dentro de clearing house special dates para la ruta /clearing-house-special-dates/{id}
+DELETE,/clearing-house-special-dates/{id},Sí,[{'Bearer': []}],Eliminación de clearing house special dates: elimina recursos asociados a delete dentro de clearing house special dates para la ruta /clearing-house-special-dates/{id}
+POST,/company-entry-descriptions,Sí,[{'Bearer': []}],Registro de company entry descriptions: registra una solicitud de create dentro de company entry descriptions para la ruta /company-entry-descriptions
+PUT,/company-entry-descriptions/{id},Sí,[{'Bearer': []}],Actualización de company entry descriptions: actualiza información de update dentro de company entry descriptions para la ruta /company-entry-descriptions/{id}
+DELETE,/company-entry-descriptions/{id},Sí,[{'Bearer': []}],Eliminación de company entry descriptions: elimina recursos asociados a delete dentro de company entry descriptions para la ruta /company-entry-descriptions/{id}
+POST,/customers,Sí,[{'Bearer': []}],Registra un nuevo cliente.
+PUT,/customers/{id},Sí,[{'Bearer': []}],Actualiza la información de un cliente existente.
+DELETE,/customers/{id},Sí,[{'Bearer': []}],Elimina un cliente por identificador.
+PATCH,/api/customer-third-parties/{id}/status,Sí,[{'Bearer': []}],Ajuste de customer third parties: aplica ajuste parcial de update status dentro de customer third parties para la ruta /api/customer-third-parties/{id}/status
+POST,/nacha-security/certificates,Sí,[{'Bearer': []}],Cargar o actualizar certificado de sobre digital
+DELETE,/nacha-security/certificates/{id},Sí,[{'Bearer': []}],Eliminar certificado de sobre digital
+POST,/financial-institutions,Sí,[{'Bearer': []}],Registro de financial institutions: registra una solicitud de create dentro de financial institutions para la ruta /financial-institutions
+PUT,/financial-institutions/{id},Sí,[{'Bearer': []}],Actualización de financial institutions: actualiza información de update dentro de financial institutions para la ruta /financial-institutions/{id}
+PATCH,/financial-institutions/{id}/status,Sí,[{'Bearer': []}],Ajuste de financial institutions: aplica ajuste parcial de set status dentro de financial institutions para la ruta /financial-institutions/{id}/status
+POST,/incoming-nacha-command-center/queue/{queueId}/retry,Sí,[{'Bearer': []}],Acción manual de retry sobre item de dispatch queue
+POST,/incoming-nacha-command-center/queue/{queueId}/unblock,Sí,[{'Bearer': []}],Acción manual de unblock sobre item bloqueado
+POST,/incoming-nacha-command-center/queue/{queueId}/requeue,Sí,[{'Bearer': []}],Acción manual de requeue para reproceso controlado
+POST,/incoming-nacha-command-center/queue/{queueId}/mark-failed-final,Sí,[{'Bearer': []}],Acción manual mark-failed-final para cierre operativo
+POST,/institution-clearing-house-preferences,Sí,[{'Bearer': []}],Registro de institution clearing house preferences: registra una solicitud de create dentro de institution clearing house preferences para la ruta /institution-clearing-house-preferences
+PUT,/institution-clearing-house-preferences/{id},Sí,[{'Bearer': []}],Actualización de institution clearing house preferences: actualiza información de update dentro de institution clearing house preferences para la ruta /institution-clearing-house-preferences/{id}
+DELETE,/institution-clearing-house-preferences/{id},Sí,[{'Bearer': []}],Eliminación de institution clearing house preferences: elimina recursos asociados a delete dentro de institution clearing house preferences para la ruta /institution-clearing-house-preferences/{id}
+POST,/api/integrations/mappingsets,Sí,[{'Bearer': []}],Registro de integration mapping sets: registra una solicitud de create dentro de integration mapping sets para la ruta /api/integrations/mappingsets
+PUT,/api/integrations/mappingsets/{id},Sí,[{'Bearer': []}],Actualización de integration mapping sets: actualiza información de update dentro de integration mapping sets para la ruta /api/integrations/mappingsets/{id}
+PUT,/api/integrations/mappingsets/{id}/rules,Sí,[{'Bearer': []}],Actualización de integration mapping sets: actualiza información de upsert rules dentro de integration mapping sets para la ruta /api/integrations/mappingsets/{id}/rules
+POST,/api/integrations/mappingsets/{id}/validate,Sí,[{'Bearer': []}],Registro de integration mapping sets: registra una solicitud de validate dentro de integration mapping sets para la ruta /api/integrations/mappingsets/{id}/validate
+POST,/api/integrations/mappingsets/{id}/preview,Sí,[{'Bearer': []}],Registro de integration mapping sets: registra una solicitud de preview dentro de integration mapping sets para la ruta /api/integrations/mappingsets/{id}/preview
+POST,/api/integrations/mappingsets/{id}/publish,Sí,[{'Bearer': []}],Registro de integration mapping sets: registra una solicitud de publish dentro de integration mapping sets para la ruta /api/integrations/mappingsets/{id}/publish
+POST,/api/integrations/mappingsets/{id}/clone,Sí,[{'Bearer': []}],Registro de integration mapping sets: registra una solicitud de clone dentro de integration mapping sets para la ruta /api/integrations/mappingsets/{id}/clone
+POST,/api/integrations/mappingsets/compare,Sí,[{'Bearer': []}],Registro de integration mapping sets: registra una solicitud de compare dentro de integration mapping sets para la ruta /api/integrations/mappingsets/compare
+PUT,/api/users/login-lockout,Sí,[{'Bearer': []}],Actualización de login lockout settings: actualiza información de save dentro de login lockout settings para la ruta /api/users/login-lockout
+POST,/Maintenance/seed,Sí,[{'Bearer': []}],Registro de maintenance: registra una solicitud de run db initializer dentro de maintenance para la ruta /Maintenance/seed
+POST,/navigation/menu-items,Sí,[{'Bearer': []}],Registro de menu items: registra una solicitud de create menu item dentro de menu items para la ruta /navigation/menu-items
+PUT,/navigation/menu-items/{id},Sí,[{'Bearer': []}],Actualización de menu items: actualiza información de update menu item dentro de menu items para la ruta /navigation/menu-items/{id}
+DELETE,/navigation/menu-items/{id},Sí,[{'Bearer': []}],Eliminación de menu items: elimina recursos asociados a delete menu item dentro de menu items para la ruta /navigation/menu-items/{id}
+POST,/nacha-config/perfiles,Sí,[{'Bearer': []}],Registro de operación NACHA-M: registra una solicitud de create draft dentro de operación NACHA-M para la ruta /nacha-config/perfiles
+PUT,/nacha-config/perfiles/{id},Sí,[{'Bearer': []}],Actualización de operación NACHA-M: actualiza información de update draft dentro de operación NACHA-M para la ruta /nacha-config/perfiles/{id}
+POST,/nacha-config/perfiles/{id}/clonar,Sí,[{'Bearer': []}],Registro de operación NACHA-M: registra una solicitud de clone dentro de operación NACHA-M para la ruta /nacha-config/perfiles/{id}/clonar
+POST,/nacha-config/perfiles/{id}/validar,Sí,[{'Bearer': []}],Registro de operación NACHA-M: registra una solicitud de validate dentro de operación NACHA-M para la ruta /nacha-config/perfiles/{id}/validar
+POST,/nacha-config/perfiles/{id}/publicar,Sí,[{'Bearer': []}],Registro de operación NACHA-M: registra una solicitud de publish dentro de operación NACHA-M para la ruta /nacha-config/perfiles/{id}/publicar
+POST,/nacha-config/perfiles/{id}/inactivar,Sí,[{'Bearer': []}],Registro de operación NACHA-M: registra una solicitud de inactivate dentro de operación NACHA-M para la ruta /nacha-config/perfiles/{id}/inactivar
+POST,/nacha-config/perfiles/{id}/archivar,Sí,[{'Bearer': []}],Registro de operación NACHA-M: registra una solicitud de archive dentro de operación NACHA-M para la ruta /nacha-config/perfiles/{id}/archivar
+PUT,/nacha-config/perfiles/{id}/records/secuencia,Sí,[{'Bearer': []}],Actualización de operación NACHA-M: actualiza información de update sequence dentro de operación NACHA-M para la ruta /nacha-config/perfiles/{id}/records/secuencia
+PUT,/nacha-config/perfiles/{id}/variantes/{variantId},Sí,[{'Bearer': []}],Actualización de operación NACHA-M: actualiza información de update variant dentro de operación NACHA-M para la ruta /nacha-config/perfiles/{id}/variantes/{variantId}
+PUT,/nacha-config/perfiles/{id}/fields/{fieldId},Sí,[{'Bearer': []}],Actualización de operación NACHA-M: actualiza información de update field dentro de operación NACHA-M para la ruta /nacha-config/perfiles/{id}/fields/{fieldId}
+PUT,/nacha-config/perfiles/{id}/rules/{ruleId},Sí,[{'Bearer': []}],Actualización de operación NACHA-M: actualiza información de update rule dentro de operación NACHA-M para la ruta /nacha-config/perfiles/{id}/rules/{ruleId}
+POST,/nacha-config/resolver-preview,Sí,[{'Bearer': []}],Registro de operación NACHA-M: registra una solicitud de resolver preview dentro de operación NACHA-M para la ruta /nacha-config/resolver-preview
+POST,/Nacha/header,Sí,[{'Bearer': []}],Registro de operación NACHA-M: registra una solicitud de save header dentro de operación NACHA-M para la ruta /Nacha/header
+POST,/nacha-record-definitions,Sí,[{'Bearer': []}],Registro de operación NACHA-M: registra una solicitud de create dentro de operación NACHA-M para la ruta /nacha-record-definitions
+PUT,/nacha-record-definitions/{id},Sí,[{'Bearer': []}],Actualización de operación NACHA-M: actualiza información de update dentro de operación NACHA-M para la ruta /nacha-record-definitions/{id}
+DELETE,/nacha-record-definitions/{id},Sí,[{'Bearer': []}],Eliminación de operación NACHA-M: elimina recursos asociados a delete dentro de operación NACHA-M para la ruta /nacha-record-definitions/{id}
+POST,/nacha-layouts,Sí,[{'Bearer': []}],Registro de operación NACHA-M: registra una solicitud de create dentro de operación NACHA-M para la ruta /nacha-layouts
+PUT,/nacha-layouts/{id},Sí,[{'Bearer': []}],Actualización de operación NACHA-M: actualiza información de update dentro de operación NACHA-M para la ruta /nacha-layouts/{id}
+DELETE,/nacha-layouts/{id},Sí,[{'Bearer': []}],Eliminación de operación NACHA-M: elimina recursos asociados a delete dentro de operación NACHA-M para la ruta /nacha-layouts/{id}
+POST,/nacha-security/operations/nacha/generate,Sí,[{'Bearer': []}],Generación de archivo NACHA plano
+POST,/nacha-security/operations/nacha/generate-encrypted,Sí,[{'Bearer': []}],Generación de NACHA cifrado
+POST,/nacha-security/operations/envelope/manual-encrypt,Sí,[{'Bearer': []}],Cifrado manual de archivo
+POST,/nacha-security/operations/envelope/manual-decrypt,Sí,[{'Bearer': []}],Descifrado manual de sobre digital
+POST,/nacha-security/operations/{operationId}/authorize-download,Sí,[{'Bearer': []}],Autorizar descarga de artefacto
+POST,/NachaUpload/upload,Sí,[{'Bearer': []}],Registro de operación NACHA-M: registra una solicitud de upload nacha file dentro de operación NACHA-M para la ruta /NachaUpload/upload
+POST,/api/navigation-logs,Sí,[{'Bearer': []}],Registro de navigation logs: registra una solicitud de add navigation log dentro de navigation logs para la ruta /api/navigation-logs
+POST,/Oauths/GenerateToken,No,None,Registro de seguridad bancaria: registra una solicitud de generate token dentro de seguridad bancaria para la ruta /Oauths/GenerateToken
+POST,/Oauths/GenerateTokenAsync,No,None,Registro de seguridad bancaria: registra una solicitud de generate token dentro de seguridad bancaria para la ruta /Oauths/GenerateTokenAsync
+PUT,/api/users/password-rules,Sí,[{'Bearer': []}],Actualización de password rules: actualiza información de save rules dentro de password rules para la ruta /api/users/password-rules
+PUT,/api/users/soap-integrations,Sí,[{'Bearer': []}],Actualización de soap integration settings: actualiza información de save dentro de soap integration settings para la ruta /api/users/soap-integrations
+POST,/SobreDigital/encrypt,Sí,[{'Bearer': []}],Registro de sobre digital: registra una solicitud de encrypt dentro de sobre digital para la ruta /SobreDigital/encrypt
+POST,/SobreDigital/decrypt,Sí,[{'Bearer': []}],Registro de sobre digital: registra una solicitud de decrypt dentro de sobre digital para la ruta /SobreDigital/decrypt
+POST,/SobreDigital/testRSA,Sí,[{'Bearer': []}],Registro de sobre digital: registra una solicitud de test r s a dentro de sobre digital para la ruta /SobreDigital/testRSA
+POST,/TaskDefinitions,Sí,[{'Bearer': []}],Registro de task definitions: registra una solicitud de post dentro de task definitions para la ruta /TaskDefinitions
+PUT,/TaskDefinitions/{id},Sí,[{'Bearer': []}],Actualización de task definitions: actualiza información de put dentro de task definitions para la ruta /TaskDefinitions/{id}
+DELETE,/TaskDefinitions/{id},Sí,[{'Bearer': []}],Eliminación de task definitions: elimina recursos asociados a delete dentro de task definitions para la ruta /TaskDefinitions/{id}
+POST,/Transactions,Sí,[{'Bearer': []}],Registro operativo de transacción ACH individual
+POST,/Transactions/bulk/submit,Sí,[{'Bearer': []}],Submit bulk legacy de ingestión transaccional
+POST,/Transactions/bulk,Sí,[{'Bearer': []}],Registro masivo legacy de transacciones en línea
+POST,/api/Users,Sí,[{'Bearer': []}],Registro de users: registra una solicitud de create user dentro de users para la ruta /api/Users
+PUT,/api/Users/{id},Sí,[{'Bearer': []}],Actualización de users: actualiza información de update user dentro de users para la ruta /api/Users/{id}
+DELETE,/api/Users/{id},Sí,[{'Bearer': []}],Eliminación de users: elimina recursos asociados a deactivate user dentro de users para la ruta /api/Users/{id}
+POST,/api/Users/{id}/roles,Sí,[{'Bearer': []}],Registro de users: registra una solicitud de assign roles dentro de users para la ruta /api/Users/{id}/roles
