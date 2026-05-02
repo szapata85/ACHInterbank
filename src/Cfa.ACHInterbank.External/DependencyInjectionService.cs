@@ -204,7 +204,47 @@ public static class DependencyInjectionService
                     ctx.User.HasClaim("permission", FineGrainedPermissions.Returns.GenerateFile)
                     || ctx.User.HasClaim("permission", "CanManageAch")));
 
-                        foreach (var permission in FineGrainedPermissions.AllPermissions)
+                        options.AddPolicy(P1Policies.BulkIngestionRead, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.BulkIngestion.Read)
+                || ctx.User.HasClaim("permission", "CanReadAch")));
+            options.AddPolicy(P1Policies.BulkIngestionUpload, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.BulkIngestion.Upload)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.BulkIngestionRetry, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.BulkIngestion.Retry)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.BulkIngestionCancel, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.BulkIngestion.Cancel)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.CommandCenterRead, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.CommandCenter.Read)
+                || ctx.User.HasClaim("permission", "CanReadAch")));
+            options.AddPolicy(P1Policies.CommandCenterRetry, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.CommandCenter.Retry)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.CommandCenterUnblock, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.CommandCenter.Unblock)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.CommandCenterRequeue, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.CommandCenter.Requeue)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.CommandCenterMarkFailedFinal, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.CommandCenter.MarkFailedFinal)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.NachaRead, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Nacha.Read)
+                || ctx.User.HasClaim("permission", "CanReadAch")));
+            options.AddPolicy(P1Policies.NachaUpload, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Nacha.Upload)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.NachaGenerate, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Nacha.Generate)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.NachaExport, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Nacha.Export)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+
+            foreach (var permission in FineGrainedPermissions.AllPermissions)
             {
                 if (options.GetPolicy(permission) is null)
                 {

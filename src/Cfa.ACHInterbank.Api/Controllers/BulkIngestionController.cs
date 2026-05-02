@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.AspNetCore.Authorization;
@@ -8,7 +9,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
 [Route("api/transactions/bulk-ingestion")]
-[Authorize(Policy = "CanManageAch")]
+[Authorize(Policy = P1Policies.BulkIngestionRead)]
 public class BulkIngestionController : ControllerBase
 {
     private const long MaxUploadSizeBytes = 20 * 1024 * 1024;
@@ -36,6 +37,7 @@ public class BulkIngestionController : ControllerBase
     [EndpointSummary("Carga masiva de archivo para procesamiento por lotes")]
     [EndpointDescription("Qué acción ejecuta: recibe un archivo de carga masiva, valida estructura básica y registra el lote para procesamiento. Quién lo usa: operación ACH, soporte de integración y equipos de backoffice con ventanas autorizadas. Permiso requerido: CanManageAch. Tipo: acción operativa con impacto en carga masiva, lote y transacciones derivadas. Auditoría/trazabilidad: debe registrar usuario solicitante, nombre de archivo, referencia de lote y clientRequestId para correlación. Riesgos: cargar archivo equivocado o fuera de ventana puede introducir errores operativos masivos. Errores esperados: 400 por archivo inválido/tamaño/formato; 401 no autenticado; 403 no autorizado; 500 error no controlado. Relación con NACHA-M/transacciones: habilita ingreso de datos de alto volumen que alimentan procesamiento ACH y conciliación posterior. Precaución operacional: validar origen, versión y corte operativo antes de subir. Advertencia: no modifica reglas regulatorias ni justifica alteración manual de archivos originales fuera de flujo controlado.")]
     [HttpPost("upload")]
+    [Authorize(Policy = P1Policies.BulkIngestionUpload)]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(MaxUploadSizeBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaxUploadSizeBytes)]
@@ -93,6 +95,7 @@ public class BulkIngestionController : ControllerBase
     [EndpointSummary("Consulta de estado general de lote masivo")]
     [EndpointDescription("Qué consulta: retorna el estado consolidado de un lote de carga masiva por identificador. Quién lo usa: operación, soporte y auditoría para seguimiento de avance y resultado. Permiso requerido: CanManageAch. Tipo: consulta de seguimiento sin mutación de datos. Impacto operacional: permite confirmar si el lote avanza, falla o requiere intervención. Auditoría/trazabilidad: la consulta queda registrada y se correlaciona con eventos de procesamiento. Riesgos: interpretar estado sin revisar detalle puede generar acciones prematuras. Errores esperados: 401 no autenticado; 403 no autorizado; 404 lote no encontrado; 500 error no controlado. Relación con carga masiva/lotes: punto principal de tracking del ciclo de lote. Precaución operacional: confirmar batchId y ventana de ejecución antes de escalar incidentes.")]
     [HttpGet("{batchId:guid}")]
+    [Authorize(Policy = P1Policies.BulkIngestionRead)]
     [ProducesResponseType(typeof(BulkBatchStatusDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -109,6 +112,7 @@ public class BulkIngestionController : ControllerBase
     [EndpointSummary("Consulta paginada de ítems del lote masivo")]
     [EndpointDescription("Qué consulta: lista ítems del lote con paginación y filtro por estado para diagnóstico detallado. Quién lo usa: soporte técnico, operación ACH y control de calidad de carga. Permiso requerido: CanManageAch. Tipo: consulta de seguimiento. Impacto operacional: facilita aislar transacciones con error o pendientes para definir reintento/cancelación. Auditoría/trazabilidad: deja evidencia de revisión por ítem y estado. Riesgos: filtros o paginación incorrecta pueden ocultar ítems críticos. Errores esperados: 400 solicitud inválida; 401 no autenticado; 403 no autorizado; 404 lote no encontrado; 500 error no controlado. Relación con carga masiva/transacciones: descompone el lote en unidades operativas para soporte y conciliación. Precaución operacional: revisar total de páginas y estado filtrado antes de decidir acciones operativas.")]
     [HttpGet("{batchId:guid}/items")]
+    [Authorize(Policy = P1Policies.BulkIngestionRead)]
     [ProducesResponseType(typeof(BulkBatchItemsPageDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -135,6 +139,7 @@ public class BulkIngestionController : ControllerBase
     [EndpointSummary("Resumen de procesamiento y errores del lote")]
     [EndpointDescription("Qué consulta: entrega métricas agregadas de procesamiento del lote, incluyendo conteos de éxito, error y pendientes. Quién lo usa: operación, auditoría operativa y tecnología para evaluar salud de la carga. Permiso requerido: CanManageAch. Tipo: consulta de observabilidad. Impacto operacional: soporta decisiones de retry o cancelación sin modificar estado por sí misma. Auditoría/trazabilidad: consolida evidencia para reportes de incidente y cumplimiento. Riesgos: usar resumen sin contraste con ítems puede ocultar errores de alto impacto. Errores esperados: 401 no autenticado; 403 no autorizado; 404 lote no encontrado; 500 error no controlado. Relación con lotes/NACHA-M/transacciones: resume comportamiento de la carga masiva que alimenta flujos ACH. Precaución operacional: correlacionar con detalle del lote antes de ejecutar acciones manuales.")]
     [HttpGet("{batchId:guid}/summary")]
+    [Authorize(Policy = P1Policies.BulkIngestionRead)]
     [ProducesResponseType(typeof(BulkBatchProcessingSummaryDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -151,6 +156,7 @@ public class BulkIngestionController : ControllerBase
     [EndpointSummary("Reintento operativo de lote o subconjunto de ítems")]
     [EndpointDescription("Qué acción ejecuta: solicita reintento de procesamiento para el lote según parámetros del request. Quién lo usa: operación autorizada y soporte senior durante recuperación de fallas. Permiso requerido: CanManageAch. Tipo: acción operativa con impacto directo en estado de lote/ítems y en la secuencia de intentos. Auditoría/trazabilidad: debe registrar usuario ejecutor, criterio de reintento y resultado del disparo. Riesgos: reintentar sin análisis puede duplicar cargas o aumentar backlog. Errores esperados: 400 solicitud inválida o estado no permitido; 401 no autenticado; 403 no autorizado; 404 lote no encontrado; 409 estado inconsistente cuando aplique; 500 error no controlado. Relación con carga masiva/transacciones: habilita recuperación controlada de procesamiento masivo. Precaución operacional: validar idempotencia, ventana y causa raíz antes de reintentar. Advertencia: no autoriza modificación manual de archivos originales ni de reglas regulatorias.")]
     [HttpPost("{batchId:guid}/retry")]
+    [Authorize(Policy = P1Policies.BulkIngestionRetry)]
     [ProducesResponseType(typeof(RetryBatchResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -182,6 +188,7 @@ public class BulkIngestionController : ControllerBase
     [EndpointSummary("Solicitud operativa de cancelación de lote masivo")]
     [EndpointDescription("Qué acción ejecuta: solicita cancelación del lote cuando su estado permite detener procesamiento pendiente. Quién lo usa: operación ACH y líderes de soporte con criterio de contención. Permiso requerido: CanManageAch. Tipo: acción operativa con impacto en continuidad del lote y procesamiento de transacciones pendientes. Auditoría/trazabilidad: debe quedar evidencia de usuario, momento y motivo de cancelación. Riesgos: cancelar lote incorrecto puede afectar SLA y compromisos de procesamiento. Errores esperados: 400 estado no cancelable; 401 no autenticado; 403 no autorizado; 404 lote no encontrado; 409 estado inconsistente cuando aplique; 500 error no controlado. Relación con carga masiva/lote: controla detención de ejecución para mitigación de incidentes. Precaución operacional: confirmar alcance de impacto y comunicación a áreas dependientes antes de cancelar. Advertencia: no altera archivos de origen ni reglas regulatorias fuera de flujo controlado.")]
     [HttpPost("{batchId:guid}/cancel")]
+    [Authorize(Policy = P1Policies.BulkIngestionCancel)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

@@ -1,5 +1,6 @@
 using System.Reflection;
 using Cfa.ACHInterbank.Api.Controllers;
+using Cfa.ACHInterbank.Application.Security;
 using Microsoft.AspNetCore.Authorization;
 using Xunit;
 
@@ -37,6 +38,6 @@ public class AuthorizationUniformitySec4BPendingRoutesTests
         Assert.Null(method!.GetCustomAttribute<AllowAnonymousAttribute>());
         var authorize = method.GetCustomAttribute<AuthorizeAttribute>();
         Assert.NotNull(authorize);
-        Assert.Equal("CanManageAch", authorize!.Policy);
+        Assert.Equal(P1Policies.NachaGenerate, authorize!.Policy);
     }
 }

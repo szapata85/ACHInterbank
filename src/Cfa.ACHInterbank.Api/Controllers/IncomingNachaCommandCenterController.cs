@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -8,7 +9,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
 [Route("incoming-nacha-command-center")]
-[Authorize(Policy = "CanReadAch")]
+[Authorize(Policy = P1Policies.CommandCenterRead)]
 public class IncomingNachaCommandCenterController : ControllerBase
 {
     private static IActionResult MapInvalidOperation(InvalidOperationException ex)
@@ -84,7 +85,7 @@ public class IncomingNachaCommandCenterController : ControllerBase
     [EndpointSummary("Acción manual de retry sobre item de dispatch queue")]
     [EndpointDescription("Qué acción ejecuta: solicita retry manual de un item en cola cuando existe condición transitoria resuelta. Quién lo usa: operación autorizada, soporte senior y continuidad operacional. Permiso requerido: CanManageAch. Tipo: acción manual con impacto operacional sobre estado de procesamiento e intento de reenvío. Entidad afectada: dispatch queue (attemptCount, next attempt, estado y eventos). Auditoría/trazabilidad: debe quedar evidencia de usuario, motivo, estado previo y estado resultante. Riesgos: retry sin validación puede provocar reproceso duplicado o presión sobre integraciones externas. Errores esperados: 400 solicitud inválida; 401 no autenticado; 403 no autorizado; 404 queueId no encontrado; 409 transición no permitida/estado inconsistente; 500 error no controlado. Relación NACHA-M inbound: recupera procesamiento de mensajes entrantes sin modificar archivo fuente. Advertencia: no cambia reglas regulatorias ni contenido original NACHA-M; solo ejecuta transición controlada del item.")]
     [HttpPost("queue/{queueId:guid}/retry")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.CommandCenterRetry)]
     [ProducesResponseType(typeof(IncomingNachaManualActionResultDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -107,7 +108,7 @@ public class IncomingNachaCommandCenterController : ControllerBase
     [EndpointSummary("Acción manual de unblock sobre item bloqueado")]
     [EndpointDescription("Qué acción ejecuta: desbloquea manualmente un item para que vuelva a flujo operativo permitido por la máquina de estados. Quién lo usa: operación ACH senior y soporte de incidentes con autorización de cambio. Permiso requerido: CanManageAch. Tipo: acción manual con impacto operacional sobre estado de bloqueo/desbloqueo. Entidad afectada: dispatch queue y trazabilidad de transición. Auditoría/trazabilidad: debe registrar usuario ejecutor, motivo de desbloqueo y evidencia de aprobación. Riesgos: desbloquear sin remediar causa raíz puede reintroducir fallas repetitivas o incumplir controles. Errores esperados: 400 solicitud inválida; 401 no autenticado; 403 no autorizado; 404 queueId no encontrado; 409 transición no permitida/estado inconsistente; 500 error no controlado. Relación NACHA-M inbound: reanuda procesamiento de trabajo asociado a ingestión entrante. Advertencia: no modifica archivo original ni normativa; aplica únicamente transición manual controlada del item.")]
     [HttpPost("queue/{queueId:guid}/unblock")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.CommandCenterUnblock)]
     [ProducesResponseType(typeof(IncomingNachaManualActionResultDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -130,7 +131,7 @@ public class IncomingNachaCommandCenterController : ControllerBase
     [EndpointSummary("Acción manual de requeue para reproceso controlado")]
     [EndpointDescription("Qué acción ejecuta: reencola manualmente el item para reproceso desde cola bajo condiciones operativas autorizadas. Quién lo usa: operación ACH, soporte técnico y continuidad en ventanas de recuperación. Permiso requerido: CanManageAch. Tipo: acción manual con impacto operacional sobre estado de cola y prioridad de atención. Entidad afectada: dispatch queue, estado de procesamiento y secuencia de intentos. Auditoría/trazabilidad: debe conservar motivo, usuario y transición aplicada para revisión posterior. Riesgos: requeue indiscriminado puede incrementar backlog, afectar SLA o generar competencia de recursos. Errores esperados: 400 solicitud inválida; 401 no autenticado; 403 no autorizado; 404 queueId no encontrado; 409 transición no permitida/estado inconsistente; 500 error no controlado. Relación NACHA-M inbound: permite recuperación operativa sin alterar el archivo entrante ni su evidencia original. Advertencia: no altera reglas regulatorias ni habilita cambios fuera de flujo controlado.")]
     [HttpPost("queue/{queueId:guid}/requeue")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.CommandCenterRequeue)]
     [ProducesResponseType(typeof(IncomingNachaManualActionResultDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -153,7 +154,7 @@ public class IncomingNachaCommandCenterController : ControllerBase
     [EndpointSummary("Acción manual mark-failed-final para cierre operativo")]
     [EndpointDescription("Qué acción ejecuta: marca el item como falla final cuando no existe ruta segura de recuperación y debe cerrarse el caso. Quién lo usa: liderazgo de operación, soporte senior y control operacional con autorización formal. Permiso requerido: CanManageAch. Tipo: acción manual con impacto operacional de cierre definitivo del estado de procesamiento. Entidad afectada: dispatch queue, estado final y trazabilidad de decisión. Auditoría/trazabilidad: requiere registro explícito de motivo, aprobadores y evidencia asociada al cierre. Riesgos: cierre prematuro puede omitir recuperación viable y afectar conciliación o investigación posterior. Errores esperados: 400 solicitud inválida; 401 no autenticado; 403 no autorizado; 404 queueId no encontrado; 409 transición no permitida/estado inconsistente; 500 error no controlado. Relación NACHA-M inbound: cierra controladamente incidentes de items derivados de ingesta entrante, sin modificar archivo original. Advertencia: no altera reglas regulatorias ni sustituye proceso formal de gestión de incidentes.")]
     [HttpPost("queue/{queueId:guid}/mark-failed-final")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.CommandCenterMarkFailedFinal)]
     [ProducesResponseType(typeof(IncomingNachaManualActionResultDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
