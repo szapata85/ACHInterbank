@@ -162,6 +162,14 @@ public static class DependencyInjectionService
                     ctx.User.HasClaim("permission", FineGrainedPermissions.CanViewPaymentRailCapabilityRegistry)
                     || ctx.User.HasClaim("permission", "CanManageAch")
                     || ctx.User.HasClaim("permission", "CanReadAch")));
+
+            foreach (var permission in FineGrainedPermissions.AllPermissions)
+            {
+                if (options.GetPolicy(permission) is null)
+                {
+                    options.AddPolicy(permission, policy => policy.RequireClaim("permission", permission));
+                }
+            }
         });
 
         #region Services
