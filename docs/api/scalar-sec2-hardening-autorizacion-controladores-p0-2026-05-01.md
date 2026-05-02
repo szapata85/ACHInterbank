@@ -82,3 +82,21 @@ OpenAPI runtime generado desde `http://127.0.0.1:5194/openapi/v1.json` en `/tmp/
 ## 16. Veredicto
 **Hardening runtime P0 implementado** y **pruebas en verde**.  
 **Metadata OpenAPI security pendiente** (recomendar Scalar-SEC-3).
+
+## Nota Scalar-SEC-5
+
+La auditoría final de seguridad API y matriz de aceptación quedó consolidada en:
+
+`docs/api/scalar-sec5-auditoria-final-seguridad-api-matriz-aceptacion-2026-05-01.md`
+
+La evidencia final OpenAPI/CSV quedó en:
+
+- `docs/api/scalar-sec5-openapi-security-operaciones-final-2026-05-01.csv`
+- `docs/api/scalar-sec5-openapi-endpoints-sin-security-final-2026-05-01.csv`
+- `docs/api/scalar-sec5-openapi-allowanonymous-final-2026-05-01.csv`
+- `docs/api/scalar-sec5-openapi-escritura-security-final-2026-05-01.csv`
+
+Veredicto:
+se declara cerrado el frente de autorización explícita y metadata OpenAPI/Scalar de seguridad para el alcance evaluado.
+
+No se declara producción lista.

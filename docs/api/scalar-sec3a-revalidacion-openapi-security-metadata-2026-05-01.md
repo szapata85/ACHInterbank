@@ -105,3 +105,21 @@ Build final ejecutado con éxito:
 ## 19. Veredicto
 **Veredicto Scalar-SEC-3A: CERRADO (alcance técnico cumplido).**
 Con evidencia real de entorno, build, pruebas, OpenAPI runtime y validaciones de `security`/`AllowAnonymous`, se cierra formalmente la validación pendiente de Scalar-SEC-3 para el alcance definido.
+
+## Nota Scalar-SEC-5
+
+La auditoría final de seguridad API y matriz de aceptación quedó consolidada en:
+
+`docs/api/scalar-sec5-auditoria-final-seguridad-api-matriz-aceptacion-2026-05-01.md`
+
+La evidencia final OpenAPI/CSV quedó en:
+
+- `docs/api/scalar-sec5-openapi-security-operaciones-final-2026-05-01.csv`
+- `docs/api/scalar-sec5-openapi-endpoints-sin-security-final-2026-05-01.csv`
+- `docs/api/scalar-sec5-openapi-allowanonymous-final-2026-05-01.csv`
+- `docs/api/scalar-sec5-openapi-escritura-security-final-2026-05-01.csv`
+
+Veredicto:
+se declara cerrado el frente de autorización explícita y metadata OpenAPI/Scalar de seguridad para el alcance evaluado.
+
+No se declara producción lista.
