@@ -1,5 +1,6 @@
 using System.Reflection;
 using Cfa.ACHInterbank.Api.Controllers;
+using Cfa.ACHInterbank.Application.Security;
 using Microsoft.AspNetCore.Authorization;
 using Xunit;
 
@@ -16,30 +17,30 @@ public class ExplicitAuthorizationCriticalControllersTests
     [Fact]
     public void TransactionsController_Gets_UsanCanReadAch_Y_PostsCanManageAch()
     {
-        AssertPolicy(nameof(TransactionsController.GetAll), "CanReadAch");
-        AssertPolicy(nameof(TransactionsController.GetCompanyEntryDescriptions), "CanReadAch");
-        AssertPolicy(nameof(TransactionsController.PreviewPolicy), "CanReadAch");
-        AssertPolicy(nameof(TransactionsController.GetById), "CanReadAch");
-        AssertPolicy(nameof(TransactionsController.CreateTransaction), "CanManageAch");
-        AssertPolicy(nameof(TransactionsController.SubmitBulkIngestion), "CanManageAch");
-        AssertPolicy(nameof(TransactionsController.CreateTransactionsBulk), "CanManageAch");
+        AssertPolicy(nameof(TransactionsController.GetAll), P0Policies.TransactionsRead);
+        AssertPolicy(nameof(TransactionsController.GetCompanyEntryDescriptions), P0Policies.TransactionsRead);
+        AssertPolicy(nameof(TransactionsController.PreviewPolicy), P0Policies.TransactionsPolicyPreview);
+        AssertPolicy(nameof(TransactionsController.GetById), P0Policies.TransactionsRead);
+        AssertPolicy(nameof(TransactionsController.CreateTransaction), P0Policies.TransactionsCreate);
+        AssertPolicy(nameof(TransactionsController.SubmitBulkIngestion), P0Policies.TransactionsBulkSubmit);
+        AssertPolicy(nameof(TransactionsController.CreateTransactionsBulk), P0Policies.TransactionsBulkSubmit);
     }
 
     [Fact]
     public void AchTraceabilityController_TieneAuthorizeYPoliciesCorrectas()
     {
         Assert.NotNull(typeof(AchTraceabilityController).GetCustomAttribute<AuthorizeAttribute>());
-        AssertPolicy(nameof(AchTraceabilityController.GetTransactionTraceability), "CanReadAch");
-        AssertPolicy(nameof(AchTraceabilityController.GetTraceabilityReport), "CanReadAch");
-        AssertPolicy(nameof(AchTraceabilityController.CertifyWithSol02), "CanManageAch");
+        AssertPolicy(nameof(AchTraceabilityController.GetTransactionTraceability), P0Policies.TraceabilityRead);
+        AssertPolicy(nameof(AchTraceabilityController.GetTraceabilityReport), P0Policies.TraceabilityRead);
+        AssertPolicy(nameof(AchTraceabilityController.CertifyWithSol02), P0Policies.TraceabilityCertifySol02);
     }
 
     [Fact]
     public void AchReturnsController_TieneAuthorizeYPoliciesCorrectas()
     {
         Assert.NotNull(typeof(AchReturnsController).GetCustomAttribute<AuthorizeAttribute>());
-        AssertPolicy(nameof(AchReturnsController.GetTransactionsByCycle), "CanReadAch");
-        AssertPolicy(nameof(AchReturnsController.GenerateFile), "CanManageAch");
+        AssertPolicy(nameof(AchReturnsController.GetTransactionsByCycle), P0Policies.ReturnsRead);
+        AssertPolicy(nameof(AchReturnsController.GenerateFile), P0Policies.ReturnsGenerateFile);
     }
 
     private static void AssertPolicy(string methodName, string expectedPolicy)

@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -21,7 +22,7 @@ public class AchTraceabilityController : ControllerBase
     [EndpointSummary("Aplicar certificación SOL02 a transacción")]
     [EndpointDescription("Qué hace: cambia estado de una transacción registrando certificación SOL02. Cuándo se usa: en procesos de trazabilidad y cumplimiento con evidencia externa. Perfil consumidor: operación ACH y analistas de trazabilidad. Permiso requerido: CanManageAch con autorización explícita en la acción y autenticación obligatoria en el controller. Tipo de operación: modifica información. Genera auditoría: sí. Riesgos operativos: certificar transacción incorrecta altera historial regulatorio. Errores esperados: 404 transacción no encontrada; 400 transición inválida. Relación ACH/CENIT/NACHA-M: integra trazabilidad operativa ACH con evidencia SOL02. Precauciones para desarrollo u operación: confirmar referencia, evidencia externa y segregación de funciones antes de certificar. Advertencia: este endpoint modifica estado; la consulta de trazabilidad no sustituye el proceso formal de auditoría ni autoriza cambios fuera del flujo controlado.")]
     [HttpPost("sol02/{transactionId:int}/certify")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P0Policies.TraceabilityCertifySol02)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -62,7 +63,7 @@ public class AchTraceabilityController : ControllerBase
     [EndpointSummary("Consulta trazabilidad de una transacción")]
     [EndpointDescription("Qué hace: devuelve línea de tiempo y estado de la transacción ACH. Cuándo se usa: en auditorías, reclamos y soporte operativo. Perfil consumidor: auditoría y operación ACH. Permiso requerido: CanReadAch con autorización explícita en la acción y autenticación obligatoria en el controller. Tipo de operación: solo consulta. Genera auditoría: sí, por trazas. Riesgos operativos: diagnóstico incompleto si se consulta id equivocado. Errores esperados: 404 transacción inexistente; 401/403 según entorno. Relación ACH/CENIT/NACHA-M: expone trayectoria de la transacción en ACH/CENIT. Precauciones para desarrollo u operación: correlacionar con reportes de ciclo y devoluciones para evitar conclusiones parciales. Advertencia: la trazabilidad es de consulta y no autoriza alteración de estados ni reemplaza auditoría formal.")]
     [HttpGet("transactions/{transactionId:int}")]
-    [Authorize(Policy = "CanReadAch")]
+    [Authorize(Policy = P0Policies.TraceabilityRead)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -82,7 +83,7 @@ public class AchTraceabilityController : ControllerBase
     [EndpointSummary("Reporte de trazabilidad por rango")]
     [EndpointDescription("Qué hace: genera consulta consolidada de trazabilidad por fechas, estado y ciclo. Cuándo se usa: en cierres operativos y seguimiento de incidentes. Perfil consumidor: operación ACH y control interno. Permiso requerido: CanReadAch con autorización explícita en la acción y autenticación obligatoria en el controller. Tipo de operación: solo consulta. Genera auditoría: sí, por trazas. Riesgos operativos: rangos amplios pueden afectar tiempos de respuesta. Errores esperados: 400 parámetros inválidos. Relación ACH/CENIT/NACHA-M: visibilidad transversal del flujo ACH/NACHA-M. Precauciones para desarrollo u operación: usar filtros acotados y validar zona horaria operativa para análisis consistente. Advertencia: el reporte de trazabilidad no debe usarse para modificar estados ni sustituir los controles formales de auditoría.")]
     [HttpGet("report")]
-    [Authorize(Policy = "CanReadAch")]
+    [Authorize(Policy = P0Policies.TraceabilityRead)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
