@@ -312,6 +312,24 @@ public static class DependencyInjectionService
             options.AddPolicy(P1Policies.UsersManageLockout, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.Users.ManageLockout)
                 || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.RolesRead, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Roles.Read)
+                || ctx.User.HasClaim("permission", "CanReadAch")));
+            options.AddPolicy(P1Policies.RolesCreate, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Roles.Create)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.RolesUpdate, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Roles.Update)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.RolesDelete, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Roles.Delete)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.PermissionsRead, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Permissions.Read)
+                || ctx.User.HasClaim("permission", "CanReadAch")));
+            options.AddPolicy(P1Policies.PermissionsAssign, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Permissions.Assign)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
 
             foreach (var permission in FineGrainedPermissions.AllPermissions)
             {
