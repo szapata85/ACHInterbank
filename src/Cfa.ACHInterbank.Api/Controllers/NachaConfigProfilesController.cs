@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -34,17 +35,17 @@ public sealed class NachaConfigProfilesController : ControllerBase
     }
 
     [HttpGet("perfiles")]
-    [Authorize(Policy = "CanReadAch")]
+    [Authorize(Policy = P1Policies.ConfigRead)]
     public async Task<ActionResult<IReadOnlyList<NachaConfigProfileListItemDto>>> GetProfiles(CancellationToken ct)
         => Ok(await _query.GetProfilesAsync(ct));
 
     [HttpGet("catalogos-filtro")]
-    [Authorize(Policy = "CanReadAch")]
+    [Authorize(Policy = P1Policies.ConfigRead)]
     public async Task<ActionResult<NachaConfigFilterCatalogsDto>> GetFilterCatalogs(CancellationToken ct)
         => Ok(await _query.GetFilterCatalogsAsync(ct));
 
     [HttpGet("perfiles/{id:int}")]
-    [Authorize(Policy = "CanReadAch")]
+    [Authorize(Policy = P1Policies.ConfigRead)]
     public async Task<ActionResult<NachaConfigProfileDetailDto>> GetProfile(int id, CancellationToken ct)
     {
         var detail = await _query.GetProfileDetailAsync(id, ct);
@@ -52,7 +53,7 @@ public sealed class NachaConfigProfilesController : ControllerBase
     }
 
     [HttpPost("perfiles")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.ConfigManage)]
     public async Task<ActionResult<NachaConfigProfileDetailDto>> CreateDraft([FromBody] NachaConfigCreateDraftRequest request, CancellationToken ct)
     {
         return await ExecuteHandledAsync<NachaConfigProfileDetailDto>(async () =>
@@ -64,7 +65,7 @@ public sealed class NachaConfigProfilesController : ControllerBase
     }
 
     [HttpPut("perfiles/{id:int}")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.ConfigManage)]
     public async Task<ActionResult<NachaConfigProfileDetailDto>> UpdateDraft(int id, [FromBody] NachaConfigUpdateProfileRequest request, CancellationToken ct)
     {
         return await ExecuteHandledAsync<NachaConfigProfileDetailDto>(async () =>
@@ -76,7 +77,7 @@ public sealed class NachaConfigProfilesController : ControllerBase
     }
 
     [HttpPost("perfiles/{id:int}/clonar")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.ConfigManage)]
     public async Task<ActionResult<NachaConfigProfileDetailDto>> Clone(int id, [FromBody] NachaConfigCloneProfileRequest request, CancellationToken ct)
     {
         return await ExecuteHandledAsync<NachaConfigProfileDetailDto>(async () =>
@@ -88,12 +89,12 @@ public sealed class NachaConfigProfilesController : ControllerBase
     }
 
     [HttpPost("perfiles/{id:int}/validar")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.ConfigManage)]
     public async Task<ActionResult<NachaConfigValidationResultDto>> Validate(int id, CancellationToken ct)
         => Ok(await _validation.ValidateBeforePublishAsync(id, ct));
 
     [HttpPost("perfiles/{id:int}/publicar")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.ConfigManage)]
     public async Task<ActionResult<NachaConfigPublicationResultDto>> Publish(int id, [FromBody] NachaConfigStateTransitionRequest request, CancellationToken ct)
     {
         return await ExecuteHandledAsync<NachaConfigPublicationResultDto>(async () =>
@@ -114,7 +115,7 @@ public sealed class NachaConfigProfilesController : ControllerBase
     }
 
     [HttpPost("perfiles/{id:int}/inactivar")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.ConfigManage)]
     public async Task<IActionResult> Inactivate(int id, [FromBody] NachaConfigStateTransitionRequest request, CancellationToken ct)
     {
         return await ExecuteHandledAsync(async () =>
@@ -125,7 +126,7 @@ public sealed class NachaConfigProfilesController : ControllerBase
     }
 
     [HttpPost("perfiles/{id:int}/archivar")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.ConfigManage)]
     public async Task<IActionResult> Archive(int id, [FromBody] NachaConfigStateTransitionRequest request, CancellationToken ct)
     {
         return await ExecuteHandledAsync(async () =>
@@ -136,17 +137,17 @@ public sealed class NachaConfigProfilesController : ControllerBase
     }
 
     [HttpGet("perfiles/{id:int}/historial")]
-    [Authorize(Policy = "CanReadAch")]
+    [Authorize(Policy = P1Policies.ConfigRead)]
     public async Task<ActionResult<IReadOnlyList<NachaConfigHistoryItemDto>>> History(int id, CancellationToken ct)
         => Ok(await _history.GetHistoryAsync(id, ct));
 
     [HttpGet("perfiles/{id:int}/snapshots")]
-    [Authorize(Policy = "CanReadAch")]
+    [Authorize(Policy = P1Policies.ConfigRead)]
     public async Task<ActionResult<IReadOnlyList<NachaConfigSnapshotItemDto>>> Snapshots(int id, CancellationToken ct)
         => Ok(await _history.GetSnapshotsAsync(id, ct));
 
     [HttpPut("perfiles/{id:int}/records/secuencia")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.ConfigManage)]
     public async Task<IActionResult> UpdateSequence(int id, [FromBody] NachaConfigRecordSequenceUpdateRequest request, CancellationToken ct)
     {
         return await ExecuteHandledAsync(async () =>
@@ -157,7 +158,7 @@ public sealed class NachaConfigProfilesController : ControllerBase
     }
 
     [HttpPut("perfiles/{id:int}/variantes/{variantId:int}")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.ConfigManage)]
     public async Task<IActionResult> UpdateVariant(int id, int variantId, [FromBody] NachaConfigLayoutVariantEditDto request, CancellationToken ct)
     {
         return await ExecuteHandledAsync(async () =>
@@ -168,7 +169,7 @@ public sealed class NachaConfigProfilesController : ControllerBase
     }
 
     [HttpPut("perfiles/{id:int}/fields/{fieldId:int}")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.ConfigManage)]
     public async Task<IActionResult> UpdateField(int id, int fieldId, [FromBody] NachaConfigLayoutFieldEditDto request, CancellationToken ct)
     {
         return await ExecuteHandledAsync(async () =>
@@ -179,7 +180,7 @@ public sealed class NachaConfigProfilesController : ControllerBase
     }
 
     [HttpPut("perfiles/{id:int}/rules/{ruleId:int}")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.ConfigManage)]
     public async Task<IActionResult> UpdateRule(int id, int ruleId, [FromBody] NachaConfigFieldRuleEditDto request, CancellationToken ct)
     {
         return await ExecuteHandledAsync(async () =>
@@ -190,7 +191,7 @@ public sealed class NachaConfigProfilesController : ControllerBase
     }
 
     [HttpPost("resolver-preview")]
-    [Authorize(Policy = "CanReadAch")]
+    [Authorize(Policy = P1Policies.ConfigManage)]
     public async Task<ActionResult<NachaConfigResolverPreviewResultDto>> ResolverPreview([FromBody] NachaConfigResolverPreviewRequest request, CancellationToken ct)
         => Ok(await _preview.PreviewResolverAsync(request, ct));
 
