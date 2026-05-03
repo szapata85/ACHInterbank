@@ -30,4 +30,12 @@ public static class P1Policies
     public const string NachaSecurityManualEncrypt = "P1.NachaSecurityManualEncrypt";
     public const string NachaSecurityManualDecrypt = "P1.NachaSecurityManualDecrypt";
     public const string NachaSecurityAuthorizeDownload = "P1.NachaSecurityAuthorizeDownload";
+    public const string UsersRead = "P1.UsersRead";
+    public const string UsersCreate = "P1.UsersCreate";
+    public const string UsersUpdate = "P1.UsersUpdate";
+    public const string UsersDeactivate = "P1.UsersDeactivate";
+    public const string UsersAssignRoles = "P1.UsersAssignRoles";
+    public const string UsersManageBranding = "P1.UsersManageBranding";
+    public const string UsersManagePasswordRules = "P1.UsersManagePasswordRules";
+    public const string UsersManageLockout = "P1.UsersManageLockout";
 }

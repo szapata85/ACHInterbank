@@ -288,6 +288,30 @@ public static class DependencyInjectionService
             options.AddPolicy(P1Policies.NachaSecurityAuthorizeDownload, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.NachaSecurity.AuthorizeDownload)
                 || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.UsersRead, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Users.Read)
+                || ctx.User.HasClaim("permission", "CanReadAch")));
+            options.AddPolicy(P1Policies.UsersCreate, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Users.Create)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.UsersUpdate, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Users.Update)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.UsersDeactivate, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Users.Deactivate)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.UsersAssignRoles, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Users.AssignRoles)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.UsersManageBranding, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Users.ManageBranding)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.UsersManagePasswordRules, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Users.ManagePasswordRules)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.UsersManageLockout, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Users.ManageLockout)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
 
             foreach (var permission in FineGrainedPermissions.AllPermissions)
             {
