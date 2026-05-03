@@ -15,4 +15,19 @@ public static class P1Policies
     public const string NachaUpload = "P1.NachaUpload";
     public const string NachaGenerate = "P1.NachaGenerate";
     public const string NachaExport = "P1.NachaExport";
+    public const string CertificatesRead = "P1.CertificatesRead";
+    public const string CertificatesUploadPublic = "P1.CertificatesUploadPublic";
+    public const string CertificatesRegisterPrivate = "P1.CertificatesRegisterPrivate";
+    public const string CertificatesActivate = "P1.CertificatesActivate";
+    public const string CertificatesRevoke = "P1.CertificatesRevoke";
+    public const string CertificatesValidate = "P1.CertificatesValidate";
+    public const string CertificatesAudit = "P1.CertificatesAudit";
+    public const string DigitalEnvelopeEncrypt = "P1.DigitalEnvelopeEncrypt";
+    public const string DigitalEnvelopeDecrypt = "P1.DigitalEnvelopeDecrypt";
+    public const string DigitalEnvelopeTest = "P1.DigitalEnvelopeTest";
+    public const string NachaSecurityRead = "P1.NachaSecurityRead";
+    public const string NachaSecurityGenerateEncrypted = "P1.NachaSecurityGenerateEncrypted";
+    public const string NachaSecurityManualEncrypt = "P1.NachaSecurityManualEncrypt";
+    public const string NachaSecurityManualDecrypt = "P1.NachaSecurityManualDecrypt";
+    public const string NachaSecurityAuthorizeDownload = "P1.NachaSecurityAuthorizeDownload";
 }

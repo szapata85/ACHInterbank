@@ -9,7 +9,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
 [Route("incoming-nacha-command-center")]
-[Authorize(Policy = P1Policies.CommandCenterRead)]
+[Authorize]
 public class IncomingNachaCommandCenterController : ControllerBase
 {
     private static IActionResult MapInvalidOperation(InvalidOperationException ex)
@@ -24,6 +24,7 @@ public class IncomingNachaCommandCenterController : ControllerBase
     [EndpointSummary("Panel consolidado de observabilidad de inbound NACHA-M")]
     [EndpointDescription("Qué consulta: consolida indicadores de ingesta, cola de despacho, reintentos, bloqueos y fallas finales en la ventana solicitada. Quién lo usa: operación ACH, soporte de incidentes, auditoría operativa y tecnología para diagnóstico temprano. Permiso requerido: CanReadAch. Tipo: consulta (solo lectura) sin ejecución de acciones manuales. Impacto operacional: orienta priorización de incidentes y ventanas de atención, pero no cambia estados ni altera cola. Auditoría/trazabilidad: la consulta queda en trazas de acceso y se correlaciona con eventos previos del command center. Riesgos: una ventana horaria incorrecta puede ocultar backlog crítico. Errores esperados: 400 por windowHours inválido; 401 no autenticado; 403 no autorizado; 500 error no controlado. Relación NACHA-M inbound: provee visibilidad del tramo entrante antes de su continuidad ACH/CENIT. Advertencia: no modifica archivos originales NACHA-M ni reglas regulatorias; cualquier ajuste requiere flujo controlado.")]
     [HttpGet("observability/summary")]
+    [Authorize(Policy = P1Policies.CommandCenterRead)]
     [ProducesResponseType(typeof(IncomingNachaObservabilitySummaryDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -35,6 +36,7 @@ public class IncomingNachaCommandCenterController : ControllerBase
     [EndpointSummary("Consulta paginada de ingestas inbound NACHA-M")]
     [EndpointDescription("Qué consulta: lista ingestas entrantes con filtros de estado, fechas y correlación para seguimiento operativo. Quién lo usa: operación, soporte técnico y auditoría de continuidad que revisan volumen y progreso de procesamiento. Permiso requerido: CanReadAch. Tipo: consulta (solo lectura). Impacto operacional: habilita triage de incidentes y selección de casos a investigar, sin alterar la ingesta ni la cola. Auditoría/trazabilidad: registra consumo para evidencia de monitoreo y control. Riesgos: filtros incompletos pueden excluir casos críticos o generar diagnóstico parcial. Errores esperados: 400 solicitud inválida; 401 no autenticado; 403 no autorizado; 500 error no controlado. Relación NACHA-M inbound: cubre la etapa de recepción y clasificación previa a acciones manuales sobre dispatch queue. Advertencia: no ejecuta cutover ni modifica contenido de archivos originales o reglas regulatorias.")]
     [HttpGet("ingestions")]
+    [Authorize(Policy = P1Policies.CommandCenterRead)]
     [ProducesResponseType(typeof(IncomingNachaPageResult<IncomingNachaIngestionListItemDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -46,6 +48,7 @@ public class IncomingNachaCommandCenterController : ControllerBase
     [EndpointSummary("Detalle técnico y operativo de una ingesta inbound")]
     [EndpointDescription("Qué consulta: retorna el detalle integral de una ingestión específica, incluyendo estado de procesamiento y contexto asociado. Quién lo usa: soporte de segundo nivel, operación ACH y auditoría técnica para reconstrucción de casos. Permiso requerido: CanReadAch. Tipo: consulta (solo lectura). Impacto operacional: apoya decisiones de remediación sobre cola y reintentos, sin mutar la ingestión. Auditoría/trazabilidad: referencia identificadores de correlación y eventos históricos para evidencia de investigación. Riesgos: usar ingestionId incorrecto puede derivar en diagnóstico sobre un caso no relacionado. Errores esperados: 404 no encontrado; 401 no autenticado; 403 no autorizado; 500 error no controlado. Relación NACHA-M inbound: permite traza de extremo a extremo del archivo entrante y su progreso hacia ACH/CENIT. Advertencia: no altera archivos originales ni aplica cambios regulatorios fuera de flujo controlado.")]
     [HttpGet("ingestions/{ingestionId:guid}")]
+    [Authorize(Policy = P1Policies.CommandCenterRead)]
     [ProducesResponseType(typeof(IncomingNachaIngestionDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -60,6 +63,7 @@ public class IncomingNachaCommandCenterController : ControllerBase
     [EndpointSummary("Vista operativa de dispatch queue inbound NACHA-M")]
     [EndpointDescription("Qué consulta: lista elementos de cola con estado de despacho, prioridad, intentos y errores para control operativo. Quién lo usa: operación ACH, soporte de turnos y tecnología durante incidentes de procesamiento. Permiso requerido: CanReadAch. Tipo: consulta (solo lectura). Impacto operacional: permite decidir si corresponde retry, unblock, requeue o mark-failed-final, sin ejecutar acciones por sí misma. Auditoría/trazabilidad: deja evidencia de consulta previa a intervención manual. Riesgos: interpretar mal la máquina de estados puede gatillar acciones incorrectas en pasos posteriores. Errores esperados: 400 solicitud inválida; 401 no autenticado; 403 no autorizado; 500 error no controlado. Relación NACHA-M inbound: refleja el estado del tránsito de mensajes entrantes hacia ejecución operativa ACH/CENIT. Advertencia: no modifica archivos originales ni reglas regulatorias, solo expone lectura de estado.")]
     [HttpGet("queue")]
+    [Authorize(Policy = P1Policies.CommandCenterRead)]
     [ProducesResponseType(typeof(IncomingNachaPageResult<IncomingNachaQueueListItemDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -71,6 +75,7 @@ public class IncomingNachaCommandCenterController : ControllerBase
     [EndpointSummary("Detalle de item de dispatch queue con acciones permitidas")]
     [EndpointDescription("Qué consulta: obtiene detalle del item de cola, eventos y acciones manuales permitidas por estado actual. Quién lo usa: operación de contingencia, soporte técnico y auditoría de ejecución manual. Permiso requerido: CanReadAch. Tipo: consulta (solo lectura). Impacto operacional: prepara decisión informada antes de ejecutar acciones manuales, sin cambiar estado del item. Auditoría/trazabilidad: facilita evidencia de debido proceso al revisar contexto previo a intervenir. Riesgos: omitir esta consulta antes de accionar puede producir duplicidad de intentos o transición indebida. Errores esperados: 404 no encontrado; 401 no autenticado; 403 no autorizado; 500 error no controlado. Relación NACHA-M inbound: conecta la trazabilidad del archivo entrante con su unidad de trabajo en cola. Advertencia: no altera archivos NACHA-M ni reglas regulatorias sin flujo controlado.")]
     [HttpGet("queue/{queueId:guid}")]
+    [Authorize(Policy = P1Policies.CommandCenterRead)]
     [ProducesResponseType(typeof(IncomingNachaQueueDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
