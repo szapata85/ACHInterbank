@@ -1,5 +1,6 @@
 ﻿//using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
+using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.Services.EncryptionService.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Microsoft.AspNetCore.Authorization;
@@ -33,7 +34,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
         /// </summary>
 
         [HttpPost("encrypt")]
-        [Authorize(Policy = "CanManageAch")]
+        [Authorize(Policy = P1Policies.DigitalEnvelopeEncrypt)]
         public async Task<IActionResult> Encrypt(IFormFile file)
         {
             // Valida que el archivo exista.
@@ -63,7 +64,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
         /// </summary>
 
         [HttpPost("decrypt")]
-        [Authorize(Policy = "CanManageAch")]
+        [Authorize(Policy = P1Policies.DigitalEnvelopeDecrypt)]
         public async Task<ActionResult<DecryptResponse>> Decrypt(IFormFile file)
         {
             //var plain = await _crypto.OpenEnvelopeAsync(req.Envelope, ct);
@@ -96,7 +97,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
         /// </summary>
 
         [HttpPost("testRSA")]
-        [Authorize(Policy = "CanManageAch")]
+        [Authorize(Policy = P1Policies.DigitalEnvelopeTest)]
         public void testRSA([FromServices] IRsaKeyProvider _rsaKeyService)
         {
             var resultcert = _rsaKeyService.ObtenerCertificate("CertCrypt");
