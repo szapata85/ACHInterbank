@@ -14,15 +14,17 @@ public class P1ConfigLoginLockoutPolicyMigrationTests
     [Fact]
     public void LoginLockoutSettingsController_ComposicionAuthorizeCorrecta()
     {
-        var attrs = typeof(LoginLockoutSettingsController).GetCustomAttributes<AuthorizeAttribute>(true).ToList();
-        Assert.Contains(attrs, a => string.IsNullOrWhiteSpace(a.Policy));
+        AssertControllerAuthorizeComposition<LoginLockoutSettingsController>(
+            nameof(LoginLockoutSettingsController.GetAsync),
+            nameof(LoginLockoutSettingsController.SaveAsync));
+    }
 
-        AssertActionPolicy(nameof(LoginLockoutSettingsController.GetAsync), P1Policies.ConfigRead);
-        AssertActionPolicy(nameof(LoginLockoutSettingsController.SaveAsync), P1Policies.ConfigManage);
-
-        AssertNoLegacyPolicy(nameof(LoginLockoutSettingsController.GetAsync));
-        AssertNoLegacyPolicy(nameof(LoginLockoutSettingsController.SaveAsync));
-        AssertNoNewAllowAnonymous();
+    [Fact]
+    public void SoapIntegrationSettingsController_ComposicionAuthorizeCorrecta()
+    {
+        AssertControllerAuthorizeComposition<SoapIntegrationSettingsController>(
+            nameof(SoapIntegrationSettingsController.GetAsync),
+            nameof(SoapIntegrationSettingsController.SaveAsync));
     }
 
     [Fact]
@@ -32,24 +34,37 @@ public class P1ConfigLoginLockoutPolicyMigrationTests
         await AssertPolicy(P1Policies.ConfigManage, FineGrainedPermissions.Config.Manage, "CanManageAch", "CanReadAch");
     }
 
-    private static void AssertActionPolicy(string actionName, string expected)
+    private static void AssertControllerAuthorizeComposition<TController>(string getActionName, string writeActionName)
     {
-        var method = typeof(LoginLockoutSettingsController).GetMethod(actionName);
+        var attrs = typeof(TController).GetCustomAttributes<AuthorizeAttribute>(true).ToList();
+        Assert.Contains(attrs, a => string.IsNullOrWhiteSpace(a.Policy));
+
+        AssertActionPolicy<TController>(getActionName, P1Policies.ConfigRead);
+        AssertActionPolicy<TController>(writeActionName, P1Policies.ConfigManage);
+
+        AssertNoLegacyPolicy<TController>(getActionName);
+        AssertNoLegacyPolicy<TController>(writeActionName);
+        AssertNoNewAllowAnonymous<TController>();
+    }
+
+    private static void AssertActionPolicy<TController>(string actionName, string expected)
+    {
+        var method = typeof(TController).GetMethod(actionName);
         var attr = method!.GetCustomAttribute<AuthorizeAttribute>();
         Assert.NotNull(attr);
         Assert.Equal(expected, attr!.Policy);
     }
 
-    private static void AssertNoLegacyPolicy(string actionName)
+    private static void AssertNoLegacyPolicy<TController>(string actionName)
     {
-        var method = typeof(LoginLockoutSettingsController).GetMethod(actionName);
+        var method = typeof(TController).GetMethod(actionName);
         var attrs = method!.GetCustomAttributes<AuthorizeAttribute>(true);
         Assert.DoesNotContain(attrs, a => a.Policy is "CanReadAch" or "CanManageAch");
     }
 
-    private static void AssertNoNewAllowAnonymous()
+    private static void AssertNoNewAllowAnonymous<TController>()
     {
-        var methods = typeof(LoginLockoutSettingsController).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+        var methods = typeof(TController).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
         Assert.DoesNotContain(methods, m => m.GetCustomAttribute<AllowAnonymousAttribute>() is not null);
     }
 
