@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.Common;
 using Cfa.ACHInterbank.Application.Features;
+using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.Security.Dtos;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -23,6 +24,7 @@ public class UsersController : ControllerBase
     /// </summary>
 
     [HttpGet]
+    [Authorize(Policy = P1Policies.UsersRead)]
     public async Task<ActionResult<PagedResponse<UserSummaryDto>>> GetUsersAsync(
         [FromQuery] string? search,
         [FromQuery] Guid? roleId,
@@ -45,6 +47,7 @@ public class UsersController : ControllerBase
     /// </summary>
 
     [HttpGet("validate-email-domain")]
+    [Authorize(Policy = P1Policies.UsersRead)]
     public async Task<ActionResult<bool>> ValidateEmailDomainAsync(
         [FromQuery] string email,
         CancellationToken cancellationToken = default)
@@ -57,6 +60,7 @@ public class UsersController : ControllerBase
     /// </summary>
 
     [HttpGet("{id:guid}")]
+    [Authorize(Policy = P1Policies.UsersRead)]
     public async Task<ActionResult<UserSummaryDto>> GetUserAsync(Guid id, CancellationToken cancellationToken)
     {
         var user = await _service.GetUserAsync(id, cancellationToken);
@@ -74,6 +78,7 @@ public class UsersController : ControllerBase
     /// </summary>
 
     [HttpPost]
+    [Authorize(Policy = P1Policies.UsersCreate)]
     public async Task<ActionResult<UserSummaryDto>> CreateUserAsync([FromBody] SaveUserRequest request, CancellationToken cancellationToken)
     {
         var operation = await _service.CreateAsync(request, cancellationToken);
@@ -92,6 +97,7 @@ public class UsersController : ControllerBase
     /// </summary>
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = P1Policies.UsersUpdate)]
     public async Task<ActionResult<UserSummaryDto>> UpdateUserAsync(Guid id, [FromBody] SaveUserRequest request, CancellationToken cancellationToken)
     {
         var operation = await _service.UpdateAsync(id, request, cancellationToken);
@@ -111,6 +117,7 @@ public class UsersController : ControllerBase
     /// </summary>
 
     [HttpPost("{id:guid}/roles")]
+    [Authorize(Policy = P1Policies.UsersAssignRoles)]
     public async Task<IActionResult> AssignRolesAsync(Guid id, [FromBody] AssignRolesRequest request, CancellationToken cancellationToken)
     {
         var operation = await _service.AssignRolesAsync(id, request, cancellationToken);
@@ -129,6 +136,7 @@ public class UsersController : ControllerBase
     /// </summary>
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = P1Policies.UsersDeactivate)]
     public async Task<IActionResult> DeactivateUserAsync(Guid id, CancellationToken cancellationToken)
     {
         var operation = await _service.DeactivateAsync(id, cancellationToken);
