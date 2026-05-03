@@ -2,6 +2,8 @@ namespace Cfa.ACHInterbank.Application.Security;
 
 public static class P1Policies
 {
+    public const string ConfigRead = "P1.ConfigRead";
+    public const string ConfigManage = "P1.ConfigManage";
     public const string BulkIngestionRead = "P1.BulkIngestionRead";
     public const string BulkIngestionUpload = "P1.BulkIngestionUpload";
     public const string BulkIngestionRetry = "P1.BulkIngestionRetry";

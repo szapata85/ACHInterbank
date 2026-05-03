@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.Security.Dtos;
+using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -21,6 +22,7 @@ public class LoginLockoutSettingsController : ControllerBase
     /// </summary>
 
     [HttpGet]
+    [Authorize(Policy = P1Policies.ConfigRead)]
     public async Task<ActionResult<LoginLockoutSettingsDto>> GetAsync(CancellationToken cancellationToken)
     {
         var settings = await _service.GetAsync(cancellationToken);
@@ -31,6 +33,7 @@ public class LoginLockoutSettingsController : ControllerBase
     /// </summary>
 
     [HttpPut]
+    [Authorize(Policy = P1Policies.ConfigManage)]
     public async Task<ActionResult<LoginLockoutSettingsDto>> SaveAsync(
         [FromBody] LoginLockoutSettingsDto request,
         CancellationToken cancellationToken)
