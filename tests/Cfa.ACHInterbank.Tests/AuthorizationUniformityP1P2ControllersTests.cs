@@ -1,5 +1,6 @@
 using System.Reflection;
 using Cfa.ACHInterbank.Api.Controllers;
+using Cfa.ACHInterbank.Application.Security;
 using Microsoft.AspNetCore.Authorization;
 using Xunit;
 
@@ -27,12 +28,12 @@ public class AuthorizationUniformityP1P2ControllersTests
     }
 
     [Fact]
-    public void SobreDigitalController_UsaAuthorizeYPolicyCanManageAch()
+    public void SobreDigitalController_UsaAuthorizeYP1PoliciesDigitalEnvelope()
     {
         Assert.NotNull(typeof(SobreDigitalController).GetCustomAttribute<AuthorizeAttribute>());
-        AssertMethodPolicy(typeof(SobreDigitalController), nameof(SobreDigitalController.Encrypt), "CanManageAch");
-        AssertMethodPolicy(typeof(SobreDigitalController), nameof(SobreDigitalController.Decrypt), "CanManageAch");
-        AssertMethodPolicy(typeof(SobreDigitalController), nameof(SobreDigitalController.testRSA), "CanManageAch");
+        AssertMethodPolicy(typeof(SobreDigitalController), nameof(SobreDigitalController.Encrypt), P1Policies.DigitalEnvelopeEncrypt);
+        AssertMethodPolicy(typeof(SobreDigitalController), nameof(SobreDigitalController.Decrypt), P1Policies.DigitalEnvelopeDecrypt);
+        AssertMethodPolicy(typeof(SobreDigitalController), nameof(SobreDigitalController.testRSA), P1Policies.DigitalEnvelopeTest);
     }
 
     private static void AssertMethodPolicy(Type controllerType, string methodName, string expectedPolicy)
