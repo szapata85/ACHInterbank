@@ -1,4 +1,5 @@
-﻿using Cfa.ACHInterbank.Persistence.DataBase;
+﻿using Cfa.ACHInterbank.Application.Security;
+using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -23,7 +24,7 @@ public class MaintenanceController : ControllerBase
     /// </summary>
 
     [HttpPost("seed")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.MaintenanceSeed)]
     public async Task<IActionResult> RunDbInitializer()
     {
         var provider = _configuration.GetValue<string>("Database:Provider") ?? "SqlServer";

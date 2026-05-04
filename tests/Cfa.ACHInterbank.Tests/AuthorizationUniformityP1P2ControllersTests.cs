@@ -9,10 +9,10 @@ namespace Cfa.ACHInterbank.Tests;
 public class AuthorizationUniformityP1P2ControllersTests
 {
     [Fact]
-    public void MaintenanceController_UsaAuthorizeYPolicyCanManageAch()
+    public void MaintenanceController_UsaAuthorizeYP1PoliciesMaintenance()
     {
         Assert.NotNull(typeof(MaintenanceController).GetCustomAttribute<AuthorizeAttribute>());
-        AssertMethodPolicy(typeof(MaintenanceController), nameof(MaintenanceController.RunDbInitializer), "CanManageAch");
+        AssertMethodPolicy(typeof(MaintenanceController), nameof(MaintenanceController.RunDbInitializer), P1Policies.MaintenanceSeed);
     }
 
     [Fact]

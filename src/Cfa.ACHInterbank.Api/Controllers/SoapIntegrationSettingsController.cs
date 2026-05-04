@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.Security.Dtos;
+using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,6 +19,7 @@ public class SoapIntegrationSettingsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = P1Policies.ConfigRead)]
     public async Task<ActionResult<SoapIntegrationSettingsDto>> GetAsync(CancellationToken cancellationToken)
     {
         var settings = await _service.GetAsync(cancellationToken);
@@ -25,6 +27,7 @@ public class SoapIntegrationSettingsController : ControllerBase
     }
 
     [HttpPut]
+    [Authorize(Policy = P1Policies.ConfigManage)]
     public async Task<ActionResult<SoapIntegrationSettingsDto>> SaveAsync(
         [FromBody] SoapIntegrationSettingsDto request,
         CancellationToken cancellationToken)
