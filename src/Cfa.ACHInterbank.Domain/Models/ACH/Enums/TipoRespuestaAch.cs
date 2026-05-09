@@ -1,4 +1,4 @@
-namespace Cfa.ACHInterbank.Application.ACH.Responses.Models;
+namespace Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 
 public enum TipoRespuestaAch
 {

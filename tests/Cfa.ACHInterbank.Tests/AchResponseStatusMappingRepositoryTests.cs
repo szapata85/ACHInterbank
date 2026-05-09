@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Responses.Models;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Repositories.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;

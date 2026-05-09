@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Responses.Models;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Application.ACH.Responses.Validation;
 using Xunit;
 

@@ -2,6 +2,7 @@ using Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Models;
 using Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Services;
 using Cfa.ACHInterbank.Application.ACH.Responses.Models;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Moq;
 using Xunit;
 

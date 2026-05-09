@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Models;
 using Cfa.ACHInterbank.Application.ACH.Responses.Models;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;

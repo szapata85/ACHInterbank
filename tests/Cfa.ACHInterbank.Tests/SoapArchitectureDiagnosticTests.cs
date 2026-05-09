@@ -28,10 +28,38 @@ public class SoapArchitectureDiagnosticTests
     }
 
     [Fact]
+    public void Domain_ShouldNotReferenceApplicationAssembly()
+    {
+        var domainAssembly = typeof(Cfa.ACHInterbank.Domain.Models.ACH.AchResponseStatusMapping).Assembly;
+        var referenced = domainAssembly.GetReferencedAssemblies();
+
+        Assert.DoesNotContain(referenced, x => string.Equals(x.Name, "Cfa.ACHInterbank.Application", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void There_ShouldBeOnlyOneTipoRespuestaAchType()
+    {
+        var assemblies = new[]
+        {
+            typeof(Cfa.ACHInterbank.Application.DependencyInjectionService).Assembly,
+            typeof(Cfa.ACHInterbank.Domain.Helpers.AchCycleIdHelper).Assembly
+        };
+
+        var matches = assemblies
+            .SelectMany(a => a.GetTypes())
+            .Where(t => string.Equals(t.Name, "TipoRespuestaAch", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.Single(matches);
+        Assert.Equal("Cfa.ACHInterbank.Domain.Models.ACH.Enums.TipoRespuestaAch", matches[0].FullName);
+    }
+
+    [Fact]
     public void NewAchResponseContracts_ShouldNotContainSoapOrProviderTerms()
     {
         var contractTypes = new[]
         {
+            typeof(Cfa.ACHInterbank.Domain.Models.ACH.Enums.TipoRespuestaAch),
             typeof(Cfa.ACHInterbank.Application.ACH.Responses.Models.RegistrarRespuestaAchCommand),
             typeof(Cfa.ACHInterbank.Application.ACH.Responses.Models.ResultadoRegistroRespuestaAch),
             typeof(Cfa.ACHInterbank.Application.ACH.Responses.Interfaces.IRespuestaTransaccionesAchGateway),
@@ -64,5 +92,4 @@ public class SoapArchitectureDiagnosticTests
             }
         }
     }
-
 }
