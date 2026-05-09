@@ -35,7 +35,7 @@ public class CertificateManagementController : ControllerBase
     [EndpointSummary("Cargar certificado público")]
     [EndpointDescription("Qué hace: registra una nueva versión de certificado público para uso operativo. Cuándo se usa: en alta/rotación de certificados de intercambio. Perfil consumidor: seguridad y operación ACH. Permiso requerido: FineGrainedPermissions.CanManageCertificates. Tipo de operación: modifica información. Genera auditoría: sí. Riesgos operativos: carga de certificado incorrecto rompe validación de firmas/cifrado. Errores esperados: 400 archivo requerido o metadatos inválidos; 401/403. Relación ACH/CENIT/NACHA-M: base de confianza para operaciones NACHA-M seguras. Precauciones para desarrollo u operación: validar emisor, vigencia y ambiente antes de publicar.")]
     [HttpPost("public")]
-    [Authorize(Policy = FineGrainedPermissions.CanManageCertificates)]
+    [Authorize(Policy = P1Policies.CertificatesUploadPublic)]
     [RequestSizeLimit(15 * 1024 * 1024)]
     public async Task<ActionResult<CertificateVersionApiDto>> UploadPublicAsync([FromForm] UploadPublicCertificateApiRequest request, CancellationToken cancellationToken)
     {
@@ -60,7 +60,7 @@ public class CertificateManagementController : ControllerBase
     [EndpointSummary("Registrar certificado privado")]
     [EndpointDescription("Qué hace: registra material privado o referencia segura para operaciones criptográficas. Cuándo se usa: durante aprovisionamiento/rotación de llaves. Perfil consumidor: seguridad bancaria. Permiso requerido: FineGrainedPermissions.CanManageCertificates. Tipo de operación: modifica información. Genera auditoría: sí. Riesgos operativos: manejo inseguro de clave privada compromete confidencialidad. Errores esperados: 400 archivo/contraseña/secreto inválido; 401/403. Relación ACH/CENIT/NACHA-M: habilita firmado/cifrado de artefactos NACHA-M. Precauciones para desarrollo u operación: usar almacenamiento seguro y mínimo privilegio.")]
     [HttpPost("private")]
-    [Authorize(Policy = FineGrainedPermissions.CanManageCertificates)]
+    [Authorize(Policy = P1Policies.CertificatesRegisterPrivate)]
     [RequestSizeLimit(15 * 1024 * 1024)]
     public async Task<ActionResult<CertificateVersionApiDto>> UploadPrivateAsync([FromForm] UploadPrivateCertificateApiRequest request, CancellationToken cancellationToken)
     {
@@ -88,7 +88,7 @@ public class CertificateManagementController : ControllerBase
     [EndpointSummary("Consulta de certificados por filtros de gestión")]
     [EndpointDescription("Qué hace: lista certificados gestionados por cámara, ambiente, propósito, titularidad y estado. Cuándo se usa: en gobierno de certificados, diagnóstico de operación y validación previa a generación/cifrado. Perfil consumidor: seguridad bancaria, operación ACH y auditoría. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por trazas de acceso administrativo. Riesgos operativos: aplicar filtros incompletos puede ocultar versión activa o revocada. Errores esperados: 400 por filtros inválidos; 401/403 por autorización. Relación ACH/CENIT/NACHA-M: administra el inventario criptográfico que respalda intercambio seguro NACHA-M. Precauciones para desarrollo u operación: verificar siempre vigencia, estado y ambiente antes de promover cambios operativos.")]
     [HttpGet]
-    [Authorize(Policy = "CanReadAch")]
+    [Authorize(Policy = P1Policies.CertificatesRead)]
     public async Task<ActionResult<IEnumerable<CertificateVersionApiDto>>> ListAsync([FromQuery] int? clearingHouseId, [FromQuery] CertificateEnvironment? environment, [FromQuery] CertificatePurpose? purpose, [FromQuery] CertificateHolderType? holderType, [FromQuery] CertificateStatus? status, CancellationToken cancellationToken)
     {
         var items = await _catalogService.GetCertificatesAsync(new CertificateFilterDto(clearingHouseId, environment, purpose, holderType, status), cancellationToken);
@@ -98,7 +98,7 @@ public class CertificateManagementController : ControllerBase
     [EndpointSummary("Versiones de un certificado")]
     [EndpointDescription("Qué hace: muestra historial/versiones de un certificado lógico. Cuándo se usa: en auditoría de rotación o investigación de incidentes. Perfil consumidor: seguridad y auditoría. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí. Riesgos operativos: ignorar historial puede causar activación de versión obsoleta. Errores esperados: 404 id inexistente; 401/403. Relación ACH/CENIT/NACHA-M: trazabilidad de gestión criptográfica NACHA-M. Precauciones para desarrollo u operación: revisar vigencia y estado antes de activar.")]
     [HttpGet("{id:int}/versions")]
-    [Authorize(Policy = "CanReadAch")]
+    [Authorize(Policy = P1Policies.CertificatesRead)]
     public async Task<ActionResult<IEnumerable<CertificateVersionApiDto>>> ListVersionsAsync(int id, CancellationToken cancellationToken)
     {
         var items = await _catalogService.GetVersionsAsync(id, cancellationToken);
@@ -108,7 +108,7 @@ public class CertificateManagementController : ControllerBase
     [EndpointSummary("Activar versión de certificado")]
     [EndpointDescription("Qué hace: activa versión específica para uso productivo. Cuándo se usa: en ventanas de cambio aprobadas. Perfil consumidor: seguridad operativa. Permiso requerido: FineGrainedPermissions.CanManageCertificates. Tipo de operación: modifica información. Genera auditoría: sí. Riesgos operativos: activar versión errónea interrumpe firmas/cifrado. Errores esperados: 400/409 por validación de activación; 401/403. Relación ACH/CENIT/NACHA-M: impacta disponibilidad de operaciones NACHA-M seguras. Precauciones para desarrollo u operación: ejecutar con plan de reversa y validación previa.")]
     [HttpPost("versions/{id:int}/activate")]
-    [Authorize(Policy = FineGrainedPermissions.CanManageCertificates)]
+    [Authorize(Policy = P1Policies.CertificatesActivate)]
     public async Task<ActionResult<CertificateVersionApiDto>> ActivateAsync(int id, CancellationToken cancellationToken)
     {
         var dto = await _activationService.ActivateVersionAsync(new ActivateCertificateVersionRequest(id, User?.Identity?.Name ?? "api"), cancellationToken);
@@ -118,7 +118,7 @@ public class CertificateManagementController : ControllerBase
     [EndpointSummary("Revocar versión de certificado")]
     [EndpointDescription("Qué hace: revoca una versión con motivo registrado. Cuándo se usa: ante compromiso, expiración o retiro controlado. Perfil consumidor: seguridad y cumplimiento. Permiso requerido: FineGrainedPermissions.CanManageCertificates. Tipo de operación: modifica información. Genera auditoría: sí. Riesgos operativos: revocar sin reemplazo puede detener operación. Errores esperados: 400/409 por estado inválido; 401/403. Relación ACH/CENIT/NACHA-M: control de riesgo criptográfico en intercambio NACHA-M. Precauciones para desarrollo u operación: confirmar versión sustituta antes de revocar.")]
     [HttpPost("versions/{id:int}/revoke")]
-    [Authorize(Policy = FineGrainedPermissions.CanManageCertificates)]
+    [Authorize(Policy = P1Policies.CertificatesRevoke)]
     public async Task<ActionResult<CertificateVersionApiDto>> RevokeAsync(int id, [FromBody] RevokeVersionBody body, CancellationToken cancellationToken)
     {
         var dto = await _activationService.RevokeVersionAsync(new RevokeCertificateVersionRequest(id, User?.Identity?.Name ?? "api", body.Reason ?? "Revoked by API"), cancellationToken);
@@ -128,7 +128,7 @@ public class CertificateManagementController : ControllerBase
     [EndpointSummary("Validar versión para activación")]
     [EndpointDescription("Qué hace: ejecuta validaciones técnicas previas a activar una versión. Cuándo se usa: antes de cambios en productivo. Perfil consumidor: seguridad y operación. Permiso requerido: FineGrainedPermissions.CanManageCertificates. Tipo de operación: modifica información. Genera auditoría: sí, por rastro de validación. Riesgos operativos: omitir validación incrementa riesgo de caída operativa. Errores esperados: 400 por certificado inválido; 401/403. Relación ACH/CENIT/NACHA-M: asegura cumplimiento criptográfico para NACHA-M. Precauciones para desarrollo u operación: no activar si la validación reporta fallas.")]
     [HttpPost("versions/{id:int}/validate")]
-    [Authorize(Policy = FineGrainedPermissions.CanManageCertificates)]
+    [Authorize(Policy = P1Policies.CertificatesValidate)]
     public async Task<ActionResult<CertificateValidationResultDto>> ValidateAsync(int id, CancellationToken cancellationToken)
     {
         return Ok(await _validationService.ValidateForActivationAsync(id, cancellationToken));
@@ -137,7 +137,7 @@ public class CertificateManagementController : ControllerBase
     [EndpointSummary("Auditoría de cargas de certificados")]
     [EndpointDescription("Qué hace: lista eventos de carga y gestión para trazabilidad de cumplimiento. Cuándo se usa: en revisiones regulatorias y forénsicas. Perfil consumidor: auditoría y seguridad. Permiso requerido: FineGrainedPermissions.CanViewNachaSecurityAudit. Tipo de operación: solo consulta. Genera auditoría: sí, fuente primaria de auditoría. Riesgos operativos: no revisar auditoría limita detección de acciones indebidas. Errores esperados: 401/403. Relación ACH/CENIT/NACHA-M: evidencia gobierno de certificados en procesos NACHA-M. Precauciones para desarrollo u operación: preservar integridad de evidencias y control de acceso.")]
     [HttpGet("audit")]
-    [Authorize(Policy = FineGrainedPermissions.CanViewNachaSecurityAudit)]
+    [Authorize(Policy = P1Policies.CertificatesAudit)]
     public async Task<ActionResult<IEnumerable<CertificateAuditDto>>> AuditAsync(CancellationToken cancellationToken)
     {
         return Ok(await _auditService.ListLoadAuditsAsync(cancellationToken));

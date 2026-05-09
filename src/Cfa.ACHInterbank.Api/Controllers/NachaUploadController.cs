@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Cfa.ACHInterbank.Api.Controllers
 {
     [ApiController]
-    [Authorize(Policy = P1Policies.NachaRead)]
+    [Authorize]
     [Route("[controller]")]
     public class NachaUploadController : Controller
     {
@@ -185,6 +185,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
         }
 
         [HttpGet("records")]
+        [Authorize(Policy = P1Policies.NachaRead)]
         public async Task<ActionResult<IReadOnlyList<NachaUploadRecordResponse>>> GetUploadedRecords(
             [FromQuery] string? immediateOrigin,
             [FromQuery] string? immediateDestination,

@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.Security.Dtos;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
+using Cfa.ACHInterbank.Application.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -21,6 +22,7 @@ public class RolesController : ControllerBase
     /// </summary>
 
     [HttpGet]
+    [Authorize(Policy = P1Policies.RolesRead)]
     public async Task<ActionResult<IEnumerable<RoleSummaryDto>>> GetRolesAsync(CancellationToken cancellationToken)
     {
         var roles = await _service.GetAllAsync(cancellationToken);

@@ -9,7 +9,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
 [Route("api/transactions/bulk-ingestion")]
-[Authorize(Policy = P1Policies.BulkIngestionRead)]
+[Authorize]
 public class BulkIngestionController : ControllerBase
 {
     private const long MaxUploadSizeBytes = 20 * 1024 * 1024;

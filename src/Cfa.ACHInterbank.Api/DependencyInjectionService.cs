@@ -123,6 +123,63 @@ public static class DependencyInjectionService
             return Task.CompletedTask;
         }).AllowAnonymous();
 
+        app.MapGet("/health/live", () =>
+        {
+            return Results.Ok(new
+            {
+                status = "Healthy",
+                check = "live",
+                service = "ACHInterbank",
+                timestampUtc = DateTime.UtcNow
+            });
+        }).AllowAnonymous();
+
+        app.MapGet("/health/ready", async (IServiceProvider services, CancellationToken ct) =>
+        {
+            var database = "Skipped";
+            var statusCode = StatusCodes.Status200OK;
+            var status = "Healthy";
+
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(5));
+
+            try
+            {
+                await using var scope = services.CreateAsyncScope();
+                var dbContext = scope.ServiceProvider.GetService<AchDbContext>();
+                if (dbContext is not null)
+                {
+                    var canConnect = await dbContext.Database.CanConnectAsync(timeoutCts.Token);
+                    database = canConnect ? "Healthy" : "Unhealthy";
+                    if (!canConnect)
+                    {
+                        status = "Unhealthy";
+                        statusCode = StatusCodes.Status503ServiceUnavailable;
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                database = "Unhealthy";
+                status = "Unhealthy";
+                statusCode = StatusCodes.Status503ServiceUnavailable;
+            }
+            catch
+            {
+                database = "Unhealthy";
+                status = "Unhealthy";
+                statusCode = StatusCodes.Status503ServiceUnavailable;
+            }
+
+            return Results.Json(new
+            {
+                status,
+                check = "ready",
+                database,
+                timestampUtc = DateTime.UtcNow
+            }, statusCode: statusCode);
+        }).AllowAnonymous();
+
         app.UseMiddleware<GlobalExceptionMiddleware>();
 
         var applyMigrations = app.Configuration.GetValue("Database:ApplyMigrations", !IsRunningInContainer());

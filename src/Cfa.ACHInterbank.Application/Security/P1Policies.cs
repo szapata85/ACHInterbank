@@ -2,6 +2,10 @@ namespace Cfa.ACHInterbank.Application.Security;
 
 public static class P1Policies
 {
+    public const string ConfigRead = "P1.ConfigRead";
+    public const string ConfigManage = "P1.ConfigManage";
+    public const string MaintenanceSeed = "P1.MaintenanceSeed";
+    public const string MaintenanceRunAdminTask = "P1.MaintenanceRunAdminTask";
     public const string BulkIngestionRead = "P1.BulkIngestionRead";
     public const string BulkIngestionUpload = "P1.BulkIngestionUpload";
     public const string BulkIngestionRetry = "P1.BulkIngestionRetry";
@@ -15,4 +19,33 @@ public static class P1Policies
     public const string NachaUpload = "P1.NachaUpload";
     public const string NachaGenerate = "P1.NachaGenerate";
     public const string NachaExport = "P1.NachaExport";
+    public const string CertificatesRead = "P1.CertificatesRead";
+    public const string CertificatesUploadPublic = "P1.CertificatesUploadPublic";
+    public const string CertificatesRegisterPrivate = "P1.CertificatesRegisterPrivate";
+    public const string CertificatesActivate = "P1.CertificatesActivate";
+    public const string CertificatesRevoke = "P1.CertificatesRevoke";
+    public const string CertificatesValidate = "P1.CertificatesValidate";
+    public const string CertificatesAudit = "P1.CertificatesAudit";
+    public const string DigitalEnvelopeEncrypt = "P1.DigitalEnvelopeEncrypt";
+    public const string DigitalEnvelopeDecrypt = "P1.DigitalEnvelopeDecrypt";
+    public const string DigitalEnvelopeTest = "P1.DigitalEnvelopeTest";
+    public const string NachaSecurityRead = "P1.NachaSecurityRead";
+    public const string NachaSecurityGenerateEncrypted = "P1.NachaSecurityGenerateEncrypted";
+    public const string NachaSecurityManualEncrypt = "P1.NachaSecurityManualEncrypt";
+    public const string NachaSecurityManualDecrypt = "P1.NachaSecurityManualDecrypt";
+    public const string NachaSecurityAuthorizeDownload = "P1.NachaSecurityAuthorizeDownload";
+    public const string UsersRead = "P1.UsersRead";
+    public const string UsersCreate = "P1.UsersCreate";
+    public const string UsersUpdate = "P1.UsersUpdate";
+    public const string UsersDeactivate = "P1.UsersDeactivate";
+    public const string UsersAssignRoles = "P1.UsersAssignRoles";
+    public const string UsersManageBranding = "P1.UsersManageBranding";
+    public const string UsersManagePasswordRules = "P1.UsersManagePasswordRules";
+    public const string UsersManageLockout = "P1.UsersManageLockout";
+    public const string RolesRead = "P1.RolesRead";
+    public const string RolesCreate = "P1.RolesCreate";
+    public const string RolesUpdate = "P1.RolesUpdate";
+    public const string RolesDelete = "P1.RolesDelete";
+    public const string PermissionsRead = "P1.PermissionsRead";
+    public const string PermissionsAssign = "P1.PermissionsAssign";
 }

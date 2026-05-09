@@ -161,11 +161,11 @@ public class NachaSecurityOperationsControllerTests
     }
 
     [Theory]
-    [InlineData(nameof(NachaSecurityOperationsController.GeneratePlainAsync), FineGrainedPermissions.CanGenerateNacha)]
-    [InlineData(nameof(NachaSecurityOperationsController.GenerateEncryptedAsync), FineGrainedPermissions.CanGenerateEncryptedNacha)]
-    [InlineData(nameof(NachaSecurityOperationsController.ManualEncryptAsync), FineGrainedPermissions.CanManualEncryptEnvelope)]
-    [InlineData(nameof(NachaSecurityOperationsController.ManualDecryptAsync), FineGrainedPermissions.CanManualDecryptEnvelope)]
-    [InlineData(nameof(NachaSecurityOperationsController.AuditAsync), FineGrainedPermissions.CanViewNachaSecurityAudit)]
+    [InlineData(nameof(NachaSecurityOperationsController.GeneratePlainAsync), P1Policies.NachaSecurityGenerateEncrypted)]
+    [InlineData(nameof(NachaSecurityOperationsController.GenerateEncryptedAsync), P1Policies.NachaSecurityGenerateEncrypted)]
+    [InlineData(nameof(NachaSecurityOperationsController.ManualEncryptAsync), P1Policies.NachaSecurityManualEncrypt)]
+    [InlineData(nameof(NachaSecurityOperationsController.ManualDecryptAsync), P1Policies.NachaSecurityManualDecrypt)]
+    [InlineData(nameof(NachaSecurityOperationsController.AuditAsync), P1Policies.NachaSecurityRead)]
     public void Endpoints_UseExpectedFineGrainedPolicy(string methodName, string expectedPolicy)
     {
         var method = typeof(NachaSecurityOperationsController).GetMethod(methodName);

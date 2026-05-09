@@ -1,5 +1,6 @@
 using System.Reflection;
 using Cfa.ACHInterbank.Api.Controllers;
+using Cfa.ACHInterbank.Application.Security;
 using Microsoft.AspNetCore.Authorization;
 using Xunit;
 
@@ -8,10 +9,10 @@ namespace Cfa.ACHInterbank.Tests;
 public class AuthorizationUniformityP1P2ControllersTests
 {
     [Fact]
-    public void MaintenanceController_UsaAuthorizeYPolicyCanManageAch()
+    public void MaintenanceController_UsaAuthorizeYP1PoliciesMaintenance()
     {
         Assert.NotNull(typeof(MaintenanceController).GetCustomAttribute<AuthorizeAttribute>());
-        AssertMethodPolicy(typeof(MaintenanceController), nameof(MaintenanceController.RunDbInitializer), "CanManageAch");
+        AssertMethodPolicy(typeof(MaintenanceController), nameof(MaintenanceController.RunDbInitializer), P1Policies.MaintenanceSeed);
     }
 
     [Fact]
@@ -27,12 +28,12 @@ public class AuthorizationUniformityP1P2ControllersTests
     }
 
     [Fact]
-    public void SobreDigitalController_UsaAuthorizeYPolicyCanManageAch()
+    public void SobreDigitalController_UsaAuthorizeYP1PoliciesDigitalEnvelope()
     {
         Assert.NotNull(typeof(SobreDigitalController).GetCustomAttribute<AuthorizeAttribute>());
-        AssertMethodPolicy(typeof(SobreDigitalController), nameof(SobreDigitalController.Encrypt), "CanManageAch");
-        AssertMethodPolicy(typeof(SobreDigitalController), nameof(SobreDigitalController.Decrypt), "CanManageAch");
-        AssertMethodPolicy(typeof(SobreDigitalController), nameof(SobreDigitalController.testRSA), "CanManageAch");
+        AssertMethodPolicy(typeof(SobreDigitalController), nameof(SobreDigitalController.Encrypt), P1Policies.DigitalEnvelopeEncrypt);
+        AssertMethodPolicy(typeof(SobreDigitalController), nameof(SobreDigitalController.Decrypt), P1Policies.DigitalEnvelopeDecrypt);
+        AssertMethodPolicy(typeof(SobreDigitalController), nameof(SobreDigitalController.testRSA), P1Policies.DigitalEnvelopeTest);
     }
 
     private static void AssertMethodPolicy(Type controllerType, string methodName, string expectedPolicy)

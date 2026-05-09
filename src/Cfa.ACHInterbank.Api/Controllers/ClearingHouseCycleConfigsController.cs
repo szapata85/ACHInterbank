@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,7 +19,7 @@ public class ClearingHouseCycleConfigsController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.ConfigRead)]
     public async Task<IActionResult> GetByClearingHouse(
         [FromQuery] int clearingHouseId,
         [FromQuery] DateTime? effectiveAt,
@@ -26,7 +27,7 @@ public class ClearingHouseCycleConfigsController : ControllerBase
         => Ok(await _service.GetByClearingHouseAsync(clearingHouseId, effectiveAt, ct));
 
     [HttpGet("current")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.ConfigRead)]
     public async Task<IActionResult> GetCurrentByClearingHouse(
         [FromQuery] int clearingHouseId,
         [FromQuery] DateTime? effectiveAt,
@@ -34,12 +35,12 @@ public class ClearingHouseCycleConfigsController : ControllerBase
         => Ok(await _service.GetCurrentByClearingHouseAsync(clearingHouseId, effectiveAt, ct));
 
     [HttpPost]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.ConfigManage)]
     public async Task<IActionResult> CreateVersion([FromBody] UpsertClearingHouseCycleConfigDto dto, CancellationToken ct = default)
         => Ok(await _service.CreateVersionAsync(dto, ct));
 
     [HttpPost("{id:int}/inactivate")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = P1Policies.ConfigManage)]
     public async Task<IActionResult> Inactivate(int id, [FromBody] InactivateClearingHouseCycleConfigDto dto, CancellationToken ct = default)
         => Ok(await _service.InactivateAsync(id, dto.EffectiveTo, ct));
 }
