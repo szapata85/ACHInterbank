@@ -11,6 +11,44 @@ namespace Cfa.ACHInterbank.Tests;
 public class AchResponsePersistenceTests
 {
 
+
+    [Fact]
+    public async Task AchResponseNotificationAttemptRepository_FindByIdAsync_ShouldReturnAttemptWithResponse()
+    {
+        await using var context = await BuildContextAsync();
+        var response = BuildResponse();
+        var attempt = BuildAttempt(response.Id, 1);
+        context.AchResponses.Add(response);
+        context.AchResponseNotificationAttempts.Add(attempt);
+        await context.SaveChangesAsync();
+
+        var repo = new AchResponseNotificationAttemptRepository(context);
+        var found = await repo.FindByIdAsync(attempt.Id);
+
+        Assert.NotNull(found);
+        Assert.NotNull(found!.AchResponse);
+        Assert.Equal(response.Id, found.AchResponse.Id);
+    }
+
+    [Fact]
+    public async Task AchResponseNotificationAttemptRepository_UpdateAsync_ShouldPersistStateChanges()
+    {
+        await using var context = await BuildContextAsync();
+        var response = BuildResponse();
+        var attempt = BuildAttempt(response.Id, 1);
+        context.AchResponses.Add(response);
+        context.AchResponseNotificationAttempts.Add(attempt);
+        await context.SaveChangesAsync();
+
+        var repo = new AchResponseNotificationAttemptRepository(context);
+        attempt.EstadoNotificacion = AchResponseNotificationStatus.ErrorFuncional;
+        await repo.UpdateAsync(attempt);
+        await context.SaveChangesAsync();
+
+        var updated = await context.AchResponseNotificationAttempts.SingleAsync(x => x.Id == attempt.Id);
+        Assert.Equal(AchResponseNotificationStatus.ErrorFuncional, updated.EstadoNotificacion);
+    }
+
     [Fact]
     public async Task AchResponseNotificationAttempt_ResponseIdAndNumeroIntento_ShouldBeUnique()
     {

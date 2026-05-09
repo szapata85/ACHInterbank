@@ -40,4 +40,18 @@ public class AchResponseNotificationAttemptRepository : IAchResponseNotification
             .OrderBy(x => x.NumeroIntento)
             .ToListAsync(cancellationToken);
     }
+
+    public Task<AchResponseNotificationAttempt?> FindByIdAsync(long id, CancellationToken cancellationToken = default)
+    {
+        return _context.AchResponseNotificationAttempts
+            .Include(x => x.AchResponse)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+    }
+
+    public Task UpdateAsync(AchResponseNotificationAttempt attempt, CancellationToken cancellationToken = default)
+    {
+        _context.AchResponseNotificationAttempts.Update(attempt);
+        return Task.CompletedTask;
+    }
+
 }

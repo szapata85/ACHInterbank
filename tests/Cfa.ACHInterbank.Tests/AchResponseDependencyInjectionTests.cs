@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application;
 using Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Processing.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Responses.Notification.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Processing.Validation;
 using Cfa.ACHInterbank.Application.ACH.Responses.Repositories;
 using Cfa.ACHInterbank.Application.ACH.Responses.Processing.Services;
@@ -66,4 +67,33 @@ public class AchResponseDependencyInjectionTests
 
         Assert.NotNull(svc);
     }
+
+    [Fact]
+    public void AddApplication_ShouldRegisterNotificarRespuestaAchUseCaseDependencies()
+    {
+        var services = new ServiceCollection();
+        services.AddApplication();
+        services.AddSingleton(Mock.Of<IAchResponseRepository>());
+        services.AddSingleton(Mock.Of<IAchResponseNotificationAttemptRepository>());
+        services.AddSingleton(Mock.Of<IRespuestaTransaccionesAchGateway>());
+        services.AddSingleton(Mock.Of<IUnitOfWork>());
+        var sp = services.BuildServiceProvider();
+
+        var sut = sp.GetService<INotificarRespuestaAchUseCase>();
+
+        Assert.NotNull(sut);
+    }
+
+    [Fact]
+    public void AddApplication_ShouldRegisterRegistrarRespuestaAchCommandMapper()
+    {
+        var services = new ServiceCollection();
+        services.AddApplication();
+        var sp = services.BuildServiceProvider();
+
+        var mapper = sp.GetService<IRegistrarRespuestaAchCommandMapper>();
+
+        Assert.NotNull(mapper);
+    }
+
 }
