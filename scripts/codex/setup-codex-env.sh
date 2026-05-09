@@ -58,4 +58,10 @@ dotnet build ACHInterbank.sln -c Release --no-restore
 log "dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build"
 dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build
 
+log "dotnet tool restore"
+dotnet tool restore
+
+log "dotnet tool run dotnet-ef --version"
+dotnet tool run dotnet-ef --version
+
 log "Setup y validación finalizados correctamente."
