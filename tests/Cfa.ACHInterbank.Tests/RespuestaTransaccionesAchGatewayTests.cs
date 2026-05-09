@@ -112,6 +112,14 @@ public class RespuestaTransaccionesAchGatewayTests
         result.Exitoso.Should().BeTrue();
     }
 
+
+    [Fact]
+    public void ExternalGatewayPhysicalComponents_ShouldRemainInternal()
+    {
+        typeof(RegistrarRespuestaAchSoapRequestMapper).IsPublic.Should().BeFalse();
+        typeof(RegistrarRespuestaAchSoapResponseParser).IsPublic.Should().BeFalse();
+    }
+
     [Fact]
     public void ExternalPhysicalMapper_ShouldContainPhysicalSoapFieldName_IdTransaccionAxon()
     {
