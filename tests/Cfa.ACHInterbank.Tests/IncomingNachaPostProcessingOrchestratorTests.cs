@@ -16,6 +16,60 @@ namespace Cfa.ACHInterbank.Tests;
 
 public class IncomingNachaPostProcessingOrchestratorTests
 {
+
+    [Fact]
+    public async Task ExecuteAsync_ReturnsNoElementsSummary_WhenQueueIsEmpty()
+    {
+        await using var context = BuildContext();
+        var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object);
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(0, result.Picked);
+        Assert.Contains("Sin elementos en cola", result.Summary);
+        soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ConfirmsQueue_AndStoresIntegrationExecution_WhenSoapResponseIsSuccessful()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+
+        var mapper = BuildMapperSuccess();
+        const string requestXml = "<Proc_Transacciones><IDTRAN>1</IDTRAN></Proc_Transacciones>";
+        mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcTransaccionesRequestContract>())).Returns(requestXml);
+
+        const string responseXml = "<Envelope><Body><Proc_TransaccionesResponse><RTAACH>00</RTAACH><RTALOC>OK</RTALOC></Proc_TransaccionesResponse></Body></Envelope>";
+        var soap = new Mock<IWscfaachSoapClient>();
+        soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(responseXml);
+
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object);
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.Confirmed);
+        var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        Assert.Equal(IncomingNachaDispatchQueueStatus.Confirmed, queue.QueueStatus);
+        Assert.Null(queue.NextAttemptAtUtc);
+
+        var execution = await context.IncomingNachaIntegrationExecution.FirstAsync();
+        Assert.Equal(requestXml, execution.RequestPayloadXml);
+        Assert.Equal(responseXml, execution.ResponsePayloadXml);
+        Assert.False(string.IsNullOrWhiteSpace(execution.RequestHash));
+        Assert.False(string.IsNullOrWhiteSpace(execution.ResponseHash));
+    }
     [Fact]
     public async Task ExecuteAsync_BlocksQueue_WhenMappingIsInvalid()
     {
