@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Models;
 using Cfa.ACHInterbank.Application.ACH.Responses.Models;
+using Cfa.ACHInterbank.Application.ACH.Responses.Queries.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -32,6 +33,23 @@ public class AchResponseStatusMappingRepository : IAchResponseStatusMappingRepos
 
         return await query
             .Select(MapToModel())
+            .ToListAsync(cancellationToken);
+    }
+
+
+    public async Task<IReadOnlyList<AchResponseStatusMappingListItemModel>> ListAsync(string? codigoCamaraCompensacion = null, TipoRespuestaAch? tipoRespuesta = null, bool? activo = null, CancellationToken cancellationToken = default)
+    {
+        var query = _context.AchResponseStatusMappings.AsNoTracking().AsQueryable();
+        if (!string.IsNullOrWhiteSpace(codigoCamaraCompensacion)) query = query.Where(x => x.CodigoCamaraCompensacion == Normalize(codigoCamaraCompensacion));
+        if (tipoRespuesta.HasValue) query = query.Where(x => x.TipoRespuesta == tipoRespuesta.Value);
+        if (activo.HasValue) query = query.Where(x => x.Activo == activo.Value);
+
+        return await query
+            .OrderBy(x => x.CodigoCamaraCompensacion)
+            .ThenBy(x => x.TipoRespuesta)
+            .ThenBy(x => x.CodigoEstadoExterno)
+            .ThenBy(x => x.CodigoCausalExterna)
+            .Select(x => new AchResponseStatusMappingListItemModel(x.Id, x.CodigoCamaraCompensacion, x.TipoRespuesta.ToString(), x.CodigoEstadoExterno, x.CodigoCausalExterna, x.IdEstadoInterno, x.IdEstadoServicioExterno, x.EstadoInternoNombre, x.CausalNormalizada, x.DescripcionCausalNormalizada, x.RequiereCausal, x.PermiteNotificacion, x.Activo, x.FechaInicioVigencia, x.FechaFinVigencia))
             .ToListAsync(cancellationToken);
     }
 

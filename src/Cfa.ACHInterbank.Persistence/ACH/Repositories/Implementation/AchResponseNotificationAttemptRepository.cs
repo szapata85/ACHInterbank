@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Responses.Repositories;
+using Cfa.ACHInterbank.Application.ACH.Responses.Queries.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -52,6 +53,16 @@ public class AchResponseNotificationAttemptRepository : IAchResponseNotification
     {
         _context.AchResponseNotificationAttempts.Update(attempt);
         return Task.CompletedTask;
+    }
+
+    public async Task<IReadOnlyList<AchResponseNotificationAttemptModel>> FindPublicByResponseIdAsync(Guid achResponseId, CancellationToken cancellationToken = default)
+    {
+        return await _context.AchResponseNotificationAttempts
+            .AsNoTracking()
+            .Where(x => x.AchResponseId == achResponseId)
+            .OrderBy(x => x.NumeroIntento)
+            .Select(a => new AchResponseNotificationAttemptModel(a.Id, a.AchResponseId, a.NumeroIntento, a.EstadoNotificacion.ToString(), a.IdCanal, a.NombreCanal, a.IdTransaccion, a.IdEstado, a.Causal, a.IdTransaccionServicioExterno, a.DescripcionCausal, a.ExisteError, a.CodigoError, a.DescripcionError, a.ErrorTecnico, a.FechaCreacion, a.FechaEnvio))
+            .ToListAsync(cancellationToken);
     }
 
 }
