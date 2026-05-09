@@ -19,10 +19,11 @@ public class AchResponseNotificationAttemptConfiguration : IEntityTypeConfigurat
         builder.Property(x => x.CodigoError).HasMaxLength(100);
         builder.Property(x => x.DescripcionError).HasMaxLength(500);
         builder.Property(x => x.ErrorTecnico).HasMaxLength(1000);
-        builder.Property(x => x.RequestPayload).HasColumnType("text");
-        builder.Property(x => x.ResponsePayload).HasColumnType("text");
+        builder.Property(x => x.RequestPayload);
+        builder.Property(x => x.ResponsePayload);
+        builder.Property(x => x.FechaCreacion).IsRequired();
 
-        builder.HasIndex(x => new { x.AchResponseId, x.NumeroIntento }).HasDatabaseName("IX_AchRespAttempts_Response_Attempt");
+        builder.HasIndex(x => new { x.AchResponseId, x.NumeroIntento }).IsUnique().HasDatabaseName("UX_AchRespAttempts_Response_Attempt");
         builder.HasIndex(x => x.EstadoNotificacion).HasDatabaseName("IX_AchRespAttempts_Estado");
         builder.HasIndex(x => x.FechaCreacion).HasDatabaseName("IX_AchRespAttempts_FechaCreacion");
     }

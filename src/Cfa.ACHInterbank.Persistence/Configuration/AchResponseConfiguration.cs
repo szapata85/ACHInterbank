@@ -25,6 +25,8 @@ public class AchResponseConfiguration : IEntityTypeConfiguration<AchResponse>
         builder.Property(x => x.EstadoProcesamiento).HasConversion<string>().HasMaxLength(40).IsRequired();
         builder.Property(x => x.MotivoNoHomologacion).HasMaxLength(500);
         builder.Property(x => x.CorrelationId).HasMaxLength(100);
+        builder.Property(x => x.FechaRecepcion).IsRequired();
+        builder.Property(x => x.FechaCreacion).IsRequired();
 
         builder.HasMany(x => x.NotificationAttempts)
             .WithOne(x => x.AchResponse)

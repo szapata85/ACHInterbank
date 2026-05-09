@@ -10,6 +10,65 @@ namespace Cfa.ACHInterbank.Tests;
 
 public class AchResponsePersistenceTests
 {
+
+    [Fact]
+    public async Task AchResponseNotificationAttempt_ResponseIdAndNumeroIntento_ShouldBeUnique()
+    {
+        await using var context = await BuildContextAsync();
+        var entityType = context.Model.FindEntityType(typeof(AchResponseNotificationAttempt));
+        var index = entityType!.GetIndexes().Single(i => i.Properties.Select(p => p.Name).SequenceEqual(new[] { "AchResponseId", "NumeroIntento" }));
+
+        Assert.True(index.IsUnique);
+    }
+
+    [Fact]
+    public async Task AchResponseNotificationAttempt_PayloadColumns_ShouldBeConfiguredAsLongTextWithoutMaxLength()
+    {
+        await using var context = await BuildContextAsync();
+        var entityType = context.Model.FindEntityType(typeof(AchResponseNotificationAttempt));
+
+        var requestPayload = entityType!.FindProperty(nameof(AchResponseNotificationAttempt.RequestPayload));
+        var responsePayload = entityType.FindProperty(nameof(AchResponseNotificationAttempt.ResponsePayload));
+
+        Assert.NotNull(requestPayload);
+        Assert.NotNull(responsePayload);
+        Assert.Null(requestPayload!.GetMaxLength());
+        Assert.Null(responsePayload!.GetMaxLength());
+    }
+
+    [Fact]
+    public async Task AchResponse_AuditDates_ShouldBeRequired()
+    {
+        await using var context = await BuildContextAsync();
+        var entityType = context.Model.FindEntityType(typeof(AchResponse));
+
+        Assert.False(entityType!.FindProperty(nameof(AchResponse.FechaRecepcion))!.IsNullable);
+        Assert.False(entityType.FindProperty(nameof(AchResponse.FechaCreacion))!.IsNullable);
+    }
+
+    [Fact]
+    public async Task AchResponseNotificationAttempt_AuditDates_ShouldBeRequired()
+    {
+        await using var context = await BuildContextAsync();
+        var entityType = context.Model.FindEntityType(typeof(AchResponseNotificationAttempt));
+
+        Assert.False(entityType!.FindProperty(nameof(AchResponseNotificationAttempt.FechaCreacion))!.IsNullable);
+    }
+
+    [Fact]
+    public async Task AchResponseNotificationAttempt_CriticalFields_ShouldBeRequired()
+    {
+        await using var context = await BuildContextAsync();
+        var entityType = context.Model.FindEntityType(typeof(AchResponseNotificationAttempt));
+
+        Assert.False(entityType!.FindProperty(nameof(AchResponseNotificationAttempt.IdCanal))!.IsNullable);
+        Assert.False(entityType.FindProperty(nameof(AchResponseNotificationAttempt.NombreCanal))!.IsNullable);
+        Assert.False(entityType.FindProperty(nameof(AchResponseNotificationAttempt.IdTransaccion))!.IsNullable);
+        Assert.False(entityType.FindProperty(nameof(AchResponseNotificationAttempt.IdEstado))!.IsNullable);
+        Assert.False(entityType.FindProperty(nameof(AchResponseNotificationAttempt.IdTransaccionServicioExterno))!.IsNullable);
+        Assert.False(entityType.FindProperty(nameof(AchResponseNotificationAttempt.EstadoNotificacion))!.IsNullable);
+    }
+
     [Fact]
     public async Task AchResponseRepository_AddAsync_ShouldPersistResponse()
     {
