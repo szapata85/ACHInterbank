@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Responses.Models;
+using Cfa.ACHInterbank.Application.ACH.Responses.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Notification.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Notification.Models;
 using Cfa.ACHInterbank.Application.ACH.Responses.Repositories;

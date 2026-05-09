@@ -19,7 +19,7 @@ public class RespuestaTransaccionesAchGatewayTests
             .Callback<IReadOnlyDictionary<string, object?>, CancellationToken>((request, _) => captured = request)
             .ReturnsAsync(SuccessResponseXml());
 
-        var sut = new RespuestaTransaccionesAchGateway(soapClient.Object, new RegistrarRespuestaAchSoapRequestMapper(), new RegistrarRespuestaAchSoapResponseParser());
+        var sut = new RespuestaTransaccionesAchGateway(soapClient.Object);
 
         await sut.RegistrarRespuestaAsync(BuildCommand());
 
@@ -172,7 +172,7 @@ public class RespuestaTransaccionesAchGatewayTests
         soapClient.Setup(x => x.RegistrarRespuestaTransaccionAsync(It.IsAny<IReadOnlyDictionary<string, object?>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(xml);
 
-        return new RespuestaTransaccionesAchGateway(soapClient.Object, new RegistrarRespuestaAchSoapRequestMapper(), new RegistrarRespuestaAchSoapResponseParser());
+        return new RespuestaTransaccionesAchGateway(soapClient.Object);
     }
 
     private static RegistrarRespuestaAchCommand BuildCommand() => new(
