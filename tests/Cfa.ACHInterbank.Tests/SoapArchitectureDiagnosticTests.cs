@@ -41,7 +41,9 @@ public class SoapArchitectureDiagnosticTests
             typeof(Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Models.HomologarRespuestaAchResult),
             typeof(Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Interfaces.IAchResponseStatusMappingRepository),
             typeof(Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Interfaces.IRespuestaAchStatusMappingService),
-            typeof(Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Services.RespuestaAchStatusMappingService)
+            typeof(Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Services.RespuestaAchStatusMappingService),
+            typeof(Cfa.ACHInterbank.Domain.Models.ACH.AchResponseStatusMapping),
+            typeof(Cfa.ACHInterbank.Persistence.ACH.Repositories.Implementation.AchResponseStatusMappingRepository)
         };
 
         var forbiddenTerms = new[] { "Axon", "Soap", "Xml", "Wsdl", "Envelope", "idTransaccionAxon", "RegistrarRespuestaTransaccion" };
