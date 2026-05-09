@@ -30,18 +30,19 @@ public sealed class RespuestaAchStatusMappingService : IRespuestaAchStatusMappin
 
         if (causalExterna is null)
         {
-            if (effective.Any(x => x.RequiereCausal))
-                return HomologarRespuestaAchResult.NotFound("La homologación requiere causal externa y no fue suministrada.");
-
             var stateOnly = effective
                 .Where(x => string.IsNullOrWhiteSpace(x.CodigoCausalExterna))
+                .Where(x => !x.RequiereCausal)
                 .OrderByDescending(x => x.FechaInicioVigencia)
                 .FirstOrDefault();
 
-            if (stateOnly is null)
-                return HomologarRespuestaAchResult.NotFound("No existe homologación sin causal para el estado consultado.");
+            if (stateOnly is not null)
+                return ToResult(stateOnly);
 
-            return ToResult(stateOnly);
+            if (effective.Any(x => x.RequiereCausal))
+                return HomologarRespuestaAchResult.NotFound("La homologación requiere causal externa y no fue suministrada.");
+
+            return HomologarRespuestaAchResult.NotFound("No existe homologación sin causal para el estado consultado.");
         }
 
         var exact = effective

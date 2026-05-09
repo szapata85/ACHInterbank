@@ -9,6 +9,57 @@ namespace Cfa.ACHInterbank.Tests;
 
 public class RespuestaAchStatusMappingServiceTests
 {
+
+    [Fact]
+    public async Task HomologarAsync_ShouldUseStateOnlyMapping_WhenCausalMissing_AndOtherMappingsRequireCausal()
+    {
+        var causalRequired = BuildMapping(id: 1, causal: "R01", requiereCausal: true);
+        var stateOnly = BuildMapping(id: 2, causal: null, requiereCausal: false);
+        var service = BuildService(causalRequired, stateOnly);
+
+        var result = await service.HomologarAsync(new HomologarRespuestaAchRequest("ACH", TipoRespuestaAch.Transaccion, "00", null, DateTime.UtcNow));
+
+        Assert.True(result.ExisteHomologacion);
+        Assert.Equal(2, result.IdEstadoInterno);
+    }
+
+    [Fact]
+    public async Task HomologarAsync_ShouldReturnNotFound_WhenCausalMissing_AndOnlyCausalRequiredMappingsExist()
+    {
+        var mappingA = BuildMapping(id: 1, causal: "R01", requiereCausal: true);
+        var mappingB = BuildMapping(id: 2, causal: "R02", requiereCausal: true);
+        var service = BuildService(mappingA, mappingB);
+
+        var result = await service.HomologarAsync(new HomologarRespuestaAchRequest("ACH", TipoRespuestaAch.Transaccion, "00", null, DateTime.UtcNow));
+
+        Assert.False(result.ExisteHomologacion);
+        Assert.Contains("causal", result.MotivoNoHomologacion ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task HomologarAsync_ShouldTreatBlankMappingCausalAsStateOnly()
+    {
+        var mapping = BuildMapping(id: 6, causal: "   ", requiereCausal: false);
+        var service = BuildService(mapping);
+
+        var result = await service.HomologarAsync(new HomologarRespuestaAchRequest("ACH", TipoRespuestaAch.Transaccion, "00", null, DateTime.UtcNow));
+
+        Assert.True(result.ExisteHomologacion);
+        Assert.Equal(6, result.IdEstadoInterno);
+    }
+
+    [Fact]
+    public async Task HomologarAsync_ShouldNormalizeMappingCausal_WhenMatchingExactCausal()
+    {
+        var mapping = BuildMapping(id: 7, causal: " r01 ", requiereCausal: true);
+        var service = BuildService(mapping);
+
+        var result = await service.HomologarAsync(new HomologarRespuestaAchRequest("ACH", TipoRespuestaAch.Transaccion, "00", "R01", DateTime.UtcNow));
+
+        Assert.True(result.ExisteHomologacion);
+        Assert.Equal(7, result.IdEstadoInterno);
+    }
+
     [Fact]
     public async Task HomologarAsync_ShouldReturnSuccess_WhenExactStateAndCausalMatch()
     {
