@@ -48,10 +48,10 @@ public class RespuestaTransaccionesAchGatewayTests
     public async Task RegistrarRespuestaAsync_ShouldReturnFunctionalError_WhenSoapResponseExisteErrorTrue()
     {
         var sut = BuildGatewayReturning("""
-            <s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\">
+            <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
               <s:Body>
-                <RegistrarRespuestaTransaccionResponse xmlns=\"http://tempuri.org/\">
-                  <RegistrarRespuestaTransaccionResult xmlns:a=\"http://schemas.datacontract.org/2004/07/WSCFAACH\">
+                <RegistrarRespuestaTransaccionResponse xmlns="http://tempuri.org/">
+                  <RegistrarRespuestaTransaccionResult xmlns:a="http://schemas.datacontract.org/2004/07/WSCFAACH">
                     <a:codigoError>E01</a:codigoError>
                     <a:descripcionError>Error funcional</a:descripcionError>
                     <a:existeError>true</a:existeError>
@@ -112,6 +112,32 @@ public class RespuestaTransaccionesAchGatewayTests
         result.Exitoso.Should().BeTrue();
     }
 
+
+
+    [Fact]
+    public void RegistrarRespuestaAchSoapResponseParser_ShouldParseFunctionalErrorResponse()
+    {
+        var parser = new RegistrarRespuestaAchSoapResponseParser();
+        var xml = """
+            <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+              <s:Body>
+                <RegistrarRespuestaTransaccionResponse xmlns="http://tempuri.org/">
+                  <RegistrarRespuestaTransaccionResult xmlns:a="http://schemas.datacontract.org/2004/07/WSCFAACH">
+                    <a:codigoError>E01</a:codigoError>
+                    <a:descripcionError>Error funcional</a:descripcionError>
+                    <a:existeError>true</a:existeError>
+                  </RegistrarRespuestaTransaccionResult>
+                </RegistrarRespuestaTransaccionResponse>
+              </s:Body>
+            </s:Envelope>
+            """;
+
+        var result = parser.Parse(xml);
+
+        result.ExisteError.Should().BeTrue();
+        result.CodigoError.Should().Be("E01");
+        result.DescripcionError.Should().Be("Error funcional");
+    }
 
     [Fact]
     public void ExternalGatewayPhysicalComponents_ShouldRemainInternal()
