@@ -97,6 +97,18 @@ public class RegistrarRespuestaAchContractsTests
         Assert.Contains(errors, e => e.Contains(nameof(RegistrarRespuestaAchCommand.IdTransaccionServicioExterno)));
     }
 
+
+    [Fact]
+    public void RegistrarRespuestaAchCommandValidator_ShouldRejectInvalidTipoRespuesta()
+    {
+        var validator = new RegistrarRespuestaAchCommandValidator();
+        var command = BuildValidCommand((TipoRespuestaAch)999);
+
+        var errors = validator.Validate(command);
+
+        Assert.Contains(errors, e => e.Contains(nameof(RegistrarRespuestaAchCommand.TipoRespuesta)));
+    }
+
     [Fact]
     public void RegistrarRespuestaAchCommand_ShouldNotExposePhysicalSoapFieldNames()
     {
