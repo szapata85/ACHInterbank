@@ -82,7 +82,7 @@
           <label>
             <span>Cliente originador (opcional)</span>
             <ui-selector-buscable
-              [opciones]="(customers$ | async)?.map(customer => ({ valor: customer.id, etiqueta: customer.fullName + ' · ' + customer.documentType + ' ' + customer.documentNumber + ' · ' + customer.accountNumbers.length + ' cuenta(s)' })) ?? []"
+              [opciones]="(customerOptions$ | async) ?? []"
               formControlName="customerId"
               placeholderBusqueda="Buscar cliente originador"
             ></ui-selector-buscable>
@@ -94,7 +94,7 @@
             <span>Cuenta origen *</span>
             <ng-container *ngIf="selectedCustomerAccounts.length > 0; else manualSourceAccount">
               <ui-selector-buscable
-                [opciones]="selectedCustomerAccounts.map(accountNumber => ({ valor: accountNumber, etiqueta: accountNumber }))"
+                [opciones]="selectedCustomerAccountOptions"
                 formControlName="sourceAccountNumber"
                 placeholderBusqueda="Buscar cuenta origen"
               ></ui-selector-buscable>
@@ -141,7 +141,7 @@
           <label>
             <span>Institución destino *</span>
             <ui-selector-buscable
-              [opciones]="(institutions$ | async)?.map(institution => ({ valor: institution.id, etiqueta: institution.name })) ?? []"
+              [opciones]="(institutionOptions$ | async) ?? []"
               formControlName="destinationInstitutionId"
               placeholderBusqueda="Buscar institución"
             ></ui-selector-buscable>
@@ -153,7 +153,7 @@
             <span>Cuenta destino *</span>
             <ng-container *ngIf="!form.get('isPrenotification')?.value; else manualDestinationAccount">
               <ui-selector-buscable
-                [opciones]="filteredDestinationAccounts.map(account => ({ valor: account.destinationAccountNumber, etiqueta: account.destinationAccountNumber + ' · ' + account.recipientIdNumber + ' · ' + account.destinationInstitutionName }))"
+                [opciones]="filteredDestinationAccountOptions"
                 formControlName="destinationAccountNumber"
                 [cargando]="sourceAccountRequiredForDestinationSelection"
                 placeholderBusqueda="Buscar cuenta destino"
@@ -224,7 +224,7 @@
       <label>
         <span>Descripción de la entrada *</span>
         <ui-selector-buscable
-          [opciones]="companyEntryDescriptionOptions.map(option => ({ valor: option.id, etiqueta: option.description + ' (' + option.term + ')' }))"
+          [opciones]="companyEntryDescriptionOptionsForSelect"
           formControlName="companyEntryDescriptionId"
           placeholderBusqueda="Buscar concepto"
         ></ui-selector-buscable>

@@ -63,12 +63,15 @@ export class TransactionsApiService {
     return this.api.post<TransactionResponse>('transactions', sanitized).pipe(
       catchError((error) => {
         if (error.status === 400) {
-          return throwError(() => new Error(error.error?.message ?? 'Solicitud inválida'));
+          return throwError(() => new Error(this.extractErrorMessage(error, 'Solicitud inválida')));
+        }
+        if (error.status === 404) {
+          return throwError(() => new Error(this.extractErrorMessage(error, 'No se encontró el endpoint de creación de transacciones.')));
         }
         if (error.status === 401) {
           return throwError(() => new Error('Sesión expirada. Inicie sesión nuevamente.'));
         }
-        return throwError(() => new Error(error.error?.message ?? 'No fue posible crear la transacción.'));
+        return throwError(() => new Error(this.extractErrorMessage(error, 'No fue posible crear la transacción.')));
       })
     );
   }
@@ -140,5 +143,22 @@ export class TransactionsApiService {
     return this.api.get<TransactionListItem[]>('transactions', { params }).pipe(
       map((items) => (items ?? []).map((item) => ({ ...item, amount: Number(item.amount) })))
     );
+  }
+
+  private extractErrorMessage(error: any, fallback: string): string {
+    const nestedErrors = error?.error?.errors;
+    if (nestedErrors && typeof nestedErrors === 'object') {
+      const firstMessage = Object.values(nestedErrors)
+        .flatMap((value) => Array.isArray(value) ? value : [String(value)])
+        .find((value) => String(value).trim().length > 0);
+      if (firstMessage) {
+        return String(firstMessage);
+      }
+    }
+
+    return error?.error?.message
+      ?? error?.error?.Message
+      ?? error?.message
+      ?? fallback;
   }
 }
