@@ -48,6 +48,19 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
         .sort((a, b) => a.name.localeCompare(b.name))
     )
   );
+  readonly customerOptions$ = this.customers$.pipe(
+    map((customers) =>
+      (customers ?? []).map((customer) => ({
+        valor: customer.id,
+        etiqueta: `${customer.fullName} · ${customer.documentType} ${customer.documentNumber} · ${(customer.accountNumbers?.length ?? 0)} cuenta(s)`
+      }))
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+  readonly institutionOptions$ = this.institutions$.pipe(
+    map((institutions) => (institutions ?? []).map((institution) => ({ valor: institution.id, etiqueta: institution.name }))),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
   readonly form: FormGroup = this.fb.group({
     customerId: [null],
     amount: ['', [Validators.required]],
@@ -81,6 +94,24 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   companyEntryDescriptionOptions: CompanyEntryDescriptionOption[] = [];
   policyPreview: TransactionPolicyPreview | null = null;
 
+  get selectedCustomerAccountOptions() {
+    return this.selectedCustomerAccounts.map((accountNumber) => ({ valor: accountNumber, etiqueta: accountNumber }));
+  }
+
+  get filteredDestinationAccountOptions() {
+    return this.filteredDestinationAccounts.map((account) => ({
+      valor: account.destinationAccountNumber,
+      etiqueta: `${account.destinationAccountNumber} · ${account.recipientIdNumber} · ${account.destinationInstitutionName}`
+    }));
+  }
+
+  get companyEntryDescriptionOptionsForSelect() {
+    return this.companyEntryDescriptionOptions.map((option) => ({
+      valor: option.id,
+      etiqueta: `${option.description} (${option.term})`
+    }));
+  }
+
   private readonly amountFormatter = new Intl.NumberFormat('es-CO', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
@@ -88,6 +119,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.form.setValidators([this.validateAccountDifference, this.validateBusinessRules, recipientIdentityValidator()]);
+    this.ensureDefaultAddenda();
 
     this.api.getCompanyEntryDescriptions().pipe(take(1), takeUntil(this.destroy$)).subscribe((items) => {
       this.companyEntryDescriptionOptions = (items ?? []).sort((a, b) => a.term.localeCompare(b.term));
@@ -265,6 +297,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
               companyEntryDescriptionId: this.companyEntryDescriptionOptions.find((x) => x.term === 'NOMINAS')?.id ?? null
             });
             this.addendas.clear();
+            this.ensureDefaultAddenda();
             this.activeDestinationAccounts = [];
             this.filteredDestinationAccounts = [];
             this.selectedCustomerAccounts = [];
@@ -490,6 +523,14 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       addendaType: item.addendaType?.trim().toUpperCase(),
       information: item.information.trim()
     };
+  }
+
+  private ensureDefaultAddenda(): void {
+    if (this.addendas.length > 0) {
+      return;
+    }
+
+    this.addAddenda();
   }
 
   private formatMaskedAmount(rawValue: string): string {
