@@ -10,20 +10,6 @@ using NLog.Web;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
-if (builder.Environment.IsEnvironment("Testing"))
-{
-    builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-    {
-        ["Database:Provider"] = "Postgres",
-        ["Database:ApplyMigrations"] = "false",
-        ["EnableHttpsRedirection"] = "false",
-        ["ConnectionStrings:PostgresConnection"] = "Host=localhost;Port=5432;Database=ach_test;Username=test;Password=test",
-        ["appSettings:tokenManager:secretKetJwt"] = "una_clave_de_prueba_larga_y_segura_1234567890",
-        ["appSettings:tokenManager:issuerJwt"] = "test-issuer",
-        ["appSettings:tokenManager:audienceJwt"] = "test-audience",
-        ["Cors:Origins:0"] = "http://localhost"
-    });
-}
 
 AppSettings.Settings = builder.Configuration.GetSection("appSettings").Get<AppSettings>()!.GetMethodExtensions();
 
@@ -124,5 +110,3 @@ static void LogTrace(string logPath, string message)
         // Avoid throwing from trace logging.
     }
 }
-
-public partial class Program;
