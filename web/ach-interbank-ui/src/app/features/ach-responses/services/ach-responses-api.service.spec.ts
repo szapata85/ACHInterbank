@@ -59,15 +59,16 @@ describe('AchResponsesApiService', () => {
 
     expect(apiSpy.get).toHaveBeenCalled();
     const [endpoint, options] = apiSpy.get.calls.mostRecent().args;
+    const params = options.params as Record<string, unknown>;
     expect(endpoint).toBe('api/ach/responses');
-    expect(options.params.pageNumber).toBe(2);
-    expect(options.params.pageSize).toBe(25);
-    expect(options.params.tipoRespuesta).toBe('Prenota');
-    expect(options.params.idTransaccion).toBe('TX-2');
-    expect(options.params.estadoProcesamiento).toBe('Recibida');
-    expect(options.params.fechaDesde).toBe('2026-01-01');
-    expect(options.params.fechaHasta).toBeUndefined();
-    expect(options.params.correlationId).toBeUndefined();
+    expect(params['pageNumber']).toBe(2);
+    expect(params['pageSize']).toBe(25);
+    expect(params['tipoRespuesta']).toBe('Prenota');
+    expect(params['idTransaccion']).toBe('TX-2');
+    expect(params['estadoProcesamiento']).toBe('Recibida');
+    expect(params['fechaDesde']).toBe('2026-01-01');
+    expect(params['fechaHasta']).toBeUndefined();
+    expect(params['correlationId']).toBeUndefined();
   });
 
   it('AchResponsesApiService_ShouldGetDetailById', () => {
@@ -87,30 +88,42 @@ describe('AchResponsesApiService', () => {
 
     expect(apiSpy.get).toHaveBeenCalled();
     const [endpoint, options] = apiSpy.get.calls.mostRecent().args;
+    const params = options.params as Record<string, unknown>;
     expect(endpoint).toBe('api/ach/response-status-mappings');
-    expect(options.params.codigoCamaraCompensacion).toBe('ACH');
-    expect(options.params.tipoRespuesta).toBe('Transaccion');
-    expect(options.params.activo).toBeTrue();
+    expect(params['codigoCamaraCompensacion']).toBe('ACH');
+    expect(params['tipoRespuesta']).toBe('Transaccion');
+    expect(params['activo']).toBeTrue();
   });
 
   it('AchResponsesModels_ShouldNotExposeSoapOrProviderTerms', () => {
-    const mock = {
-      id: '1',
-      idTransaccionServicioExterno: 100,
-      correlationId: 'c-1',
-      estadoProcesamiento: 'Recibida'
-    };
+    const modelMocks = [
+      {
+        tipoRespuesta: 'Transaccion',
+        idTransaccion: 'TX-1',
+        idTransaccionServicioExterno: 100,
+        correlationId: 'c-1'
+      },
+      {
+        codigoCamaraCompensacion: 'ACH',
+        estadoProcesamiento: 'Recibida',
+        permiteNotificacion: true,
+        fechaRecepcion: '2026-01-01T00:00:00Z'
+      }
+    ];
 
-    const keysText = Object.keys(mock).join('|');
+    const keysText = modelMocks.flatMap((item) => Object.keys(item)).join('|');
+    const forbiddenTerms = [
+      'idTransaccionAxon',
+      'Axon',
+      'Soap',
+      'SOAP',
+      'Wsdl',
+      'Envelope',
+      'RequestPayload',
+      'ResponsePayload',
+      'Xml'
+    ];
 
-    expect(keysText).not.toContain('idTransaccionAxon');
-    expect(keysText).not.toContain('Axon');
-    expect(keysText).not.toContain('Soap');
-    expect(keysText).not.toContain('SOAP');
-    expect(keysText).not.toContain('Wsdl');
-    expect(keysText).not.toContain('Envelope');
-    expect(keysText).not.toContain('RequestPayload');
-    expect(keysText).not.toContain('ResponsePayload');
-    expect(keysText).not.toContain('Xml');
+    forbiddenTerms.forEach((term) => expect(keysText).not.toContain(term));
   });
 });
