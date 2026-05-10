@@ -10,8 +10,10 @@ using Cfa.ACHInterbank.Application.ACH.Responses.Processing.Models;
 using Cfa.ACHInterbank.Application.ACH.Responses.Queries.Models;
 using Cfa.ACHInterbank.Application.ACH.Responses.Repositories;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
+using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
+using System.Reflection;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -58,4 +60,48 @@ public class AchResponsesControllerTests
 
     [Fact]
     public void Endpoints_ShouldNotExposeSoapOrProviderFields(){var forbidden=new[]{"Axon","Soap","Xml","Wsdl","Envelope","SOAPAction","idTransaccionAxon","IdTransaccionAxon"};var types=new[]{typeof(ProcesarRespuestaAchRequest),typeof(ProcesarRespuestaAchResponse),typeof(NotificarRespuestaAchResponse),typeof(AchResponseDetailResponse)};foreach(var t in types)t.GetProperties().Select(x=>x.Name).Should().NotContain(p=>forbidden.Any(f=>p.Contains(f,StringComparison.OrdinalIgnoreCase)));}
+
+    [Fact]
+    public void AchResponsesController_ShouldNotUseDbContextDirectly()
+    {
+        var controllerType = typeof(AchResponsesController);
+        controllerType.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+            .Select(x => x.FieldType)
+            .Should().NotContain(typeof(AchDbContext));
+
+        controllerType.GetConstructors()
+            .SelectMany(x => x.GetParameters())
+            .Select(x => x.ParameterType)
+            .Should().NotContain(typeof(AchDbContext));
+
+        controllerType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly)
+            .SelectMany(x => x.GetParameters())
+            .Select(x => x.ParameterType)
+            .Should().NotContain(typeof(AchDbContext));
+    }
+
+    [Fact]
+    public void AchResponsesController_ShouldNotReferenceSoapOrExternalTypes()
+    {
+        var controllerType = typeof(AchResponsesController);
+        var referencedTypes = controllerType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly)
+            .SelectMany(x => x.GetParameters())
+            .Select(x => x.ParameterType.FullName ?? string.Empty)
+            .ToList();
+
+        referencedTypes.Should().NotContain(x => x.Contains("Cfa.ACHInterbank.External", StringComparison.Ordinal));
+        referencedTypes.Should().NotContain(x => x.Contains("Soap", StringComparison.OrdinalIgnoreCase));
+        referencedTypes.Should().NotContain(x => x.Contains("Ws", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void GetMappings_ShouldUseExpectedAbsoluteRoute()
+    {
+        var action = typeof(AchResponsesController).GetMethod(nameof(AchResponsesController.GetMappings));
+        action.Should().NotBeNull();
+
+        var routeAttribute = action!.GetCustomAttribute<HttpGetAttribute>();
+        routeAttribute.Should().NotBeNull();
+        routeAttribute!.Template.Should().Be("/api/ach/response-status-mappings");
+    }
 }
