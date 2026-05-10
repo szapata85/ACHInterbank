@@ -1,0 +1,70 @@
+<app-page-header
+  title="Intentos de notificación ACH"
+  description="Seguimiento de intentos públicos de notificación asociados a una respuesta ACH"
+></app-page-header>
+
+<div class="acciones-header">
+  <ui-boton texto="Volver al detalle" variante="contorno" (accion)="backToDetail()"></ui-boton>
+  <ui-boton texto="Volver a bandeja" variante="contorno" (accion)="backToList()"></ui-boton>
+</div>
+
+<ui-estado-carga *ngIf="loading" [mensaje]="'Cargando intentos de notificación ACH...'"></ui-estado-carga>
+
+<ui-estado-error
+  *ngIf="error"
+  [mensaje]="'No fue posible cargar los intentos de notificación ACH.'"
+  (reintentar)="retryLoad()"
+></ui-estado-error>
+
+<ui-estado-vacio
+  *ngIf="!loading && !error && attempts.length === 0"
+  [titulo]="'Sin intentos de notificación'"
+  [mensaje]="'No hay intentos de notificación registrados para esta respuesta.'"
+></ui-estado-vacio>
+
+<div *ngIf="!loading && !error && attempts.length > 0" class="tabla-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>Número intento</th>
+        <th>Estado notificación</th>
+        <th>IdCanal</th>
+        <th>Nombre canal</th>
+        <th>Id transacción</th>
+        <th>IdEstado</th>
+        <th>Causal</th>
+        <th>IdTransaccionServicioExterno</th>
+        <th>Descripción causal</th>
+        <th>Existe error</th>
+        <th>Código error</th>
+        <th>Descripción error</th>
+        <th>Error técnico</th>
+        <th>Fecha creación</th>
+        <th>Fecha envío</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let attempt of attempts">
+        <td>{{ formatValue(attempt.numeroIntento) }}</td>
+        <td>
+          <span class="estado-pill" [ngClass]="getNotificationStatusClass(attempt.estadoNotificacion)">
+            {{ formatNotificationStatus(attempt.estadoNotificacion) }}
+          </span>
+        </td>
+        <td>{{ formatValue(attempt.idCanal) }}</td>
+        <td>{{ formatValue(attempt.nombreCanal) }}</td>
+        <td>{{ formatValue(attempt.idTransaccion) }}</td>
+        <td>{{ formatValue(attempt.idEstado) }}</td>
+        <td>{{ formatValue(attempt.causal) }}</td>
+        <td>{{ formatValue(attempt.idTransaccionServicioExterno) }}</td>
+        <td>{{ formatValue(attempt.descripcionCausal) }}</td>
+        <td>{{ formatValue(attempt.existeError) }}</td>
+        <td>{{ formatValue(attempt.codigoError) }}</td>
+        <td>{{ formatValue(attempt.descripcionError) }}</td>
+        <td>{{ formatValue(attempt.errorTecnico) }}</td>
+        <td>{{ formatDate(attempt.fechaCreacion) }}</td>
+        <td>{{ formatDate(attempt.fechaEnvio) }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

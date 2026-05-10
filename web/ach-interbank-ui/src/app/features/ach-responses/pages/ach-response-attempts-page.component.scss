@@ -1,0 +1,34 @@
+.acciones-header {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.tabla-wrapper {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  border-bottom: 1px solid var(--color-border, #d7dde3);
+  text-align: left;
+  padding: 0.5rem;
+  vertical-align: top;
+}
+
+.estado-pill {
+  display: inline-flex;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.estado-exitoso { background: var(--estado-exitoso-bg, #e7f7ef); color: var(--estado-exitoso-text, #1b6e3b); }
+.estado-advertencia { background: var(--estado-advertencia-bg, #fff6e8); color: var(--estado-advertencia-text, #8a5a00); }
+.estado-error { background: var(--estado-error-bg, #fdecec); color: var(--estado-error-text, #9b1c1c); }
+.estado-neutro { background: var(--estado-neutro-bg, #eef1f4); color: var(--estado-neutro-text, #394150); }
