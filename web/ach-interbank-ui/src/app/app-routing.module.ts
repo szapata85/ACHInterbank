@@ -165,6 +165,20 @@ const routes: Routes = [
           )
       },
       {
+        path: 'ach-responses',
+        canActivate: [roleGuard, permissionGuard],
+        data: {
+          roles: ['Admin', 'ACH.Operator'],
+          permissions: ['CanReadAch'],
+          breadcrumb: 'Respuestas ACH',
+          title: 'Command Center Respuestas ACH'
+        },
+        loadChildren: () =>
+          import('./features/ach-responses/ach-responses.module').then(
+            (m) => m.AchResponsesModule
+          )
+      },
+      {
         path: 'payment-rail-capability-registry',
         canActivate: [roleGuard, permissionGuard],
         data: {

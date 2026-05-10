@@ -121,8 +121,23 @@ export class NavigationService {
       children: logsChildren
     };
 
+    const achResponsesChildren: MenuItem[] = [
+      { id: -2701, label: 'Bandeja', route: '/ach-responses', icon: 'assignment' },
+      { id: -2702, label: 'Revisión manual', route: '/ach-responses/manual-review', icon: 'rule' },
+      { id: -2703, label: 'Homologaciones', route: '/ach-responses/status-mappings', icon: 'sync_alt' },
+      { id: -2704, label: 'Dashboard operativo', route: '/ach-responses/dashboard', icon: 'dashboard' }
+    ];
+
+    const achResponsesGroup: MenuItem = {
+      id: -270,
+      label: 'Respuestas ACH',
+      route: '/ach-responses',
+      icon: 'assignment',
+      children: achResponsesChildren
+    };
+
     if (!items.length) {
-      return [transactionsGroup, customerItem, reportsItem, cenitGroup, nachaSecurityGroup, logsGroup, catalogGroup];
+      return [transactionsGroup, achResponsesGroup, customerItem, reportsItem, cenitGroup, nachaSecurityGroup, logsGroup, catalogGroup];
     }
 
     const hasRoute = (menu: MenuItem[], route: string): boolean =>
@@ -150,6 +165,18 @@ export class NavigationService {
       }
       if (!hasRoute(next, reportsItem.route)) {
         next = [...next, reportsItem];
+      }
+      if (!hasRoute(next, achResponsesGroup.route)) {
+        next = [...next, achResponsesGroup];
+      } else {
+        const existingAchResponsesGroup = next.find((item) => item.route === '/ach-responses' || item.label === 'Respuestas ACH');
+        if (existingAchResponsesGroup) {
+          const existingAchResponsesChildren = existingAchResponsesGroup.children ?? [];
+          const missingAchResponsesChildren = achResponsesChildren.filter((child) => !hasRoute(existingAchResponsesChildren, child.route));
+          if (missingAchResponsesChildren.length) {
+            existingAchResponsesGroup.children = [...existingAchResponsesChildren, ...missingAchResponsesChildren];
+          }
+        }
       }
       if (!hasRoute(next, cenitGroup.route)) {
         next = [...next, cenitGroup];
@@ -182,7 +209,10 @@ export class NavigationService {
     }
 
     const withTransactions = hasRoute(items, transactionsGroup.route) ? items : [...items, transactionsGroup];
-    const withCustomer = hasRoute(withTransactions, customerItem.route) ? withTransactions : [...withTransactions, customerItem];
+    const withAchResponses = hasRoute(withTransactions, achResponsesGroup.route)
+      ? withTransactions
+      : [...withTransactions, achResponsesGroup];
+    const withCustomer = hasRoute(withAchResponses, customerItem.route) ? withAchResponses : [...withAchResponses, customerItem];
     const withReports = hasRoute(withCustomer, reportsItem.route) ? withCustomer : [...withCustomer, reportsItem];
     const withCenit = hasRoute(withReports, cenitGroup.route) ? withReports : [...withReports, cenitGroup];
     const withNachaSecurity = hasRoute(withCenit, nachaSecurityGroup.route) ? withCenit : [...withCenit, nachaSecurityGroup];
