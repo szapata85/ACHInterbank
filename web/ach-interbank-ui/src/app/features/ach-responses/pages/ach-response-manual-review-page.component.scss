@@ -1,0 +1,14 @@
+.filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+.campo { display: grid; gap: .25rem; }
+.campo input, .campo select { min-height: 2.25rem; }
+.acciones { display: flex; gap: .5rem; align-items: end; }
+.resumen { margin: .75rem 0; font-size: .9rem; }
+.paginacion { display: flex; align-items: center; gap: .5rem; margin-top: .75rem; }
+.nota-operativa { margin-top: 1rem; font-size: .9rem; }
+:host ::ng-deep .estado-pill { display: inline-flex; padding: .2rem .5rem; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+:host ::ng-deep .prioridad-alta { background: var(--estado-error-bg, #fdecec); color: var(--estado-error-text, #9b1c1c); }
+:host ::ng-deep .prioridad-media { background: var(--estado-advertencia-bg, #fff6e8); color: var(--estado-advertencia-text, #8a5a00); }
+:host ::ng-deep .prioridad-baja { background: var(--estado-neutro-bg, #eef1f4); color: var(--estado-neutro-text, #394150); }
+:host ::ng-deep .estado-advertencia { background: var(--estado-advertencia-bg, #fff6e8); color: var(--estado-advertencia-text, #8a5a00); }
+:host ::ng-deep .estado-error { background: var(--estado-error-bg, #fdecec); color: var(--estado-error-text, #9b1c1c); }
+:host ::ng-deep .estado-neutro { background: var(--estado-neutro-bg, #eef1f4); color: var(--estado-neutro-text, #394150); }

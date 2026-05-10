@@ -1,0 +1,59 @@
+<app-page-header
+  title="Revisión manual de respuestas ACH"
+  description="Bandeja operativa para respuestas no homologadas, errores funcionales y casos pendientes de revisión"
+></app-page-header>
+
+<form class="filtros" [formGroup]="filtrosForm" (ngSubmit)="applyFilters()">
+  <div class="campo"><label>Fecha desde</label><input type="date" formControlName="fechaDesde" /></div>
+  <div class="campo"><label>Fecha hasta</label><input type="date" formControlName="fechaHasta" /></div>
+  <div class="campo">
+    <label>Estado crítico</label>
+    <select formControlName="estadoProcesamiento">
+      <option *ngFor="let estado of criticalStates" [value]="estado">{{ estado }}</option>
+    </select>
+  </div>
+  <div class="campo">
+    <label>Tipo respuesta</label>
+    <select formControlName="tipoRespuesta">
+      <option *ngFor="let tipo of tiposRespuesta" [value]="tipo">{{ tipo || 'Todos' }}</option>
+    </select>
+  </div>
+  <div class="campo"><label>Id transacción</label><input type="text" formControlName="idTransaccion" /></div>
+  <div class="campo"><label>Cámara</label><input type="text" formControlName="codigoCamaraCompensacion" /></div>
+  <div class="campo"><label>Entidad origen</label><input type="text" formControlName="codigoEntidadOrigen" /></div>
+  <div class="campo"><label>Entidad destino</label><input type="text" formControlName="codigoEntidadDestino" /></div>
+  <div class="acciones">
+    <ui-boton texto="Buscar" variante="primario" [deshabilitado]="loading" (accion)="applyFilters()"></ui-boton>
+    <ui-boton texto="Limpiar" variante="contorno" [deshabilitado]="loading" (accion)="clearFilters()"></ui-boton>
+  </div>
+</form>
+
+<p class="resumen">Mostrando {{ rows.length }} de {{ totalCount }} casos. Página {{ filtrosForm.controls.pageNumber.value }} de {{ totalPages || 1 }}.</p>
+
+<ui-grilla-empresarial
+  [columnas]="columnas"
+  [datos]="rows"
+  [cargando]="loading"
+  [error]="error"
+  [mensajeError]="'No fue posible cargar los casos de revisión manual ACH'"
+  [mensajeCargando]="'Cargando casos críticos de revisión manual... '"
+  [tituloVacio]="'Sin casos críticos'"
+  [mensajeVacio]="'No se encontraron respuestas en estado crítico para los filtros aplicados.'"
+  [placeholderBusqueda]="'Buscar en resultados de revisión manual...'"
+  [paginacion]="true"
+  [tamanoPagina]="filtrosForm.controls.pageSize.value ?? 20"
+  (reintentar)="applyFilters()"
+></ui-grilla-empresarial>
+
+<div class="paginacion">
+  <label for="pageSize">Tamaño página</label>
+  <select id="pageSize" [value]="filtrosForm.controls.pageSize.value ?? 20" (change)="setPageSize(+$any($event.target).value)">
+    <option [value]="10">10</option>
+    <option [value]="20">20</option>
+    <option [value]="50">50</option>
+  </select>
+  <ui-boton texto="Anterior" variante="contorno" [deshabilitado]="loading || (filtrosForm.controls.pageNumber.value ?? 1) <= 1" (accion)="previousPage()"></ui-boton>
+  <ui-boton texto="Siguiente" variante="contorno" [deshabilitado]="loading || (filtrosForm.controls.pageNumber.value ?? 1) >= (totalPages || 1)" (accion)="nextPage()"></ui-boton>
+</div>
+
+<p class="nota-operativa">Esta bandeja es de consulta y priorización. Las acciones de resolución, homologación o reintento se implementarán en fases posteriores.</p>
