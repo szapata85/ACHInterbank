@@ -5,6 +5,8 @@ using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Application.Services.TokenClient.Model;
 using Cfa.ACHInterbank.Application.Validators.NachaValidator;
 using Cfa.ACHInterbank.Application.Validators.TokenClientValidator;
+using Cfa.ACHInterbank.Application.ACH.Responses.Processing.Validation;
+using Cfa.ACHInterbank.Application.ACH.Responses.Validation;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using FluentValidation;
@@ -88,6 +90,10 @@ public static class DependencyInjectionService
         services.AddSingleton<IValidator<EntryDetail>, EntryDetailValidator>();
         services.AddSingleton<IValidator<FileControl>, FileControlValidator>();
         services.AddSingleton<IValidator<NachaHeader>, NachaHeaderValidator>();
+
+        // Validators sin interfaz dedicada requeridos por casos de uso ACH Responses
+        services.AddTransient<ProcesarRespuestaAchCommandValidator>();
+        services.AddTransient<RegistrarRespuestaAchCommandValidator>();
 
         #endregion Validators
 

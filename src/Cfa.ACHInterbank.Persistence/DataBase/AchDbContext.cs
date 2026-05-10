@@ -109,6 +109,9 @@ public class AchDbContext : DbContext
     public DbSet<AchReturnPolicy> AchReturnPolicies => Set<AchReturnPolicy>();
     public DbSet<AchReturnOfReturnPolicy> AchReturnOfReturnPolicies => Set<AchReturnOfReturnPolicy>();
     public DbSet<AchPrenotificationPolicy> AchPrenotificationPolicies => Set<AchPrenotificationPolicy>();
+    public DbSet<AchResponseStatusMapping> AchResponseStatusMappings => Set<AchResponseStatusMapping>();
+    public DbSet<AchResponse> AchResponses => Set<AchResponse>();
+    public DbSet<AchResponseNotificationAttempt> AchResponseNotificationAttempts => Set<AchResponseNotificationAttempt>();
     public DbSet<CatClearingHouse> CatClearingHouses => Set<CatClearingHouse>();
     public DbSet<CatFlowType> CatFlowTypes => Set<CatFlowType>();
     public DbSet<CatDirection> CatDirections => Set<CatDirection>();

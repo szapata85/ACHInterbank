@@ -1,6 +1,8 @@
 using Cfa.ACHInterbank.Application.Helpers.AddressIp;
 using Cfa.ACHInterbank.Application.Helpers.Middleware;
 using Cfa.ACHInterbank.Api.OpenApi;
+using Cfa.ACHInterbank.Api.Mappers.AchResponses;
+using Cfa.ACHInterbank.Api.Validation.AchResponses;
 using Cfa.ACHInterbank.Persistence.ACH.Services;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Http;
@@ -102,6 +104,11 @@ public static class DependencyInjectionService
         services.AddHttpClient();
         services.AddHttpContextAccessor();
         services.AddScoped<AchInitializationService>();
+        services.AddScoped<ProcesarRespuestaAchApiMapper>();
+        services.AddScoped<NotificarRespuestaAchApiMapper>();
+        services.AddScoped<AchResponseQueryApiMapper>();
+        services.AddScoped<ProcesarRespuestaAchRequestValidator>();
+        services.AddScoped<NotificarRespuestaAchRequestValidator>();
 
         return services;
     }

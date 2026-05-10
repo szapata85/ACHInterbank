@@ -11,33 +11,29 @@ export DOTNET_ROOT="${DOTNET_INSTALL_DIR}"
 export PATH="${DOTNET_INSTALL_DIR}:${TOOLS_DIR}:${PATH}"
 
 log() { printf "[codex-setup] %s\n" "$*"; }
-
-need_cmd() {
-  command -v "$1" >/dev/null 2>&1
-}
+need_cmd() { command -v "$1" >/dev/null 2>&1; }
 
 install_dotnet() {
   mkdir -p "${DOTNET_INSTALL_DIR}"
   local installer
   installer="$(mktemp)"
   log "Descargando instalador oficial de .NET..."
-  curl -fsSL https://dot.net/v1/dotnet-install.sh -o "${installer}"
+  if ! curl -fsSL https://dot.net/v1/dotnet-install.sh -o "${installer}"; then
+    log "No se pudo descargar dotnet-install.sh. Verifique conectividad/red corporativa."
+    exit 1
+  fi
   chmod +x "${installer}"
   log "Instalando .NET SDK ${DOTNET_VERSION} en ${DOTNET_INSTALL_DIR}"
   "${installer}" --version "${DOTNET_VERSION}" --channel "${DOTNET_CHANNEL}" --install-dir "${DOTNET_INSTALL_DIR}"
   rm -f "${installer}"
 }
 
+CURRENT_SDK=""
 if need_cmd dotnet; then
   CURRENT_SDK="$(dotnet --version || true)"
-else
-  CURRENT_SDK=""
 fi
 
-if [[ -z "${CURRENT_SDK}" ]]; then
-  install_dotnet
-elif [[ "${CURRENT_SDK}" != "${DOTNET_VERSION}" ]]; then
-  log "dotnet detectado (${CURRENT_SDK}) pero se requiere ${DOTNET_VERSION}. Actualizando SDK..."
+if [[ -z "${CURRENT_SDK}" || "${CURRENT_SDK}" != "${DOTNET_VERSION}" ]]; then
   install_dotnet
 else
   log "dotnet detectado (${CURRENT_SDK})."
@@ -45,39 +41,27 @@ fi
 
 if ! need_cmd dotnet; then
   log "dotnet no quedó disponible en PATH tras instalación."
+  log "Instale manualmente ${DOTNET_VERSION} y exporte DOTNET_ROOT/PATH antes de reintentar."
   exit 1
 fi
 
 log "dotnet --info"
 dotnet --info
 
-if dotnet tool list -g | awk '{print $1}' | grep -qx 'dotnet-ef'; then
-  log "dotnet-ef ya instalado globalmente."
-else
-  log "Instalando dotnet-ef global..."
-  dotnet tool install --global dotnet-ef
-fi
+cd "${ROOT_DIR}"
+log "dotnet restore ACHInterbank.sln"
+dotnet restore ACHInterbank.sln
 
-log "dotnet ef --version"
-dotnet ef --version
+log "dotnet build ACHInterbank.sln -c Release --no-restore"
+dotnet build ACHInterbank.sln -c Release --no-restore
 
-if need_cmd node; then
-  log "node detectado: $(node --version)"
-else
-  log "node no detectado. Para frontend Angular instale Node LTS (>=20 recomendado)."
-fi
+log "dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build"
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build
 
-if need_cmd npm; then
-  log "npm detectado: $(npm --version)"
-else
-  log "npm no detectado."
-fi
+log "dotnet tool restore"
+dotnet tool restore
 
-if need_cmd docker; then
-  log "docker detectado: $(docker --version)"
-else
-  log "docker no detectado. PostgreSQL de test requiere Docker/Compose."
-fi
+log "dotnet tool run dotnet-ef --version"
+dotnet tool run dotnet-ef --version
 
-log "Setup finalizado."
-log "Siguiente paso sugerido: docker compose -f ${ROOT_DIR}/docker-compose.test.yml --env-file ${ROOT_DIR}/.env.test.example up -d"
+log "Setup y validación finalizados correctamente."
