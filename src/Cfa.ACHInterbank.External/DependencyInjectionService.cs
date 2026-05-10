@@ -1,8 +1,10 @@
 using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Application.Services.Notifications.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Responses.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.External.Notifications;
+using Cfa.ACHInterbank.External.Connections.RespuestaTransaccionesAch;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -73,6 +75,9 @@ public static class DependencyInjectionService
             });
 
         services.AddScoped<IEmailSender, LoggingEmailSender>();
+        services.AddScoped<RegistrarRespuestaAchSoapRequestMapper>();
+        services.AddScoped<RegistrarRespuestaAchSoapResponseParser>();
+        services.AddScoped<IRespuestaTransaccionesAchGateway, RespuestaTransaccionesAchGateway>();
 
         var validIssuer = configuration["appSettings:tokenManager:issuerJwt"]
             ?? _appSettings.TokenManager?.issuerJwt
