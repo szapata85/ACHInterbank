@@ -6,6 +6,7 @@ import { CustomerSummary } from '../../../customers/models/customer.model';
 import { CustomersApiService } from '../../../customers/services/customers-api.service';
 import { FinancialInstitutionsApiService } from '../../services/financial-institutions-api.service';
 import { TransactionsApiService } from '../../services/transactions-api.service';
+import { AccountTypeEnum, TransactionTypeEnum } from '../../transactions.types';
 import { TransactionCreateComponent } from './transaction-create.component';
 
 describe('TransactionCreateComponent', () => {
@@ -41,8 +42,8 @@ describe('TransactionCreateComponent', () => {
       amount,
       transactionExternalId: 'tx-001',
       reference: 'ref',
-      type: 0,
-      accountType: 0,
+      type: TransactionTypeEnum.Credit,
+      accountType: AccountTypeEnum.Checking,
       isPrenotification: false,
       destinationInstitutionId: 7,
       sourceAccountNumber: '1234567890',
@@ -72,6 +73,13 @@ describe('TransactionCreateComponent', () => {
     expect(payload.companyIdentification).toBe('AB12');
     expect(payload.destinationInstitutionId).toBe(7);
     expect(payload.addendas.length).toBe(1);
+  });
+
+  it('TransactionCreateComponent_ShouldInitializeDefaultAddenda', () => {
+    expect(component.addendas.length).toBe(1);
+    expect(component.addendas.at(0).get('addendaType')?.value).toBe('05');
+    expect(component.addendas.at(0).get('information')?.value).toBe('');
+    expect(component.addendas.at(0).get('information')?.hasError('required')).toBeTrue();
   });
 
   it('TransactionCreateComponent_ShouldNotSubmit_WhenFormInvalid', () => {
