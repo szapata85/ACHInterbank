@@ -235,14 +235,17 @@ public static class DependencyInjectionService
             await next();
         });
 
-        app.UseWhen(
-            context => !IsOpenApiOrScalarRequest(context.Request.Path),
-            branch =>
-            {
-                branch.UseMiddleware<WafMiddleware>();
-                branch.UseMiddleware<RequestResponseLoggingMiddleware>();
-                branch.UseMiddleware<TokenJwtMiddleware>();
-            });
+        if (!app.Environment.IsEnvironment("Testing"))
+        {
+            app.UseWhen(
+                context => !IsOpenApiOrScalarRequest(context.Request.Path),
+                branch =>
+                {
+                    branch.UseMiddleware<WafMiddleware>();
+                    branch.UseMiddleware<RequestResponseLoggingMiddleware>();
+                    branch.UseMiddleware<TokenJwtMiddleware>();
+                });
+        }
 
         app.UseMiddleware<SecurityHeadersMiddleware>();
 
