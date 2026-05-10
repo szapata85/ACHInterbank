@@ -11,4 +11,17 @@ describe('AchResponsesRoutingModule', () => {
     expect(paths).toContain(':id/notification-attempts');
     expect(paths).toContain(':id');
   });
+
+  it('ShouldDefineRoutesInSafeOrder', () => {
+    const paths = ACH_RESPONSES_ROUTES.map((route) => route.path);
+
+    expect(paths).toEqual([
+      '',
+      'manual-review',
+      'status-mappings',
+      'dashboard',
+      ':id/notification-attempts',
+      ':id'
+    ]);
+  });
 });

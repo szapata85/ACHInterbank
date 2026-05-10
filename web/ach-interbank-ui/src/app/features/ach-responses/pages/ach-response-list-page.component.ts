@@ -59,6 +59,7 @@ export class AchResponseListPageComponent implements OnInit {
 
   readonly columnas: ColDef<AchResponseListRow>[] = [
     { field: 'fechaRecepcionText', headerName: 'Fecha recepción', minWidth: 170 },
+    { field: 'fechaCreacionText', headerName: 'Fecha creación', minWidth: 170 },
     { field: 'tipoRespuesta', headerName: 'Tipo', minWidth: 120 },
     { field: 'idTransaccion', headerName: 'Transacción', minWidth: 180 },
     { field: 'codigoCamaraCompensacion', headerName: 'Cámara', minWidth: 130 },
@@ -72,9 +73,10 @@ export class AchResponseListPageComponent implements OnInit {
       headerName: 'Estado procesamiento',
       minWidth: 170,
       cellRenderer: (params: any) => {
-        const value = this.formatProcessingStatus(params.value);
-        const cssClass = this.getProcessingStatusClass(params.value);
-        return `<span class="estado-pill ${cssClass}">${value}</span>`;
+        const span = document.createElement('span');
+        span.className = `estado-pill ${this.getProcessingStatusClass(params.value)}`;
+        span.textContent = this.formatProcessingStatus(params.value);
+        return span;
       }
     },
     { field: 'permiteNotificacionText', headerName: 'Notificable', minWidth: 120 },
@@ -84,7 +86,14 @@ export class AchResponseListPageComponent implements OnInit {
       minWidth: 130,
       sortable: false,
       filter: false,
-      cellRenderer: () => '<button class="btn btn-outline btn-grid" data-action="detalle">Detalle</button>',
+      cellRenderer: () => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.classList.add('btn', 'btn-outline', 'btn-grid');
+        button.dataset['action'] = 'detalle';
+        button.textContent = 'Detalle';
+        return button;
+      },
       onCellClicked: (params) => {
         const action = (params.event?.target as HTMLElement | null)?.getAttribute('data-action');
         if (action === 'detalle' && params.data) {

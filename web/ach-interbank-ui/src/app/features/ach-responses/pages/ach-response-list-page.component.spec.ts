@@ -137,4 +137,37 @@ describe('AchResponseListPageComponent', () => {
     component.previousPage();
     expect(component.filtrosForm.controls.pageNumber.value).toBe(1);
   });
+
+  it('AchResponseListPageComponent_ShouldExposeFechaCreacionColumn', () => {
+    const fixture = TestBed.createComponent(AchResponseListPageComponent);
+    const component = fixture.componentInstance;
+
+    expect(component.columnas.some((column) => column.field === 'fechaCreacionText')).toBeTrue();
+  });
+
+  it('AchResponseListPageComponent_ShouldRenderProcessingStatusWithoutHtmlString', () => {
+    const fixture = TestBed.createComponent(AchResponseListPageComponent);
+    const component = fixture.componentInstance;
+    const statusColumn = component.columnas.find((column) => column.field === 'estadoProcesamiento');
+
+    const rendered = statusColumn?.cellRenderer?.({ value: 'Homologada' } as any) as HTMLElement;
+
+    expect(rendered).toBeTruthy();
+    expect(rendered instanceof HTMLElement).toBeTrue();
+    expect(rendered.textContent).toBe('Homologada');
+  });
+
+  it('AchResponseListPageComponent_ShouldRenderDetailActionAsButtonElement', () => {
+    const fixture = TestBed.createComponent(AchResponseListPageComponent);
+    const component = fixture.componentInstance;
+    const actionColumn = component.columnas.find((column) => column.headerName === 'Acciones');
+
+    const rendered = actionColumn?.cellRenderer?.({} as any) as HTMLButtonElement;
+
+    expect(rendered).toBeTruthy();
+    expect(rendered instanceof HTMLButtonElement).toBeTrue();
+    expect(rendered.type).toBe('button');
+    expect(rendered.textContent).toBe('Detalle');
+    expect(rendered.dataset['action']).toBe('detalle');
+  });
 });
