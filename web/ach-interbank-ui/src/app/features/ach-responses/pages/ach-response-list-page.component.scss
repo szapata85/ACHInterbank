@@ -1,0 +1,47 @@
+.filtros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.campo {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.campo input,
+.campo select {
+  min-height: 2.25rem;
+}
+
+.acciones {
+  display: flex;
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.resumen {
+  margin: 0.75rem 0;
+  font-size: 0.9rem;
+}
+
+.paginacion {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+:host ::ng-deep .estado-pill {
+  display: inline-flex;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+:host ::ng-deep .estado-exitoso { background: var(--estado-exitoso-bg, #e7f7ef); color: var(--estado-exitoso-text, #1b6e3b); }
+:host ::ng-deep .estado-advertencia { background: var(--estado-advertencia-bg, #fff6e8); color: var(--estado-advertencia-text, #8a5a00); }
+:host ::ng-deep .estado-error { background: var(--estado-error-bg, #fdecec); color: var(--estado-error-text, #9b1c1c); }
+:host ::ng-deep .estado-neutro { background: var(--estado-neutro-bg, #eef1f4); color: var(--estado-neutro-text, #394150); }
