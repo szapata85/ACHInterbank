@@ -86,14 +86,7 @@ export class AchResponseListPageComponent implements OnInit {
       minWidth: 130,
       sortable: false,
       filter: false,
-      cellRenderer: () => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.classList.add('btn', 'btn-outline', 'btn-grid');
-        button.dataset['action'] = 'detalle';
-        button.textContent = 'Detalle';
-        return button;
-      },
+      cellRenderer: () => createAchButtonElement('Detalle', 'detalle'),
       onCellClicked: (params) => {
         const action = (params.event?.target as HTMLElement | null)?.getAttribute('data-action');
         if (action === 'detalle' && params.data) {

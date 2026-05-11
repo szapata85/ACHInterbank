@@ -77,7 +77,7 @@ export class AchResponseDetailPageComponent implements OnInit {
   formatDate(value: string | null | undefined): string { return formatAchDate(value); }
 
   formatProcessingStatus(status: string | null | undefined): string {
-    return formatAchProcessingStatus(status);
+    return formatAchNotificationStatus(status);
   }
 
   getProcessingStatusClass(status: string | null | undefined): string {
@@ -89,7 +89,7 @@ export class AchResponseDetailPageComponent implements OnInit {
   }
 
   formatNotificationStatus(status: string | null | undefined): string {
-    return formatAchProcessingStatus(status);
+    return formatAchNotificationStatus(status);
   }
 
   getNotificationStatusClass(status: string | null | undefined): string {

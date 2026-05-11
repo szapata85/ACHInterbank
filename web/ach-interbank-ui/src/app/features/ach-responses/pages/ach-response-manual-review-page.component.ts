@@ -55,10 +55,7 @@ export class AchResponseManualReviewPageComponent implements OnInit {
       field: 'prioridadText',
       headerName: 'Prioridad',
       minWidth: 120,
-      cellRenderer: (params: any) => {
-        const span = document.createElement('span');
-        return createAchBadgeElement(this.formatValue(params.value), this.getPriorityClass(params.value));
-      }
+      cellRenderer: (params: any) => createAchBadgeElement(this.formatValue(params.value), this.getPriorityClass(params.value))
     },
     { field: 'fechaRecepcionText', headerName: 'Fecha recepción', minWidth: 170 },
     { field: 'fechaCreacionText', headerName: 'Fecha creación', minWidth: 170 },
@@ -74,10 +71,7 @@ export class AchResponseManualReviewPageComponent implements OnInit {
       field: 'estadoProcesamiento',
       headerName: 'Estado crítico',
       minWidth: 170,
-      cellRenderer: (params: any) => {
-        const span = document.createElement('span');
-        return createAchBadgeElement(this.formatProcessingStatus(params.value), this.getProcessingStatusClass(params.value));
-      }
+      cellRenderer: (params: any) => createAchBadgeElement(this.formatProcessingStatus(params.value), this.getProcessingStatusClass(params.value))
     },
     { field: 'permiteNotificacionText', headerName: 'Notificable', minWidth: 120 },
     { field: 'correlationId', headerName: 'CorrelationId', minWidth: 180 },
@@ -86,14 +80,7 @@ export class AchResponseManualReviewPageComponent implements OnInit {
       minWidth: 130,
       sortable: false,
       filter: false,
-      cellRenderer: () => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.classList.add('btn', 'btn-outline', 'btn-grid');
-        button.dataset['action'] = 'detalle';
-        button.textContent = 'Ver detalle';
-        return button;
-      },
+      cellRenderer: () => createAchButtonElement('Ver detalle', 'detalle'),
       onCellClicked: (params) => {
         const action = (params.event?.target as HTMLElement | null)?.getAttribute('data-action');
         if (action === 'detalle' && params.data) this.openDetail(params.data);
