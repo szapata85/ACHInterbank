@@ -7,6 +7,7 @@ import { NotificationService } from '../../../core/services/notification.service
 import { SharedModule } from '../../../shared/shared.module';
 import { AchResponseSearchRequest } from '../models/ach-responses.models';
 import { AchResponsesApiService } from '../services/ach-responses-api.service';
+import { calculateAchRate, normalizeAchFilter } from '../utils/ach-response-formatters';
 
 type AchDashboardKpi = {
   key: string;
@@ -114,21 +115,13 @@ export class AchResponseDashboardPageComponent implements OnInit {
     return this.getKpiValue('noHomologadas') + this.getKpiValue('revisionManual') + this.getKpiValue('pendientesReintento') + this.getKpiValue('erroresFuncionales');
   }
 
-  calculateRate(value: number, total: number): string {
-    if (total <= 0) return '0%';
-    const rate = (value / total) * 100;
-    const rounded = Math.round(rate * 10) / 10;
-    return `${rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(1)}%`;
-  }
+  calculateRate(value: number, total: number): string { return calculateAchRate(value, total); }
 
   formatNumber(value: number): string {
     return (value ?? 0).toLocaleString('es-CO');
   }
 
-  normalize(value: string | null | undefined): string | undefined {
-    const trimmed = value?.trim();
-    return trimmed ? trimmed : undefined;
-  }
+  normalize(value: string | null | undefined): string | undefined { return normalizeAchFilter(value); }
 
   private countByStatus(status?: string): Observable<number> {
     const raw = this.filtrosForm.getRawValue();

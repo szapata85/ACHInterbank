@@ -7,6 +7,9 @@ import { NotificationService } from '../../../core/services/notification.service
 import { SharedModule } from '../../../shared/shared.module';
 import { AchResponseListItemResponse, AchResponseSearchRequest } from '../models/ach-responses.models';
 import { AchResponsesApiService } from '../services/ach-responses-api.service';
+import { formatAchDate, formatAchValue, normalizeAchFilter } from '../utils/ach-response-formatters';
+import { createAchBadgeElement, createAchButtonElement } from '../utils/ach-response-renderers';
+import { getAchManualReviewPriority, getAchPriorityClass, getAchProcessingStatusClass } from '../utils/ach-response-status.utils';
 
 type AchManualReviewRow = AchResponseListItemResponse & {
   fechaRecepcionText: string;
@@ -54,9 +57,7 @@ export class AchResponseManualReviewPageComponent implements OnInit {
       minWidth: 120,
       cellRenderer: (params: any) => {
         const span = document.createElement('span');
-        span.className = `estado-pill ${this.getPriorityClass(params.value)}`;
-        span.textContent = this.formatValue(params.value);
-        return span;
+        return createAchBadgeElement(this.formatValue(params.value), this.getPriorityClass(params.value));
       }
     },
     { field: 'fechaRecepcionText', headerName: 'Fecha recepción', minWidth: 170 },
@@ -75,9 +76,7 @@ export class AchResponseManualReviewPageComponent implements OnInit {
       minWidth: 170,
       cellRenderer: (params: any) => {
         const span = document.createElement('span');
-        span.className = `estado-pill ${this.getProcessingStatusClass(params.value)}`;
-        span.textContent = this.formatProcessingStatus(params.value);
-        return span;
+        return createAchBadgeElement(this.formatProcessingStatus(params.value), this.getProcessingStatusClass(params.value));
       }
     },
     { field: 'permiteNotificacionText', headerName: 'Notificable', minWidth: 120 },
@@ -163,9 +162,7 @@ export class AchResponseManualReviewPageComponent implements OnInit {
   }
 
   getPriorityClass(priority: string): string {
-    if (priority === 'Alta') return 'prioridad-alta';
-    if (priority === 'Media') return 'prioridad-media';
-    return 'prioridad-baja';
+    return getAchPriorityClass(priority);
   }
 
   formatProcessingStatus(status: string | null | undefined): string {
@@ -179,9 +176,7 @@ export class AchResponseManualReviewPageComponent implements OnInit {
   }
 
   formatValue(value: unknown): string {
-    if (value === null || value === undefined || value === '') return '-';
-    if (typeof value === 'boolean') return value ? 'Sí' : 'No';
-    return String(value);
+    return formatAchValue(value);
   }
 
   private loadManualReviewCases(): void {
@@ -240,12 +235,10 @@ export class AchResponseManualReviewPageComponent implements OnInit {
 
   private formatDate(value: string | null | undefined): string {
     if (!value) return '-';
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleString('es-CO');
+    return formatAchDate(value);
   }
 
   private normalize(value: string | null | undefined): string | undefined {
-    const trimmed = value?.trim();
-    return trimmed ? trimmed : undefined;
+    return normalizeAchFilter(value);
   }
 }

@@ -5,6 +5,8 @@ import { NotificationService } from '../../../core/services/notification.service
 import { SharedModule } from '../../../shared/shared.module';
 import { AchResponseDetailResponse } from '../models/ach-responses.models';
 import { AchResponsesApiService } from '../services/ach-responses-api.service';
+import { formatAchDate, formatAchValue } from '../utils/ach-response-formatters';
+import { formatAchNotificationStatus, formatAchProcessingStatus, getAchNotificationStatusClass, getAchProcessingStatusClass } from '../utils/ach-response-status.utils';
 
 @Component({
   selector: 'app-ach-response-detail-page',
@@ -70,20 +72,12 @@ export class AchResponseDetailPageComponent implements OnInit {
     this.router.navigate(['/ach-responses', this.detail.id, 'notification-attempts']);
   }
 
-  formatValue(value: unknown): string {
-    if (value === null || value === undefined || value === '') return '-';
-    if (typeof value === 'boolean') return value ? 'Sí' : 'No';
-    return String(value);
-  }
+  formatValue(value: unknown): string { return formatAchValue(value); }
 
-  formatDate(value: string | null | undefined): string {
-    if (!value) return '-';
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleString('es-CO');
-  }
+  formatDate(value: string | null | undefined): string { return formatAchDate(value); }
 
   formatProcessingStatus(status: string | null | undefined): string {
-    return status?.trim() ? status : '-';
+    return formatAchProcessingStatus(status);
   }
 
   getProcessingStatusClass(status: string | null | undefined): string {
@@ -95,7 +89,7 @@ export class AchResponseDetailPageComponent implements OnInit {
   }
 
   formatNotificationStatus(status: string | null | undefined): string {
-    return status?.trim() ? status : '-';
+    return formatAchProcessingStatus(status);
   }
 
   getNotificationStatusClass(status: string | null | undefined): string {

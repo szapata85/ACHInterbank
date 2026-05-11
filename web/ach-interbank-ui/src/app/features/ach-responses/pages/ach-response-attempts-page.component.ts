@@ -5,6 +5,8 @@ import { NotificationService } from '../../../core/services/notification.service
 import { SharedModule } from '../../../shared/shared.module';
 import { AchResponseNotificationAttemptResponse } from '../models/ach-responses.models';
 import { AchResponsesApiService } from '../services/ach-responses-api.service';
+import { formatAchDate, formatAchValue } from '../utils/ach-response-formatters';
+import { formatAchNotificationStatus, getAchNotificationStatusClass } from '../utils/ach-response-status.utils';
 
 @Component({
   selector: 'app-ach-response-attempts-page',
@@ -80,27 +82,11 @@ export class AchResponseAttemptsPageComponent implements OnInit {
     this.router.navigate(['/ach-responses']);
   }
 
-  formatValue(value: unknown): string {
-    if (value === null || value === undefined || value === '') return '-';
-    if (typeof value === 'boolean') return value ? 'Sí' : 'No';
-    return String(value);
-  }
+  formatValue(value: unknown): string { return formatAchValue(value); }
 
-  formatDate(value: string | null | undefined): string {
-    if (!value) return '-';
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleString('es-CO');
-  }
+  formatDate(value: string | null | undefined): string { return formatAchDate(value); }
 
-  formatNotificationStatus(status: string | null | undefined): string {
-    return status?.trim() ? status : '-';
-  }
+  formatNotificationStatus(status: string | null | undefined): string { return formatAchNotificationStatus(status); }
 
-  getNotificationStatusClass(status: string | null | undefined): string {
-    if (!status) return 'estado-neutro';
-    if (status === 'Exitosa') return 'estado-exitoso';
-    if (status === 'Pendiente' || status === 'PendienteReintento' || status === 'RequiereRevisionManual') return 'estado-advertencia';
-    if (status === 'ErrorFuncional' || status === 'ErrorTecnico') return 'estado-error';
-    return 'estado-neutro';
-  }
+  getNotificationStatusClass(status: string | null | undefined): string { return getAchNotificationStatusClass(status); }
 }

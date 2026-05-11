@@ -6,6 +6,8 @@ import { NotificationService } from '../../../core/services/notification.service
 import { SharedModule } from '../../../shared/shared.module';
 import { AchResponseStatusMappingResponse } from '../models/ach-responses.models';
 import { AchResponsesApiService } from '../services/ach-responses-api.service';
+import { formatAchBoolean, formatAchDate, formatAchValue, normalizeAchFilter } from '../utils/ach-response-formatters';
+import { createAchBooleanBadgeElement } from '../utils/ach-response-renderers';
 
 type AchStatusMappingRow = AchResponseStatusMappingResponse & {
   activoText: string;
@@ -52,19 +54,19 @@ export class AchResponseStatusMappingsPageComponent implements OnInit {
       field: 'requiereCausalText',
       headerName: 'Requiere causal',
       minWidth: 130,
-      cellRenderer: (params: any) => this.renderBooleanBadge(params.data?.requiereCausal, 'Sí', 'No', 'requiereCausal')
+      cellRenderer: (params: any) => createAchBooleanBadgeElement(params.data?.requiereCausal, 'requiereCausal')
     },
     {
       field: 'permiteNotificacionText',
       headerName: 'Permite notificación',
       minWidth: 160,
-      cellRenderer: (params: any) => this.renderBooleanBadge(params.data?.permiteNotificacion, 'Sí', 'No', 'permiteNotificacion')
+      cellRenderer: (params: any) => createAchBooleanBadgeElement(params.data?.permiteNotificacion, 'permiteNotificacion')
     },
     {
       field: 'activoText',
       headerName: 'Activo',
       minWidth: 110,
-      cellRenderer: (params: any) => this.renderBooleanBadge(params.data?.activo, 'Sí', 'No', 'activo')
+      cellRenderer: (params: any) => createAchBooleanBadgeElement(params.data?.activo, 'activo')
     },
     { field: 'fechaInicioVigenciaText', headerName: 'Inicio vigencia', minWidth: 160 },
     { field: 'fechaFinVigenciaText', headerName: 'Fin vigencia', minWidth: 160 }
@@ -91,23 +93,11 @@ export class AchResponseStatusMappingsPageComponent implements OnInit {
     this.loadMappings();
   }
 
-  formatValue(value: unknown): string {
-    if (value === null || value === undefined || value === '') return '-';
-    if (typeof value === 'boolean') return value ? 'Sí' : 'No';
-    return String(value);
-  }
+  formatValue(value: unknown): string { return formatAchValue(value); }
 
-  formatBoolean(value: boolean | null | undefined): string {
-    if (value === true) return 'Sí';
-    if (value === false) return 'No';
-    return '-';
-  }
+  formatBoolean(value: boolean | null | undefined): string { return formatAchBoolean(value); }
 
-  formatDate(value: string | null | undefined): string {
-    if (!value) return '-';
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleString('es-CO');
-  }
+  formatDate(value: string | null | undefined): string { return formatAchDate(value); }
 
   parseActivoFilter(value: string | null | undefined): boolean | undefined {
     if (value === 'true') return true;
@@ -115,10 +105,7 @@ export class AchResponseStatusMappingsPageComponent implements OnInit {
     return undefined;
   }
 
-  normalize(value: string | null | undefined): string | undefined {
-    const trimmed = value?.trim();
-    return trimmed ? trimmed : undefined;
-  }
+  normalize(value: string | null | undefined): string | undefined { return normalizeAchFilter(value); }
 
   private loadMappings(): void {
     this.loading = true;
@@ -159,34 +146,4 @@ export class AchResponseStatusMappingsPageComponent implements OnInit {
     };
   }
 
-  private renderBooleanBadge(
-    value: boolean | null | undefined,
-    trueText = 'Sí',
-    falseText = 'No',
-    context: 'activo' | 'requiereCausal' | 'permiteNotificacion' = 'activo'
-  ): HTMLElement {
-    const span = document.createElement('span');
-    span.classList.add('estado-pill');
-
-    if (value === null || value === undefined) {
-      span.classList.add('estado-advertencia');
-      span.textContent = '-';
-      return span;
-    }
-
-    span.textContent = value ? trueText : falseText;
-
-    if (context === 'activo') {
-      span.classList.add(value ? 'estado-exitoso' : 'estado-neutro');
-      return span;
-    }
-
-    if (context === 'requiereCausal') {
-      span.classList.add(value ? 'estado-advertencia' : 'estado-neutro');
-      return span;
-    }
-
-    span.classList.add(value ? 'estado-exitoso' : 'estado-advertencia');
-    return span;
-  }
 }

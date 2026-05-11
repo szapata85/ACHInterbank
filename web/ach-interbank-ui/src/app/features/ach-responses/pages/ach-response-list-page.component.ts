@@ -7,6 +7,9 @@ import { NotificationService } from '../../../core/services/notification.service
 import { SharedModule } from '../../../shared/shared.module';
 import { AchResponseListItemResponse, AchResponseSearchRequest } from '../models/ach-responses.models';
 import { AchResponsesApiService } from '../services/ach-responses-api.service';
+import { formatAchDate, normalizeAchFilter } from '../utils/ach-response-formatters';
+import { createAchBadgeElement, createAchButtonElement } from '../utils/ach-response-renderers';
+import { getAchProcessingStatusClass } from '../utils/ach-response-status.utils';
 
 type AchResponseListRow = AchResponseListItemResponse & {
   fechaRecepcionText: string;
@@ -73,10 +76,7 @@ export class AchResponseListPageComponent implements OnInit {
       headerName: 'Estado procesamiento',
       minWidth: 170,
       cellRenderer: (params: any) => {
-        const span = document.createElement('span');
-        span.className = `estado-pill ${this.getProcessingStatusClass(params.value)}`;
-        span.textContent = this.formatProcessingStatus(params.value);
-        return span;
+        return createAchBadgeElement(this.formatProcessingStatus(params.value), this.getProcessingStatusClass(params.value));
       }
     },
     { field: 'permiteNotificacionText', headerName: 'Notificable', minWidth: 120 },
@@ -165,10 +165,7 @@ export class AchResponseListPageComponent implements OnInit {
 
   getProcessingStatusClass(status: string | null | undefined): string {
     if (!status) return 'estado-neutro';
-    if (status === 'Notificada' || status === 'Homologada') return 'estado-exitoso';
-    if (status === 'PendienteReintento' || status === 'RequiereRevisionManual' || status === 'NoHomologada') return 'estado-advertencia';
-    if (status === 'ErrorFuncional') return 'estado-error';
-    return 'estado-neutro';
+    return getAchProcessingStatusClass(status);
   }
 
   loadResponses(): void {
@@ -227,12 +224,10 @@ export class AchResponseListPageComponent implements OnInit {
 
   private formatDate(value: string | null | undefined): string {
     if (!value) return '-';
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleString('es-CO');
+    return formatAchDate(value);
   }
 
   private normalize(value: string | null | undefined): string | undefined {
-    const trimmed = value?.trim();
-    return trimmed ? trimmed : undefined;
+    return normalizeAchFilter(value);
   }
 }
