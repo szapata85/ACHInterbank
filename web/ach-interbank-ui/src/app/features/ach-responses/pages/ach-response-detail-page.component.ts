@@ -77,7 +77,7 @@ export class AchResponseDetailPageComponent implements OnInit {
   formatDate(value: string | null | undefined): string { return formatAchDate(value); }
 
   formatProcessingStatus(status: string | null | undefined): string {
-    return formatAchNotificationStatus(status);
+    return formatAchProcessingStatus(status);
   }
 
   getProcessingStatusClass(status: string | null | undefined): string {
