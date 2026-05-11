@@ -272,18 +272,7 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
         var cycle = await _context.AchCycles.AsNoTracking().FirstOrDefaultAsync();
         if (cycle is null)
         {
-            cycle = new AchCycle
-            {
-                Id = "SEED-CYCLE",
-                CycleName = "Ciclo Seed",
-                ProcessingDate = DateTime.UtcNow.Date,
-                StartTime = TimeSpan.FromHours(8),
-                EndTime = TimeSpan.FromHours(17),
-                CutoffTime = TimeSpan.FromHours(16),
-                ClearingHouseId = 1
-            };
-            _context.AchCycles.Add(cycle);
-            await _context.SaveChangesAsync();
+            return;
         }
 
         var batch = new AchBatch
