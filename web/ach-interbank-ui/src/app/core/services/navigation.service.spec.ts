@@ -26,4 +26,29 @@ describe('NavigationService', () => {
       done();
     });
   });
+
+  it('injects ach-responses routes into default menu', (done) => {
+    const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
+    api.get.and.returnValue(of([]));
+
+    TestBed.configureTestingModule({
+      providers: [
+        NavigationService,
+        { provide: ApiService, useValue: api }
+      ]
+    });
+
+    const service = TestBed.inject(NavigationService);
+
+    service.getMenu().subscribe((menu) => {
+      const achResponses = menu.find((x) => x.route === '/ach-responses');
+
+      expect(achResponses).toBeTruthy();
+      expect(achResponses?.children?.find((x) => x.route === '/ach-responses')).toBeTruthy();
+      expect(achResponses?.children?.find((x) => x.route === '/ach-responses/manual-review')).toBeTruthy();
+      expect(achResponses?.children?.find((x) => x.route === '/ach-responses/status-mappings')).toBeTruthy();
+      expect(achResponses?.children?.find((x) => x.route === '/ach-responses/dashboard')).toBeTruthy();
+      done();
+    });
+  });
 });

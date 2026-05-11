@@ -1,0 +1,36 @@
+@use '../styles/ach-response-status';
+
+.filtros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.campo {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.campo input,
+.campo select {
+  min-height: 2.25rem;
+}
+
+.acciones {
+  display: flex;
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.resumen {
+  margin: 0.75rem 0;
+  font-size: 0.9rem;
+}
+
+.paginacion {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}

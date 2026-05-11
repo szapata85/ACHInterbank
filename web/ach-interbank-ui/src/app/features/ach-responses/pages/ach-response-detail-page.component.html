@@ -1,0 +1,114 @@
+<app-page-header
+  title="Detalle respuesta ACH"
+  description="Trazabilidad, homologación e intentos de notificación de la respuesta"
+></app-page-header>
+
+<div class="acciones-header">
+  <ui-boton texto="Volver" variante="contorno" (accion)="backToList()"></ui-boton>
+  <ui-boton *ngIf="detail" texto="Ver intentos" variante="primario" (accion)="goToAttempts()"></ui-boton>
+</div>
+
+<ui-estado-carga *ngIf="loading" [mensaje]="'Cargando detalle de respuesta ACH...'"></ui-estado-carga>
+
+<ui-estado-error
+  *ngIf="error"
+  [mensaje]="'No fue posible cargar el detalle de la respuesta ACH.'"
+  (reintentar)="responseId ? loadDetail(responseId) : null"
+></ui-estado-error>
+
+<div *ngIf="!loading && !error && detail" class="detalle-layout">
+  <section class="card">
+    <h3>Datos principales</h3>
+    <div class="grid-campos">
+      <p><strong>Tipo respuesta:</strong> {{ formatValue(detail.tipoRespuesta) }}</p>
+      <p><strong>Id transacción:</strong> {{ formatValue(detail.idTransaccion) }}</p>
+      <p><strong>Cámara:</strong> {{ formatValue(detail.codigoCamaraCompensacion) }}</p>
+      <p><strong>Entidad origen:</strong> {{ formatValue(detail.codigoEntidadOrigen) }}</p>
+      <p><strong>Entidad destino:</strong> {{ formatValue(detail.codigoEntidadDestino) }}</p>
+      <p><strong>Estado externo:</strong> {{ formatValue(detail.codigoEstadoExterno) }}</p>
+      <p><strong>Causal externa:</strong> {{ formatValue(detail.codigoCausalExterna) }}</p>
+      <p><strong>CorrelationId:</strong> {{ formatValue(detail.correlationId) }}</p>
+      <p><strong>Fecha recepción:</strong> {{ formatDate(detail.fechaRecepcion) }}</p>
+      <p><strong>Fecha creación:</strong> {{ formatDate(detail.fechaCreacion) }}</p>
+      <p><strong>Fecha actualización:</strong> {{ formatDate(detail.fechaActualizacion) }}</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>Estado y homologación</h3>
+    <div class="grid-campos">
+      <p>
+        <strong>Estado procesamiento:</strong>
+        <span class="estado-pill" [ngClass]="getProcessingStatusClass(detail.estadoProcesamiento)">
+          {{ formatProcessingStatus(detail.estadoProcesamiento) }}
+        </span>
+      </p>
+      <p><strong>Id estado interno:</strong> {{ formatValue(detail.idEstadoInterno) }}</p>
+      <p><strong>Id estado servicio externo:</strong> {{ formatValue(detail.idEstadoServicioExterno) }}</p>
+      <p><strong>Estado interno nombre:</strong> {{ formatValue(detail.estadoInternoNombre) }}</p>
+      <p><strong>Causal normalizada:</strong> {{ formatValue(detail.causalNormalizada) }}</p>
+      <p><strong>Descripción causal:</strong> {{ formatValue(detail.descripcionCausal) }}</p>
+      <p><strong>Permite notificación:</strong> {{ formatValue(detail.permiteNotificacion) }}</p>
+      <p><strong>Motivo no homologación:</strong> {{ formatValue(detail.motivoNoHomologacion) }}</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>Idempotencia y trazabilidad</h3>
+    <div class="grid-campos">
+      <p><strong>HashIdempotencia:</strong> {{ formatValue(detail.hashIdempotencia) }}</p>
+      <p><strong>IdTransaccionServicioExterno:</strong> {{ formatValue(detail.idTransaccionServicioExterno) }}</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>Intentos incluidos</h3>
+
+    <ng-container *ngIf="detail.notificationAttempts?.length; else sinIntentos">
+      <div class="tabla-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Número intento</th>
+              <th>Estado notificación</th>
+              <th>IdCanal</th>
+              <th>Nombre canal</th>
+              <th>IdEstado</th>
+              <th>Causal</th>
+              <th>Existe error</th>
+              <th>Código error</th>
+              <th>Descripción error</th>
+              <th>Error técnico</th>
+              <th>Fecha creación</th>
+              <th>Fecha envío</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let attempt of detail.notificationAttempts">
+              <td>{{ formatValue(attempt.numeroIntento) }}</td>
+              <td>
+                <span class="estado-pill" [ngClass]="getNotificationStatusClass(attempt.estadoNotificacion)">
+                  {{ formatNotificationStatus(attempt.estadoNotificacion) }}
+                </span>
+              </td>
+              <td>{{ formatValue(attempt.idCanal) }}</td>
+              <td>{{ formatValue(attempt.nombreCanal) }}</td>
+              <td>{{ formatValue(attempt.idEstado) }}</td>
+              <td>{{ formatValue(attempt.causal) }}</td>
+              <td>{{ formatValue(attempt.existeError) }}</td>
+              <td>{{ formatValue(attempt.codigoError) }}</td>
+              <td>{{ formatValue(attempt.descripcionError) }}</td>
+              <td>{{ formatValue(attempt.errorTecnico) }}</td>
+              <td>{{ formatDate(attempt.fechaCreacion) }}</td>
+              <td>{{ formatDate(attempt.fechaEnvio) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </ng-container>
+
+    <ng-template #sinIntentos>
+      <p>No hay intentos de notificación registrados para esta respuesta.</p>
+    </ng-template>
+  </section>
+</div>

@@ -1,0 +1,40 @@
+<app-page-header
+  title="Homologaciones ACH"
+  description="Consulta de mappings de estados y causales para respuestas ACH"
+></app-page-header>
+
+<p class="nota-operativa">Esta pantalla es solo de consulta. La creación, edición o eliminación de homologaciones se implementará en una fase posterior si el cliente lo requiere.</p>
+
+<form class="filtros" [formGroup]="filtrosForm" (ngSubmit)="applyFilters()">
+  <div class="campo"><label>Cámara</label><input type="text" formControlName="codigoCamaraCompensacion" /></div>
+  <div class="campo">
+    <label>Tipo respuesta</label>
+    <select formControlName="tipoRespuesta">
+      <option *ngFor="let tipo of tiposRespuesta" [value]="tipo">{{ tipo || 'Todos' }}</option>
+    </select>
+  </div>
+  <div class="campo">
+    <label>Activo</label>
+    <select formControlName="activo">
+      <option *ngFor="let estado of activos" [value]="estado">{{ estado === '' ? 'Todos' : (estado === 'true' ? 'Sí' : 'No') }}</option>
+    </select>
+  </div>
+  <div class="acciones">
+    <ui-boton texto="Buscar" variante="primario" [deshabilitado]="loading" (accion)="applyFilters()"></ui-boton>
+    <ui-boton texto="Limpiar" variante="contorno" [deshabilitado]="loading" (accion)="clearFilters()"></ui-boton>
+  </div>
+</form>
+
+<p class="resumen">Mostrando {{ rows.length }} homologaciones.</p>
+
+<ui-grilla-empresarial
+  [columnas]="columnas"
+  [datos]="rows"
+  [cargando]="loading"
+  [error]="error"
+  [mensajeError]="'No fue posible cargar las homologaciones ACH'"
+  [mensajeCargando]="'Cargando homologaciones ACH...'"
+  [tituloVacio]="'Sin homologaciones'"
+  [mensajeVacio]="'No se encontraron mappings con los filtros aplicados.'"
+  [placeholderBusqueda]="'Buscar en homologaciones...'"
+></ui-grilla-empresarial>

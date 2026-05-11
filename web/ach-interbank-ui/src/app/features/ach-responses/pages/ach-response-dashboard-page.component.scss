@@ -1,0 +1,14 @@
+.nota-operativa { margin-bottom: .75rem; font-size: .9rem; }
+.filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+.campo { display: grid; gap: .25rem; }
+.campo input, .campo select { min-height: 2.25rem; }
+.acciones { display: flex; gap: .5rem; align-items: end; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .75rem; margin-top: .75rem; }
+.kpi { border: 1px solid var(--color-border, #d7dde3); border-radius: var(--radius-lg, 10px); padding: .75rem; }
+.valor { font-size: 1.5rem; font-weight: 700; margin: .25rem 0; }
+.descripcion { font-size: .9rem; margin-bottom: .5rem; }
+.kpi-neutro { background: var(--estado-neutro-bg, #eef1f4); }
+.kpi-exitoso { background: var(--estado-exitoso-bg, #e7f7ef); }
+.kpi-advertencia { background: var(--estado-advertencia-bg, #fff6e8); }
+.kpi-error { background: var(--estado-error-bg, #fdecec); }
+.resumen { margin-top: 1rem; display: grid; gap: .25rem; }

@@ -1,0 +1,8 @@
+@use '../styles/ach-response-status';
+
+.nota-operativa { margin-bottom: .75rem; font-size: .9rem; }
+.filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+.campo { display: grid; gap: .25rem; }
+.campo input, .campo select { min-height: 2.25rem; }
+.acciones { display: flex; gap: .5rem; align-items: end; }
+.resumen { margin: .75rem 0; font-size: .9rem; }
