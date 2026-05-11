@@ -1,0 +1,85 @@
+<app-page-header
+  title="Command Center Respuestas ACH"
+  description="Bandeja operativa de respuestas ACH"
+></app-page-header>
+
+<form class="filtros" [formGroup]="filtrosForm" (ngSubmit)="applyFilters()">
+  <div class="campo">
+    <label for="fechaDesde">Fecha desde</label>
+    <input id="fechaDesde" type="date" formControlName="fechaDesde" />
+  </div>
+  <div class="campo">
+    <label for="fechaHasta">Fecha hasta</label>
+    <input id="fechaHasta" type="date" formControlName="fechaHasta" />
+  </div>
+  <div class="campo">
+    <label for="tipoRespuesta">Tipo respuesta</label>
+    <select id="tipoRespuesta" formControlName="tipoRespuesta">
+      <option *ngFor="let tipo of tiposRespuesta" [value]="tipo">{{ tipo || 'Todos' }}</option>
+    </select>
+  </div>
+  <div class="campo">
+    <label for="idTransaccion">Id transacción</label>
+    <input id="idTransaccion" type="text" formControlName="idTransaccion" />
+  </div>
+  <div class="campo">
+    <label for="codigoCamaraCompensacion">Cámara</label>
+    <input id="codigoCamaraCompensacion" type="text" formControlName="codigoCamaraCompensacion" />
+  </div>
+  <div class="campo">
+    <label for="codigoEntidadOrigen">Entidad origen</label>
+    <input id="codigoEntidadOrigen" type="text" formControlName="codigoEntidadOrigen" />
+  </div>
+  <div class="campo">
+    <label for="codigoEntidadDestino">Entidad destino</label>
+    <input id="codigoEntidadDestino" type="text" formControlName="codigoEntidadDestino" />
+  </div>
+  <div class="campo">
+    <label for="codigoEstadoExterno">Estado externo</label>
+    <input id="codigoEstadoExterno" type="text" formControlName="codigoEstadoExterno" />
+  </div>
+  <div class="campo">
+    <label for="estadoProcesamiento">Estado procesamiento</label>
+    <select id="estadoProcesamiento" formControlName="estadoProcesamiento">
+      <option *ngFor="let estado of estadosProcesamiento" [value]="estado">{{ estado || 'Todos' }}</option>
+    </select>
+  </div>
+  <div class="campo">
+    <label for="correlationId">CorrelationId</label>
+    <input id="correlationId" type="text" formControlName="correlationId" />
+  </div>
+
+  <div class="acciones">
+    <ui-boton texto="Buscar" variante="primario" [deshabilitado]="loading" (accion)="applyFilters()"></ui-boton>
+    <ui-boton texto="Limpiar" variante="contorno" [deshabilitado]="loading" (accion)="clearFilters()"></ui-boton>
+  </div>
+</form>
+
+<p class="resumen">Mostrando {{ rows.length }} de {{ totalCount }} respuestas. Página {{ filtrosForm.controls.pageNumber.value }} de {{ totalPages || 1 }}.</p>
+
+<ui-grilla-empresarial
+  [columnas]="columnas"
+  [datos]="rows"
+  [cargando]="loading"
+  [error]="error"
+  [mensajeError]="'No fue posible cargar las respuestas ACH'"
+  [mensajeCargando]="'Cargando respuestas ACH...'"
+  [tituloVacio]="'Sin respuestas ACH'"
+  [mensajeVacio]="'No se encontraron respuestas con los filtros aplicados.'"
+  [placeholderBusqueda]="'Buscar en resultados de respuestas ACH...'"
+  [paginacion]="true"
+  [tamanoPagina]="filtrosForm.controls.pageSize.value ?? 20"
+  (reintentar)="loadResponses()"
+></ui-grilla-empresarial>
+
+<div class="paginacion">
+  <label for="pageSize">Tamaño página</label>
+  <select id="pageSize" [value]="filtrosForm.controls.pageSize.value ?? 20" (change)="setPageSize(+$any($event.target).value)">
+    <option [value]="10">10</option>
+    <option [value]="20">20</option>
+    <option [value]="50">50</option>
+  </select>
+
+  <ui-boton texto="Anterior" variante="contorno" [deshabilitado]="loading || (filtrosForm.controls.pageNumber.value ?? 1) <= 1" (accion)="previousPage()"></ui-boton>
+  <ui-boton texto="Siguiente" variante="contorno" [deshabilitado]="loading || (filtrosForm.controls.pageNumber.value ?? 1) >= (totalPages || 1)" (accion)="nextPage()"></ui-boton>
+</div>
