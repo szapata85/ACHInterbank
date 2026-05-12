@@ -197,7 +197,7 @@ public class SchedulerSyncServiceTests
     }
 
     [Fact]
-    public void DynamicJob_ShouldNotUseRescheduleJob_ForShiftToNextBusinessDay()
+    public void QuartzShiftPolicy_ShouldNotUseRescheduleJob_ForShiftToNextBusinessDay()
     {
         var probe = new DirectoryInfo(AppContext.BaseDirectory);
         while (probe is not null && !Directory.Exists(Path.Combine(probe.FullName, "src")))
@@ -205,11 +205,18 @@ public class SchedulerSyncServiceTests
             probe = probe.Parent;
         }
 
-        var dynamicJobPath = Path.Combine(probe!.FullName, "src", "Cfa.ACHInterbank.Persistence", "ACH", "Quartz", "Calendar", "QuartzTaskCalendarEvaluator.cs");
-        var content = File.ReadAllText(dynamicJobPath);
+        probe.Should().NotBeNull();
+        var files = new[]
+        {
+            Path.Combine(probe!.FullName, "src", "Cfa.ACHInterbank.Persistence", "ACH", "Quartz", "Calendar", "QuartzTaskCalendarEvaluator.cs"),
+            Path.Combine(probe.FullName, "src", "Cfa.ACHInterbank.Persistence", "ACH", "Quartz", "Jobs", "DynamicJobExecutor.cs"),
+            Path.Combine(probe.FullName, "src", "Cfa.ACHInterbank.Persistence", "ACH", "Quartz", "SchedulerSyncService.cs")
+        };
 
-        content.Should().NotContain("RescheduleJob");
-        content.Should().NotContain("shifted:");
-        content.Should().Contain("ShiftToNextBusinessDay");
+        var contents = files.Select(File.ReadAllText).ToList();
+
+        contents.Should().OnlyContain(c => !c.Contains("RescheduleJob"));
+        contents.Should().OnlyContain(c => !c.Contains("shifted:"));
+        contents.Should().Contain(c => c.Contains("ShiftToNextBusinessDay"));
     }
 }
