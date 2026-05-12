@@ -60,6 +60,21 @@ public class QuartzPersistentStoreConfigurationTests
         options.GetNormalizedProvider().Should().Be("Postgres");
     }
 
+
+    [Fact]
+    public void QuartzConfiguration_ShouldReadPersistentSqlServerSettings()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Quartz:JobStore:Mode"] = "Persistent",
+            ["Quartz:JobStore:Provider"] = "SqlServer"
+        }).Build();
+
+        var options = QuartzJobStoreOptionsFactory.Create(config);
+        options.IsPersistentMode().Should().BeTrue();
+        options.GetNormalizedProvider().Should().Be("SqlServer");
+    }
+
     [Fact]
     public void QuartzConfiguration_ShouldNotEnablePersistentStoreInDevelopmentByDefault()
     {
@@ -76,6 +91,20 @@ public class QuartzPersistentStoreConfigurationTests
         var content = File.ReadAllText(ResolveRepoPath("docs","dev","quartz-persistent-store-operacion.md"));
         content.Should().Contain("QRTZ_");
         content.Should().Contain("artifacts/sql/quartz");
+    }
+
+
+    [Fact]
+    public void QuartzDocs_ShouldMentionBothPostgresAndSqlServerUatPaths()
+    {
+        var content = File.ReadAllText(ResolveRepoPath("docs","dev","quartz-cierre-tecnico-plan-uat.md"));
+        content.Should().Contain("Quartz__JobStore__Provider=Postgres");
+        content.Should().Contain("Quartz__JobStore__Provider=SqlServer");
+        content.Should().Contain("ConnectionStrings__PostgresConnection");
+        content.Should().Contain("ConnectionStrings__SqlConnection");
+        content.Should().Contain("sqlserver-qrtz-schema.sql");
+        content.Should().Contain("PostgreSQL");
+        content.Should().Contain("SQL Server");
     }
 
     [Fact]

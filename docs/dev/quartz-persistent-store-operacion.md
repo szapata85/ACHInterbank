@@ -64,3 +64,16 @@ SELECT * FROM "QRTZ_LOCKS";
 - observabilidad de drift/sync;
 - pruebas multi-nodo reales;
 - cola durable avanzada para `Queue`.
+
+
+## 12) Configuración multi-motor
+
+| Ambiente | Quartz Mode | Provider | ConnectionString | Script |
+|---|---|---|---|---|
+| Dev | RAM | N/A | N/A | No requiere |
+| UAT Postgres | Persistent | Postgres | PostgresConnection | script oficial PostgreSQL |
+| UAT SQL Server | Persistent | SqlServer | SqlConnection | sqlserver-qrtz-schema.sql / oficial |
+| Producción | Persistent | según motor | según motor | oficial/control DBA |
+
+> No ejecutar script SQL Server con `@DropDb=1` sin aprobación DBA.
+> No usar `postgres-qrtz-schema.sql` placeholder como schema real. Para PostgreSQL usar script oficial Quartz.NET de la versión instalada.

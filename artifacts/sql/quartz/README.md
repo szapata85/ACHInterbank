@@ -8,7 +8,7 @@
 - **Development/local**: usar `Quartz:JobStore:Mode=RAM` (sin tablas `QRTZ_*`).
 - **UAT/Producción**: usar `Quartz:JobStore:Mode=Persistent` con script oficial Quartz para la versión instalada (**3.18.0**).
 
-## PostgreSQL (recomendado en este branch)
+## PostgreSQL (recomendado en este branch, alternativa SQL Server soportada)
 Para PostgreSQL, aplicar el script oficial de Quartz.NET 3.18.0 para AdoJobStore (tablas `QRTZ_*`).
 
 > Nota: este repositorio no inventa un script parcial/manual para PostgreSQL. Debe usarse el script oficial del paquete/versionado por infraestructura.
@@ -24,3 +24,8 @@ Ese script define `DECLARE @DropDb BIT = 0` por defecto.
 - `@DropDb = 1` elimina tablas `QRTZ_*` existentes y puede borrar jobs/triggers persistidos.
 
 Estos scripts deben aplicarse por DBA/infra fuera de migraciones EF del dominio ACH.
+
+
+- `postgres-qrtz-schema.sql` es un placeholder controlado: usar script oficial PostgreSQL para ejecución real.
+- `sqlserver-qrtz-schema.sql` es artefacto operativo real, debe mantenerse únicamente con objetos QRTZ_*.
+- Ambos se gestionan fuera de migraciones EF del dominio ACH.

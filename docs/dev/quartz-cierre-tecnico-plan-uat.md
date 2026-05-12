@@ -3,7 +3,7 @@
 ## 1) Resumen ejecutivo
 Este documento cierra técnicamente la fase de hardening Quartz y define un plan UAT ejecutable para validar en ambiente real:
 - `RAMJobStore` en Development.
-- `Persistent AdoJobStore` en UAT con PostgreSQL.
+- `Persistent AdoJobStore` en UAT/Producción con PostgreSQL o SQL Server.
 - Schema `QRTZ_*` aplicado y accesible.
 - Sincronización DB↔Quartz operativa.
 - Ejecución trazable por `TaskExecutionLogs`.
@@ -38,19 +38,31 @@ Este documento cierra técnicamente la fase de hardening Quartz y define un plan
 - `Quartz__JobStore__TablePrefix=QRTZ_`
 - `Quartz__JobStore__Clustered=false` inicial (o `true` si hay más de un nodo)
 - `Quartz__JobStore__PerformSchemaValidation=true`
+- `ConnectionStrings__PostgresConnection=<cadena UAT>`
 - Schema oficial Quartz `QRTZ_*` aplicado en PostgreSQL
+
+### UAT (SQL Server)
+- `Quartz__JobStore__Mode=Persistent`
+- `Quartz__JobStore__Provider=SqlServer`
+- `Quartz__JobStore__TablePrefix=QRTZ_`
+- `Quartz__JobStore__Clustered=false` inicial (o `true` si hay más de un nodo)
+- `Quartz__JobStore__PerformSchemaValidation=true`
+- `ConnectionStrings__SqlConnection=<cadena UAT>`
+- aplicar `artifacts/sql/quartz/sqlserver-qrtz-schema.sql` o script oficial equivalente
 
 ### Producción
 - Igual a UAT con ajuste de `Clustered` según topología
 - Relojes sincronizados entre nodos
 - Observabilidad sobre `QRTZ_*` y `TaskExecutionLogs`
+- El proveedor Quartz se alinea con el motor principal del despliegue (PostgreSQL o SQL Server)
 
 ## 5) Checklist previo UAT
 1. Confirmar appsettings/env de UAT.
-2. Confirmar conexión PostgreSQL.
-3. Aplicar script oficial Quartz PostgreSQL `QRTZ_*`.
-4. Validar tablas `QRTZ_*`.
-5. Validar permisos usuario DB sobre `QRTZ_*`.
+2. Confirmar conexión PostgreSQL o SQL Server según ruta.
+3. PostgreSQL: aplicar script oficial Quartz `QRTZ_*`.
+4. SQL Server: aplicar `artifacts/sql/quartz/sqlserver-qrtz-schema.sql` (mantener `@DropDb=0` por defecto).
+5. Validar tablas `QRTZ_*`.
+6. Validar permisos usuario DB sobre `QRTZ_*`.
 6. Confirmar `TaskDefinitions` disponibles.
 7. Confirmar handlers `ITaskHandler` registrados.
 8. Confirmar API arranca sin error.
@@ -64,16 +76,32 @@ Este documento cierra técnicamente la fase de hardening Quartz y define un plan
 3. Confirmar programación en memoria por `SchedulerSyncService`.
 4. Confirmar trazas en `TaskExecutionLogs`.
 
-### B) Validar Persistent en UAT/Postgres
+### B) Validar Persistent en UAT — ruta PostgreSQL
 1. Configurar ENV:
    - `Quartz__JobStore__Mode=Persistent`
    - `Quartz__JobStore__Provider=Postgres`
    - `Quartz__JobStore__TablePrefix=QRTZ_`
+   - `Quartz__JobStore__Clustered=false`
    - `Quartz__JobStore__PerformSchemaValidation=true`
+   - `ConnectionStrings__PostgresConnection=<cadena UAT>`
 2. Aplicar script oficial `QRTZ_*` PostgreSQL.
 3. Arrancar API.
 4. Confirmar ausencia de error de schema Quartz.
-5. Confirmar carga de `QRTZ_JOB_DETAILS` y `QRTZ_TRIGGERS`.
+5. Confirmar carga de `QRTZ_JOB_DETAILS`, `QRTZ_TRIGGERS`, `QRTZ_FIRED_TRIGGERS`.
+
+### B2) Validar Persistent en UAT — ruta SQL Server
+1. Configurar ENV:
+   - `Quartz__JobStore__Mode=Persistent`
+   - `Quartz__JobStore__Provider=SqlServer`
+   - `Quartz__JobStore__TablePrefix=QRTZ_`
+   - `Quartz__JobStore__Clustered=false`
+   - `Quartz__JobStore__PerformSchemaValidation=true`
+   - `ConnectionStrings__SqlConnection=<cadena UAT>`
+2. Aplicar `artifacts/sql/quartz/sqlserver-qrtz-schema.sql` o script oficial Quartz SQL Server equivalente.
+3. Mantener `@DropDb=0` por defecto.
+4. Arrancar API.
+5. Confirmar ausencia de error de schema Quartz.
+6. Confirmar carga de `QRTZ_JOB_DETAILS`, `QRTZ_TRIGGERS`, `QRTZ_FIRED_TRIGGERS`.
 
 ### C) Validar reconciliación
 1. Crear/habilitar `TaskDefinition`.
