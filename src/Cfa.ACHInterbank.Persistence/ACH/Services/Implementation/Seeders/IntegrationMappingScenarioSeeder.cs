@@ -261,75 +261,11 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
             _ => "SEED"
         };
 
-    private async Task EnsureSampleTransactionsAsync()
+    private Task EnsureSampleTransactionsAsync()
     {
-        var hasTransactions = await _context.AchTransactions.AsNoTracking().AnyAsync();
-        if (hasTransactions)
-        {
-            return;
-        }
-
-        var cycle = await _context.AchCycles.AsNoTracking().FirstOrDefaultAsync();
-        if (cycle is null)
-        {
-            cycle = new AchCycle
-            {
-                Id = "SEED-CYCLE",
-                CycleName = "Ciclo Seed",
-                ProcessingDate = DateTime.UtcNow.Date,
-                StartTime = TimeSpan.FromHours(8),
-                EndTime = TimeSpan.FromHours(17),
-                CutoffTime = TimeSpan.FromHours(16),
-                ClearingHouseId = 1
-            };
-            _context.AchCycles.Add(cycle);
-            await _context.SaveChangesAsync();
-        }
-
-        var batch = new AchBatch
-        {
-            AchCycleId = cycle.Id,
-            EffectiveEntryDate = cycle.ProcessingDate,
-            BatchSequenceNumber = 1,
-            CompanyName = "SEED COMPANY",
-            CompanyIdentification = "900123456",
-            CompanyEntryDescription = "PAGOS",
-            CompanyEntryDescriptionId = 1,
-            OriginOrOdfi = "000010070"
-        };
-
-        var tx = new AchTransaction
-        {
-            AchCycleId = cycle.Id,
-            AchBatch = batch,
-            Amount = 2500m,
-            Reference = "SEED-MAPPING-001",
-            Type = TransactionTypeEnum.Credit,
-            TransactionCode = "22",
-            CompanyEntryDescriptionId = 1,
-            CompanyName = "SEED COMPANY",
-            CompanyIdentification = "900123456",
-            OriginatingDFI = "000010070",
-            ReceivingDFI = "000010010",
-            TraceNumber = "000010070000123",
-            TraceSequenceNumber = 123,
-            EffectiveEntryDate = cycle.ProcessingDate,
-            SourceInstitutionId = 1,
-            DestinationInstitutionId = 2,
-            SourceAccountNumber = "123456789",
-            DestinationAccountNumber = "987654321"
-        };
-
-        _context.AchTransactions.Add(tx);
-        _context.AchTransactionAddendas.Add(new AchTransactionAddenda
-        {
-            Transaction = tx,
-            AddendaType = "05",
-            BusinessType = AchAddendaBusinessType.Credit,
-            Information = "SEED INFO",
-            SequenceNumber = 1
-        });
-
-        await _context.SaveChangesAsync();
+        // Los datos transaccionales de ejemplo no deben persistirse por seed runtime.
+        // Las pruebas y validaciones deben crear sus propios datos explícitos.
+        return Task.CompletedTask;
     }
+
 }
