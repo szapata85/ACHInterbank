@@ -1,0 +1,208 @@
+# Auditoría funcional Quartz.NET — ACH Interbank
+
+## 1) Resumen ejecutivo
+Esta auditoría confirma que el proyecto sí ejecuta jobs Quartz en producción, pero con riesgos importantes en sincronización dinámica, calendarios, concurrencia declarada vs efectiva y portabilidad de zona horaria. La fuente de verdad del scheduling dinámico está en `TaskDefinition` + `SchedulerSyncService` + `DynamicJob`.
+
+**Estado general:** Parcial / Riesgo productivo.
+
+---
+
+## 2) Arquitectura actual Quartz
+- Registro Quartz en DI: `AddQuartz` + `AddQuartzHostedService(WaitForJobsToComplete=true)`.  
+- Servicio adicional de sincronización: `SchedulerSyncService` (`BackgroundService`) que consulta BD cada minuto y hace `ScheduleJob(... replace=true)`.  
+- Ejecución dinámica: `DynamicJob` resuelve handler por `TaskDefinition.Code` (`IEnumerable<ITaskHandler>`).  
+- Job dedicado bulk ingestion: `ProcessBulkIngestionBatchJob`, programado ad-hoc por `AchBulkJobScheduler`.
+
+### Observación clave de configuración
+No se encontró configuración explícita de job store persistente Quartz (ni `QRTZ_*`/AdoJobStore en `appsettings`/compose), por lo que la operación parece depender del job store por defecto (RAM) y resincronización desde BD al iniciar proceso.
+
+---
+
+## 3) Inventario de jobs `IJob`
+1. `DynamicJob` (`src/.../ACH/Quartz/Jobs/DynamicJob.cs`).
+2. `ProcessBulkIngestionBatchJob` (`src/.../ACH/Quartz/Jobs/Implementation/ProcessBulkIngestionBatchJob.cs`).
+
+## 4) Inventario de handlers `ITaskHandler`
+1. `AchCycleSeederHandler` → Code `AchCycleSeeder`.
+2. `AchCycleSchedulerHandler` → Code `AchCycleScheduler`.
+3. `SeedBankHolidaysHandler` → Code `SeedBankHolidays`.
+4. `CheckBankHolidaysHandler` → Code `CheckBankHolidays`.
+5. `AchTacitAcceptanceJobHandler` → Code `AchTacitAcceptanceJob`.
+6. `AchContrapartidasByCycleHandler` → Code `AchContrapartidasByCycle`.
+7. `IncomingNachaPostProcessingHandler` → Code `IncomingNachaPostProcessing`.
+
+---
+
+## 5) Inventario de `TaskDefinition` (seed)
+Sembradas por `TaskDefinitionSeeder`:
+- `AchCycleSeeder` (Cron anual).
+- `AchCycleScheduler` (DailyAtTime).
+- `SeedBankHolidays` (Cron anual, `IgnoreCalendar`).
+- `AchTacitAcceptanceJob` (EveryNMinutes=30).
+- `AchContrapartidasByCycle` (EveryNMinutes=5).
+- `IncomingNachaPostProcessing` (EveryNMinutes=3).
+
+Parámetros semilla (`TaskParameterSeeder`):
+- `SeedBankHolidays`: `SeedNextYears`, `Years`.
+- `AchTacitAcceptanceJob`: `BatchSize`.
+- `AchContrapartidasByCycle`: `MaxTransactionsPerCycle`, `ChunkSize`, `MaxCyclesPerRun`.
+- `IncomingNachaPostProcessing`: `ChunkSize`.
+
+### Matching handler vs task
+- **TaskDefinition sin handler:** ninguno en semilla.
+- **Handler sin TaskDefinition seed:** `CheckBankHolidays` (no aparece en `TaskDefinitionSeeder`).
+
+---
+
+## 6) Flujo `SchedulerSyncService` (diagnóstico)
+### Qué hace bien
+- Sincroniza tareas cambiadas por `UpdatedAt > _lastSync`.
+- Elimina jobs si `Status=Disabled` o `EndAt` vencido.
+- Construye trigger por periodicidad (Once, EveryNMinutes, HourlyAtMinute, DailyAtTime, Weekly, Monthly, Cron).
+
+### Hallazgos
+1. **Doble control de arranque scheduler**: `AddQuartzHostedService` + `scheduler.Start()` explícito en `SchedulerSyncService`. Riesgo de redundancia/confusión operacional.
+2. **Riesgo de pérdida por ventana de sincronización**: `_lastSync = UtcNow` al final de ciclo puede perder updates en carrera si se graban justo en el borde temporal.
+3. **No hay reconciliación de drift Quartz↔DB completa**: sólo sincroniza changedTasks; si job desaparece de Quartz sin cambio en BD, no se repone.
+4. **No elimina jobs cuando TaskDefinition se borra físicamente en BD** (no hay barrido de huérfanos por grupo).
+5. **`BuildTrigger` no tolera `TimeZoneId` inválido** (`FindSystemTimeZoneById` puede lanzar excepción y afecta ciclo completo).
+6. **Concurrencia declarada no aplicada por tarea**: bloque `if SkipIfRunning` no implementa diferencia real (el job clase ya decide concurrencia).
+7. **Sin misfire policy explícita** en cron/simple triggers.
+
+---
+
+## 7) Flujo `DynamicJob` (diagnóstico)
+### Implementado
+- Lee `TaskId` desde `JobDataMap`.
+- Carga `TaskDefinition + Parameters`.
+- Crea `TaskExecutionLog` inicial y guarda `StartedAt`.
+- Resuelve handler por `Code` y ejecuta.
+- Registra `FinishedAt`, `Success`, `Output/Error`.
+
+### Hallazgos críticos/parciales
+1. **`[DisallowConcurrentExecution]` fijo**: fuerza comportamiento tipo SkipIfRunning para todos los `DynamicJob`; `AllowParallel` y `Queue` no se implementan efectivamente.
+2. **Retry no implementado**: existen campos `RetryOnFailure`, `MaxRetries`, `RetryBackoffSeconds` en modelo, pero no hay lógica de reintento en `DynamicJob`.
+3. **Calendar policy usa reloj local (`DateTime.Now`)** y no `TimeZoneId` de task para decidir fin de semana/festivo.
+4. **`ShiftToNextBusinessDay` reschedulea trigger activo con one-shot** (`RescheduleJob` con trigger puntual), con riesgo de romper recurrencia cron original.
+5. **Si falla `SaveChanges` del log inicial/final**, no hay estrategia de recuperación ni fallback logging.
+
+---
+
+## 8) `ProcessBulkIngestionBatchJob` (diagnóstico)
+- Registrado en DI (`AddTransient`).
+- Programado por `AchBulkJobScheduler` con `StartNow()` y job/trigger identity basada en `batchId+timestamp`.
+- `BatchId` inválido: registra warning y retorna.
+- `AttemptId` opcional (nullable long).
+- Tiene `[DisallowConcurrentExecution]`, pero cada ejecución usa identity distinta, por lo que no evita paralelismo entre batches distintos.
+- Pasa `FireInstanceId` a `ProcessBatchAsync` como ayuda de trazabilidad/idempotencia.
+
+**Riesgo:** Sin persistencia Quartz explícita, jobs en cola podrían perderse en reinicio abrupto antes de disparar.
+
+---
+
+## 9) Modelo y persistencia scheduler
+- `TaskDefinition` incluye campos de calendario/concurrencia/retry/periodicidad.
+- `TimeOfDay` persiste vía `TimeOfDayTicks` (long).
+- `TaskParameters`: índice único por (`TaskDefinitionId`,`Key`).
+- `TaskExecutionLog`: índice por `TaskDefinitionId`.
+- `UpdatedAt/CreatedAt`: se actualizan en `SaveChanges` para entidades auditables.
+
+**Riesgo de diseño:** hay configuración duplicada de tabla de `TaskDefinition` (`Tasks` en `IEntityTypeConfiguration` y `TaskDefinition` en `OnModelCreating`), potencial fuente de confusión/deriva.
+
+---
+
+## 10) Esperado vs actual (resumen)
+| Componente | Esperado | Implementado | Estado | Riesgo | Recomendación |
+|---|---|---|---|---|---|
+| AddQuartz/HostedService | Arranque único y claro | HostedService + Start() manual | Parcial | Medio | Unificar estrategia de start |
+| SchedulerSyncService | Sync robusta sin pérdida | Sync por `UpdatedAt > _lastSync` | Parcial | Alto | Watermark robusto + reconciliación |
+| BuildTrigger Cron/Weekly/etc | Trigger correcto + misfire | Correcto base, sin misfire explícito | Parcial | Medio | Definir misfire policies |
+| Calendar OnlyBusinessDays | Basado en TZ de task | Basado en `DateTime.Now` local | Bug | Alto | Evaluar fecha en TZ task |
+| ShiftToNextBusinessDay | Diferir sin romper recurrencia | Reschedule trigger activo puntual | Bug | Crítico | Mantener trigger recurrente + skip controlado |
+| ConcurrencyPolicy | `AllowParallel/Skip/Queue` efectivos | `DisallowConcurrentExecution` global en DynamicJob | Bug | Crítico | Implementar semántica real por policy |
+| RetryOnFailure | Reintentos según config | No implementado | No implementado | Alto | Implementar retry controlado |
+| TaskExecutionLog | Trazabilidad completa | Básica, sin resiliencia de persistencia | Parcial | Medio | Fallback logging/telemetría |
+| Handler resolution | Code↔handler 1:1 | Funciona para seeds | OK/Parcial | Medio | Alertar handlers huérfanos |
+| ProcessBulkIngestionBatchJob | Cola robusta post-restart | Schedule ad-hoc en Quartz local | Parcial | Alto | Persistencia Quartz o cola durable |
+
+---
+
+## 11) Hallazgos clasificados
+### Críticos
+1. ConcurrencyPolicy no respetada realmente (AllowParallel/Queue).
+2. ShiftToNextBusinessDay puede romper recurrencia de cron.
+
+### Altos
+1. Retry declarado pero no implementado.
+2. Dependencia probable de RAMJobStore (sin persistencia explícita).
+3. CalendarPolicy evaluada con hora local, no TZ task.
+
+### Medios
+1. Ventana de carrera en `_lastSync`.
+2. Sin reconciliación de jobs huérfanos o borrados de Quartz.
+3. `CheckBankHolidaysHandler` sin task seed asociada.
+4. Configuración de tabla `TaskDefinition` duplicada (`Tasks` vs `TaskDefinition`).
+
+### Bajos
+1. Comentarios de código que sugieren comportamiento no implementado totalmente.
+
+---
+
+## 12) Gaps de pruebas
+Pruebas presentes:
+- `ProcessBulkIngestionBatchJobTests` (validación básica argumentos/flujo).
+- Tests de handlers puntuales (p.ej. contrapartidas).
+
+Faltan pruebas clave:
+1. `SchedulerSyncService` sincronización incremental/reconciliación/borrado.
+2. `DynamicJob` calendar policies por TZ.
+3. `ShiftToNextBusinessDay` sin pérdida de recurrencia.
+4. ConcurrencyPolicy efectiva.
+5. RetryOnFailure/MaxRetries/Backoff.
+6. Matriz Code handler vs TaskDefinition (huérfanos).
+
+---
+
+## 13) Plan sugerido de commits (separados)
+1. **feat/quartz:** implementar semántica real de `ConcurrencyPolicyEnum`.
+2. **feat/quartz:** implementar `RetryOnFailure/MaxRetries/RetryBackoffSeconds` en `DynamicJob`.
+3. **fix/quartz:** corregir `ShiftToNextBusinessDay` para no romper triggers recurrentes.
+4. **fix/quartz:** calendario por `TimeZoneId` efectivo.
+5. **refactor/quartz:** reconciliación robusta DB↔Quartz + watermark seguro.
+6. **ops/quartz:** definir job store persistente/clustering/misfires para producción.
+7. **test/quartz:** suite guardrail de scheduling dinámico.
+
+---
+
+## 14) Qué NO se cambió
+- No se cambió lógica productiva de jobs.
+- No se tocaron schedules ni handlers.
+- No se tocaron migraciones ni contratos API.
+- No se tocó SPA / transactions/create / Command Center.
+
+---
+
+## 15) Validación manual recomendada (local/UAT)
+1. Crear/editar `TaskDefinition` y verificar alta/actualización en Quartz (logs + ejecución).
+2. Cambiar `Status=Disabled` y confirmar eliminación de job en scheduler.
+3. Probar `ShiftToNextBusinessDay` y confirmar que no se pierde recurrencia.
+4. Probar task con `TimeZoneId` no local y validar calendario.
+5. Simular fallo handler para verificar trazabilidad en `TaskExecutionLog`.
+6. Reiniciar API y validar recuperación de jobs esperados.
+
+---
+
+## 16) Consultas SQL útiles
+```sql
+SELECT * FROM "TaskDefinitions";
+SELECT * FROM "TaskParameters";
+SELECT * FROM "TaskExecutionLogs" ORDER BY "StartedAt" DESC;
+SELECT "Code", "Status", "PeriodicityType", "CronExpression", "TimeZoneId" FROM "TaskDefinitions";
+SELECT * FROM "TaskExecutionLogs" WHERE "Success" = false ORDER BY "StartedAt" DESC;
+```
+
+Si existen tablas QRTZ_* en el ambiente:
+```sql
+SELECT * FROM "QRTZ_TRIGGERS";
+SELECT * FROM "QRTZ_JOB_DETAILS";
+```
