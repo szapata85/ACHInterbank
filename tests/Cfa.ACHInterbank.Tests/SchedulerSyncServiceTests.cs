@@ -205,7 +205,7 @@ public class SchedulerSyncServiceTests
             probe = probe.Parent;
         }
 
-        var dynamicJobPath = Path.Combine(probe!.FullName, "src", "Cfa.ACHInterbank.Persistence", "ACH", "Quartz", "Jobs", "DynamicJob.cs");
+        var dynamicJobPath = Path.Combine(probe!.FullName, "src", "Cfa.ACHInterbank.Persistence", "ACH", "Quartz", "Calendar", "QuartzTaskCalendarEvaluator.cs");
         var content = File.ReadAllText(dynamicJobPath);
 
         content.Should().NotContain("RescheduleJob");

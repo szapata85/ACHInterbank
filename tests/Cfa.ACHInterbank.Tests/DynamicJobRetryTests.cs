@@ -28,7 +28,8 @@ public class DynamicJobRetryTests
         using var services = BuildProvider(databaseName);
         using (var scope = services.CreateScope())
         {
-            var job = new DynamicJob(scope.ServiceProvider, NullLogger<DynamicJob>.Instance, handlers, new QuartzTaskCalendarEvaluator());
+            var executor = new DynamicJobExecutor(scope.ServiceProvider, NullLogger<DynamicJobExecutor>.Instance, handlers, new QuartzTaskCalendarEvaluator());
+            var job = new DynamicJob(executor);
             var ctx = new Mock<IJobExecutionContext>();
             ctx.SetupGet(c => c.MergedJobDataMap).Returns(new JobDataMap { { "TaskId", taskId } });
             ctx.SetupGet(c => c.ScheduledFireTimeUtc).Returns(DateTimeOffset.UtcNow);

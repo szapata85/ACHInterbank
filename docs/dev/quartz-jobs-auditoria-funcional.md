@@ -66,7 +66,7 @@ Parámetros semilla (`TaskParameterSeeder`):
 3. **(Mitigado)** Se incorpora reconciliación completa periódica DB↔Quartz para reponer jobs faltantes y validar drift.
 4. **(Mitigado)** Se agrega limpieza de jobs huérfanos por grupo dinámico (`db-tasks`).
 5. **`BuildTrigger` no tolera `TimeZoneId` inválido** (`FindSystemTimeZoneById` puede lanzar excepción y afecta ciclo completo).
-6. **Concurrencia declarada no aplicada por tarea**: bloque `if SkipIfRunning` no implementa diferencia real (el job clase ya decide concurrencia).
+6. **(Mitigado parcial)** Concurrencia por task aplicada por tipo de job: `AllowParallel` usa `DynamicJob` (sin `DisallowConcurrentExecution`) y `SkipIfRunning/Queue` usan `NonConcurrentDynamicJob` (serialización básica por JobKey).
 7. **Sin misfire policy explícita** en cron/simple triggers.
 
 ---
@@ -80,7 +80,7 @@ Parámetros semilla (`TaskParameterSeeder`):
 - Registra `FinishedAt`, `Success`, `Output/Error`.
 
 ### Hallazgos críticos/parciales
-1. **`[DisallowConcurrentExecution]` fijo**: fuerza comportamiento tipo SkipIfRunning para todos los `DynamicJob`; `AllowParallel` y `Queue` no se implementan efectivamente.
+1. **(Mitigado parcial)** `DynamicJob` opera sin `DisallowConcurrentExecution` para `AllowParallel` y `NonConcurrentDynamicJob` aplica `DisallowConcurrentExecution` para `SkipIfRunning/Queue`.
 2. **(Mitigado)** `RetryOnFailure`/`MaxRetries`/`RetryBackoffSeconds` implementados en `DynamicJob`; pendiente hardening avanzado (p. ej. backoff exponencial/jitter) según criticidad operativa.
 3. **(Mitigado parcial)** Calendar policy ahora evalúa fecha local por `TimeZoneId` efectivo de task con fallback seguro a `America/Bogota` para `null/vacío/inválido`; pendiente hardening de observabilidad avanzada.
 4. **(Mitigado)** `ShiftToNextBusinessDay` ya no reemplaza destructivamente el trigger recurrente; se adopta estrategia de skip seguro hasta próximo disparo hábil (Opción A).
@@ -119,7 +119,7 @@ Parámetros semilla (`TaskParameterSeeder`):
 | BuildTrigger Cron/Weekly/etc | Trigger correcto + misfire | Correcto base, sin misfire explícito | Parcial | Medio | Definir misfire policies |
 | Calendar OnlyBusinessDays | Basado en TZ de task | Evaluación por TZ efectiva + fallback Bogotá | Mitigado parcial | Medio | Fortalecer monitoreo/alertas por fallback TZ |
 | ShiftToNextBusinessDay | Diferir sin romper recurrencia | Skip controlado sin `RescheduleJob` destructivo (Opción A) | Mitigado | Medio | Evaluar trigger one-shot adicional en siguiente iteración |
-| ConcurrencyPolicy | `AllowParallel/Skip/Queue` efectivos | `DisallowConcurrentExecution` global en DynamicJob | Bug | Crítico | Implementar semántica real por policy |
+| ConcurrencyPolicy | `AllowParallel/Skip/Queue` efectivos | JobType por policy (`DynamicJob` vs `NonConcurrentDynamicJob`) | Mitigado parcial | Medio | Evaluar cola durable avanzada para `Queue` |
 | RetryOnFailure | Reintentos según config | Retry controlado implementado en DynamicJob | Mitigado | Medio | Evaluar política avanzada (exponencial/jitter) |
 | TaskExecutionLog | Trazabilidad completa | Básica, sin resiliencia de persistencia | Parcial | Medio | Fallback logging/telemetría |
 | Handler resolution | Code↔handler 1:1 | Funciona para seeds | OK/Parcial | Medio | Alertar handlers huérfanos |
@@ -129,7 +129,7 @@ Parámetros semilla (`TaskParameterSeeder`):
 
 ## 11) Hallazgos clasificados
 ### Críticos
-1. ConcurrencyPolicy no respetada realmente (AllowParallel/Queue).
+1. ConcurrencyPolicy mitigada parcialmente; `Queue` aún es serialización básica no durable.
 2. ShiftToNextBusinessDay puede romper recurrencia de cron.
 
 ### Altos

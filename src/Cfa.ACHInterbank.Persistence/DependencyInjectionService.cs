@@ -9,6 +9,7 @@ using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Calendar;
+using Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Mapping;
@@ -147,6 +148,9 @@ public static class DependencyInjectionService
 
         // Servicio que sincroniza DB → Quartz
         services.AddSingleton<QuartzTaskCalendarEvaluator>();
+        services.AddTransient<DynamicJobExecutor>();
+        services.AddTransient<DynamicJob>();
+        services.AddTransient<NonConcurrentDynamicJob>();
         services.AddHostedService<SchedulerSyncService>();
         services.AddTransient<ProcessBulkIngestionBatchJob>();
         services.AddScoped<IBulkFileParser, ACH.Services.Implementation.BulkParsers.JsonBulkFileParser>();

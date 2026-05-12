@@ -132,7 +132,14 @@ public class SchedulerSyncService : BackgroundService
         var jobKey = GetJobKey(task.Id);
         var triggerKey = GetTriggerKey(task.Id);
 
-        var jobBuilder = JobBuilder.Create<DynamicJob>()
+        var jobType = GetJobTypeForConcurrencyPolicy(task.ConcurrencyPolicy);
+        var existing = await scheduler.GetJobDetail(jobKey, cancellationToken);
+        if (existing is not null && existing.JobType != jobType)
+        {
+            await scheduler.DeleteJob(jobKey, cancellationToken);
+        }
+
+        var jobBuilder = JobBuilder.Create(jobType)
             .WithIdentity(jobKey)
             .UsingJobData("TaskId", task.Id);
 
@@ -203,6 +210,16 @@ public class SchedulerSyncService : BackgroundService
 
         return true;
     }
+
+
+    private static Type GetJobTypeForConcurrencyPolicy(ConcurrencyPolicyEnum policy)
+        => policy switch
+        {
+            ConcurrencyPolicyEnum.AllowParallel => typeof(DynamicJob),
+            ConcurrencyPolicyEnum.SkipIfRunning => typeof(NonConcurrentDynamicJob),
+            ConcurrencyPolicyEnum.Queue => typeof(NonConcurrentDynamicJob),
+            _ => typeof(NonConcurrentDynamicJob)
+        };
 
     private ITrigger? BuildTrigger(TaskDefinition task, TriggerKey triggerKey)
     {

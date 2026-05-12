@@ -99,11 +99,8 @@ public class QuartzTaskCalendarEvaluatorTests
 
         using (var scope = services.CreateScope())
         {
-            var job = new DynamicJob(
-                scope.ServiceProvider,
-                NullLogger<DynamicJob>.Instance,
-                Array.Empty<ITaskHandler>(),
-                new QuartzTaskCalendarEvaluator());
+            var executor = new DynamicJobExecutor(scope.ServiceProvider, NullLogger<DynamicJobExecutor>.Instance, Array.Empty<ITaskHandler>(), new QuartzTaskCalendarEvaluator());
+            var job = new DynamicJob(executor);
 
             var ctx = new Mock<IJobExecutionContext>();
             ctx.SetupGet(c => c.MergedJobDataMap).Returns(new JobDataMap { { "TaskId", 101 } });
