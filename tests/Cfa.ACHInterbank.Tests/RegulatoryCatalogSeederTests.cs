@@ -12,6 +12,7 @@ public class RegulatoryCatalogSeederTests
     public async Task SeedAsync_ShouldPopulateBaselineInboundCatalogs_WhenDatabaseIsEmpty()
     {
         await using var context = await CreateContextAsync();
+        await EnsureClearingHouseAsync(context);
         var sut = new RegulatoryCatalogSeeder(context);
 
         await sut.SeedAsync();
@@ -27,9 +28,13 @@ public class RegulatoryCatalogSeederTests
     public async Task SeedAsync_ShouldRepairDriftAndInsertMissingRows_WhenCatalogsArePartial()
     {
         await using var context = await CreateContextAsync();
+        var clearingHouse = await EnsureClearingHouseAsync(context);
 
         context.AchReturnCodes.Add(new AchReturnCode
         {
+            ClearingHouseId = clearingHouse.Id,
+            FlowType = AchReturnFlowType.Any,
+            EffectiveFrom = DateTime.UtcNow.Date.AddDays(-30),
             Code = "R01",
             Description = "legacy",
             AppliesToDebit = false,
@@ -71,6 +76,22 @@ public class RegulatoryCatalogSeederTests
 
         Assert.True(await context.AchReturnCodes.AnyAsync(x => x.Code == "DEV14"));
         Assert.True(await context.AchFileRejectionCodes.AnyAsync(x => x.Code == "I503" && x.IsRetryable));
+    }
+
+
+    private static async Task<ClearingHouse> EnsureClearingHouseAsync(AchDbContext context)
+    {
+        var existing = await context.ClearingHouses.OrderBy(x => x.Id).FirstOrDefaultAsync();
+        if (existing is not null) return existing;
+
+        var config = new ClearingHouseConfig { HolidayStrategy = "Colombian" };
+        context.ClearingHouseConfigs.Add(config);
+        await context.SaveChangesAsync();
+
+        var clearingHouse = new ClearingHouse { Name = "CENIT", Code = "CENIT", OriginCode = "000101006", ClearingHouseId = config.Id };
+        context.ClearingHouses.Add(clearingHouse);
+        await context.SaveChangesAsync();
+        return clearingHouse;
     }
 
     private static async Task<AchDbContext> CreateContextAsync()

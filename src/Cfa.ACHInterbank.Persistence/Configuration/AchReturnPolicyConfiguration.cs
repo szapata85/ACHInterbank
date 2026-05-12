@@ -10,9 +10,19 @@ public class AchReturnPolicyConfiguration : IEntityTypeConfiguration<AchReturnPo
     {
         builder.ToTable("AchReturnPolicies");
         builder.HasKey(x => x.Id);
+
         builder.Property(x => x.TransactionType).HasMaxLength(30).IsRequired();
         builder.Property(x => x.AllowedReturnCodesCsv).HasMaxLength(500).IsRequired();
         builder.Property(x => x.RequiredOriginalTransactionState).HasMaxLength(40);
-        builder.HasIndex(x => x.TransactionType);
+        builder.Property(x => x.Direction).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.FlowType).HasMaxLength(20).IsRequired();
+
+        builder.HasOne(x => x.ClearingHouse)
+            .WithMany()
+            .HasForeignKey(x => x.ClearingHouseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => x.ClearingHouseId);
+        builder.HasIndex(x => new { x.ClearingHouseId, x.TransactionType, x.Direction, x.FlowType, x.IsActive });
     }
 }

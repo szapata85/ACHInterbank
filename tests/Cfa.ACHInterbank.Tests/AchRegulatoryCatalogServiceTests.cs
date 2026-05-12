@@ -13,7 +13,8 @@ public class AchRegulatoryCatalogServiceTests
     public async Task ValidateReturnCode_AllowsConfiguredCode()
     {
         await using var context = await CreateContextAsync();
-        context.AchReturnCodes.Add(new AchReturnCode { Code = "R01", Description = "Fondos insuficientes", AppliesToDebit = true, IsActive = true });
+        var clearingHouseId = await CreateClearingHouseAsync(context);
+        context.AchReturnCodes.Add(new AchReturnCode { ClearingHouseId = clearingHouseId, Code = "R01", Description = "Fondos insuficientes", FlowType = AchReturnFlowType.Any, EffectiveFrom = DateTime.UtcNow.Date.AddDays(-30), AppliesToDebit = true, IsActive = true });
         await context.SaveChangesAsync();
 
         var sut = new AchRegulatoryCatalogService(context);
@@ -37,14 +38,18 @@ public class AchRegulatoryCatalogServiceTests
     public async Task ReturnOfReturnPolicy_EnforcesMaxDays()
     {
         await using var context = await CreateContextAsync();
+        var clearingHouseId = await CreateClearingHouseAsync(context);
         context.AchReturnOfReturnPolicies.Add(new AchReturnOfReturnPolicy
         {
+            ClearingHouseId = clearingHouseId,
             OriginalReturnCode = "R01",
             AllowedNewReturnCodesCsv = "R02",
             MaxDays = 2,
             RequiredOriginalState = "ReturnedByOperator",
-            IsUniquePerTransaction = true,
-            IsActive = true
+            Direction = AchReturnDirection.Any,
+            FlowType = AchReturnFlowType.ReturnOfReturn,
+            EffectiveFrom = DateTime.UtcNow.Date.AddDays(-30),
+            IsUniquePerTransaction = true
         });
         await context.SaveChangesAsync();
 
@@ -58,14 +63,18 @@ public class AchRegulatoryCatalogServiceTests
     public async Task ReturnPolicy_ValidatesAllowedCodeAndAddenda()
     {
         await using var context = await CreateContextAsync();
+        var clearingHouseId = await CreateClearingHouseAsync(context);
         context.AchReturnPolicies.Add(new AchReturnPolicy
         {
+            ClearingHouseId = clearingHouseId,
             TransactionType = "Debit",
             AllowedReturnCodesCsv = "R01,R02",
             MaxDays = 5,
             RequiredOriginalTransactionState = "Pending",
-            RequiresAddenda = true,
-            IsActive = true
+            Direction = AchReturnDirection.Any,
+            FlowType = AchReturnFlowType.Return,
+            EffectiveFrom = DateTime.UtcNow.Date.AddDays(-30),
+            RequiresAddenda = true
         });
         await context.SaveChangesAsync();
 
@@ -127,5 +136,32 @@ public class AchRegulatoryCatalogServiceTests
         var context = new AchDbContext(options);
         context.Database.EnsureCreated();
         return context;
+    }
+
+    private static async Task<int> CreateClearingHouseAsync(AchDbContext context)
+    {
+        var existing = await context.ClearingHouses.Select(x => x.Id).FirstOrDefaultAsync();
+        if (existing != 0)
+        {
+            return existing;
+        }
+
+        var config = new ClearingHouseConfig
+        {
+            HolidayStrategy = "Colombian"
+        };
+        context.ClearingHouseConfigs.Add(config);
+        await context.SaveChangesAsync();
+
+        var clearingHouse = new ClearingHouse
+        {
+            Name = "ACH Colombia",
+            Code = "ACH",
+            OriginCode = "000101006",
+            ClearingHouseId = config.Id
+        };
+        context.ClearingHouses.Add(clearingHouse);
+        await context.SaveChangesAsync();
+        return clearingHouse.Id;
     }
 }
