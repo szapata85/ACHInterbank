@@ -1,5 +1,9 @@
 # Quartz QRTZ_* schema scripts
 
+## Reglas de esta carpeta
+- Los scripts aquí son **exclusivamente** para objetos Quartz `QRTZ_*`.
+- **No** deben incluir tablas/columnas del dominio ACH o SOAP.
+
 ## Estado
 - **Development/local**: usar `Quartz:JobStore:Mode=RAM` (sin tablas `QRTZ_*`).
 - **UAT/Producción**: usar `Quartz:JobStore:Mode=Persistent` con script oficial Quartz para la versión instalada (**3.18.0**).
@@ -14,4 +18,9 @@ Se incluye un script operativo en este repositorio:
 
 - `artifacts/sql/quartz/sqlserver-qrtz-schema.sql`
 
-Este script debe aplicarse por DBA/infra fuera de migraciones EF del dominio ACH.
+Ese script define `DECLARE @DropDb BIT = 0` por defecto.
+
+- Si se requiere recreación limpia, DBA debe cambiar manualmente a `@DropDb = 1` bajo ventana controlada y aprobación formal.
+- `@DropDb = 1` elimina tablas `QRTZ_*` existentes y puede borrar jobs/triggers persistidos.
+
+Estos scripts deben aplicarse por DBA/infra fuera de migraciones EF del dominio ACH.

@@ -4,10 +4,9 @@
 -- and then recreating them from scratch.
 -- Should you only require it to create the tables, set @DropDb to 0.
 
-USE [ACHInterbank];
-GO
-
-DECLARE @DropDb BIT = 1; -- Set this to 0 to skip DROP statements, 1 to include them
+-- En UAT/Producción mantener @DropDb = 0 salvo ventana controlada y aprobación DBA.
+-- @DropDb = 1 elimina tablas QRTZ_* existentes y puede borrar jobs/triggers persistidos.
+DECLARE @DropDb BIT = 0; -- Set this to 0 to skip DROP statements, 1 to include them
 
 IF @DropDb = 1
 BEGIN
@@ -367,73 +366,4 @@ CREATE INDEX [IDX_QRTZ_T_NFT_ST_MISFIRE_GRP]  ON [dbo].[QRTZ_TRIGGERS](SCHED_NAM
 CREATE INDEX [IDX_QRTZ_FT_INST_JOB_REQ_RCVRY] ON [dbo].[QRTZ_FIRED_TRIGGERS](SCHED_NAME, INSTANCE_NAME, REQUESTS_RECOVERY);
 CREATE INDEX [IDX_QRTZ_FT_G_J]                ON [dbo].[QRTZ_FIRED_TRIGGERS](SCHED_NAME, JOB_GROUP, JOB_NAME);
 CREATE INDEX [IDX_QRTZ_FT_G_T]                ON [dbo].[QRTZ_FIRED_TRIGGERS](SCHED_NAME, TRIGGER_GROUP, TRIGGER_NAME);
-GO
-IF OBJECT_ID('[dbo].[SoapIntegrationSettings]', 'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[SoapIntegrationSettings]
-    (
-        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        [WscfaachMappingsJson] NVARCHAR(MAX) NOT NULL,
-        [WsAxonRespuestaTransaccionesMappingsJson] NVARCHAR(MAX) NOT NULL,
-        [CreatedAt] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-        [UpdatedAt] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
-    );
-END
-GO
-
-IF COL_LENGTH('dbo.AchTransactions', 'State') IS NULL
-BEGIN
-    ALTER TABLE [dbo].[AchTransactions]
-    ADD [State] NVARCHAR(40) NOT NULL CONSTRAINT [DF_AchTransactions_State] DEFAULT 'Pending';
-END
-GO
-
-IF COL_LENGTH('dbo.AchTransactions', 'StateChangedAtUtc') IS NULL
-BEGIN
-    ALTER TABLE [dbo].[AchTransactions]
-    ADD [StateChangedAtUtc] DATETIME2 NOT NULL CONSTRAINT [DF_AchTransactions_StateChangedAtUtc] DEFAULT SYSUTCDATETIME();
-END
-GO
-
-IF COL_LENGTH('dbo.AchTransactions', 'SlaDeadlineAtUtc') IS NULL
-BEGIN
-    ALTER TABLE [dbo].[AchTransactions]
-    ADD [SlaDeadlineAtUtc] DATETIME2 NULL;
-END
-GO
-
-IF COL_LENGTH('dbo.AchTransactions', 'ReturnReasonCode') IS NULL
-BEGIN
-    ALTER TABLE [dbo].[AchTransactions]
-    ADD [ReturnReasonCode] NVARCHAR(20) NOT NULL CONSTRAINT [DF_AchTransactions_ReturnReasonCode] DEFAULT '';
-END
-GO
-
-IF COL_LENGTH('dbo.AchTransactions', 'OriginalTraceRef') IS NULL
-BEGIN
-    ALTER TABLE [dbo].[AchTransactions]
-    ADD [OriginalTraceRef] NVARCHAR(20) NOT NULL CONSTRAINT [DF_AchTransactions_OriginalTraceRef] DEFAULT '';
-END
-GO
-
-IF OBJECT_ID('[dbo].[AchTransactionStateEvents]', 'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[AchTransactionStateEvents]
-    (
-        [Id] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        [AchTransactionId] INT NOT NULL,
-        [FromState] NVARCHAR(40) NOT NULL,
-        [ToState] NVARCHAR(40) NOT NULL,
-        [Source] NVARCHAR(20) NOT NULL,
-        [ReasonCode] NVARCHAR(20) NULL,
-        [PayloadJson] NVARCHAR(MAX) NULL,
-        [CreatedAt] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-        [UpdatedAt] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-        CONSTRAINT [FK_AchTransactionStateEvents_AchTransactions_AchTransactionId]
-            FOREIGN KEY ([AchTransactionId]) REFERENCES [dbo].[AchTransactions]([Id]) ON DELETE CASCADE
-    );
-
-    CREATE INDEX [IX_AchTransactionStateEvents_AchTransactionId]
-        ON [dbo].[AchTransactionStateEvents] ([AchTransactionId]);
-END
 GO

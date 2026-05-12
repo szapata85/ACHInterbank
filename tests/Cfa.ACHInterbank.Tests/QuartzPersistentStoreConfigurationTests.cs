@@ -77,4 +77,44 @@ public class QuartzPersistentStoreConfigurationTests
         content.Should().Contain("QRTZ_");
         content.Should().Contain("artifacts/sql/quartz");
     }
+
+    [Fact]
+    public void QuartzSqlScripts_ShouldOnlyContainQuartzArtifacts()
+    {
+        var scriptsDir = ResolveRepoPath("artifacts", "sql", "quartz");
+        var sqlFiles = Directory.GetFiles(scriptsDir, "*.sql", SearchOption.TopDirectoryOnly);
+        sqlFiles.Should().NotBeEmpty();
+
+        var forbiddenTokens = new[]
+        {
+            "SoapIntegrationSettings",
+            "AchTransactions",
+            "AchTransactionStateEvents",
+            "Wscfaach",
+            "Axon",
+            "StateChangedAtUtc",
+            "SlaDeadlineAtUtc",
+            "ReturnReasonCode",
+            "OriginalTraceRef"
+        };
+
+        foreach (var file in sqlFiles)
+        {
+            var content = File.ReadAllText(file);
+            forbiddenTokens.Should().OnlyContain(token => !content.Contains(token, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var sqlServerContent = File.ReadAllText(Path.Combine(scriptsDir, "sqlserver-qrtz-schema.sql"));
+        sqlServerContent.Should().Contain("QRTZ_JOB_DETAILS");
+        sqlServerContent.Should().Contain("QRTZ_TRIGGERS");
+    }
+
+    [Fact]
+    public void QuartzSqlServerScript_ShouldDefaultDropDbToFalse()
+    {
+        var script = File.ReadAllText(ResolveRepoPath("artifacts", "sql", "quartz", "sqlserver-qrtz-schema.sql"));
+        script.Should().Contain("DECLARE @DropDb BIT = 0");
+        script.Should().NotContain("DECLARE @DropDb BIT = 1");
+    }
+
 }
