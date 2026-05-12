@@ -137,8 +137,47 @@ public static class DependencyInjectionService
 
         services.AddQuartz(q =>
         {
-            // Quartz usará el contenedor de DI para crear los Jobs
             q.UseJobFactory<MicrosoftDependencyInjectionJobFactory>();
+
+            var quartzOptions = QuartzJobStoreOptionsFactory.Create(configuration);
+            if (!quartzOptions.IsPersistentMode())
+            {
+                return;
+            }
+
+            var provider = quartzOptions.GetNormalizedProvider();
+            var connectionString = provider == "SqlServer"
+                ? configuration.GetConnectionString("SqlConnection")
+                : configuration.GetConnectionString("PostgresConnection");
+
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new InvalidOperationException($"Quartz persistent mode requiere cadena de conexión para proveedor {provider}.");
+            }
+
+            q.SetProperty("quartz.jobStore.type", "Quartz.Impl.AdoJobStore.JobStoreTX, Quartz");
+            q.SetProperty("quartz.jobStore.useProperties", "true");
+            q.SetProperty("quartz.jobStore.dataSource", "default");
+            q.SetProperty("quartz.jobStore.tablePrefix", quartzOptions.TablePrefix);
+            q.SetProperty("quartz.jobStore.misfireThreshold", quartzOptions.MisfireThresholdMilliseconds.ToString());
+            q.SetProperty("quartz.jobStore.performSchemaValidation", quartzOptions.PerformSchemaValidation.ToString().ToLowerInvariant());
+            q.SetProperty("quartz.serializer.type", "json");
+
+            q.SetProperty("quartz.jobStore.driverDelegateType", provider == "SqlServer"
+                ? "Quartz.Impl.AdoJobStore.SqlServerDelegate, Quartz"
+                : "Quartz.Impl.AdoJobStore.PostgreSQLDelegate, Quartz");
+            q.SetProperty("quartz.dataSource.default.provider", provider == "SqlServer" ? "SqlServer" : "Npgsql");
+            q.SetProperty("quartz.dataSource.default.connectionString", connectionString);
+
+            if (quartzOptions.Clustered)
+            {
+                q.SetProperty("quartz.jobStore.clustered", "true");
+                q.SetProperty("quartz.jobStore.clusterCheckinInterval", (quartzOptions.ClusterCheckinIntervalSeconds * 1000).ToString());
+            }
+            else
+            {
+                q.SetProperty("quartz.jobStore.clustered", "false");
+            }
         });
 
         services.AddQuartzHostedService(opt =>

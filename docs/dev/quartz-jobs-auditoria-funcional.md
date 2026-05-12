@@ -14,7 +14,7 @@ Esta auditoría confirma que el proyecto sí ejecuta jobs Quartz en producción,
 - Job dedicado bulk ingestion: `ProcessBulkIngestionBatchJob`, programado ad-hoc por `AchBulkJobScheduler`.
 
 ### Observación clave de configuración
-No se encontró configuración explícita de job store persistente Quartz (ni `QRTZ_*`/AdoJobStore en `appsettings`/compose), por lo que la operación parece depender del job store por defecto (RAM) y resincronización desde BD al iniciar proceso.
+Se dejó preparación configurable para job store persistente (`Quartz:JobStore:Mode=Persistent`) y operación con `QRTZ_*` vía scripts externos. Development mantiene `RAMJobStore` por defecto. Pendiente validación real en UAT/producción tras aplicar schema oficial.
 
 ---
 
