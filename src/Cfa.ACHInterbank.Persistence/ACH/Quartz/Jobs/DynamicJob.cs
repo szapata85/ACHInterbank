@@ -74,20 +74,22 @@ public class DynamicJob : IJob
                 return;
             }
 
-            // ✅ Ejecutar normalmente con su handler
             var handler = _handlers.FirstOrDefault(h => h.Code == task.Code);
-
             if (handler is null)
             {
                 log.Success = false;
                 log.Error = $"No hay handler implementado para {task.Code}";
+                return;
             }
-            else
-            {
-                var output = await handler.ExecuteAsync(task, context.CancellationToken);
-                log.Success = true;
-                log.Output = output;
-            }
+
+            var result = await ExecuteHandlerWithRetryAsync(handler, task, context.CancellationToken);
+            log.Success = result.Success;
+            log.Output = result.Output;
+            log.Error = result.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -99,5 +101,47 @@ public class DynamicJob : IJob
             log.FinishedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(context.CancellationToken);
         }
+    }
+
+    private async Task<(bool Success, string? Output, string? Error)> ExecuteHandlerWithRetryAsync(
+        ITaskHandler handler,
+        TaskDefinition task,
+        CancellationToken cancellationToken)
+    {
+        var maxRetries = task.RetryOnFailure ? Math.Max(task.MaxRetries ?? 0, 0) : 0;
+        var maxAttempts = maxRetries + 1;
+        var backoff = TimeSpan.FromSeconds(Math.Max(task.RetryBackoffSeconds, 0));
+        Exception? lastException = null;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                var output = await handler.ExecuteAsync(task, cancellationToken);
+                return (true, $"Ejecutado exitosamente en intento {attempt}/{maxAttempts}. Output: {output}", null);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+                if (attempt >= maxAttempts)
+                {
+                    break;
+                }
+
+                if (backoff > TimeSpan.Zero)
+                {
+                    await Task.Delay(backoff, cancellationToken);
+                }
+            }
+        }
+
+        return (false, null,
+            $"Reintentos agotados tras {maxAttempts} intento(s). Última excepción: {lastException}");
     }
 }

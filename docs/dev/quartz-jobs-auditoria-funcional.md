@@ -81,7 +81,7 @@ Parámetros semilla (`TaskParameterSeeder`):
 
 ### Hallazgos críticos/parciales
 1. **`[DisallowConcurrentExecution]` fijo**: fuerza comportamiento tipo SkipIfRunning para todos los `DynamicJob`; `AllowParallel` y `Queue` no se implementan efectivamente.
-2. **Retry no implementado**: existen campos `RetryOnFailure`, `MaxRetries`, `RetryBackoffSeconds` en modelo, pero no hay lógica de reintento en `DynamicJob`.
+2. **(Mitigado)** `RetryOnFailure`/`MaxRetries`/`RetryBackoffSeconds` implementados en `DynamicJob`; pendiente hardening avanzado (p. ej. backoff exponencial/jitter) según criticidad operativa.
 3. **(Mitigado parcial)** Calendar policy ahora evalúa fecha local por `TimeZoneId` efectivo de task con fallback seguro a `America/Bogota` para `null/vacío/inválido`; pendiente hardening de observabilidad avanzada.
 4. **(Mitigado)** `ShiftToNextBusinessDay` ya no reemplaza destructivamente el trigger recurrente; se adopta estrategia de skip seguro hasta próximo disparo hábil (Opción A).
 5. **Si falla `SaveChanges` del log inicial/final**, no hay estrategia de recuperación ni fallback logging.
@@ -120,7 +120,7 @@ Parámetros semilla (`TaskParameterSeeder`):
 | Calendar OnlyBusinessDays | Basado en TZ de task | Evaluación por TZ efectiva + fallback Bogotá | Mitigado parcial | Medio | Fortalecer monitoreo/alertas por fallback TZ |
 | ShiftToNextBusinessDay | Diferir sin romper recurrencia | Skip controlado sin `RescheduleJob` destructivo (Opción A) | Mitigado | Medio | Evaluar trigger one-shot adicional en siguiente iteración |
 | ConcurrencyPolicy | `AllowParallel/Skip/Queue` efectivos | `DisallowConcurrentExecution` global en DynamicJob | Bug | Crítico | Implementar semántica real por policy |
-| RetryOnFailure | Reintentos según config | No implementado | No implementado | Alto | Implementar retry controlado |
+| RetryOnFailure | Reintentos según config | Retry controlado implementado en DynamicJob | Mitigado | Medio | Evaluar política avanzada (exponencial/jitter) |
 | TaskExecutionLog | Trazabilidad completa | Básica, sin resiliencia de persistencia | Parcial | Medio | Fallback logging/telemetría |
 | Handler resolution | Code↔handler 1:1 | Funciona para seeds | OK/Parcial | Medio | Alertar handlers huérfanos |
 | ProcessBulkIngestionBatchJob | Cola robusta post-restart | Schedule ad-hoc en Quartz local | Parcial | Alto | Persistencia Quartz o cola durable |
@@ -133,7 +133,7 @@ Parámetros semilla (`TaskParameterSeeder`):
 2. ShiftToNextBusinessDay puede romper recurrencia de cron.
 
 ### Altos
-1. Retry declarado pero no implementado.
+1. Retry básico mitigado; pendiente hardening avanzado de estrategia de backoff.
 2. Dependencia probable de RAMJobStore (sin persistencia explícita).
 3. CalendarPolicy evaluada con hora local, no TZ task.
 
