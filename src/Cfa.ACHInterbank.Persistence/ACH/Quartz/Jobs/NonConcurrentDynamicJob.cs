@@ -2,11 +2,12 @@ using Quartz;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs;
 
-public class DynamicJob : IJob
+[DisallowConcurrentExecution]
+public class NonConcurrentDynamicJob : IJob
 {
     private readonly DynamicJobExecutor _executor;
 
-    public DynamicJob(DynamicJobExecutor executor)
+    public NonConcurrentDynamicJob(DynamicJobExecutor executor)
     {
         _executor = executor;
     }

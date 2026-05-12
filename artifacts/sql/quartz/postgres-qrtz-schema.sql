@@ -1,0 +1,3 @@
+-- Placeholder intencional.
+-- Use el script oficial Quartz.NET 3.18.0 para PostgreSQL (AdoJobStore) en UAT/Producción.
+-- Este archivo existe para estandarizar ruta de artifacts/sql/quartz/.
