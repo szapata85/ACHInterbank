@@ -14,7 +14,7 @@ Esta auditoría confirma que el proyecto sí ejecuta jobs Quartz en producción,
 - Job dedicado bulk ingestion: `ProcessBulkIngestionBatchJob`, programado ad-hoc por `AchBulkJobScheduler`.
 
 ### Observación clave de configuración
-No se encontró configuración explícita de job store persistente Quartz (ni `QRTZ_*`/AdoJobStore en `appsettings`/compose), por lo que la operación parece depender del job store por defecto (RAM) y resincronización desde BD al iniciar proceso.
+Se dejó preparación configurable para job store persistente (`Quartz:JobStore:Mode=Persistent`) y operación con `QRTZ_*` vía scripts externos. Development mantiene `RAMJobStore` por defecto. Pendiente validación real en UAT/producción tras aplicar schema oficial.
 
 ---
 
@@ -56,17 +56,17 @@ Parámetros semilla (`TaskParameterSeeder`):
 
 ## 6) Flujo `SchedulerSyncService` (diagnóstico)
 ### Qué hace bien
-- Sincroniza tareas cambiadas por `UpdatedAt > _lastSync`.
+- Sincroniza primer ciclo con reconciliación completa y ciclos posteriores por `UpdatedAt > _lastSync` con watermark seguro (`syncStartedAt`).
 - Elimina jobs si `Status=Disabled` o `EndAt` vencido.
 - Construye trigger por periodicidad (Once, EveryNMinutes, HourlyAtMinute, DailyAtTime, Weekly, Monthly, Cron).
 
 ### Hallazgos
-1. **Doble control de arranque scheduler**: `AddQuartzHostedService` + `scheduler.Start()` explícito en `SchedulerSyncService`. Riesgo de redundancia/confusión operacional.
-2. **Riesgo de pérdida por ventana de sincronización**: `_lastSync = UtcNow` al final de ciclo puede perder updates en carrera si se graban justo en el borde temporal.
-3. **No hay reconciliación de drift Quartz↔DB completa**: sólo sincroniza changedTasks; si job desaparece de Quartz sin cambio en BD, no se repone.
-4. **No elimina jobs cuando TaskDefinition se borra físicamente en BD** (no hay barrido de huérfanos por grupo).
+1. **(Mitigado)** Se elimina `scheduler.Start()` manual en `SchedulerSyncService`; el arranque queda delegado a `AddQuartzHostedService`.
+2. **(Mitigado parcial)** Watermark endurecido con `syncStartedAt`; `_lastSync` sólo avanza al cerrar ciclo exitoso para reducir pérdida por carrera.
+3. **(Mitigado)** Se incorpora reconciliación completa periódica DB↔Quartz para reponer jobs faltantes y validar drift.
+4. **(Mitigado)** Se agrega limpieza de jobs huérfanos por grupo dinámico (`db-tasks`).
 5. **`BuildTrigger` no tolera `TimeZoneId` inválido** (`FindSystemTimeZoneById` puede lanzar excepción y afecta ciclo completo).
-6. **Concurrencia declarada no aplicada por tarea**: bloque `if SkipIfRunning` no implementa diferencia real (el job clase ya decide concurrencia).
+6. **(Mitigado parcial)** Concurrencia por task aplicada por tipo de job: `AllowParallel` usa `DynamicJob` (sin `DisallowConcurrentExecution`) y `SkipIfRunning/Queue` usan `NonConcurrentDynamicJob` (serialización básica por JobKey).
 7. **Sin misfire policy explícita** en cron/simple triggers.
 
 ---
@@ -80,10 +80,10 @@ Parámetros semilla (`TaskParameterSeeder`):
 - Registra `FinishedAt`, `Success`, `Output/Error`.
 
 ### Hallazgos críticos/parciales
-1. **`[DisallowConcurrentExecution]` fijo**: fuerza comportamiento tipo SkipIfRunning para todos los `DynamicJob`; `AllowParallel` y `Queue` no se implementan efectivamente.
-2. **Retry no implementado**: existen campos `RetryOnFailure`, `MaxRetries`, `RetryBackoffSeconds` en modelo, pero no hay lógica de reintento en `DynamicJob`.
-3. **Calendar policy usa reloj local (`DateTime.Now`)** y no `TimeZoneId` de task para decidir fin de semana/festivo.
-4. **`ShiftToNextBusinessDay` reschedulea trigger activo con one-shot** (`RescheduleJob` con trigger puntual), con riesgo de romper recurrencia cron original.
+1. **(Mitigado parcial)** `DynamicJob` opera sin `DisallowConcurrentExecution` para `AllowParallel` y `NonConcurrentDynamicJob` aplica `DisallowConcurrentExecution` para `SkipIfRunning/Queue`.
+2. **(Mitigado)** `RetryOnFailure`/`MaxRetries`/`RetryBackoffSeconds` implementados en `DynamicJob`; pendiente hardening avanzado (p. ej. backoff exponencial/jitter) según criticidad operativa.
+3. **(Mitigado parcial)** Calendar policy ahora evalúa fecha local por `TimeZoneId` efectivo de task con fallback seguro a `America/Bogota` para `null/vacío/inválido`; pendiente hardening de observabilidad avanzada.
+4. **(Mitigado)** `ShiftToNextBusinessDay` ya no reemplaza destructivamente el trigger recurrente; se adopta estrategia de skip seguro hasta próximo disparo hábil (Opción A).
 5. **Si falla `SaveChanges` del log inicial/final**, no hay estrategia de recuperación ni fallback logging.
 
 ---
@@ -114,13 +114,13 @@ Parámetros semilla (`TaskParameterSeeder`):
 ## 10) Esperado vs actual (resumen)
 | Componente | Esperado | Implementado | Estado | Riesgo | Recomendación |
 |---|---|---|---|---|---|
-| AddQuartz/HostedService | Arranque único y claro | HostedService + Start() manual | Parcial | Medio | Unificar estrategia de start |
-| SchedulerSyncService | Sync robusta sin pérdida | Sync por `UpdatedAt > _lastSync` | Parcial | Alto | Watermark robusto + reconciliación |
+| AddQuartz/HostedService | Arranque único y claro | Arranque delegado a HostedService (sin Start manual) | Mitigado | Bajo | Mantener guardrail de no redundancia |
+| SchedulerSyncService | Sync robusta sin pérdida | Primer sync completo + incremental con watermark + reconciliación periódica | Mitigado parcial | Medio | Continuar con métricas de drift/recovery |
 | BuildTrigger Cron/Weekly/etc | Trigger correcto + misfire | Correcto base, sin misfire explícito | Parcial | Medio | Definir misfire policies |
-| Calendar OnlyBusinessDays | Basado en TZ de task | Basado en `DateTime.Now` local | Bug | Alto | Evaluar fecha en TZ task |
-| ShiftToNextBusinessDay | Diferir sin romper recurrencia | Reschedule trigger activo puntual | Bug | Crítico | Mantener trigger recurrente + skip controlado |
-| ConcurrencyPolicy | `AllowParallel/Skip/Queue` efectivos | `DisallowConcurrentExecution` global en DynamicJob | Bug | Crítico | Implementar semántica real por policy |
-| RetryOnFailure | Reintentos según config | No implementado | No implementado | Alto | Implementar retry controlado |
+| Calendar OnlyBusinessDays | Basado en TZ de task | Evaluación por TZ efectiva + fallback Bogotá | Mitigado parcial | Medio | Fortalecer monitoreo/alertas por fallback TZ |
+| ShiftToNextBusinessDay | Diferir sin romper recurrencia | Skip controlado sin `RescheduleJob` destructivo (Opción A) | Mitigado | Medio | Evaluar trigger one-shot adicional en siguiente iteración |
+| ConcurrencyPolicy | `AllowParallel/Skip/Queue` efectivos | JobType por policy (`DynamicJob` vs `NonConcurrentDynamicJob`) | Mitigado parcial | Medio | Evaluar cola durable avanzada para `Queue` |
+| RetryOnFailure | Reintentos según config | Retry controlado implementado en DynamicJob | Mitigado | Medio | Evaluar política avanzada (exponencial/jitter) |
 | TaskExecutionLog | Trazabilidad completa | Básica, sin resiliencia de persistencia | Parcial | Medio | Fallback logging/telemetría |
 | Handler resolution | Code↔handler 1:1 | Funciona para seeds | OK/Parcial | Medio | Alertar handlers huérfanos |
 | ProcessBulkIngestionBatchJob | Cola robusta post-restart | Schedule ad-hoc en Quartz local | Parcial | Alto | Persistencia Quartz o cola durable |
@@ -129,17 +129,17 @@ Parámetros semilla (`TaskParameterSeeder`):
 
 ## 11) Hallazgos clasificados
 ### Críticos
-1. ConcurrencyPolicy no respetada realmente (AllowParallel/Queue).
+1. ConcurrencyPolicy mitigada parcialmente; `Queue` aún es serialización básica no durable.
 2. ShiftToNextBusinessDay puede romper recurrencia de cron.
 
 ### Altos
-1. Retry declarado pero no implementado.
+1. Retry básico mitigado; pendiente hardening avanzado de estrategia de backoff.
 2. Dependencia probable de RAMJobStore (sin persistencia explícita).
 3. CalendarPolicy evaluada con hora local, no TZ task.
 
 ### Medios
-1. Ventana de carrera en `_lastSync`.
-2. Sin reconciliación de jobs huérfanos o borrados de Quartz.
+1. Ventana de carrera residual en `_lastSync` mitigada parcialmente con `syncStartedAt`; requiere observabilidad de borde en producción.
+2. Reconciliación y borrado de huérfanos mitigados; pendiente hardening operativo (métricas/alertas).
 3. `CheckBankHolidaysHandler` sin task seed asociada.
 4. Configuración de tabla `TaskDefinition` duplicada (`Tasks` vs `TaskDefinition`).
 
@@ -156,7 +156,7 @@ Pruebas presentes:
 Faltan pruebas clave:
 1. `SchedulerSyncService` sincronización incremental/reconciliación/borrado.
 2. `DynamicJob` calendar policies por TZ.
-3. `ShiftToNextBusinessDay` sin pérdida de recurrencia.
+3. `ShiftToNextBusinessDay` sin pérdida de recurrencia (agregado guardrail unitario que verifica ausencia de `RescheduleJob`/`shifted:` en `DynamicJob`).
 4. ConcurrencyPolicy efectiva.
 5. RetryOnFailure/MaxRetries/Backoff.
 6. Matriz Code handler vs TaskDefinition (huérfanos).
