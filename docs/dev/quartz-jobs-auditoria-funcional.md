@@ -56,15 +56,15 @@ Parámetros semilla (`TaskParameterSeeder`):
 
 ## 6) Flujo `SchedulerSyncService` (diagnóstico)
 ### Qué hace bien
-- Sincroniza tareas cambiadas por `UpdatedAt > _lastSync`.
+- Sincroniza primer ciclo con reconciliación completa y ciclos posteriores por `UpdatedAt > _lastSync` con watermark seguro (`syncStartedAt`).
 - Elimina jobs si `Status=Disabled` o `EndAt` vencido.
 - Construye trigger por periodicidad (Once, EveryNMinutes, HourlyAtMinute, DailyAtTime, Weekly, Monthly, Cron).
 
 ### Hallazgos
-1. **Doble control de arranque scheduler**: `AddQuartzHostedService` + `scheduler.Start()` explícito en `SchedulerSyncService`. Riesgo de redundancia/confusión operacional.
-2. **Riesgo de pérdida por ventana de sincronización**: `_lastSync = UtcNow` al final de ciclo puede perder updates en carrera si se graban justo en el borde temporal.
-3. **No hay reconciliación de drift Quartz↔DB completa**: sólo sincroniza changedTasks; si job desaparece de Quartz sin cambio en BD, no se repone.
-4. **No elimina jobs cuando TaskDefinition se borra físicamente en BD** (no hay barrido de huérfanos por grupo).
+1. **(Mitigado)** Se elimina `scheduler.Start()` manual en `SchedulerSyncService`; el arranque queda delegado a `AddQuartzHostedService`.
+2. **(Mitigado parcial)** Watermark endurecido con `syncStartedAt`; `_lastSync` sólo avanza al cerrar ciclo exitoso para reducir pérdida por carrera.
+3. **(Mitigado)** Se incorpora reconciliación completa periódica DB↔Quartz para reponer jobs faltantes y validar drift.
+4. **(Mitigado)** Se agrega limpieza de jobs huérfanos por grupo dinámico (`db-tasks`).
 5. **`BuildTrigger` no tolera `TimeZoneId` inválido** (`FindSystemTimeZoneById` puede lanzar excepción y afecta ciclo completo).
 6. **Concurrencia declarada no aplicada por tarea**: bloque `if SkipIfRunning` no implementa diferencia real (el job clase ya decide concurrencia).
 7. **Sin misfire policy explícita** en cron/simple triggers.
@@ -114,8 +114,8 @@ Parámetros semilla (`TaskParameterSeeder`):
 ## 10) Esperado vs actual (resumen)
 | Componente | Esperado | Implementado | Estado | Riesgo | Recomendación |
 |---|---|---|---|---|---|
-| AddQuartz/HostedService | Arranque único y claro | HostedService + Start() manual | Parcial | Medio | Unificar estrategia de start |
-| SchedulerSyncService | Sync robusta sin pérdida | Sync por `UpdatedAt > _lastSync` | Parcial | Alto | Watermark robusto + reconciliación |
+| AddQuartz/HostedService | Arranque único y claro | Arranque delegado a HostedService (sin Start manual) | Mitigado | Bajo | Mantener guardrail de no redundancia |
+| SchedulerSyncService | Sync robusta sin pérdida | Primer sync completo + incremental con watermark + reconciliación periódica | Mitigado parcial | Medio | Continuar con métricas de drift/recovery |
 | BuildTrigger Cron/Weekly/etc | Trigger correcto + misfire | Correcto base, sin misfire explícito | Parcial | Medio | Definir misfire policies |
 | Calendar OnlyBusinessDays | Basado en TZ de task | Evaluación por TZ efectiva + fallback Bogotá | Mitigado parcial | Medio | Fortalecer monitoreo/alertas por fallback TZ |
 | ShiftToNextBusinessDay | Diferir sin romper recurrencia | Skip controlado sin `RescheduleJob` destructivo (Opción A) | Mitigado | Medio | Evaluar trigger one-shot adicional en siguiente iteración |
@@ -138,8 +138,8 @@ Parámetros semilla (`TaskParameterSeeder`):
 3. CalendarPolicy evaluada con hora local, no TZ task.
 
 ### Medios
-1. Ventana de carrera en `_lastSync`.
-2. Sin reconciliación de jobs huérfanos o borrados de Quartz.
+1. Ventana de carrera residual en `_lastSync` mitigada parcialmente con `syncStartedAt`; requiere observabilidad de borde en producción.
+2. Reconciliación y borrado de huérfanos mitigados; pendiente hardening operativo (métricas/alertas).
 3. `CheckBankHolidaysHandler` sin task seed asociada.
 4. Configuración de tabla `TaskDefinition` duplicada (`Tasks` vs `TaskDefinition`).
 
