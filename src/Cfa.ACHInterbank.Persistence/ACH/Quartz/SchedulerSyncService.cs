@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using Quartz;
+using Cfa.ACHInterbank.Persistence.ACH.Quartz.Calendar;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Quartz;
@@ -15,14 +16,16 @@ public class SchedulerSyncService : BackgroundService
     private readonly IServiceProvider _sp;
     private readonly ISchedulerFactory _schedulerFactory;
     private readonly ILogger<SchedulerSyncService> _logger;
+    private readonly QuartzTaskCalendarEvaluator _calendarEvaluator;
 
     private DateTimeOffset _lastSync = DateTimeOffset.MinValue;
 
-    public SchedulerSyncService(IServiceProvider sp, ISchedulerFactory schedulerFactory, ILogger<SchedulerSyncService> logger)
+    public SchedulerSyncService(IServiceProvider sp, ISchedulerFactory schedulerFactory, ILogger<SchedulerSyncService> logger, QuartzTaskCalendarEvaluator calendarEvaluator)
     {
         _sp = sp;
         _schedulerFactory = schedulerFactory;
         _logger = logger;
+        _calendarEvaluator = calendarEvaluator;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -117,7 +120,7 @@ public class SchedulerSyncService : BackgroundService
             return null;
         }
 
-        var tz = TimeZoneInfo.FindSystemTimeZoneById(task.TimeZoneId ?? "America/Bogota");
+        var tz = _calendarEvaluator.ResolveTimeZone(task.TimeZoneId, _logger);
 
         var tb = TriggerBuilder.Create().WithIdentity(triggerKey);
 

@@ -82,8 +82,8 @@ Parámetros semilla (`TaskParameterSeeder`):
 ### Hallazgos críticos/parciales
 1. **`[DisallowConcurrentExecution]` fijo**: fuerza comportamiento tipo SkipIfRunning para todos los `DynamicJob`; `AllowParallel` y `Queue` no se implementan efectivamente.
 2. **Retry no implementado**: existen campos `RetryOnFailure`, `MaxRetries`, `RetryBackoffSeconds` en modelo, pero no hay lógica de reintento en `DynamicJob`.
-3. **Calendar policy usa reloj local (`DateTime.Now`)** y no `TimeZoneId` de task para decidir fin de semana/festivo.
-4. **`ShiftToNextBusinessDay` reschedulea trigger activo con one-shot** (`RescheduleJob` con trigger puntual), con riesgo de romper recurrencia cron original.
+3. **(Mitigado parcial)** Calendar policy ahora evalúa fecha local por `TimeZoneId` efectivo de task con fallback seguro a `America/Bogota` para `null/vacío/inválido`; pendiente hardening de observabilidad avanzada.
+4. **(Mitigado)** `ShiftToNextBusinessDay` ya no reemplaza destructivamente el trigger recurrente; se adopta estrategia de skip seguro hasta próximo disparo hábil (Opción A).
 5. **Si falla `SaveChanges` del log inicial/final**, no hay estrategia de recuperación ni fallback logging.
 
 ---
@@ -117,8 +117,8 @@ Parámetros semilla (`TaskParameterSeeder`):
 | AddQuartz/HostedService | Arranque único y claro | HostedService + Start() manual | Parcial | Medio | Unificar estrategia de start |
 | SchedulerSyncService | Sync robusta sin pérdida | Sync por `UpdatedAt > _lastSync` | Parcial | Alto | Watermark robusto + reconciliación |
 | BuildTrigger Cron/Weekly/etc | Trigger correcto + misfire | Correcto base, sin misfire explícito | Parcial | Medio | Definir misfire policies |
-| Calendar OnlyBusinessDays | Basado en TZ de task | Basado en `DateTime.Now` local | Bug | Alto | Evaluar fecha en TZ task |
-| ShiftToNextBusinessDay | Diferir sin romper recurrencia | Reschedule trigger activo puntual | Bug | Crítico | Mantener trigger recurrente + skip controlado |
+| Calendar OnlyBusinessDays | Basado en TZ de task | Evaluación por TZ efectiva + fallback Bogotá | Mitigado parcial | Medio | Fortalecer monitoreo/alertas por fallback TZ |
+| ShiftToNextBusinessDay | Diferir sin romper recurrencia | Skip controlado sin `RescheduleJob` destructivo (Opción A) | Mitigado | Medio | Evaluar trigger one-shot adicional en siguiente iteración |
 | ConcurrencyPolicy | `AllowParallel/Skip/Queue` efectivos | `DisallowConcurrentExecution` global en DynamicJob | Bug | Crítico | Implementar semántica real por policy |
 | RetryOnFailure | Reintentos según config | No implementado | No implementado | Alto | Implementar retry controlado |
 | TaskExecutionLog | Trazabilidad completa | Básica, sin resiliencia de persistencia | Parcial | Medio | Fallback logging/telemetría |
