@@ -1,10 +1,16 @@
+using System;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Calendar;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs;
-using Cfa.ACHInterbank.Persistence.ACH.Quartz;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -12,18 +18,16 @@ using Quartz;
 
 public class QuartzTaskCalendarEvaluatorTests
 {
-    private static AchDbContext BuildDb(string name)
-    {
-        var options = new DbContextOptionsBuilder<AchDbContext>()
+    private static DbContextOptions<AchDbContext> BuildOptions(string name)
+        => new DbContextOptionsBuilder<AchDbContext>()
             .UseInMemoryDatabase(name)
             .Options;
-        return new AchDbContext(options);
-    }
 
     [Fact]
     public void QuartzTaskCalendarEvaluator_ShouldCalculateNextBusinessDaySkippingWeekendAndHoliday()
     {
-        using var db = BuildDb(nameof(QuartzTaskCalendarEvaluator_ShouldCalculateNextBusinessDaySkippingWeekendAndHoliday));
+        var options = BuildOptions(nameof(QuartzTaskCalendarEvaluator_ShouldCalculateNextBusinessDaySkippingWeekendAndHoliday));
+        using var db = new AchDbContext(options);
         db.BankHolidays.Add(new BankHolidayModel { Date = new DateOnly(2026, 5, 11), Description = "Festivo" });
         db.SaveChanges();
 
@@ -40,7 +44,8 @@ public class QuartzTaskCalendarEvaluatorTests
     [Fact]
     public void QuartzTaskCalendarEvaluator_ShouldUseTaskPreferredTime_WhenAvailable()
     {
-        using var db = BuildDb(nameof(QuartzTaskCalendarEvaluator_ShouldUseTaskPreferredTime_WhenAvailable));
+        var options = BuildOptions(nameof(QuartzTaskCalendarEvaluator_ShouldUseTaskPreferredTime_WhenAvailable));
+        using var db = new AchDbContext(options);
         var evaluator = new QuartzTaskCalendarEvaluator();
         var tz = evaluator.ResolveTimeZone("America/Bogota");
 
@@ -55,7 +60,8 @@ public class QuartzTaskCalendarEvaluatorTests
     [Fact]
     public void DynamicJob_ShouldFallbackToBogota_WhenTimeZoneInvalid()
     {
-        using var db = BuildDb(nameof(DynamicJob_ShouldFallbackToBogota_WhenTimeZoneInvalid));
+        var options = BuildOptions(nameof(DynamicJob_ShouldFallbackToBogota_WhenTimeZoneInvalid));
+        using var db = new AchDbContext(options);
         var evaluator = new QuartzTaskCalendarEvaluator();
         var task = new TaskDefinition { TimeZoneId = "Invalid/TZ", CalendarPolicy = CalendarPolicyEnum.IgnoreCalendar };
 
@@ -68,29 +74,47 @@ public class QuartzTaskCalendarEvaluatorTests
     [Fact]
     public async Task DynamicJob_ShouldSkipHoliday_WhenCalendarPolicySkipHolidays()
     {
-        using var db = BuildDb(nameof(DynamicJob_ShouldSkipHoliday_WhenCalendarPolicySkipHolidays));
+        var databaseName = nameof(DynamicJob_ShouldSkipHoliday_WhenCalendarPolicySkipHolidays);
+        var options = BuildOptions(databaseName);
         var bogota = TimeZoneInfo.FindSystemTimeZoneById("America/Bogota");
-        var utcNow = DateTimeOffset.UtcNow;
-        var localDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(utcNow, bogota).DateTime);
+        var localDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, bogota).DateTime);
 
-        db.TaskDefinitions.Add(new TaskDefinition { Id = 101, Code = "NoHandler", Name = "Task", CalendarPolicy = CalendarPolicyEnum.SkipHolidays, TimeZoneId = "America/Bogota" });
-        db.BankHolidays.Add(new BankHolidayModel { Date = localDate, Description = "Festivo" });
-        db.SaveChanges();
+        using (var seedDb = new AchDbContext(options))
+        {
+            seedDb.TaskDefinitions.Add(new TaskDefinition
+            {
+                Id = 101,
+                Code = "NoHandler",
+                Name = "Task",
+                CalendarPolicy = CalendarPolicyEnum.SkipHolidays,
+                TimeZoneId = "America/Bogota"
+            });
+            seedDb.BankHolidays.Add(new BankHolidayModel { Date = localDate, Description = "Festivo" });
+            seedDb.SaveChanges();
+        }
 
-        var sp = new ServiceCollection()
-            .AddScoped(_ => db)
+        var services = new ServiceCollection()
+            .AddDbContext<AchDbContext>(o => o.UseInMemoryDatabase(databaseName), ServiceLifetime.Scoped)
             .BuildServiceProvider();
 
-        var job = new DynamicJob(sp, NullLogger<DynamicJob>.Instance, Array.Empty<Cfa.ACHInterbank.Application.JobsQuartz.Interfaces.ITaskHandler>(), new QuartzTaskCalendarEvaluator());
+        using (var scope = services.CreateScope())
+        {
+            var job = new DynamicJob(
+                scope.ServiceProvider,
+                NullLogger<DynamicJob>.Instance,
+                Array.Empty<ITaskHandler>(),
+                new QuartzTaskCalendarEvaluator());
 
-        var ctx = new Mock<IJobExecutionContext>();
-        ctx.SetupGet(c => c.MergedJobDataMap).Returns(new JobDataMap { { "TaskId", 101 } });
-        ctx.SetupGet(c => c.ScheduledFireTimeUtc).Returns(DateTimeOffset.UtcNow);
-        ctx.SetupGet(c => c.CancellationToken).Returns(CancellationToken.None);
+            var ctx = new Mock<IJobExecutionContext>();
+            ctx.SetupGet(c => c.MergedJobDataMap).Returns(new JobDataMap { { "TaskId", 101 } });
+            ctx.SetupGet(c => c.ScheduledFireTimeUtc).Returns(DateTimeOffset.UtcNow);
+            ctx.SetupGet(c => c.CancellationToken).Returns(CancellationToken.None);
 
-        await job.Execute(ctx.Object);
+            await job.Execute(ctx.Object);
+        }
 
-        var log = db.TaskExecutionLogs.OrderByDescending(x => x.Id).First();
+        using var assertDb = new AchDbContext(options);
+        var log = assertDb.TaskExecutionLogs.OrderByDescending(x => x.Id).First();
         log.Success.Should().BeTrue();
         log.Output.Should().Be("Saltada por política SkipHolidays.");
     }

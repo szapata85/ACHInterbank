@@ -156,7 +156,7 @@ Pruebas presentes:
 Faltan pruebas clave:
 1. `SchedulerSyncService` sincronización incremental/reconciliación/borrado.
 2. `DynamicJob` calendar policies por TZ.
-3. `ShiftToNextBusinessDay` sin pérdida de recurrencia.
+3. `ShiftToNextBusinessDay` sin pérdida de recurrencia (agregado guardrail unitario que verifica ausencia de `RescheduleJob`/`shifted:` en `DynamicJob`).
 4. ConcurrencyPolicy efectiva.
 5. RetryOnFailure/MaxRetries/Backoff.
 6. Matriz Code handler vs TaskDefinition (huérfanos).
