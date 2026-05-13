@@ -751,7 +751,7 @@ public class AchTransactionNachaTests
         var persistedTransactionId = await executionContext.AchTransactions.Select(t => t.Id).SingleAsync();
         var catalog = new Mock<IAchRegulatoryCatalogService>();
         catalog
-            .Setup(x => x.ValidateReturnCodeAsync("R01", TransactionTypeEnum.Credit, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.ValidateReturnCodeAsync(It.IsAny<int>(), "R01", TransactionTypeEnum.Credit, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((false, "La causal R01 no está permitida para Credit."));
 
         var service = new AchReturnsService(executionContext, regulatoryCatalogService: catalog.Object);
@@ -990,11 +990,11 @@ public class AchTransactionNachaTests
 
         context.FinancialInstitutions.AddRange(sourceInstitution, destinationInstitution, alternativeSource);
         context.AchReturnCodes.AddRange(
-            new AchReturnCode { Code = "R01", Description = "Fondos insuficientes", AppliesToCredit = true, AppliesToDebit = true, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 15, IsActive = true },
-            new AchReturnCode { Code = "DEV14", Description = "No consentimiento", AppliesToCredit = false, AppliesToDebit = true, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 60, IsActive = true });
+            new AchReturnCode { ClearingHouseId = clearingHouse.Id, Code = "R01", Description = "Fondos insuficientes", AppliesToCredit = true, AppliesToDebit = true, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 15, IsActive = true },
+            new AchReturnCode { ClearingHouseId = clearingHouse.Id, Code = "DEV14", Description = "No consentimiento", AppliesToCredit = false, AppliesToDebit = true, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 60, IsActive = true });
         context.AchReturnPolicies.AddRange(
-            new AchReturnPolicy { TransactionType = "Credit", AllowedReturnCodesCsv = "R01", MaxDays = 15, RequiredOriginalTransactionState = "Pending", RequiresAddenda = true, IsActive = true },
-            new AchReturnPolicy { TransactionType = "Debit", AllowedReturnCodesCsv = "R01,DEV14", MaxDays = 60, RequiredOriginalTransactionState = "Pending", RequiresAddenda = true, IsActive = true });
+            new AchReturnPolicy { ClearingHouseId = clearingHouse.Id, TransactionType = "Credit", AllowedReturnCodesCsv = "R01", MaxDays = 15, RequiredOriginalTransactionState = "Pending", RequiresAddenda = true, IsActive = true },
+            new AchReturnPolicy { ClearingHouseId = clearingHouse.Id, TransactionType = "Debit", AllowedReturnCodesCsv = "R01,DEV14", MaxDays = 60, RequiredOriginalTransactionState = "Pending", RequiresAddenda = true, IsActive = true });
         context.Customers.Add(new Customer
         {
             FirstName = "Test",

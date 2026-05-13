@@ -123,6 +123,7 @@ public class AchReturnsService(
 
         var selectedIds = request.Items.Select(i => i.TransactionId).Distinct().ToList();
         var transactions = await context.AchTransactions
+            .Include(t => t.AchCycle)
             .Where(t => selectedIds.Contains(t.Id))
             .ToListAsync(ct);
 
@@ -337,6 +338,7 @@ public class AchReturnsService(
     private async Task ValidateReturnPolicyAsync(AchTransaction transaction, string reasonCode, DateTime nowUtc, CancellationToken ct)
     {
         var returnCodeValidation = await _regulatoryCatalogService.ValidateReturnCodeAsync(
+            transaction.AchCycle.ClearingHouseId,
             reasonCode,
             transaction.Type,
             transaction.EffectiveEntryDate.Date,
@@ -349,6 +351,7 @@ public class AchReturnsService(
         }
 
         var returnPolicyValidation = await _regulatoryCatalogService.ValidateReturnPolicyAsync(
+            transaction.AchCycle.ClearingHouseId,
             transaction.Type,
             reasonCode,
             transaction.EffectiveEntryDate.Date,

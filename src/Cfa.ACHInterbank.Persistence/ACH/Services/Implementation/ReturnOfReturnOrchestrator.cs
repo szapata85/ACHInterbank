@@ -58,12 +58,14 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
 
         var originalCode = string.IsNullOrWhiteSpace(sourceReturn.ReturnReasonCode) ? "R01" : sourceReturn.ReturnReasonCode;
         var currentDate = DateTime.UtcNow.Date;
+        var clearingHouseId = await ResolveClearingHouseIdAsync(sourceReturn, ct);
         var returnPolicy = await _catalogService.ValidateReturnPolicyAsync(
+            clearingHouseId,
             TransactionTypeEnum.Return,
             reasonCode,
             sourceReturn.EffectiveEntryDate.Date,
             currentDate,
-            hasAddenda: true,
+            true,
             sourceReturn.State.ToString(),
             ct);
         if (!returnPolicy.IsAllowed)
@@ -72,6 +74,7 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
         }
 
         var validation = await _catalogService.ValidateReturnOfReturnAsync(
+            clearingHouseId,
             originalCode,
             reasonCode,
             sourceReturn.State.ToString(),
@@ -110,6 +113,24 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
         await _context.SaveChangesAsync(ct);
         CompareReturnOfReturnShadow(sourceReturn, reasonCode);
         return flow;
+    }
+
+    private async Task<int> ResolveClearingHouseIdAsync(AchTransaction sourceReturn, CancellationToken ct)
+    {
+        if (sourceReturn.AchCycle is not null)
+        {
+            return sourceReturn.AchCycle.ClearingHouseId;
+        }
+
+        var clearingHouseId = await _context.AchCycles
+            .AsNoTracking()
+            .Where(x => x.Id == sourceReturn.AchCycleId)
+            .Select(x => x.ClearingHouseId)
+            .FirstOrDefaultAsync(ct);
+
+        return clearingHouseId > 0
+            ? clearingHouseId
+            : throw new InvalidOperationException($"No se encontró cámara de compensación para el ciclo {sourceReturn.AchCycleId}.");
     }
 
     private void CompareReturnOfReturnShadow(AchTransaction sourceReturn, string reasonCode)

@@ -1219,10 +1219,17 @@ public class NachaParserService : INachaParserService
                 continue;
             }
 
+            var transaction = await FindTransactionByTraceReferenceAsync(originalTraceRef, ct);
+            if (transaction is null || !processedTransactionIds.Add(transaction.Id))
+            {
+                continue;
+            }
+
             if (_catalogService is not null)
             {
                 var processingDate = ResolveNachaFileDate(entry.NachaHeader?.FileCreationDate) ?? DateTime.UtcNow.Date;
                 var rule = await _catalogService.ValidateReturnCodeAsync(
+                    transaction.AchCycle.ClearingHouseId,
                     reasonCode,
                     TransactionTypeEnum.Return,
                     processingDate,
@@ -1233,17 +1240,9 @@ public class NachaParserService : INachaParserService
                     _logger.LogWarning("Causal de devolución {ReasonCode} descartada por catálogo regulatorio: {Reason}", reasonCode, rule.Reason);
                     continue;
                 }
-            }
 
-            var transaction = await FindTransactionByTraceReferenceAsync(originalTraceRef, ct);
-            if (transaction is null || !processedTransactionIds.Add(transaction.Id))
-            {
-                continue;
-            }
-
-            if (_catalogService is not null)
-            {
                 var policy = await _catalogService.ValidateReturnPolicyAsync(
+                    transaction.AchCycle.ClearingHouseId,
                     transaction.Type,
                     reasonCode,
                     transaction.EffectiveEntryDate.Date,
@@ -1336,6 +1335,7 @@ public class NachaParserService : INachaParserService
         var normalized = traceReference.Trim();
 
         var transaction = await _context.AchTransactions
+            .Include(t => t.AchCycle)
             .FirstOrDefaultAsync(t => t.TraceNumber == normalized, ct);
 
         if (transaction is not null)
@@ -1350,6 +1350,7 @@ public class NachaParserService : INachaParserService
         }
 
         return await _context.AchTransactions
+            .Include(t => t.AchCycle)
             .FirstOrDefaultAsync(t => t.TraceSequenceNumber == sequenceNumber, ct);
     }
 

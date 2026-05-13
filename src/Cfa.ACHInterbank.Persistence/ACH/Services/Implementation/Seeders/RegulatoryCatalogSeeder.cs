@@ -20,24 +20,29 @@ public class RegulatoryCatalogSeeder : IDbSeeder
 
     public async Task SeedAsync()
     {
-        await UpsertReturnCodesAsync();
+        var clearingHouseIds = await ResolveReturnClearingHouseIdsAsync();
+        await UpsertReturnCodesAsync(clearingHouseIds);
         await UpsertFileRejectionCodesAsync();
         await UpsertTransactionTypePoliciesAsync();
-        await UpsertReturnPoliciesAsync();
-        await UpsertReturnOfReturnPoliciesAsync();
+        await UpsertReturnPoliciesAsync(clearingHouseIds);
+        await UpsertReturnOfReturnPoliciesAsync(clearingHouseIds);
         await UpsertPrenotificationPoliciesAsync();
 
         await _context.SaveChangesAsync();
     }
 
-    private async Task UpsertReturnCodesAsync()
+    private async Task UpsertReturnCodesAsync((int CenitId, int AchColombiaId) clearingHouseIds)
     {
-        var desired = BuildReturnCodes().ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
+        // Fase 2.3B-2 separará políticas por cámara.
+        // En esta fase solo se separan códigos de devolución.
+        var desired = BuildReturnCodes(clearingHouseIds)
+            .ToDictionary(x => $"{x.ClearingHouseId}|{x.Code}|{x.FlowType}", StringComparer.OrdinalIgnoreCase);
         var existing = await _context.AchReturnCodes.ToListAsync();
 
         foreach (var row in existing)
         {
-            if (!desired.TryGetValue(row.Code, out var model))
+            var key = $"{row.ClearingHouseId}|{row.Code}|{row.FlowType}";
+            if (!desired.TryGetValue(key, out var model))
             {
                 continue;
             }
@@ -51,9 +56,15 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             row.MaxDaysAllowed = model.MaxDaysAllowed;
             row.RegulatorySource = model.RegulatorySource;
             row.IsActive = model.IsActive;
+            row.EffectiveFrom = model.EffectiveFrom;
+            row.EffectiveTo = model.EffectiveTo;
+            row.FlowType = model.FlowType;
         }
 
-        foreach (var model in desired.Values.Where(x => existing.All(e => !string.Equals(e.Code, x.Code, StringComparison.OrdinalIgnoreCase))))
+        foreach (var model in desired.Values.Where(x => existing.All(e =>
+                     e.ClearingHouseId != x.ClearingHouseId
+                     || !string.Equals(e.Code, x.Code, StringComparison.OrdinalIgnoreCase)
+                     || !string.Equals(e.FlowType, x.FlowType, StringComparison.OrdinalIgnoreCase))))
         {
             _context.AchReturnCodes.Add(model);
         }
@@ -110,14 +121,19 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         }
     }
 
-    private async Task UpsertReturnPoliciesAsync()
+    private async Task UpsertReturnPoliciesAsync((int CenitId, int AchColombiaId) clearingHouseIds)
     {
-        var desired = BuildReturnPolicies().ToDictionary(x => x.TransactionType, StringComparer.OrdinalIgnoreCase);
+        // Fase 2.3B-3 separará políticas de devolución de devolución por cámara.
+        // En esta fase solo se separan políticas de devolución.
+        var desiredCodes = BuildReturnCodes(clearingHouseIds).ToList();
+        var desired = BuildReturnPolicies(clearingHouseIds, desiredCodes)
+            .ToDictionary(x => $"{x.ClearingHouseId}|{x.TransactionType}|{x.Direction}|{x.FlowType}", StringComparer.OrdinalIgnoreCase);
         var existing = await _context.AchReturnPolicies.ToListAsync();
 
         foreach (var row in existing)
         {
-            if (!desired.TryGetValue(row.TransactionType, out var model))
+            var key = $"{row.ClearingHouseId}|{row.TransactionType}|{row.Direction}|{row.FlowType}";
+            if (!desired.TryGetValue(key, out var model))
             {
                 continue;
             }
@@ -128,22 +144,34 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             row.AllowsReturnOfReturn = model.AllowsReturnOfReturn;
             row.RequiresAddenda = model.RequiresAddenda;
             row.IsActive = model.IsActive;
+            row.EffectiveFrom = model.EffectiveFrom;
+            row.EffectiveTo = model.EffectiveTo;
+            row.Direction = model.Direction;
+            row.FlowType = model.FlowType;
         }
 
-        foreach (var model in desired.Values.Where(x => existing.All(e => !string.Equals(e.TransactionType, x.TransactionType, StringComparison.OrdinalIgnoreCase))))
+        foreach (var model in desired.Values.Where(x => existing.All(e =>
+                     e.ClearingHouseId != x.ClearingHouseId
+                     || !string.Equals(e.TransactionType, x.TransactionType, StringComparison.OrdinalIgnoreCase)
+                     || !string.Equals(e.Direction, x.Direction, StringComparison.OrdinalIgnoreCase)
+                     || !string.Equals(e.FlowType, x.FlowType, StringComparison.OrdinalIgnoreCase))))
         {
             _context.AchReturnPolicies.Add(model);
         }
     }
 
-    private async Task UpsertReturnOfReturnPoliciesAsync()
+    private async Task UpsertReturnOfReturnPoliciesAsync((int CenitId, int AchColombiaId) clearingHouseIds)
     {
-        var desired = BuildReturnOfReturnPolicies().ToDictionary(x => x.OriginalReturnCode, StringComparer.OrdinalIgnoreCase);
+        // Fase 2.3B completa: códigos, políticas y devolución de devolución quedan separados por cámara.
+        var desiredCodes = BuildReturnCodes(clearingHouseIds).ToList();
+        var desired = BuildReturnOfReturnPolicies(clearingHouseIds, desiredCodes)
+            .ToDictionary(x => $"{x.ClearingHouseId}|{x.OriginalReturnCode}|{x.Direction}|{x.FlowType}", StringComparer.OrdinalIgnoreCase);
         var existing = await _context.AchReturnOfReturnPolicies.ToListAsync();
 
         foreach (var row in existing)
         {
-            if (!desired.TryGetValue(row.OriginalReturnCode, out var model))
+            var key = $"{row.ClearingHouseId}|{row.OriginalReturnCode}|{row.Direction}|{row.FlowType}";
+            if (!desired.TryGetValue(key, out var model))
             {
                 continue;
             }
@@ -153,13 +181,53 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             row.RequiredOriginalState = model.RequiredOriginalState;
             row.IsUniquePerTransaction = model.IsUniquePerTransaction;
             row.IsActive = model.IsActive;
+            row.EffectiveFrom = model.EffectiveFrom;
+            row.EffectiveTo = model.EffectiveTo;
+            row.Direction = model.Direction;
+            row.FlowType = model.FlowType;
         }
 
-        foreach (var model in desired.Values.Where(x => existing.All(e => !string.Equals(e.OriginalReturnCode, x.OriginalReturnCode, StringComparison.OrdinalIgnoreCase))))
+        foreach (var model in desired.Values.Where(x => existing.All(e =>
+                     e.ClearingHouseId != x.ClearingHouseId
+                     || !string.Equals(e.OriginalReturnCode, x.OriginalReturnCode, StringComparison.OrdinalIgnoreCase)
+                     || !string.Equals(e.Direction, x.Direction, StringComparison.OrdinalIgnoreCase)
+                     || !string.Equals(e.FlowType, x.FlowType, StringComparison.OrdinalIgnoreCase))))
         {
             _context.AchReturnOfReturnPolicies.Add(model);
         }
     }
+
+    private async Task<(int CenitId, int AchColombiaId)> ResolveReturnClearingHouseIdsAsync()
+    {
+        var clearingHouses = await _context.ClearingHouses
+            .AsNoTracking()
+            .Select(x => new { x.Id, x.Code, x.Name })
+            .ToListAsync();
+
+        var cenit = clearingHouses.FirstOrDefault(x =>
+            ContainsToken(x.Code, "CENIT") ||
+            ContainsToken(x.Name, "CENIT"));
+        if (cenit is null)
+        {
+            throw new InvalidOperationException("No existe ClearingHouse CENIT para sembrar catálogos regulatorios de devolución.");
+        }
+
+        var achColombia = clearingHouses.FirstOrDefault(x =>
+            ContainsToken(x.Code, "ACH") ||
+            ContainsToken(x.Name, "ACH COLOMBIA") ||
+            ContainsToken(x.Name, "ACHCOLOMBIA") ||
+            ContainsToken(x.Name, "ACH"));
+        if (achColombia is null)
+        {
+            throw new InvalidOperationException("No existe ClearingHouse ACH Colombia para sembrar catálogos regulatorios de devolución.");
+        }
+
+        return (cenit.Id, achColombia.Id);
+    }
+
+    private static bool ContainsToken(string? source, string token)
+        => !string.IsNullOrWhiteSpace(source)
+           && source.Contains(token, StringComparison.OrdinalIgnoreCase);
 
     private async Task UpsertPrenotificationPoliciesAsync()
     {
@@ -185,9 +253,9 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         }
     }
 
-    private static IEnumerable<AchReturnCode> BuildReturnCodes()
+    private static IEnumerable<AchReturnCode> BuildReturnCodes((int CenitId, int AchColombiaId) clearingHouseIds)
     {
-        return new[]
+        var rows = new[]
         {
             new AchReturnCode { Code = "R01", Description = "Fondos insuficientes", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
             new AchReturnCode { Code = "R02", Description = "Cuenta cerrada", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
@@ -210,6 +278,18 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             new AchReturnCode { Code = "R31", Description = "Entrada permitida de retorno", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 15, IsActive = true, RegulatorySource = "ACH" },
             new AchReturnCode { Code = "DEV14", Description = "No consentimiento / retorno de débito por operador", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 60, IsActive = true, RegulatorySource = "OPERADOR" }
         };
+
+        foreach (var row in rows)
+        {
+            row.ClearingHouseId = string.Equals(row.RegulatorySource, "CENIT", StringComparison.OrdinalIgnoreCase)
+                ? clearingHouseIds.CenitId
+                : (string.Equals(row.RegulatorySource, "ACH", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(row.RegulatorySource, "OPERADOR", StringComparison.OrdinalIgnoreCase))
+                    ? clearingHouseIds.AchColombiaId
+                    : throw new InvalidOperationException($"RegulatorySource no soportado para seed de devoluciones: {row.RegulatorySource}");
+        }
+
+        return rows;
     }
 
     private static IEnumerable<AchFileRejectionCode> BuildFileRejectionCodes()
@@ -244,25 +324,88 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         };
     }
 
-    private static IEnumerable<AchReturnPolicy> BuildReturnPolicies()
+    private static IEnumerable<AchReturnPolicy> BuildReturnPolicies((int CenitId, int AchColombiaId) clearingHouseIds, IReadOnlyCollection<AchReturnCode> returnCodes)
     {
+        var cenitCodes = returnCodes.Where(x => x.ClearingHouseId == clearingHouseIds.CenitId).Select(x => x.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var achCodes = returnCodes.Where(x => x.ClearingHouseId == clearingHouseIds.AchColombiaId).Select(x => x.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        static string FilterCodes(string csv, HashSet<string> allowed) => string.Join(',', csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(allowed.Contains));
+
         return new[]
         {
-            new AchReturnPolicy { TransactionType = "Debit", AllowedReturnCodesCsv = "R01,R02,R03,R04,R06,R07,R08,R09,R10,R12,R13,R14,R15,R16,R17,R20,R23,R29,R31,DEV14", MaxDays = 60, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true },
-            new AchReturnPolicy { TransactionType = "Credit", AllowedReturnCodesCsv = "R03,R04,R20,R23,R31", MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true },
-            new AchReturnPolicy { TransactionType = "Prenotification", AllowedReturnCodesCsv = "R03,R29", MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = false, RequiresAddenda = true, IsActive = true },
-            new AchReturnPolicy { TransactionType = "Return", AllowedReturnCodesCsv = "R01,R02,R03,R09,R10", MaxDays = 15, RequiredOriginalTransactionState = "ReturnedByEpr", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true }
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.CenitId, TransactionType = "Debit", AllowedReturnCodesCsv = FilterCodes("R01,R02,R03,R04,R06,R07,R08,R09,R10,R12,R13,R14,R15,R16,R17,R20,R23,R29,R31,DEV14", cenitCodes), MaxDays = 60, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.AchColombiaId, TransactionType = "Debit", AllowedReturnCodesCsv = FilterCodes("R01,R02,R03,R04,R06,R07,R08,R09,R10,R12,R13,R14,R15,R16,R17,R20,R23,R29,R31,DEV14", achCodes), MaxDays = 60, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.CenitId, TransactionType = "Credit", AllowedReturnCodesCsv = FilterCodes("R03,R04,R20,R23,R31", cenitCodes), MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.AchColombiaId, TransactionType = "Credit", AllowedReturnCodesCsv = FilterCodes("R03,R04,R20,R23,R31", achCodes), MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.CenitId, TransactionType = "Prenotification", AllowedReturnCodesCsv = FilterCodes("R03,R29", cenitCodes), MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = false, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.AchColombiaId, TransactionType = "Prenotification", AllowedReturnCodesCsv = FilterCodes("R03,R29", achCodes), MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = false, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.CenitId, TransactionType = "Return", AllowedReturnCodesCsv = FilterCodes("R01,R02,R03,R09,R10", cenitCodes), MaxDays = 15, RequiredOriginalTransactionState = "ReturnedByEpr", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.AchColombiaId, TransactionType = "Return", AllowedReturnCodesCsv = FilterCodes("R01,R02,R03,R09,R10", achCodes), MaxDays = 15, RequiredOriginalTransactionState = "ReturnedByEpr", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null }
         };
     }
 
-    private static IEnumerable<AchReturnOfReturnPolicy> BuildReturnOfReturnPolicies()
+    private static IEnumerable<AchReturnOfReturnPolicy> BuildReturnOfReturnPolicies((int CenitId, int AchColombiaId) clearingHouseIds, IReadOnlyCollection<AchReturnCode> returnCodes)
     {
-        return new[]
+        var cenitCodes = returnCodes.Where(x => x.ClearingHouseId == clearingHouseIds.CenitId).Select(x => x.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var achCodes = returnCodes.Where(x => x.ClearingHouseId == clearingHouseIds.AchColombiaId).Select(x => x.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        static string FilterCodes(string csv, HashSet<string> allowed) => string.Join(',', csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(allowed.Contains));
+
+        var baseRules = new[]
         {
             new AchReturnOfReturnPolicy { OriginalReturnCode = "R01", AllowedNewReturnCodesCsv = "R02,R03,R09", MaxDays = 15, RequiredOriginalState = "ReturnedByOperator", IsUniquePerTransaction = true, IsActive = true },
             new AchReturnOfReturnPolicy { OriginalReturnCode = "R02", AllowedNewReturnCodesCsv = "R03,R10", MaxDays = 15, RequiredOriginalState = "ReturnedByOperator", IsUniquePerTransaction = true, IsActive = true },
-            new AchReturnOfReturnPolicy { OriginalReturnCode = "R03", AllowedNewReturnCodesCsv = "R03,R31", MaxDays = 15, RequiredOriginalState = "ReturnedByOperator", IsUniquePerTransaction = true, IsActive = true }
+            new AchReturnOfReturnPolicy { OriginalReturnCode = "R03", AllowedNewReturnCodesCsv = "R03,R31", MaxDays = 15, RequiredOriginalState = "ReturnedByOperator", IsUniquePerTransaction = true, IsActive = true },
+            new AchReturnOfReturnPolicy { OriginalReturnCode = "R31", AllowedNewReturnCodesCsv = "R29,R10", MaxDays = 15, RequiredOriginalState = "ReturnedByOperator", IsUniquePerTransaction = true, IsActive = true }
         };
+
+        var result = new List<AchReturnOfReturnPolicy>();
+        foreach (var rule in baseRules)
+        {
+            if (cenitCodes.Contains(rule.OriginalReturnCode))
+            {
+                var allowed = FilterCodes(rule.AllowedNewReturnCodesCsv, cenitCodes);
+                if (!string.IsNullOrWhiteSpace(allowed))
+                {
+                    result.Add(new AchReturnOfReturnPolicy
+                    {
+                        ClearingHouseId = clearingHouseIds.CenitId,
+                        OriginalReturnCode = rule.OriginalReturnCode,
+                        AllowedNewReturnCodesCsv = allowed,
+                        MaxDays = rule.MaxDays,
+                        RequiredOriginalState = rule.RequiredOriginalState,
+                        IsUniquePerTransaction = rule.IsUniquePerTransaction,
+                        IsActive = rule.IsActive,
+                        Direction = AchReturnDirection.Any,
+                        FlowType = AchReturnFlowType.ReturnOfReturn,
+                        EffectiveFrom = DateTime.UtcNow.Date,
+                        EffectiveTo = null
+                    });
+                }
+            }
+
+            if (achCodes.Contains(rule.OriginalReturnCode))
+            {
+                var allowed = FilterCodes(rule.AllowedNewReturnCodesCsv, achCodes);
+                if (!string.IsNullOrWhiteSpace(allowed))
+                {
+                    result.Add(new AchReturnOfReturnPolicy
+                    {
+                        ClearingHouseId = clearingHouseIds.AchColombiaId,
+                        OriginalReturnCode = rule.OriginalReturnCode,
+                        AllowedNewReturnCodesCsv = allowed,
+                        MaxDays = rule.MaxDays,
+                        RequiredOriginalState = rule.RequiredOriginalState,
+                        IsUniquePerTransaction = rule.IsUniquePerTransaction,
+                        IsActive = rule.IsActive,
+                        Direction = AchReturnDirection.Any,
+                        FlowType = AchReturnFlowType.ReturnOfReturn,
+                        EffectiveFrom = DateTime.UtcNow.Date,
+                        EffectiveTo = null
+                    });
+                }
+            }
+        }
+
+        return result;
     }
 
     private static IEnumerable<AchPrenotificationPolicy> BuildPrenotificationPolicies()

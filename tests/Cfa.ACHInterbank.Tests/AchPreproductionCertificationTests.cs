@@ -425,8 +425,10 @@ public class AchPreproductionCertificationTests
             }
         });
 
+        var returnClearingHouseId = context.ClearingHouses.Select(x => x.Id).First();
         context.AchReturnCodes.Add(new AchReturnCode
         {
+            ClearingHouseId = returnClearingHouseId,
             Code = "DEV14",
             Description = "No consentimiento",
             AppliesToDebit = true,
@@ -437,6 +439,7 @@ public class AchPreproductionCertificationTests
         });
         context.AchReturnPolicies.Add(new AchReturnPolicy
         {
+            ClearingHouseId = returnClearingHouseId,
             TransactionType = "Debit",
             AllowedReturnCodesCsv = "DEV14",
             MaxDays = 60,
