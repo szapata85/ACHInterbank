@@ -314,3 +314,11 @@ Commits sugeridos para Fase 3:
 | Mensajes operativos insuficientes | Mayor tiempo de soporte y errores humanos | Catálogo de mensajes operativos accionables | Fase 6 |
 | Diferencias de naming/formato de archivo por cámara | Rechazo por cámara compensadora | Golden master + validadores por cámara | Fase 3/6 |
 | Impacto contable no conciliado | Descadres financieros y auditoría negativa | Conciliación diaria por cámara/ciclo/archivo | Fase 7 |
+
+## Avance Fase 3.1 - Elegibilidad centralizada de devolución de salida
+
+- Se creó un servicio centralizado `IAchReturnEligibilityService` / `AchReturnEligibilityService` para evaluar elegibilidad de devolución saliente de forma estructurada.
+- La resolución de cámara usa `ClearingHouseId` obtenido desde `AchCycle` de la transacción.
+- La validación regulatoria se delega en `IAchRegulatoryCatalogService` para causal y política.
+- Este cambio no modifica generación de archivo, naming de archivo ni estado final de transacciones.
+- Pendientes para siguiente fase: validación fuerte de causal/plazo, idempotencia de solicitudes, control de concurrencia y verificación golden master.

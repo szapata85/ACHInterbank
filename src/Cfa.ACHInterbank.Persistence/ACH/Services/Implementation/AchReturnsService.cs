@@ -17,6 +17,7 @@ public class AchReturnsService(
     AchDbContext context,
     TimeProvider? timeProvider = null,
     IAchRegulatoryCatalogService? regulatoryCatalogService = null,
+    IAchReturnEligibilityService? returnEligibilityService = null,
     IPaymentRailContextService? paymentRailContextService = null,
     IPaymentRailOperationalStrategyResolver? strategyResolver = null,
     IPaymentRailShadowCompareService? shadowCompareService = null,
@@ -24,6 +25,9 @@ public class AchReturnsService(
 {
     private readonly IAchRegulatoryCatalogService _regulatoryCatalogService = regulatoryCatalogService
                                                                            ?? throw new InvalidOperationException("IAchRegulatoryCatalogService es requerido para gobernanza regulatoria de devoluciones.");
+    private readonly IAchReturnEligibilityService _returnEligibilityService = returnEligibilityService
+                                                                        ?? new AchReturnEligibilityService(context, regulatoryCatalogService
+                                                                            ?? throw new InvalidOperationException("IAchRegulatoryCatalogService es requerido para gobernanza regulatoria de devoluciones."));
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
     private readonly IPaymentRailContextService? _paymentRailContextService = paymentRailContextService;
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver = strategyResolver;
@@ -170,8 +174,19 @@ public class AchReturnsService(
                 throw new InvalidOperationException($"La transacción {tx.Id} excede la ventana máxima de 4 ciclos para devolución.");
             }
 
-            var reasonCode = item.ReturnReasonCode.Trim().ToUpperInvariant();
-            await ValidateReturnPolicyAsync(tx, reasonCode, now, ct);
+            var eligibility = await _returnEligibilityService.EvaluateOutgoingReturnAsync(
+                new AchReturnEligibilityRequest(
+                    tx.Id,
+                    item.ReturnReasonCode,
+                    now,
+                    HasAddenda: true),
+                ct);
+            if (!eligibility.IsEligible)
+            {
+                throw new InvalidOperationException(eligibility.Failures.First().Message);
+            }
+
+            var reasonCode = eligibility.NormalizedReasonCode!;
 
             var amount = tx.IsPrenotification ? 0m : tx.Amount;
             var newSequence = await GenerateNewReturnSequenceAsync(tx.ReceivingDFI, now.Date, ct);
@@ -334,37 +349,6 @@ public class AchReturnsService(
         }
     }
 
-
-    private async Task ValidateReturnPolicyAsync(AchTransaction transaction, string reasonCode, DateTime nowUtc, CancellationToken ct)
-    {
-        var returnCodeValidation = await _regulatoryCatalogService.ValidateReturnCodeAsync(
-            transaction.AchCycle.ClearingHouseId,
-            reasonCode,
-            transaction.Type,
-            transaction.EffectiveEntryDate.Date,
-            nowUtc.Date,
-            ct);
-        if (!returnCodeValidation.IsAllowed)
-        {
-            throw new InvalidOperationException(returnCodeValidation.Reason
-                                                ?? $"La causal {reasonCode} no está permitida para la transacción {transaction.Id}.");
-        }
-
-        var returnPolicyValidation = await _regulatoryCatalogService.ValidateReturnPolicyAsync(
-            transaction.AchCycle.ClearingHouseId,
-            transaction.Type,
-            reasonCode,
-            transaction.EffectiveEntryDate.Date,
-            nowUtc.Date,
-            hasAddenda: true,
-            transaction.State.ToString(),
-            ct);
-        if (!returnPolicyValidation.IsAllowed)
-        {
-            throw new InvalidOperationException(returnPolicyValidation.Reason
-                                                ?? $"La política regulatoria no permite devolver la transacción {transaction.Id}.");
-        }
-    }
 
     private async Task<Dictionary<string, int>> GetCycleOrderAsync(int clearingHouseId, CancellationToken ct)
     {
