@@ -33,15 +33,16 @@ public class RegulatoryCatalogSeeder : IDbSeeder
 
     private async Task UpsertReturnCodesAsync((int CenitId, int AchColombiaId) clearingHouseIds)
     {
-        // Fase 2.3B separará códigos y políticas por cámara.
-        // En esta fase solo se elimina la resolución global silenciosa.
-        var clearingHouseId = clearingHouseIds.CenitId;
-        var desired = BuildReturnCodes().ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
+        // Fase 2.3B-2 separará políticas por cámara.
+        // En esta fase solo se separan códigos de devolución.
+        var desired = BuildReturnCodes(clearingHouseIds)
+            .ToDictionary(x => $"{x.ClearingHouseId}|{x.Code}|{x.FlowType}", StringComparer.OrdinalIgnoreCase);
         var existing = await _context.AchReturnCodes.ToListAsync();
 
         foreach (var row in existing)
         {
-            if (!desired.TryGetValue(row.Code, out var model))
+            var key = $"{row.ClearingHouseId}|{row.Code}|{row.FlowType}";
+            if (!desired.TryGetValue(key, out var model))
             {
                 continue;
             }
@@ -55,12 +56,16 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             row.MaxDaysAllowed = model.MaxDaysAllowed;
             row.RegulatorySource = model.RegulatorySource;
             row.IsActive = model.IsActive;
-            row.ClearingHouseId = clearingHouseId;
+            row.EffectiveFrom = model.EffectiveFrom;
+            row.EffectiveTo = model.EffectiveTo;
+            row.FlowType = model.FlowType;
         }
 
-        foreach (var model in desired.Values.Where(x => existing.All(e => !string.Equals(e.Code, x.Code, StringComparison.OrdinalIgnoreCase))))
+        foreach (var model in desired.Values.Where(x => existing.All(e =>
+                     e.ClearingHouseId != x.ClearingHouseId
+                     || !string.Equals(e.Code, x.Code, StringComparison.OrdinalIgnoreCase)
+                     || !string.Equals(e.FlowType, x.FlowType, StringComparison.OrdinalIgnoreCase))))
         {
-            model.ClearingHouseId = clearingHouseId;
             _context.AchReturnCodes.Add(model);
         }
     }
@@ -233,9 +238,9 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         }
     }
 
-    private static IEnumerable<AchReturnCode> BuildReturnCodes()
+    private static IEnumerable<AchReturnCode> BuildReturnCodes((int CenitId, int AchColombiaId) clearingHouseIds)
     {
-        return new[]
+        var rows = new[]
         {
             new AchReturnCode { Code = "R01", Description = "Fondos insuficientes", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
             new AchReturnCode { Code = "R02", Description = "Cuenta cerrada", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
@@ -258,6 +263,18 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             new AchReturnCode { Code = "R31", Description = "Entrada permitida de retorno", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 15, IsActive = true, RegulatorySource = "ACH" },
             new AchReturnCode { Code = "DEV14", Description = "No consentimiento / retorno de débito por operador", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 60, IsActive = true, RegulatorySource = "OPERADOR" }
         };
+
+        foreach (var row in rows)
+        {
+            row.ClearingHouseId = string.Equals(row.RegulatorySource, "CENIT", StringComparison.OrdinalIgnoreCase)
+                ? clearingHouseIds.CenitId
+                : (string.Equals(row.RegulatorySource, "ACH", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(row.RegulatorySource, "OPERADOR", StringComparison.OrdinalIgnoreCase))
+                    ? clearingHouseIds.AchColombiaId
+                    : throw new InvalidOperationException($"RegulatorySource no soportado para seed de devoluciones: {row.RegulatorySource}");
+        }
+
+        return rows;
     }
 
     private static IEnumerable<AchFileRejectionCode> BuildFileRejectionCodes()

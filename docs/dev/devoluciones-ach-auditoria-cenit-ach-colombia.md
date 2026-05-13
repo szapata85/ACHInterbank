@@ -175,3 +175,11 @@ Se revisaron los artefactos solicitados en dominio, aplicación, persistencia, A
 - `RegulatoryCatalogSeeder` ahora resuelve explícitamente las cámaras CENIT y ACH Colombia.
 - Se eliminó la resolución global silenciosa de una sola cámara para sembrado regulatorio de devoluciones.
 - La separación real de códigos y políticas por cámara queda pendiente para la Fase 2.3B.
+
+## Avance Fase 2.3B
+
+- Los códigos de devolución (`AchReturnCode`) ya se separan por cámara (`ClearingHouseId`).
+- `RegulatorySource = CENIT` queda asociado a CENIT.
+- `RegulatorySource = ACH` y `RegulatorySource = OPERADOR` quedan asociados a ACH Colombia.
+- `UpsertReturnCodesAsync` ya usa clave funcional `ClearingHouseId + Code + FlowType`.
+- Las políticas de devolución y de devolución de devolución por cámara quedan pendientes para siguientes commits.
