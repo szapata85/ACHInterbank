@@ -80,6 +80,14 @@ public class AchReturnRulesClearingHouseModelTests
         Assert.NotNull(context.Model.FindEntityType(typeof(AchReturnOfReturnPolicy))!.FindProperty(nameof(AchReturnOfReturnPolicy.FlowType)));
     }
 
+    [Fact]
+    public void ReturnRules_ShouldNotHaveInMemoryDefaultClearingHouseId()
+    {
+        Assert.Equal(0, new AchReturnCode().ClearingHouseId);
+        Assert.Equal(0, new AchReturnPolicy().ClearingHouseId);
+        Assert.Equal(0, new AchReturnOfReturnPolicy().ClearingHouseId);
+    }
+
     private static void AssertNoDefaultValueMetadata(IEntityType entityType, string propertyName)
     {
         var property = entityType.FindProperty(propertyName)!;

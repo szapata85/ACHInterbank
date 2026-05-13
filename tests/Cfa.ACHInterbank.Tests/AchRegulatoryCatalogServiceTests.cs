@@ -13,7 +13,8 @@ public class AchRegulatoryCatalogServiceTests
     public async Task ValidateReturnCode_AllowsConfiguredCode()
     {
         await using var context = await CreateContextAsync();
-        context.AchReturnCodes.Add(new AchReturnCode { Code = "R01", Description = "Fondos insuficientes", AppliesToDebit = true, IsActive = true });
+        var clearingHouse = await EnsureClearingHouseAsync(context);
+        context.AchReturnCodes.Add(new AchReturnCode { ClearingHouseId = clearingHouse.Id, Code = "R01", Description = "Fondos insuficientes", AppliesToDebit = true, IsActive = true });
         await context.SaveChangesAsync();
 
         var sut = new AchRegulatoryCatalogService(context);
@@ -37,8 +38,10 @@ public class AchRegulatoryCatalogServiceTests
     public async Task ReturnOfReturnPolicy_EnforcesMaxDays()
     {
         await using var context = await CreateContextAsync();
+        var clearingHouse = await EnsureClearingHouseAsync(context);
         context.AchReturnOfReturnPolicies.Add(new AchReturnOfReturnPolicy
         {
+            ClearingHouseId = clearingHouse.Id,
             OriginalReturnCode = "R01",
             AllowedNewReturnCodesCsv = "R02",
             MaxDays = 2,
@@ -58,8 +61,10 @@ public class AchRegulatoryCatalogServiceTests
     public async Task ReturnPolicy_ValidatesAllowedCodeAndAddenda()
     {
         await using var context = await CreateContextAsync();
+        var clearingHouse = await EnsureClearingHouseAsync(context);
         context.AchReturnPolicies.Add(new AchReturnPolicy
         {
+            ClearingHouseId = clearingHouse.Id,
             TransactionType = "Debit",
             AllowedReturnCodesCsv = "R01,R02",
             MaxDays = 5,
@@ -135,7 +140,7 @@ public class AchRegulatoryCatalogServiceTests
         var existing = await context.ClearingHouses.FirstOrDefaultAsync(x => x.Code == code);
         if (existing is not null) return existing;
 
-        var config = new ClearingHouseConfig { HolidayStrategy = "Colombian" };
+        var config = new ClearingHouseConfig { ClearingHouseId = 9001, HolidayStrategy = "Colombian" };
         context.ClearingHouseConfigs.Add(config);
         await context.SaveChangesAsync();
 

@@ -5,7 +5,7 @@ namespace Cfa.ACHInterbank.Domain.Models.ACH;
 public class AchReturnPolicy : AuditableEntity
 {
     public int Id { get; set; }
-    public int ClearingHouseId { get; set; } = 1;
+    public int ClearingHouseId { get; set; }
     public ClearingHouse ClearingHouse { get; set; } = null!;
     public string TransactionType { get; set; } = string.Empty;
     public string Direction { get; set; } = AchReturnDirection.Any;

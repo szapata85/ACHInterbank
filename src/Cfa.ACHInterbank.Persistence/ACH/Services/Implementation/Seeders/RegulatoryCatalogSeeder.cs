@@ -32,6 +32,7 @@ public class RegulatoryCatalogSeeder : IDbSeeder
 
     private async Task UpsertReturnCodesAsync()
     {
+        var clearingHouseId = await ResolveDefaultClearingHouseIdAsync();
         var desired = BuildReturnCodes().ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
         var existing = await _context.AchReturnCodes.ToListAsync();
 
@@ -51,10 +52,12 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             row.MaxDaysAllowed = model.MaxDaysAllowed;
             row.RegulatorySource = model.RegulatorySource;
             row.IsActive = model.IsActive;
+            row.ClearingHouseId = clearingHouseId;
         }
 
         foreach (var model in desired.Values.Where(x => existing.All(e => !string.Equals(e.Code, x.Code, StringComparison.OrdinalIgnoreCase))))
         {
+            model.ClearingHouseId = clearingHouseId;
             _context.AchReturnCodes.Add(model);
         }
     }
@@ -112,6 +115,7 @@ public class RegulatoryCatalogSeeder : IDbSeeder
 
     private async Task UpsertReturnPoliciesAsync()
     {
+        var clearingHouseId = await ResolveDefaultClearingHouseIdAsync();
         var desired = BuildReturnPolicies().ToDictionary(x => x.TransactionType, StringComparer.OrdinalIgnoreCase);
         var existing = await _context.AchReturnPolicies.ToListAsync();
 
@@ -128,16 +132,19 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             row.AllowsReturnOfReturn = model.AllowsReturnOfReturn;
             row.RequiresAddenda = model.RequiresAddenda;
             row.IsActive = model.IsActive;
+            row.ClearingHouseId = clearingHouseId;
         }
 
         foreach (var model in desired.Values.Where(x => existing.All(e => !string.Equals(e.TransactionType, x.TransactionType, StringComparison.OrdinalIgnoreCase))))
         {
+            model.ClearingHouseId = clearingHouseId;
             _context.AchReturnPolicies.Add(model);
         }
     }
 
     private async Task UpsertReturnOfReturnPoliciesAsync()
     {
+        var clearingHouseId = await ResolveDefaultClearingHouseIdAsync();
         var desired = BuildReturnOfReturnPolicies().ToDictionary(x => x.OriginalReturnCode, StringComparer.OrdinalIgnoreCase);
         var existing = await _context.AchReturnOfReturnPolicies.ToListAsync();
 
@@ -153,12 +160,23 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             row.RequiredOriginalState = model.RequiredOriginalState;
             row.IsUniquePerTransaction = model.IsUniquePerTransaction;
             row.IsActive = model.IsActive;
+            row.ClearingHouseId = clearingHouseId;
         }
 
         foreach (var model in desired.Values.Where(x => existing.All(e => !string.Equals(e.OriginalReturnCode, x.OriginalReturnCode, StringComparison.OrdinalIgnoreCase))))
         {
+            model.ClearingHouseId = clearingHouseId;
             _context.AchReturnOfReturnPolicies.Add(model);
         }
+    }
+
+    private async Task<int> ResolveDefaultClearingHouseIdAsync()
+    {
+        var candidate = await _context.ClearingHouses.AsNoTracking()
+            .OrderBy(x => x.Id)
+            .Select(x => x.Id)
+            .FirstOrDefaultAsync();
+        return candidate == 0 ? 1 : candidate;
     }
 
     private async Task UpsertPrenotificationPoliciesAsync()

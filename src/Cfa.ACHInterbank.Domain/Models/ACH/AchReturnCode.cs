@@ -5,7 +5,7 @@ namespace Cfa.ACHInterbank.Domain.Models.ACH;
 public class AchReturnCode : AuditableEntity
 {
     public int Id { get; set; }
-    public int ClearingHouseId { get; set; } = 1;
+    public int ClearingHouseId { get; set; }
     public ClearingHouse ClearingHouse { get; set; } = null!;
     public string Code { get; set; } = string.Empty;
     public string FlowType { get; set; } = AchReturnFlowType.Any;

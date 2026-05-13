@@ -27,9 +27,11 @@ public class RegulatoryCatalogSeederTests
     public async Task SeedAsync_ShouldRepairDriftAndInsertMissingRows_WhenCatalogsArePartial()
     {
         await using var context = await CreateContextAsync();
+        var clearingHouse = await EnsureClearingHouseAsync(context);
 
         context.AchReturnCodes.Add(new AchReturnCode
         {
+            ClearingHouseId = clearingHouse.Id,
             Code = "R01",
             Description = "legacy",
             AppliesToDebit = false,
@@ -93,7 +95,7 @@ public class RegulatoryCatalogSeederTests
         var existing = await context.ClearingHouses.FirstOrDefaultAsync(x => x.Code == code);
         if (existing is not null) return existing;
 
-        var config = new ClearingHouseConfig { HolidayStrategy = "Colombian" };
+        var config = new ClearingHouseConfig { ClearingHouseId = 9001, HolidayStrategy = "Colombian" };
         context.ClearingHouseConfigs.Add(config);
         await context.SaveChangesAsync();
 
