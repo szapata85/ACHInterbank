@@ -18,7 +18,7 @@ public class AchRegulatoryCatalogServiceTests
         await context.SaveChangesAsync();
 
         var sut = new AchRegulatoryCatalogService(context);
-        var result = await sut.ValidateReturnCodeAsync("R01", TransactionTypeEnum.Debit, DateTime.UtcNow.Date, DateTime.UtcNow.Date, CancellationToken.None);
+        var result = await sut.ValidateReturnCodeAsync(1, "R01", TransactionTypeEnum.Debit, DateTime.UtcNow.Date, DateTime.UtcNow.Date, CancellationToken.None);
 
         Assert.True(result.IsAllowed);
     }
@@ -29,7 +29,7 @@ public class AchRegulatoryCatalogServiceTests
         await using var context = await CreateContextAsync();
         var sut = new AchRegulatoryCatalogService(context);
 
-        var result = await sut.ValidateReturnCodeAsync("R99", TransactionTypeEnum.Debit, DateTime.UtcNow.Date, DateTime.UtcNow.Date, CancellationToken.None);
+        var result = await sut.ValidateReturnCodeAsync(1, "R99", TransactionTypeEnum.Debit, DateTime.UtcNow.Date, DateTime.UtcNow.Date, CancellationToken.None);
 
         Assert.False(result.IsAllowed);
     }
@@ -54,7 +54,7 @@ public class AchRegulatoryCatalogServiceTests
         await context.SaveChangesAsync();
 
         var sut = new AchRegulatoryCatalogService(context);
-        var result = await sut.ValidateReturnOfReturnAsync("R01", "R02", "ReturnedByOperator", DateTime.UtcNow.Date.AddDays(-5), DateTime.UtcNow.Date, CancellationToken.None);
+        var result = await sut.ValidateReturnOfReturnAsync(1, "R01", "R02", "ReturnedByOperator", DateTime.UtcNow.Date.AddDays(-5), DateTime.UtcNow.Date, CancellationToken.None);
 
         Assert.False(result.IsAllowed);
     }
@@ -79,7 +79,7 @@ public class AchRegulatoryCatalogServiceTests
         await context.SaveChangesAsync();
 
         var sut = new AchRegulatoryCatalogService(context);
-        var result = await sut.ValidateReturnPolicyAsync(TransactionTypeEnum.Debit, "R03", DateTime.UtcNow.Date, DateTime.UtcNow.Date, hasAddenda: false, originalState: "Pending", CancellationToken.None);
+        var result = await sut.ValidateReturnPolicyAsync(1, TransactionTypeEnum.Debit, "R03", DateTime.UtcNow.Date, DateTime.UtcNow.Date, hasAddenda: false, originalState: "Pending", CancellationToken.None);
 
         Assert.False(result.IsAllowed);
     }

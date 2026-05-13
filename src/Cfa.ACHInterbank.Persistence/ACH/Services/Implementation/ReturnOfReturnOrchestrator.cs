@@ -58,7 +58,10 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
 
         var originalCode = string.IsNullOrWhiteSpace(sourceReturn.ReturnReasonCode) ? "R01" : sourceReturn.ReturnReasonCode;
         var currentDate = DateTime.UtcNow.Date;
+        var clearingHouseId = sourceReturn.AchCycle?.ClearingHouseId
+                              ?? await _context.AchCycles.AsNoTracking().Where(c => c.Id == sourceReturn.AchCycleId).Select(c => c.ClearingHouseId).FirstAsync(ct);
         var returnPolicy = await _catalogService.ValidateReturnPolicyAsync(
+            clearingHouseId,
             TransactionTypeEnum.Return,
             reasonCode,
             sourceReturn.EffectiveEntryDate.Date,
@@ -72,6 +75,7 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
         }
 
         var validation = await _catalogService.ValidateReturnOfReturnAsync(
+            clearingHouseId,
             originalCode,
             reasonCode,
             sourceReturn.State.ToString(),

@@ -336,7 +336,10 @@ public class AchReturnsService(
 
     private async Task ValidateReturnPolicyAsync(AchTransaction transaction, string reasonCode, DateTime nowUtc, CancellationToken ct)
     {
+        var clearingHouseId = transaction.AchCycle?.ClearingHouseId ?? (await context.AchCycles.AsNoTracking().Where(c => c.Id == transaction.AchCycleId).Select(c => c.ClearingHouseId).FirstAsync(ct));
+
         var returnCodeValidation = await _regulatoryCatalogService.ValidateReturnCodeAsync(
+            clearingHouseId,
             reasonCode,
             transaction.Type,
             transaction.EffectiveEntryDate.Date,
@@ -349,6 +352,7 @@ public class AchReturnsService(
         }
 
         var returnPolicyValidation = await _regulatoryCatalogService.ValidateReturnPolicyAsync(
+            clearingHouseId,
             transaction.Type,
             reasonCode,
             transaction.EffectiveEntryDate.Date,
