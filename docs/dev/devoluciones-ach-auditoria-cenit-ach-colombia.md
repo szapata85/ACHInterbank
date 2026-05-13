@@ -343,3 +343,12 @@ Commits sugeridos para Fase 3:
 - No hubo cambios en formato NACHA, naming ni estados finales.
 - Riesgo residual: concurrencia avanzada multi-nodo / lock fuerte en DB queda para fase posterior.
 - Pendientes: concurrencia avanzada, rechazo parcial/total y golden master por cámara.
+
+## Avance Fase 3.4 - Concurrencia básica en devolución de salida
+
+- Se agregó control de concurrencia in-process por `TransactionId` para generación de devoluciones.
+- Los locks se adquieren en orden estable (ascendente) para evitar deadlocks.
+- Se mantiene idempotencia por estado y por `AchReturnGenerated` después de adquirir lock.
+- No hubo cambios en formato NACHA, naming ni estados finales.
+- Límite actual: no cubre múltiples instancias/nodos.
+- Pendiente UAT/hardening: índice único y/o lock DB/distribuido para concurrencia multi-nodo.

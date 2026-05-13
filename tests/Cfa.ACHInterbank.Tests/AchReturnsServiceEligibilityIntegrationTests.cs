@@ -25,7 +25,7 @@ public class AchReturnsServiceEligibilityIntegrationTests
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AchReturnEligibilityResult(true, "R01", 1, "Credit", "Pending", []));
 
-        var sut = new AchReturnsService(context, regulatoryCatalogService: catalog.Object, returnEligibilityService: eligibility.Object);
+        var sut = new AchReturnsService(context, regulatoryCatalogService: catalog.Object, returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService());
         await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(1, "R01")]), CancellationToken.None);
 
         eligibility.Verify(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -44,7 +44,7 @@ public class AchReturnsServiceEligibilityIntegrationTests
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AchReturnEligibilityResult(false, "R01", 7, "Credit", "Pending", [new AchReturnEligibilityFailure("RETURN_POLICY_REJECTED", "Política no permite retorno.")]));
 
-        var sut = new AchReturnsService(context, regulatoryCatalogService: catalog.Object, returnEligibilityService: eligibility.Object);
+        var sut = new AchReturnsService(context, regulatoryCatalogService: catalog.Object, returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService());
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(1, "R01")]), CancellationToken.None));
         Assert.Equal("Política no permite retorno.", ex.Message);

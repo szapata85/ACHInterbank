@@ -18,6 +18,7 @@ public class AchReturnsService(
     TimeProvider? timeProvider = null,
     IAchRegulatoryCatalogService? regulatoryCatalogService = null,
     IAchReturnEligibilityService? returnEligibilityService = null,
+    IAchReturnGenerationLockService? returnGenerationLockService = null,
     IPaymentRailContextService? paymentRailContextService = null,
     IPaymentRailOperationalStrategyResolver? strategyResolver = null,
     IPaymentRailShadowCompareService? shadowCompareService = null,
@@ -27,6 +28,8 @@ public class AchReturnsService(
                                                                            ?? throw new InvalidOperationException("IAchRegulatoryCatalogService es requerido para gobernanza regulatoria de devoluciones.");
     private readonly IAchReturnEligibilityService _returnEligibilityService = returnEligibilityService
                                                                         ?? throw new InvalidOperationException("IAchReturnEligibilityService es requerido para evaluar elegibilidad de devoluciones.");
+    private readonly IAchReturnGenerationLockService _returnGenerationLockService = returnGenerationLockService
+        ?? throw new InvalidOperationException("IAchReturnGenerationLockService es requerido para control de concurrencia en devoluciones.");
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
     private readonly IPaymentRailContextService? _paymentRailContextService = paymentRailContextService;
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver = strategyResolver;
@@ -125,6 +128,8 @@ public class AchReturnsService(
             ?? throw new InvalidOperationException("No se encontró el ciclo de operación.");
 
         var selectedIds = request.Items.Select(i => i.TransactionId).Distinct().ToList();
+        await using var generationLock = await _returnGenerationLockService.AcquireAsync(selectedIds, ct);
+
         var transactions = await context.AchTransactions
             .Include(t => t.AchCycle)
             .Where(t => selectedIds.Contains(t.Id))
