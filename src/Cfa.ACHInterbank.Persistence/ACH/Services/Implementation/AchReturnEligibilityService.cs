@@ -31,6 +31,21 @@ public class AchReturnEligibilityService(
             return new(false, null, null, tx.Type.ToString(), tx.State.ToString(), failures);
         }
 
+
+        if (tx.State is Domain.Entities.Transactions.Enums.AchTransferStateEnum.ReturnedByOperator or Domain.Entities.Transactions.Enums.AchTransferStateEnum.ReturnedByEpr)
+        {
+            failures.Add(new("RETURN_ALREADY_PROCESSED", "La transacción ya fue devuelta o ya tiene una devolución procesada.", nameof(request.TransactionId)));
+            return new(false, null, clearingHouseId, tx.Type.ToString(), tx.State.ToString(), failures);
+        }
+
+        var alreadyIncludedInReturnFile = await context.Set<AchReturnGenerated>()
+            .AsNoTracking()
+            .AnyAsync(x => x.OriginalTransactionId == tx.Id, cancellationToken);
+        if (alreadyIncludedInReturnFile)
+        {
+            failures.Add(new("RETURN_ALREADY_INCLUDED_IN_FILE", "La transacción ya fue devuelta o ya tiene una devolución procesada.", nameof(request.TransactionId)));
+            return new(false, null, clearingHouseId, tx.Type.ToString(), tx.State.ToString(), failures);
+        }
         if (string.IsNullOrWhiteSpace(request.ReturnReasonCode))
         {
             failures.Add(new("RETURN_REASON_REQUIRED", "La causal de devolución es obligatoria.", nameof(request.ReturnReasonCode)));

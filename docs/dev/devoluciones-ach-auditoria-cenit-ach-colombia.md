@@ -334,3 +334,12 @@ Commits sugeridos para Fase 3:
 - Estado transaccional y addenda requerida se validan vía política regulatoria del catálogo.
 - No hubo cambios en generación, naming ni estados finales de archivo/transacción.
 - Pendientes: idempotencia, concurrencia, rechazo parcial/total y golden master por cámara.
+
+## Avance Fase 3.3 - Idempotencia de devolución de salida
+
+- Se rechazan transacciones repetidas dentro de la misma solicitud de devolución.
+- Se rechazan transacciones ya devueltas/procesadas usando estado y modelo existente (`AchReturnGenerated`).
+- `AchReturnsService` no genera archivo parcial cuando detecta duplicados en la solicitud.
+- No hubo cambios en formato NACHA, naming ni estados finales.
+- Riesgo residual: concurrencia avanzada multi-nodo / lock fuerte en DB queda para fase posterior.
+- Pendientes: concurrencia avanzada, rechazo parcial/total y golden master por cámara.

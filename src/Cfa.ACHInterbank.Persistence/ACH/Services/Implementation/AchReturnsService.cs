@@ -115,7 +115,7 @@ public class AchReturnsService(
             .FirstOrDefault(group => group.Count() > 1);
         if (duplicateSelections is not null)
         {
-            throw new InvalidOperationException($"La transacción {duplicateSelections.Key} fue seleccionada más de una vez en la misma generación.");
+            throw new InvalidOperationException($"La transacción {duplicateSelections.Key} está repetida en la solicitud de devolución.");
         }
 
         var cycle = await context.AchCycles
