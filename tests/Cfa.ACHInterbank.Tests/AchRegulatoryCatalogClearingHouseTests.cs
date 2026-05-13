@@ -69,5 +69,5 @@ public class AchRegulatoryCatalogClearingHouseTests
     }
 
     static async Task<AchDbContext> Ctx(){var cn=new SqliteConnection("DataSource=:memory:");await cn.OpenAsync();var o=new DbContextOptionsBuilder<AchDbContext>().UseSqlite(cn).Options;var c=new AchDbContext(o);c.Database.EnsureCreated();return c;}
-    static async Task<ClearingHouse> Ch(AchDbContext c,string code){var e=await c.ClearingHouses.FirstOrDefaultAsync(x=>x.Code==code);if(e!=null)return e;var cfg=new ClearingHouseConfig{ClearingHouseId=9001,HolidayStrategy="Colombian"};c.ClearingHouseConfigs.Add(cfg);await c.SaveChangesAsync();var ch=new ClearingHouse{Name=code,Code=code,OriginCode="000101006",ClearingHouseId=cfg.Id};c.ClearingHouses.Add(ch);await c.SaveChangesAsync();return ch;}
+    static async Task<ClearingHouse> Ch(AchDbContext c,string code){var e=await c.ClearingHouses.FirstOrDefaultAsync(x=>x.Code==code);if(e!=null)return e;var cfg=new ClearingHouseConfig{ClearingHouseId=9000+Math.Abs(code.GetHashCode()%1000),HolidayStrategy="Colombian"};c.ClearingHouseConfigs.Add(cfg);await c.SaveChangesAsync();var ch=new ClearingHouse{Name=code,Code=code,OriginCode="000101006",ClearingHouseId=cfg.Id};c.ClearingHouses.Add(ch);await c.SaveChangesAsync();return ch;}
 }

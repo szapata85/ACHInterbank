@@ -123,6 +123,7 @@ public class AchReturnsService(
 
         var selectedIds = request.Items.Select(i => i.TransactionId).Distinct().ToList();
         var transactions = await context.AchTransactions
+            .Include(t => t.AchCycle)
             .Where(t => selectedIds.Contains(t.Id))
             .ToListAsync(ct);
 

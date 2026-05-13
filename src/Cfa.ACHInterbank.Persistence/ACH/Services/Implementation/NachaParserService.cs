@@ -1335,6 +1335,7 @@ public class NachaParserService : INachaParserService
         var normalized = traceReference.Trim();
 
         var transaction = await _context.AchTransactions
+            .Include(t => t.AchCycle)
             .FirstOrDefaultAsync(t => t.TraceNumber == normalized, ct);
 
         if (transaction is not null)
@@ -1349,6 +1350,7 @@ public class NachaParserService : INachaParserService
         }
 
         return await _context.AchTransactions
+            .Include(t => t.AchCycle)
             .FirstOrDefaultAsync(t => t.TraceSequenceNumber == sequenceNumber, ct);
     }
 
