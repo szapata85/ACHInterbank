@@ -2,66 +2,59 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-DOTNET_VERSION="10.0.203"
-DOTNET_CHANNEL="10.0"
-DOTNET_INSTALL_DIR="${HOME}/.dotnet"
-TOOLS_DIR="${HOME}/.dotnet/tools"
+DOTNET_ROOT="${DOTNET_ROOT:-$HOME/.dotnet}"
+DOTNET_BIN="$DOTNET_ROOT/dotnet"
+TOOLS_DIR="$DOTNET_ROOT/tools"
+GLOBAL_JSON="$ROOT_DIR/global.json"
+FALLBACK_SDK_VERSION="10.0.203"
 
-export DOTNET_ROOT="${DOTNET_INSTALL_DIR}"
-export PATH="${DOTNET_INSTALL_DIR}:${TOOLS_DIR}:${PATH}"
+log() { printf '[codex-setup] %s\n' "$*"; }
+fail() { printf '[codex-setup] ERROR: %s\n' "$*" >&2; exit 1; }
 
-log() { printf "[codex-setup] %s\n" "$*"; }
-need_cmd() { command -v "$1" >/dev/null 2>&1; }
+mkdir -p "$DOTNET_ROOT"
+export DOTNET_ROOT
+export PATH="$DOTNET_ROOT:$TOOLS_DIR:$PATH"
 
-install_dotnet() {
-  mkdir -p "${DOTNET_INSTALL_DIR}"
-  local installer
-  installer="$(mktemp)"
-  log "Descargando instalador oficial de .NET..."
-  if ! curl -fsSL https://dot.net/v1/dotnet-install.sh -o "${installer}"; then
-    log "No se pudo descargar dotnet-install.sh. Verifique conectividad/red corporativa."
-    exit 1
+SDK_VERSION="$FALLBACK_SDK_VERSION"
+if [[ -f "$GLOBAL_JSON" ]]; then
+  parsed="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([0-9.]*\)".*/\1/p' "$GLOBAL_JSON" | head -n1 || true)"
+  if [[ -n "$parsed" ]]; then
+    SDK_VERSION="$parsed"
   fi
-  chmod +x "${installer}"
-  log "Instalando .NET SDK ${DOTNET_VERSION} en ${DOTNET_INSTALL_DIR}"
-  "${installer}" --version "${DOTNET_VERSION}" --channel "${DOTNET_CHANNEL}" --install-dir "${DOTNET_INSTALL_DIR}"
-  rm -f "${installer}"
-}
+fi
+log "SDK objetivo: $SDK_VERSION"
 
-CURRENT_SDK=""
-if need_cmd dotnet; then
-  CURRENT_SDK="$(dotnet --version || true)"
+if [[ -x "$DOTNET_BIN" ]]; then
+  if timeout 20s "$DOTNET_BIN" --version >/dev/null 2>&1; then
+    log "dotnet ya está instalado y funcional: $(timeout 20s "$DOTNET_BIN" --version)"
+  else
+    log "dotnet existe pero no responde, se reinstalará."
+    rm -f "$DOTNET_BIN"
+  fi
 fi
 
-if [[ -z "${CURRENT_SDK}" || "${CURRENT_SDK}" != "${DOTNET_VERSION}" ]]; then
-  install_dotnet
-else
-  log "dotnet detectado (${CURRENT_SDK})."
+if [[ ! -x "$DOTNET_BIN" ]]; then
+  log "Descargando instalador oficial dotnet-install.sh"
+  timeout 180s curl -fsSL --connect-timeout 20 --max-time 120 https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
+    || fail "No se pudo descargar dotnet-install.sh"
+  chmod +x /tmp/dotnet-install.sh
+
+  log "Instalando .NET SDK $SDK_VERSION en $DOTNET_ROOT"
+  timeout 600s bash /tmp/dotnet-install.sh --version "$SDK_VERSION" --install-dir "$DOTNET_ROOT" --no-path \
+    || fail "Falló la instalación de .NET SDK $SDK_VERSION"
 fi
 
-if ! need_cmd dotnet; then
-  log "dotnet no quedó disponible en PATH tras instalación."
-  log "Instale manualmente ${DOTNET_VERSION} y exporte DOTNET_ROOT/PATH antes de reintentar."
-  exit 1
-fi
+log "Validando dotnet --version"
+timeout 20s "$DOTNET_BIN" --version || fail "dotnet --version falló"
+log "Validando dotnet --info"
+timeout 30s "$DOTNET_BIN" --info || fail "dotnet --info falló"
 
-log "dotnet --info"
-dotnet --info
-
-cd "${ROOT_DIR}"
-log "dotnet restore ACHInterbank.sln"
-dotnet restore ACHInterbank.sln
-
-log "dotnet build ACHInterbank.sln -c Release --no-restore"
-dotnet build ACHInterbank.sln -c Release --no-restore
-
-log "dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build"
-dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build
-
+cd "$ROOT_DIR"
 log "dotnet tool restore"
-dotnet tool restore
+timeout 300s "$DOTNET_BIN" tool restore || fail "dotnet tool restore falló"
 
-log "dotnet tool run dotnet-ef --version"
-dotnet tool run dotnet-ef --version
+log "Export sugerido para shell actual:"
+echo "export DOTNET_ROOT='$DOTNET_ROOT'"
+echo "export PATH='$DOTNET_ROOT:$TOOLS_DIR:\$PATH'"
 
-log "Setup y validación finalizados correctamente."
+log "Setup finalizado correctamente."
