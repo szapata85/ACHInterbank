@@ -123,15 +123,17 @@ public class RegulatoryCatalogSeeder : IDbSeeder
 
     private async Task UpsertReturnPoliciesAsync((int CenitId, int AchColombiaId) clearingHouseIds)
     {
-        // Fase 2.3B separará códigos y políticas por cámara.
-        // En esta fase solo se elimina la resolución global silenciosa.
-        var clearingHouseId = clearingHouseIds.CenitId;
-        var desired = BuildReturnPolicies().ToDictionary(x => x.TransactionType, StringComparer.OrdinalIgnoreCase);
+        // Fase 2.3B-3 separará políticas de devolución de devolución por cámara.
+        // En esta fase solo se separan políticas de devolución.
+        var desiredCodes = BuildReturnCodes(clearingHouseIds).ToList();
+        var desired = BuildReturnPolicies(clearingHouseIds, desiredCodes)
+            .ToDictionary(x => $"{x.ClearingHouseId}|{x.TransactionType}|{x.Direction}|{x.FlowType}", StringComparer.OrdinalIgnoreCase);
         var existing = await _context.AchReturnPolicies.ToListAsync();
 
         foreach (var row in existing)
         {
-            if (!desired.TryGetValue(row.TransactionType, out var model))
+            var key = $"{row.ClearingHouseId}|{row.TransactionType}|{row.Direction}|{row.FlowType}";
+            if (!desired.TryGetValue(key, out var model))
             {
                 continue;
             }
@@ -142,12 +144,18 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             row.AllowsReturnOfReturn = model.AllowsReturnOfReturn;
             row.RequiresAddenda = model.RequiresAddenda;
             row.IsActive = model.IsActive;
-            row.ClearingHouseId = clearingHouseId;
+            row.EffectiveFrom = model.EffectiveFrom;
+            row.EffectiveTo = model.EffectiveTo;
+            row.Direction = model.Direction;
+            row.FlowType = model.FlowType;
         }
 
-        foreach (var model in desired.Values.Where(x => existing.All(e => !string.Equals(e.TransactionType, x.TransactionType, StringComparison.OrdinalIgnoreCase))))
+        foreach (var model in desired.Values.Where(x => existing.All(e =>
+                     e.ClearingHouseId != x.ClearingHouseId
+                     || !string.Equals(e.TransactionType, x.TransactionType, StringComparison.OrdinalIgnoreCase)
+                     || !string.Equals(e.Direction, x.Direction, StringComparison.OrdinalIgnoreCase)
+                     || !string.Equals(e.FlowType, x.FlowType, StringComparison.OrdinalIgnoreCase))))
         {
-            model.ClearingHouseId = clearingHouseId;
             _context.AchReturnPolicies.Add(model);
         }
     }
@@ -309,14 +317,22 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         };
     }
 
-    private static IEnumerable<AchReturnPolicy> BuildReturnPolicies()
+    private static IEnumerable<AchReturnPolicy> BuildReturnPolicies((int CenitId, int AchColombiaId) clearingHouseIds, IReadOnlyCollection<AchReturnCode> returnCodes)
     {
+        var cenitCodes = returnCodes.Where(x => x.ClearingHouseId == clearingHouseIds.CenitId).Select(x => x.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var achCodes = returnCodes.Where(x => x.ClearingHouseId == clearingHouseIds.AchColombiaId).Select(x => x.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        static string FilterCodes(string csv, HashSet<string> allowed) => string.Join(',', csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(allowed.Contains));
+
         return new[]
         {
-            new AchReturnPolicy { TransactionType = "Debit", AllowedReturnCodesCsv = "R01,R02,R03,R04,R06,R07,R08,R09,R10,R12,R13,R14,R15,R16,R17,R20,R23,R29,R31,DEV14", MaxDays = 60, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true },
-            new AchReturnPolicy { TransactionType = "Credit", AllowedReturnCodesCsv = "R03,R04,R20,R23,R31", MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true },
-            new AchReturnPolicy { TransactionType = "Prenotification", AllowedReturnCodesCsv = "R03,R29", MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = false, RequiresAddenda = true, IsActive = true },
-            new AchReturnPolicy { TransactionType = "Return", AllowedReturnCodesCsv = "R01,R02,R03,R09,R10", MaxDays = 15, RequiredOriginalTransactionState = "ReturnedByEpr", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true }
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.CenitId, TransactionType = "Debit", AllowedReturnCodesCsv = FilterCodes("R01,R02,R03,R04,R06,R07,R08,R09,R10,R12,R13,R14,R15,R16,R17,R20,R23,R29,R31,DEV14", cenitCodes), MaxDays = 60, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.AchColombiaId, TransactionType = "Debit", AllowedReturnCodesCsv = FilterCodes("R01,R02,R03,R04,R06,R07,R08,R09,R10,R12,R13,R14,R15,R16,R17,R20,R23,R29,R31,DEV14", achCodes), MaxDays = 60, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.CenitId, TransactionType = "Credit", AllowedReturnCodesCsv = FilterCodes("R03,R04,R20,R23,R31", cenitCodes), MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.AchColombiaId, TransactionType = "Credit", AllowedReturnCodesCsv = FilterCodes("R03,R04,R20,R23,R31", achCodes), MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.CenitId, TransactionType = "Prenotification", AllowedReturnCodesCsv = FilterCodes("R03,R29", cenitCodes), MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = false, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.AchColombiaId, TransactionType = "Prenotification", AllowedReturnCodesCsv = FilterCodes("R03,R29", achCodes), MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = false, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.CenitId, TransactionType = "Return", AllowedReturnCodesCsv = FilterCodes("R01,R02,R03,R09,R10", cenitCodes), MaxDays = 15, RequiredOriginalTransactionState = "ReturnedByEpr", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.AchColombiaId, TransactionType = "Return", AllowedReturnCodesCsv = FilterCodes("R01,R02,R03,R09,R10", achCodes), MaxDays = 15, RequiredOriginalTransactionState = "ReturnedByEpr", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null }
         };
     }
 
