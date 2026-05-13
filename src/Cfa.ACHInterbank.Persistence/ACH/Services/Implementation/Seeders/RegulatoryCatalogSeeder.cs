@@ -176,7 +176,12 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             .OrderBy(x => x.Id)
             .Select(x => x.Id)
             .FirstOrDefaultAsync();
-        return candidate == 0 ? 1 : candidate;
+        if (candidate == 0)
+        {
+            throw new InvalidOperationException("No existe ClearingHouse para sembrar catálogos regulatorios de devolución.");
+        }
+
+        return candidate;
     }
 
     private async Task UpsertPrenotificationPoliciesAsync()

@@ -24,6 +24,26 @@ public class RegulatoryCatalogSeederTests
     }
 
     [Fact]
+    public async Task Seeder_ShouldFailClearly_WhenNoClearingHouseExists()
+    {
+        var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection)
+            .EnableSensitiveDataLogging()
+            .Options;
+
+        await using var context = new AchDbContext(options);
+        context.Database.EnsureCreated();
+        context.ClearingHouses.RemoveRange(context.ClearingHouses);
+        await context.SaveChangesAsync();
+
+        var sut = new RegulatoryCatalogSeeder(context);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.SeedAsync());
+        Assert.Contains("ClearingHouse", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task SeedAsync_ShouldRepairDriftAndInsertMissingRows_WhenCatalogsArePartial()
     {
         await using var context = await CreateContextAsync();
