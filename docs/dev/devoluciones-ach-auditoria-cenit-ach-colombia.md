@@ -352,3 +352,11 @@ Commits sugeridos para Fase 3:
 - No hubo cambios en formato NACHA, naming ni estados finales.
 - Límite actual: no cubre múltiples instancias/nodos.
 - Pendiente UAT/hardening: índice único y/o lock DB/distribuido para concurrencia multi-nodo.
+
+## Avance Fase 3.5 - Cobertura de generación por cámara
+
+- Se agregaron pruebas de generación de devolución para CENIT y ACH Colombia.
+- El flujo depende de elegibilidad por cámara antes de generar archivo.
+- Se valida que un rechazo por causal/cámara no genera `AchReturnGenerated`.
+- Se mantiene sin cambios formato NACHA, naming, golden master y estados.
+- Pendiente: golden master específico por cámara para UAT con archivos reales CENIT/ACH.
