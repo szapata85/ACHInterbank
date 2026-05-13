@@ -20,12 +20,14 @@ public class RegulatoryCatalogSeeder : IDbSeeder
 
     public async Task SeedAsync()
     {
-        var clearingHouseId = await ResolveDefaultClearingHouseIdAsync();
-        await UpsertReturnCodesAsync(clearingHouseId);
+        var clearingHouseIds = await ResolveReturnClearingHouseIdsAsync();
+        // Fase 2.3B separará códigos y políticas por cámara.
+        // En esta fase solo se elimina la resolución global silenciosa.
+        await UpsertReturnCodesAsync(clearingHouseIds.CenitId);
         await UpsertFileRejectionCodesAsync();
         await UpsertTransactionTypePoliciesAsync();
-        await UpsertReturnPoliciesAsync(clearingHouseId);
-        await UpsertReturnOfReturnPoliciesAsync(clearingHouseId);
+        await UpsertReturnPoliciesAsync(clearingHouseIds.CenitId);
+        await UpsertReturnOfReturnPoliciesAsync(clearingHouseIds.CenitId);
         await UpsertPrenotificationPoliciesAsync();
 
         await _context.SaveChangesAsync();
@@ -163,15 +165,37 @@ public class RegulatoryCatalogSeeder : IDbSeeder
     }
 
 
-    private async Task<int> ResolveDefaultClearingHouseIdAsync()
+    private async Task<(int CenitId, int AchColombiaId)> ResolveReturnClearingHouseIdsAsync()
     {
-        var id = await _context.ClearingHouses.OrderBy(x => x.Id).Select(x => x.Id).FirstOrDefaultAsync();
-        if (id == 0)
+        var clearingHouses = await _context.ClearingHouses.AsNoTracking().ToListAsync();
+
+        var cenitId = clearingHouses
+            .Where(x => !string.IsNullOrWhiteSpace(x.Code) || !string.IsNullOrWhiteSpace(x.Name))
+            .Where(x => (x.Code ?? string.Empty).Contains("CENIT", StringComparison.OrdinalIgnoreCase)
+                        || (x.Name ?? string.Empty).Contains("CENIT", StringComparison.OrdinalIgnoreCase))
+            .Select(x => x.Id)
+            .FirstOrDefault();
+
+        if (cenitId == 0)
         {
-            throw new InvalidOperationException("No existe ClearingHouse para sembrar catálogos regulatorios de devolución.");
+            throw new InvalidOperationException("No existe ClearingHouse CENIT para sembrar catálogos regulatorios de devolución.");
         }
 
-        return id;
+        var achColombiaId = clearingHouses
+            .Where(x => !string.IsNullOrWhiteSpace(x.Code) || !string.IsNullOrWhiteSpace(x.Name))
+            .Where(x => (x.Code ?? string.Empty).Contains("ACH", StringComparison.OrdinalIgnoreCase)
+                        || (x.Name ?? string.Empty).Contains("ACH", StringComparison.OrdinalIgnoreCase)
+                        || (x.Name ?? string.Empty).Contains("ACH COLOMBIA", StringComparison.OrdinalIgnoreCase)
+                        || (x.Name ?? string.Empty).Contains("ACHCOLOMBIA", StringComparison.OrdinalIgnoreCase))
+            .Select(x => x.Id)
+            .FirstOrDefault(id => id != cenitId);
+
+        if (achColombiaId == 0)
+        {
+            throw new InvalidOperationException("No existe ClearingHouse ACH Colombia para sembrar catálogos regulatorios de devolución.");
+        }
+
+        return (cenitId, achColombiaId);
     }
 
     private async Task UpsertPrenotificationPoliciesAsync()

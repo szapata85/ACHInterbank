@@ -12,7 +12,7 @@ public class RegulatoryCatalogSeederTests
     public async Task SeedAsync_ShouldPopulateBaselineInboundCatalogs_WhenDatabaseIsEmpty()
     {
         await using var context = await CreateContextAsync();
-        await EnsureClearingHouseAsync(context);
+        await EnsureClearingHousesAsync(context);
         var sut = new RegulatoryCatalogSeeder(context);
 
         await sut.SeedAsync();
@@ -28,11 +28,11 @@ public class RegulatoryCatalogSeederTests
     public async Task SeedAsync_ShouldRepairDriftAndInsertMissingRows_WhenCatalogsArePartial()
     {
         await using var context = await CreateContextAsync();
-        var clearingHouse = await EnsureClearingHouseAsync(context);
+        var clearingHouse = await EnsureClearingHousesAsync(context);
 
         context.AchReturnCodes.Add(new AchReturnCode
         {
-            ClearingHouseId = clearingHouse.Id,
+            ClearingHouseId = clearingHouse.Cenit.Id,
             FlowType = AchReturnFlowType.Any,
             EffectiveFrom = DateTime.UtcNow.Date.AddDays(-30),
             Code = "R01",
@@ -79,19 +79,23 @@ public class RegulatoryCatalogSeederTests
     }
 
 
-    private static async Task<ClearingHouse> EnsureClearingHouseAsync(AchDbContext context)
+    private static async Task<(ClearingHouse Cenit, ClearingHouse AchColombia)> EnsureClearingHousesAsync(AchDbContext context)
     {
-        var existing = await context.ClearingHouses.OrderBy(x => x.Id).FirstOrDefaultAsync();
-        if (existing is not null) return existing;
+        var cenitExisting = await context.ClearingHouses.FirstOrDefaultAsync(x => x.Code == "CENIT");
+        var achExisting = await context.ClearingHouses.FirstOrDefaultAsync(x => x.Code == "ACH");
+        if (cenitExisting is not null && achExisting is not null) return (cenitExisting, achExisting);
 
-        var config = new ClearingHouseConfig { HolidayStrategy = "Colombian" };
-        context.ClearingHouseConfigs.Add(config);
+        var configCenit = new ClearingHouseConfig { ClearingHouseId = 5001, HolidayStrategy = "Colombian" };
+        var configAch = new ClearingHouseConfig { ClearingHouseId = 5002, HolidayStrategy = "Colombian" };
+        context.ClearingHouseConfigs.AddRange(configCenit, configAch);
         await context.SaveChangesAsync();
 
-        var clearingHouse = new ClearingHouse { Name = "CENIT", Code = "CENIT", OriginCode = "000101006", ClearingHouseId = config.Id };
-        context.ClearingHouses.Add(clearingHouse);
+        var cenit = cenitExisting ?? new ClearingHouse { Name = "CENIT", Code = "CENIT", OriginCode = "000101006", ClearingHouseId = configCenit.Id };
+        var ach = achExisting ?? new ClearingHouse { Name = "ACH Colombia", Code = "ACH", OriginCode = "000101007", ClearingHouseId = configAch.Id };
+        if (cenitExisting is null) context.ClearingHouses.Add(cenit);
+        if (achExisting is null) context.ClearingHouses.Add(ach);
         await context.SaveChangesAsync();
-        return clearingHouse;
+        return (cenit, ach);
     }
 
     private static async Task<AchDbContext> CreateContextAsync()
