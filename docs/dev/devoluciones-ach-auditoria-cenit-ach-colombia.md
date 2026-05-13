@@ -360,3 +360,123 @@ Commits sugeridos para Fase 3:
 - Se valida que un rechazo por causal/cámara no genera `AchReturnGenerated`.
 - Se mantiene sin cambios formato NACHA, naming, golden master y estados.
 - Pendiente: golden master específico por cámara para UAT con archivos reales CENIT/ACH.
+
+## Plan UAT - Devoluciones de salida
+
+### Objetivo UAT
+
+Validar operativamente que el proceso de devolución de salida:
+- respeta cámara CENIT / ACH Colombia;
+- valida causal por cámara;
+- valida plazo máximo por política regulatoria;
+- valida estado/addenda;
+- evita duplicados;
+- controla concurrencia básica in-process;
+- genera archivo sin cambios de formato/naming;
+- registra evidencia en `AchReturnGenerated`;
+- mantiene golden master existente sin alteraciones.
+
+### Matriz de casos UAT por cámara
+
+| ID caso | Cámara | Escenario | Datos mínimos | Resultado esperado | Evidencia técnica | Estado esperado |
+|---|---|---|---|---|---|---|
+| UAT-SAL-001 | CENIT | Devolución válida | Tx CENIT elegible + causal válida | Se genera archivo y devolución | `AchReturnGenerated` con `ReturnCycleId` CENIT y `ReturnReasonCode` normalizado | Aprobado |
+| UAT-SAL-002 | ACH Colombia | Devolución válida | Tx ACH elegible + causal válida | Se genera archivo y devolución | `AchReturnGenerated` con ciclo ACH correcto | Aprobado |
+| UAT-SAL-003 | CENIT | Causal cruzada no CENIT | Tx CENIT + causal de otra cámara | Rechazo antes de generar | No existe `AchReturnGenerated` para la tx | Rechazado controlado |
+| UAT-SAL-004 | ACH Colombia | Causal cruzada no ACH | Tx ACH + causal de otra cámara | Rechazo antes de generar | No existe `AchReturnGenerated` para la tx | Rechazado controlado |
+| UAT-SAL-005 | CENIT | Plazo excedido | Tx CENIT fuera de ventana | `RETURN_POLICY_REJECTED` | Mensaje de política regulatoria | Rechazado controlado |
+| UAT-SAL-006 | ACH Colombia | Plazo excedido | Tx ACH fuera de ventana | `RETURN_POLICY_REJECTED` | Mensaje de política regulatoria | Rechazado controlado |
+| UAT-SAL-007 | Ambas | Tx repetida en request | Mismo `TransactionId` duplicado | Rechazo por duplicado antes de generar | Sin archivo parcial ni filas nuevas | Rechazado controlado |
+| UAT-SAL-008 | Ambas | Tx ya devuelta por estado | `ReturnedByOperator` / `ReturnedByEpr` | `RETURN_ALREADY_PROCESSED` | Failure estructurado | Rechazado controlado |
+| UAT-SAL-009 | Ambas | Tx ya incluida | Existe `AchReturnGenerated` previo | `RETURN_ALREADY_INCLUDED_IN_FILE` | Failure estructurado + sin nueva fila | Rechazado controlado |
+| UAT-SAL-010 | Ambas | 2 solicitudes simultáneas misma tx | Concurrencia misma `TransactionId` | Serialización por lock in-process | Trazas/orden de ejecución | Aprobado |
+| UAT-SAL-011 | Ambas | Paralelo tx distintas | Dos `TransactionId` distintos | Sin bloqueo innecesario | Tiempos/orden de tareas | Aprobado |
+| UAT-SAL-012 | Ambas | Golden master/formato | Suite de generación actual | Sin cambios de formato/naming | `AchPreproductionCertificationTests` / `AchTransactionNachaTests` en verde | Aprobado |
+
+### Validación de causal y plazo
+
+- Causal obligatoria.
+- Normalización `trim + uppercase`.
+- Preservación de códigos alfanuméricos como `DEV14`.
+- Validación por `ClearingHouseId`.
+- Plazo máximo delegado a política regulatoria (`ValidateReturnPolicyAsync`).
+- Estado y addenda delegados a política regulatoria.
+
+### Validación de idempotencia
+
+- Duplicado dentro del request.
+- Estado `ReturnedByOperator` / `ReturnedByEpr`.
+- Existencia previa en `AchReturnGenerated`.
+- Comportamiento esperado: no generar archivo parcial.
+
+### Validación de concurrencia
+
+- Lock in-process por `TransactionId`.
+- Adquisición en orden ascendente estable.
+- No cubre multi-nodo.
+- Recomendación UAT: ejecutar pruebas simultáneas en una sola instancia y registrar trazas.
+
+### Evidencias esperadas en AchReturnGenerated
+
+Campos a revisar:
+- `OriginalTransactionId`
+- `ReturnCycleId`
+- `ReturnReasonCode`
+- `Amount`
+- `OriginalSequenceNumber`
+- `NewSequenceNumber`
+- `ReceiverEntityCode`
+- `OriginatorEntityCode`
+- `FileName`
+- `GeneratedAtUtc`
+
+SQL orientativo:
+
+```sql
+SELECT *
+FROM AchReturnGenerated
+WHERE OriginalTransactionId = <id>;
+
+SELECT OriginalTransactionId, COUNT(*)
+FROM AchReturnGenerated
+GROUP BY OriginalTransactionId
+HAVING COUNT(*) > 1;
+```
+
+> Nota: nombres reales de tabla/columna pueden variar según provider/EF.
+
+### Validación de golden master
+
+- No modificar archivos expected.
+- Ejecutar suite completa.
+- Revisar tests existentes (`AchPreproductionCertificationTests`, `AchTransactionNachaTests`).
+- Confirmar que formato/naming no cambió.
+
+### Riesgos UAT pendientes
+
+| Riesgo | Impacto | Control actual | Control futuro recomendado | Fase sugerida |
+|---|---|---|---|---|
+| Lock actual solo in-process | Carrera entre instancias | Lock por `TransactionId` en proceso único | Índice único y/o lock DB/distribuido | Fase 4.x |
+| Multi-nodo puede generar carrera | Doble devolución | Idempotencia por estado + `AchReturnGenerated` | Restricción fuerte por `OriginalTransactionId` + aislamiento transaccional | Fase 4.x |
+| Catálogo técnico difiere de regla real de cámara | Rechazos funcionales en UAT | Validación por catálogo actual por cámara | Certificación regulatoria final por cámara | Fase 5 |
+| Diferencias formato/naming por cámara | Rechazo por cámara | Golden master actual | Golden master específico CENIT/ACH | Fase 5 |
+| Rechazo parcial vs total no totalmente parametrizado | Ambigüedad operativa | Rechazo controlado por políticas vigentes | Parametrización explícita parcial/total | Fase 6 |
+| Contabilidad/conciliación pendiente | Riesgo de descuadre | Evidencia técnica de generación | Cierre contable/conciliación end-to-end | Fase 7 |
+
+### Checklist operativo UAT
+
+- [ ] Confirmar catálogo CENIT cargado.
+- [ ] Confirmar catálogo ACH Colombia cargado.
+- [ ] Ejecutar devolución válida CENIT.
+- [ ] Ejecutar devolución válida ACH.
+- [ ] Probar causal cruzada.
+- [ ] Probar plazo vencido.
+- [ ] Probar transacción repetida en request.
+- [ ] Probar transacción ya devuelta.
+- [ ] Probar `AchReturnGenerated` previo.
+- [ ] Probar concurrencia misma transacción.
+- [ ] Probar concurrencia transacciones distintas.
+- [ ] Ejecutar suite automatizada.
+- [ ] Revisar golden master.
+- [ ] Registrar evidencias SQL.
+- [ ] Registrar riesgos no bloqueantes.
