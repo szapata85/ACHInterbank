@@ -185,4 +185,7 @@ Se revisaron los artefactos solicitados en dominio, aplicación, persistencia, A
 - Las políticas de devolución (`AchReturnPolicy`) ya se separan por cámara.
 - `AllowedReturnCodesCsv` ya no mezcla códigos CENIT con ACH/OPERADOR.
 - `UpsertReturnPoliciesAsync` ya usa clave funcional `ClearingHouseId + TransactionType + Direction + FlowType`.
-- Las políticas de devolución y de devolución de devolución por cámara quedan pendientes para siguientes commits.
+- Las políticas de devolución de devolución (`AchReturnOfReturnPolicy`) ya se separan por cámara.
+- `AllowedNewReturnCodesCsv` ya no mezcla códigos entre cámaras.
+- `UpsertReturnOfReturnPoliciesAsync` ya usa clave funcional `ClearingHouseId + OriginalReturnCode + Direction + FlowType`.
+- Fase 2.3B queda cerrada.
