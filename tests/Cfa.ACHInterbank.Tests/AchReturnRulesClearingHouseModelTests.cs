@@ -1,4 +1,3 @@
-using System.IO;
 using System.Linq;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -35,13 +34,12 @@ public class AchReturnRulesClearingHouseModelTests
     }
 
     [Fact]
-    public void Migration_ShouldNotUseDefaultZeroClearingHouseId()
+    public void ReturnRules_ShouldNotConfigureDefaultZeroForClearingHouseId()
     {
-        var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
-        var migrationPath = Path.Combine(repoRoot, "src", "Cfa.ACHInterbank.Persistence", "DataBase", "Migrations", "Postgres", "20260512231333_AddClearingHouseToReturnRules.cs");
-        var content = File.ReadAllText(migrationPath);
-
-        Assert.DoesNotContain("defaultValue: 0", content);
+        using var context = BuildContext();
+        AssertNoDefaultValue<AchReturnCode>(context, nameof(AchReturnCode.ClearingHouseId));
+        AssertNoDefaultValue<AchReturnPolicy>(context, nameof(AchReturnPolicy.ClearingHouseId));
+        AssertNoDefaultValue<AchReturnOfReturnPolicy>(context, nameof(AchReturnOfReturnPolicy.ClearingHouseId));
     }
 
     [Fact]
@@ -99,5 +97,15 @@ public class AchReturnRulesClearingHouseModelTests
         var property = entityType!.FindProperty(propertyName);
         Assert.NotNull(property);
         Assert.Equal(nullable, property!.IsNullable);
+    }
+
+    private static void AssertNoDefaultValue<TEntity>(AchDbContext context, string propertyName)
+    {
+        var entityType = context.Model.FindEntityType(typeof(TEntity));
+        var property = entityType!.FindProperty(propertyName);
+        Assert.NotNull(property);
+        Assert.False(property!.IsNullable);
+        Assert.Equal(ValueGenerated.Never, property.ValueGenerated);
+        Assert.Null(property.GetDefaultValueSql());
     }
 }
