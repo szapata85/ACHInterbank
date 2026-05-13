@@ -169,3 +169,9 @@ Se revisaron los artefactos solicitados en dominio, aplicación, persistencia, A
 - Se agregó segmentación funcional con `Direction`/`FlowType` (según corresponda por entidad) para preparar separación por flujo.
 - La migración `AddClearingHouseToReturnRules` se validó de forma local para inspección técnica, pero **no se versiona** en esta tarea por política.
 - Queda pendiente la Fase 2.2: aplicar validación regulatoria efectiva por cámara en servicios funcionales.
+
+## Avance Fase 2.3A
+
+- `RegulatoryCatalogSeeder` ahora resuelve explícitamente las cámaras CENIT y ACH Colombia.
+- Se eliminó la resolución global silenciosa de una sola cámara para sembrado regulatorio de devoluciones.
+- La separación real de códigos y políticas por cámara queda pendiente para la Fase 2.3B.

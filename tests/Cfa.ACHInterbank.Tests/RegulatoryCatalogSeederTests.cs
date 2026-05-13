@@ -40,7 +40,7 @@ public class RegulatoryCatalogSeederTests
 
         var sut = new RegulatoryCatalogSeeder(context);
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.SeedAsync());
-        Assert.Contains("ClearingHouse", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CENIT", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -106,7 +106,8 @@ public class RegulatoryCatalogSeederTests
 
         var context = new AchDbContext(options);
         context.Database.EnsureCreated();
-        await EnsureClearingHouseAsync(context);
+        await EnsureClearingHouseAsync(context, "CENIT", "CENIT");
+        await EnsureClearingHouseAsync(context, "ACH", "ACH Colombia");
         return context;
     }
 
@@ -115,7 +116,7 @@ public class RegulatoryCatalogSeederTests
         var existing = await context.ClearingHouses.FirstOrDefaultAsync(x => x.Code == code);
         if (existing is not null) return existing;
 
-        var config = new ClearingHouseConfig { ClearingHouseId = 9001, HolidayStrategy = "Colombian" };
+        var config = new ClearingHouseConfig { ClearingHouseId = 9000 + Math.Abs(code.GetHashCode() % 1000), HolidayStrategy = "Colombian" };
         context.ClearingHouseConfigs.Add(config);
         await context.SaveChangesAsync();
 

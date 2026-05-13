@@ -20,19 +20,22 @@ public class RegulatoryCatalogSeeder : IDbSeeder
 
     public async Task SeedAsync()
     {
-        await UpsertReturnCodesAsync();
+        var clearingHouseIds = await ResolveReturnClearingHouseIdsAsync();
+        await UpsertReturnCodesAsync(clearingHouseIds);
         await UpsertFileRejectionCodesAsync();
         await UpsertTransactionTypePoliciesAsync();
-        await UpsertReturnPoliciesAsync();
-        await UpsertReturnOfReturnPoliciesAsync();
+        await UpsertReturnPoliciesAsync(clearingHouseIds);
+        await UpsertReturnOfReturnPoliciesAsync(clearingHouseIds);
         await UpsertPrenotificationPoliciesAsync();
 
         await _context.SaveChangesAsync();
     }
 
-    private async Task UpsertReturnCodesAsync()
+    private async Task UpsertReturnCodesAsync((int CenitId, int AchColombiaId) clearingHouseIds)
     {
-        var clearingHouseId = await ResolveDefaultClearingHouseIdAsync();
+        // Fase 2.3B separará códigos y políticas por cámara.
+        // En esta fase solo se elimina la resolución global silenciosa.
+        var clearingHouseId = clearingHouseIds.CenitId;
         var desired = BuildReturnCodes().ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
         var existing = await _context.AchReturnCodes.ToListAsync();
 
@@ -113,9 +116,11 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         }
     }
 
-    private async Task UpsertReturnPoliciesAsync()
+    private async Task UpsertReturnPoliciesAsync((int CenitId, int AchColombiaId) clearingHouseIds)
     {
-        var clearingHouseId = await ResolveDefaultClearingHouseIdAsync();
+        // Fase 2.3B separará códigos y políticas por cámara.
+        // En esta fase solo se elimina la resolución global silenciosa.
+        var clearingHouseId = clearingHouseIds.CenitId;
         var desired = BuildReturnPolicies().ToDictionary(x => x.TransactionType, StringComparer.OrdinalIgnoreCase);
         var existing = await _context.AchReturnPolicies.ToListAsync();
 
@@ -142,9 +147,11 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         }
     }
 
-    private async Task UpsertReturnOfReturnPoliciesAsync()
+    private async Task UpsertReturnOfReturnPoliciesAsync((int CenitId, int AchColombiaId) clearingHouseIds)
     {
-        var clearingHouseId = await ResolveDefaultClearingHouseIdAsync();
+        // Fase 2.3B separará códigos y políticas por cámara.
+        // En esta fase solo se elimina la resolución global silenciosa.
+        var clearingHouseId = clearingHouseIds.CenitId;
         var desired = BuildReturnOfReturnPolicies().ToDictionary(x => x.OriginalReturnCode, StringComparer.OrdinalIgnoreCase);
         var existing = await _context.AchReturnOfReturnPolicies.ToListAsync();
 
@@ -170,19 +177,37 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         }
     }
 
-    private async Task<int> ResolveDefaultClearingHouseIdAsync()
+    private async Task<(int CenitId, int AchColombiaId)> ResolveReturnClearingHouseIdsAsync()
     {
-        var candidate = await _context.ClearingHouses.AsNoTracking()
-            .OrderBy(x => x.Id)
-            .Select(x => x.Id)
-            .FirstOrDefaultAsync();
-        if (candidate == 0)
+        var clearingHouses = await _context.ClearingHouses
+            .AsNoTracking()
+            .Select(x => new { x.Id, x.Code, x.Name })
+            .ToListAsync();
+
+        var cenit = clearingHouses.FirstOrDefault(x =>
+            ContainsToken(x.Code, "CENIT") ||
+            ContainsToken(x.Name, "CENIT"));
+        if (cenit is null)
         {
-            throw new InvalidOperationException("No existe ClearingHouse para sembrar catálogos regulatorios de devolución.");
+            throw new InvalidOperationException("No existe ClearingHouse CENIT para sembrar catálogos regulatorios de devolución.");
         }
 
-        return candidate;
+        var achColombia = clearingHouses.FirstOrDefault(x =>
+            ContainsToken(x.Code, "ACH") ||
+            ContainsToken(x.Name, "ACH COLOMBIA") ||
+            ContainsToken(x.Name, "ACHCOLOMBIA") ||
+            ContainsToken(x.Name, "ACH"));
+        if (achColombia is null)
+        {
+            throw new InvalidOperationException("No existe ClearingHouse ACH Colombia para sembrar catálogos regulatorios de devolución.");
+        }
+
+        return (cenit.Id, achColombia.Id);
     }
+
+    private static bool ContainsToken(string? source, string token)
+        => !string.IsNullOrWhiteSpace(source)
+           && source.Contains(token, StringComparison.OrdinalIgnoreCase);
 
     private async Task UpsertPrenotificationPoliciesAsync()
     {
