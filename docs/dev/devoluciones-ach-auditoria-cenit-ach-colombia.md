@@ -480,3 +480,13 @@ HAVING COUNT(*) > 1;
 - [ ] Revisar golden master.
 - [ ] Registrar evidencias SQL.
 - [ ] Registrar riesgos no bloqueantes.
+
+## Avance Fase 4.1 - Ingesta centralizada de devoluciones de entrada
+
+- Se creó un servicio central de ingesta de devoluciones de entrada (`IAchIncomingReturnIngestionService`).
+- Se separan responsabilidades de parseo, clasificación de retornos y linking contra transacción original.
+- `ClearingHouseId` se resuelve desde la transacción/ciclo original cuando existe vínculo.
+- Se reportan fallas estructuradas (`FILE_EMPTY`, `ORIGINAL_TRACE_MISSING`, `ORIGINAL_TRANSACTION_NOT_FOUND`, `CLEARING_HOUSE_MISSING`, `RETURN_REASON_MISSING`).
+- En esta fase no se cambian estados finales de transacciones.
+- En esta fase no se define rechazo total/parcial.
+- Pendientes: validación regulatoria de entrada, duplicados, rechazo total/parcial, auditoría de payload y actualización de estado.

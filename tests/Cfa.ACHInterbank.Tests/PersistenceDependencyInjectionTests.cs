@@ -67,6 +67,23 @@ public class PersistenceDependencyInjectionTests
         Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
     }
 
+
+    [Fact]
+    public void AddPersistence_RegistersAchIncomingReturnIngestionService_AsScoped()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Database:Provider"] = "sqlserver",
+            ["ConnectionStrings:SqlConnection"] = "Server=(localdb)\\MSSQLLocalDB;Database=AchInterbank;Trusted_Connection=True;"
+        }).Build();
+        services.AddPersistence(configuration);
+        var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IAchIncomingReturnIngestionService));
+        Assert.NotNull(descriptor);
+        Assert.Equal(typeof(AchIncomingReturnIngestionService), descriptor!.ImplementationType);
+        Assert.Equal(ServiceLifetime.Scoped, descriptor.Lifetime);
+    }
+
     [Fact]
     public void AddPersistence_ThrowsClearErrorWhenNoConnectionStringIsConfigured()
     {
