@@ -161,12 +161,3 @@ Se revisaron los artefactos solicitados en dominio, aplicación, persistencia, A
 9. `feat(returns): parametrizar nombres de archivo y códigos entidad por cámara`  
 10. `docs(returns): plan UAT devoluciones salida/entrada`
 
-
-## Avance Fase 2.1
-
-- Las reglas de devolución (`AchReturnCode`, `AchReturnPolicy`, `AchReturnOfReturnPolicy`) ahora incluyen `ClearingHouseId` para segregación explícita por cámara.
-- Se agregó vigencia normativa con `EffectiveFrom` y `EffectiveTo` en las tres entidades.
-- Se incorporaron `Direction` y/o `FlowType` para soportar clasificación por dirección/flujo regulatorio.
-- Pendiente: servicio regulatorio por cámara (`AchRegulatoryCatalogService` por cámara).
-- Pendiente: seeds reales CENIT/ACH Colombia.
-- Pendiente: generación de archivos, naming, códigos de entidad, actualización de estado y UAT integral.

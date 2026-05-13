@@ -13,12 +13,11 @@ public class AchRegulatoryCatalogServiceTests
     public async Task ValidateReturnCode_AllowsConfiguredCode()
     {
         await using var context = await CreateContextAsync();
-        var clearingHouseId = await CreateClearingHouseAsync(context);
-        context.AchReturnCodes.Add(new AchReturnCode { ClearingHouseId = clearingHouseId, Code = "R01", Description = "Fondos insuficientes", FlowType = AchReturnFlowType.Any, EffectiveFrom = DateTime.UtcNow.Date.AddDays(-30), AppliesToDebit = true, IsActive = true });
+        context.AchReturnCodes.Add(new AchReturnCode { Code = "R01", Description = "Fondos insuficientes", AppliesToDebit = true, IsActive = true });
         await context.SaveChangesAsync();
 
         var sut = new AchRegulatoryCatalogService(context);
-        var result = await sut.ValidateReturnCodeAsync(1, "R01", TransactionTypeEnum.Debit, DateTime.UtcNow.Date, DateTime.UtcNow.Date, CancellationToken.None);
+        var result = await sut.ValidateReturnCodeAsync("R01", TransactionTypeEnum.Debit, DateTime.UtcNow.Date, DateTime.UtcNow.Date, CancellationToken.None);
 
         Assert.True(result.IsAllowed);
     }
@@ -29,7 +28,7 @@ public class AchRegulatoryCatalogServiceTests
         await using var context = await CreateContextAsync();
         var sut = new AchRegulatoryCatalogService(context);
 
-        var result = await sut.ValidateReturnCodeAsync(1, "R99", TransactionTypeEnum.Debit, DateTime.UtcNow.Date, DateTime.UtcNow.Date, CancellationToken.None);
+        var result = await sut.ValidateReturnCodeAsync("R99", TransactionTypeEnum.Debit, DateTime.UtcNow.Date, DateTime.UtcNow.Date, CancellationToken.None);
 
         Assert.False(result.IsAllowed);
     }
@@ -38,23 +37,19 @@ public class AchRegulatoryCatalogServiceTests
     public async Task ReturnOfReturnPolicy_EnforcesMaxDays()
     {
         await using var context = await CreateContextAsync();
-        var clearingHouseId = await CreateClearingHouseAsync(context);
         context.AchReturnOfReturnPolicies.Add(new AchReturnOfReturnPolicy
         {
-            ClearingHouseId = clearingHouseId,
             OriginalReturnCode = "R01",
             AllowedNewReturnCodesCsv = "R02",
             MaxDays = 2,
             RequiredOriginalState = "ReturnedByOperator",
-            Direction = AchReturnDirection.Any,
-            FlowType = AchReturnFlowType.ReturnOfReturn,
-            EffectiveFrom = DateTime.UtcNow.Date.AddDays(-30),
-            IsUniquePerTransaction = true
+            IsUniquePerTransaction = true,
+            IsActive = true
         });
         await context.SaveChangesAsync();
 
         var sut = new AchRegulatoryCatalogService(context);
-        var result = await sut.ValidateReturnOfReturnAsync(1, "R01", "R02", "ReturnedByOperator", DateTime.UtcNow.Date.AddDays(-5), DateTime.UtcNow.Date, CancellationToken.None);
+        var result = await sut.ValidateReturnOfReturnAsync("R01", "R02", "ReturnedByOperator", DateTime.UtcNow.Date.AddDays(-5), DateTime.UtcNow.Date, CancellationToken.None);
 
         Assert.False(result.IsAllowed);
     }
@@ -63,23 +58,19 @@ public class AchRegulatoryCatalogServiceTests
     public async Task ReturnPolicy_ValidatesAllowedCodeAndAddenda()
     {
         await using var context = await CreateContextAsync();
-        var clearingHouseId = await CreateClearingHouseAsync(context);
         context.AchReturnPolicies.Add(new AchReturnPolicy
         {
-            ClearingHouseId = clearingHouseId,
             TransactionType = "Debit",
             AllowedReturnCodesCsv = "R01,R02",
             MaxDays = 5,
             RequiredOriginalTransactionState = "Pending",
-            Direction = AchReturnDirection.Any,
-            FlowType = AchReturnFlowType.Return,
-            EffectiveFrom = DateTime.UtcNow.Date.AddDays(-30),
-            RequiresAddenda = true
+            RequiresAddenda = true,
+            IsActive = true
         });
         await context.SaveChangesAsync();
 
         var sut = new AchRegulatoryCatalogService(context);
-        var result = await sut.ValidateReturnPolicyAsync(1, TransactionTypeEnum.Debit, "R03", DateTime.UtcNow.Date, DateTime.UtcNow.Date, hasAddenda: false, originalState: "Pending", CancellationToken.None);
+        var result = await sut.ValidateReturnPolicyAsync(TransactionTypeEnum.Debit, "R03", DateTime.UtcNow.Date, DateTime.UtcNow.Date, hasAddenda: false, originalState: "Pending", CancellationToken.None);
 
         Assert.False(result.IsAllowed);
     }
@@ -136,32 +127,5 @@ public class AchRegulatoryCatalogServiceTests
         var context = new AchDbContext(options);
         context.Database.EnsureCreated();
         return context;
-    }
-
-    private static async Task<int> CreateClearingHouseAsync(AchDbContext context)
-    {
-        var existing = await context.ClearingHouses.Select(x => x.Id).FirstOrDefaultAsync();
-        if (existing != 0)
-        {
-            return existing;
-        }
-
-        var config = new ClearingHouseConfig
-        {
-            HolidayStrategy = "Colombian"
-        };
-        context.ClearingHouseConfigs.Add(config);
-        await context.SaveChangesAsync();
-
-        var clearingHouse = new ClearingHouse
-        {
-            Name = "ACH Colombia",
-            Code = "ACH",
-            OriginCode = "000101006",
-            ClearingHouseId = config.Id
-        };
-        context.ClearingHouses.Add(clearingHouse);
-        await context.SaveChangesAsync();
-        return clearingHouse.Id;
     }
 }

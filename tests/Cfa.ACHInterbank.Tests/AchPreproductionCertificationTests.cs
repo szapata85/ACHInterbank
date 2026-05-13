@@ -427,11 +427,8 @@ public class AchPreproductionCertificationTests
 
         context.AchReturnCodes.Add(new AchReturnCode
         {
-            ClearingHouseId = 1,
             Code = "DEV14",
             Description = "No consentimiento",
-            FlowType = AchReturnFlowType.Any,
-            EffectiveFrom = new DateTime(2026, 01, 01),
             AppliesToDebit = true,
             AppliesToReturn = true,
             RequiresAddenda = true,
@@ -440,14 +437,10 @@ public class AchPreproductionCertificationTests
         });
         context.AchReturnPolicies.Add(new AchReturnPolicy
         {
-            ClearingHouseId = 1,
             TransactionType = "Debit",
             AllowedReturnCodesCsv = "DEV14",
             MaxDays = 60,
             RequiredOriginalTransactionState = "Pending",
-            Direction = AchReturnDirection.Any,
-            FlowType = AchReturnFlowType.Return,
-            EffectiveFrom = new DateTime(2026, 01, 01),
             RequiresAddenda = true,
             IsActive = true
         });

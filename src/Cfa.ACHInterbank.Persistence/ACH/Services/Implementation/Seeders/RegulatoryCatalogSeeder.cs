@@ -20,22 +20,19 @@ public class RegulatoryCatalogSeeder : IDbSeeder
 
     public async Task SeedAsync()
     {
-        var clearingHouseIds = await ResolveReturnClearingHouseIdsAsync();
-        // Fase 2.3B separará códigos y políticas por cámara.
-        // En esta fase solo se elimina la resolución global silenciosa.
-        await UpsertReturnCodesAsync(clearingHouseIds.CenitId);
+        await UpsertReturnCodesAsync();
         await UpsertFileRejectionCodesAsync();
         await UpsertTransactionTypePoliciesAsync();
-        await UpsertReturnPoliciesAsync(clearingHouseIds.CenitId);
-        await UpsertReturnOfReturnPoliciesAsync(clearingHouseIds.CenitId);
+        await UpsertReturnPoliciesAsync();
+        await UpsertReturnOfReturnPoliciesAsync();
         await UpsertPrenotificationPoliciesAsync();
 
         await _context.SaveChangesAsync();
     }
 
-    private async Task UpsertReturnCodesAsync(int clearingHouseId)
+    private async Task UpsertReturnCodesAsync()
     {
-        var desired = BuildReturnCodes(clearingHouseId).ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
+        var desired = BuildReturnCodes().ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
         var existing = await _context.AchReturnCodes.ToListAsync();
 
         foreach (var row in existing)
@@ -113,9 +110,9 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         }
     }
 
-    private async Task UpsertReturnPoliciesAsync(int clearingHouseId)
+    private async Task UpsertReturnPoliciesAsync()
     {
-        var desired = BuildReturnPolicies(clearingHouseId).ToDictionary(x => x.TransactionType, StringComparer.OrdinalIgnoreCase);
+        var desired = BuildReturnPolicies().ToDictionary(x => x.TransactionType, StringComparer.OrdinalIgnoreCase);
         var existing = await _context.AchReturnPolicies.ToListAsync();
 
         foreach (var row in existing)
@@ -139,9 +136,9 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         }
     }
 
-    private async Task UpsertReturnOfReturnPoliciesAsync(int clearingHouseId)
+    private async Task UpsertReturnOfReturnPoliciesAsync()
     {
-        var desired = BuildReturnOfReturnPolicies(clearingHouseId).ToDictionary(x => x.OriginalReturnCode, StringComparer.OrdinalIgnoreCase);
+        var desired = BuildReturnOfReturnPolicies().ToDictionary(x => x.OriginalReturnCode, StringComparer.OrdinalIgnoreCase);
         var existing = await _context.AchReturnOfReturnPolicies.ToListAsync();
 
         foreach (var row in existing)
@@ -162,40 +159,6 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         {
             _context.AchReturnOfReturnPolicies.Add(model);
         }
-    }
-
-
-    private async Task<(int CenitId, int AchColombiaId)> ResolveReturnClearingHouseIdsAsync()
-    {
-        var clearingHouses = await _context.ClearingHouses.AsNoTracking().ToListAsync();
-
-        var cenitId = clearingHouses
-            .Where(x => !string.IsNullOrWhiteSpace(x.Code) || !string.IsNullOrWhiteSpace(x.Name))
-            .Where(x => (x.Code ?? string.Empty).Contains("CENIT", StringComparison.OrdinalIgnoreCase)
-                        || (x.Name ?? string.Empty).Contains("CENIT", StringComparison.OrdinalIgnoreCase))
-            .Select(x => x.Id)
-            .FirstOrDefault();
-
-        if (cenitId == 0)
-        {
-            throw new InvalidOperationException("No existe ClearingHouse CENIT para sembrar catálogos regulatorios de devolución.");
-        }
-
-        var achColombiaId = clearingHouses
-            .Where(x => !string.IsNullOrWhiteSpace(x.Code) || !string.IsNullOrWhiteSpace(x.Name))
-            .Where(x => (x.Code ?? string.Empty).Contains("ACH", StringComparison.OrdinalIgnoreCase)
-                        || (x.Name ?? string.Empty).Contains("ACH", StringComparison.OrdinalIgnoreCase)
-                        || (x.Name ?? string.Empty).Contains("ACH COLOMBIA", StringComparison.OrdinalIgnoreCase)
-                        || (x.Name ?? string.Empty).Contains("ACHCOLOMBIA", StringComparison.OrdinalIgnoreCase))
-            .Select(x => x.Id)
-            .FirstOrDefault(id => id != cenitId);
-
-        if (achColombiaId == 0)
-        {
-            throw new InvalidOperationException("No existe ClearingHouse ACH Colombia para sembrar catálogos regulatorios de devolución.");
-        }
-
-        return (cenitId, achColombiaId);
     }
 
     private async Task UpsertPrenotificationPoliciesAsync()
@@ -222,30 +185,30 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         }
     }
 
-    private static IEnumerable<AchReturnCode> BuildReturnCodes(int clearingHouseId)
+    private static IEnumerable<AchReturnCode> BuildReturnCodes()
     {
         return new[]
         {
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R01", Description = "Fondos insuficientes", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R02", Description = "Cuenta cerrada", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R03", Description = "Cuenta no localizada", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = true, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R04", Description = "Número de cuenta inválido", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R06", Description = "Transacción retornada por solicitud de ODFI", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R07", Description = "Autorización revocada por el cliente", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 60, IsActive = true, RegulatorySource = "ACH" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R08", Description = "Pago detenido", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R09", Description = "No cobrable", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R10", Description = "Cliente informa no autorización", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 60, IsActive = true, RegulatorySource = "ACH" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R12", Description = "Sucursal vendida", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R13", Description = "Número de ruta inválido", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R14", Description = "Representante/beneficiario fallecido", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R15", Description = "Beneficiario o titular fallecido", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R16", Description = "Cuenta bloqueada", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R17", Description = "Criterio de edición", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R20", Description = "Cuenta no transaccional", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R23", Description = "Entrada rechazada por receptor", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R29", Description = "Asesor corporativo no autorizado", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = true, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "ACH" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "R31", Description = "Entrada permitida de retorno", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 15, IsActive = true, RegulatorySource = "ACH" },
-            new AchReturnCode { ClearingHouseId = clearingHouseId, FlowType = AchReturnFlowType.Any, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), Code = "DEV14", Description = "No consentimiento / retorno de débito por operador", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 60, IsActive = true, RegulatorySource = "OPERADOR" }
+            new AchReturnCode { Code = "R01", Description = "Fondos insuficientes", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
+            new AchReturnCode { Code = "R02", Description = "Cuenta cerrada", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
+            new AchReturnCode { Code = "R03", Description = "Cuenta no localizada", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = true, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
+            new AchReturnCode { Code = "R04", Description = "Número de cuenta inválido", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
+            new AchReturnCode { Code = "R06", Description = "Transacción retornada por solicitud de ODFI", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
+            new AchReturnCode { Code = "R07", Description = "Autorización revocada por el cliente", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 60, IsActive = true, RegulatorySource = "ACH" },
+            new AchReturnCode { Code = "R08", Description = "Pago detenido", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
+            new AchReturnCode { Code = "R09", Description = "No cobrable", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
+            new AchReturnCode { Code = "R10", Description = "Cliente informa no autorización", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 60, IsActive = true, RegulatorySource = "ACH" },
+            new AchReturnCode { Code = "R12", Description = "Sucursal vendida", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
+            new AchReturnCode { Code = "R13", Description = "Número de ruta inválido", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
+            new AchReturnCode { Code = "R14", Description = "Representante/beneficiario fallecido", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
+            new AchReturnCode { Code = "R15", Description = "Beneficiario o titular fallecido", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
+            new AchReturnCode { Code = "R16", Description = "Cuenta bloqueada", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
+            new AchReturnCode { Code = "R17", Description = "Criterio de edición", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
+            new AchReturnCode { Code = "R20", Description = "Cuenta no transaccional", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
+            new AchReturnCode { Code = "R23", Description = "Entrada rechazada por receptor", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "CENIT" },
+            new AchReturnCode { Code = "R29", Description = "Asesor corporativo no autorizado", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = true, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 1, IsActive = true, RegulatorySource = "ACH" },
+            new AchReturnCode { Code = "R31", Description = "Entrada permitida de retorno", AppliesToDebit = true, AppliesToCredit = true, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 15, IsActive = true, RegulatorySource = "ACH" },
+            new AchReturnCode { Code = "DEV14", Description = "No consentimiento / retorno de débito por operador", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 60, IsActive = true, RegulatorySource = "OPERADOR" }
         };
     }
 
@@ -281,24 +244,24 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         };
     }
 
-    private static IEnumerable<AchReturnPolicy> BuildReturnPolicies(int clearingHouseId)
+    private static IEnumerable<AchReturnPolicy> BuildReturnPolicies()
     {
         return new[]
         {
-            new AchReturnPolicy { ClearingHouseId = clearingHouseId, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), TransactionType = "Debit", AllowedReturnCodesCsv = "R01,R02,R03,R04,R06,R07,R08,R09,R10,R12,R13,R14,R15,R16,R17,R20,R23,R29,R31,DEV14", MaxDays = 60, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true },
-            new AchReturnPolicy { ClearingHouseId = clearingHouseId, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), TransactionType = "Credit", AllowedReturnCodesCsv = "R03,R04,R20,R23,R31", MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true },
-            new AchReturnPolicy { ClearingHouseId = clearingHouseId, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), TransactionType = "Prenotification", AllowedReturnCodesCsv = "R03,R29", MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = false, RequiresAddenda = true, IsActive = true },
-            new AchReturnPolicy { ClearingHouseId = clearingHouseId, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), TransactionType = "Return", AllowedReturnCodesCsv = "R01,R02,R03,R09,R10", MaxDays = 15, RequiredOriginalTransactionState = "ReturnedByEpr", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true }
+            new AchReturnPolicy { TransactionType = "Debit", AllowedReturnCodesCsv = "R01,R02,R03,R04,R06,R07,R08,R09,R10,R12,R13,R14,R15,R16,R17,R20,R23,R29,R31,DEV14", MaxDays = 60, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true },
+            new AchReturnPolicy { TransactionType = "Credit", AllowedReturnCodesCsv = "R03,R04,R20,R23,R31", MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true },
+            new AchReturnPolicy { TransactionType = "Prenotification", AllowedReturnCodesCsv = "R03,R29", MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = false, RequiresAddenda = true, IsActive = true },
+            new AchReturnPolicy { TransactionType = "Return", AllowedReturnCodesCsv = "R01,R02,R03,R09,R10", MaxDays = 15, RequiredOriginalTransactionState = "ReturnedByEpr", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true }
         };
     }
 
-    private static IEnumerable<AchReturnOfReturnPolicy> BuildReturnOfReturnPolicies(int clearingHouseId)
+    private static IEnumerable<AchReturnOfReturnPolicy> BuildReturnOfReturnPolicies()
     {
         return new[]
         {
-            new AchReturnOfReturnPolicy { ClearingHouseId = clearingHouseId, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.ReturnOfReturn, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), OriginalReturnCode = "R01", AllowedNewReturnCodesCsv = "R02,R03,R09", MaxDays = 15, RequiredOriginalState = "ReturnedByOperator", IsUniquePerTransaction = true, IsActive = true },
-            new AchReturnOfReturnPolicy { ClearingHouseId = clearingHouseId, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.ReturnOfReturn, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), OriginalReturnCode = "R02", AllowedNewReturnCodesCsv = "R03,R10", MaxDays = 15, RequiredOriginalState = "ReturnedByOperator", IsUniquePerTransaction = true, IsActive = true },
-            new AchReturnOfReturnPolicy { ClearingHouseId = clearingHouseId, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.ReturnOfReturn, EffectiveFrom = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), OriginalReturnCode = "R03", AllowedNewReturnCodesCsv = "R03,R31", MaxDays = 15, RequiredOriginalState = "ReturnedByOperator", IsUniquePerTransaction = true, IsActive = true }
+            new AchReturnOfReturnPolicy { OriginalReturnCode = "R01", AllowedNewReturnCodesCsv = "R02,R03,R09", MaxDays = 15, RequiredOriginalState = "ReturnedByOperator", IsUniquePerTransaction = true, IsActive = true },
+            new AchReturnOfReturnPolicy { OriginalReturnCode = "R02", AllowedNewReturnCodesCsv = "R03,R10", MaxDays = 15, RequiredOriginalState = "ReturnedByOperator", IsUniquePerTransaction = true, IsActive = true },
+            new AchReturnOfReturnPolicy { OriginalReturnCode = "R03", AllowedNewReturnCodesCsv = "R03,R31", MaxDays = 15, RequiredOriginalState = "ReturnedByOperator", IsUniquePerTransaction = true, IsActive = true }
         };
     }
 

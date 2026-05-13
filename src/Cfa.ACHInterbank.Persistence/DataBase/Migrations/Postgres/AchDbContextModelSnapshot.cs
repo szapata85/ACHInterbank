@@ -2343,9 +2343,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<bool>("AppliesToReturn")
                         .HasColumnType("boolean");
 
-                    b.Property<int>("ClearingHouseId")
-                        .HasColumnType("integer");
-
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(10)
@@ -2358,17 +2355,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("EffectiveFrom")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("EffectiveTo")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("FlowType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -2389,9 +2375,7 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ClearingHouseId");
-
-                    b.HasIndex("ClearingHouseId", "Code", "FlowType", "EffectiveFrom")
+                    b.HasIndex("Code")
                         .IsUnique();
 
                     b.ToTable("AchReturnCodes", (string)null);
@@ -2472,27 +2456,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<int>("ClearingHouseId")
-                        .HasColumnType("integer");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Direction")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTime>("EffectiveFrom")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("EffectiveTo")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("FlowType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -2518,9 +2483,7 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ClearingHouseId");
-
-                    b.HasIndex("ClearingHouseId", "OriginalReturnCode", "Direction", "FlowType", "IsActive");
+                    b.HasIndex("OriginalReturnCode");
 
                     b.ToTable("AchReturnOfReturnPolicies", (string)null);
                 });
@@ -2541,33 +2504,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<bool>("AllowsReturnOfReturn")
                         .HasColumnType("boolean");
 
-                    b.Property<int>("ClearingHouseId")
-                        .HasColumnType("integer");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Direction")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTime>("EffectiveFrom")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("EffectiveTo")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("FlowType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
-
-                    b.Property<int?>("MaxCycles")
-                        .HasColumnType("integer");
 
                     b.Property<int>("MaxDays")
                         .HasColumnType("integer");
@@ -2590,9 +2531,7 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ClearingHouseId");
-
-                    b.HasIndex("ClearingHouseId", "TransactionType", "Direction", "FlowType", "IsActive");
+                    b.HasIndex("TransactionType");
 
                     b.ToTable("AchReturnPolicies", (string)null);
                 });
@@ -9395,17 +9334,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Navigation("AchResponse");
                 });
 
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchReturnCode", b =>
-                {
-                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
-                        .WithMany()
-                        .HasForeignKey("ClearingHouseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ClearingHouse");
-                });
-
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchReturnGenerated", b =>
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", "OriginalTransaction")
@@ -9423,28 +9351,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Navigation("OriginalTransaction");
 
                     b.Navigation("ReturnCycle");
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchReturnOfReturnPolicy", b =>
-                {
-                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
-                        .WithMany()
-                        .HasForeignKey("ClearingHouseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ClearingHouse");
-                });
-
-            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchReturnPolicy", b =>
-                {
-                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
-                        .WithMany()
-                        .HasForeignKey("ClearingHouseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ClearingHouse");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", b =>

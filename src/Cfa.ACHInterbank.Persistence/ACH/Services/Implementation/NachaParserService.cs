@@ -1219,20 +1219,10 @@ public class NachaParserService : INachaParserService
                 continue;
             }
 
-            var transaction = await FindTransactionByTraceReferenceAsync(originalTraceRef, ct);
-            if (transaction is null || !processedTransactionIds.Add(transaction.Id))
-            {
-                continue;
-            }
-
-            var clearingHouseId = transaction.AchCycle?.ClearingHouseId
-                                  ?? await _context.AchCycles.AsNoTracking().Where(c => c.Id == transaction.AchCycleId).Select(c => c.ClearingHouseId).FirstAsync(ct);
-
             if (_catalogService is not null)
             {
                 var processingDate = ResolveNachaFileDate(entry.NachaHeader?.FileCreationDate) ?? DateTime.UtcNow.Date;
                 var rule = await _catalogService.ValidateReturnCodeAsync(
-                    clearingHouseId,
                     reasonCode,
                     TransactionTypeEnum.Return,
                     processingDate,
@@ -1245,10 +1235,15 @@ public class NachaParserService : INachaParserService
                 }
             }
 
+            var transaction = await FindTransactionByTraceReferenceAsync(originalTraceRef, ct);
+            if (transaction is null || !processedTransactionIds.Add(transaction.Id))
+            {
+                continue;
+            }
+
             if (_catalogService is not null)
             {
                 var policy = await _catalogService.ValidateReturnPolicyAsync(
-                    clearingHouseId,
                     transaction.Type,
                     reasonCode,
                     transaction.EffectiveEntryDate.Date,
