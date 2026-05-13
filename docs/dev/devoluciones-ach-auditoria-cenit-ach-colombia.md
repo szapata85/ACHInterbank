@@ -161,3 +161,11 @@ Se revisaron los artefactos solicitados en dominio, aplicación, persistencia, A
 9. `feat(returns): parametrizar nombres de archivo y códigos entidad por cámara`  
 10. `docs(returns): plan UAT devoluciones salida/entrada`
 
+
+## Avance Fase 2.1
+
+- Las reglas de devolución (`AchReturnCode`, `AchReturnPolicy`, `AchReturnOfReturnPolicy`) ahora incorporan `ClearingHouseId` como dimensión obligatoria para segmentación por cámara.
+- Se agregó vigencia regulatoria con `EffectiveFrom`/`EffectiveTo` en las tres entidades.
+- Se agregó segmentación funcional con `Direction`/`FlowType` (según corresponda por entidad) para preparar separación por flujo.
+- La migración `AddClearingHouseToReturnRules` se validó de forma local para inspección técnica, pero **no se versiona** en esta tarea por política.
+- Queda pendiente la Fase 2.2: aplicar validación regulatoria efectiva por cámara en servicios funcionales.

@@ -126,6 +126,29 @@ public class AchRegulatoryCatalogServiceTests
 
         var context = new AchDbContext(options);
         context.Database.EnsureCreated();
+        await EnsureClearingHouseAsync(context);
         return context;
+    }
+
+    private static async Task<ClearingHouse> EnsureClearingHouseAsync(AchDbContext context, string code = "CENIT", string name = "CENIT")
+    {
+        var existing = await context.ClearingHouses.FirstOrDefaultAsync(x => x.Code == code);
+        if (existing is not null) return existing;
+
+        var config = new ClearingHouseConfig { HolidayStrategy = "Colombian" };
+        context.ClearingHouseConfigs.Add(config);
+        await context.SaveChangesAsync();
+
+        var clearingHouse = new ClearingHouse
+        {
+            Name = name,
+            Code = code,
+            OriginCode = "000101006",
+            ClearingHouseId = config.Id
+        };
+
+        context.ClearingHouses.Add(clearingHouse);
+        await context.SaveChangesAsync();
+        return clearingHouse;
     }
 }
