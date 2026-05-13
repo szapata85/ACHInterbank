@@ -324,3 +324,13 @@ Commits sugeridos para Fase 3:
 - Pendientes para siguiente fase: validación fuerte de causal/plazo, idempotencia de solicitudes, control de concurrencia y verificación golden master.
 
 - `IAchReturnEligibilityService` quedó registrado en DI y `AchReturnsService` ya no instancia manualmente `AchReturnEligibilityService`; se mantiene sin cambios generación/naming/estado.
+
+## Avance Fase 3.2 - Validación de causal y plazo en devolución de salida
+
+- La causal de devolución ahora se valida como obligatoria y se normaliza (trim + uppercase).
+- Los códigos alfanuméricos como `DEV14` se preservan sin truncamiento.
+- La validación de causal se ejecuta por `ClearingHouseId` resuelto desde `AchCycle`.
+- El plazo máximo se valida vía `IAchRegulatoryCatalogService.ValidateReturnPolicyAsync`.
+- Estado transaccional y addenda requerida se validan vía política regulatoria del catálogo.
+- No hubo cambios en generación, naming ni estados finales de archivo/transacción.
+- Pendientes: idempotencia, concurrencia, rechazo parcial/total y golden master por cámara.
