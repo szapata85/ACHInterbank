@@ -59,11 +59,12 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
         var originalCode = string.IsNullOrWhiteSpace(sourceReturn.ReturnReasonCode) ? "R01" : sourceReturn.ReturnReasonCode;
         var currentDate = DateTime.UtcNow.Date;
         var returnPolicy = await _catalogService.ValidateReturnPolicyAsync(
+            sourceReturn.AchCycle.ClearingHouseId,
             TransactionTypeEnum.Return,
             reasonCode,
             sourceReturn.EffectiveEntryDate.Date,
             currentDate,
-            hasAddenda: true,
+            true,
             sourceReturn.State.ToString(),
             ct);
         if (!returnPolicy.IsAllowed)
@@ -72,6 +73,7 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
         }
 
         var validation = await _catalogService.ValidateReturnOfReturnAsync(
+            sourceReturn.AchCycle.ClearingHouseId,
             originalCode,
             reasonCode,
             sourceReturn.State.ToString(),

@@ -751,7 +751,7 @@ public class AchTransactionNachaTests
         var persistedTransactionId = await executionContext.AchTransactions.Select(t => t.Id).SingleAsync();
         var catalog = new Mock<IAchRegulatoryCatalogService>();
         catalog
-            .Setup(x => x.ValidateReturnCodeAsync("R01", TransactionTypeEnum.Credit, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.ValidateReturnCodeAsync(It.IsAny<int>(), "R01", TransactionTypeEnum.Credit, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((false, "La causal R01 no está permitida para Credit."));
 
         var service = new AchReturnsService(executionContext, regulatoryCatalogService: catalog.Object);
