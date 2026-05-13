@@ -107,5 +107,11 @@ public class AchReturnRulesClearingHouseModelTests
         Assert.False(property!.IsNullable);
         Assert.Equal(ValueGenerated.Never, property.ValueGenerated);
         Assert.Null(property.GetDefaultValueSql());
+        Assert.DoesNotContain(
+            property.GetAnnotations(),
+            annotation => annotation.Name == "Relational:DefaultValue");
+        Assert.DoesNotContain(
+            property.GetAnnotations(),
+            annotation => annotation.Name == "Relational:DefaultValueSql");
     }
 }
