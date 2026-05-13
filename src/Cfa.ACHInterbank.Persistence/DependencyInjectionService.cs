@@ -11,6 +11,7 @@ using Cfa.ACHInterbank.Persistence.ACH.Quartz;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Calendar;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Mapping;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -134,6 +135,7 @@ public static class DependencyInjectionService
         services.AddScoped<IExternalFileNameSequenceProvider, SqlServerExternalFileNameSequenceService>();
         services.AddScoped<IExternalFileNameSequenceProvider, EfGenericExternalFileNameSequenceService>();
         services.AddScoped<IPaymentRailCapabilityRegistryService, ACH.Services.Implementation.PaymentRailCapabilityRegistryService>();
+        services.AddScoped<IAchReturnEligibilityService, AchReturnEligibilityService>();
 
         services.AddQuartz(q =>
         {

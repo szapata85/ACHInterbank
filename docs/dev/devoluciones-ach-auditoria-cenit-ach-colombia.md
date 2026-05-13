@@ -322,3 +322,5 @@ Commits sugeridos para Fase 3:
 - La validación regulatoria se delega en `IAchRegulatoryCatalogService` para causal y política.
 - Este cambio no modifica generación de archivo, naming de archivo ni estado final de transacciones.
 - Pendientes para siguiente fase: validación fuerte de causal/plazo, idempotencia de solicitudes, control de concurrencia y verificación golden master.
+
+- `IAchReturnEligibilityService` quedó registrado en DI y `AchReturnsService` ya no instancia manualmente `AchReturnEligibilityService`; se mantiene sin cambios generación/naming/estado.

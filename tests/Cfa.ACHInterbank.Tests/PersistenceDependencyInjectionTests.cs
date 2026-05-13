@@ -1,4 +1,6 @@
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Persistence;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -23,6 +25,27 @@ public class PersistenceDependencyInjectionTests
         var ex = Record.Exception(() => services.AddPersistence(configuration));
 
         Assert.Null(ex);
+    }
+
+
+    [Fact]
+    public void AddPersistence_RegistersAchReturnEligibilityService()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Database:Provider"] = "sqlserver",
+                ["ConnectionStrings:SqlConnection"] = "Server=(localdb)\\MSSQLLocalDB;Database=AchInterbank;Trusted_Connection=True;"
+            })
+            .Build();
+
+        services.AddPersistence(configuration);
+
+        var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IAchReturnEligibilityService));
+        Assert.NotNull(descriptor);
+        Assert.Equal(typeof(AchReturnEligibilityService), descriptor!.ImplementationType);
+        Assert.Equal(ServiceLifetime.Scoped, descriptor.Lifetime);
     }
 
     [Fact]

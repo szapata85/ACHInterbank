@@ -26,8 +26,7 @@ public class AchReturnsService(
     private readonly IAchRegulatoryCatalogService _regulatoryCatalogService = regulatoryCatalogService
                                                                            ?? throw new InvalidOperationException("IAchRegulatoryCatalogService es requerido para gobernanza regulatoria de devoluciones.");
     private readonly IAchReturnEligibilityService _returnEligibilityService = returnEligibilityService
-                                                                        ?? new AchReturnEligibilityService(context, regulatoryCatalogService
-                                                                            ?? throw new InvalidOperationException("IAchRegulatoryCatalogService es requerido para gobernanza regulatoria de devoluciones."));
+                                                                        ?? throw new InvalidOperationException("IAchReturnEligibilityService es requerido para evaluar elegibilidad de devoluciones.");
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
     private readonly IPaymentRailContextService? _paymentRailContextService = paymentRailContextService;
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver = strategyResolver;
