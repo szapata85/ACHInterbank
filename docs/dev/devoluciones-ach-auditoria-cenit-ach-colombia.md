@@ -490,3 +490,38 @@ HAVING COUNT(*) > 1;
 - En esta fase no se cambian estados finales de transacciones.
 - En esta fase no se define rechazo total/parcial.
 - Pendientes: validación regulatoria de entrada, duplicados, rechazo total/parcial, auditoría de payload y actualización de estado.
+
+## Validación de cierre Fase 4.1 - Ingesta centralizada de devoluciones de entrada
+
+- Se valida el cierre del commit publicado `be5c8afd3571599297ea9ed2b3c76a2c9f902ad4`.
+- La Fase 4.1 queda aceptada como ingesta centralizada de devoluciones de entrada.
+- Componentes confirmados:
+  - `IAchIncomingReturnIngestionService`.
+  - modelos `AchIncomingReturnIngestionRequest`, `AchIncomingReturnIngestionResult`, `AchIncomingReturnItem`, `AchIncomingReturnIngestionFailure`.
+  - `AchIncomingReturnIngestionService`.
+  - registro DI `Scoped`.
+  - tests de ingesta.
+- Validaciones confirmadas:
+  - archivo vacío produce `FILE_EMPTY`.
+  - devolución entrante tipo `7/99` se clasifica.
+  - se extrae causal de devolución.
+  - se extrae traza original.
+  - se vincula contra transacción original por `TraceNumber` / `OriginalTraceRef`.
+  - `ClearingHouseId` se resuelve desde `AchCycle`.
+  - se reportan fallas estructuradas.
+- Límites confirmados:
+  - no cambia estado final de transacciones.
+  - no genera `AchReturnGenerated`.
+  - no genera archivo de salida.
+  - no define rechazo total/parcial.
+  - no ejecuta contabilidad.
+- Evidencia de validación:
+  - build Release en verde.
+  - test filtrado en verde.
+  - suite completa en verde.
+- Pendientes Fase 4.2:
+  - validación regulatoria de devoluciones entrantes por cámara.
+  - duplicados de archivo entrante.
+  - auditoría de payload.
+  - rechazo total/parcial.
+  - actualización controlada de estado.
