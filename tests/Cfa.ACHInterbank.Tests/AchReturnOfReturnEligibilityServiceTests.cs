@@ -67,6 +67,25 @@ public class AchReturnOfReturnEligibilityServiceTests
         Assert.True(result.IsEligible);
         Assert.Equal("R01", result.OriginalReturnReasonCode);
         Assert.Equal("R02", result.NewReturnReasonCode);
+        Assert.True(result.IsUniquePerTransaction);
+    }
+
+
+    [Fact]
+    public async Task EvaluateAsync_ShouldReturnPolicyRejected_AndExposeUniquenessFlag()
+    {
+        await using var context = BuildContext();
+        SeedBase(context, returnReasonCode: "R01");
+        var catalog = new Mock<IAchRegulatoryCatalogService>();
+        catalog.Setup(x => x.ValidateReturnOfReturnAsync(77, "R01", "R09", "ReturnedByOperator", It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, "Rechazada", true));
+        var sut = new AchReturnOfReturnEligibilityService(context, catalog.Object);
+
+        var result = await sut.EvaluateAsync(new AchReturnOfReturnEligibilityRequest(20, "R09", DateTime.UtcNow), CancellationToken.None);
+
+        Assert.False(result.IsEligible);
+        Assert.True(result.IsUniquePerTransaction);
+        Assert.Contains(result.Failures, x => x.Code == "RETURN_OF_RETURN_POLICY_REJECTED");
     }
 
     static AchDbContext BuildContext() => new(new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);

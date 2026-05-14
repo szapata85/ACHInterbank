@@ -18,4 +18,5 @@ public sealed record AchReturnOfReturnEligibilityResult(
     int? SourceReturnTransactionId,
     string? OriginalReturnReasonCode,
     string? NewReturnReasonCode,
+    bool IsUniquePerTransaction,
     IReadOnlyCollection<AchReturnOfReturnEligibilityFailure> Failures);

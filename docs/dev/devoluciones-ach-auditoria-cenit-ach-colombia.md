@@ -720,3 +720,10 @@ Objetivos técnicos:
 - No generar contabilidad en el primer commit de Fase 5.
 - No mezclar salida/entrada en el mismo commit.
 - No tocar migraciones salvo decisión explícita.
+
+
+## Cierre Fase 5.1 (2026-05-14)
+- Se incorporó `IsUniquePerTransaction` en `AchReturnOfReturnEligibilityResult`.
+- `AchReturnOfReturnEligibilityService` ahora expone ese flag desde `ValidateReturnOfReturnAsync(...)` y concentra la validación regulatoria de devolución de devolución.
+- `ReturnOfReturnOrchestrator` dejó de invocar nuevamente `ValidateReturnOfReturnAsync(...)`; consume el resultado centralizado de elegibilidad para controlar unicidad por transacción.
+- Se añadieron pruebas de cobertura para validar propagación de unicidad y rechazo regulatorio, además de registro DI del nuevo servicio.

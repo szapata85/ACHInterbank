@@ -16,7 +16,6 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
 {
     private readonly AchDbContext _context;
-    private readonly IAchRegulatoryCatalogService _catalogService;
     private readonly IAchReturnOfReturnEligibilityService _returnOfReturnEligibilityService;
     private readonly IPaymentRailContextService? _paymentRailContextService;
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver;
@@ -25,7 +24,6 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
 
     public ReturnOfReturnOrchestrator(
         AchDbContext context,
-        IAchRegulatoryCatalogService catalogService,
         IAchReturnOfReturnEligibilityService returnOfReturnEligibilityService,
         IPaymentRailContextService? paymentRailContextService = null,
         IPaymentRailOperationalStrategyResolver? strategyResolver = null,
@@ -33,7 +31,6 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
         ILogger<ReturnOfReturnOrchestrator>? logger = null)
     {
         _context = context;
-        _catalogService = catalogService;
         _returnOfReturnEligibilityService = returnOfReturnEligibilityService;
         _paymentRailContextService = paymentRailContextService;
         _strategyResolver = strategyResolver;
@@ -73,17 +70,7 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
             throw new InvalidOperationException(reason);
         }
 
-        var clearingHouseId = await ResolveClearingHouseIdAsync(sourceReturn, ct);
-        var validation = await _catalogService.ValidateReturnOfReturnAsync(
-            clearingHouseId,
-            eligibility.OriginalReturnReasonCode!,
-            eligibility.NewReturnReasonCode!,
-            sourceReturn.State.ToString(),
-            sourceReturn.EffectiveEntryDate.Date,
-            DateTime.UtcNow.Date,
-            ct);
-
-        var duplicated = validation.IsUniquePerTransaction && await _context.ReturnOfReturnFlows
+        var duplicated = eligibility.IsUniquePerTransaction && await _context.ReturnOfReturnFlows
             .AnyAsync(x => x.SourceReturnTransactionId == sourceReturn.Id || x.ReturnOfReturnTransactionId == returnOfReturn.Id, ct);
         if (duplicated)
         {
