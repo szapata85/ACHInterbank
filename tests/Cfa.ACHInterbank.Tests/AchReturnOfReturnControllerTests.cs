@@ -79,4 +79,36 @@ public class AchReturnOfReturnControllerTests
 
         Assert.IsType<BadRequestObjectResult>(result);
     }
+
+    [Fact]
+    public async Task GenerateNachaFile_ReturnOfReturn_ReturnsFileContentResult()
+    {
+        var bytes = System.Text.Encoding.ASCII.GetBytes("1HEADER");
+        var generation = new Mock<IAchReturnOfReturnFileGenerationService>();
+        generation.Setup(x => x.GenerateNachaAsync(It.IsAny<AchReturnOfReturnFileGenerationRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchReturnOfReturnFileGenerationResult(true, "RORNACHA_7001_20260514123456.ach", "1HEADER", bytes, 1, [10], [], 11, "abc"));
+        var sut = new AchReturnOfReturnController(Mock.Of<IAchReturnOfReturnEligibilityService>(), generation.Object);
+        var result = await sut.GenerateNachaFile(new GenerateReturnOfReturnAuditFileRequest([10]), CancellationToken.None);
+        var file = Assert.IsType<FileContentResult>(result);
+        Assert.Equal("RORNACHA_7001_20260514123456.ach", file.FileDownloadName);
+    }
+
+    [Fact]
+    public async Task GenerateNachaFile_EmptyRequest_ReturnsBadRequest()
+    {
+        var sut = new AchReturnOfReturnController(Mock.Of<IAchReturnOfReturnEligibilityService>(), Mock.Of<IAchReturnOfReturnFileGenerationService>());
+        var result = await sut.GenerateNachaFile(new GenerateReturnOfReturnAuditFileRequest([]), CancellationToken.None);
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GenerateNachaFile_NotEligible_ReturnsConflict()
+    {
+        var generation = new Mock<IAchReturnOfReturnFileGenerationService>();
+        generation.Setup(x => x.GenerateNachaAsync(It.IsAny<AchReturnOfReturnFileGenerationRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchReturnOfReturnFileGenerationResult(false, null, null, null, 0, [10], [new("RETURN_OF_RETURN_POLICY_REJECTED", "No elegible")], null, null));
+        var sut = new AchReturnOfReturnController(Mock.Of<IAchReturnOfReturnEligibilityService>(), generation.Object);
+        var result = await sut.GenerateNachaFile(new GenerateReturnOfReturnAuditFileRequest([10]), CancellationToken.None);
+        Assert.IsType<ConflictObjectResult>(result);
+    }
 }

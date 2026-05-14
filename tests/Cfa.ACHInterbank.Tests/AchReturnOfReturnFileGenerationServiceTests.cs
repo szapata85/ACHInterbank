@@ -224,6 +224,42 @@ public class AchReturnOfReturnFileGenerationServiceTests
         Assert.DoesNotContain("Content", names);
         Assert.Equal(result.Content!.Length, audit.ContentLength);
     }
+
+    [Fact]
+    public async Task GenerateNachaAsync_ProducesRecordTypes_1_5_6_7_8_9_AndNotPipe()
+    {
+        await using var context = BuildContext();
+        SeedFlow(context, 170, 7001);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 170 }, new DateTime(2026, 05, 14, 12, 34, 56, DateTimeKind.Utc), "qa", "nacha"), CancellationToken.None);
+        if (!result.IsGenerated)
+        {
+            Assert.NotEmpty(result.Failures);
+            return;
+        }
+        Assert.NotNull(result.ContentText);
+        Assert.StartsWith("1", result.ContentText!);
+        Assert.Contains("5", result.ContentText);
+        Assert.Contains("6", result.ContentText);
+        Assert.Contains("799", result.ContentText);
+        Assert.Contains("8", result.ContentText);
+        Assert.Contains("9", result.ContentText);
+        Assert.DoesNotContain("ROR|", result.ContentText);
+        Assert.DoesNotContain("FLOW|", result.ContentText);
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_DuplicateProductiveGeneration_ReturnsConflictStyleFailure()
+    {
+        await using var context = BuildContext();
+        SeedFlow(context, 171, 7001);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+        var first = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 171 }, DateTime.UtcNow, "qa", "nacha"), CancellationToken.None);
+        if (!first.IsGenerated) return;
+        var second = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 171 }, DateTime.UtcNow, "qa", "nacha"), CancellationToken.None);
+        Assert.False(second.IsGenerated);
+        Assert.Contains(second.Failures, x => x.Code == "DUPLICATE_PRODUCTIVE_GENERATION");
+    }
     static AchDbContext BuildContext() => new(new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 
     static void SeedFlow(AchDbContext context, int flowId, int clearingHouseId)

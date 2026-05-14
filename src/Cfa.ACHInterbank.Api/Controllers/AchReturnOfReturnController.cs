@@ -68,6 +68,39 @@ public class AchReturnOfReturnController(
 
         return File(result.Content, "text/plain", result.FileName);
     }
+
+    [HttpPost("generate-nacha-file")]
+    [Authorize(Policy = P0Policies.ReturnsGenerateFile)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> GenerateNachaFile([FromBody] GenerateReturnOfReturnAuditFileRequest request, CancellationToken ct)
+    {
+        if (request is null || request.FlowIds is null || request.FlowIds.Count == 0)
+        {
+            return BadRequest(new { message = "Debe enviar al menos un flowId." });
+        }
+
+        var result = await generationService.GenerateNachaAsync(
+            new AchReturnOfReturnFileGenerationRequest(
+                request.FlowIds,
+                DateTime.UtcNow,
+                request.RequestedBy,
+                string.IsNullOrWhiteSpace(request.Source) ? "nacha" : request.Source),
+            ct);
+
+        if (!result.IsGenerated || result.Content is null || string.IsNullOrWhiteSpace(result.FileName))
+        {
+            return Conflict(new
+            {
+                message = "No fue posible generar el archivo NACHA de devolución de devolución.",
+                failures = result.Failures,
+                flowIds = result.FlowIds
+            });
+        }
+
+        return File(result.Content, "text/plain", result.FileName);
+    }
 }
 
 public sealed record EvaluateReturnOfReturnRequest(

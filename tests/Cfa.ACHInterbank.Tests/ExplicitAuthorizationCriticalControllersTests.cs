@@ -49,6 +49,7 @@ public class ExplicitAuthorizationCriticalControllersTests
         Assert.NotNull(typeof(AchReturnOfReturnController).GetCustomAttribute<AuthorizeAttribute>());
         AssertPolicy(nameof(AchReturnOfReturnController.Evaluate), P0Policies.ReturnsRead);
         AssertPolicy(nameof(AchReturnOfReturnController.GenerateAuditFile), P0Policies.ReturnsGenerateFile);
+        AssertPolicy(nameof(AchReturnOfReturnController.GenerateNachaFile), P0Policies.ReturnsGenerateFile);
     }
 
     private static void AssertPolicy(string methodName, string expectedPolicy)
