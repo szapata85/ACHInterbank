@@ -18,4 +18,6 @@ public sealed record AchReturnOfReturnFileGenerationResult(
     byte[]? Content,
     int GeneratedFlowCount,
     IReadOnlyCollection<int> FlowIds,
-    IReadOnlyCollection<AchReturnOfReturnFileGenerationFailure> Failures);
+    IReadOnlyCollection<AchReturnOfReturnFileGenerationFailure> Failures,
+    int? AuditId = null,
+    string? ContentSha256 = null);

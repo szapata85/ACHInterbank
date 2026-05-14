@@ -831,7 +831,7 @@ Fase 5 queda cerrada técnicamente para la base funcional de devolución de devo
 ### Riesgos pendientes
 | Riesgo | Impacto | Control actual | Control futuro recomendado | Fase sugerida |
 |---|---|---|---|---|
-| Formato NACHA definitivo pendiente | Archivo en memoria puede no cumplir homologación final | Contenido determinístico testeable | Fixture/golden master por cámara | UAT / Fase 6 |
+| Formato NACHA definitivo pendiente | Archivo en memoria puede no cumplir homologación final | Golden master preliminar técnico por cámara | Golden master homologado/certificado por cámara con archivos reales CENIT/ACH Colombia | UAT / Fase 6 |
 | Persistencia formal del artefacto | Trazabilidad limitada | Resultado en memoria | Entidad/auditoría persistente aprobada | Fase 6 |
 | Naming productivo | Puede requerir nombre certificado por operador/cámara | `ROR_{ClearingHouseId}_{yyyyMMddHHmmss}.ach` | Integración con naming oficial | UAT |
 | Contabilidad pendiente | Flujo técnico sin asiento contable | Contabilidad no ejecutada | Integración contable/conciliación | Fase 7 |
@@ -841,6 +841,17 @@ Fase 5 queda cerrada técnicamente para la base funcional de devolución de devo
 
 ## Plan UAT - Devolución de devolución CENIT y ACH Colombia
 Objetivo: validar que la devolución de devolución funcione por cámara, sin mezcla de reglas, respetando idempotencia, generación en memoria y límites actuales.
+
+### Golden master preliminar para UAT técnico
+- Se agregaron golden masters preliminares por cámara para la generación en memoria de devolución de devolución.
+- CENIT queda cubierto con `ClearingHouseId = 7001`.
+- ACH Colombia queda cubierto con `ClearingHouseId = 7002`.
+- Los tests validan `FileName`, `ContentText`, `Content` ASCII, `GeneratedFlowCount` y `FlowIds`.
+- Los tests validan rechazo por mezcla de cámaras CENIT/ACH.
+- Los tests validan múltiples flows de la misma cámara con orden estable.
+- Estos golden masters son técnicos/preliminares.
+- No equivalen a homologación NACHA final.
+- El formato definitivo queda pendiente de UAT/certificación por cámara.
 
 | ID | Cámara | Escenario | Entrada | Resultado esperado | Evidencia esperada |
 |---|---|---|---|---|---|
@@ -875,6 +886,15 @@ Objetivo: validar que la devolución de devolución funcione por cámara, sin me
 - ausencia de asientos contables;
 - estados sin modificación;
 - logs/evidencia técnica del test.
+- golden master preliminar CENIT aprobado;
+- golden master preliminar ACH Colombia aprobado;
+- `FileName` esperado:
+  - `ROR_7001_20260514123456.ach`
+  - `ROR_7002_20260514123456.ach`
+- `ContentText` exacto comparado contra baseline preliminar;
+- `Content` ASCII equivalente a `ContentText`;
+- rechazo de generación cuando se mezclan flows de CENIT y ACH Colombia;
+- validación de orden estable para múltiples flows de una misma cámara.
 
 ### Límites explícitos post-Fase 5
 - La generación actual es en memoria.
@@ -886,3 +906,210 @@ Objetivo: validar que la devolución de devolución funcione por cámara, sin me
 - No se debe asumir homologación final CENIT/ACH hasta UAT.
 - No se modificó devolución simple.
 - No se modificó devolución entrante.
+
+## Avance Fase 6 - Auditoría persistente de archivo de devolución de devolución
+- Se agregó auditoría específica para devolución de devolución mediante `AchReturnOfReturnGeneratedFileAudit` y `AchReturnOfReturnGeneratedFileAuditFlow`.
+- No se reutiliza `AchReturnGenerated`.
+- Se persisten metadatos técnicos: `FileName`, `ClearingHouseId`, `GeneratedAtUtc`, `GeneratedFlowCount`, `ContentLength`, `ContentSha256`, `RequestedBy`, `Source` y `CreatedAtUtc`.
+- Se persiste relación explícita con los `ReturnOfReturnFlow` incluidos.
+- No se persiste contenido completo del archivo (`ContentText` ni bytes de `Content`).
+- No se cambian estados de transacciones.
+- No hay contabilidad.
+- No hay endpoints públicos nuevos.
+
+### Decisión de migración
+En esta rama las migraciones se encuentran ignoradas/no versionadas (`**/Migrations/` en `.gitignore`). Por tanto, el snapshot se revierte en este commit correctivo para evitar inconsistencias de modelo versionado sin migración física. La migración física queda pendiente para la política de despliegue del equipo. Antes de usar la auditoría persistente en ambiente real debe generarse/aplicarse la migración correspondiente.
+
+## Política de migraciones EF no versionadas
+- En este proyecto/rama las migraciones EF no se versionan.
+- Las migraciones se generan/aplican en ejecución, pruebas o flujo operativo local del equipo.
+- La carpeta `Migrations` está ignorada/no hace parte del commit funcional.
+- El `AchDbContextModelSnapshot` no debe usarse como fuente de verdad para exigir commits de migración en esta rama si la política es no versionar migraciones.
+- La auditoría ROR queda lista a nivel de modelo/configuración/servicio/tests.
+- Para usar auditoría ROR en una BD real, el ambiente debe generar/aplicar la migración física correspondiente.
+- `Database.Migrate()` aplica migraciones compiladas existentes; no genera migraciones nuevas automáticamente.
+- Si el equipo usa `EnsureCreated` o recreación de BD en pruebas, validar que las tablas de auditoría existan antes de ejecutar UAT.
+
+## Checklist de despliegue UAT - Auditoría de devolución de devolución
+
+### Objetivo del checklist
+- Validar que la auditoría persistente de archivo de devolución de devolución pueda ejecutarse en UAT.
+- Confirmar que las tablas requeridas existen antes de habilitar uso operativo.
+- Confirmar que se persiste metadata, hash SHA-256 y relación de flows.
+- Confirmar que no se persiste contenido completo del archivo.
+- Confirmar que no se toca contabilidad ni estados de transacciones.
+
+### Precondiciones
+- [ ] Confirmar rama/versión a desplegar.
+- [ ] Confirmar mecanismo usado por el equipo para crear esquema:
+  - migración generada/aplicada localmente;
+  - script SQL operativo;
+  - recreación de BD de pruebas;
+  - `EnsureCreated` si aplica solo para pruebas.
+- [ ] Confirmar que la migración física fue generada por el flujo oficial del equipo.
+- [ ] Confirmar que la migración crea las tablas:
+  - `AchReturnOfReturnGeneratedFileAudits`
+  - `AchReturnOfReturnGeneratedFileAuditFlows`
+- [ ] Confirmar que la migración incluye FK hacia `ReturnOfReturnFlow`.
+- [ ] Confirmar que la migración no modifica tablas de devolución simple.
+- [ ] Confirmar que la migración no modifica catálogos regulatorios.
+- [ ] Confirmar backup/snapshot de BD antes de aplicar.
+- [ ] Confirmar ventana de UAT.
+- [ ] Confirmar credenciales/permisos para aplicar migración.
+- [ ] Confirmar plan de rollback.
+- [ ] Confirmar que no se depende de una migración versionada en esta rama.
+
+### Validación post-migración
+- [ ] Verificar existencia de tabla `AchReturnOfReturnGeneratedFileAudits`.
+- [ ] Verificar existencia de tabla `AchReturnOfReturnGeneratedFileAuditFlows`.
+- [ ] Verificar columnas:
+  - `FileName`
+  - `ClearingHouseId`
+  - `GeneratedAtUtc`
+  - `GeneratedFlowCount`
+  - `ContentLength`
+  - `ContentSha256`
+  - `RequestedBy`
+  - `Source`
+  - `CreatedAtUtc`
+- [ ] Verificar que no existen columnas:
+  - `ContentText`
+  - `Content`
+  - `FileBytes`
+- [ ] Verificar FK de flows hacia auditoría.
+- [ ] Verificar FK de flows hacia `ReturnOfReturnFlow`.
+- [ ] Verificar índice por `FileName`.
+- [ ] Verificar índice/longitud de `ContentSha256`.
+
+### Prueba funcional UAT
+1. Preparar `ReturnOfReturnFlow` válido para CENIT.
+2. Ejecutar generación en memoria.
+3. Confirmar `IsGenerated = true`.
+4. Confirmar `FileName`.
+5. Confirmar `ContentSha256`.
+6. Confirmar `AuditId`.
+7. Consultar auditoría persistida.
+8. Confirmar metadata.
+9. Confirmar relación con flows.
+10. Confirmar ausencia de contenido completo.
+11. Repetir caso para ACH Colombia.
+12. Ejecutar caso fallido y confirmar que no crea auditoría.
+
+### SQL orientativo para validación UAT
+```sql
+SELECT
+    "Id",
+    "FileName",
+    "ClearingHouseId",
+    "GeneratedAtUtc",
+    "GeneratedFlowCount",
+    "ContentLength",
+    "ContentSha256",
+    "RequestedBy",
+    "Source",
+    "CreatedAtUtc"
+FROM "AchReturnOfReturnGeneratedFileAudits"
+ORDER BY "Id" DESC
+LIMIT 10;
+```
+
+```sql
+SELECT
+    "Id",
+    "AchReturnOfReturnGeneratedFileAuditId",
+    "ReturnOfReturnFlowId"
+FROM "AchReturnOfReturnGeneratedFileAuditFlows"
+ORDER BY "Id" DESC
+LIMIT 20;
+```
+
+### Criterios de aceptación UAT
+- [ ] Migración física generada por el flujo oficial del equipo.
+- [ ] Migración aplicada correctamente en UAT.
+- [ ] Tablas `AchReturnOfReturnGeneratedFileAudits` y `AchReturnOfReturnGeneratedFileAuditFlows` creadas.
+- [ ] Generación exitosa crea una auditoría.
+- [ ] Generación fallida no crea auditoría.
+- [ ] `AuditId` retornado cuando la generación es exitosa.
+- [ ] `ContentSha256` retornado y persistido.
+- [ ] `ContentSha256` tiene longitud 64.
+- [ ] `ContentLength` coincide con los bytes generados en memoria.
+- [ ] `GeneratedFlowCount` coincide con los flows incluidos.
+- [ ] La relación con `ReturnOfReturnFlow` queda persistida.
+- [ ] No se persiste `ContentText`.
+- [ ] No se persiste `Content` binario.
+- [ ] No se persiste `FileBytes`.
+- [ ] No se crea `AchReturnGenerated`.
+- [ ] No cambian estados de transacciones.
+- [ ] No se generan asientos contables.
+- [ ] No se modifica devolución simple.
+- [ ] No se modifica devolución entrante.
+- [ ] No se exponen endpoints públicos nuevos.
+- [ ] Evidencias SQL y logs quedan adjuntos al caso UAT.
+
+### Rollback
+- Si la migración falla antes de completarse, detener el despliegue y no habilitar la auditoría persistente.
+- Si la migración se aplicó parcialmente, ejecutar el rollback oficial del equipo según la herramienta de despliegue utilizada.
+- Si se requiere reversión manual en UAT, debe hacerse bajo aprobación técnica y con backup previo.
+- En reversión manual, eliminar primero registros hijos de `AchReturnOfReturnGeneratedFileAuditFlows`.
+- Luego eliminar registros de `AchReturnOfReturnGeneratedFileAudits`.
+- No eliminar registros de `ReturnOfReturnFlow`.
+- No eliminar transacciones ACH.
+- No modificar catálogos regulatorios.
+- No modificar registros de devolución simple.
+- No revertir cambios de negocio fuera del alcance de auditoría.
+- Documentar evidencia del rollback:
+  - hora;
+  - responsable;
+  - scripts ejecutados;
+  - resultado;
+  - validación posterior.
+
+```sql
+-- Ejemplo UAT: ejecutar solo bajo aprobación y con backup previo.
+DELETE FROM "AchReturnOfReturnGeneratedFileAuditFlows"
+WHERE "AchReturnOfReturnGeneratedFileAuditId" IN (
+    SELECT "Id"
+    FROM "AchReturnOfReturnGeneratedFileAudits"
+    WHERE "GeneratedAtUtc" >= TIMESTAMP '2026-05-14 00:00:00'
+);
+
+DELETE FROM "AchReturnOfReturnGeneratedFileAudits"
+WHERE "GeneratedAtUtc" >= TIMESTAMP '2026-05-14 00:00:00';
+```
+
+### Riesgos pendientes
+| Riesgo | Impacto | Control actual | Acción pendiente |
+|---|---|---|---|
+| Migración física pendiente en rama con `Migrations` ignoradas | Auditoría persistente no utilizable en ambiente real hasta migrar DB | Documentación + checklist UAT + decisión explícita de migración pendiente | Generar y aplicar migración por flujo oficial antes de habilitar en UAT real |
+| Migraciones EF no versionadas | Diferencias entre modelo y BD si el ambiente no aplica correctamente el esquema | Documentación, tests de metadata EF y checklist post-migración/post-creación de esquema | Automatizar validación de esquema en arranque/UAT o script operativo de verificación |
+| Error operativo al ejecutar rollback manual | Pérdida de trazabilidad de auditoría o inconsistencias en UAT | Guía de rollback con orden hijo->padre y restricción de alcance | Ejecutar rollback solo con aprobación técnica, backup y evidencia posterior |
+| Datos sin hash o hash inválido por configuración incorrecta | Debilita trazabilidad e integridad de evidencia | Validación de `ContentSha256` (longitud 64) en checklist UAT | Adjuntar evidencia SQL/log por caso UAT y bloquear pase si no cumple |
+| Cambios fuera de alcance (contabilidad/endpoints/devolución simple) durante despliegue | Riesgo funcional y regulatorio | Checklist explicita no contabilidad, no endpoints públicos, no cambios de devolución simple/entrante | Gate de despliegue con revisión técnica previa y verificación post-ejecución |
+
+## Bloqueo técnico - Migración física de auditoría ROR
+- Se intentó generar la migración física `AddReturnOfReturnGeneratedFileAudit`.
+- El intento fue bloqueado porque EF detecta drift previo en el modelo regulatorio.
+- El drift incluye cambios no relacionados con auditoría ROR:
+  - `AchReturnCode`
+  - `AchReturnPolicy`
+  - `AchReturnOfReturnPolicy`
+  - campos de cámara/flujo/vigencia
+  - relaciones con `ClearingHouse`
+  - índices regulatorios
+- Por seguridad no se versionó la migración.
+- No se debe commitear una migración ROR mezclada con cambios regulatorios históricos.
+- El drift EF bloquea únicamente la creación de una migración versionada aislada.
+- No bloquea la continuidad funcional si la política del equipo es no versionar migraciones.
+- La auditoría ROR sigue implementada a nivel de modelo/config/servicio.
+- La auditoría ROR requiere que el ambiente genere/aplique la migración física por el flujo operativo local antes de uso real.
+- El snapshot se mantiene limpio/restaurado según política de rama.
+- Próximo paso recomendado:
+  1. no commitear migración mezclada con drift regulatorio;
+  2. ejecutar generación/aplicación de esquema por flujo operativo local del equipo;
+  3. verificar tablas de auditoría antes de UAT.
+
+### Evidencia de drift detectado
+- `AchReturnCode`: el modelo/config actual incluye `ClearingHouseId`, `FlowType`, `EffectiveFrom`, `EffectiveTo`, relación con `ClearingHouse` e índice compuesto por cámara/código/flujo/vigencia.
+- `AchReturnPolicy`: el modelo/config actual incluye `ClearingHouseId`, `Direction`, `FlowType`, `EffectiveFrom`, `EffectiveTo`, `MaxCycles` e índice compuesto por cámara/tipo/dirección/flujo/activo.
+- `AchReturnOfReturnPolicy`: el modelo/config actual incluye `ClearingHouseId`, `Direction`, `FlowType`, `EffectiveFrom`, `EffectiveTo`, relación con `ClearingHouse` e índice compuesto por cámara/código original/dirección/flujo/activo.
+- El `AchDbContextModelSnapshot` vigente en rama no refleja esas dimensiones regulatorias en el mismo nivel que el modelo/config actual, por lo que EF intenta reconciliarlas junto con la migración de auditoría ROR.
