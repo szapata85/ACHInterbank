@@ -1068,3 +1068,29 @@ WHERE "GeneratedAtUtc" >= TIMESTAMP '2026-05-14 00:00:00';
 | Error operativo al ejecutar rollback manual | Pérdida de trazabilidad de auditoría o inconsistencias en UAT | Guía de rollback con orden hijo->padre y restricción de alcance | Ejecutar rollback solo con aprobación técnica, backup y evidencia posterior |
 | Datos sin hash o hash inválido por configuración incorrecta | Debilita trazabilidad e integridad de evidencia | Validación de `ContentSha256` (longitud 64) en checklist UAT | Adjuntar evidencia SQL/log por caso UAT y bloquear pase si no cumple |
 | Cambios fuera de alcance (contabilidad/endpoints/devolución simple) durante despliegue | Riesgo funcional y regulatorio | Checklist explicita no contabilidad, no endpoints públicos, no cambios de devolución simple/entrante | Gate de despliegue con revisión técnica previa y verificación post-ejecución |
+
+## Bloqueo técnico - Migración física de auditoría ROR
+- Se intentó generar la migración física `AddReturnOfReturnGeneratedFileAudit`.
+- El intento fue bloqueado porque EF detecta drift previo en el modelo regulatorio.
+- El drift incluye cambios no relacionados con auditoría ROR:
+  - `AchReturnCode`
+  - `AchReturnPolicy`
+  - `AchReturnOfReturnPolicy`
+  - campos de cámara/flujo/vigencia
+  - relaciones con `ClearingHouse`
+  - índices regulatorios
+- Por seguridad no se versionó la migración.
+- No se debe commitear una migración ROR mezclada con cambios regulatorios históricos.
+- La auditoría ROR sigue implementada a nivel de modelo/config/servicio.
+- La auditoría ROR requiere migración física aislada antes de uso real.
+- El snapshot se mantiene limpio/restaurado según política de rama.
+- Próximo paso recomendado:
+  1. crear una migración de reconciliación del modelo regulatorio por cámara; o
+  2. partir de una rama/snapshot ya alineado;
+  3. luego generar `AddReturnOfReturnGeneratedFileAudit` aislada.
+
+### Evidencia de drift detectado
+- `AchReturnCode`: el modelo/config actual incluye `ClearingHouseId`, `FlowType`, `EffectiveFrom`, `EffectiveTo`, relación con `ClearingHouse` e índice compuesto por cámara/código/flujo/vigencia.
+- `AchReturnPolicy`: el modelo/config actual incluye `ClearingHouseId`, `Direction`, `FlowType`, `EffectiveFrom`, `EffectiveTo`, `MaxCycles` e índice compuesto por cámara/tipo/dirección/flujo/activo.
+- `AchReturnOfReturnPolicy`: el modelo/config actual incluye `ClearingHouseId`, `Direction`, `FlowType`, `EffectiveFrom`, `EffectiveTo`, relación con `ClearingHouse` e índice compuesto por cámara/código original/dirección/flujo/activo.
+- El `AchDbContextModelSnapshot` vigente en rama no refleja esas dimensiones regulatorias en el mismo nivel que el modelo/config actual, por lo que EF intenta reconciliarlas junto con la migración de auditoría ROR.
