@@ -525,3 +525,15 @@ HAVING COUNT(*) > 1;
   - auditoría de payload.
   - rechazo total/parcial.
   - actualización controlada de estado.
+
+## Avance Fase 4.2 - Validación regulatoria de devoluciones entrantes por cámara
+
+- La ingesta valida causal entrante contra catálogo regulatorio por `ClearingHouseId`.
+- La cámara se resuelve desde la transacción/ciclo original (`AchCycle`).
+- La política regulatoria valida plazo, estado y addenda para devoluciones entrantes.
+- Se preservan códigos alfanuméricos como `DEV14` en la validación.
+- Se reportan fallas `INCOMING_RETURN_CODE_REJECTED` e `INCOMING_RETURN_POLICY_REJECTED`.
+- No se cambian estados finales en esta fase.
+- No se genera archivo de salida en esta fase.
+- No se crea `AchReturnGenerated` desde ingesta.
+- Pendientes: duplicados de archivo entrante, auditoría payload, rechazo total/parcial y actualización controlada de estado.

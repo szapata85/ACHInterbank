@@ -5,7 +5,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
-public class AchIncomingReturnIngestionService(AchDbContext context) : IAchIncomingReturnIngestionService
+public class AchIncomingReturnIngestionService(
+    AchDbContext context,
+    IAchRegulatoryCatalogService regulatoryCatalogService) : IAchIncomingReturnIngestionService
 {
     public async Task<AchIncomingReturnIngestionResult> IngestAsync(AchIncomingReturnIngestionRequest request, CancellationToken cancellationToken)
     {
@@ -22,10 +24,11 @@ public class AchIncomingReturnIngestionService(AchDbContext context) : IAchIncom
         foreach (var record in records.Where(r => r.Length >= 30 && r.StartsWith("7") && r.Substring(1, 2) == "99"))
         {
             var reason = record.Substring(3, 5).Trim();
+            var normalizedReason = reason.Trim().ToUpperInvariant();
             var originalTrace = record.Substring(8, 15).Trim();
             var trace = record.Length >= 106 ? record.Substring(91, 15).Trim() : null;
 
-            if (string.IsNullOrWhiteSpace(reason))
+            if (string.IsNullOrWhiteSpace(normalizedReason))
             {
                 failures.Add(new("RETURN_REASON_MISSING", "No se encontró causal de devolución.", nameof(reason), trace));
             }
@@ -33,7 +36,7 @@ public class AchIncomingReturnIngestionService(AchDbContext context) : IAchIncom
             if (string.IsNullOrWhiteSpace(originalTrace))
             {
                 failures.Add(new("ORIGINAL_TRACE_MISSING", "No se encontró traza original para vincular la devolución.", nameof(originalTrace), trace));
-                items.Add(new(trace, null, reason, null, null, null, null, false, record));
+                items.Add(new(trace, null, normalizedReason, null, null, null, null, false, record));
                 continue;
             }
 
@@ -45,7 +48,7 @@ public class AchIncomingReturnIngestionService(AchDbContext context) : IAchIncom
             if (originalTx is null)
             {
                 failures.Add(new("ORIGINAL_TRANSACTION_NOT_FOUND", "No se encontró la transacción original de la devolución.", nameof(originalTrace), trace));
-                items.Add(new(trace, originalTrace, reason, null, null, null, null, false, record));
+                items.Add(new(trace, originalTrace, normalizedReason, null, null, null, null, false, record));
                 continue;
             }
 
@@ -54,8 +57,48 @@ public class AchIncomingReturnIngestionService(AchDbContext context) : IAchIncom
             {
                 failures.Add(new("CLEARING_HOUSE_MISSING", "No se pudo resolver la cámara de la transacción original.", "ClearingHouseId", trace));
             }
+            else if (!string.IsNullOrWhiteSpace(normalizedReason))
+            {
+                var returnCodeValidation = await regulatoryCatalogService.ValidateReturnCodeAsync(
+                    clearingHouseId.Value,
+                    normalizedReason,
+                    originalTx.Type,
+                    originalTx.EffectiveEntryDate,
+                    request.ReceivedAtUtc.Date,
+                    cancellationToken);
 
-            items.Add(new(trace, originalTrace, reason, originalTx.Id, clearingHouseId, originalTx.Type.ToString(), originalTx.State.ToString(), true, record));
+                if (!returnCodeValidation.IsAllowed)
+                {
+                    failures.Add(new(
+                        "INCOMING_RETURN_CODE_REJECTED",
+                        returnCodeValidation.Reason ?? $"La causal de devolución entrante {normalizedReason} no está permitida para la cámara de la transacción original.",
+                        "ReturnReasonCode",
+                        trace));
+                }
+                else
+                {
+                    var policyValidation = await regulatoryCatalogService.ValidateReturnPolicyAsync(
+                        clearingHouseId.Value,
+                        originalTx.Type,
+                        normalizedReason,
+                        originalTx.EffectiveEntryDate,
+                        request.ReceivedAtUtc.Date,
+                        hasAddenda: true,
+                        originalTx.State.ToString(),
+                        cancellationToken);
+
+                    if (!policyValidation.IsAllowed)
+                    {
+                        failures.Add(new(
+                            "INCOMING_RETURN_POLICY_REJECTED",
+                            policyValidation.Reason ?? "La política regulatoria no permite la devolución entrante para la transacción original.",
+                            "ReturnReasonCode",
+                            trace));
+                    }
+                }
+            }
+
+            items.Add(new(trace, originalTrace, normalizedReason, originalTx.Id, clearingHouseId, originalTx.Type.ToString(), originalTx.State.ToString(), true, record));
         }
 
         var parsed = items.Count;
