@@ -537,3 +537,16 @@ HAVING COUNT(*) > 1;
 - No se genera archivo de salida en esta fase.
 - No se crea `AchReturnGenerated` desde ingesta.
 - Pendientes: duplicados de archivo entrante, auditoría payload, rechazo total/parcial y actualización controlada de estado.
+
+## Avance Fase 4.3 - Detección de duplicados en devoluciones entrantes
+
+- Se detectan duplicados dentro del mismo archivo usando una clave funcional por cámara/transacción/causal.
+- La causal se normaliza antes de comparar duplicados.
+- Códigos alfanuméricos como `DEV14` se preservan en la detección.
+- Se reporta la falla `INCOMING_RETURN_DUPLICATE_IN_FILE`.
+- Si no existe modelo persistente específico de auditoría de ingesta entrante para esta fase, el control contra histórico queda como riesgo residual documentado.
+- No se cambian estados finales de transacciones.
+- No se genera archivo de salida.
+- No se crea `AchReturnGenerated`.
+- No se decide rechazo total/parcial en esta fase.
+- Pendientes: auditoría persistente de payload, rechazo total/parcial y actualización controlada de estado.

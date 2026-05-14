@@ -13,6 +13,7 @@ public class AchIncomingReturnIngestionService(
     {
         var failures = new List<AchIncomingReturnIngestionFailure>();
         var items = new List<AchIncomingReturnItem>();
+        var seenDuplicateKeys = new HashSet<string>(StringComparer.Ordinal);
 
         if (string.IsNullOrWhiteSpace(request.RawContent))
         {
@@ -48,17 +49,20 @@ public class AchIncomingReturnIngestionService(
             if (originalTx is null)
             {
                 failures.Add(new("ORIGINAL_TRANSACTION_NOT_FOUND", "No se encontró la transacción original de la devolución.", nameof(originalTrace), trace));
+                RegisterDuplicateFailure(seenDuplicateKeys, failures, trace, null, null, originalTrace, normalizedReason);
                 items.Add(new(trace, originalTrace, normalizedReason, null, null, null, null, false, record));
                 continue;
             }
 
             var clearingHouseId = originalTx.AchCycle?.ClearingHouseId;
+            RegisterDuplicateFailure(seenDuplicateKeys, failures, trace, originalTx.Id, clearingHouseId, originalTrace, normalizedReason);
             if (!clearingHouseId.HasValue || clearingHouseId.Value <= 0)
             {
                 failures.Add(new("CLEARING_HOUSE_MISSING", "No se pudo resolver la cámara de la transacción original.", "ClearingHouseId", trace));
             }
             else if (!string.IsNullOrWhiteSpace(normalizedReason))
             {
+                // TODO Fase 4.x: validar duplicados contra auditoría persistente cuando exista modelo de ingesta entrante.
                 var returnCodeValidation = await regulatoryCatalogService.ValidateReturnCodeAsync(
                     clearingHouseId.Value,
                     normalizedReason,
@@ -116,5 +120,33 @@ public class AchIncomingReturnIngestionService(
             records.Add(clean.Substring(i, 106));
         }
         return records;
+    }
+
+    private static void RegisterDuplicateFailure(
+        HashSet<string> seenDuplicateKeys,
+        List<AchIncomingReturnIngestionFailure> failures,
+        string? trace,
+        int? originalTransactionId,
+        int? clearingHouseId,
+        string originalTrace,
+        string normalizedReason)
+    {
+        if (string.IsNullOrWhiteSpace(normalizedReason))
+        {
+            return;
+        }
+
+        var duplicateKey = originalTransactionId.HasValue
+            ? $"{clearingHouseId?.ToString() ?? "null"}|tx:{originalTransactionId.Value}|rr:{normalizedReason}"
+            : $"{clearingHouseId?.ToString() ?? "null"}|ot:{originalTrace}|rr:{normalizedReason}";
+
+        if (!seenDuplicateKeys.Add(duplicateKey))
+        {
+            failures.Add(new(
+                "INCOMING_RETURN_DUPLICATE_IN_FILE",
+                "La devolución entrante está duplicada dentro del mismo archivo.",
+                "OriginalTraceNumber",
+                trace));
+        }
     }
 }

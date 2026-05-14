@@ -194,6 +194,101 @@ public class AchIncomingReturnIngestionServiceTests
         Assert.Empty(c.Set<AchReturnGenerated>());
     }
 
+    [Fact]
+    public async Task IngestAsync_ShouldReportDuplicate_WhenSameOriginalTransactionAndReasonAppearsTwiceInFile()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var content = BuildType7("R01", "123456780000001") + BuildType7("R01", "123456780000001");
+        var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
+        Assert.False(r.IsAccepted);
+        Assert.Contains(r.Failures, x => x.Code == "INCOMING_RETURN_DUPLICATE_IN_FILE");
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldNotReportDuplicate_WhenSameOriginalTransactionHasDifferentReason()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var content = BuildType7("R01", "123456780000001") + BuildType7("DEV14", "123456780000001");
+        var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
+        Assert.DoesNotContain(r.Failures, x => x.Code == "INCOMING_RETURN_DUPLICATE_IN_FILE");
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldNotReportDuplicate_WhenDifferentOriginalTransactionsHaveSameReason()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        SeedTx(c, "123456780000002", 7001, txId: 11, cycleId: "C2");
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var content = BuildType7("R01", "123456780000001") + BuildType7("R01", "123456780000002");
+        var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
+        Assert.DoesNotContain(r.Failures, x => x.Code == "INCOMING_RETURN_DUPLICATE_IN_FILE");
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldDetectDuplicateUsingOriginalTrace_WhenOriginalTransactionNotFound()
+    {
+        await using var c = Ctx();
+        var catalog = new Mock<IAchRegulatoryCatalogService>(MockBehavior.Strict);
+        var sut = new AchIncomingReturnIngestionService(c, catalog.Object);
+        var content = BuildType7("R01", "000000000000000") + BuildType7(" R01 ", "000000000000000");
+        var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
+        Assert.Contains(r.Failures, x => x.Code == "ORIGINAL_TRANSACTION_NOT_FOUND");
+        Assert.Contains(r.Failures, x => x.Code == "INCOMING_RETURN_DUPLICATE_IN_FILE");
+        catalog.Verify(x => x.ValidateReturnCodeAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<TransactionTypeEnum>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldNormalizeReasonBeforeDuplicateDetection()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var content = BuildType7("r01", "123456780000001") + BuildType7(" R01 ", "123456780000001");
+        var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
+        Assert.Contains(r.Failures, x => x.Code == "INCOMING_RETURN_DUPLICATE_IN_FILE");
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldPreserveDev14ForDuplicateDetection()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var content = BuildType7("dev14", "123456780000001") + BuildType7("DEV14", "123456780000001");
+        var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
+        Assert.Contains(r.Failures, x => x.Code == "INCOMING_RETURN_DUPLICATE_IN_FILE");
+        Assert.Contains(r.Items, x => x.ReturnReasonCode == "DEV14");
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldNotChangeTransactionState_WhenDuplicateDetected()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var before = (await c.AchTransactions.SingleAsync()).State;
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var content = BuildType7("R01", "123456780000001") + BuildType7("R01", "123456780000001");
+        await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
+        var after = (await c.AchTransactions.SingleAsync()).State;
+        Assert.Equal(before, after);
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldNotGenerateOutboundReturnFile_WhenDuplicateDetected()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var content = BuildType7("R01", "123456780000001") + BuildType7("R01", "123456780000001");
+        await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
+        Assert.Empty(c.Set<AchReturnGenerated>());
+    }
+
     static string BuildType7(string reason, string originalTrace)
     {
         var chars = Enumerable.Repeat(' ', 106).ToArray();
@@ -214,11 +309,14 @@ public class AchIncomingReturnIngestionServiceTests
     static IAchRegulatoryCatalogService CatalogAllowAll() => CatalogAllowAllMock().Object;
 
     static AchDbContext Ctx() => new(new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
-    static void SeedTx(AchDbContext c, string trace, int clearingHouseId)
+    static void SeedTx(AchDbContext c, string trace, int clearingHouseId, int txId = 10, string cycleId = "C1")
     {
-        c.ClearingHouses.Add(new ClearingHouse { Id = clearingHouseId, Code = clearingHouseId == 7001 ? "CENIT" : "ACH", Name = "CH", OriginCode = "000101006" });
-        c.AchCycles.Add(new AchCycle { Id = "C1", CycleName = "C1", ProcessingDate = DateTime.UtcNow.Date, CutoffTime = new TimeSpan(8, 0, 0), ClearingHouseId = clearingHouseId });
-        c.AchTransactions.Add(new AchTransaction { Id = 10, TraceNumber = trace, AchCycleId = "C1", Type = TransactionTypeEnum.Credit, State = AchTransferStateEnum.Pending, EffectiveEntryDate = DateTime.UtcNow.Date, TransactionCode = "22", ReceivingDFI = "12345678", OriginatingDFI = "12345678", Amount = 100, Reference = "R", SourceAccountNumber = "1", DestinationAccountNumber = "2", OriginalTraceRef = "ALT000000000001" });
+        if (!c.ClearingHouses.Any(x => x.Id == clearingHouseId))
+        {
+            c.ClearingHouses.Add(new ClearingHouse { Id = clearingHouseId, Code = clearingHouseId == 7001 ? "CENIT" : "ACH", Name = "CH", OriginCode = "000101006" });
+        }
+        c.AchCycles.Add(new AchCycle { Id = cycleId, CycleName = cycleId, ProcessingDate = DateTime.UtcNow.Date, CutoffTime = new TimeSpan(8, 0, 0), ClearingHouseId = clearingHouseId });
+        c.AchTransactions.Add(new AchTransaction { Id = txId, TraceNumber = trace, AchCycleId = cycleId, Type = TransactionTypeEnum.Credit, State = AchTransferStateEnum.Pending, EffectiveEntryDate = DateTime.UtcNow.Date, TransactionCode = "22", ReceivingDFI = "12345678", OriginatingDFI = "12345678", Amount = 100, Reference = "R", SourceAccountNumber = "1", DestinationAccountNumber = "2", OriginalTraceRef = $"ALT{txId:000000000000}" });
         c.SaveChanges();
     }
 }
