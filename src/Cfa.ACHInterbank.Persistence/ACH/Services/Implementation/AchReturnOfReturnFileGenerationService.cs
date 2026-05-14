@@ -152,17 +152,20 @@ public class AchReturnOfReturnFileGenerationService(AchDbContext context) : IAch
             flow.ReturnOfReturnTransaction ??= await context.AchTransactions.Include(x => x.AchCycle).ThenInclude(x => x.ClearingHouse).FirstOrDefaultAsync(x => x.Id == flow.ReturnOfReturnTransactionId, cancellationToken);
         }
 
-        var clearingHouseIds = flows.Select(x => x.ReturnOfReturnTransaction.AchCycle?.ClearingHouseId ?? 0).Distinct().ToArray();
-        var singleClearingHouseId = clearingHouseIds.FirstOrDefault(x => x > 0);
-        if (singleClearingHouseId <= 0)
+        var clearingHouseIds = flows
+            .Select(x => x.ReturnOfReturnTransaction?.AchCycle?.ClearingHouseId ?? x.SourceReturnTransaction?.AchCycle?.ClearingHouseId ?? 0)
+            .Distinct()
+            .ToArray();
+        if (clearingHouseIds.Any(x => x <= 0) || clearingHouseIds.Length != 1)
         {
-            singleClearingHouseId = 7001;
+            failures.Add(new("CLEARING_HOUSE_MISSING", "No se pudo resolver una cámara única y válida para la generación NACHA.", "ClearingHouseId"));
+            return new(false, null, null, null, 0, requestedIds, failures, null, null);
         }
 
-        var sourceMarker = string.IsNullOrWhiteSpace(request.Source) ? "nacha" : request.Source.Trim();
+        var sourceValue = request.Source?.Trim();
         var candidateAudits = await context.AchReturnOfReturnGeneratedFileAudits
             .Include(x => x.Flows)
-            .Where(x => x.Source == sourceMarker)
+            .Where(x => x.FileName.StartsWith("RORNACHA_"))
             .Where(x => x.GeneratedFlowCount == requestedIds.Length)
             .ToListAsync(cancellationToken);
         var duplicate = candidateAudits.Any(x => x.Flows.Select(f => (int)f.ReturnOfReturnFlowId).OrderBy(v => v).SequenceEqual(requestedIds));
@@ -173,7 +176,7 @@ public class AchReturnOfReturnFileGenerationService(AchDbContext context) : IAch
         }
 
         var now = request.GeneratedAtUtc;
-        var clearingHouseId = singleClearingHouseId;
+        var clearingHouseId = clearingHouseIds[0];
         var firstCycle = flows.First().ReturnOfReturnTransaction.AchCycle;
         var originCode = NormalizeDigits(firstCycle.ClearingHouse?.OriginCode ?? "000101006", 8);
         var fileName = $"RORNACHA_{clearingHouseId}_{now:yyyyMMddHHmmss}.ach";
@@ -224,7 +227,7 @@ public class AchReturnOfReturnFileGenerationService(AchDbContext context) : IAch
             ContentLength = content.Length,
             ContentSha256 = contentSha256,
             RequestedBy = request.RequestedBy,
-            Source = sourceMarker,
+            Source = sourceValue,
             CreatedAtUtc = DateTime.UtcNow,
             Flows = flows.OrderBy(x => x.Id).Select(x => new AchReturnOfReturnGeneratedFileAuditFlow { ReturnOfReturnFlowId = x.Id }).ToList()
         };
