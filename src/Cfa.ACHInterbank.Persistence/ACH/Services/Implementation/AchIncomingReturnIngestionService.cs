@@ -17,12 +17,13 @@ public class AchIncomingReturnIngestionService(
         var items = new List<AchIncomingReturnItem>();
         var auditRecords = new List<AchIncomingReturnAuditRecord>();
         var seenDuplicateKeys = new HashSet<string>(StringComparer.Ordinal);
+        var duplicatedKeys = new HashSet<string>(StringComparer.Ordinal);
         var contentSha256 = ComputeSha256(request.RawContent ?? string.Empty);
 
         if (string.IsNullOrWhiteSpace(request.RawContent))
         {
             failures.Add(new("FILE_EMPTY", "El archivo entrante está vacío.", nameof(request.RawContent)));
-            return await BuildResultAsync(request, 0, items, failures, auditRecords, contentSha256, cancellationToken);
+            return await BuildResultAsync(request, 0, items, failures, auditRecords, duplicatedKeys, contentSha256, cancellationToken);
         }
 
         var records = ChunkRecords(request.RawContent);
@@ -61,14 +62,14 @@ public class AchIncomingReturnIngestionService(
             if (originalTx is null)
             {
                 failures.Add(new("ORIGINAL_TRANSACTION_NOT_FOUND", "No se encontró la transacción original de la devolución.", nameof(originalTrace), trace));
-                RegisterDuplicateFailure(seenDuplicateKeys, failures, trace, null, null, originalTrace, normalizedReason);
+                RegisterDuplicateFailure(seenDuplicateKeys, duplicatedKeys, failures, trace, null, null, originalTrace, normalizedReason);
                 items.Add(new(trace, originalTrace, normalizedReason, null, null, null, null, false, record));
                 auditRecords.Add(BuildAuditRecord(recordIndex, record, trace, originalTrace, normalizedReason, null, null, false));
                 continue;
             }
 
             var clearingHouseId = originalTx.AchCycle?.ClearingHouseId;
-            RegisterDuplicateFailure(seenDuplicateKeys, failures, trace, originalTx.Id, clearingHouseId, originalTrace, normalizedReason);
+            RegisterDuplicateFailure(seenDuplicateKeys, duplicatedKeys, failures, trace, originalTx.Id, clearingHouseId, originalTrace, normalizedReason);
             if (!clearingHouseId.HasValue || clearingHouseId.Value <= 0)
             {
                 failures.Add(new("CLEARING_HOUSE_MISSING", "No se pudo resolver la cámara de la transacción original.", "ClearingHouseId", trace));
@@ -119,7 +120,7 @@ public class AchIncomingReturnIngestionService(
             auditRecords.Add(BuildAuditRecord(recordIndex, record, trace, originalTrace, normalizedReason, originalTx.Id, clearingHouseId, true));
         }
 
-        return await BuildResultAsync(request, records.Count, items, failures, auditRecords, contentSha256, cancellationToken);
+        return await BuildResultAsync(request, records.Count, items, failures, auditRecords, duplicatedKeys, contentSha256, cancellationToken);
     }
 
     private async Task<AchIncomingReturnIngestionResult> BuildResultAsync(
@@ -128,6 +129,7 @@ public class AchIncomingReturnIngestionService(
         List<AchIncomingReturnItem> items,
         List<AchIncomingReturnIngestionFailure> failures,
         List<AchIncomingReturnAuditRecord> auditRecords,
+        HashSet<string> duplicatedKeys,
         string contentSha256,
         CancellationToken cancellationToken)
     {
@@ -145,6 +147,7 @@ public class AchIncomingReturnIngestionService(
                 .Select(x => x.TraceNumber).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!).ToHashSet(StringComparer.Ordinal);
             var eligibleIds = items
                 .Where(x => x.IsLinked && x.OriginalTransactionId.HasValue)
+                .Where(x => !duplicatedKeys.Contains(BuildDuplicateKey(x.OriginalTransactionId, x.ClearingHouseId, x.OriginalTraceNumber, x.ReturnReasonCode)))
                 .Where(x => (x.TraceNumber is null || !failedTraces.Contains(x.TraceNumber)) && (x.OriginalTraceNumber is null || !failedOriginalTraces.Contains(x.OriginalTraceNumber)))
                 .Select(x => x.OriginalTransactionId!.Value)
                 .Distinct()
@@ -256,6 +259,7 @@ public class AchIncomingReturnIngestionService(
 
     private static void RegisterDuplicateFailure(
         HashSet<string> seenDuplicateKeys,
+        HashSet<string> duplicatedKeys,
         List<AchIncomingReturnIngestionFailure> failures,
         string? trace,
         int? originalTransactionId,
@@ -268,17 +272,23 @@ public class AchIncomingReturnIngestionService(
             return;
         }
 
-        var duplicateKey = originalTransactionId.HasValue
-            ? $"{clearingHouseId?.ToString() ?? "null"}|tx:{originalTransactionId.Value}|rr:{normalizedReason}"
-            : $"{clearingHouseId?.ToString() ?? "null"}|ot:{originalTrace}|rr:{normalizedReason}";
+        var duplicateKey = BuildDuplicateKey(originalTransactionId, clearingHouseId, originalTrace, normalizedReason);
 
         if (!seenDuplicateKeys.Add(duplicateKey))
         {
+            duplicatedKeys.Add(duplicateKey);
             failures.Add(new(
                 "INCOMING_RETURN_DUPLICATE_IN_FILE",
                 "La devolución entrante está duplicada dentro del mismo archivo.",
                 "OriginalTraceNumber",
                 trace));
         }
+    }
+
+    private static string BuildDuplicateKey(int? originalTransactionId, int? clearingHouseId, string? originalTrace, string? normalizedReason)
+    {
+        return originalTransactionId.HasValue
+            ? $"{clearingHouseId?.ToString() ?? "null"}|tx:{originalTransactionId.Value}|rr:{normalizedReason}"
+            : $"{clearingHouseId?.ToString() ?? "null"}|ot:{originalTrace}|rr:{normalizedReason}";
     }
 }

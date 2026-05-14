@@ -245,17 +245,18 @@ public class AchIncomingReturnIngestionServiceTests
     }
 
     [Fact]
-    public async Task IngestAsync_ShouldUpdateState_WhenDuplicateDetectedAndDecisionIsRejectedPartial()
+    public async Task IngestAsync_ShouldNotUpdateState_WhenDuplicateDetectedAndDecisionIsRejectedPartial()
     {
         await using var c = Ctx();
         SeedTx(c, "123456780000001", 7001);
         var before = (await c.AchTransactions.SingleAsync()).State;
         var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
         var content = BuildType7("R01", "123456780000001") + BuildType7("R01", "123456780000001");
-        await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
+        var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
         var after = (await c.AchTransactions.SingleAsync()).State;
-        Assert.NotEqual(before, after);
-        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, after);
+        Assert.Equal(AchIncomingReturnIngestionDecision.RejectedPartial, r.Decision);
+        Assert.Equal(0, r.UpdatedTransactionCount);
+        Assert.Equal(before, after);
     }
 
     [Fact]
