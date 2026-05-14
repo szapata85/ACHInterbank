@@ -137,6 +137,7 @@ public static class DependencyInjectionService
         services.AddScoped<IPaymentRailCapabilityRegistryService, ACH.Services.Implementation.PaymentRailCapabilityRegistryService>();
         services.AddScoped<IAchReturnEligibilityService, AchReturnEligibilityService>();
         services.AddScoped<IAchReturnOfReturnEligibilityService, AchReturnOfReturnEligibilityService>();
+        services.AddScoped<IAchReturnOfReturnFileGenerationService, AchReturnOfReturnFileGenerationService>();
         services.AddScoped<IAchIncomingReturnIngestionService, AchIncomingReturnIngestionService>();
         services.AddSingleton<IAchReturnGenerationLockService, AchReturnGenerationLockService>();
 

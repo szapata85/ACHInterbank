@@ -753,3 +753,15 @@ Objetivos técnicos:
 - No se genera archivo.
 - No se cambian estados.
 - No se ejecuta contabilidad.
+
+
+## Avance Fase 5.4 - Generación de archivo de devolución de devolución
+
+- Se crea `IAchReturnOfReturnFileGenerationService` / `AchReturnOfReturnFileGenerationService` como servicio separado del orquestador.
+- `ReturnOfReturnOrchestrator.RegisterAsync(...)` mantiene responsabilidad exclusiva de registro/idempotencia de flujo.
+- La generación se realiza en memoria (sin persistir archivo, sin migraciones, sin nuevas tablas).
+- El resultado expone `FileName`, `ContentText`, `Content`, `GeneratedFlowCount`, `FlowIds`, `Failures`.
+- Naming determinístico de fase: `ROR_{ClearingHouseId}_{yyyyMMddHHmmss}.ach`.
+- No se reejecuta validación regulatoria ni `ValidateReturnOfReturnAsync` en esta fase de generación.
+- No se genera contabilidad ni se cambian estados finales.
+- Pendiente: homologación NACHA/UAT y persistencia formal de artefactos para fase posterior.
