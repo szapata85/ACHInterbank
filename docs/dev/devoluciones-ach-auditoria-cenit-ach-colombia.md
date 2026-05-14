@@ -727,3 +727,17 @@ Objetivos técnicos:
 - `AchReturnOfReturnEligibilityService` ahora expone ese flag desde `ValidateReturnOfReturnAsync(...)` y concentra la validación regulatoria de devolución de devolución.
 - `ReturnOfReturnOrchestrator` dejó de invocar nuevamente `ValidateReturnOfReturnAsync(...)`; consume el resultado centralizado de elegibilidad para controlar unicidad por transacción.
 - Se añadieron pruebas de cobertura para validar propagación de unicidad y rechazo regulatorio, además de registro DI del nuevo servicio.
+
+
+## Avance Fase 5.2 - Validación de devolución de devolución por cámara
+
+- La elegibilidad de devolución de devolución valida usando el `ClearingHouseId` resuelto desde la devolución/transacción origen.
+- La validación regulatoria se mantiene centralizada en `AchReturnOfReturnEligibilityService`.
+- `ValidateReturnOfReturnAsync(...)` recibe la cámara correcta y evita mezcla entre CENIT y ACH Colombia.
+- `AchReturnOfReturnPolicy` sigue siendo la fuente regulatoria para devolución de devolución; no se reutiliza `AchReturnPolicy`.
+- `IsUniquePerTransaction` se conserva como resultado de la política de la cámara evaluada.
+- No se usa cámara global, fallback ni hardcoded `1`.
+- No se genera archivo.
+- No se cambian estados.
+- No se ejecuta contabilidad.
+- Pendientes: idempotencia avanzada, generación de archivo de devolución de devolución, cobertura UAT por cámara.
