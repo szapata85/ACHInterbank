@@ -109,7 +109,10 @@ public class AchPreproductionCertificationTests
         await SeedReturnCertificationScenarioAsync(context);
 
         var fixedNow = new DateTimeOffset(2026, 03, 23, 11, 45, 00, TimeSpan.Zero);
-        var service = new AchReturnsService(context, new FixedTimeProvider(fixedNow), new AchRegulatoryCatalogService(context));
+        var eligibility = new Mock<IAchReturnEligibilityService>();
+        eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AchReturnEligibilityRequest req, CancellationToken _) => new AchReturnEligibilityResult(true, req.ReturnReasonCode.Trim().ToUpperInvariant(), 1, "Debit", "Pending", []));
+        var service = new AchReturnsService(context, new FixedTimeProvider(fixedNow), new AchRegulatoryCatalogService(context), eligibility.Object, new TestReturnGenerationLockService());
 
         var response = await service.GenerateReturnsFileAsync(
             new GenerateReturnsFileRequest("cycle-ret", [new ReturnSelectionItemDto(501, "DEV14")]),

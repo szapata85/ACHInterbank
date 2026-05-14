@@ -17,6 +17,8 @@ public class AchReturnsService(
     AchDbContext context,
     TimeProvider? timeProvider = null,
     IAchRegulatoryCatalogService? regulatoryCatalogService = null,
+    IAchReturnEligibilityService? returnEligibilityService = null,
+    IAchReturnGenerationLockService? returnGenerationLockService = null,
     IPaymentRailContextService? paymentRailContextService = null,
     IPaymentRailOperationalStrategyResolver? strategyResolver = null,
     IPaymentRailShadowCompareService? shadowCompareService = null,
@@ -24,6 +26,10 @@ public class AchReturnsService(
 {
     private readonly IAchRegulatoryCatalogService _regulatoryCatalogService = regulatoryCatalogService
                                                                            ?? throw new InvalidOperationException("IAchRegulatoryCatalogService es requerido para gobernanza regulatoria de devoluciones.");
+    private readonly IAchReturnEligibilityService _returnEligibilityService = returnEligibilityService
+                                                                        ?? throw new InvalidOperationException("IAchReturnEligibilityService es requerido para evaluar elegibilidad de devoluciones.");
+    private readonly IAchReturnGenerationLockService _returnGenerationLockService = returnGenerationLockService
+        ?? throw new InvalidOperationException("IAchReturnGenerationLockService es requerido para control de concurrencia en devoluciones.");
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
     private readonly IPaymentRailContextService? _paymentRailContextService = paymentRailContextService;
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver = strategyResolver;
@@ -112,7 +118,7 @@ public class AchReturnsService(
             .FirstOrDefault(group => group.Count() > 1);
         if (duplicateSelections is not null)
         {
-            throw new InvalidOperationException($"La transacción {duplicateSelections.Key} fue seleccionada más de una vez en la misma generación.");
+            throw new InvalidOperationException($"La transacción {duplicateSelections.Key} está repetida en la solicitud de devolución.");
         }
 
         var cycle = await context.AchCycles
@@ -122,6 +128,8 @@ public class AchReturnsService(
             ?? throw new InvalidOperationException("No se encontró el ciclo de operación.");
 
         var selectedIds = request.Items.Select(i => i.TransactionId).Distinct().ToList();
+        await using var generationLock = await _returnGenerationLockService.AcquireAsync(selectedIds, ct);
+
         var transactions = await context.AchTransactions
             .Include(t => t.AchCycle)
             .Where(t => selectedIds.Contains(t.Id))
@@ -170,8 +178,19 @@ public class AchReturnsService(
                 throw new InvalidOperationException($"La transacción {tx.Id} excede la ventana máxima de 4 ciclos para devolución.");
             }
 
-            var reasonCode = item.ReturnReasonCode.Trim().ToUpperInvariant();
-            await ValidateReturnPolicyAsync(tx, reasonCode, now, ct);
+            var eligibility = await _returnEligibilityService.EvaluateOutgoingReturnAsync(
+                new AchReturnEligibilityRequest(
+                    tx.Id,
+                    item.ReturnReasonCode,
+                    now,
+                    HasAddenda: true),
+                ct);
+            if (!eligibility.IsEligible)
+            {
+                throw new InvalidOperationException(eligibility.Failures.First().Message);
+            }
+
+            var reasonCode = eligibility.NormalizedReasonCode!;
 
             var amount = tx.IsPrenotification ? 0m : tx.Amount;
             var newSequence = await GenerateNewReturnSequenceAsync(tx.ReceivingDFI, now.Date, ct);
@@ -334,37 +353,6 @@ public class AchReturnsService(
         }
     }
 
-
-    private async Task ValidateReturnPolicyAsync(AchTransaction transaction, string reasonCode, DateTime nowUtc, CancellationToken ct)
-    {
-        var returnCodeValidation = await _regulatoryCatalogService.ValidateReturnCodeAsync(
-            transaction.AchCycle.ClearingHouseId,
-            reasonCode,
-            transaction.Type,
-            transaction.EffectiveEntryDate.Date,
-            nowUtc.Date,
-            ct);
-        if (!returnCodeValidation.IsAllowed)
-        {
-            throw new InvalidOperationException(returnCodeValidation.Reason
-                                                ?? $"La causal {reasonCode} no está permitida para la transacción {transaction.Id}.");
-        }
-
-        var returnPolicyValidation = await _regulatoryCatalogService.ValidateReturnPolicyAsync(
-            transaction.AchCycle.ClearingHouseId,
-            transaction.Type,
-            reasonCode,
-            transaction.EffectiveEntryDate.Date,
-            nowUtc.Date,
-            hasAddenda: true,
-            transaction.State.ToString(),
-            ct);
-        if (!returnPolicyValidation.IsAllowed)
-        {
-            throw new InvalidOperationException(returnPolicyValidation.Reason
-                                                ?? $"La política regulatoria no permite devolver la transacción {transaction.Id}.");
-        }
-    }
 
     private async Task<Dictionary<string, int>> GetCycleOrderAsync(int clearingHouseId, CancellationToken ct)
     {
