@@ -58,6 +58,8 @@ public class P0FineGrainedPolicyMigrationTests
 
         AssertPolicy(typeof(AchReturnsController), nameof(AchReturnsController.GetTransactionsByCycle), P0Policies.ReturnsRead);
         AssertPolicy(typeof(AchReturnsController), nameof(AchReturnsController.GenerateFile), P0Policies.ReturnsGenerateFile);
+        AssertPolicy(typeof(AchReturnOfReturnController), nameof(AchReturnOfReturnController.Evaluate), P0Policies.ReturnsRead);
+        AssertPolicy(typeof(AchReturnOfReturnController), nameof(AchReturnOfReturnController.GenerateAuditFile), P0Policies.ReturnsGenerateFile);
     }
 
     private static async Task AssertPolicyBehavior(string policyName, string finePermission, string legacyAllowed, string legacyRejected)
