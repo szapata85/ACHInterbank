@@ -720,3 +720,169 @@ Objetivos técnicos:
 - No generar contabilidad en el primer commit de Fase 5.
 - No mezclar salida/entrada en el mismo commit.
 - No tocar migraciones salvo decisión explícita.
+
+
+## Cierre Fase 5.1 (2026-05-14)
+- Se incorporó `IsUniquePerTransaction` en `AchReturnOfReturnEligibilityResult`.
+- `AchReturnOfReturnEligibilityService` ahora expone ese flag desde `ValidateReturnOfReturnAsync(...)` y concentra la validación regulatoria de devolución de devolución.
+- `ReturnOfReturnOrchestrator` dejó de invocar nuevamente `ValidateReturnOfReturnAsync(...)`; consume el resultado centralizado de elegibilidad para controlar unicidad por transacción.
+- Se añadieron pruebas de cobertura para validar propagación de unicidad y rechazo regulatorio, además de registro DI del nuevo servicio.
+
+
+## Avance Fase 5.2 - Validación de devolución de devolución por cámara
+
+- La elegibilidad de devolución de devolución valida usando el `ClearingHouseId` resuelto desde la devolución/transacción origen.
+- La validación regulatoria se mantiene centralizada en `AchReturnOfReturnEligibilityService`.
+- `ValidateReturnOfReturnAsync(...)` recibe la cámara correcta y evita mezcla entre CENIT y ACH Colombia.
+- `AchReturnOfReturnPolicy` sigue siendo la fuente regulatoria para devolución de devolución; no se reutiliza `AchReturnPolicy`.
+- `IsUniquePerTransaction` se conserva como resultado de la política de la cámara evaluada.
+- No se usa cámara global, fallback ni hardcoded `1`.
+- No se genera archivo.
+- No se cambian estados.
+- No se ejecuta contabilidad.
+- Pendientes: idempotencia avanzada, generación de archivo de devolución de devolución, cobertura UAT por cámara.
+
+
+## Avance Fase 5.3 - Idempotencia de devolución de devolución
+
+- El registro de `ReturnOfReturnFlow` refuerza idempotencia operativa antes de persistir.
+- Se bloquea duplicado exacto `SourceReturnTransactionId + ReturnOfReturnTransactionId`.
+- Se bloquea reutilización de `ReturnOfReturnTransactionId` incluso cuando `IsUniquePerTransaction = false`.
+- Cuando `IsUniquePerTransaction = true`, se bloquean múltiples devoluciones de devolución para el mismo `SourceReturnTransactionId`.
+- La decisión de unicidad sigue dependiendo de `IsUniquePerTransaction` obtenido en elegibilidad centralizada por cámara.
+- No se genera archivo.
+- No se cambian estados.
+- No se ejecuta contabilidad.
+
+
+## Avance Fase 5.4 - Generación de archivo de devolución de devolución
+
+- Se crea `IAchReturnOfReturnFileGenerationService` / `AchReturnOfReturnFileGenerationService` como servicio separado del orquestador.
+- `ReturnOfReturnOrchestrator.RegisterAsync(...)` mantiene responsabilidad exclusiva de registro/idempotencia de flujo.
+- La generación se realiza en memoria (sin persistir archivo, sin migraciones, sin nuevas tablas).
+- El resultado expone `FileName`, `ContentText`, `Content`, `GeneratedFlowCount`, `FlowIds`, `Failures`.
+- Naming determinístico de fase: `ROR_{ClearingHouseId}_{yyyyMMddHHmmss}.ach`.
+- No se reejecuta validación regulatoria ni `ValidateReturnOfReturnAsync` en esta fase de generación.
+- No se genera contabilidad ni se cambian estados finales.
+- Pendiente: homologación NACHA/UAT y persistencia formal de artefactos para fase posterior.
+
+## Cierre técnico Fase 5 - Devolución de devolución funcional
+
+### Estado general
+Fase 5 queda cerrada técnicamente para la base funcional de devolución de devolución con alcance implementado en:
+- elegibilidad centralizada;
+- validación regulatoria con `AchReturnOfReturnPolicy`;
+- validación por `ClearingHouseId`;
+- no mezcla CENIT vs ACH Colombia;
+- propagación de `IsUniquePerTransaction`;
+- idempotencia reforzada;
+- generación en memoria de archivo de devolución de devolución;
+- naming determinístico interno;
+- cobertura de generación complementaria;
+- sin contabilidad;
+- sin endpoints públicos nuevos;
+- sin migraciones;
+- sin persistencia formal del archivo generado;
+- sin modificación de golden master de devolución simple.
+
+### Commits de Fase 5
+> Nota: listado con hashes cortos reales disponibles en la rama actual. Si algún cambio fue consolidado por squash/merge, se conserva el commit visible en esta rama.
+
+- `e97ebf3` `Centralize Return-of-Return eligibility, add in-memory file generation service and integrate with orchestrator` (consolidado en esta rama; engloba elegibilidad, validación por cámara, idempotencia y generación en memoria).
+- `7408247` `test(returns): cubrir generación de archivo por cámara`.
+- `209131b` `docs(returns): cerrar Fase 5 y preparar UAT devolución de devolución`.
+
+### Matriz de cierre Fase 5
+| Componente | Estado | Evidencia técnica | Riesgo residual |
+|---|---|---|---|
+| Elegibilidad centralizada | Cerrado | `IAchReturnOfReturnEligibilityService` | Reglas reales pueden variar en UAT |
+| Resultado de elegibilidad | Cerrado | `IsUniquePerTransaction` | Política por cámara debe validarse con archivos reales |
+| Validación regulatoria | Cerrado | `ValidateReturnOfReturnAsync` | Homologación con CENIT/ACH |
+| No mezcla por cámara | Cerrado | Tests CENIT vs ACH Colombia | Catálogos productivos deben estar completos |
+| Idempotencia | Cerrado | Controles por `SourceReturnTransactionId`, `ReturnOfReturnTransactionId`, combinación exacta | Concurrencia multi-nodo |
+| Generación de archivo | Cerrado en memoria | `IAchReturnOfReturnFileGenerationService` | Formato NACHA definitivo pendiente UAT |
+| Naming | Cerrado como naming determinístico interno | `ROR_{ClearingHouseId}_{yyyyMMddHHmmss}.ach` | Naming productivo/certificado pendiente |
+| Persistencia del artefacto | Pendiente | No se usa `AchReturnGenerated` | Trazabilidad formal del archivo generado |
+| Estados finales | Fuera de alcance | Generación no cambia estados | Definir transición operacional posterior |
+| Contabilidad | Fuera de alcance | No se ejecuta contabilidad | Integración contable/conciliación pendiente |
+| Endpoints públicos | Fuera de alcance | No se modifican contratos públicos | Exposición controlada pendiente |
+| Golden master | Preservado | No se modifica golden master de devolución simple | Golden master específico return-of-return pendiente |
+
+### Criterios de aceptación de Fase 5
+- [x] Elegibilidad centralizada de devolución de devolución.
+- [x] Uso de `AchReturnOfReturnPolicy`.
+- [x] `ValidateReturnOfReturnAsync` centralizado.
+- [x] `IsUniquePerTransaction` expuesto.
+- [x] Validación por `ClearingHouseId`.
+- [x] No mezcla CENIT vs ACH Colombia.
+- [x] Idempotencia reforzada.
+- [x] Registro de `ReturnOfReturnFlow` separado de generación.
+- [x] Generación en memoria.
+- [x] Naming determinístico interno.
+- [x] Validación de cámara consistente source/ror.
+- [x] Tests de generación y cobertura complementaria.
+- [x] Sin contabilidad.
+- [x] Sin cambios de endpoints públicos.
+- [x] Sin migraciones.
+- [x] Sin persistencia formal de archivo.
+- [x] Sin cambios al golden master de devolución simple.
+- [x] Suite completa verde.
+
+### Riesgos pendientes
+| Riesgo | Impacto | Control actual | Control futuro recomendado | Fase sugerida |
+|---|---|---|---|---|
+| Formato NACHA definitivo pendiente | Archivo en memoria puede no cumplir homologación final | Contenido determinístico testeable | Fixture/golden master por cámara | UAT / Fase 6 |
+| Persistencia formal del artefacto | Trazabilidad limitada | Resultado en memoria | Entidad/auditoría persistente aprobada | Fase 6 |
+| Naming productivo | Puede requerir nombre certificado por operador/cámara | `ROR_{ClearingHouseId}_{yyyyMMddHHmmss}.ach` | Integración con naming oficial | UAT |
+| Contabilidad pendiente | Flujo técnico sin asiento contable | Contabilidad no ejecutada | Integración contable/conciliación | Fase 7 |
+| Concurrencia multi-nodo | Riesgo de duplicados distribuidos | Idempotencia por consultas | Constraints/locks persistentes (si se aprueban migraciones) | Hardening producción |
+| Catálogos reales incompletos | Falsos rechazos/aprobaciones | Catálogo por cámara | Carga certificada CENIT/ACH | UAT |
+| Endpoints públicos pendientes | Flujo no expuesto operativamente | Servicios internos | API controlada con autorización/auditoría | Fase posterior |
+
+## Plan UAT - Devolución de devolución CENIT y ACH Colombia
+Objetivo: validar que la devolución de devolución funcione por cámara, sin mezcla de reglas, respetando idempotencia, generación en memoria y límites actuales.
+
+| ID | Cámara | Escenario | Entrada | Resultado esperado | Evidencia esperada |
+|---|---|---|---|---|---|
+| UAT-ROR-001 | CENIT | Devolución de devolución permitida | source return CENIT + nueva causal permitida | Elegible, flow registrado, archivo en memoria generado | `ReturnOfReturnFlow`, `FileName ROR_...`, contenido generado |
+| UAT-ROR-002 | ACH Colombia | Devolución de devolución permitida | source return ACH + nueva causal permitida | Igual al caso CENIT por su cámara | `ReturnOfReturnFlow`, `FileName ROR_...`, contenido generado |
+| UAT-ROR-003 | CENIT | Causal permitida solo en ACH | causal fuera de política CENIT | Rechazo por política | Failure `RETURN_OF_RETURN_POLICY_REJECTED` |
+| UAT-ROR-004 | ACH Colombia | Causal permitida solo en CENIT | causal fuera de política ACH | Rechazo por política | Failure `RETURN_OF_RETURN_POLICY_REJECTED` |
+| UAT-ROR-005 | CENIT | source/ror con cámaras distintas | flow inconsistente | No genera archivo | Failure `CLEARING_HOUSE_MISSING` |
+| UAT-ROR-006 | CENIT | Duplicado exacto source + ror | registro repetido | Rechazo por idempotencia | evidencia de rechazo por duplicado |
+| UAT-ROR-007 | ACH Colombia | Reutilización de `ReturnOfReturnTransactionId` | ror transaction ya usada | Rechazo por idempotencia | evidencia de rechazo por ror repetida |
+| UAT-ROR-008 | CENIT | `IsUniquePerTransaction = true` con source ya usado | nueva ror sobre mismo source | Rechazo | evidencia de unicidad por source |
+| UAT-ROR-009 | ACH Colombia | `IsUniquePerTransaction = false` con source previo | nueva ror transaction distinta | Permitido | flow adicional válido |
+| UAT-ROR-010 | CENIT | Generación múltiples flows misma cámara | 2+ flows CENIT | Archivo en memoria con count correcto | `GeneratedFlowCount`, `FlowIds`, `ContentText` |
+| UAT-ROR-011 | ACH Colombia | Intento de generar flows mezclados CENIT + ACH | lote mixto | Rechazo de generación | Failure de cámara |
+| UAT-ROR-012 | Ambas | Validar no contabilidad | ejecución completa | No se crean asientos | evidencia contable nula |
+| UAT-ROR-013 | Ambas | Validar no persistencia formal del archivo | ejecución completa | No se crea `AchReturnGenerated` | evidencia de ausencia |
+| UAT-ROR-014 | Ambas | Validar no cambio de estados | ejecutar generación | Estados originales permanecen | comparación estado previo/posterior |
+
+### Evidencias esperadas UAT
+- registro en `ReturnOfReturnFlow`;
+- resultado de elegibilidad;
+- `ClearingHouseId` evaluado;
+- `OriginalReturnReasonCode`;
+- `NewReturnReasonCode`;
+- `IsUniquePerTransaction`;
+- resultado de generación en memoria;
+- `FileName`;
+- `ContentText`;
+- `GeneratedFlowCount`;
+- `FlowIds`;
+- ausencia de `AchReturnGenerated`;
+- ausencia de asientos contables;
+- estados sin modificación;
+- logs/evidencia técnica del test.
+
+### Límites explícitos post-Fase 5
+- La generación actual es en memoria.
+- No hay persistencia formal del archivo.
+- No hay contabilidad.
+- No hay endpoint público nuevo.
+- No hay naming productivo certificado.
+- No hay golden master NACHA definitivo para devolución de devolución.
+- No se debe asumir homologación final CENIT/ACH hasta UAT.
+- No se modificó devolución simple.
+- No se modificó devolución entrante.

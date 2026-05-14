@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
@@ -15,7 +16,7 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
 {
     private readonly AchDbContext _context;
-    private readonly IAchRegulatoryCatalogService _catalogService;
+    private readonly IAchReturnOfReturnEligibilityService _returnOfReturnEligibilityService;
     private readonly IPaymentRailContextService? _paymentRailContextService;
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver;
     private readonly IPaymentRailShadowCompareService? _shadowCompareService;
@@ -23,14 +24,14 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
 
     public ReturnOfReturnOrchestrator(
         AchDbContext context,
-        IAchRegulatoryCatalogService catalogService,
+        IAchReturnOfReturnEligibilityService returnOfReturnEligibilityService,
         IPaymentRailContextService? paymentRailContextService = null,
         IPaymentRailOperationalStrategyResolver? strategyResolver = null,
         IPaymentRailShadowCompareService? shadowCompareService = null,
         ILogger<ReturnOfReturnOrchestrator>? logger = null)
     {
         _context = context;
-        _catalogService = catalogService;
+        _returnOfReturnEligibilityService = returnOfReturnEligibilityService;
         _paymentRailContextService = paymentRailContextService;
         _strategyResolver = strategyResolver;
         _shadowCompareService = shadowCompareService;
@@ -56,41 +57,41 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
             throw new InvalidOperationException("El plazo operativo para devolución de devolución expiró.");
         }
 
-        var originalCode = string.IsNullOrWhiteSpace(sourceReturn.ReturnReasonCode) ? "R01" : sourceReturn.ReturnReasonCode;
-        var currentDate = DateTime.UtcNow.Date;
-        var clearingHouseId = await ResolveClearingHouseIdAsync(sourceReturn, ct);
-        var returnPolicy = await _catalogService.ValidateReturnPolicyAsync(
-            clearingHouseId,
-            TransactionTypeEnum.Return,
-            reasonCode,
-            sourceReturn.EffectiveEntryDate.Date,
-            currentDate,
-            true,
-            sourceReturn.State.ToString(),
+        var eligibility = await _returnOfReturnEligibilityService.EvaluateAsync(
+            new AchReturnOfReturnEligibilityRequest(
+                sourceReturn.Id,
+                reasonCode,
+                DateTime.UtcNow),
             ct);
-        if (!returnPolicy.IsAllowed)
+
+        if (!eligibility.IsEligible)
         {
-            throw new InvalidOperationException(returnPolicy.Reason ?? "La política de devolución no permite esta operación.");
+            var reason = eligibility.Failures.FirstOrDefault()?.Message ?? "La devolución de devolución no es elegible.";
+            throw new InvalidOperationException(reason);
         }
 
-        var validation = await _catalogService.ValidateReturnOfReturnAsync(
-            clearingHouseId,
-            originalCode,
-            reasonCode,
-            sourceReturn.State.ToString(),
-            sourceReturn.EffectiveEntryDate.Date,
-            currentDate,
-            ct);
-        if (!validation.IsAllowed)
+        var duplicateExact = await _context.ReturnOfReturnFlows
+            .AnyAsync(x => x.SourceReturnTransactionId == sourceReturn.Id && x.ReturnOfReturnTransactionId == returnOfReturn.Id, ct);
+        if (duplicateExact)
         {
-            throw new InvalidOperationException(validation.Reason ?? "La política de devolución de devolución no permite esta operación.");
+            throw new InvalidOperationException("La devolución de devolución ya está registrada para esta combinación origen/destino.");
         }
 
-        var duplicated = validation.IsUniquePerTransaction && await _context.ReturnOfReturnFlows
-            .AnyAsync(x => x.SourceReturnTransactionId == sourceReturn.Id || x.ReturnOfReturnTransactionId == returnOfReturn.Id, ct);
-        if (duplicated)
+        var returnOfReturnAlreadyRegistered = await _context.ReturnOfReturnFlows
+            .AnyAsync(x => x.ReturnOfReturnTransactionId == returnOfReturn.Id, ct);
+        if (returnOfReturnAlreadyRegistered)
         {
-            throw new InvalidOperationException("Ya existe un flujo de devolución de devolución para la transacción indicada.");
+            throw new InvalidOperationException("La transacción de devolución de devolución ya fue registrada.");
+        }
+
+        if (eligibility.IsUniquePerTransaction)
+        {
+            var sourceAlreadyHasReturnOfReturn = await _context.ReturnOfReturnFlows
+                .AnyAsync(x => x.SourceReturnTransactionId == sourceReturn.Id, ct);
+            if (sourceAlreadyHasReturnOfReturn)
+            {
+                throw new InvalidOperationException("Ya existe una devolución de devolución para la devolución origen.");
+            }
         }
 
         var latestExecutionId = await _context.CenitCycleExecutions
