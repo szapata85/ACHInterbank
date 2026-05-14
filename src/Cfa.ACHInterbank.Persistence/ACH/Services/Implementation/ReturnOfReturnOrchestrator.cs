@@ -70,11 +70,28 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
             throw new InvalidOperationException(reason);
         }
 
-        var duplicated = eligibility.IsUniquePerTransaction && await _context.ReturnOfReturnFlows
-            .AnyAsync(x => x.SourceReturnTransactionId == sourceReturn.Id || x.ReturnOfReturnTransactionId == returnOfReturn.Id, ct);
-        if (duplicated)
+        var duplicateExact = await _context.ReturnOfReturnFlows
+            .AnyAsync(x => x.SourceReturnTransactionId == sourceReturn.Id && x.ReturnOfReturnTransactionId == returnOfReturn.Id, ct);
+        if (duplicateExact)
         {
-            throw new InvalidOperationException("Ya existe un flujo de devolución de devolución para la transacción indicada.");
+            throw new InvalidOperationException("La devolución de devolución ya está registrada para esta combinación origen/destino.");
+        }
+
+        var returnOfReturnAlreadyRegistered = await _context.ReturnOfReturnFlows
+            .AnyAsync(x => x.ReturnOfReturnTransactionId == returnOfReturn.Id, ct);
+        if (returnOfReturnAlreadyRegistered)
+        {
+            throw new InvalidOperationException("La transacción de devolución de devolución ya fue registrada.");
+        }
+
+        if (eligibility.IsUniquePerTransaction)
+        {
+            var sourceAlreadyHasReturnOfReturn = await _context.ReturnOfReturnFlows
+                .AnyAsync(x => x.SourceReturnTransactionId == sourceReturn.Id, ct);
+            if (sourceAlreadyHasReturnOfReturn)
+            {
+                throw new InvalidOperationException("Ya existe una devolución de devolución para la devolución origen.");
+            }
         }
 
         var latestExecutionId = await _context.CenitCycleExecutions

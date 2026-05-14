@@ -163,6 +163,74 @@ public class CenitOperationalGovernanceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RegisterAsync(source, ror, "R01", CancellationToken.None));
     }
 
+
+    [Fact]
+    public async Task ReturnOfReturnOrchestrator_WhenUniqueFalse_RejectsDuplicateReturnOfReturnTransactionId()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var context = CreateContext(connection);
+
+        SeedReturnOfReturnPrerequisites(context);
+        var source = BuildReturnTx(31, "r31", "op31");
+        var ror = BuildReturnTx(32, "r32", "op32");
+        context.AchTransactions.AddRange(source, ror);
+        var otherSource = BuildReturnTx(33, "r33", "op33");
+        context.AchTransactions.Add(otherSource);
+        context.ReturnOfReturnFlows.Add(new ReturnOfReturnFlow { SourceReturnTransactionId = 33, ReturnOfReturnTransactionId = 32, ReasonCode = "R01" });
+        await context.SaveChangesAsync();
+
+        var eligibility = BuildEligibilityMock(isEligible: true, isUniquePerTransaction: false);
+        var sut = new ReturnOfReturnOrchestrator(context, eligibility.Object);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RegisterAsync(source, ror, "R01", CancellationToken.None));
+        Assert.Equal("La transacción de devolución de devolución ya fue registrada.", ex.Message);
+    }
+
+    [Fact]
+    public async Task ReturnOfReturnOrchestrator_WhenUniqueTrue_RejectsDuplicateSourceReturnTransactionId()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var context = CreateContext(connection);
+
+        SeedReturnOfReturnPrerequisites(context);
+        var source = BuildReturnTx(41, "r41", "op41");
+        var ror = BuildReturnTx(42, "r42", "op42");
+        context.AchTransactions.AddRange(source, ror);
+        var otherRor = BuildReturnTx(43, "r43", "op43");
+        context.AchTransactions.Add(otherRor);
+        context.ReturnOfReturnFlows.Add(new ReturnOfReturnFlow { SourceReturnTransactionId = 41, ReturnOfReturnTransactionId = 43, ReasonCode = "R01" });
+        await context.SaveChangesAsync();
+
+        var eligibility = BuildEligibilityMock(isEligible: true, isUniquePerTransaction: true);
+        var sut = new ReturnOfReturnOrchestrator(context, eligibility.Object);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RegisterAsync(source, ror, "R01", CancellationToken.None));
+        Assert.Equal("Ya existe una devolución de devolución para la devolución origen.", ex.Message);
+    }
+
+    [Fact]
+    public async Task ReturnOfReturnOrchestrator_RejectsDuplicateExactSourceAndReturnOfReturnCombination()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var context = CreateContext(connection);
+
+        SeedReturnOfReturnPrerequisites(context);
+        var source = BuildReturnTx(51, "r51", "op51");
+        var ror = BuildReturnTx(52, "r52", "op52");
+        context.AchTransactions.AddRange(source, ror);
+        context.ReturnOfReturnFlows.Add(new ReturnOfReturnFlow { SourceReturnTransactionId = 51, ReturnOfReturnTransactionId = 52, ReasonCode = "R01" });
+        await context.SaveChangesAsync();
+
+        var eligibility = BuildEligibilityMock(isEligible: true, isUniquePerTransaction: false);
+        var sut = new ReturnOfReturnOrchestrator(context, eligibility.Object);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RegisterAsync(source, ror, "R01", CancellationToken.None));
+        Assert.Equal("La devolución de devolución ya está registrada para esta combinación origen/destino.", ex.Message);
+    }
+
     private static async Task<(CenitCycleExecution Execution, string NextCycleId)> SeedCycleExecutionScenarioAsync(AchDbContext context, string cycleName, decimal availableLiquidity)
     {
         context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, HolidayStrategy = "Colombian" });
@@ -224,6 +292,46 @@ public class CenitOperationalGovernanceTests
             CompanyEntryDescriptionId = TestCompanyEntryDescriptionId
         });
     }
+
+
+    private static Mock<IAchReturnOfReturnEligibilityService> BuildEligibilityMock(bool isEligible, bool isUniquePerTransaction)
+    {
+        var mock = new Mock<IAchReturnOfReturnEligibilityService>();
+        mock.Setup(x => x.EvaluateAsync(It.IsAny<AchReturnOfReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchReturnOfReturnEligibilityResult(
+                isEligible,
+                2,
+                0,
+                "R01",
+                "R02",
+                isUniquePerTransaction,
+                Array.Empty<AchReturnOfReturnEligibilityFailure>()));
+        return mock;
+    }
+
+    private static AchTransaction BuildReturnTx(int id, string reference, string externalId)
+        => new()
+        {
+            Id = id,
+            Type = TransactionTypeEnum.Return,
+            State = AchTransferStateEnum.ReturnedByOperator,
+            SlaDeadlineAtUtc = DateTime.UtcNow.AddHours(2),
+            AchCycleId = "c1",
+            Reference = reference,
+            TransactionExternalId = externalId,
+            CompanyName = "C",
+            CompanyIdentification = "N",
+            CompanyEntryDescriptionId = TestCompanyEntryDescriptionId,
+            OriginatingDFI = "123456789",
+            ReceivingDFI = "987654321",
+            TraceNumber = $"1234567800000{id:000}",
+            SourceAccountNumber = "1",
+            DestinationAccountNumber = "2",
+            SourceInstitutionId = 1,
+            DestinationInstitutionId = 2,
+            AchBatchId = 1,
+            EffectiveEntryDate = DateTime.UtcNow.Date
+        };
 
     private static AchDbContext CreateContext(SqliteConnection connection)
     {

@@ -741,3 +741,15 @@ Objetivos técnicos:
 - No se cambian estados.
 - No se ejecuta contabilidad.
 - Pendientes: idempotencia avanzada, generación de archivo de devolución de devolución, cobertura UAT por cámara.
+
+
+## Avance Fase 5.3 - Idempotencia de devolución de devolución
+
+- El registro de `ReturnOfReturnFlow` refuerza idempotencia operativa antes de persistir.
+- Se bloquea duplicado exacto `SourceReturnTransactionId + ReturnOfReturnTransactionId`.
+- Se bloquea reutilización de `ReturnOfReturnTransactionId` incluso cuando `IsUniquePerTransaction = false`.
+- Cuando `IsUniquePerTransaction = true`, se bloquean múltiples devoluciones de devolución para el mismo `SourceReturnTransactionId`.
+- La decisión de unicidad sigue dependiendo de `IsUniquePerTransaction` obtenido en elegibilidad centralizada por cámara.
+- No se genera archivo.
+- No se cambian estados.
+- No se ejecuta contabilidad.
