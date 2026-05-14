@@ -1,3 +1,4 @@
+using System.Text;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -14,7 +15,9 @@ public class AchReturnOfReturnFileGenerationServiceTests
     {
         await using var context = BuildContext();
         var sut = new AchReturnOfReturnFileGenerationService(context);
+
         var result = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(Array.Empty<int>(), DateTime.UtcNow), CancellationToken.None);
+
         Assert.False(result.IsGenerated);
         Assert.Contains(result.Failures, x => x.Code == "RETURN_OF_RETURN_FLOW_EMPTY");
     }
@@ -24,14 +27,42 @@ public class AchReturnOfReturnFileGenerationServiceTests
     {
         await using var context = BuildContext();
         var sut = new AchReturnOfReturnFileGenerationService(context);
+
         var result = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 999 }, DateTime.UtcNow), CancellationToken.None);
+
         Assert.False(result.IsGenerated);
         Assert.Contains(result.Failures, x => x.Code == "RETURN_OF_RETURN_FLOW_NOT_FOUND");
     }
 
+    [Fact]
+    public async Task GenerateAsync_ShouldReturnFailure_WhenSourceReturnTransactionMissing()
+    {
+        await using var context = BuildContext();
+        SeedFlowMissingSource(context, 130, 7001);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
 
+        var result = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 130 }, DateTime.UtcNow), CancellationToken.None);
 
+        Assert.False(result.IsGenerated);
+        Assert.Contains(result.Failures, x => x.Code == "RETURN_OF_RETURN_FLOW_NOT_FOUND");
+        Assert.Null(result.ContentText);
+        Assert.Null(result.Content);
+    }
 
+    [Fact]
+    public async Task GenerateAsync_ShouldReturnFailure_WhenReturnOfReturnTransactionMissing()
+    {
+        await using var context = BuildContext();
+        SeedFlowMissingReturnOfReturn(context, 131, 7001);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+
+        var result = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 131 }, DateTime.UtcNow), CancellationToken.None);
+
+        Assert.False(result.IsGenerated);
+        Assert.Contains(result.Failures, x => x.Code == "RETURN_OF_RETURN_FLOW_NOT_FOUND");
+        Assert.Null(result.ContentText);
+        Assert.Null(result.Content);
+    }
 
     [Fact]
     public async Task GenerateAsync_ShouldReturnFailure_WhenSourceAndRorDifferentClearingHouseInSameFlow()
@@ -39,9 +70,24 @@ public class AchReturnOfReturnFileGenerationServiceTests
         await using var context = BuildContext();
         SeedFlowWithDifferentClearingHouses(context, 102, 7001, 7002);
         var sut = new AchReturnOfReturnFileGenerationService(context);
+
         var result = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 102 }, DateTime.UtcNow), CancellationToken.None);
 
         Assert.False(result.IsGenerated);
+        Assert.Contains(result.Failures, x => x.Code == "CLEARING_HOUSE_MISSING");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ShouldReturnLoadedFlowIds_WhenFailureAfterLoadingFlows()
+    {
+        await using var context = BuildContext();
+        SeedFlowWithDifferentClearingHouses(context, 132, 7001, 7002);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+
+        var result = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 132 }, DateTime.UtcNow), CancellationToken.None);
+
+        Assert.False(result.IsGenerated);
+        Assert.Contains(132, result.FlowIds);
         Assert.Contains(result.Failures, x => x.Code == "CLEARING_HOUSE_MISSING");
     }
 
@@ -59,6 +105,50 @@ public class AchReturnOfReturnFileGenerationServiceTests
         Assert.Equal(2, result.GeneratedFlowCount);
         Assert.Contains("FLOW|110", result.ContentText);
         Assert.Contains("FLOW|111", result.ContentText);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ShouldReturnAsciiContentMatchingContentText()
+    {
+        await using var context = BuildContext();
+        SeedFlow(context, 140, 7001);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+
+        var result = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 140 }, DateTime.UtcNow), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        Assert.NotNull(result.ContentText);
+        Assert.NotNull(result.Content);
+        Assert.Equal(result.ContentText, Encoding.ASCII.GetString(result.Content!));
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ShouldKeepDeterministicFileName()
+    {
+        await using var context = BuildContext();
+        SeedFlow(context, 141, 7001);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+
+        var result = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 141 }, new DateTime(2026, 05, 14, 12, 34, 56, DateTimeKind.Utc)), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        Assert.Equal("ROR_7001_20260514123456.ach", result.FileName);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ShouldKeepFlowIdsInResult_WhenGenerated()
+    {
+        await using var context = BuildContext();
+        SeedFlow(context, 150, 7001);
+        SeedFlow(context, 151, 7001);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+
+        var result = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 150, 151 }, DateTime.UtcNow), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        Assert.Equal(2, result.GeneratedFlowCount);
+        Assert.Contains(150, result.FlowIds);
+        Assert.Contains(151, result.FlowIds);
     }
 
     [Fact]
@@ -100,6 +190,34 @@ public class AchReturnOfReturnFileGenerationServiceTests
         var ror = BuildTx(flowId * 10 + 2, rorCycleId, $"ROR{flowId}");
         context.AchTransactions.AddRange(src, ror);
         context.ReturnOfReturnFlows.Add(new ReturnOfReturnFlow { Id = flowId, SourceReturnTransactionId = src.Id, ReturnOfReturnTransactionId = ror.Id, ReasonCode = "R02" });
+        context.SaveChanges();
+    }
+
+    static void SeedFlowMissingSource(AchDbContext context, int flowId, int clearingHouseId)
+    {
+        var cycleId = $"MS-{flowId}";
+        context.AchCycles.Add(new AchCycle { Id = cycleId, CycleName = "MS", ProcessingDate = DateTime.UtcNow.Date, CutoffTime = TimeSpan.FromHours(8), ClearingHouseId = clearingHouseId });
+        var source = BuildTx(flowId * 10 + 1, cycleId, $"SRC{flowId}");
+        var ror = BuildTx(flowId * 10 + 2, cycleId, $"ROR{flowId}");
+        context.AchTransactions.AddRange(source, ror);
+        context.ReturnOfReturnFlows.Add(new ReturnOfReturnFlow { Id = flowId, SourceReturnTransactionId = source.Id, ReturnOfReturnTransactionId = ror.Id, ReasonCode = "R02" });
+        context.SaveChanges();
+        var flow = context.ReturnOfReturnFlows.Single(x => x.Id == flowId);
+        flow.SourceReturnTransactionId = 999999;
+        context.SaveChanges();
+    }
+
+    static void SeedFlowMissingReturnOfReturn(AchDbContext context, int flowId, int clearingHouseId)
+    {
+        var cycleId = $"MR-{flowId}";
+        context.AchCycles.Add(new AchCycle { Id = cycleId, CycleName = "MR", ProcessingDate = DateTime.UtcNow.Date, CutoffTime = TimeSpan.FromHours(8), ClearingHouseId = clearingHouseId });
+        var source = BuildTx(flowId * 10 + 1, cycleId, $"SRC{flowId}");
+        var ror = BuildTx(flowId * 10 + 2, cycleId, $"ROR{flowId}");
+        context.AchTransactions.AddRange(source, ror);
+        context.ReturnOfReturnFlows.Add(new ReturnOfReturnFlow { Id = flowId, SourceReturnTransactionId = source.Id, ReturnOfReturnTransactionId = ror.Id, ReasonCode = "R02" });
+        context.SaveChanges();
+        var flow = context.ReturnOfReturnFlows.Single(x => x.Id == flowId);
+        flow.ReturnOfReturnTransactionId = 999998;
         context.SaveChanges();
     }
 
