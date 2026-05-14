@@ -577,3 +577,15 @@ HAVING COUNT(*) > 1;
 - No se crea `AchReturnGenerated`.
 - No se ejecuta contabilidad.
 - Pendientes: respuesta operativa de rechazo, persistencia de auditoría y actualización controlada de estado.
+
+## Avance Fase 4.6 - Actualización controlada de estado en devoluciones entrantes
+
+- La ingesta aplica actualización de estado solo cuando la decisión es `Accepted` o `RejectedPartial`.
+- Si la decisión es `RejectedTotal`, no se actualiza ninguna transacción.
+- Solo se actualizan transacciones vinculadas y sin fallas asociadas del item.
+- Se usa estado existente `ReturnedByEpr` para devoluciones entrantes desde cámara/EPR.
+- La actualización es operativa mínima y no implica contabilidad.
+- No se genera archivo de respuesta ni de salida.
+- No se crea `AchReturnGenerated` desde ingesta.
+- La decisión y conteo de actualizaciones quedan en el resultado/auditoría interna.
+- Pendientes: persistencia formal de auditoría y política operativa final de rechazo total/parcial.

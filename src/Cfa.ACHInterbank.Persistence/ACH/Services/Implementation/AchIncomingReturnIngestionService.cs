@@ -22,7 +22,7 @@ public class AchIncomingReturnIngestionService(
         if (string.IsNullOrWhiteSpace(request.RawContent))
         {
             failures.Add(new("FILE_EMPTY", "El archivo entrante está vacío.", nameof(request.RawContent)));
-            return BuildResult(request, 0, items, failures, auditRecords, contentSha256);
+            return await BuildResultAsync(request, 0, items, failures, auditRecords, contentSha256, cancellationToken);
         }
 
         var records = ChunkRecords(request.RawContent);
@@ -119,16 +119,17 @@ public class AchIncomingReturnIngestionService(
             auditRecords.Add(BuildAuditRecord(recordIndex, record, trace, originalTrace, normalizedReason, originalTx.Id, clearingHouseId, true));
         }
 
-        return BuildResult(request, records.Count, items, failures, auditRecords, contentSha256);
+        return await BuildResultAsync(request, records.Count, items, failures, auditRecords, contentSha256, cancellationToken);
     }
 
-    private static AchIncomingReturnIngestionResult BuildResult(
+    private async Task<AchIncomingReturnIngestionResult> BuildResultAsync(
         AchIncomingReturnIngestionRequest request,
         int totalRecords,
         List<AchIncomingReturnItem> items,
         List<AchIncomingReturnIngestionFailure> failures,
         List<AchIncomingReturnAuditRecord> auditRecords,
-        string contentSha256)
+        string contentSha256,
+        CancellationToken cancellationToken)
     {
         var parsed = items.Count;
         var linked = items.Count(x => x.IsLinked);
@@ -136,6 +137,32 @@ public class AchIncomingReturnIngestionService(
         var decision = DetermineDecision(parsed, linked, failures);
         var isRejectedTotal = string.Equals(decision, AchIncomingReturnIngestionDecision.RejectedTotal, StringComparison.Ordinal);
         var isRejectedPartial = string.Equals(decision, AchIncomingReturnIngestionDecision.RejectedPartial, StringComparison.Ordinal);
+        var updatedTransactionIds = new List<int>();
+        if (!isRejectedTotal)
+        {
+            var failedTraces = failures.Where(x => !string.IsNullOrWhiteSpace(x.TraceNumber)).Select(x => x.TraceNumber!).ToHashSet(StringComparer.Ordinal);
+            var failedOriginalTraces = failures.Where(x => x.Field == nameof(AchIncomingReturnItem.OriginalTraceNumber) || x.Field == "OriginalTraceNumber")
+                .Select(x => x.TraceNumber).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!).ToHashSet(StringComparer.Ordinal);
+            var eligibleIds = items
+                .Where(x => x.IsLinked && x.OriginalTransactionId.HasValue)
+                .Where(x => (x.TraceNumber is null || !failedTraces.Contains(x.TraceNumber)) && (x.OriginalTraceNumber is null || !failedOriginalTraces.Contains(x.OriginalTraceNumber)))
+                .Select(x => x.OriginalTransactionId!.Value)
+                .Distinct()
+                .ToList();
+
+            if (eligibleIds.Count > 0)
+            {
+                var toUpdate = await context.AchTransactions.Where(x => eligibleIds.Contains(x.Id)).ToListAsync(cancellationToken);
+                foreach (var tx in toUpdate)
+                {
+                    // Devolución entrante recibida desde cámara/EPR; se usa estado existente ReturnedByEpr.
+                    tx.State = Cfa.ACHInterbank.Domain.Entities.Transactions.Enums.AchTransferStateEnum.ReturnedByEpr;
+                    tx.StateChangedAtUtc = DateTime.UtcNow;
+                    updatedTransactionIds.Add(tx.Id);
+                }
+                await context.SaveChangesAsync(cancellationToken);
+            }
+        }
 
         var audit = new AchIncomingReturnIngestionAudit(
             request.FileName,
@@ -148,12 +175,13 @@ public class AchIncomingReturnIngestionService(
             linked,
             unlinked,
             failures.Count,
+            updatedTransactionIds.Count,
             decision,
             contentSha256,
             auditRecords,
             failures.Select(x => new AchIncomingReturnAuditFailure(x.Code, x.Message, x.Field, x.TraceNumber, null)).ToList());
 
-        return new(failures.Count == 0, decision, isRejectedTotal, isRejectedPartial, totalRecords, parsed, linked, unlinked, items, failures, audit);
+        return new(failures.Count == 0, decision, isRejectedTotal, isRejectedPartial, totalRecords, parsed, linked, unlinked, updatedTransactionIds.Count, updatedTransactionIds, items, failures, audit);
     }
 
     private static string DetermineDecision(int parsedReturnCount, int linkedReturnCount, IReadOnlyCollection<AchIncomingReturnIngestionFailure> failures)

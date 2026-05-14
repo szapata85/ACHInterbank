@@ -245,7 +245,7 @@ public class AchIncomingReturnIngestionServiceTests
     }
 
     [Fact]
-    public async Task IngestAsync_ShouldNotChangeTransactionState_WhenDuplicateDetected()
+    public async Task IngestAsync_ShouldUpdateState_WhenDuplicateDetectedAndDecisionIsRejectedPartial()
     {
         await using var c = Ctx();
         SeedTx(c, "123456780000001", 7001);
@@ -254,7 +254,8 @@ public class AchIncomingReturnIngestionServiceTests
         var content = BuildType7("R01", "123456780000001") + BuildType7("R01", "123456780000001");
         await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
         var after = (await c.AchTransactions.SingleAsync()).State;
-        Assert.Equal(before, after);
+        Assert.NotEqual(before, after);
+        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, after);
     }
 
     [Fact]
@@ -425,7 +426,7 @@ public class AchIncomingReturnIngestionServiceTests
     }
 
     [Fact]
-    public async Task IngestAsync_ShouldNotChangeTransactionState_WhenRegulatoryValidationPasses()
+    public async Task IngestAsync_ShouldUpdateState_WhenRegulatoryValidationPasses()
     {
         await using var c = Ctx();
         SeedTx(c, "123456780000001", 7001);
@@ -433,7 +434,8 @@ public class AchIncomingReturnIngestionServiceTests
         var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
         await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
         var after = (await c.AchTransactions.SingleAsync()).State;
-        Assert.Equal(before, after);
+        Assert.NotEqual(before, after);
+        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, after);
     }
 
     [Fact]
@@ -444,6 +446,45 @@ public class AchIncomingReturnIngestionServiceTests
         var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
         await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
         Assert.Empty(c.Set<AchReturnGenerated>());
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldUpdateState_WhenDecisionIsAccepted()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var r = await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
+        Assert.Equal(AchIncomingReturnIngestionDecision.Accepted, r.Decision);
+        Assert.Equal(1, r.UpdatedTransactionCount);
+        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, (await c.AchTransactions.SingleAsync()).State);
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldUpdateOnlyValidLinkedTransactions_WhenDecisionIsRejectedPartial()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001, txId: 10, cycleId: "C1");
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var content = BuildType7("R01", "123456780000001") + BuildType7("R01", "000000000000002");
+        var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
+        Assert.Equal(AchIncomingReturnIngestionDecision.RejectedPartial, r.Decision);
+        Assert.Equal(1, r.UpdatedTransactionCount);
+        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, (await c.AchTransactions.SingleAsync(x => x.Id == 10)).State);
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldNotUpdateAnyState_WhenDecisionIsRejectedTotal()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var catalog = new Mock<IAchRegulatoryCatalogService>();
+        catalog.Setup(x => x.ValidateReturnCodeAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<TransactionTypeEnum>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).ReturnsAsync((false, "rechazo"));
+        var sut = new AchIncomingReturnIngestionService(c, catalog.Object);
+        var r = await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
+        Assert.Equal(AchIncomingReturnIngestionDecision.RejectedTotal, r.Decision);
+        Assert.Equal(0, r.UpdatedTransactionCount);
+        Assert.Equal(AchTransferStateEnum.Pending, (await c.AchTransactions.SingleAsync()).State);
     }
 
     static string BuildType7(string reason, string originalTrace)

@@ -62,6 +62,7 @@ public sealed record AchIncomingReturnIngestionAudit(
     int LinkedReturnCount,
     int UnlinkedReturnCount,
     int FailureCount,
+    int UpdatedTransactionCount,
     string Decision,
     string ContentSha256,
     IReadOnlyCollection<AchIncomingReturnAuditRecord> Records,
@@ -76,6 +77,8 @@ public sealed record AchIncomingReturnIngestionResult(
     int ParsedReturnCount,
     int LinkedReturnCount,
     int UnlinkedReturnCount,
+    int UpdatedTransactionCount,
+    IReadOnlyCollection<int> UpdatedTransactionIds,
     IReadOnlyCollection<AchIncomingReturnItem> Items,
     IReadOnlyCollection<AchIncomingReturnIngestionFailure> Failures,
     AchIncomingReturnIngestionAudit Audit);
