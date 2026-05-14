@@ -50,6 +50,22 @@ public class AchReturnOfReturnFileGenerationService(AchDbContext context) : IAch
             return new(false, null, null, null, 0, flows.Select(x => (int)x.Id).ToArray(), failures);
         }
 
+
+        foreach (var flow in flows)
+        {
+            var sourceClearingHouseId = flow.SourceReturnTransaction?.AchCycle?.ClearingHouseId ?? 0;
+            var returnOfReturnClearingHouseId = flow.ReturnOfReturnTransaction?.AchCycle?.ClearingHouseId ?? 0;
+            if (sourceClearingHouseId <= 0 || returnOfReturnClearingHouseId <= 0 || sourceClearingHouseId != returnOfReturnClearingHouseId)
+            {
+                failures.Add(new("CLEARING_HOUSE_MISSING", $"El flujo {flow.Id} no tiene cámara válida/consistente entre origen y devolución de devolución.", "ClearingHouseId"));
+            }
+        }
+
+        if (failures.Count > 0)
+        {
+            return new(false, null, null, null, 0, flows.Select(x => (int)x.Id).ToArray(), failures);
+        }
+
         var clearingHouseIds = flows
             .Select(x => x.ReturnOfReturnTransaction.AchCycle?.ClearingHouseId ?? x.SourceReturnTransaction.AchCycle?.ClearingHouseId ?? 0)
             .Distinct()

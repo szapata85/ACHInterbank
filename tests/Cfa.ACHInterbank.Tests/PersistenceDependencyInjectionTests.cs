@@ -69,6 +69,25 @@ public class PersistenceDependencyInjectionTests
 
 
     [Fact]
+    public void AddPersistence_RegistersAchReturnOfReturnFileGenerationService()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Database:Provider"] = "sqlserver",
+            ["ConnectionStrings:SqlConnection"] = "Server=(localdb)\\MSSQLLocalDB;Database=AchInterbank;Trusted_Connection=True;"
+        }).Build();
+
+        services.AddPersistence(configuration);
+
+        var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IAchReturnOfReturnFileGenerationService));
+        Assert.NotNull(descriptor);
+        Assert.Equal(typeof(AchReturnOfReturnFileGenerationService), descriptor!.ImplementationType);
+        Assert.Equal(ServiceLifetime.Scoped, descriptor.Lifetime);
+    }
+
+
+    [Fact]
     public void AddPersistence_RegistersAchReturnGenerationLockService_AsSingleton()
     {
         var services = new ServiceCollection();
