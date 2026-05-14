@@ -919,3 +919,90 @@ Objetivo: validar que la devolución de devolución funcione por cámara, sin me
 
 ### Decisión de migración
 En esta rama las migraciones se encuentran ignoradas/no versionadas (`**/Migrations/` en `.gitignore`). Por tanto, el snapshot se revierte en este commit correctivo para evitar inconsistencias de modelo versionado sin migración física. La migración física queda pendiente para la política de despliegue del equipo. Antes de usar la auditoría persistente en ambiente real debe generarse/aplicarse la migración correspondiente.
+
+## Checklist de despliegue UAT - Auditoría de devolución de devolución
+
+### Objetivo del checklist
+- Validar que la auditoría persistente de archivo de devolución de devolución pueda ejecutarse en UAT.
+- Confirmar que las tablas requeridas existen antes de habilitar uso operativo.
+- Confirmar que se persiste metadata, hash SHA-256 y relación de flows.
+- Confirmar que no se persiste contenido completo del archivo.
+- Confirmar que no se toca contabilidad ni estados de transacciones.
+
+### Precondiciones
+- [ ] Confirmar rama/versión a desplegar.
+- [ ] Confirmar que la migración física fue generada por el flujo oficial del equipo.
+- [ ] Confirmar que la migración crea las tablas:
+  - `AchReturnOfReturnGeneratedFileAudits`
+  - `AchReturnOfReturnGeneratedFileAuditFlows`
+- [ ] Confirmar que la migración incluye FK hacia `ReturnOfReturnFlow`.
+- [ ] Confirmar que la migración no modifica tablas de devolución simple.
+- [ ] Confirmar que la migración no modifica catálogos regulatorios.
+- [ ] Confirmar backup/snapshot de BD antes de aplicar.
+- [ ] Confirmar ventana de UAT.
+- [ ] Confirmar credenciales/permisos para aplicar migración.
+- [ ] Confirmar plan de rollback.
+
+### Validación post-migración
+- [ ] Verificar existencia de tabla `AchReturnOfReturnGeneratedFileAudits`.
+- [ ] Verificar existencia de tabla `AchReturnOfReturnGeneratedFileAuditFlows`.
+- [ ] Verificar columnas:
+  - `FileName`
+  - `ClearingHouseId`
+  - `GeneratedAtUtc`
+  - `GeneratedFlowCount`
+  - `ContentLength`
+  - `ContentSha256`
+  - `RequestedBy`
+  - `Source`
+  - `CreatedAtUtc`
+- [ ] Verificar que no existen columnas:
+  - `ContentText`
+  - `Content`
+  - `FileBytes`
+- [ ] Verificar FK de flows hacia auditoría.
+- [ ] Verificar FK de flows hacia `ReturnOfReturnFlow`.
+- [ ] Verificar índice por `FileName`.
+- [ ] Verificar índice/longitud de `ContentSha256`.
+
+### Prueba funcional UAT
+1. Preparar `ReturnOfReturnFlow` válido para CENIT.
+2. Ejecutar generación en memoria.
+3. Confirmar `IsGenerated = true`.
+4. Confirmar `FileName`.
+5. Confirmar `ContentSha256`.
+6. Confirmar `AuditId`.
+7. Consultar auditoría persistida.
+8. Confirmar metadata.
+9. Confirmar relación con flows.
+10. Confirmar ausencia de contenido completo.
+11. Repetir caso para ACH Colombia.
+12. Ejecutar caso fallido y confirmar que no crea auditoría.
+
+### SQL orientativo para validación UAT
+```sql
+SELECT
+    "Id",
+    "FileName",
+    "ClearingHouseId",
+    "GeneratedAtUtc",
+    "GeneratedFlowCount",
+    "ContentLength",
+    "ContentSha256",
+    "RequestedBy",
+    "Source",
+    "CreatedAtUtc"
+FROM "AchReturnOfReturnGeneratedFileAudits"
+ORDER BY "Id" DESC
+LIMIT 10;
+```
+
+```sql
+SELECT
+    "Id",
+    "AchReturnOfReturnGeneratedFileAuditId",
+    "ReturnOfReturnFlowId"
+FROM "AchReturnOfReturnGeneratedFileAuditFlows"
+ORDER BY "Id" DESC
+LIMIT 20;
+```
