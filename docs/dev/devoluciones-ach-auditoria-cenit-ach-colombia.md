@@ -906,3 +906,16 @@ Objetivo: validar que la devolución de devolución funcione por cámara, sin me
 - No se debe asumir homologación final CENIT/ACH hasta UAT.
 - No se modificó devolución simple.
 - No se modificó devolución entrante.
+
+## Avance Fase 6 - Auditoría persistente de archivo de devolución de devolución
+- Se agregó auditoría específica para devolución de devolución mediante `AchReturnOfReturnGeneratedFileAudit` y `AchReturnOfReturnGeneratedFileAuditFlow`.
+- No se reutiliza `AchReturnGenerated`.
+- Se persisten metadatos técnicos: `FileName`, `ClearingHouseId`, `GeneratedAtUtc`, `GeneratedFlowCount`, `ContentLength`, `ContentSha256`, `RequestedBy`, `Source` y `CreatedAtUtc`.
+- Se persiste relación explícita con los `ReturnOfReturnFlow` incluidos.
+- No se persiste contenido completo del archivo (`ContentText` ni bytes de `Content`).
+- No se cambian estados de transacciones.
+- No hay contabilidad.
+- No hay endpoints públicos nuevos.
+
+### Decisión de migración
+En esta rama las migraciones se encuentran ignoradas/no versionadas (`**/Migrations/` en `.gitignore`). Por tanto, el snapshot se revierte en este commit correctivo para evitar inconsistencias de modelo versionado sin migración física. La migración física queda pendiente para la política de despliegue del equipo. Antes de usar la auditoría persistente en ambiente real debe generarse/aplicarse la migración correspondiente.

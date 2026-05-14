@@ -207,6 +207,23 @@ public class AchReturnOfReturnFileGenerationServiceTests
         Assert.Null(result.ContentSha256);
         Assert.Empty(context.AchReturnOfReturnGeneratedFileAudits);
     }
+
+    [Fact]
+    public async Task GenerateAsync_ShouldNotPersistContentTextOrBytes()
+    {
+        await using var context = BuildContext();
+        SeedFlow(context, 162, 7001);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+
+        var result = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 162 }, new DateTime(2026, 05, 14, 12, 34, 56, DateTimeKind.Utc)), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        var audit = await context.AchReturnOfReturnGeneratedFileAudits.SingleAsync(x => x.Id == result.AuditId);
+        var names = typeof(AchReturnOfReturnGeneratedFileAudit).GetProperties().Select(x => x.Name).ToArray();
+        Assert.DoesNotContain("ContentText", names);
+        Assert.DoesNotContain("Content", names);
+        Assert.Equal(result.Content!.Length, audit.ContentLength);
+    }
     static AchDbContext BuildContext() => new(new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 
     static void SeedFlow(AchDbContext context, int flowId, int clearingHouseId)
