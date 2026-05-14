@@ -589,3 +589,134 @@ HAVING COUNT(*) > 1;
 - No se crea `AchReturnGenerated` desde ingesta.
 - La decisión y conteo de actualizaciones quedan en el resultado/auditoría interna.
 - Pendientes: persistencia formal de auditoría y política operativa final de rechazo total/parcial.
+
+## Cierre técnico Fase 4 - Devoluciones de entrada
+
+### Estado general
+
+La Fase 4 queda cerrada funcionalmente a nivel técnico para devoluciones de entrada con los siguientes alcances implementados:
+
+- ingesta centralizada;
+- parseo y clasificación de registros entrantes tipo devolución;
+- linking contra transacción original;
+- resolución de `ClearingHouseId` desde `AchCycle`;
+- validación regulatoria entrante por cámara;
+- detección de duplicados dentro del archivo;
+- auditoría interna del payload;
+- clasificación interna `Accepted`, `RejectedTotal`, `RejectedPartial`;
+- actualización controlada de estado a `ReturnedByEpr`;
+- bloqueo de actualización para duplicados;
+- sin contabilidad;
+- sin generación de archivo de respuesta;
+- sin generación de archivo de salida;
+- sin creación de `AchReturnGenerated` desde ingesta.
+
+### Commits de Fase 4
+
+- `10daf61` — `Introduce return eligibility, incoming-return ingestion and in-process locking; integrate into returns flow and add tests`
+- `75385e0` — `feat(returns): auditar payload de devoluciones entrantes`
+- `cbc7388` — `feat(returns): clasificar rechazo total o parcial en devoluciones entrantes`
+- `851fece` — `test(returns): ordenar pruebas de ingesta entrante`
+- `2bed8c7` — `feat(returns): actualizar estado de devoluciones entrantes controladamente`
+- `466b06b` — `fix(returns): evitar actualizar devoluciones entrantes duplicadas`
+
+### Matriz de cierre Fase 4
+
+| Componente | Estado | Evidencia técnica | Riesgo residual |
+|---|---|---|---|
+| `IAchIncomingReturnIngestionService` | Cerrado | Servicio central de ingesta consolidado. | Contrato interno puede crecer en Fase 5. |
+| Parseo NACHA entrante | Cerrado para `7/99` | Pruebas de parseo/ingesta en suite dedicada. | Validar contra fixtures reales CENIT/ACH. |
+| Linking contra original | Cerrado | Búsqueda por `TraceNumber`/`OriginalTraceRef`. | Trazas incompletas en archivos reales. |
+| Resolución de cámara | Cerrado | `ClearingHouseId` desde `AchCycle`. | Históricos sin ciclo/cámara. |
+| Validación regulatoria entrante | Cerrado | `ValidateReturnCodeAsync` + `ValidateReturnPolicyAsync`. | Parametrización adicional en UAT regulatorio. |
+| Duplicados dentro del archivo | Cerrado | `INCOMING_RETURN_DUPLICATE_IN_FILE`. | Duplicados contra histórico pendiente. |
+| Auditoría interna | Cerrado (resultado interno) | Hashes SHA-256, previews limitados, records/failures. | Persistencia formal pendiente. |
+| Clasificación total/parcial | Cerrado (interno) | `Accepted` / `RejectedTotal` / `RejectedPartial`. | Respuesta operativa pendiente. |
+| Actualización de estado | Cerrado controladamente | Cambio a `ReturnedByEpr` con decisión interna. | Integración contable/conciliación pendiente. |
+| Duplicados y actualización | Corregido | Duplicados no actualizan estado. | Falta control histórico persistente. |
+| Contabilidad | Fuera de alcance | No se ejecuta contabilidad en ingesta. | Fase posterior. |
+| Respuesta operativa | Fuera de alcance | No se genera archivo de respuesta. | Fase 5/6 según diseño. |
+
+### Criterios de aceptación de Fase 4
+
+- [x] Ingesta centralizada.
+- [x] Parseo de devolución entrante.
+- [x] Linking contra transacción original.
+- [x] Cámara resuelta desde ciclo original.
+- [x] Validación de causal por cámara.
+- [x] Validación de política por cámara.
+- [x] Duplicados de archivo detectados.
+- [x] Auditoría interna del payload.
+- [x] Clasificación total/parcial interna.
+- [x] Actualización controlada a `ReturnedByEpr`.
+- [x] Duplicados no actualizan estado.
+- [x] Sin generación de archivo de respuesta.
+- [x] Sin `AchReturnGenerated` desde ingesta.
+- [x] Sin contabilidad.
+- [x] Suite completa verde.
+
+### Riesgos residuales Fase 4
+
+| Riesgo | Impacto | Control actual | Control futuro recomendado | Fase sugerida |
+|---|---|---|---|---|
+| Auditoría no persistente | Trazabilidad limitada post-ejecución | Audit result con hashes/previews | Modelo persistente de ingesta entrante | Fase 6 / hardening UAT |
+| Duplicados contra histórico | Reproceso de archivo anterior | Duplicados intra-archivo | Índice/tabla persistente de auditoría | Fase 6 |
+| Reglas reales CENIT/ACH pueden diferir | Falsos rechazos/aprobaciones | Catálogo por cámara | Parametrización certificada por cámara | UAT |
+| Respuesta operativa de rechazo pendiente | Falta de cierre formal operativo | Clasificación interna | Motor de respuesta total/parcial | Fase 5/6 |
+| Contabilidad pendiente | Movimiento operativo sin reflejo contable | Sin contabilidad en ingesta | Integración contable y conciliación | Fase 7 |
+| Históricos sin ciclo/cámara | Imposibilidad de validar por cámara | `CLEARING_HOUSE_MISSING` | Limpieza/migración de históricos | UAT/hardening |
+
+## Preparación Fase 5 - Devolución de devolución funcional
+
+Objetivo: implementar el flujo funcional de devolución de devolución sobre la base regulatoria por cámara existente (`AchReturnOfReturnPolicy`), evitando mezcla entre CENIT y ACH Colombia.
+
+Objetivos técnicos:
+
+- centralizar elegibilidad de devolución de devolución;
+- validar causal original y nueva causal;
+- validar `AchReturnOfReturnPolicy` por `ClearingHouseId`;
+- resolver cámara desde devolución origen / ciclo / transacción original;
+- evitar devolución de devolución duplicada;
+- auditar decisión;
+- no mezclar reglas CENIT vs ACH Colombia;
+- definir actualización de estado controlada;
+- mantener formato/naming si se genera archivo;
+- preparar tests por cámara.
+
+### Propuesta de commits Fase 5
+
+1. `refactor(returns): centralizar elegibilidad de devolución de devolución`
+   - Crear servicio interno para elegibilidad.
+   - Resolver contexto de devolución origen.
+   - No generar aún.
+
+2. `feat(returns): validar devolución de devolución por cámara`
+   - Usar `ValidateReturnOfReturnAsync`.
+   - Validar `ClearingHouseId`, causal original, nueva causal, plazo y flujo.
+
+3. `feat(returns): reforzar idempotencia de devolución de devolución`
+   - Evitar duplicados.
+   - Validar devolución de devolución previa.
+
+4. `feat(returns): generar archivo de devolución de devolución`
+   - Solo si el flujo requiere salida NACHA.
+   - Mantener naming/formato.
+
+5. `test(returns): cubrir devolución de devolución CENIT y ACH`
+   - Tests de no mezcla por cámara.
+   - Causales permitidas/rechazadas.
+
+6. `docs(returns): plan UAT devolución de devolución`
+   - Casos UAT por cámara.
+   - Evidencias y riesgos.
+
+### Límites explícitos para Fase 5
+
+- No asumir que devolución de devolución es igual a devolución simple.
+- No reutilizar reglas de `AchReturnPolicy` si existe `AchReturnOfReturnPolicy`.
+- No usar cámara global.
+- No usar fallback a primera cámara.
+- No usar hardcoded `1`.
+- No generar contabilidad en el primer commit de Fase 5.
+- No mezclar salida/entrada en el mismo commit.
+- No tocar migraciones salvo decisión explícita.
