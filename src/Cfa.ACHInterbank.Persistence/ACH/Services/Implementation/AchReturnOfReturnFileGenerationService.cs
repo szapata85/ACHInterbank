@@ -1,6 +1,8 @@
+using System.Security.Cryptography;
 using System.Text;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,7 +16,7 @@ public class AchReturnOfReturnFileGenerationService(AchDbContext context) : IAch
         if (request.ReturnOfReturnFlowIds is null || request.ReturnOfReturnFlowIds.Count == 0)
         {
             failures.Add(new("RETURN_OF_RETURN_FLOW_EMPTY", "Debe enviar al menos un flujo de devolución de devolución.", nameof(request.ReturnOfReturnFlowIds)));
-            return new(false, null, null, null, 0, Array.Empty<int>(), failures);
+            return new(false, null, null, null, 0, Array.Empty<int>(), failures, null, null);
         }
 
         var requestedIds = request.ReturnOfReturnFlowIds.Distinct().ToArray();
@@ -30,7 +32,7 @@ public class AchReturnOfReturnFileGenerationService(AchDbContext context) : IAch
         if (missingIds.Length > 0)
         {
             failures.Add(new("RETURN_OF_RETURN_FLOW_NOT_FOUND", $"No se encontraron flujos: {string.Join(",", missingIds)}.", nameof(request.ReturnOfReturnFlowIds)));
-            return new(false, null, null, null, 0, Array.Empty<int>(), failures);
+            return new(false, null, null, null, 0, Array.Empty<int>(), failures, null, null);
         }
 
         foreach (var flow in flows)
@@ -47,7 +49,7 @@ public class AchReturnOfReturnFileGenerationService(AchDbContext context) : IAch
 
         if (failures.Count > 0)
         {
-            return new(false, null, null, null, 0, flows.Select(x => (int)x.Id).ToArray(), failures);
+            return new(false, null, null, null, 0, flows.Select(x => (int)x.Id).ToArray(), failures, null, null);
         }
 
 
@@ -63,7 +65,7 @@ public class AchReturnOfReturnFileGenerationService(AchDbContext context) : IAch
 
         if (failures.Count > 0)
         {
-            return new(false, null, null, null, 0, flows.Select(x => (int)x.Id).ToArray(), failures);
+            return new(false, null, null, null, 0, flows.Select(x => (int)x.Id).ToArray(), failures, null, null);
         }
 
         var clearingHouseIds = flows
@@ -74,7 +76,7 @@ public class AchReturnOfReturnFileGenerationService(AchDbContext context) : IAch
         if (clearingHouseIds.Any(x => x <= 0) || clearingHouseIds.Length != 1)
         {
             failures.Add(new("CLEARING_HOUSE_MISSING", "No se pudo resolver una cámara única y válida para la generación del archivo.", "ClearingHouseId"));
-            return new(false, null, null, null, 0, flows.Select(x => (int)x.Id).ToArray(), failures);
+            return new(false, null, null, null, 0, flows.Select(x => (int)x.Id).ToArray(), failures, null, null);
         }
 
         try
@@ -90,12 +92,35 @@ public class AchReturnOfReturnFileGenerationService(AchDbContext context) : IAch
                 $"FLOW|{flow.Id}|SRC:{flow.SourceReturnTransactionId}|ROR:{flow.ReturnOfReturnTransactionId}|REASON:{flow.ReasonCode}|SRC_TRACE:{flow.SourceReturnTransaction.TraceNumber}|ROR_TRACE:{flow.ReturnOfReturnTransaction.TraceNumber}"));
 
             var contentText = string.Join(Environment.NewLine, lines);
-            return new(true, fileName, contentText, Encoding.ASCII.GetBytes(contentText), flows.Count, flows.Select(x => (int)x.Id).ToArray(), Array.Empty<AchReturnOfReturnFileGenerationFailure>());
+            var content = Encoding.ASCII.GetBytes(contentText);
+            var contentSha256 = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+
+            var audit = new AchReturnOfReturnGeneratedFileAudit
+            {
+                FileName = fileName,
+                ClearingHouseId = clearingHouseId,
+                GeneratedAtUtc = request.GeneratedAtUtc,
+                GeneratedFlowCount = flows.Count,
+                ContentLength = content.Length,
+                ContentSha256 = contentSha256,
+                RequestedBy = request.RequestedBy,
+                Source = request.Source,
+                CreatedAtUtc = DateTime.UtcNow,
+                Flows = flows.OrderBy(x => x.Id).Select(x => new AchReturnOfReturnGeneratedFileAuditFlow
+                {
+                    ReturnOfReturnFlowId = x.Id
+                }).ToList()
+            };
+
+            context.AchReturnOfReturnGeneratedFileAudits.Add(audit);
+            await context.SaveChangesAsync(cancellationToken);
+
+            return new(true, fileName, contentText, content, flows.Count, flows.Select(x => (int)x.Id).ToArray(), Array.Empty<AchReturnOfReturnFileGenerationFailure>(), audit.Id, contentSha256);
         }
         catch (Exception ex)
         {
             failures.Add(new("FILE_GENERATION_FAILED", ex.Message));
-            return new(false, null, null, null, 0, flows.Select(x => (int)x.Id).ToArray(), failures);
+            return new(false, null, null, null, 0, flows.Select(x => (int)x.Id).ToArray(), failures, null, null);
         }
     }
 }

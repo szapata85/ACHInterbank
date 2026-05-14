@@ -167,6 +167,46 @@ public class AchReturnOfReturnFileGenerationServiceTests
         Assert.Equal(beforeStates, afterStates);
     }
 
+
+    [Fact]
+    public async Task GenerateAsync_ShouldPersistAudit_WhenGenerationSucceeds()
+    {
+        await using var context = BuildContext();
+        SeedFlow(context, 160, 7001);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+
+        var result = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 160 }, new DateTime(2026, 05, 14, 12, 34, 56, DateTimeKind.Utc), "qa-user", "uat"), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        Assert.NotNull(result.AuditId);
+        Assert.NotNull(result.ContentSha256);
+
+        var audit = await context.AchReturnOfReturnGeneratedFileAudits.Include(x => x.Flows).SingleAsync(x => x.Id == result.AuditId);
+        Assert.Equal("ROR_7001_20260514123456.ach", audit.FileName);
+        Assert.Equal(7001, audit.ClearingHouseId);
+        Assert.Equal(1, audit.GeneratedFlowCount);
+        Assert.Equal(result.Content!.Length, audit.ContentLength);
+        Assert.Equal(result.ContentSha256, audit.ContentSha256);
+        Assert.Equal("qa-user", audit.RequestedBy);
+        Assert.Equal("uat", audit.Source);
+        Assert.Single(audit.Flows);
+        Assert.Equal(160, audit.Flows.Single().ReturnOfReturnFlowId);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ShouldNotPersistAudit_WhenGenerationFails()
+    {
+        await using var context = BuildContext();
+        SeedFlowWithDifferentClearingHouses(context, 161, 7001, 7002);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+
+        var result = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 161 }, DateTime.UtcNow), CancellationToken.None);
+
+        Assert.False(result.IsGenerated);
+        Assert.Null(result.AuditId);
+        Assert.Null(result.ContentSha256);
+        Assert.Empty(context.AchReturnOfReturnGeneratedFileAudits);
+    }
     static AchDbContext BuildContext() => new(new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 
     static void SeedFlow(AchDbContext context, int flowId, int clearingHouseId)
