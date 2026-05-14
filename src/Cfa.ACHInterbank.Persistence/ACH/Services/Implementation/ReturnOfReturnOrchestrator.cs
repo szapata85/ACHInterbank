@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
@@ -16,6 +17,7 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
 {
     private readonly AchDbContext _context;
     private readonly IAchRegulatoryCatalogService _catalogService;
+    private readonly IAchReturnOfReturnEligibilityService _returnOfReturnEligibilityService;
     private readonly IPaymentRailContextService? _paymentRailContextService;
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver;
     private readonly IPaymentRailShadowCompareService? _shadowCompareService;
@@ -24,6 +26,7 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
     public ReturnOfReturnOrchestrator(
         AchDbContext context,
         IAchRegulatoryCatalogService catalogService,
+        IAchReturnOfReturnEligibilityService returnOfReturnEligibilityService,
         IPaymentRailContextService? paymentRailContextService = null,
         IPaymentRailOperationalStrategyResolver? strategyResolver = null,
         IPaymentRailShadowCompareService? shadowCompareService = null,
@@ -31,6 +34,7 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
     {
         _context = context;
         _catalogService = catalogService;
+        _returnOfReturnEligibilityService = returnOfReturnEligibilityService;
         _paymentRailContextService = paymentRailContextService;
         _strategyResolver = strategyResolver;
         _shadowCompareService = shadowCompareService;
@@ -56,35 +60,28 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
             throw new InvalidOperationException("El plazo operativo para devolución de devolución expiró.");
         }
 
-        var originalCode = string.IsNullOrWhiteSpace(sourceReturn.ReturnReasonCode) ? "R01" : sourceReturn.ReturnReasonCode;
-        var currentDate = DateTime.UtcNow.Date;
-        var clearingHouseId = await ResolveClearingHouseIdAsync(sourceReturn, ct);
-        var returnPolicy = await _catalogService.ValidateReturnPolicyAsync(
-            clearingHouseId,
-            TransactionTypeEnum.Return,
-            reasonCode,
-            sourceReturn.EffectiveEntryDate.Date,
-            currentDate,
-            true,
-            sourceReturn.State.ToString(),
+        var eligibility = await _returnOfReturnEligibilityService.EvaluateAsync(
+            new AchReturnOfReturnEligibilityRequest(
+                sourceReturn.Id,
+                reasonCode,
+                DateTime.UtcNow),
             ct);
-        if (!returnPolicy.IsAllowed)
+
+        if (!eligibility.IsEligible)
         {
-            throw new InvalidOperationException(returnPolicy.Reason ?? "La política de devolución no permite esta operación.");
+            var reason = eligibility.Failures.FirstOrDefault()?.Message ?? "La devolución de devolución no es elegible.";
+            throw new InvalidOperationException(reason);
         }
 
+        var clearingHouseId = await ResolveClearingHouseIdAsync(sourceReturn, ct);
         var validation = await _catalogService.ValidateReturnOfReturnAsync(
             clearingHouseId,
-            originalCode,
-            reasonCode,
+            eligibility.OriginalReturnReasonCode!,
+            eligibility.NewReturnReasonCode!,
             sourceReturn.State.ToString(),
             sourceReturn.EffectiveEntryDate.Date,
-            currentDate,
+            DateTime.UtcNow.Date,
             ct);
-        if (!validation.IsAllowed)
-        {
-            throw new InvalidOperationException(validation.Reason ?? "La política de devolución de devolución no permite esta operación.");
-        }
 
         var duplicated = validation.IsUniquePerTransaction && await _context.ReturnOfReturnFlows
             .AnyAsync(x => x.SourceReturnTransactionId == sourceReturn.Id || x.ReturnOfReturnTransactionId == returnOfReturn.Id, ct);

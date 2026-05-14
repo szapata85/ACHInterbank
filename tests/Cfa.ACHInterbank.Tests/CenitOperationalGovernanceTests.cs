@@ -139,7 +139,8 @@ public class CenitOperationalGovernanceTests
         context.AchTransactions.AddRange(source, ror);
         await context.SaveChangesAsync();
 
-        var sut = new ReturnOfReturnOrchestrator(context, new AchRegulatoryCatalogService(context));
+        var catalog = new AchRegulatoryCatalogService(context);
+        var sut = new ReturnOfReturnOrchestrator(context, catalog, new AchReturnOfReturnEligibilityService(context, catalog));
         await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RegisterAsync(source, ror, "R01", CancellationToken.None));
     }
 
@@ -157,7 +158,8 @@ public class CenitOperationalGovernanceTests
         context.ReturnOfReturnFlows.Add(new ReturnOfReturnFlow { SourceReturnTransactionId = 21, ReturnOfReturnTransactionId = 22, ReasonCode = "R01" });
         await context.SaveChangesAsync();
 
-        var sut = new ReturnOfReturnOrchestrator(context, new AchRegulatoryCatalogService(context));
+        var catalog = new AchRegulatoryCatalogService(context);
+        var sut = new ReturnOfReturnOrchestrator(context, catalog, new AchReturnOfReturnEligibilityService(context, catalog));
         await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RegisterAsync(source, ror, "R01", CancellationToken.None));
     }
 
