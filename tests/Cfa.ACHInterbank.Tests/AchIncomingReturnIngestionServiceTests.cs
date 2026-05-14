@@ -289,7 +289,94 @@ public class AchIncomingReturnIngestionServiceTests
         Assert.Empty(c.Set<AchReturnGenerated>());
     }
 
-    static string BuildType7(string reason, string originalTrace)
+    
+
+    [Fact]
+    public async Task IngestAsync_ShouldPopulateAuditSummary()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var now = DateTime.UtcNow;
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var r = await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), now), CancellationToken.None);
+        Assert.NotNull(r.Audit);
+        Assert.Equal("f.ach", r.Audit.FileName);
+        Assert.Equal(now, r.Audit.ReceivedAtUtc);
+        Assert.Equal(1, r.Audit.TotalRecords);
+        Assert.Equal(r.ParsedReturnCount, r.Audit.ParsedReturnCount);
+        Assert.Equal(r.LinkedReturnCount, r.Audit.LinkedReturnCount);
+        Assert.Equal(r.Failures.Count, r.Audit.FailureCount);
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldCalculateContentSha256()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var content = BuildType7("R01", "123456780000001");
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var r1 = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
+        var r2 = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
+        Assert.Equal(64, r1.Audit.ContentSha256.Length);
+        Assert.Equal(r1.Audit.ContentSha256, r2.Audit.ContentSha256);
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldCalculateRawRecordHash()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var r = await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
+        Assert.Equal(64, r.Audit.Records.First().RawRecordHash.Length);
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldNotExposeFullRawContentInAudit()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var raw = BuildType7("R01", "123456780000001");
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var r = await sut.IngestAsync(new("f.ach", raw, DateTime.UtcNow), CancellationToken.None);
+        var preview = r.Audit.Records.First().RawRecordPreview;
+        Assert.NotEqual(raw, preview);
+        Assert.True(preview!.Length <= 24);
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldIncludeFailureCodesInAudit()
+    {
+        await using var c = Ctx();
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var r = await sut.IngestAsync(new("f.ach", BuildType7("R01", "000000000000000"), DateTime.UtcNow), CancellationToken.None);
+        Assert.Contains(r.Audit.Failures, x => x.Code == "ORIGINAL_TRANSACTION_NOT_FOUND");
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldAuditDuplicateFailure()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var content = BuildType7("R01", "123456780000001") + BuildType7("R01", "123456780000001");
+        var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
+        Assert.Contains(r.Audit.Failures, x => x.Code == "INCOMING_RETURN_DUPLICATE_IN_FILE");
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldPreserveItemsAndExistingCounts()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var r = await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
+        Assert.Single(r.Items);
+        Assert.Equal(r.ParsedReturnCount, r.Audit.ParsedReturnCount);
+        Assert.Equal(r.LinkedReturnCount, r.Audit.LinkedReturnCount);
+        Assert.Equal(r.UnlinkedReturnCount, r.Audit.UnlinkedReturnCount);
+    }
+static string BuildType7(string reason, string originalTrace)
     {
         var chars = Enumerable.Repeat(' ', 106).ToArray();
         chars[0] = '7'; chars[1] = '9'; chars[2] = '9';

@@ -550,3 +550,17 @@ HAVING COUNT(*) > 1;
 - No se crea `AchReturnGenerated`.
 - No se decide rechazo total/parcial en esta fase.
 - Pendientes: auditoría persistente de payload, rechazo total/parcial y actualización controlada de estado.
+
+## Avance Fase 4.4 - Auditoría interna del payload de devoluciones entrantes
+
+- La ingesta retorna un resumen audit-friendly del archivo procesado.
+- Se calcula hash SHA-256 del contenido de entrada.
+- Se calcula hash SHA-256 por registro procesado.
+- Se exponen previews limitados de registros y no el payload completo.
+- Se auditan conteos, registros procesados y fallas detectadas.
+- No se persiste auditoría todavía porque no existe modelo aprobado para esta fase.
+- No se cambian estados finales.
+- No se genera archivo de salida.
+- No se crea `AchReturnGenerated`.
+- No se decide rechazo total/parcial.
+- Pendientes: auditoría persistente de payload, rechazo total/parcial y actualización controlada de estado.

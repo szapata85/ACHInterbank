@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -13,17 +15,26 @@ public class AchIncomingReturnIngestionService(
     {
         var failures = new List<AchIncomingReturnIngestionFailure>();
         var items = new List<AchIncomingReturnItem>();
+        var auditRecords = new List<AchIncomingReturnAuditRecord>();
         var seenDuplicateKeys = new HashSet<string>(StringComparer.Ordinal);
+        var contentSha256 = ComputeSha256(request.RawContent ?? string.Empty);
 
         if (string.IsNullOrWhiteSpace(request.RawContent))
         {
             failures.Add(new("FILE_EMPTY", "El archivo entrante está vacío.", nameof(request.RawContent)));
-            return new(false, 0, 0, 0, 0, items, failures);
+            return BuildResult(request, 0, items, failures, auditRecords, contentSha256);
         }
 
         var records = ChunkRecords(request.RawContent);
-        foreach (var record in records.Where(r => r.Length >= 30 && r.StartsWith("7") && r.Substring(1, 2) == "99"))
+        for (int i = 0; i < records.Count; i++)
         {
+            var record = records[i];
+            if (!(record.Length >= 30 && record.StartsWith("7") && record.Substring(1, 2) == "99"))
+            {
+                continue;
+            }
+
+            var recordIndex = i + 1;
             var reason = record.Substring(3, 5).Trim();
             var normalizedReason = reason.Trim().ToUpperInvariant();
             var originalTrace = record.Substring(8, 15).Trim();
@@ -38,6 +49,7 @@ public class AchIncomingReturnIngestionService(
             {
                 failures.Add(new("ORIGINAL_TRACE_MISSING", "No se encontró traza original para vincular la devolución.", nameof(originalTrace), trace));
                 items.Add(new(trace, null, normalizedReason, null, null, null, null, false, record));
+                auditRecords.Add(BuildAuditRecord(recordIndex, record, trace, null, normalizedReason, null, null, false));
                 continue;
             }
 
@@ -51,6 +63,7 @@ public class AchIncomingReturnIngestionService(
                 failures.Add(new("ORIGINAL_TRANSACTION_NOT_FOUND", "No se encontró la transacción original de la devolución.", nameof(originalTrace), trace));
                 RegisterDuplicateFailure(seenDuplicateKeys, failures, trace, null, null, originalTrace, normalizedReason);
                 items.Add(new(trace, originalTrace, normalizedReason, null, null, null, null, false, record));
+                auditRecords.Add(BuildAuditRecord(recordIndex, record, trace, originalTrace, normalizedReason, null, null, false));
                 continue;
             }
 
@@ -103,12 +116,62 @@ public class AchIncomingReturnIngestionService(
             }
 
             items.Add(new(trace, originalTrace, normalizedReason, originalTx.Id, clearingHouseId, originalTx.Type.ToString(), originalTx.State.ToString(), true, record));
+            auditRecords.Add(BuildAuditRecord(recordIndex, record, trace, originalTrace, normalizedReason, originalTx.Id, clearingHouseId, true));
         }
 
+        return BuildResult(request, records.Count, items, failures, auditRecords, contentSha256);
+    }
+
+    private static AchIncomingReturnIngestionResult BuildResult(
+        AchIncomingReturnIngestionRequest request,
+        int totalRecords,
+        List<AchIncomingReturnItem> items,
+        List<AchIncomingReturnIngestionFailure> failures,
+        List<AchIncomingReturnAuditRecord> auditRecords,
+        string contentSha256)
+    {
         var parsed = items.Count;
         var linked = items.Count(x => x.IsLinked);
         var unlinked = parsed - linked;
-        return new(failures.Count == 0, records.Count, parsed, linked, unlinked, items, failures);
+
+        var audit = new AchIncomingReturnIngestionAudit(
+            request.FileName,
+            request.ReceivedAtUtc,
+            request.Source,
+            request.UploadedBy,
+            request.RawContent?.Length ?? 0,
+            totalRecords,
+            parsed,
+            linked,
+            unlinked,
+            failures.Count,
+            contentSha256,
+            auditRecords,
+            failures.Select(x => new AchIncomingReturnAuditFailure(x.Code, x.Message, x.Field, x.TraceNumber, null)).ToList());
+
+        return new(failures.Count == 0, totalRecords, parsed, linked, unlinked, items, failures, audit);
+    }
+
+    private static AchIncomingReturnAuditRecord BuildAuditRecord(int recordIndex, string rawRecord, string? trace, string? originalTrace, string? reason, int? originalTransactionId, int? clearingHouseId, bool isLinked)
+    {
+        return new(
+            recordIndex,
+            rawRecord.Length > 0 ? rawRecord[0].ToString() : string.Empty,
+            trace,
+            originalTrace,
+            reason,
+            originalTransactionId,
+            clearingHouseId,
+            isLinked,
+            ComputeSha256(rawRecord),
+            BuildPreview(rawRecord));
+    }
+
+    private static string BuildPreview(string rawRecord)
+    {
+        if (string.IsNullOrEmpty(rawRecord)) return "***";
+        if (rawRecord.Length < 20) return "***";
+        return $"{rawRecord[..8]}...{rawRecord[^8..]}";
     }
 
     private static List<string> ChunkRecords(string rawContent)
@@ -120,6 +183,12 @@ public class AchIncomingReturnIngestionService(
             records.Add(clean.Substring(i, 106));
         }
         return records;
+    }
+
+    private static string ComputeSha256(string value)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
     private static void RegisterDuplicateFailure(
