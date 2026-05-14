@@ -920,6 +920,16 @@ Objetivo: validar que la devolución de devolución funcione por cámara, sin me
 ### Decisión de migración
 En esta rama las migraciones se encuentran ignoradas/no versionadas (`**/Migrations/` en `.gitignore`). Por tanto, el snapshot se revierte en este commit correctivo para evitar inconsistencias de modelo versionado sin migración física. La migración física queda pendiente para la política de despliegue del equipo. Antes de usar la auditoría persistente en ambiente real debe generarse/aplicarse la migración correspondiente.
 
+## Política de migraciones EF no versionadas
+- En este proyecto/rama las migraciones EF no se versionan.
+- Las migraciones se generan/aplican en ejecución, pruebas o flujo operativo local del equipo.
+- La carpeta `Migrations` está ignorada/no hace parte del commit funcional.
+- El `AchDbContextModelSnapshot` no debe usarse como fuente de verdad para exigir commits de migración en esta rama si la política es no versionar migraciones.
+- La auditoría ROR queda lista a nivel de modelo/configuración/servicio/tests.
+- Para usar auditoría ROR en una BD real, el ambiente debe generar/aplicar la migración física correspondiente.
+- `Database.Migrate()` aplica migraciones compiladas existentes; no genera migraciones nuevas automáticamente.
+- Si el equipo usa `EnsureCreated` o recreación de BD en pruebas, validar que las tablas de auditoría existan antes de ejecutar UAT.
+
 ## Checklist de despliegue UAT - Auditoría de devolución de devolución
 
 ### Objetivo del checklist
@@ -931,6 +941,11 @@ En esta rama las migraciones se encuentran ignoradas/no versionadas (`**/Migrati
 
 ### Precondiciones
 - [ ] Confirmar rama/versión a desplegar.
+- [ ] Confirmar mecanismo usado por el equipo para crear esquema:
+  - migración generada/aplicada localmente;
+  - script SQL operativo;
+  - recreación de BD de pruebas;
+  - `EnsureCreated` si aplica solo para pruebas.
 - [ ] Confirmar que la migración física fue generada por el flujo oficial del equipo.
 - [ ] Confirmar que la migración crea las tablas:
   - `AchReturnOfReturnGeneratedFileAudits`
@@ -942,6 +957,7 @@ En esta rama las migraciones se encuentran ignoradas/no versionadas (`**/Migrati
 - [ ] Confirmar ventana de UAT.
 - [ ] Confirmar credenciales/permisos para aplicar migración.
 - [ ] Confirmar plan de rollback.
+- [ ] Confirmar que no se depende de una migración versionada en esta rama.
 
 ### Validación post-migración
 - [ ] Verificar existencia de tabla `AchReturnOfReturnGeneratedFileAudits`.
@@ -1065,6 +1081,7 @@ WHERE "GeneratedAtUtc" >= TIMESTAMP '2026-05-14 00:00:00';
 | Riesgo | Impacto | Control actual | Acción pendiente |
 |---|---|---|---|
 | Migración física pendiente en rama con `Migrations` ignoradas | Auditoría persistente no utilizable en ambiente real hasta migrar DB | Documentación + checklist UAT + decisión explícita de migración pendiente | Generar y aplicar migración por flujo oficial antes de habilitar en UAT real |
+| Migraciones EF no versionadas | Diferencias entre modelo y BD si el ambiente no aplica correctamente el esquema | Documentación, tests de metadata EF y checklist post-migración/post-creación de esquema | Automatizar validación de esquema en arranque/UAT o script operativo de verificación |
 | Error operativo al ejecutar rollback manual | Pérdida de trazabilidad de auditoría o inconsistencias en UAT | Guía de rollback con orden hijo->padre y restricción de alcance | Ejecutar rollback solo con aprobación técnica, backup y evidencia posterior |
 | Datos sin hash o hash inválido por configuración incorrecta | Debilita trazabilidad e integridad de evidencia | Validación de `ContentSha256` (longitud 64) en checklist UAT | Adjuntar evidencia SQL/log por caso UAT y bloquear pase si no cumple |
 | Cambios fuera de alcance (contabilidad/endpoints/devolución simple) durante despliegue | Riesgo funcional y regulatorio | Checklist explicita no contabilidad, no endpoints públicos, no cambios de devolución simple/entrante | Gate de despliegue con revisión técnica previa y verificación post-ejecución |
@@ -1081,13 +1098,15 @@ WHERE "GeneratedAtUtc" >= TIMESTAMP '2026-05-14 00:00:00';
   - índices regulatorios
 - Por seguridad no se versionó la migración.
 - No se debe commitear una migración ROR mezclada con cambios regulatorios históricos.
+- El drift EF bloquea únicamente la creación de una migración versionada aislada.
+- No bloquea la continuidad funcional si la política del equipo es no versionar migraciones.
 - La auditoría ROR sigue implementada a nivel de modelo/config/servicio.
-- La auditoría ROR requiere migración física aislada antes de uso real.
+- La auditoría ROR requiere que el ambiente genere/aplique la migración física por el flujo operativo local antes de uso real.
 - El snapshot se mantiene limpio/restaurado según política de rama.
 - Próximo paso recomendado:
-  1. crear una migración de reconciliación del modelo regulatorio por cámara; o
-  2. partir de una rama/snapshot ya alineado;
-  3. luego generar `AddReturnOfReturnGeneratedFileAudit` aislada.
+  1. no commitear migración mezclada con drift regulatorio;
+  2. ejecutar generación/aplicación de esquema por flujo operativo local del equipo;
+  3. verificar tablas de auditoría antes de UAT.
 
 ### Evidencia de drift detectado
 - `AchReturnCode`: el modelo/config actual incluye `ClearingHouseId`, `FlowType`, `EffectiveFrom`, `EffectiveTo`, relación con `ClearingHouse` e índice compuesto por cámara/código/flujo/vigencia.
