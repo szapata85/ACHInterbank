@@ -172,27 +172,6 @@ public class AchIncomingReturnIngestionServiceTests
         Assert.Contains(r.Failures, x => x.Code == "INCOMING_RETURN_POLICY_REJECTED");
     }
 
-    [Fact]
-    public async Task IngestAsync_ShouldNotChangeTransactionState_WhenRegulatoryValidationPasses()
-    {
-        await using var c = Ctx();
-        SeedTx(c, "123456780000001", 7001);
-        var before = (await c.AchTransactions.SingleAsync()).State;
-        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
-        await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
-        var after = (await c.AchTransactions.SingleAsync()).State;
-        Assert.Equal(before, after);
-    }
-
-    [Fact]
-    public async Task IngestAsync_ShouldNotGenerateOutboundReturnFile_WhenRegulatoryValidationPasses()
-    {
-        await using var c = Ctx();
-        SeedTx(c, "123456780000001", 7001);
-        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
-        await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
-        Assert.Empty(c.Set<AchReturnGenerated>());
-    }
 
     [Fact]
     public async Task IngestAsync_ShouldReportDuplicate_WhenSameOriginalTransactionAndReasonAppearsTwiceInFile()
@@ -444,7 +423,30 @@ public class AchIncomingReturnIngestionServiceTests
         var r = await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
         Assert.Equal(r.Decision, r.Audit.Decision);
     }
-static string BuildType7(string reason, string originalTrace)
+
+    [Fact]
+    public async Task IngestAsync_ShouldNotChangeTransactionState_WhenRegulatoryValidationPasses()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var before = (await c.AchTransactions.SingleAsync()).State;
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
+        var after = (await c.AchTransactions.SingleAsync()).State;
+        Assert.Equal(before, after);
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldNotGenerateOutboundReturnFile_WhenRegulatoryValidationPasses()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
+        Assert.Empty(c.Set<AchReturnGenerated>());
+    }
+
+    static string BuildType7(string reason, string originalTrace)
     {
         var chars = Enumerable.Repeat(' ', 106).ToArray();
         chars[0] = '7'; chars[1] = '9'; chars[2] = '9';
