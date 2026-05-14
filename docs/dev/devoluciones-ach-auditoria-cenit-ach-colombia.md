@@ -786,11 +786,11 @@ Fase 5 queda cerrada técnicamente para la base funcional de devolución de devo
 - sin modificación de golden master de devolución simple.
 
 ### Commits de Fase 5
-> Nota: listado con hashes cortos reales disponibles en el repositorio local.
+> Nota: listado con hashes cortos reales disponibles en la rama actual. Si algún cambio fue consolidado por squash/merge, se conserva el commit visible en esta rama.
 
-- `e97ebf3` Centralize Return-of-Return eligibility, add in-memory file generation service and integrate with orchestrator.
-- `7408247` test(returns): cubrir generación de archivo por cámara.
-- `b7dde38` docs(returns): cerrar Fase 4 y preparar Fase 5.
+- `e97ebf3` `Centralize Return-of-Return eligibility, add in-memory file generation service and integrate with orchestrator` (consolidado en esta rama; engloba elegibilidad, validación por cámara, idempotencia y generación en memoria).
+- `7408247` `test(returns): cubrir generación de archivo por cámara`.
+- `209131b` `docs(returns): cerrar Fase 5 y preparar UAT devolución de devolución`.
 
 ### Matriz de cierre Fase 5
 | Componente | Estado | Evidencia técnica | Riesgo residual |
