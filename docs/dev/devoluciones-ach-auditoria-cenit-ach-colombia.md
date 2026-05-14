@@ -564,3 +564,16 @@ HAVING COUNT(*) > 1;
 - No se crea `AchReturnGenerated`.
 - No se decide rechazo total/parcial.
 - Pendientes: auditoría persistente de payload, rechazo total/parcial y actualización controlada de estado.
+
+## Avance Fase 4.5 - Clasificación interna de rechazo total/parcial
+
+- La ingesta clasifica el resultado como `Accepted`, `RejectedTotal` o `RejectedPartial`.
+- La clasificación es interna y audit-friendly; no ejecuta rechazo operativo todavía.
+- `RejectedTotal` aplica a archivo vacío o cuando ningún retorno puede procesarse de forma confiable.
+- `RejectedPartial` aplica cuando existe al menos un retorno válido junto con al menos una falla.
+- La decisión se refleja en el resultado y en la auditoría interna.
+- No se cambian estados finales.
+- No se genera archivo de respuesta ni archivo de salida.
+- No se crea `AchReturnGenerated`.
+- No se ejecuta contabilidad.
+- Pendientes: respuesta operativa de rechazo, persistencia de auditoría y actualización controlada de estado.

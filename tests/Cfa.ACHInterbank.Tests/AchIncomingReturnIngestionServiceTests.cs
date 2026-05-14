@@ -376,6 +376,74 @@ public class AchIncomingReturnIngestionServiceTests
         Assert.Equal(r.LinkedReturnCount, r.Audit.LinkedReturnCount);
         Assert.Equal(r.UnlinkedReturnCount, r.Audit.UnlinkedReturnCount);
     }
+
+
+    [Fact]
+    public async Task IngestAsync_ShouldClassifyAccepted_WhenNoFailures()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var r = await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
+        Assert.Equal(AchIncomingReturnIngestionDecision.Accepted, r.Decision);
+        Assert.True(r.IsAccepted);
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldClassifyRejectedTotal_WhenFileIsEmpty()
+    {
+        await using var c = Ctx();
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var r = await sut.IngestAsync(new("f.ach", "", DateTime.UtcNow), CancellationToken.None);
+        Assert.Equal(AchIncomingReturnIngestionDecision.RejectedTotal, r.Decision);
+        Assert.True(r.IsRejectedTotal);
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldClassifyRejectedTotal_WhenAllReturnsAreUnlinked()
+    {
+        await using var c = Ctx();
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var content = BuildType7("R01", "000000000000001") + BuildType7("R02", "000000000000002");
+        var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
+        Assert.Equal(AchIncomingReturnIngestionDecision.RejectedTotal, r.Decision);
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldClassifyRejectedPartial_WhenOneReturnValidAndAnotherUnlinked()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var content = BuildType7("R01", "123456780000001") + BuildType7("R01", "000000000000002");
+        var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
+        Assert.Equal(AchIncomingReturnIngestionDecision.RejectedPartial, r.Decision);
+        Assert.True(r.IsRejectedPartial);
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldClassifyRejectedTotal_WhenAllLinkedReturnsHaveRegulatoryFailures()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001, txId: 10, cycleId: "C1");
+        SeedTx(c, "123456780000002", 7001, txId: 11, cycleId: "C2");
+        var catalog = new Mock<IAchRegulatoryCatalogService>();
+        catalog.Setup(x => x.ValidateReturnCodeAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<TransactionTypeEnum>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).ReturnsAsync((false, "rechazo"));
+        var sut = new AchIncomingReturnIngestionService(c, catalog.Object);
+        var content = BuildType7("R01", "123456780000001") + BuildType7("R01", "123456780000002");
+        var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
+        Assert.Equal(AchIncomingReturnIngestionDecision.RejectedTotal, r.Decision);
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldIncludeDecisionInAudit()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var r = await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
+        Assert.Equal(r.Decision, r.Audit.Decision);
+    }
 static string BuildType7(string reason, string originalTrace)
     {
         var chars = Enumerable.Repeat(' ', 106).ToArray();

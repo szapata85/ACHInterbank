@@ -133,6 +133,9 @@ public class AchIncomingReturnIngestionService(
         var parsed = items.Count;
         var linked = items.Count(x => x.IsLinked);
         var unlinked = parsed - linked;
+        var decision = DetermineDecision(parsed, linked, failures);
+        var isRejectedTotal = string.Equals(decision, AchIncomingReturnIngestionDecision.RejectedTotal, StringComparison.Ordinal);
+        var isRejectedPartial = string.Equals(decision, AchIncomingReturnIngestionDecision.RejectedPartial, StringComparison.Ordinal);
 
         var audit = new AchIncomingReturnIngestionAudit(
             request.FileName,
@@ -145,11 +148,43 @@ public class AchIncomingReturnIngestionService(
             linked,
             unlinked,
             failures.Count,
+            decision,
             contentSha256,
             auditRecords,
             failures.Select(x => new AchIncomingReturnAuditFailure(x.Code, x.Message, x.Field, x.TraceNumber, null)).ToList());
 
-        return new(failures.Count == 0, totalRecords, parsed, linked, unlinked, items, failures, audit);
+        return new(failures.Count == 0, decision, isRejectedTotal, isRejectedPartial, totalRecords, parsed, linked, unlinked, items, failures, audit);
+    }
+
+    private static string DetermineDecision(int parsedReturnCount, int linkedReturnCount, IReadOnlyCollection<AchIncomingReturnIngestionFailure> failures)
+    {
+        if (failures.Count == 0)
+        {
+            return AchIncomingReturnIngestionDecision.Accepted;
+        }
+
+        if (failures.Any(x => x.Code == "FILE_EMPTY"))
+        {
+            return AchIncomingReturnIngestionDecision.RejectedTotal;
+        }
+
+        if (parsedReturnCount == 0)
+        {
+            return AchIncomingReturnIngestionDecision.RejectedTotal;
+        }
+
+        if (linkedReturnCount == 0)
+        {
+            return AchIncomingReturnIngestionDecision.RejectedTotal;
+        }
+
+        var linkedRegulatoryFailures = failures.Count(x => x.Code is "INCOMING_RETURN_CODE_REJECTED" or "INCOMING_RETURN_POLICY_REJECTED");
+        if (linkedRegulatoryFailures >= linkedReturnCount)
+        {
+            return AchIncomingReturnIngestionDecision.RejectedTotal;
+        }
+
+        return AchIncomingReturnIngestionDecision.RejectedPartial;
     }
 
     private static AchIncomingReturnAuditRecord BuildAuditRecord(int recordIndex, string rawRecord, string? trace, string? originalTrace, string? reason, int? originalTransactionId, int? clearingHouseId, bool isLinked)

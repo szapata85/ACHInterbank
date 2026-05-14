@@ -1,5 +1,12 @@
 namespace Cfa.ACHInterbank.Application.ACH.Models;
 
+public static class AchIncomingReturnIngestionDecision
+{
+    public const string Accepted = "Accepted";
+    public const string RejectedTotal = "RejectedTotal";
+    public const string RejectedPartial = "RejectedPartial";
+}
+
 public sealed record AchIncomingReturnIngestionRequest(
     string FileName,
     string RawContent,
@@ -55,12 +62,16 @@ public sealed record AchIncomingReturnIngestionAudit(
     int LinkedReturnCount,
     int UnlinkedReturnCount,
     int FailureCount,
+    string Decision,
     string ContentSha256,
     IReadOnlyCollection<AchIncomingReturnAuditRecord> Records,
     IReadOnlyCollection<AchIncomingReturnAuditFailure> Failures);
 
 public sealed record AchIncomingReturnIngestionResult(
     bool IsAccepted,
+    string Decision,
+    bool IsRejectedTotal,
+    bool IsRejectedPartial,
     int TotalRecords,
     int ParsedReturnCount,
     int LinkedReturnCount,
