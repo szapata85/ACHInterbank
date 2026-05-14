@@ -831,7 +831,7 @@ Fase 5 queda cerrada técnicamente para la base funcional de devolución de devo
 ### Riesgos pendientes
 | Riesgo | Impacto | Control actual | Control futuro recomendado | Fase sugerida |
 |---|---|---|---|---|
-| Formato NACHA definitivo pendiente | Archivo en memoria puede no cumplir homologación final | Contenido determinístico testeable | Fixture/golden master por cámara | UAT / Fase 6 |
+| Formato NACHA definitivo pendiente | Archivo en memoria puede no cumplir homologación final | Golden master preliminar técnico por cámara | Golden master homologado/certificado por cámara con archivos reales CENIT/ACH Colombia | UAT / Fase 6 |
 | Persistencia formal del artefacto | Trazabilidad limitada | Resultado en memoria | Entidad/auditoría persistente aprobada | Fase 6 |
 | Naming productivo | Puede requerir nombre certificado por operador/cámara | `ROR_{ClearingHouseId}_{yyyyMMddHHmmss}.ach` | Integración con naming oficial | UAT |
 | Contabilidad pendiente | Flujo técnico sin asiento contable | Contabilidad no ejecutada | Integración contable/conciliación | Fase 7 |
@@ -841,6 +841,17 @@ Fase 5 queda cerrada técnicamente para la base funcional de devolución de devo
 
 ## Plan UAT - Devolución de devolución CENIT y ACH Colombia
 Objetivo: validar que la devolución de devolución funcione por cámara, sin mezcla de reglas, respetando idempotencia, generación en memoria y límites actuales.
+
+### Golden master preliminar para UAT técnico
+- Se agregaron golden masters preliminares por cámara para la generación en memoria de devolución de devolución.
+- CENIT queda cubierto con `ClearingHouseId = 7001`.
+- ACH Colombia queda cubierto con `ClearingHouseId = 7002`.
+- Los tests validan `FileName`, `ContentText`, `Content` ASCII, `GeneratedFlowCount` y `FlowIds`.
+- Los tests validan rechazo por mezcla de cámaras CENIT/ACH.
+- Los tests validan múltiples flows de la misma cámara con orden estable.
+- Estos golden masters son técnicos/preliminares.
+- No equivalen a homologación NACHA final.
+- El formato definitivo queda pendiente de UAT/certificación por cámara.
 
 | ID | Cámara | Escenario | Entrada | Resultado esperado | Evidencia esperada |
 |---|---|---|---|---|---|
@@ -875,6 +886,15 @@ Objetivo: validar que la devolución de devolución funcione por cámara, sin me
 - ausencia de asientos contables;
 - estados sin modificación;
 - logs/evidencia técnica del test.
+- golden master preliminar CENIT aprobado;
+- golden master preliminar ACH Colombia aprobado;
+- `FileName` esperado:
+  - `ROR_7001_20260514123456.ach`
+  - `ROR_7002_20260514123456.ach`
+- `ContentText` exacto comparado contra baseline preliminar;
+- `Content` ASCII equivalente a `ContentText`;
+- rechazo de generación cuando se mezclan flows de CENIT y ACH Colombia;
+- validación de orden estable para múltiples flows de una misma cámara.
 
 ### Límites explícitos post-Fase 5
 - La generación actual es en memoria.
