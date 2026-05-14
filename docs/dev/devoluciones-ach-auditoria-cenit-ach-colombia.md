@@ -1006,3 +1006,65 @@ FROM "AchReturnOfReturnGeneratedFileAuditFlows"
 ORDER BY "Id" DESC
 LIMIT 20;
 ```
+
+### Criterios de aceptación UAT
+- [ ] Migración física generada por el flujo oficial del equipo.
+- [ ] Migración aplicada correctamente en UAT.
+- [ ] Tablas `AchReturnOfReturnGeneratedFileAudits` y `AchReturnOfReturnGeneratedFileAuditFlows` creadas.
+- [ ] Generación exitosa crea una auditoría.
+- [ ] Generación fallida no crea auditoría.
+- [ ] `AuditId` retornado cuando la generación es exitosa.
+- [ ] `ContentSha256` retornado y persistido.
+- [ ] `ContentSha256` tiene longitud 64.
+- [ ] `ContentLength` coincide con los bytes generados en memoria.
+- [ ] `GeneratedFlowCount` coincide con los flows incluidos.
+- [ ] La relación con `ReturnOfReturnFlow` queda persistida.
+- [ ] No se persiste `ContentText`.
+- [ ] No se persiste `Content` binario.
+- [ ] No se persiste `FileBytes`.
+- [ ] No se crea `AchReturnGenerated`.
+- [ ] No cambian estados de transacciones.
+- [ ] No se generan asientos contables.
+- [ ] No se modifica devolución simple.
+- [ ] No se modifica devolución entrante.
+- [ ] No se exponen endpoints públicos nuevos.
+- [ ] Evidencias SQL y logs quedan adjuntos al caso UAT.
+
+### Rollback
+- Si la migración falla antes de completarse, detener el despliegue y no habilitar la auditoría persistente.
+- Si la migración se aplicó parcialmente, ejecutar el rollback oficial del equipo según la herramienta de despliegue utilizada.
+- Si se requiere reversión manual en UAT, debe hacerse bajo aprobación técnica y con backup previo.
+- En reversión manual, eliminar primero registros hijos de `AchReturnOfReturnGeneratedFileAuditFlows`.
+- Luego eliminar registros de `AchReturnOfReturnGeneratedFileAudits`.
+- No eliminar registros de `ReturnOfReturnFlow`.
+- No eliminar transacciones ACH.
+- No modificar catálogos regulatorios.
+- No modificar registros de devolución simple.
+- No revertir cambios de negocio fuera del alcance de auditoría.
+- Documentar evidencia del rollback:
+  - hora;
+  - responsable;
+  - scripts ejecutados;
+  - resultado;
+  - validación posterior.
+
+```sql
+-- Ejemplo UAT: ejecutar solo bajo aprobación y con backup previo.
+DELETE FROM "AchReturnOfReturnGeneratedFileAuditFlows"
+WHERE "AchReturnOfReturnGeneratedFileAuditId" IN (
+    SELECT "Id"
+    FROM "AchReturnOfReturnGeneratedFileAudits"
+    WHERE "GeneratedAtUtc" >= TIMESTAMP '2026-05-14 00:00:00'
+);
+
+DELETE FROM "AchReturnOfReturnGeneratedFileAudits"
+WHERE "GeneratedAtUtc" >= TIMESTAMP '2026-05-14 00:00:00';
+```
+
+### Riesgos pendientes
+| Riesgo | Impacto | Control actual | Acción pendiente |
+|---|---|---|---|
+| Migración física pendiente en rama con `Migrations` ignoradas | Auditoría persistente no utilizable en ambiente real hasta migrar DB | Documentación + checklist UAT + decisión explícita de migración pendiente | Generar y aplicar migración por flujo oficial antes de habilitar en UAT real |
+| Error operativo al ejecutar rollback manual | Pérdida de trazabilidad de auditoría o inconsistencias en UAT | Guía de rollback con orden hijo->padre y restricción de alcance | Ejecutar rollback solo con aprobación técnica, backup y evidencia posterior |
+| Datos sin hash o hash inválido por configuración incorrecta | Debilita trazabilidad e integridad de evidencia | Validación de `ContentSha256` (longitud 64) en checklist UAT | Adjuntar evidencia SQL/log por caso UAT y bloquear pase si no cumple |
+| Cambios fuera de alcance (contabilidad/endpoints/devolución simple) durante despliegue | Riesgo funcional y regulatorio | Checklist explicita no contabilidad, no endpoints públicos, no cambios de devolución simple/entrante | Gate de despliegue con revisión técnica previa y verificación post-ejecución |
