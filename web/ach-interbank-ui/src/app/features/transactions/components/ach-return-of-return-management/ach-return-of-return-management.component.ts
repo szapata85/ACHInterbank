@@ -23,6 +23,7 @@ export class AchReturnOfReturnManagementComponent {
   loadingAudit = false;
   loadingNacha = false;
   eligibilityResult: AchReturnOfReturnEligibilityResult | null = null;
+  generationFailures: Array<{ code?: string; message?: string; field?: string | null }> = [];
 
   readonly evaluateForm = this.fb.group({
     sourceReturnTransactionId: [null as number | null, [Validators.required, Validators.min(1)]],
@@ -51,6 +52,7 @@ export class AchReturnOfReturnManagementComponent {
     }).subscribe({
       next: (result) => {
         this.eligibilityResult = result;
+        this.generationFailures = [];
         this.loadingEvaluate = false;
         if (result.isEligible) {
           this.notifications.success('La devolución de devolución es elegible.');
@@ -75,6 +77,7 @@ export class AchReturnOfReturnManagementComponent {
     }
 
     this.loadingAudit = true;
+    this.generationFailures = [];
     this.returnsApi.generateReturnOfReturnAuditFile({ flowIds, source: 'spa-angular-ror' }).subscribe({
       next: (blob) => {
         this.downloadBlob(blob, `ROR_AUDIT_${Date.now()}.ach`);
@@ -96,16 +99,24 @@ export class AchReturnOfReturnManagementComponent {
       this.notifications.warning('Ingrese al menos un flowId válido.');
       return;
     }
-    if (this.eligibilityResult && !this.eligibilityResult.isEligible) {
+    if (!this.eligibilityResult) {
+      this.notifications.warning('Debe evaluar elegibilidad antes de generar NACHA-M productivo.');
+      return;
+    }
+    if (!this.eligibilityResult.isEligible) {
       this.notifications.warning('La evaluación actual no es elegible. No se puede generar NACHA-M productivo.');
       return;
     }
-    const confirmed = window.confirm('Este archivo corresponde al modo productivo NACHA-M de devolución de devolución. ¿Desea continuar?');
+    const confirmed = window.confirm(
+      'Este archivo corresponde al modo productivo NACHA-M de devolución de devolución. ' +
+      'Confirme que los flowIds corresponden a la devolución evaluada; el backend validará nuevamente la elegibilidad. ¿Desea continuar?'
+    );
     if (!confirmed) {
       return;
     }
 
     this.loadingNacha = true;
+    this.generationFailures = [];
     this.returnsApi.generateReturnOfReturnNachaFile({ flowIds, source: 'spa-angular-ror' }).subscribe({
       next: (blob) => {
         this.downloadBlob(blob, `RORNACHA_${Date.now()}.ach`);
@@ -123,11 +134,16 @@ export class AchReturnOfReturnManagementComponent {
 
   clearEligibility(): void {
     this.eligibilityResult = null;
+    this.generationFailures = [];
     this.cdr.markForCheck();
   }
 
   get canGenerateNacha(): boolean {
-    return !this.loadingNacha && !this.loadingAudit && this.parseFlowIds().length > 0 && (this.eligibilityResult?.isEligible ?? true);
+    return !this.loadingNacha
+      && !this.loadingAudit
+      && this.parseFlowIds().length > 0
+      && !!this.eligibilityResult
+      && this.eligibilityResult.isEligible;
   }
 
   private parseFlowIds(): number[] {
@@ -144,10 +160,12 @@ export class AchReturnOfReturnManagementComponent {
   private notifyFunctionalError(err: any, fallback: string): void {
     const failures = err?.error?.failures;
     if (Array.isArray(failures) && failures.length > 0) {
+      this.generationFailures = failures.map((f: any) => ({ code: f?.code, message: f?.message, field: f?.field ?? null }));
       const first = failures[0];
       this.notifications.error(first?.message ?? fallback);
       return;
     }
+    this.generationFailures = [];
     this.notifications.error(err?.error?.message ?? fallback);
   }
 

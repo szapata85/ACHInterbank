@@ -47,10 +47,22 @@
     <div class="warning">
       <strong>Advertencia:</strong> La generación NACHA-M productiva crea archivo operativo para intercambio ACH/NACHA-M.
     </div>
+    <div class="warning warning-info">
+      Verifique que los flowIds correspondan a la devolución evaluada.
+    </div>
 
     <div class="actions">
       <ui-boton texto="Generar archivo auditoría" variante="contorno" [deshabilitado]="loadingAudit || loadingNacha" (accion)="generateAudit()"></ui-boton>
       <ui-boton texto="Generar archivo NACHA-M productivo" variante="primario" [deshabilitado]="!canGenerateNacha" (accion)="generateNacha()"></ui-boton>
     </div>
   </form>
+
+  <div *ngIf="generationFailures.length > 0" class="result">
+    <h4>Fallas de generación</h4>
+    <ul>
+      <li *ngFor="let f of generationFailures">
+        [{{ f.code || 'N/A' }}] {{ f.field ? (f.field + ': ') : '' }}{{ f.message || 'Error funcional sin detalle.' }}
+      </li>
+    </ul>
+  </div>
 </ui-tarjeta>

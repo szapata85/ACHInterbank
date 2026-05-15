@@ -52,11 +52,15 @@ describe('AchReturnOfReturnManagementComponent', () => {
   });
 
   it('maneja 409 con failures', () => {
-    apiSpy.generateReturnOfReturnNachaFile.and.returnValue(throwError(() => ({ error: { failures: [{ message: 'Duplicado' }] } })));
+    apiSpy.generateReturnOfReturnNachaFile.and.returnValue(throwError(() => ({
+      error: { failures: [{ code: 'DUP', field: 'flowIds', message: 'Duplicado' }, { code: 'X', message: 'Otro' }] }
+    })));
+    component.eligibilityResult = { isEligible: true, isUniquePerTransaction: true, failures: [] } as any;
     component.generationForm.setValue({ flowIds: '1' });
     spyOn(window, 'confirm').and.returnValue(true);
     component.generateNacha();
     expect(notifications.error).toHaveBeenCalledWith('Duplicado');
+    expect(component.generationFailures.length).toBe(2);
   });
 
   it('invoca descarga audit-file', () => {
@@ -68,9 +72,42 @@ describe('AchReturnOfReturnManagementComponent', () => {
 
   it('invoca descarga nacha-file', () => {
     apiSpy.generateReturnOfReturnNachaFile.and.returnValue(of(new Blob(['x'], { type: 'text/plain' })));
+    component.eligibilityResult = { isEligible: true, isUniquePerTransaction: true, failures: [] } as any;
     component.generationForm.setValue({ flowIds: '1' });
     spyOn(window, 'confirm').and.returnValue(true);
     component.generateNacha();
     expect(apiSpy.generateReturnOfReturnNachaFile).toHaveBeenCalled();
+  });
+
+  it('bloquea NACHA si no hay evaluación previa', () => {
+    component.generationForm.setValue({ flowIds: '1' });
+    component.generateNacha();
+    expect(notifications.warning).toHaveBeenCalledWith('Debe evaluar elegibilidad antes de generar NACHA-M productivo.');
+    expect(apiSpy.generateReturnOfReturnNachaFile).not.toHaveBeenCalled();
+  });
+
+  it('permite NACHA si evaluación es elegible', () => {
+    apiSpy.generateReturnOfReturnNachaFile.and.returnValue(of(new Blob(['x'], { type: 'text/plain' })));
+    component.eligibilityResult = { isEligible: true, isUniquePerTransaction: true, failures: [] } as any;
+    component.generationForm.setValue({ flowIds: '1' });
+    spyOn(window, 'confirm').and.returnValue(true);
+    component.generateNacha();
+    expect(apiSpy.generateReturnOfReturnNachaFile).toHaveBeenCalled();
+  });
+
+  it('bloquea NACHA si evaluación no es elegible', () => {
+    component.eligibilityResult = { isEligible: false, isUniquePerTransaction: true, failures: [{ code: 'X', message: 'No' }] } as any;
+    component.generationForm.setValue({ flowIds: '1' });
+    component.generateNacha();
+    expect(notifications.warning).toHaveBeenCalledWith('La evaluación actual no es elegible. No se puede generar NACHA-M productivo.');
+    expect(apiSpy.generateReturnOfReturnNachaFile).not.toHaveBeenCalled();
+  });
+
+  it('audit-file no exige evaluación previa', () => {
+    apiSpy.generateReturnOfReturnAuditFile.and.returnValue(of(new Blob(['x'], { type: 'text/plain' })));
+    component.eligibilityResult = null;
+    component.generationForm.setValue({ flowIds: '1' });
+    component.generateAudit();
+    expect(apiSpy.generateReturnOfReturnAuditFile).toHaveBeenCalled();
   });
 });
