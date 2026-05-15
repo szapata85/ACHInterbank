@@ -1,15 +1,24 @@
 using System.Security.Cryptography;
 using System.Text;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
-public class AchReturnOfReturnFileGenerationService(AchDbContext context) : IAchReturnOfReturnFileGenerationService
+public class AchReturnOfReturnFileGenerationService(
+    AchDbContext context,
+    IExternalFileNamePolicy? externalFileNamePolicy = null,
+    ILogger<AchReturnOfReturnFileGenerationService>? logger = null) : IAchReturnOfReturnFileGenerationService
 {
+    private readonly IExternalFileNamePolicy? _externalFileNamePolicy = externalFileNamePolicy;
+    private readonly ILogger<AchReturnOfReturnFileGenerationService> _logger = logger ?? NullLogger<AchReturnOfReturnFileGenerationService>.Instance;
     public async Task<AchReturnOfReturnFileGenerationResult> GenerateAsync(AchReturnOfReturnFileGenerationRequest request, CancellationToken cancellationToken)
     {
         var failures = new List<AchReturnOfReturnFileGenerationFailure>();
@@ -165,7 +174,7 @@ public class AchReturnOfReturnFileGenerationService(AchDbContext context) : IAch
         var sourceValue = request.Source?.Trim();
         var candidateAudits = await context.AchReturnOfReturnGeneratedFileAudits
             .Include(x => x.Flows)
-            .Where(x => x.FileName.StartsWith("RORNACHA_"))
+            .Where(x => x.Source == "nacha")
             .Where(x => x.GeneratedFlowCount == requestedIds.Length)
             .ToListAsync(cancellationToken);
         var duplicate = candidateAudits.Any(x => x.Flows.Select(f => (int)f.ReturnOfReturnFlowId).OrderBy(v => v).SequenceEqual(requestedIds));
@@ -179,7 +188,7 @@ public class AchReturnOfReturnFileGenerationService(AchDbContext context) : IAch
         var clearingHouseId = clearingHouseIds[0];
         var firstCycle = flows.First().ReturnOfReturnTransaction.AchCycle;
         var originCode = NormalizeDigits(firstCycle.ClearingHouse?.OriginCode ?? "000101006", 8);
-        var fileName = $"RORNACHA_{clearingHouseId}_{now:yyyyMMddHHmmss}.ach";
+        var provisionalFileName = $"RORNACHA_{clearingHouseId}_{now:yyyyMMddHHmmss}.ach";
         var entryLines = new List<string>();
         var addendaLines = new List<string>();
         var entryCodes = new List<(string txCode, decimal amount, string receivingDfi)>();
@@ -218,6 +227,14 @@ public class AchReturnOfReturnFileGenerationService(AchDbContext context) : IAch
         var contentText = string.Concat(lines);
         var content = Encoding.ASCII.GetBytes(contentText);
         var contentSha256 = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+        var fileName = await ResolveProductiveExternalFileNameAsync(
+            clearingHouseId,
+            firstCycle.ClearingHouse,
+            firstCycle,
+            provisionalFileName,
+            contentText,
+            request,
+            cancellationToken);
         var audit = new AchReturnOfReturnGeneratedFileAudit
         {
             FileName = fileName,
@@ -234,6 +251,56 @@ public class AchReturnOfReturnFileGenerationService(AchDbContext context) : IAch
         context.AchReturnOfReturnGeneratedFileAudits.Add(audit);
         await context.SaveChangesAsync(cancellationToken);
         return new(true, fileName, contentText, content, flows.Count, flows.Select(x => (int)x.Id).ToArray(), Array.Empty<AchReturnOfReturnFileGenerationFailure>(), audit.Id, contentSha256);
+    }
+
+    private async Task<string> ResolveProductiveExternalFileNameAsync(
+        int clearingHouseId,
+        ClearingHouse? clearingHouse,
+        AchCycle firstCycle,
+        string provisionalFileName,
+        string nachaContent,
+        AchReturnOfReturnFileGenerationRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_externalFileNamePolicy is null)
+        {
+            return provisionalFileName;
+        }
+
+        var contextPolicy = new ExternalFileNameContext
+        {
+            ClearingHouseId = clearingHouseId,
+            ClearingHouseCode = clearingHouse?.Code ?? string.Empty,
+            ClearingHouseOriginCode = clearingHouse?.OriginCode,
+            CycleId = firstCycle.Id,
+            CycleName = firstCycle.CycleName,
+            ProcessingDate = firstCycle.ProcessingDate,
+            ExternalFileType = ExternalFileType.ReturnOfReturnOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound,
+            InternalFileName = provisionalFileName,
+            NachaContent = nachaContent,
+            RequestedBy = request.RequestedBy ?? "system"
+        };
+
+        var policyResult = await _externalFileNamePolicy.GenerateExternalNameAsync(contextPolicy, cancellationToken);
+        if (policyResult.Validation.IsHardBlocked)
+        {
+            var details = string.Join(" | ", policyResult.Validation.Issues.Select(x => $"{x.RuleCode}:{x.Message}"));
+            throw new InvalidOperationException($"Error Fatal ID: External filename validation failed. {details}");
+        }
+
+        if (policyResult.Validation.Issues.Count > 0)
+        {
+            _logger.LogWarning("ROR_PRODUCTIVE_FILENAME_POLICY_WARNING|CycleId={CycleId}|FileName={FileName}|Issues={Issues}",
+                firstCycle.Id,
+                policyResult.ExternalFileName,
+                string.Join(" | ", policyResult.Validation.Issues.Select(x => $"{x.RuleCode}:{x.Message}")));
+        }
+
+        return string.IsNullOrWhiteSpace(policyResult.ExternalFileName)
+            ? provisionalFileName
+            : policyResult.ExternalFileName;
     }
 
     private static string BuildType1(DateTime now, string originCode) => $"101  {originCode}{originCode}{now:yyMMdd}{now:HHmm}A094101ACH COLOMBIA       ACHINTERBANK ROR  {now:yyMMdd}0001".PadRight(106, ' ');

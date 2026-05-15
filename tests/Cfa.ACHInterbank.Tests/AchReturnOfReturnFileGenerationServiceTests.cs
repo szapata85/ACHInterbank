@@ -1,10 +1,13 @@
 using System.Text;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
+using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -259,6 +262,23 @@ public class AchReturnOfReturnFileGenerationServiceTests
         var second = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 171 }, DateTime.UtcNow, "qa", "nacha"), CancellationToken.None);
         Assert.False(second.IsGenerated);
         Assert.Contains(second.Failures, x => x.Code == "DUPLICATE_PRODUCTIVE_GENERATION");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_AuditMode_ShouldNotInvokeExternalFileNamePolicy()
+    {
+        await using var context = BuildContext();
+        SeedFlow(context, 173, 7001);
+        var policy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
+        var sut = new AchReturnOfReturnFileGenerationService(context, policy.Object);
+
+        var result = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 173 }, DateTime.UtcNow, "qa", "audit"), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        Assert.StartsWith("ROR_", result.FileName);
+        Assert.Contains("ROR|", result.ContentText);
+        Assert.Contains("FLOW|", result.ContentText);
+        policy.Verify(x => x.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()), Times.Never);
     }
     static AchDbContext BuildContext() => new(new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 
