@@ -80,3 +80,5 @@
 - **S4:** E2E operativo neteo/liquidez/CUD en entorno homologado.
 - **S5:** Cierre de plan UAT NACHA Security y acta de conformidad.
 - **S6:** Acta final Go/No-Go unificada y limpieza de drift documental.
+
+- Evidencia UAT de soporte para naming externo: `docs/uat/naming-returns-ror-acceptance-checklist.md` (mantiene NO-GO productivo hasta cierre formal).

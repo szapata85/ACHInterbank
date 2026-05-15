@@ -170,3 +170,5 @@ Incluye análisis documental y técnico para:
 - Las matrices v1/v2 permanecen como **histórico** de auditoría.
 - La vigencia de este documento **no implica GO productivo**.
 - Se mantiene decisión: **NO-GO productivo para naming externo** hasta cierre normativo, técnico y operativo.
+
+- Checklist UAT complementario: `docs/uat/naming-returns-ror-acceptance-checklist.md` (evidencia operativa/funcional para devolución saliente y ROR, sin cambiar estado NO-GO productivo).

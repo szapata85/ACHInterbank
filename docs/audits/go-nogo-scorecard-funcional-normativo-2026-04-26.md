@@ -189,3 +189,5 @@ La fuente documental vigente para naming externo ACH/CENIT/STA es `docs/audits/e
 Las matrices `...-2026-04-20.md` y `...-2026-04-20-v2.md` se conservan como histórico de auditoría.
 
 La actualización documental no cambia la decisión actual: **NO-GO productivo** para naming externo hasta cierre normativo, remediación técnica y firmas de negocio/compliance/operaciones.
+
+- Soporte UAT documental de naming: `docs/uat/naming-returns-ror-acceptance-checklist.md` (checklist funcional/técnico/normativo; no implica GO productivo).
