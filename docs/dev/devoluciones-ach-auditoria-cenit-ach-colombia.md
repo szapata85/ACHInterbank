@@ -1162,3 +1162,5 @@ WHERE "GeneratedAtUtc" >= TIMESTAMP '2026-05-14 00:00:00';
 - Para todo análisis de naming externo aplicable a devoluciones y devolución de devolución, la fuente vigente es `docs/audits/external-filename-normative-matrix-ach-cenit-sta-current.md`.
 - Las matrices `docs/audits/external-filename-normative-matrix-ach-cenit-sta-2026-04-20.md` y `docs/audits/external-filename-normative-matrix-ach-cenit-sta-2026-04-20-v2.md` quedan como histórico documental.
 - El estado de readiness de naming externo se mantiene en **NO-GO productivo** hasta cierre normativo/operativo y remediación de hardcodes (`RET_...`, `RORNACHA_...`).
+
+- Fuente de control vigente para revisión de registros NACHA-M (1/5/6/7/8/9) por cámara: `docs/audits/nacha-record-level-normative-matrix-ach-cenit-current.md`.

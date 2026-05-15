@@ -191,3 +191,5 @@ Las matrices `...-2026-04-20.md` y `...-2026-04-20-v2.md` se conservan como hist
 La actualización documental no cambia la decisión actual: **NO-GO productivo** para naming externo hasta cierre normativo, remediación técnica y firmas de negocio/compliance/operaciones.
 
 - Soporte UAT documental de naming: `docs/uat/naming-returns-ror-acceptance-checklist.md` (checklist funcional/técnico/normativo; no implica GO productivo).
+
+- Evidencia documental NACHA-M campo-a-campo por cámara: `docs/audits/nacha-record-level-normative-matrix-ach-cenit-current.md` (no cambia decisión NO-GO productivo).

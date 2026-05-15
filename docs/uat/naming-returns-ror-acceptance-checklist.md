@@ -122,3 +122,5 @@ Formato mínimo por ejecución UAT:
 - Riesgo de extrapolar reglas ACH a CENIT sin fuente formal.
 - Riesgo de usar audit-mode como si fuera externo.
 - Riesgo de aceptar UAT técnico sin firma normativa/operativa.
+
+- Referencia cruzada de control de layout NACHA-M por registro/cámara: `docs/audits/nacha-record-level-normative-matrix-ach-cenit-current.md` (sin alterar estado NO-GO productivo).

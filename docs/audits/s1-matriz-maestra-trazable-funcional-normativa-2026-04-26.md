@@ -82,3 +82,5 @@
 - **S6:** Acta final Go/No-Go unificada y limpieza de drift documental.
 
 - Evidencia UAT de soporte para naming externo: `docs/uat/naming-returns-ror-acceptance-checklist.md` (mantiene NO-GO productivo hasta cierre formal).
+
+- Matriz NACHA-M por registro y cámara (fuente vigente): `docs/audits/nacha-record-level-normative-matrix-ach-cenit-current.md` (mantiene NO-GO productivo hasta cierre formal).
