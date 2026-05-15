@@ -433,6 +433,56 @@ public class AchReturnOfReturnFileGenerationServiceTests
         policy.Verify(x => x.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+
+    [Fact]
+    public async Task GenerateNachaAsync_ShouldResolveNachaRecordConfig_ForReturnOfReturnOut()
+    {
+        await using var context = BuildContext();
+        var flowId = SeedFlow(context, 190, 7001);
+        var provider = new Mock<INachaRecordConfigProvider>(MockBehavior.Strict);
+        provider.Setup(x => x.Resolve(7001, "ACH", NachaRecordFlow.ReturnOfReturnOut, NachaRecordDirection.Outbound))
+            .Returns(new NachaRecordConfigProvider().Resolve(7001, "ACH", NachaRecordFlow.ReturnOfReturnOut, NachaRecordDirection.Outbound));
+
+        var sut = new AchReturnOfReturnFileGenerationService(context, null, provider.Object);
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, new DateTime(2026, 05, 15, 13, 30, 00, DateTimeKind.Utc), "qa", "api"), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        provider.VerifyAll();
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_CurrentLayout_ShouldRemainUnchanged_WhenUsingNachaRecordConfig()
+    {
+        await using var context = BuildContext();
+        var flowId = SeedFlow(context, 191, 7001);
+        var provider = new Mock<INachaRecordConfigProvider>();
+        provider.Setup(x => x.Resolve(It.IsAny<int>(), It.IsAny<string?>(), NachaRecordFlow.ReturnOfReturnOut, NachaRecordDirection.Outbound))
+            .Returns(new NachaRecordConfigProvider().Resolve(7001, "ACH", NachaRecordFlow.ReturnOfReturnOut, NachaRecordDirection.Outbound));
+
+        var sut = new AchReturnOfReturnFileGenerationService(context, null, provider.Object);
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, new DateTime(2026, 05, 15, 13, 40, 00, DateTimeKind.Utc), "qa", "api"), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        Assert.Contains("ACH COLOMBIA", result.ContentText);
+        Assert.Contains("ACHINTERBANK ROR", result.ContentText);
+        Assert.Contains("BANCROR", result.ContentText);
+        Assert.Contains("DEV. DEV.", result.ContentText);
+        Assert.Contains("0000001", result.ContentText);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_AuditMode_ShouldNotResolveNachaRecordConfig()
+    {
+        await using var context = BuildContext();
+        var flowId = SeedFlow(context, 192, 7001);
+        var provider = new Mock<INachaRecordConfigProvider>(MockBehavior.Strict);
+        var sut = new AchReturnOfReturnFileGenerationService(context, null, provider.Object);
+
+        var result = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, DateTime.UtcNow, "qa", "audit"), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        provider.Verify(x => x.Resolve(It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<NachaRecordFlow>(), It.IsAny<NachaRecordDirection>()), Times.Never);
+    }
     [Fact]
     public async Task GenerateNachaAsync_Golden_NachaRecords_AchRail_CurrentLayout()
     {

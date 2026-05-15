@@ -15,9 +15,11 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class AchReturnOfReturnFileGenerationService(
     AchDbContext context,
     IExternalFileNamePolicy? externalFileNamePolicy = null,
+    INachaRecordConfigProvider? nachaRecordConfigProvider = null,
     ILogger<AchReturnOfReturnFileGenerationService>? logger = null) : IAchReturnOfReturnFileGenerationService
 {
     private readonly IExternalFileNamePolicy? _externalFileNamePolicy = externalFileNamePolicy;
+    private readonly INachaRecordConfigProvider? _nachaRecordConfigProvider = nachaRecordConfigProvider;
     private readonly ILogger<AchReturnOfReturnFileGenerationService> _logger = logger ?? NullLogger<AchReturnOfReturnFileGenerationService>.Instance;
     public async Task<AchReturnOfReturnFileGenerationResult> GenerateAsync(AchReturnOfReturnFileGenerationRequest request, CancellationToken cancellationToken)
     {
@@ -188,7 +190,8 @@ public class AchReturnOfReturnFileGenerationService(
         var now = request.GeneratedAtUtc;
         var clearingHouseId = clearingHouseIds[0];
         var firstCycle = flows.First().ReturnOfReturnTransaction.AchCycle;
-        var originCode = NormalizeDigits(firstCycle.ClearingHouse?.OriginCode ?? "000101006", 8);
+        var recordConfig = ResolveNachaRecordConfig(clearingHouseId, firstCycle.ClearingHouse);
+        var originCode = NormalizeDigits(firstCycle.ClearingHouse?.OriginCode ?? recordConfig.Record1.ImmediateOrigin, 8);
         var provisionalFileName = $"RORNACHA_{clearingHouseId}_{now:yyyyMMddHHmmss}.ach";
         var entryLines = new List<string>();
         var addendaLines = new List<string>();
@@ -214,11 +217,11 @@ public class AchReturnOfReturnFileGenerationService(
         var hash = ComputeHash(entryCodes.Select(x => x.receivingDfi));
         var lines = new List<string>
         {
-            BuildType1(now, originCode),
-            BuildType5(now, serviceClassCode, "BANCROR", "0000001", originCode)
+            BuildType1(now, originCode, recordConfig),
+            BuildType5(now, serviceClassCode, recordConfig.Record5.CompanyIdentification, recordConfig.Record5.BatchNumberDefault, originCode, recordConfig)
         };
         for (var i = 0; i < entryLines.Count; i++) { lines.Add(entryLines[i]); lines.Add(addendaLines[i]); }
-        lines.Add(BuildType8(entryLines.Count, addendaLines.Count, hash, totalDebit, totalCredit, serviceClassCode, "BANCROR", originCode, "0000001"));
+        lines.Add(BuildType8(entryLines.Count, addendaLines.Count, hash, totalDebit, totalCredit, serviceClassCode, recordConfig.Record89.CompanyIdentification, originCode, recordConfig.Record89.BatchNumber));
         var totalRecordsWithControl = lines.Count + 1;
         var blockCount = (int)Math.Ceiling(totalRecordsWithControl / 10m);
         var paddingNeeded = (blockCount * 10) - totalRecordsWithControl;
@@ -312,6 +315,27 @@ public class AchReturnOfReturnFileGenerationService(
         return (true, null, resolved);
     }
 
+
+    private NachaRailRecordConfig ResolveNachaRecordConfig(int clearingHouseId, ClearingHouse? clearingHouse)
+    {
+        if (_nachaRecordConfigProvider is not null)
+        {
+            return _nachaRecordConfigProvider.Resolve(clearingHouseId, clearingHouse?.Code, NachaRecordFlow.ReturnOfReturnOut, NachaRecordDirection.Outbound);
+        }
+
+        return new NachaRailRecordConfig(
+            RailCode: clearingHouse?.Code ?? "UNKNOWN",
+            ClearingHouseId: clearingHouseId,
+            Flow: NachaRecordFlow.ReturnOfReturnOut,
+            Direction: NachaRecordDirection.Outbound,
+            IsCurrentLayout: true,
+            IsProductiveApproved: false,
+            Record1: new NachaRecord1Config("000101006", "000101006", "ACH COLOMBIA", "ACHINTERBANK ROR", "A", "0001", 106, 10, 1),
+            Record5: new NachaRecord5Config(null, "DEV. DEV.", "BANCROR", "PPD", "RETORNO", "1", "00010100", "0000001"),
+            Record7: new NachaRecord7Config("99", "CurrentLayout/TransactionReasonCode", "CurrentLayout/OriginalTrace15"),
+            Record89: new NachaRecord89Config("BANCROR", "00010100", "0000001", "CurrentLayout/PadWithRecord9"));
+    }
+
     private static string BuildProductiveSourceMarker(string? sourceValue)
     {
         if (string.IsNullOrWhiteSpace(sourceValue))
@@ -331,8 +355,8 @@ public class AchReturnOfReturnFileGenerationService(
         return $"nacha:{sourceValue}";
     }
 
-    private static string BuildType1(DateTime now, string originCode) => $"101  {originCode}{originCode}{now:yyMMdd}{now:HHmm}A094101ACH COLOMBIA       ACHINTERBANK ROR  {now:yyMMdd}0001".PadRight(106, ' ');
-    private static string BuildType5(DateTime now, int serviceClassCode, string originatorId, string batchNumber, string originatingDfi) => $"5{serviceClassCode:000}ROR COMPANY      {originatorId}DEV. DEV.  {now:yyMMdd}{now:yyMMdd}   1{originatingDfi}{batchNumber}".PadRight(106, ' ');
+    private static string BuildType1(DateTime now, string originCode, NachaRailRecordConfig recordConfig) => $"101  {originCode}{originCode}{now:yyMMdd}{now:HHmm}{recordConfig.Record1.FileIdModifier}094{recordConfig.Record1.RecordSize:000}{recordConfig.Record1.ImmediateDestinationName.PadRight(23).Substring(0,23)}{recordConfig.Record1.ImmediateOriginName.PadRight(23).Substring(0,23)}{now:yyMMdd}{recordConfig.Record1.ReferenceCode.PadLeft(4,'0')}".PadRight(recordConfig.Record1.RecordSize, ' ');
+    private static string BuildType5(DateTime now, int serviceClassCode, string originatorId, string batchNumber, string originatingDfi, NachaRailRecordConfig recordConfig) => $"5{serviceClassCode:000}ROR COMPANY      {originatorId}{recordConfig.Record5.CompanyName.PadRight(10).Substring(0,10)}{now:yyMMdd}{now:yyMMdd}   {recordConfig.Record5.OriginatorStatusCode}{originatingDfi}{batchNumber}".PadRight(recordConfig.Record1.RecordSize, ' ');
     private static string BuildType6(string txCode, string receivingDfi, string account, decimal amount, string trace) => $"6{txCode}{receivingDfi} {account.PadRight(17).Substring(0, 17)}{(long)(amount * 100):0000000000}               0{trace}".PadRight(106, ' ');
     private static string BuildType7(string reason, string originalTrace, string newTrace, string seq) => $"799{reason.PadRight(3).Substring(0, 3)}{originalTrace}{newTrace}{seq}".PadRight(106, ' ');
     private static string BuildType8(int entryCount, int addendaCount, long hash, decimal totalDebit, decimal totalCredit, int serviceClassCode, string originatorId, string originatingDfi, string batchNumber) => $"8{serviceClassCode:000}{entryCount + addendaCount:000000}{hash:0000000000}{(long)(totalDebit * 100):000000000000}{(long)(totalCredit * 100):000000000000}{originatorId.PadRight(10).Substring(0, 10)}      {originatingDfi}{batchNumber}".PadRight(106, ' ');
