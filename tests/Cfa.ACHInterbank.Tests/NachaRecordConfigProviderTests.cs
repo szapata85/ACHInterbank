@@ -70,4 +70,15 @@ public class NachaRecordConfigProviderTests
         Assert.True(config.IsCurrentLayout);
         Assert.False(config.IsProductiveApproved);
     }
+    [Fact]
+    public void NachaRecordConfigProvider_ShouldExposeCurrentLayoutType1ControlFields()
+    {
+        var config = _sut.Resolve(7002, "ACH", NachaRecordFlow.ReturnOfReturnOut, NachaRecordDirection.Outbound);
+
+        Assert.Equal("A", config.Record1.FileIdModifier);
+        Assert.Equal(10, config.Record1.BlockingFactor);
+        Assert.Equal(1, config.Record1.FormatCode);
+        Assert.Equal(106, config.Record1.RecordSize);
+    }
+
 }

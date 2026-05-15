@@ -483,6 +483,24 @@ public class AchReturnOfReturnFileGenerationServiceTests
         Assert.True(result.IsGenerated);
         provider.Verify(x => x.Resolve(It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<NachaRecordFlow>(), It.IsAny<NachaRecordDirection>()), Times.Never);
     }
+
+    [Fact]
+    public async Task GenerateNachaAsync_CurrentLayout_Type1_ShouldKeepRecordSizeBlockingFactorFormatCode()
+    {
+        await using var context = BuildContext();
+        var flowId = SeedFlow(context, 193, 7001);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, new DateTime(2026, 05, 15, 15, 00, 00, DateTimeKind.Utc), "qa", "api"), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        var records = SplitRecords(result.ContentText!);
+        var r1 = records.First(r => r[0] == '1');
+        Assert.Equal(106, r1.Length);
+        Assert.Contains("A094101", r1);
+        Assert.DoesNotContain("A094106", r1);
+    }
+
     [Fact]
     public async Task GenerateNachaAsync_Golden_NachaRecords_AchRail_CurrentLayout()
     {
