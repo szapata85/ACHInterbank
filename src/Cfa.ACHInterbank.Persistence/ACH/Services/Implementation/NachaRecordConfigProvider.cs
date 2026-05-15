@@ -3,7 +3,6 @@ using Cfa.ACHInterbank.Application.ACH.Models;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
-[Scoped]
 public class NachaRecordConfigProvider : INachaRecordConfigProvider
 {
     private const string RailAch = "ACH";
@@ -45,7 +44,7 @@ public class NachaRecordConfigProvider : INachaRecordConfigProvider
                 CompanyName: flow == NachaRecordFlow.ReturnOfReturnOut ? "DEV. DEV." : "DEVOLUCIONES",
                 CompanyIdentification: flow == NachaRecordFlow.ReturnOfReturnOut ? "BANCROR" : "BANCORET",
                 StandardEntryClassCode: "PPD",
-                CompanyEntryDescription: flow == NachaRecordFlow.ReturnOfReturnOut ? "RETORNO" : "DEVOLUCIONES",
+                CompanyEntryDescription: "RETORNO",
                 OriginatorStatusCode: "1",
                 OriginatingDfi: "00010100",
                 BatchNumberDefault: "0000001"),

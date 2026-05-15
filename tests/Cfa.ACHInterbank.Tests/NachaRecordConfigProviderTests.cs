@@ -16,6 +16,8 @@ public class NachaRecordConfigProviderTests
         Assert.True(config.IsCurrentLayout);
         Assert.Equal("000101006", config.Record1.ImmediateDestination);
         Assert.Equal("DEVOLUCIONES", config.Record5.CompanyName);
+        Assert.Equal("RETORNO", config.Record5.CompanyEntryDescription);
+        Assert.Equal("0000001", config.Record5.BatchNumberDefault);
     }
 
     [Fact]
@@ -37,6 +39,7 @@ public class NachaRecordConfigProviderTests
         Assert.Equal("ACHINTERBANK ROR", config.Record1.ImmediateOriginName);
         Assert.Equal("BANCROR", config.Record5.CompanyIdentification);
         Assert.Equal("RETORNO", config.Record5.CompanyEntryDescription);
+        Assert.Equal("0000001", config.Record5.BatchNumberDefault);
     }
 
     [Fact]
