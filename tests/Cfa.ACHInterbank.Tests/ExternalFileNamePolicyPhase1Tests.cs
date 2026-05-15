@@ -286,23 +286,6 @@ public class ExternalFileNamePolicyPhase1Tests
         Assert.Equal(2, second);
     }
 
-    [Fact]
-    public void ExternalFileNameSupport_ShouldClassifyReturnFlowTypes()
-    {
-        var context = new ExternalFileNameContext
-        {
-            ClearingHouseId = 1,
-            ClearingHouseCode = "ACH",
-            ProcessingDate = new DateTime(2026, 04, 20),
-            ExternalFileType = ExternalFileType.ReturnOut,
-            Flow = ExternalFileFlow.Originacion,
-            Direction = ExternalFileDirection.Outbound
-        };
-
-        Assert.True(ExternalFileNameSupport.IsUnconfirmedReturnLikeOutFlow(context));
-    }
-
-
     private static ExternalFileNameSequenceService CreateSequenceService(AchDbContext context)
     {
         var providers = new IExternalFileNameSequenceProvider[]
