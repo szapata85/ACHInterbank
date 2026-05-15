@@ -238,6 +238,76 @@ public class AchReturnsFileByClearingHouseTests
         Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 603 && x.FileName == response.FileName));
     }
 
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_ShouldResolveNachaRecordConfig_ForReturnOut()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", 606, "ACH-CFG-1");
+        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
+        {
+            [606] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+        });
+
+        var provider = new Mock<INachaRecordConfigProvider>(MockBehavior.Strict);
+        provider.Setup(x => x.Resolve(7002, "ACH", NachaRecordFlow.ReturnOut, NachaRecordDirection.Outbound))
+            .Returns(new NachaRecordConfigProvider().Resolve(7002, "ACH", NachaRecordFlow.ReturnOut, NachaRecordDirection.Outbound));
+
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), nachaRecordConfigProvider: provider.Object);
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CFG-1", [new ReturnSelectionItemDto(606, "DEV14")]), CancellationToken.None);
+
+        Assert.NotNull(response);
+        provider.VerifyAll();
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_CurrentLayout_ShouldRemainUnchanged_WhenUsingNachaRecordConfig()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", 607, "ACH-CFG-2");
+        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
+        {
+            [607] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+        });
+
+        var provider = new Mock<INachaRecordConfigProvider>();
+        provider.Setup(x => x.Resolve(It.IsAny<int>(), It.IsAny<string?>(), NachaRecordFlow.ReturnOut, NachaRecordDirection.Outbound))
+            .Returns(new NachaRecordConfigProvider().Resolve(7002, "ACH", NachaRecordFlow.ReturnOut, NachaRecordDirection.Outbound));
+
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), nachaRecordConfigProvider: provider.Object);
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CFG-2", [new ReturnSelectionItemDto(607, "DEV14")]), CancellationToken.None);
+
+        var content = Encoding.UTF8.GetString(response.Content);
+        var records = SplitRecords(content);
+        AssertRecordTypes(records);
+        var r1 = records.First(r => r[0] == '1');
+        var r5 = records.First(r => r[0] == '5');
+        Assert.Contains("A094101", r1);
+        Assert.Contains("DEVOLUCIONES", r5);
+        Assert.Contains("RETORNO", r5);
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_CurrentLayout_Type1_ShouldKeepRecordSizeBlockingFactorFormatCode()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", 608, "ACH-CFG-3");
+        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
+        {
+            [608] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+        });
+
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService());
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CFG-3", [new ReturnSelectionItemDto(608, "DEV14")]), CancellationToken.None);
+
+        var content = Encoding.UTF8.GetString(response.Content);
+        var records = SplitRecords(content);
+        var r1 = records.First(r => r[0] == '1');
+        Assert.Equal(106, r1.Length);
+        Assert.Contains("A094101", r1);
+        Assert.DoesNotContain("A094106", r1);
+    }
+
     [Fact]
     public async Task GenerateReturnsFileAsync_Golden_NachaRecords_AchRail_CurrentLayout()
     {
