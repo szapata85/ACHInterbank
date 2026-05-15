@@ -26,6 +26,7 @@ public class AchReturnsService(
     IPaymentRailShadowCompareService? shadowCompareService = null,
     IExternalFileNamePolicy? externalFileNamePolicy = null,
     INachaRecordConfigProvider? nachaRecordConfigProvider = null,
+    INachaRecordFieldValidator? nachaRecordFieldValidator = null,
     ILogger<AchReturnsService>? logger = null) : IAchReturnsService
 {
     private readonly IAchRegulatoryCatalogService _regulatoryCatalogService = regulatoryCatalogService
@@ -40,6 +41,7 @@ public class AchReturnsService(
     private readonly IPaymentRailShadowCompareService? _shadowCompareService = shadowCompareService;
     private readonly IExternalFileNamePolicy? _externalFileNamePolicy = externalFileNamePolicy;
     private readonly INachaRecordConfigProvider? _nachaRecordConfigProvider = nachaRecordConfigProvider;
+    private readonly INachaRecordFieldValidator? _nachaRecordFieldValidator = nachaRecordFieldValidator;
     private readonly ILogger<AchReturnsService> _logger = logger ?? NullLogger<AchReturnsService>.Instance;
     private const int MaxCyclesForReturn = 4;
     private const string ImmediateDestinationAchColombia = "000101006";
@@ -306,6 +308,8 @@ public class AchReturnsService(
         }
 
         var fileContent = string.Concat(lines);
+        ValidateNachaRecords(cycle.ClearingHouseId, cycle.ClearingHouse?.Code, NachaRecordFlow.ReturnOut, nachaConfig, fileContent);
+
         var fileName = await ResolveReturnExternalFileNameAsync(cycle, request, provisionalFileName, fileContent, ct);
 
         foreach (var row in generatedRows)
@@ -328,6 +332,16 @@ public class AchReturnsService(
         }
 
         return new NachaRecordConfigProvider().Resolve(cycle.ClearingHouseId, cycle.ClearingHouse?.Code, NachaRecordFlow.ReturnOut, NachaRecordDirection.Outbound);
+    }
+
+
+    private void ValidateNachaRecords(int clearingHouseId, string? clearingHouseCode, NachaRecordFlow flow, NachaRailRecordConfig config, string content)
+    {
+        if (_nachaRecordFieldValidator is null) return;
+        var result = _nachaRecordFieldValidator.Validate(new NachaRecordValidationContext(clearingHouseId, clearingHouseCode, flow, NachaRecordDirection.Outbound, config, content, true));
+        foreach (var w in result.Issues.Where(i => i.Severity != NachaRecordValidationSeverity.Error))
+            _logger.LogWarning("NACHA_RECORD_VALIDATION_{Severity}|Code={Code}|Message={Message}", w.Severity, w.Code, w.Message);
+        if (result.HasErrors) throw new InvalidOperationException("Error Fatal: NACHA record validation failed.");
     }
 
     private async Task<string> ResolveReturnExternalFileNameAsync(

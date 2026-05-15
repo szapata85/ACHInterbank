@@ -16,10 +16,12 @@ public class AchReturnOfReturnFileGenerationService(
     AchDbContext context,
     IExternalFileNamePolicy? externalFileNamePolicy = null,
     INachaRecordConfigProvider? nachaRecordConfigProvider = null,
+    INachaRecordFieldValidator? nachaRecordFieldValidator = null,
     ILogger<AchReturnOfReturnFileGenerationService>? logger = null) : IAchReturnOfReturnFileGenerationService
 {
     private readonly IExternalFileNamePolicy? _externalFileNamePolicy = externalFileNamePolicy;
     private readonly INachaRecordConfigProvider? _nachaRecordConfigProvider = nachaRecordConfigProvider;
+    private readonly INachaRecordFieldValidator? _nachaRecordFieldValidator = nachaRecordFieldValidator;
     private readonly ILogger<AchReturnOfReturnFileGenerationService> _logger = logger ?? NullLogger<AchReturnOfReturnFileGenerationService>.Instance;
     public async Task<AchReturnOfReturnFileGenerationResult> GenerateAsync(AchReturnOfReturnFileGenerationRequest request, CancellationToken cancellationToken)
     {
@@ -261,6 +263,16 @@ public class AchReturnOfReturnFileGenerationService(
         context.AchReturnOfReturnGeneratedFileAudits.Add(audit);
         await context.SaveChangesAsync(cancellationToken);
         return new(true, fileName, contentText, content, flows.Count, flows.Select(x => (int)x.Id).ToArray(), Array.Empty<AchReturnOfReturnFileGenerationFailure>(), audit.Id, contentSha256);
+    }
+
+
+    private void ValidateNachaRecords(int clearingHouseId, string? clearingHouseCode, NachaRecordFlow flow, NachaRailRecordConfig config, string content)
+    {
+        if (_nachaRecordFieldValidator is null) return;
+        var result = _nachaRecordFieldValidator.Validate(new NachaRecordValidationContext(clearingHouseId, clearingHouseCode, flow, NachaRecordDirection.Outbound, config, content, true));
+        foreach (var w in result.Issues.Where(i => i.Severity != NachaRecordValidationSeverity.Error))
+            _logger.LogWarning("NACHA_RECORD_VALIDATION_{Severity}|Code={Code}|Message={Message}", w.Severity, w.Code, w.Message);
+        if (result.HasErrors) throw new InvalidOperationException("NACHA record validation failed.");
     }
 
     private async Task<(bool IsResolved, string? Error, string FileName)> ResolveProductiveExternalFileNameAsync(
