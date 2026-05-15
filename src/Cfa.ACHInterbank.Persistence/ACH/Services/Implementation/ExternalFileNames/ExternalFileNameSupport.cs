@@ -53,6 +53,14 @@ internal static class ExternalFileNameSupport
     public static bool IsStaReject(ExternalFileNameContext context) =>
         IsCenit(context) && context.ExternalFileType == ExternalFileType.StaReject;
 
+    public static bool IsUnconfirmedReturnLikeOutFlow(ExternalFileNameContext context) =>
+        context.Direction == ExternalFileDirection.Outbound
+        && context.ExternalFileType is ExternalFileType.ReturnOut
+            or ExternalFileType.ReturnOfReturnOut
+            or ExternalFileType.OperatorReturnOut
+            or ExternalFileType.ResponseOut
+            or ExternalFileType.RejectionOut;
+
     public static string BuildAchName(string originCode, int sequence)
     {
         if (string.IsNullOrWhiteSpace(originCode) || !originCode.All(char.IsDigit) || originCode.Length < 7)

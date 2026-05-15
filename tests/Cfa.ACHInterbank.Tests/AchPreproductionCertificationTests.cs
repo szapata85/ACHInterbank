@@ -119,6 +119,7 @@ public class AchPreproductionCertificationTests
             CancellationToken.None);
 
         var expected = BuildExpectedReturnGoldenMaster(fixedNow.UtcDateTime);
+        Assert.Contains("A094101ACH-RET", expected, StringComparison.Ordinal);
 
         Assert.Equal("RET_cycle-ret_20260323114500.RET", response.FileName);
         Assert.Equal(expected, Encoding.UTF8.GetString(response.Content));
@@ -624,10 +625,10 @@ public class AchPreproductionCertificationTests
         Write(buffer, 22, nowUtc.ToString("yyMMdd"));
         Write(buffer, 28, nowUtc.ToString("HHmm"));
         Write(buffer, 32, "A");
-        Write(buffer, 33, "09410");
-        Write(buffer, 38, Alpha("ACH-RET", 23));
-        Write(buffer, 61, "ACH Colombia".PadRight(23));
-        Write(buffer, 84, Alpha("RET", 23));
+        Write(buffer, 33, "094101");
+        Write(buffer, 39, Alpha("ACH-RET", 23));
+        Write(buffer, 62, "ACH Colombia".PadRight(23));
+        Write(buffer, 85, Alpha("RET", 22));
         return new string(buffer);
     }
 
