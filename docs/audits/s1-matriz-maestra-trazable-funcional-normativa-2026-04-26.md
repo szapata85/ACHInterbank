@@ -84,3 +84,5 @@
 - Evidencia UAT de soporte para naming externo: `docs/uat/naming-returns-ror-acceptance-checklist.md` (mantiene NO-GO productivo hasta cierre formal).
 
 - Matriz NACHA-M por registro y cámara (fuente vigente): `docs/audits/nacha-record-level-normative-matrix-ach-cenit-current.md` (mantiene NO-GO productivo hasta cierre formal).
+
+- Evidencia UAT de registros NACHA-M: `docs/uat/nacha-records-acceptance-checklist.md` (controla aceptación por cámara y salida de NO-GO productivo).

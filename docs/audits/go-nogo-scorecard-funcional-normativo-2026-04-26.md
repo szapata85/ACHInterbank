@@ -193,3 +193,5 @@ La actualización documental no cambia la decisión actual: **NO-GO productivo**
 - Soporte UAT documental de naming: `docs/uat/naming-returns-ror-acceptance-checklist.md` (checklist funcional/técnico/normativo; no implica GO productivo).
 
 - Evidencia documental NACHA-M campo-a-campo por cámara: `docs/audits/nacha-record-level-normative-matrix-ach-cenit-current.md` (no cambia decisión NO-GO productivo).
+
+- Soporte UAT registros NACHA-M: `docs/uat/nacha-records-acceptance-checklist.md` (GO técnico + GO UAT controlado + NO-GO productivo).

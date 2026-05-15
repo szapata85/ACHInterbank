@@ -202,3 +202,5 @@ Cubre:
 | `refactor(nacha): route outbound returns through NACHA record config` | Alinear returns a configuración de rail | Servicio returns + config | Medio | Ruta legacy |
 | `feat(nacha): validate record-level fields by clearing house` | Validaciones por `ClearingHouseId` | Validator/semantic checks | Alto | Downgrade a warning mode |
 | `docs(uat): add NACHA record acceptance checklist` | Checklist operativo final de registros | Documentación UAT | Bajo | Revert doc |
+
+- Checklist UAT de registros NACHA-M por cámara: `docs/uat/nacha-records-acceptance-checklist.md` (define validación 1/5/6/7/8/9 para ACH/CENIT y preserva NO-GO productivo).

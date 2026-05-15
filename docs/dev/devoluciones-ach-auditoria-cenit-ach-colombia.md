@@ -1164,3 +1164,5 @@ WHERE "GeneratedAtUtc" >= TIMESTAMP '2026-05-14 00:00:00';
 - El estado de readiness de naming externo se mantiene en **NO-GO productivo** hasta cierre normativo/operativo y remediación de hardcodes (`RET_...`, `RORNACHA_...`).
 
 - Fuente de control vigente para revisión de registros NACHA-M (1/5/6/7/8/9) por cámara: `docs/audits/nacha-record-level-normative-matrix-ach-cenit-current.md`.
+
+- Checklist UAT registros NACHA-M (ACH/CENIT): `docs/uat/nacha-records-acceptance-checklist.md` como evidencia documental para 1/5/6/7/8/9 y control de NO-GO productivo.
