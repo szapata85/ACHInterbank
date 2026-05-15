@@ -172,6 +172,14 @@ Riesgos que deben permanecer visibles hasta cierre formal:
 - Riesgo de aceptar warnings como productivos.
 - Riesgo en ciclos/liquidación/CUD si aplica.
 
+
+## Referencia cruzada de causales (registro 7 / Return Reason Code)
+
+Para validaciones del registro 7 (addenda) y `Return Reason Code`, usar en conjunto esta matriz:
+- `docs/audits/cause-code-normative-matrix-ach-cenit-sta-current.md`
+
+Regla de control: no extrapolar causales ACH hacia CENIT y mantener separación entre Rxx/DEVxx vs Dxx/Ixxx vs internos.
+
 ## 11. Decisión vigente de control
 - **GO técnico:** sí.
 - **GO UAT controlado:** sí.
