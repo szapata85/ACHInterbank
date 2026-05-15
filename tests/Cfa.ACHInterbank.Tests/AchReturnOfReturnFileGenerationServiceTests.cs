@@ -330,6 +330,109 @@ public class AchReturnOfReturnFileGenerationServiceTests
     }
 
     [Fact]
+    public async Task GenerateNachaAsync_Golden_ReturnOfReturnOut_UsesPolicyName_AndPersistsAudit()
+    {
+        await using var context = BuildContext();
+        var flowId = SeedFlow(context, 182, 7001);
+        var policy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
+        policy.Setup(x => x.GenerateExternalNameAsync(
+                It.Is<ExternalFileNameContext>(c =>
+                    c.ExternalFileType == ExternalFileType.ReturnOfReturnOut
+                    && c.Direction == ExternalFileDirection.Outbound
+                    && c.InternalFileName != null
+                    && c.InternalFileName.StartsWith("RORNACHA_7001_20260515120000.ach")),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExternalFileNamePolicyResult
+            {
+                ExternalFileName = "ROR_POLICY_GOLDEN.ach",
+                Validation = new ExternalFileNameValidationResult { Disposition = ExternalFileValidationDisposition.Warning }
+            });
+        var sut = new AchReturnOfReturnFileGenerationService(context, policy.Object);
+
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, new DateTime(2026, 05, 15, 12, 00, 00, DateTimeKind.Utc), "qa", "api"), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        Assert.Equal("ROR_POLICY_GOLDEN.ach", result.FileName);
+        var audit = await context.AchReturnOfReturnGeneratedFileAudits.SingleAsync(x => x.Id == result.AuditId);
+        Assert.Equal("ROR_POLICY_GOLDEN.ach", audit.FileName);
+        policy.VerifyAll();
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_Golden_ReturnOfReturnOut_FallsBackToRorNachaProvisional_WhenPolicyReturnsEmpty()
+    {
+        await using var context = BuildContext();
+        var flowId = SeedFlow(context, 183, 7001);
+        var policy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
+        policy.Setup(x => x.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExternalFileNamePolicyResult
+            {
+                ExternalFileName = "",
+                Validation = new ExternalFileNameValidationResult { Disposition = ExternalFileValidationDisposition.Warning }
+            });
+        var sut = new AchReturnOfReturnFileGenerationService(context, policy.Object);
+
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, new DateTime(2026, 05, 15, 12, 00, 00, DateTimeKind.Utc), "qa", "api"), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        Assert.StartsWith("RORNACHA_7001_20260515120000.ach", result.FileName);
+        var audit = await context.AchReturnOfReturnGeneratedFileAudits.SingleAsync(x => x.Id == result.AuditId);
+        Assert.Equal(result.FileName, audit.FileName);
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_Golden_ReturnOfReturnOut_PreservesProductiveSourceMarker()
+    {
+        await using var context = BuildContext();
+        var flowId = SeedFlow(context, 184, 7001);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, new DateTime(2026, 05, 15, 12, 00, 00, DateTimeKind.Utc), "qa", "spa-angular-ror"), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        var audit = await context.AchReturnOfReturnGeneratedFileAudits.SingleAsync(x => x.Id == result.AuditId);
+        Assert.Equal("nacha:spa-angular-ror", audit.Source);
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_Golden_ReturnOfReturnOut_ContentStillNachaRecords()
+    {
+        await using var context = BuildContext();
+        var flowId = SeedFlow(context, 185, 7001);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, new DateTime(2026, 05, 15, 12, 00, 00, DateTimeKind.Utc), "qa", "api"), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        Assert.NotNull(result.ContentText);
+        Assert.StartsWith("1", result.ContentText!);
+        Assert.Contains("5", result.ContentText);
+        Assert.Contains("6", result.ContentText);
+        Assert.Contains("799", result.ContentText);
+        Assert.Contains("8", result.ContentText);
+        Assert.Contains("9", result.ContentText);
+        Assert.DoesNotContain("ROR|", result.ContentText);
+        Assert.DoesNotContain("FLOW|", result.ContentText);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_Golden_AuditMode_InternalName_NotExternalPolicy()
+    {
+        await using var context = BuildContext();
+        var flowId = SeedFlow(context, 186, 7001);
+        var policy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
+        var sut = new AchReturnOfReturnFileGenerationService(context, policy.Object);
+
+        var result = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, new DateTime(2026, 05, 15, 12, 00, 00, DateTimeKind.Utc), "qa", "audit"), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        Assert.StartsWith("ROR_", result.FileName);
+        Assert.Contains("ROR|", result.ContentText);
+        Assert.Contains("FLOW|", result.ContentText);
+        policy.Verify(x => x.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task GenerateNachaAsync_ShouldPreserveSourceRealWithNachaModeMarker()
     {
         await using var context = BuildContext();

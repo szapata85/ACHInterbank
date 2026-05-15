@@ -180,6 +180,25 @@ public class ExternalFileNamePolicyPhase1Tests
     }
 
     [Fact]
+    public async Task ExternalFileNamePolicy_Golden_ReturnOut_ProvisionalWarning_NotHardBlock()
+    {
+        var validator = CreateValidator();
+        var result = await validator.ValidateAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ProcessingDate = new DateTime(2026, 05, 15),
+            ExternalFileType = ExternalFileType.ReturnOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        }, new ExternalFileNameComponents { FullName = "RET_CYCLE_20260515120000.RET" });
+
+        Assert.Equal(ExternalFileValidationDisposition.Warning, result.Disposition);
+        Assert.False(result.IsHardBlocked);
+        Assert.Contains(result.Issues, x => x.RuleCode == "RETURN_NAMING_PROVISIONAL");
+    }
+
+    [Fact]
     public async Task ExternalFileNamePolicy_ShouldAcceptReturnOfReturnOutFlowAsProvisional()
     {
         var validator = CreateValidator();
@@ -195,6 +214,59 @@ public class ExternalFileNamePolicyPhase1Tests
 
         Assert.Equal(ExternalFileValidationDisposition.Warning, result.Disposition);
         Assert.Contains(result.Issues, x => x.RuleCode == "RETURN_NAMING_PROVISIONAL");
+    }
+
+    [Fact]
+    public async Task ExternalFileNamePolicy_Golden_ReturnOfReturnOut_ProvisionalWarning_NotHardBlock()
+    {
+        var validator = CreateValidator();
+        var result = await validator.ValidateAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 2,
+            ClearingHouseCode = "CENIT",
+            ProcessingDate = new DateTime(2026, 05, 15),
+            ExternalFileType = ExternalFileType.ReturnOfReturnOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        }, new ExternalFileNameComponents { FullName = "RORNACHA_7001_20260515120000.ach" });
+
+        Assert.Equal(ExternalFileValidationDisposition.Warning, result.Disposition);
+        Assert.False(result.IsHardBlocked);
+        Assert.Contains(result.Issues, x => x.RuleCode == "RETURN_NAMING_PROVISIONAL");
+    }
+
+    [Fact]
+    public async Task ExternalFileNamePolicy_Golden_ReturnOut_DuplicateName_WarningOnly()
+    {
+        await using var harness = await CreateHarnessAsync();
+        harness.Context.ExternalFileNameRegistry.Add(new Cfa.ACHInterbank.Domain.Models.ACH.ExternalFileNames.ExternalFileNameRegistry
+        {
+            ClearingHouseId = 1,
+            FlowCode = ExternalFileFlow.Originacion.ToString(),
+            Direction = ExternalFileDirection.Outbound.ToString(),
+            ExternalFileName = "RET_CYCLE_20260515120000.RET",
+            ExternalFileType = ExternalFileType.ReturnOut.ToString(),
+            ProcessingDate = new DateTime(2026, 05, 15),
+            ValidationDisposition = ExternalFileValidationDisposition.Warning.ToString(),
+            ValidationResult = "Provisional",
+            CreatedBy = "test"
+        });
+        await harness.Context.SaveChangesAsync();
+
+        var validator = CreateValidator(harness.Context);
+        var result = await validator.ValidateAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ProcessingDate = new DateTime(2026, 05, 15),
+            ExternalFileType = ExternalFileType.ReturnOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        }, new ExternalFileNameComponents { FullName = "RET_CYCLE_20260515120000.RET" });
+
+        Assert.Equal(ExternalFileValidationDisposition.Warning, result.Disposition);
+        Assert.False(result.IsHardBlocked);
+        Assert.Contains(result.Issues, x => x.RuleCode == "RETURN_DUPLICATE_NAME");
     }
 
     [Fact]
