@@ -1,5 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
@@ -109,6 +111,50 @@ public class AchReturnsFileByClearingHouseTests
 
         Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 501));
         Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 502));
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_ShouldUseExternalFileNamePolicy_ForReturnOut()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", 601, "ACH-C5");
+        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
+        {
+            [601] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+        });
+
+        var policy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
+        policy.Setup(x => x.GenerateExternalNameAsync(
+                It.Is<ExternalFileNameContext>(c =>
+                    c.ExternalFileType == ExternalFileType.ReturnOut
+                    && c.Direction == ExternalFileDirection.Outbound
+                    && c.ClearingHouseId == 7002
+                    && c.ClearingHouseCode == "ACH"
+                    && c.InternalFileName != null
+                    && c.InternalFileName.StartsWith("RET_ACH-C5_")),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExternalFileNamePolicyResult
+            {
+                ExternalFileName = "RET_PROVISIONAL_ACH-C5.RET",
+                Validation = new ExternalFileNameValidationResult
+                {
+                    Disposition = ExternalFileValidationDisposition.Warning,
+                    Issues = [new ExternalFileNameValidationIssue { RuleCode = "RETURN_NAMING_PROVISIONAL", Message = "warning", Disposition = ExternalFileValidationDisposition.Warning }]
+                }
+            });
+
+        var sut = new AchReturnsService(
+            context,
+            regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(),
+            returnEligibilityService: eligibility.Object,
+            returnGenerationLockService: new TestReturnGenerationLockService(),
+            externalFileNamePolicy: policy.Object);
+
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-C5", [new ReturnSelectionItemDto(601, "DEV14")]), CancellationToken.None);
+
+        Assert.Equal("RET_PROVISIONAL_ACH-C5.RET", response.FileName);
+        Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 601 && x.FileName == "RET_PROVISIONAL_ACH-C5.RET"));
+        policy.VerifyAll();
     }
 
     static Mock<IAchReturnEligibilityService> BuildEligibilityMock(IDictionary<int, AchReturnEligibilityResult> byTransaction)

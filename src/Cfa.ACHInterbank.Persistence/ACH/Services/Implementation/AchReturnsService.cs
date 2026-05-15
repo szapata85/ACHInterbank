@@ -1,6 +1,8 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -22,6 +24,7 @@ public class AchReturnsService(
     IPaymentRailContextService? paymentRailContextService = null,
     IPaymentRailOperationalStrategyResolver? strategyResolver = null,
     IPaymentRailShadowCompareService? shadowCompareService = null,
+    IExternalFileNamePolicy? externalFileNamePolicy = null,
     ILogger<AchReturnsService>? logger = null) : IAchReturnsService
 {
     private readonly IAchRegulatoryCatalogService _regulatoryCatalogService = regulatoryCatalogService
@@ -34,6 +37,7 @@ public class AchReturnsService(
     private readonly IPaymentRailContextService? _paymentRailContextService = paymentRailContextService;
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver = strategyResolver;
     private readonly IPaymentRailShadowCompareService? _shadowCompareService = shadowCompareService;
+    private readonly IExternalFileNamePolicy? _externalFileNamePolicy = externalFileNamePolicy;
     private readonly ILogger<AchReturnsService> _logger = logger ?? NullLogger<AchReturnsService>.Instance;
     private const int MaxCyclesForReturn = 4;
     private const string ImmediateDestinationAchColombia = "000101006";
@@ -233,7 +237,7 @@ public class AchReturnsService(
             .Where(entry => CreditTransactionCodes.Contains(entry.TransactionCode))
             .Sum(entry => entry.Amount);
         var hash = ComputeEntryHash(returnEntries.Select(entry => entry.ReceiverEntityCode));
-        var fileName = $"RET_{request.CycleId}_{now:yyyyMMddHHmmss}.RET";
+        var provisionalFileName = $"RET_{request.CycleId}_{now:yyyyMMddHHmmss}.RET";
         var originatingDfi = NormalizeDigits(cycle.ClearingHouse?.OriginCode, 8);
 
         var lines = new List<string>
@@ -300,6 +304,9 @@ public class AchReturnsService(
             }
         }
 
+        var fileContent = string.Concat(lines);
+        var fileName = await ResolveReturnExternalFileNameAsync(cycle, request, provisionalFileName, fileContent, ct);
+
         foreach (var row in generatedRows)
         {
             row.FileName = fileName;
@@ -308,8 +315,55 @@ public class AchReturnsService(
         context.Set<AchReturnGenerated>().AddRange(generatedRows);
         await context.SaveChangesAsync(ct);
 
-        var fileContent = string.Concat(lines);
         return new GenerateReturnsFileResponse(fileName, "text/plain", Encoding.UTF8.GetBytes(fileContent), lines.Count, generatedRows.Count);
+    }
+
+    private async Task<string> ResolveReturnExternalFileNameAsync(
+        AchCycle cycle,
+        GenerateReturnsFileRequest request,
+        string provisionalFileName,
+        string nachaContent,
+        CancellationToken ct)
+    {
+        if (_externalFileNamePolicy is null || cycle.ClearingHouse is null)
+        {
+            return provisionalFileName;
+        }
+
+        var context = new ExternalFileNameContext
+        {
+            ClearingHouseId = cycle.ClearingHouseId,
+            ClearingHouseCode = cycle.ClearingHouse.Code,
+            ClearingHouseOriginCode = cycle.ClearingHouse.OriginCode,
+            CycleId = cycle.Id,
+            CycleName = cycle.CycleName,
+            ProcessingDate = cycle.ProcessingDate,
+            ExternalFileType = ExternalFileType.ReturnOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound,
+            InternalFileName = provisionalFileName,
+            NachaContent = nachaContent,
+            RequestedBy = "system"
+        };
+
+        var policyResult = await _externalFileNamePolicy.GenerateExternalNameAsync(context, ct);
+        if (policyResult.Validation.IsHardBlocked)
+        {
+            var details = string.Join(" | ", policyResult.Validation.Issues.Select(x => $"{x.RuleCode}:{x.Message}"));
+            throw new InvalidOperationException($"Error Fatal ID: External filename validation failed. {details}");
+        }
+
+        if (policyResult.Validation.Issues.Count > 0)
+        {
+            _logger.LogWarning("RETURN_FILENAME_POLICY_WARNING|CycleId={CycleId}|FileName={FileName}|Issues={Issues}",
+                cycle.Id,
+                policyResult.ExternalFileName,
+                string.Join(" | ", policyResult.Validation.Issues.Select(x => $"{x.RuleCode}:{x.Message}")));
+        }
+
+        return string.IsNullOrWhiteSpace(policyResult.ExternalFileName)
+            ? provisionalFileName
+            : policyResult.ExternalFileName;
     }
 
     private void CompareReturnShadow(
