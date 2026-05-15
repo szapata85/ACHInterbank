@@ -232,9 +232,9 @@ public class AchReturnOfReturnFileGenerationServiceTests
     public async Task GenerateNachaAsync_ProducesRecordTypes_1_5_6_7_8_9_AndNotPipe()
     {
         await using var context = BuildContext();
-        SeedFlow(context, 170, 7001);
+        var flowId = SeedFlow(context, 170, 7001);
         var sut = new AchReturnOfReturnFileGenerationService(context);
-        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 170 }, new DateTime(2026, 05, 14, 12, 34, 56, DateTimeKind.Utc), "qa", "nacha"), CancellationToken.None);
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, new DateTime(2026, 05, 14, 12, 34, 56, DateTimeKind.Utc), "qa", "nacha"), CancellationToken.None);
         if (!result.IsGenerated)
         {
             Assert.NotEmpty(result.Failures);
@@ -255,11 +255,11 @@ public class AchReturnOfReturnFileGenerationServiceTests
     public async Task GenerateNachaAsync_DuplicateProductiveGeneration_ReturnsConflictStyleFailure()
     {
         await using var context = BuildContext();
-        SeedFlow(context, 171, 7001);
+        var flowId = SeedFlow(context, 171, 7001);
         var sut = new AchReturnOfReturnFileGenerationService(context);
-        var first = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 171 }, DateTime.UtcNow, "qa", "nacha"), CancellationToken.None);
+        var first = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, DateTime.UtcNow, "qa", "nacha"), CancellationToken.None);
         if (!first.IsGenerated) return;
-        var second = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 171 }, DateTime.UtcNow, "qa", "nacha"), CancellationToken.None);
+        var second = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, DateTime.UtcNow, "qa", "nacha"), CancellationToken.None);
         Assert.False(second.IsGenerated);
         Assert.Contains(second.Failures, x => x.Code == "DUPLICATE_PRODUCTIVE_GENERATION");
     }
@@ -285,7 +285,7 @@ public class AchReturnOfReturnFileGenerationServiceTests
     public async Task GenerateNachaAsync_ShouldInvokeExternalFileNamePolicy_ForReturnOfReturnOut()
     {
         await using var context = BuildContext();
-        SeedFlow(context, 174, 7001);
+        var flowId = SeedFlow(context, 174, 7001);
         var policy = new Mock<IExternalFileNamePolicy>();
         ExternalFileNameContext? captured = null;
         policy.Setup(x => x.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
@@ -297,7 +297,7 @@ public class AchReturnOfReturnFileGenerationServiceTests
             });
         var sut = new AchReturnOfReturnFileGenerationService(context, policy.Object);
 
-        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 174 }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
 
         Assert.True(result.IsGenerated);
         Assert.NotNull(captured);
@@ -311,7 +311,7 @@ public class AchReturnOfReturnFileGenerationServiceTests
     public async Task GenerateNachaAsync_ShouldUsePolicyFileNameAndPersistAudit()
     {
         await using var context = BuildContext();
-        SeedFlow(context, 175, 7001);
+        var flowId = SeedFlow(context, 175, 7001);
         var policy = new Mock<IExternalFileNamePolicy>();
         policy.Setup(x => x.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ExternalFileNamePolicyResult
@@ -321,7 +321,7 @@ public class AchReturnOfReturnFileGenerationServiceTests
             });
         var sut = new AchReturnOfReturnFileGenerationService(context, policy.Object);
 
-        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 175 }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
 
         Assert.True(result.IsGenerated);
         Assert.Equal("ROR_POLICY_NAME.ach", result.FileName);
@@ -333,10 +333,10 @@ public class AchReturnOfReturnFileGenerationServiceTests
     public async Task GenerateNachaAsync_ShouldPreserveSourceRealWithNachaModeMarker()
     {
         await using var context = BuildContext();
-        SeedFlow(context, 176, 7001);
+        var flowId = SeedFlow(context, 176, 7001);
         var sut = new AchReturnOfReturnFileGenerationService(context);
 
-        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 176 }, DateTime.UtcNow, "qa", "spa-angular-ror"), CancellationToken.None);
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, DateTime.UtcNow, "qa", "spa-angular-ror"), CancellationToken.None);
 
         Assert.True(result.IsGenerated);
         var audit = await context.AchReturnOfReturnGeneratedFileAudits.SingleAsync(x => x.Id == result.AuditId);
@@ -347,17 +347,17 @@ public class AchReturnOfReturnFileGenerationServiceTests
     public async Task GenerateNachaAsync_DuplicateProductiveGeneration_ShouldBlock_WhenSourceHasRealValue()
     {
         await using var context = BuildContext();
-        SeedFlow(context, 177, 7001);
+        var flowId = SeedFlow(context, 177, 7001);
         var policy = new Mock<IExternalFileNamePolicy>();
         policy.SetupSequence(x => x.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ExternalFileNamePolicyResult { ExternalFileName = "CUSTOM_POLICY_NAME_1.ach", Validation = new ExternalFileNameValidationResult() })
             .ReturnsAsync(new ExternalFileNamePolicyResult { ExternalFileName = "CUSTOM_POLICY_NAME_2.ach", Validation = new ExternalFileNameValidationResult() });
         var sut = new AchReturnOfReturnFileGenerationService(context, policy.Object);
 
-        var first = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 177 }, DateTime.UtcNow, "qa", "spa-angular-ror"), CancellationToken.None);
+        var first = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, DateTime.UtcNow, "qa", "spa-angular-ror"), CancellationToken.None);
         Assert.True(first.IsGenerated);
 
-        var second = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 177 }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
+        var second = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
 
         Assert.False(second.IsGenerated);
         Assert.Contains(second.Failures, x => x.Code == "DUPLICATE_PRODUCTIVE_GENERATION");
@@ -367,16 +367,16 @@ public class AchReturnOfReturnFileGenerationServiceTests
     public async Task GenerateNachaAsync_ShouldNormalizeProductiveSourceMarker_WhenCallerSendsUppercaseNachaPrefix()
     {
         await using var context = BuildContext();
-        SeedFlow(context, 181, 7001);
+        var flowId = SeedFlow(context, 181, 7001);
         var sut = new AchReturnOfReturnFileGenerationService(context);
 
-        var first = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 181 }, DateTime.UtcNow, "qa", "NACHA:spa-angular-ror"), CancellationToken.None);
+        var first = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, DateTime.UtcNow, "qa", "NACHA:spa-angular-ror"), CancellationToken.None);
 
         Assert.True(first.IsGenerated);
         var audit = await context.AchReturnOfReturnGeneratedFileAudits.SingleAsync(x => x.Id == first.AuditId);
         Assert.Equal("nacha:spa-angular-ror", audit.Source);
 
-        var second = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 181 }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
+        var second = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
         Assert.False(second.IsGenerated);
         Assert.Contains(second.Failures, x => x.Code == "DUPLICATE_PRODUCTIVE_GENERATION");
     }
@@ -385,18 +385,18 @@ public class AchReturnOfReturnFileGenerationServiceTests
     public async Task GenerateAsync_AuditMode_And_GenerateNachaAsync_ShouldCoexistForSameFlows()
     {
         await using var context = BuildContext();
-        SeedFlow(context, 178, 7001);
-        SeedFlow(context, 179, 7001);
+        var flowId1 = SeedFlow(context, 178, 7001);
+        var flowId2 = SeedFlow(context, 179, 7001);
         var sut = new AchReturnOfReturnFileGenerationService(context);
 
-        var auditFirst = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 178 }, DateTime.UtcNow, "qa", "audit"), CancellationToken.None);
-        var nachaSecond = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 178 }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
+        var auditFirst = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId1 }, DateTime.UtcNow, "qa", "audit"), CancellationToken.None);
+        var nachaSecond = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId1 }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
 
         Assert.True(auditFirst.IsGenerated);
         Assert.True(nachaSecond.IsGenerated);
 
-        var nachaFirst = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 179 }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
-        var auditSecond = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 179 }, DateTime.UtcNow, "qa", "audit"), CancellationToken.None);
+        var nachaFirst = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId2 }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
+        var auditSecond = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId2 }, DateTime.UtcNow, "qa", "audit"), CancellationToken.None);
 
         Assert.True(nachaFirst.IsGenerated);
         Assert.True(auditSecond.IsGenerated);
@@ -406,7 +406,7 @@ public class AchReturnOfReturnFileGenerationServiceTests
     public async Task GenerateNachaAsync_ShouldReturnFailure_WhenPolicyHardBlocks()
     {
         await using var context = BuildContext();
-        SeedFlow(context, 180, 7001);
+        var flowId = SeedFlow(context, 180, 7001);
         var policy = new Mock<IExternalFileNamePolicy>();
         policy.Setup(x => x.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ExternalFileNamePolicyResult
@@ -423,7 +423,7 @@ public class AchReturnOfReturnFileGenerationServiceTests
             });
         var sut = new AchReturnOfReturnFileGenerationService(context, policy.Object);
 
-        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 180 }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
 
         Assert.False(result.IsGenerated);
         Assert.Contains(result.Failures, x => x.Code == "EXTERNAL_FILENAME_VALIDATION_FAILED");
@@ -431,19 +431,24 @@ public class AchReturnOfReturnFileGenerationServiceTests
 
     static AchDbContext BuildContext() => new(new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 
-    static void SeedFlow(AchDbContext context, int flowId, int clearingHouseId)
+    static int SeedFlow(AchDbContext context, int flowId, int clearingHouseId)
     {
+        EnsureClearingHouse(context, clearingHouseId);
         var cycleId = $"C-{flowId}";
         context.AchCycles.Add(new AchCycle { Id = cycleId, CycleName = "C", ProcessingDate = DateTime.UtcNow.Date, CutoffTime = TimeSpan.FromHours(8), ClearingHouseId = clearingHouseId });
         var src = BuildTx(flowId * 10 + 1, cycleId, $"SRC{flowId}");
         var ror = BuildTx(flowId * 10 + 2, cycleId, $"ROR{flowId}");
         context.AchTransactions.AddRange(src, ror);
-        context.ReturnOfReturnFlows.Add(new ReturnOfReturnFlow { Id = flowId, SourceReturnTransactionId = src.Id, ReturnOfReturnTransactionId = ror.Id, ReasonCode = "R02" });
+        var flow = new ReturnOfReturnFlow { Id = flowId, SourceReturnTransactionId = src.Id, ReturnOfReturnTransactionId = ror.Id, ReasonCode = "R02", SourceReturnTransaction = src, ReturnOfReturnTransaction = ror };
+        context.ReturnOfReturnFlows.Add(flow);
         context.SaveChanges();
+        return (int)flow.Id;
     }
 
     static void SeedFlowWithDifferentClearingHouses(AchDbContext context, int flowId, int sourceClearingHouseId, int rorClearingHouseId)
     {
+        EnsureClearingHouse(context, sourceClearingHouseId, "ACH");
+        EnsureClearingHouse(context, rorClearingHouseId, "CENIT");
         var sourceCycleId = $"SC-{flowId}";
         var rorCycleId = $"RC-{flowId}";
         context.AchCycles.Add(new AchCycle { Id = sourceCycleId, CycleName = "SC", ProcessingDate = DateTime.UtcNow.Date, CutoffTime = TimeSpan.FromHours(8), ClearingHouseId = sourceClearingHouseId });
@@ -453,6 +458,18 @@ public class AchReturnOfReturnFileGenerationServiceTests
         context.AchTransactions.AddRange(src, ror);
         context.ReturnOfReturnFlows.Add(new ReturnOfReturnFlow { Id = flowId, SourceReturnTransactionId = src.Id, ReturnOfReturnTransactionId = ror.Id, ReasonCode = "R02" });
         context.SaveChanges();
+    }
+
+    static void EnsureClearingHouse(AchDbContext context, int clearingHouseId, string code = "ACH", string originCode = "000101006")
+    {
+        if (context.ClearingHouses.Any(x => x.Id == clearingHouseId)) return;
+        context.ClearingHouses.Add(new ClearingHouse
+        {
+            Id = clearingHouseId,
+            Code = code,
+            Name = $"ClearingHouse {clearingHouseId}",
+            OriginCode = originCode
+        });
     }
 
     static void SeedFlowMissingSource(AchDbContext context, int flowId, int clearingHouseId)
