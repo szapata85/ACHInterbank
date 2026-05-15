@@ -9,6 +9,7 @@ import { BulkIngestionUploadComponent } from './components/bulk-ingestion-upload
 import { BulkIngestionTrackingComponent } from './components/bulk-ingestion-tracking/bulk-ingestion-tracking.component';
 import { BulkIngestionDetailComponent } from './components/bulk-ingestion-detail/bulk-ingestion-detail.component';
 import { CycleConfigManagementComponent } from './components/cycle-config-management/cycle-config-management.component';
+import { AchReturnOfReturnManagementComponent } from './components/ach-return-of-return-management/ach-return-of-return-management.component';
 
 const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'list' },
@@ -58,6 +59,11 @@ const routes: Routes = [
     path: 'returns',
     component: AchReturnsManagementComponent,
     data: { title: 'Devoluciones ACH', breadcrumb: 'Devoluciones ACH' }
+  },
+  {
+    path: 'returns-ror',
+    component: AchReturnOfReturnManagementComponent,
+    data: { title: 'Devolución de devolución', breadcrumb: 'Devolución de devolución' }
   }
 ];
 

@@ -11,6 +11,7 @@ import { BulkIngestionUploadComponent } from './components/bulk-ingestion-upload
 import { BulkIngestionTrackingComponent } from './components/bulk-ingestion-tracking/bulk-ingestion-tracking.component';
 import { BulkIngestionDetailComponent } from './components/bulk-ingestion-detail/bulk-ingestion-detail.component';
 import { CycleConfigManagementComponent } from './components/cycle-config-management/cycle-config-management.component';
+import { AchReturnOfReturnManagementComponent } from './components/ach-return-of-return-management/ach-return-of-return-management.component';
 
 @NgModule({
   imports: [
@@ -25,6 +26,7 @@ import { CycleConfigManagementComponent } from './components/cycle-config-manage
     BulkIngestionTrackingComponent,
     BulkIngestionDetailComponent,
     CycleConfigManagementComponent,
+    AchReturnOfReturnManagementComponent,
     TransactionsRoutingModule
   ]
 })

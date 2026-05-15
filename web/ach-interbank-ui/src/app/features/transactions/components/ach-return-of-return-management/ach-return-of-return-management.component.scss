@@ -1,0 +1,21 @@
+.form-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.result {
+  margin-top: 12px;
+}
+
+.warning {
+  background: #fff3cd;
+  border: 1px solid #ffe69c;
+  padding: 10px;
+  border-radius: 6px;
+}

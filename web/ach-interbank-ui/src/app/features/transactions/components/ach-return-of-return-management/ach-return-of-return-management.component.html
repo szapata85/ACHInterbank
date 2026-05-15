@@ -1,0 +1,56 @@
+<app-page-header
+  title="Devolución de devolución"
+  description="Evalúe elegibilidad y genere archivos ROR en modo auditoría o NACHA-M productivo."
+></app-page-header>
+
+<ui-tarjeta titulo="1) Evaluación de elegibilidad" subtitulo="Validación funcional en backend sin reglas duplicadas en UI.">
+  <form [formGroup]="evaluateForm" class="form-grid" (ngSubmit)="evaluate()">
+    <label>
+      ID devolución origen
+      <input type="number" formControlName="sourceReturnTransactionId" />
+    </label>
+
+    <label>
+      Nueva causal (Rxx/DEV14)
+      <input type="text" formControlName="newReturnReasonCode" maxlength="10" />
+    </label>
+
+    <div class="actions">
+      <ui-boton texto="Evaluar elegibilidad" variante="primario" [deshabilitado]="loadingEvaluate" (accion)="evaluate()"></ui-boton>
+      <ui-boton texto="Limpiar resultado" variante="contorno" [deshabilitado]="loadingEvaluate" (accion)="clearEligibility()"></ui-boton>
+    </div>
+  </form>
+
+  <div *ngIf="eligibilityResult as res" class="result">
+    <p><strong>Elegible:</strong> {{ res.isEligible ? 'Sí' : 'No' }}</p>
+    <p><strong>Cámara:</strong> {{ res.clearingHouseId ?? 'N/A' }}</p>
+    <p><strong>Causal original:</strong> {{ res.originalReturnReasonCode ?? 'N/A' }}</p>
+    <p><strong>Nueva causal:</strong> {{ res.newReturnReasonCode ?? 'N/A' }}</p>
+    <p><strong>Único por transacción:</strong> {{ res.isUniquePerTransaction ? 'Sí' : 'No' }}</p>
+
+    <div *ngIf="res.failures?.length">
+      <h4>Fallas</h4>
+      <ul>
+        <li *ngFor="let f of res.failures">[{{ f.code }}] {{ f.field ? (f.field + ': ') : '' }}{{ f.message }}</li>
+      </ul>
+    </div>
+  </div>
+</ui-tarjeta>
+
+<ui-tarjeta titulo="2) Generación de archivo" subtitulo="Separe modo de auditoría interna y modo productivo NACHA-M.">
+  <form [formGroup]="generationForm" class="form-grid">
+    <label>
+      FlowIds (separados por coma)
+      <input type="text" formControlName="flowIds" placeholder="12,15,20" />
+    </label>
+
+    <div class="warning">
+      <strong>Advertencia:</strong> La generación NACHA-M productiva crea archivo operativo para intercambio ACH/NACHA-M.
+    </div>
+
+    <div class="actions">
+      <ui-boton texto="Generar archivo auditoría" variante="contorno" [deshabilitado]="loadingAudit || loadingNacha" (accion)="generateAudit()"></ui-boton>
+      <ui-boton texto="Generar archivo NACHA-M productivo" variante="primario" [deshabilitado]="!canGenerateNacha" (accion)="generateNacha()"></ui-boton>
+    </div>
+  </form>
+</ui-tarjeta>
