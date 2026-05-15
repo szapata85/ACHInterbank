@@ -39,7 +39,7 @@
 | S1-09 | Ciclos CENIT (5 ciclos consecutivos) | `docs/normativa/md/CENIT-DSP-152-Anexo-2.md` | `CenitOperatingCalendarPolicy` | `CenitOperationalGovernanceTests` | `p0-cr1-targeted-tests-2026-04-26.txt` | Operaciones + QA | Parcial (UAT GO) | Falta evidencia operativa externa de calendario en entorno homologado. |
 | S1-10 | Neteo CENIT | ADR shadow compare phase6 + DSP/Anexo 2 | `CenitNettingService` | `CenitOperationalGovernanceTests` + paymentrail tests | `payment-rail-shadow-compare-phase6-validation` | Operaciones + Arquitectura | **Bloqueado (NO-GO)** | Falta validación E2E real de neteo con criterios de compensación/liquidación. |
 | S1-11 | Liquidez/CUD | DSP/CENIT + runbooks operativos | `LiquidityOptimizationService` | `CenitOperationalGovernanceTests` | `payment-rail-shadow-compare-phase6-validation` | Operaciones + Negocio | **Bloqueado (NO-GO)** | Falta validación operacional real/CUD y aceptación formal de reglas. |
-| S1-12 | Naming externo ACH/CENIT/STA | `ADR-ExternalFileNamePolicy-*`, matriz normativa externa filename | `ExternalFileNamePolicy`, `NachaExportController` | `ExternalFileNamePolicyPhase1Tests`, `NachaExportControllerTests` | `docs/audits/external-filename-normative-matrix-ach-cenit-sta-2026-04-20*.md` | Compliance + Arquitectura | **Bloqueado (NO-GO)** | Documento declara reglas ACH pendientes de confirmación normativa. |
+| S1-12 | Naming externo ACH/CENIT/STA | `ADR-ExternalFileNamePolicy-*`, `docs/audits/external-filename-normative-matrix-ach-cenit-sta-current.md` (vigente) | `ExternalFileNamePolicy`, `NachaExportController`, `AchReturnsService`, `AchReturnOfReturnFileGenerationService` | `ExternalFileNamePolicyPhase1Tests`, `NachaExportControllerTests` | `docs/audits/external-filename-normative-matrix-ach-cenit-sta-current.md` | Compliance + Arquitectura | **Bloqueado (NO-GO)** | Matriz vigente consolidada; persisten hardcodes RET/RORNACHA y cobertura parcial por flujo, por lo que se mantiene NO-GO productivo hasta remediación + firma. |
 | S1-13 | Sobre digital / firma / cifrado | `docs/normativa/md/ACH-Colombia-V32.md` (Anexo 21), ADR digital envelope | `DigitalEnvelopeSignatureValidator`, `NachaSecurityOperationService` | `DigitalEnvelopeSignatureFailCloseTests`, `DigitalEnvelopeInteroperabilityHarnessTests` | auditorías de digital envelope + plan UAT | Seguridad + Compliance | **Bloqueado (NO-GO)** | Falta cierre de interoperabilidad oficial externa/vector definitivo. |
 | S1-14 | Certificados / OpenBao | `docs/architecture/openbao-integration-2026-04-22.md` | `DigitalEnvelopeCertificate*`, resolvers/repositories, config OpenBao | `DigitalEnvelopeCertificateResolverTests`, `NachaSecurityOperationsControllerTests` | docs dev/openbao + uat plan | Seguridad + Operaciones | Parcial (UAT GO) | Faltan evidencias de hardening final productivo y sign-off seguridad. |
 | S1-15 | Reportes operativos/auditoría | `docs/reporting/ach-reporting-module-architecture.md` | `ReportsController`, servicios de reportes | `ReportServicesDataQualityTests`, `ReportsControllerTests` | `p0-cr4-reportservices-targeted-tests-2026-04-26.txt` | Negocio + QA | Parcial (UAT GO) | Falta matriz report-to-regulation firmable por compliance/negocio. |
@@ -69,6 +69,9 @@
 5. Firma conjunta de negocio + compliance + operaciones + seguridad + arquitectura.
 
 ---
+
+
+- **Nota de vigencia naming:** la referencia operativa actual para este dominio es `docs/audits/external-filename-normative-matrix-ach-cenit-sta-current.md`; v1/v2 quedan como histórico.
 
 ## 6) Prompts siguientes sugeridos
 

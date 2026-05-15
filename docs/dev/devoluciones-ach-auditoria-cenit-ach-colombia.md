@@ -1155,3 +1155,10 @@ WHERE "GeneratedAtUtc" >= TIMESTAMP '2026-05-14 00:00:00';
 5. Trazabilidad cerrada requisito→norma→código→prueba→evidencia para ROR.
 6. Acta UAT cerrada sin pendientes críticos.
 7. Firma de negocio, compliance y operaciones para habilitación productiva.
+
+
+## 10) Referencia vigente de naming externo (ACH/CENIT/STA)
+
+- Para todo análisis de naming externo aplicable a devoluciones y devolución de devolución, la fuente vigente es `docs/audits/external-filename-normative-matrix-ach-cenit-sta-current.md`.
+- Las matrices `docs/audits/external-filename-normative-matrix-ach-cenit-sta-2026-04-20.md` y `docs/audits/external-filename-normative-matrix-ach-cenit-sta-2026-04-20-v2.md` quedan como histórico documental.
+- El estado de readiness de naming externo se mantiene en **NO-GO productivo** hasta cierre normativo/operativo y remediación de hardcodes (`RET_...`, `RORNACHA_...`).

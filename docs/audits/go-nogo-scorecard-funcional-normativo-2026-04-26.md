@@ -32,7 +32,7 @@ Evidencia:
 | Reportería (returns/reconciliation/auditoría) | Listo (técnico) / Parcial (normativo) | Media | Tests de servicios + endpoints + evidencia CR-4 | **GO para UAT ampliado** |
 | Ciclos CENIT + gobernanza operativa | Parcialmente listo | Alta | pruebas unitarias de política/ciclos | **NO-GO productivo sin E2E operativo** |
 | Neteo/liquidez CENIT | Parcialmente listo | **Crítica** | cobertura unitaria + shadow compare pasivo | **NO-GO productivo** |
-| Naming externo ACH/CENIT/STA | Parcialmente listo | **Crítica** | matriz normativa con reglas pendientes de confirmación | **NO-GO productivo** |
+| Naming externo ACH/CENIT/STA | Parcialmente listo | **Crítica** | matriz vigente `docs/audits/external-filename-normative-matrix-ach-cenit-sta-current.md`; cobertura técnica parcial y hardcodes RET/RORNACHA pendientes | **NO-GO productivo** |
 | Sobre digital NACHA-M | Parcialmente listo | Alta | fail-close y harness técnico; falta cierre externo | **NO-GO productivo sin validación externa** |
 | UAT NACHA Security | Parcialmente listo | Alta | plan UAT con ítems pendientes | **GO solo para UAT ampliado** |
 | Return-of-return (ROR) | Cerrado técnico / UAT GO controlado | Alta | Endpoints evaluate + generate-audit-file + generate-nacha-file; UI `/transactions/returns-ror`; gating 409 en UI | **NO-GO productivo hasta cierre normativo/UAT/firma** |
@@ -180,3 +180,12 @@ Objetivo: unificar estado de readiness, retirar contradicciones y emitir acta fi
 5. Trazabilidad requisito→norma→código→prueba→evidencia.
 6. Acta UAT.
 7. Firma negocio/compliance/operaciones.
+
+
+## 15) Referencia vigente para diagnóstico de naming externo
+
+La fuente documental vigente para naming externo ACH/CENIT/STA es `docs/audits/external-filename-normative-matrix-ach-cenit-sta-current.md`.
+
+Las matrices `...-2026-04-20.md` y `...-2026-04-20-v2.md` se conservan como histórico de auditoría.
+
+La actualización documental no cambia la decisión actual: **NO-GO productivo** para naming externo hasta cierre normativo, remediación técnica y firmas de negocio/compliance/operaciones.
