@@ -459,7 +459,7 @@ public class AchReturnsService(
     {
         var originCode = NormalizeDigits(cycle.ClearingHouse?.OriginCode, 9);
         var text = new StringBuilder(106);
-        text.Append(nachaConfig.Record5.OriginatorStatusCode);
+        text.Append('1');
         text.Append(PadNum("01", 2));
         text.Append(PadNum(nachaConfig.Record1.ImmediateDestination, 9));
         text.Append(PadNum(originCode, 9));

@@ -308,6 +308,28 @@ public class AchReturnsFileByClearingHouseTests
         Assert.DoesNotContain("A094106", r1);
     }
 
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_CurrentLayout_Type1_ShouldKeepRecordTypeOne()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", 609, "ACH-CFG-4");
+        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
+        {
+            [609] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+        });
+
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService());
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CFG-4", [new ReturnSelectionItemDto(609, "DEV14")]), CancellationToken.None);
+
+        var records = SplitRecords(Encoding.UTF8.GetString(response.Content));
+        var r1 = records.First(r => r[0] == '1');
+        Assert.Equal('1', r1[0]);
+        Assert.Contains("A094101", r1);
+        Assert.Equal(106, r1.Length);
+        Assert.DoesNotContain("A094106", r1);
+    }
+
     [Fact]
     public async Task GenerateReturnsFileAsync_Golden_NachaRecords_AchRail_CurrentLayout()
     {
