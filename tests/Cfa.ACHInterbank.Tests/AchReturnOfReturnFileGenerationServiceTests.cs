@@ -364,6 +364,24 @@ public class AchReturnOfReturnFileGenerationServiceTests
     }
 
     [Fact]
+    public async Task GenerateNachaAsync_ShouldNormalizeProductiveSourceMarker_WhenCallerSendsUppercaseNachaPrefix()
+    {
+        await using var context = BuildContext();
+        SeedFlow(context, 181, 7001);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+
+        var first = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 181 }, DateTime.UtcNow, "qa", "NACHA:spa-angular-ror"), CancellationToken.None);
+
+        Assert.True(first.IsGenerated);
+        var audit = await context.AchReturnOfReturnGeneratedFileAudits.SingleAsync(x => x.Id == first.AuditId);
+        Assert.Equal("nacha:spa-angular-ror", audit.Source);
+
+        var second = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 181 }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
+        Assert.False(second.IsGenerated);
+        Assert.Contains(second.Failures, x => x.Code == "DUPLICATE_PRODUCTIVE_GENERATION");
+    }
+
+    [Fact]
     public async Task GenerateAsync_AuditMode_And_GenerateNachaAsync_ShouldCoexistForSameFlows()
     {
         await using var context = BuildContext();

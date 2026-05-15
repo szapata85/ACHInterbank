@@ -319,9 +319,16 @@ public class AchReturnOfReturnFileGenerationService(
             return "nacha";
         }
 
-        return sourceValue.StartsWith("nacha:", StringComparison.OrdinalIgnoreCase)
-            ? sourceValue
-            : $"nacha:{sourceValue}";
+        const string marker = "nacha:";
+        if (sourceValue.StartsWith(marker, StringComparison.OrdinalIgnoreCase))
+        {
+            var rest = sourceValue[marker.Length..];
+            return string.IsNullOrWhiteSpace(rest)
+                ? "nacha"
+                : $"nacha:{rest}";
+        }
+
+        return $"nacha:{sourceValue}";
     }
 
     private static string BuildType1(DateTime now, string originCode) => $"101  {originCode}{originCode}{now:yyMMdd}{now:HHmm}A094101ACH COLOMBIA       ACHINTERBANK ROR  {now:yyMMdd}0001".PadRight(106, ' ');
