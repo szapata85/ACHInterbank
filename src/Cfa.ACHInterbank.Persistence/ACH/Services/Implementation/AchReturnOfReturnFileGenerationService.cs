@@ -172,9 +172,10 @@ public class AchReturnOfReturnFileGenerationService(
         }
 
         var sourceValue = request.Source?.Trim();
+        var productiveSourceValue = BuildProductiveSourceMarker(sourceValue);
         var candidateAudits = await context.AchReturnOfReturnGeneratedFileAudits
             .Include(x => x.Flows)
-            .Where(x => x.Source == "nacha")
+            .Where(x => x.Source == "nacha" || (x.Source != null && x.Source.StartsWith("nacha:")))
             .Where(x => x.GeneratedFlowCount == requestedIds.Length)
             .ToListAsync(cancellationToken);
         var duplicate = candidateAudits.Any(x => x.Flows.Select(f => (int)f.ReturnOfReturnFlowId).OrderBy(v => v).SequenceEqual(requestedIds));
@@ -227,7 +228,7 @@ public class AchReturnOfReturnFileGenerationService(
         var contentText = string.Concat(lines);
         var content = Encoding.ASCII.GetBytes(contentText);
         var contentSha256 = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
-        var fileName = await ResolveProductiveExternalFileNameAsync(
+        var (isFileNameResolved, fileNameError, fileName) = await ResolveProductiveExternalFileNameAsync(
             clearingHouseId,
             firstCycle.ClearingHouse,
             firstCycle,
@@ -235,6 +236,12 @@ public class AchReturnOfReturnFileGenerationService(
             contentText,
             request,
             cancellationToken);
+        if (!isFileNameResolved)
+        {
+            failures.Add(new("EXTERNAL_FILENAME_VALIDATION_FAILED", fileNameError ?? "No se pudo validar el nombre externo del archivo NACHA."));
+            return new(false, null, null, null, 0, requestedIds, failures, null, null);
+        }
+
         var audit = new AchReturnOfReturnGeneratedFileAudit
         {
             FileName = fileName,
@@ -244,7 +251,7 @@ public class AchReturnOfReturnFileGenerationService(
             ContentLength = content.Length,
             ContentSha256 = contentSha256,
             RequestedBy = request.RequestedBy,
-            Source = sourceValue,
+            Source = productiveSourceValue,
             CreatedAtUtc = DateTime.UtcNow,
             Flows = flows.OrderBy(x => x.Id).Select(x => new AchReturnOfReturnGeneratedFileAuditFlow { ReturnOfReturnFlowId = x.Id }).ToList()
         };
@@ -253,7 +260,7 @@ public class AchReturnOfReturnFileGenerationService(
         return new(true, fileName, contentText, content, flows.Count, flows.Select(x => (int)x.Id).ToArray(), Array.Empty<AchReturnOfReturnFileGenerationFailure>(), audit.Id, contentSha256);
     }
 
-    private async Task<string> ResolveProductiveExternalFileNameAsync(
+    private async Task<(bool IsResolved, string? Error, string FileName)> ResolveProductiveExternalFileNameAsync(
         int clearingHouseId,
         ClearingHouse? clearingHouse,
         AchCycle firstCycle,
@@ -264,7 +271,7 @@ public class AchReturnOfReturnFileGenerationService(
     {
         if (_externalFileNamePolicy is null)
         {
-            return provisionalFileName;
+            return (true, null, provisionalFileName);
         }
 
         var contextPolicy = new ExternalFileNameContext
@@ -287,7 +294,7 @@ public class AchReturnOfReturnFileGenerationService(
         if (policyResult.Validation.IsHardBlocked)
         {
             var details = string.Join(" | ", policyResult.Validation.Issues.Select(x => $"{x.RuleCode}:{x.Message}"));
-            throw new InvalidOperationException($"Error Fatal ID: External filename validation failed. {details}");
+            return (false, $"External filename validation failed. {details}", provisionalFileName);
         }
 
         if (policyResult.Validation.Issues.Count > 0)
@@ -298,9 +305,23 @@ public class AchReturnOfReturnFileGenerationService(
                 string.Join(" | ", policyResult.Validation.Issues.Select(x => $"{x.RuleCode}:{x.Message}")));
         }
 
-        return string.IsNullOrWhiteSpace(policyResult.ExternalFileName)
+        var resolved = string.IsNullOrWhiteSpace(policyResult.ExternalFileName)
             ? provisionalFileName
             : policyResult.ExternalFileName;
+
+        return (true, null, resolved);
+    }
+
+    private static string BuildProductiveSourceMarker(string? sourceValue)
+    {
+        if (string.IsNullOrWhiteSpace(sourceValue))
+        {
+            return "nacha";
+        }
+
+        return sourceValue.StartsWith("nacha:", StringComparison.OrdinalIgnoreCase)
+            ? sourceValue
+            : $"nacha:{sourceValue}";
     }
 
     private static string BuildType1(DateTime now, string originCode) => $"101  {originCode}{originCode}{now:yyMMdd}{now:HHmm}A094101ACH COLOMBIA       ACHINTERBANK ROR  {now:yyMMdd}0001".PadRight(106, ' ');

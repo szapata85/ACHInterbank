@@ -280,6 +280,137 @@ public class AchReturnOfReturnFileGenerationServiceTests
         Assert.Contains("FLOW|", result.ContentText);
         policy.Verify(x => x.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    [Fact]
+    public async Task GenerateNachaAsync_ShouldInvokeExternalFileNamePolicy_ForReturnOfReturnOut()
+    {
+        await using var context = BuildContext();
+        SeedFlow(context, 174, 7001);
+        var policy = new Mock<IExternalFileNamePolicy>();
+        ExternalFileNameContext? captured = null;
+        policy.Setup(x => x.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
+            .Callback<ExternalFileNameContext, CancellationToken>((ctx, _) => captured = ctx)
+            .ReturnsAsync(new ExternalFileNamePolicyResult
+            {
+                ExternalFileName = "ROR_POLICY_174.ach",
+                Validation = new ExternalFileNameValidationResult()
+            });
+        var sut = new AchReturnOfReturnFileGenerationService(context, policy.Object);
+
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 174 }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        Assert.NotNull(captured);
+        Assert.Equal(ExternalFileType.ReturnOfReturnOut, captured!.ExternalFileType);
+        Assert.Equal(ExternalFileDirection.Outbound, captured.Direction);
+        Assert.StartsWith("RORNACHA_", captured.InternalFileName);
+        Assert.False(string.IsNullOrWhiteSpace(captured.NachaContent));
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_ShouldUsePolicyFileNameAndPersistAudit()
+    {
+        await using var context = BuildContext();
+        SeedFlow(context, 175, 7001);
+        var policy = new Mock<IExternalFileNamePolicy>();
+        policy.Setup(x => x.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExternalFileNamePolicyResult
+            {
+                ExternalFileName = "ROR_POLICY_NAME.ach",
+                Validation = new ExternalFileNameValidationResult()
+            });
+        var sut = new AchReturnOfReturnFileGenerationService(context, policy.Object);
+
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 175 }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        Assert.Equal("ROR_POLICY_NAME.ach", result.FileName);
+        var audit = await context.AchReturnOfReturnGeneratedFileAudits.SingleAsync(x => x.Id == result.AuditId);
+        Assert.Equal("ROR_POLICY_NAME.ach", audit.FileName);
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_ShouldPreserveSourceRealWithNachaModeMarker()
+    {
+        await using var context = BuildContext();
+        SeedFlow(context, 176, 7001);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 176 }, DateTime.UtcNow, "qa", "spa-angular-ror"), CancellationToken.None);
+
+        Assert.True(result.IsGenerated);
+        var audit = await context.AchReturnOfReturnGeneratedFileAudits.SingleAsync(x => x.Id == result.AuditId);
+        Assert.Equal("nacha:spa-angular-ror", audit.Source);
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_DuplicateProductiveGeneration_ShouldBlock_WhenSourceHasRealValue()
+    {
+        await using var context = BuildContext();
+        SeedFlow(context, 177, 7001);
+        var policy = new Mock<IExternalFileNamePolicy>();
+        policy.SetupSequence(x => x.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExternalFileNamePolicyResult { ExternalFileName = "CUSTOM_POLICY_NAME_1.ach", Validation = new ExternalFileNameValidationResult() })
+            .ReturnsAsync(new ExternalFileNamePolicyResult { ExternalFileName = "CUSTOM_POLICY_NAME_2.ach", Validation = new ExternalFileNameValidationResult() });
+        var sut = new AchReturnOfReturnFileGenerationService(context, policy.Object);
+
+        var first = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 177 }, DateTime.UtcNow, "qa", "spa-angular-ror"), CancellationToken.None);
+        Assert.True(first.IsGenerated);
+
+        var second = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 177 }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
+
+        Assert.False(second.IsGenerated);
+        Assert.Contains(second.Failures, x => x.Code == "DUPLICATE_PRODUCTIVE_GENERATION");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_AuditMode_And_GenerateNachaAsync_ShouldCoexistForSameFlows()
+    {
+        await using var context = BuildContext();
+        SeedFlow(context, 178, 7001);
+        SeedFlow(context, 179, 7001);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+
+        var auditFirst = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 178 }, DateTime.UtcNow, "qa", "audit"), CancellationToken.None);
+        var nachaSecond = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 178 }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
+
+        Assert.True(auditFirst.IsGenerated);
+        Assert.True(nachaSecond.IsGenerated);
+
+        var nachaFirst = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 179 }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
+        var auditSecond = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 179 }, DateTime.UtcNow, "qa", "audit"), CancellationToken.None);
+
+        Assert.True(nachaFirst.IsGenerated);
+        Assert.True(auditSecond.IsGenerated);
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_ShouldReturnFailure_WhenPolicyHardBlocks()
+    {
+        await using var context = BuildContext();
+        SeedFlow(context, 180, 7001);
+        var policy = new Mock<IExternalFileNamePolicy>();
+        policy.Setup(x => x.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExternalFileNamePolicyResult
+            {
+                ExternalFileName = "",
+                Validation = new ExternalFileNameValidationResult
+                {
+                    Disposition = ExternalFileValidationDisposition.HardBlock,
+                    Issues = new List<ExternalFileNameValidationIssue>
+                    {
+                        new() { RuleCode = "RULE", Message = "Blocked" }
+                    }
+                }
+            });
+        var sut = new AchReturnOfReturnFileGenerationService(context, policy.Object);
+
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 180 }, DateTime.UtcNow, "qa", "api"), CancellationToken.None);
+
+        Assert.False(result.IsGenerated);
+        Assert.Contains(result.Failures, x => x.Code == "EXTERNAL_FILENAME_VALIDATION_FAILED");
+    }
+
     static AchDbContext BuildContext() => new(new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 
     static void SeedFlow(AchDbContext context, int flowId, int clearingHouseId)
