@@ -624,7 +624,7 @@ public class AchPreproductionCertificationTests
         Write(buffer, 22, nowUtc.ToString("yyMMdd"));
         Write(buffer, 28, nowUtc.ToString("HHmm"));
         Write(buffer, 32, "A");
-        Write(buffer, 33, "09410");
+        Write(buffer, 33, "094101");
         Write(buffer, 38, Alpha("ACH-RET", 23));
         Write(buffer, 61, "ACH Colombia".PadRight(23));
         Write(buffer, 84, Alpha("RET", 23));
