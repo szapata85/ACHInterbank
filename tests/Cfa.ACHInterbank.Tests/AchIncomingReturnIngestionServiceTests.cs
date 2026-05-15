@@ -125,8 +125,8 @@ public class AchIncomingReturnIngestionServiceTests
     public async Task IngestAsync_ShouldValidateIncomingReturnPolicy_ByClearingHouse()
     {
         await using var c = Ctx();
-        SeedTx(c, "123456780000001", 7002);
         var now = new DateTime(2026, 05, 14, 12, 0, 0, DateTimeKind.Utc);
+        SeedTx(c, "123456780000001", 7002, effectiveEntryDate: now.Date);
         var catalog = CatalogAllowAllMock();
         var sut = new AchIncomingReturnIngestionService(c, catalog.Object);
         await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), now), CancellationToken.None);
@@ -508,14 +508,15 @@ public class AchIncomingReturnIngestionServiceTests
     static IAchRegulatoryCatalogService CatalogAllowAll() => CatalogAllowAllMock().Object;
 
     static AchDbContext Ctx() => new(new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
-    static void SeedTx(AchDbContext c, string trace, int clearingHouseId, int txId = 10, string cycleId = "C1")
+    static void SeedTx(AchDbContext c, string trace, int clearingHouseId, int txId = 10, string cycleId = "C1", DateTime? effectiveEntryDate = null)
     {
+        var effectiveDate = effectiveEntryDate?.Date ?? DateTime.UtcNow.Date;
         if (!c.ClearingHouses.Any(x => x.Id == clearingHouseId))
         {
             c.ClearingHouses.Add(new ClearingHouse { Id = clearingHouseId, Code = clearingHouseId == 7001 ? "CENIT" : "ACH", Name = "CH", OriginCode = "000101006" });
         }
         c.AchCycles.Add(new AchCycle { Id = cycleId, CycleName = cycleId, ProcessingDate = DateTime.UtcNow.Date, CutoffTime = new TimeSpan(8, 0, 0), ClearingHouseId = clearingHouseId });
-        c.AchTransactions.Add(new AchTransaction { Id = txId, TraceNumber = trace, AchCycleId = cycleId, Type = TransactionTypeEnum.Credit, State = AchTransferStateEnum.Pending, EffectiveEntryDate = DateTime.UtcNow.Date, TransactionCode = "22", ReceivingDFI = "12345678", OriginatingDFI = "12345678", Amount = 100, Reference = "R", SourceAccountNumber = "1", DestinationAccountNumber = "2", OriginalTraceRef = $"ALT{txId:000000000000}" });
+        c.AchTransactions.Add(new AchTransaction { Id = txId, TraceNumber = trace, AchCycleId = cycleId, Type = TransactionTypeEnum.Credit, State = AchTransferStateEnum.Pending, EffectiveEntryDate = effectiveDate, TransactionCode = "22", ReceivingDFI = "12345678", OriginatingDFI = "12345678", Amount = 100, Reference = "R", SourceAccountNumber = "1", DestinationAccountNumber = "2", OriginalTraceRef = $"ALT{txId:000000000000}" });
         c.SaveChanges();
     }
 }
