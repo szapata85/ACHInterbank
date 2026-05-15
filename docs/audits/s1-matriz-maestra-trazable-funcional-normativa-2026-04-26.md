@@ -34,7 +34,7 @@
 | S1-04 | Clasificación inbound | `docs/architecture/incoming-nacha-command-center-state-machine-2026-04-24.md` | `IncomingNachaFunctionalClassifier`, `IncomingNachaPostParseProcessor` | `IncomingNachaFunctionalClassifierTests`, `IncomingNachaPostParseProcessorTests` | evidencias incoming-nacha ops | Arquitectura + QA | Parcial (UAT GO) | Validación normativa detallada por causal pendiente de consolidar. |
 | S1-05 | Prenotificaciones | `docs/normativa/md/CENIT-Anexo-A-Causales-Devolucion.md` (R10/R31) | `PrenotificationHandler`, `AchPrenotificationPolicy` | `PrenotificationHandlerTests`, `IncomingNachaPrenotificationResolverTests` | evidencia de tests backend P0 close | Negocio ACH + QA | Parcial (UAT GO) | Falta sign-off de negocio sobre reglas finales por cámara/flujo. |
 | S1-06 | Devoluciones | `docs/normativa/md/CENIT-Anexo-A-Causales-Devolucion.md`, `docs/normativa/md/ACH-Colombia-V32.md` | `AchReturnsService`, catálogos regulatorios | `RegulatoryCatalogSeederTests`, `ReportServicesDataQualityTests` | `p0-cr4-*`, `dotnet-test-release-2026-04-26-p0-close.txt` | Negocio + Compliance | Parcial (UAT GO) | Cierre regulatorio integral (catálogo vigente firmado) pendiente. |
-| S1-07 | Return-of-return | `CENIT Anexo A` (R60-R74) + ADR phase6 | `ReturnOfReturnOrchestrator`, `AchReturnOfReturnPolicy` | `CenitOperationalGovernanceTests` | `payment-rail-shadow-compare-phase6-validation` | Negocio + Arquitectura | Parcial (UAT GO) | Falta cobertura E2E operacional y aprobación normativa explícita. |
+| S1-07 | Return-of-return | `docs/normativa/md/CENIT-Anexo-A-Causales-Devolucion.md`, `docs/normativa/md/ACH-Colombia-V32.md` + ADR phase6 | Endpoints: `/ach-returns/return-of-return/evaluate`, `/generate-audit-file`, `/generate-nacha-file`; `ReturnOfReturnOrchestrator`, `AchReturnOfReturnPolicy`, SPA `/transactions/returns-ror` | Evidencia técnica reportada: restore/build/test backend (291), build SPA; pendiente prueba SPA en ChromeHeadless por `libatk-1.0.so.0` | Evidencia ROR audit pipe (`ROR|...`, `FLOW|...`) + archivo NACHA-M independiente (1/5/6/7/8/9) | Negocio + Arquitectura + Operaciones + Compliance | Cerrado técnico / UAT GO controlado / NO-GO productivo | Cierre técnico completado; pendiente UAT E2E y aprobación normativa explícita por cámara (CENIT/ACH Colombia) antes de GO productivo. |
 | S1-08 | Ciclos ACH | `docs/normativa/md/ACH-Colombia-V32.md` | `AchCyclesController`, `ClearingHouseCycleConfigService` | `ClearingHouseCycleConfigServiceTests`, seeder tests | evidencia P0 CR-1 | Operaciones + QA | Parcial (UAT GO) | Requiere tabla de equivalencia norma-ciclo por horario oficial. |
 | S1-09 | Ciclos CENIT (5 ciclos consecutivos) | `docs/normativa/md/CENIT-DSP-152-Anexo-2.md` | `CenitOperatingCalendarPolicy` | `CenitOperationalGovernanceTests` | `p0-cr1-targeted-tests-2026-04-26.txt` | Operaciones + QA | Parcial (UAT GO) | Falta evidencia operativa externa de calendario en entorno homologado. |
 | S1-10 | Neteo CENIT | ADR shadow compare phase6 + DSP/Anexo 2 | `CenitNettingService` | `CenitOperationalGovernanceTests` + paymentrail tests | `payment-rail-shadow-compare-phase6-validation` | Operaciones + Arquitectura | **Bloqueado (NO-GO)** | Falta validación E2E real de neteo con criterios de compensación/liquidación. |
@@ -54,7 +54,8 @@
 ## 4) Resumen por estado
 
 - **Listo (GO):** 0 dominios con cierre funcional-normativo completo firmado.
-- **Parcial (UAT GO):** S1-01,02,03,04,05,06,07,08,09,14,15,16,17,18,19.
+- **Parcial (UAT GO):** S1-01,02,03,04,05,06,08,09,14,15,16,17,18,19.
+- **Cerrado técnico / UAT GO controlado / NO-GO productivo:** S1-07 (Return-of-return).
 - **Bloqueado (NO-GO productivo):** S1-10,11,12,13,20.
 
 ---

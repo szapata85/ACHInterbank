@@ -99,21 +99,45 @@ Se revisaron los artefactos solicitados en dominio, aplicación, persistencia, A
 
 ## 5) Análisis de devolución de devolución
 
-- Existe **modelo + orquestación** (`AchReturnOfReturnPolicy`, `ReturnOfReturnFlow`, `ReturnOfReturnOrchestrator`).
-- Se valida política de causal original/nueva vía catálogo regulatorio.
-- Se controla unicidad según política (`IsUniquePerTransaction`) a nivel de validación.
-- Diferenciación por cámara: **insuficiente** (no eje principal del modelo regulatorio actual).
-- Vinculación a ciclo CENIT/ACH: existe referencia operativa en flujo, pero no regla de elegibilidad por cámara completamente parametrizada.
-- Generación de archivo: depende del flujo general de returns; no se observa un generador dedicado con naming/reglas específicos por cámara para return-of-return.
+### Estado actualizado ROR (cierre técnico del PR)
 
-### Respuestas explícitas
-- ¿Solo existe modelo o también orquestación? **Ambos.**
-- ¿Se valida causal original? **Sí.**
-- ¿Se valida nueva causal? **Sí.**
-- ¿Se controla unicidad? **Sí, por política.**
-- ¿Se diferencia por cámara? **No de forma robusta.**
-- ¿Se vincula a ciclo CENIT/ACH? **Parcialmente.**
-- ¿Se genera archivo? **Sí por flujo de returns general, sin especialización fuerte por cámara para este subcaso.**
+- **Cerrado técnicamente**: el flujo Return Of Return ya no está en estado pendiente técnico.
+- **Endpoints implementados**:
+  - `POST /ach-returns/return-of-return/evaluate` (evaluación de elegibilidad).
+  - `POST /ach-returns/return-of-return/generate-audit-file` (evidencia interna pipe con líneas `ROR|...` y `FLOW|...`).
+  - `POST /ach-returns/return-of-return/generate-nacha-file` (archivo NACHA-M productivo independiente con registros 1/5/6/7/8/9).
+- **UI disponible**: SPA Angular operativa en `/transactions/returns-ror`.
+- **Separación de modos**:
+  - `audit-mode`: no requiere evaluación previa elegible.
+  - `nacha productivo`: exige evaluación previa elegible (gating operativo).
+  - manejo de errores funcionales con `409` visible en UI para failures de elegibilidad/regla.
+- **Pruebas ejecutadas (estado reportado de cierre técnico)**:
+  - `dotnet restore` ✅
+  - `dotnet build -c Release` ✅
+  - `dotnet test` filtrado ✅ (291 passed)
+  - `npm run build` ✅
+  - `npm test` ⚠️ pendiente por dependencia `libatk-1.0.so.0` en `ChromeHeadless`.
+
+### Estado de readiness ROR
+
+- **GO técnico**: Sí.
+- **GO para UAT controlado**: Sí.
+- **GO productivo**: **No** (permanece en **NO-GO productivo** hasta cierre normativo + UAT + firmas).
+
+### Pendientes UAT / normativos por cámara
+
+- **CENIT**:
+  - validar que la devolución de devolución aplicada en UAT cumple causales y reglas documentadas en CENIT (Anexo A y reglas operativas vigentes).
+  - confirmar aceptación de archivo ROR NACHA-M por circuito de cámara según proceso operativo homologado.
+- **ACH Colombia**:
+  - confirmar aplicabilidad del flujo ROR contra manual ACH Colombia v3.2 y reglas de operador/devolución que correspondan al caso de uso.
+  - validar aceptación operativa del naming externo definitivo en el intercambio con contraparte.
+
+### Riesgos residuales
+
+- Riesgo de **desalineación normativa** si no se formaliza confirmación explícita de cámara para ROR.
+- Riesgo de **rechazo operativo externo** si naming/formato no quedan cerrados en validación real por contraparte.
+- Riesgo de **falsa percepción de Go-Live** si no se conserva la distinción entre GO técnico/UAT y NO-GO productivo.
 
 ---
 
@@ -1113,3 +1137,21 @@ WHERE "GeneratedAtUtc" >= TIMESTAMP '2026-05-14 00:00:00';
 - `AchReturnPolicy`: el modelo/config actual incluye `ClearingHouseId`, `Direction`, `FlowType`, `EffectiveFrom`, `EffectiveTo`, `MaxCycles` e índice compuesto por cámara/tipo/dirección/flujo/activo.
 - `AchReturnOfReturnPolicy`: el modelo/config actual incluye `ClearingHouseId`, `Direction`, `FlowType`, `EffectiveFrom`, `EffectiveTo`, relación con `ClearingHouse` e índice compuesto por cámara/código original/dirección/flujo/activo.
 - El `AchDbContextModelSnapshot` vigente en rama no refleja esas dimensiones regulatorias en el mismo nivel que el modelo/config actual, por lo que EF intenta reconciliarlas junto con la migración de auditoría ROR.
+
+## 8) No regresión
+
+- No se modifica el flujo de devolución normal en esta actualización documental.
+- No se modifica el flujo incoming NACHA.
+- No se modifica parser NACHA ni clasificación funcional.
+- No se crean migraciones ni se altera esquema en esta tarea.
+- No se tocan reglas regulatorias base; solo se actualiza estado de cierre técnico ROR y readiness documental.
+
+## 9) Pendientes para GO productivo
+
+1. Validación ROR con datos reales en circuito operativo controlado.
+2. Validación/certificación por cámara (CENIT y ACH Colombia según aplique).
+3. Aceptación formal de formato NACHA-M ROR por contraparte/cámara.
+4. Confirmación de naming externo definitivo para intercambio productivo.
+5. Trazabilidad cerrada requisito→norma→código→prueba→evidencia para ROR.
+6. Acta UAT cerrada sin pendientes críticos.
+7. Firma de negocio, compliance y operaciones para habilitación productiva.
