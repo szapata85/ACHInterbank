@@ -26,7 +26,28 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
     {
         var issues = new List<ExternalFileNameValidationIssue>();
 
-        if (ExternalFileNameSupport.IsAch(context))
+        if (ExternalFileNameSupport.IsUnconfirmedReturnLikeOutFlow(context))
+        {
+            issues.Add(Warning(
+                "RETURN_NAMING_PROVISIONAL",
+                "RETURN_NORMATIVE_PENDING",
+                "Regla WARNING: flujo de devolución/ROR/rechazo-respuesta saliente en modo provisional UAT, sin hard-block normativo.",
+                "Matriz vigente naming externo ACH/CENIT/STA"));
+
+            if (!string.IsNullOrWhiteSpace(components.FullName))
+            {
+                var duplicated = await _duplicateGuard.IsDuplicateAsync(context, components.FullName, ct);
+                if (duplicated)
+                {
+                    issues.Add(Warning(
+                        "RETURN_DUPLICATE_NAME",
+                        "RETURN_DUPLICATE_WARNING",
+                        "Regla WARNING: duplicidad detectada en flujo provisional de devoluciones salientes.",
+                        "Matriz vigente naming externo ACH/CENIT/STA"));
+                }
+            }
+        }
+        else if (ExternalFileNameSupport.IsAch(context))
         {
             var parsed = ExternalFileNameSupport.Parse(context, components.FullName);
             if (!parsed.ExternalSequence.HasValue)
