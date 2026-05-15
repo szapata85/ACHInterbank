@@ -8,11 +8,14 @@ using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Moq;
+using System.Text;
 
 namespace Cfa.ACHInterbank.Tests;
 
 public class AchReturnsFileByClearingHouseTests
 {
+    private const int RecordLength = 106;
+
     [Fact]
     public async Task GenerateReturnsFileAsync_ShouldGenerateReturnFile_ForCenitClearingHouse()
     {
@@ -234,6 +237,100 @@ public class AchReturnsFileByClearingHouseTests
         Assert.EndsWith(".RET", response.FileName);
         Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 603 && x.FileName == response.FileName));
     }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_Golden_NachaRecords_AchRail_CurrentLayout()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", 604, "ACH-RLAY-1");
+        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
+        {
+            [604] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+        });
+
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService());
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-RLAY-1", [new ReturnSelectionItemDto(604, "DEV14")]), CancellationToken.None);
+
+        var content = Encoding.UTF8.GetString(response.Content);
+        var records = SplitRecords(content);
+        AssertRecordTypes(records);
+        AssertBlockPadding(records);
+
+        var r1 = records.First(r => r[0] == '1');
+        var r5 = records.First(r => r[0] == '5');
+        var r6 = records.Where(r => r[0] == '6').ToList();
+        var r7 = records.Where(r => r[0] == '7').ToList();
+        var r8 = records.First(r => r[0] == '8');
+        var r9 = records.First(r => r[0] == '9');
+
+        Assert.Contains("ACH-RET", r1);
+        Assert.Contains("ACH Colombia", r1);
+        Assert.Contains("DEVOLUCIONES", r5);
+        Assert.Contains("RETORNO", r5);
+        Assert.Contains("DEV14", string.Concat(r7));
+
+        Assert.Equal(r6.Count + r7.Count, ParseInt(r8, 4, 6));
+        Assert.Equal(r6.Count + r7.Count, ParseInt(r9, 13, 8));
+        Assert.Equal(1, ParseInt(r9, 1, 6));
+        Assert.Equal(records.Count / 10, ParseInt(r9, 7, 6));
+        Assert.Equal(ComputeEntryHashFromType6(r6), ParseLong(r8, 10, 10));
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_Golden_NachaRecords_CenitRail_CurrentLayout()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, 7001, "CENIT", "CENIT", 605, "CEN-RLAY-1");
+        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
+        {
+            [605] = new(true, "R01", 7001, "Credit", "Pending", [])
+        });
+
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService());
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("CEN-RLAY-1", [new ReturnSelectionItemDto(605, "R01")]), CancellationToken.None);
+
+        var content = Encoding.UTF8.GetString(response.Content);
+        var records = SplitRecords(content);
+        AssertRecordTypes(records);
+        AssertBlockPadding(records);
+
+        var r5 = records.First(r => r[0] == '5');
+        Assert.Contains("DEVOLUCIONES", r5);
+        Assert.Contains("RETORNO", r5);
+        Assert.Contains("R01", string.Concat(records.Where(r => r[0] == '7')));
+    }
+
+    static List<string> SplitRecords(string content)
+    {
+        var normalized = (content ?? string.Empty).Replace("\r", "");
+        var lines = normalized.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        if (lines.Count > 1) return lines;
+        return Enumerable.Range(0, normalized.Length / RecordLength)
+            .Select(i => normalized.Substring(i * RecordLength, RecordLength))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToList();
+    }
+    static void AssertRecordTypes(IReadOnlyCollection<string> records)
+    {
+        Assert.Contains(records, r => r.StartsWith('1'));
+        Assert.Contains(records, r => r.StartsWith('5'));
+        Assert.Contains(records, r => r.StartsWith('6'));
+        Assert.Contains(records, r => r.StartsWith('7'));
+        Assert.Contains(records, r => r.StartsWith('8'));
+        Assert.Contains(records, r => r.StartsWith('9'));
+        Assert.All(records, r => Assert.Equal(RecordLength, r.Length));
+    }
+    static void AssertBlockPadding(IReadOnlyList<string> records)
+    {
+        Assert.Equal(0, records.Count % 10);
+        var firstControl = -1;
+        for (var i = 0; i < records.Count; i++) { if (records[i].StartsWith('9')) { firstControl = i; break; } }
+        if (firstControl < 0) return;
+        for (var i = firstControl + 1; i < records.Count; i++) Assert.True(records[i].All(c => c == '9'));
+    }
+    static int ParseInt(string record, int start, int len) => int.Parse(record.Substring(start, len));
+    static long ParseLong(string record, int start, int len) => long.Parse(record.Substring(start, len));
+    static long ComputeEntryHashFromType6(IEnumerable<string> type6) => type6.Sum(r => long.Parse(r.Substring(3, 8))) % 10_000_000_000L;
 
     static Mock<IAchReturnEligibilityService> BuildEligibilityMock(IDictionary<int, AchReturnEligibilityResult> byTransaction)
     {

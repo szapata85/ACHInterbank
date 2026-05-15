@@ -13,6 +13,7 @@ namespace Cfa.ACHInterbank.Tests;
 
 public class AchReturnOfReturnFileGenerationServiceTests
 {
+    private const int RecordLength = 106;
     [Fact]
     public async Task GenerateAsync_ShouldReturnFailure_WhenFlowIdsEmpty()
     {
@@ -431,6 +432,95 @@ public class AchReturnOfReturnFileGenerationServiceTests
         Assert.Contains("FLOW|", result.ContentText);
         policy.Verify(x => x.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    [Fact]
+    public async Task GenerateNachaAsync_Golden_NachaRecords_AchRail_CurrentLayout()
+    {
+        await using var context = BuildContext();
+        var flowId = SeedFlow(context, 187, 7001);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+        var when = new DateTime(2026, 05, 15, 13, 00, 00, DateTimeKind.Utc);
+
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, when, "qa", "api"), CancellationToken.None);
+        Assert.True(result.IsGenerated);
+
+        var records = SplitRecords(result.ContentText!);
+        AssertRecordTypes(records);
+        AssertBlockPadding(records);
+        var r1 = records.First(r => r[0] == '1');
+        var r5 = records.First(r => r[0] == '5');
+        var r6 = records.Where(r => r[0] == '6').ToList();
+        var r7 = records.Where(r => r[0] == '7').ToList();
+        var r8 = records.First(r => r[0] == '8');
+        var r9 = records.First(r => r[0] == '9' && r.Any(c => c != '9'));
+
+        Assert.Contains("ACH COLOMBIA", r1);
+        Assert.Contains("ACHINTERBANK ROR", r1);
+        Assert.Contains("BANCROR", r5);
+        Assert.Contains("DEV. DEV.", r5);
+        Assert.Contains("0000001", r5);
+        Assert.DoesNotContain("ROR|", result.ContentText!);
+        Assert.DoesNotContain("FLOW|", result.ContentText!);
+
+        Assert.Equal(r6.Count + r7.Count, ParseInt(r8, 4, 6));
+        Assert.Equal(r6.Count + r7.Count, ParseInt(r9, 13, 8));
+        Assert.Equal(1, ParseInt(r9, 1, 6));
+        var fileControlIndex = records.IndexOf(r9);
+        var expectedTotalRecordsInControl = fileControlIndex + 1;
+        Assert.Equal(expectedTotalRecordsInControl, ParseInt(r9, 7, 6));
+        Assert.Equal(ComputeEntryHashFromType6(r6), ParseLong(r8, 10, 10));
+    }
+
+    [Fact]
+    public async Task GenerateNachaAsync_Golden_NachaRecords_CenitRail_CurrentLayout_Characterization()
+    {
+        await using var context = BuildContext();
+        var flowId = SeedFlow(context, 188, 7002);
+        var sut = new AchReturnOfReturnFileGenerationService(context);
+        var when = new DateTime(2026, 05, 15, 14, 00, 00, DateTimeKind.Utc);
+
+        var result = await sut.GenerateNachaAsync(new AchReturnOfReturnFileGenerationRequest(new[] { flowId }, when, "qa", "api"), CancellationToken.None);
+        Assert.True(result.IsGenerated);
+
+        var records = SplitRecords(result.ContentText!);
+        AssertRecordTypes(records);
+        AssertBlockPadding(records);
+        var r1 = records.First(r => r[0] == '1');
+        Assert.Contains("ACH COLOMBIA", r1);
+        Assert.Contains("ACHINTERBANK ROR", r1);
+    }
+
+    static List<string> SplitRecords(string content)
+    {
+        var normalized = (content ?? string.Empty).Replace("\r", "");
+        var lines = normalized.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        if (lines.Count > 1) return lines;
+        return Enumerable.Range(0, normalized.Length / RecordLength)
+            .Select(i => normalized.Substring(i * RecordLength, RecordLength))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToList();
+    }
+    static void AssertRecordTypes(IReadOnlyCollection<string> records)
+    {
+        Assert.Contains(records, r => r.StartsWith('1'));
+        Assert.Contains(records, r => r.StartsWith('5'));
+        Assert.Contains(records, r => r.StartsWith('6'));
+        Assert.Contains(records, r => r.StartsWith('7'));
+        Assert.Contains(records, r => r.StartsWith('8'));
+        Assert.Contains(records, r => r.StartsWith('9'));
+        Assert.All(records, r => Assert.Equal(RecordLength, r.Length));
+    }
+    static void AssertBlockPadding(IReadOnlyList<string> records)
+    {
+        Assert.Equal(0, records.Count % 10);
+        var firstControl = -1;
+        for (var i = 0; i < records.Count; i++) { if (records[i].StartsWith('9')) { firstControl = i; break; } }
+        if (firstControl < 0) return;
+        for (var i = firstControl + 1; i < records.Count; i++) Assert.True(records[i].All(c => c == '9'));
+    }
+    static int ParseInt(string record, int start, int len) => int.Parse(record.Substring(start, len));
+    static long ParseLong(string record, int start, int len) => long.Parse(record.Substring(start, len));
+    static long ComputeEntryHashFromType6(IEnumerable<string> type6) => type6.Sum(r => long.Parse(r.Substring(3, 8))) % 10_000_000_000L;
 
     [Fact]
     public async Task GenerateNachaAsync_ShouldPreserveSourceRealWithNachaModeMarker()
