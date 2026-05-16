@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models;
@@ -42,6 +43,76 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
         Assert.Equal(AchStateEventSourceEnum.Epr, ev.Source);
         Assert.Equal("R01", ev.ReasonCode);
         Assert.Contains("\"eventType\": \"IncomingReturnApplied\"", ev.PayloadJson);
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldCreateIncomingReturnAppliedEvent_WithStructuredPayload()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001, txId: 10);
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+
+        await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc)), CancellationToken.None);
+        var ev = await c.AchTransactionStateEvents.SingleAsync(x => x.AchTransactionId == 10);
+
+        using var doc = JsonDocument.Parse(ev.PayloadJson!);
+        var root = doc.RootElement;
+        Assert.Equal(1, root.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal("IncomingReturnApplied", root.GetProperty("eventType").GetString());
+        Assert.Equal("AchIncomingReturnIngestionService.IngestAsync", root.GetProperty("source").GetString());
+        Assert.Equal("incoming-return", root.GetProperty("generationMode").GetString());
+        Assert.Equal(10, root.GetProperty("achTransactionId").GetInt32());
+        Assert.Equal("Pending", root.GetProperty("previousState").GetString());
+        Assert.Equal("ReturnedByEpr", root.GetProperty("newState").GetString());
+        Assert.Equal("R01", root.GetProperty("returnReasonCode").GetString());
+        Assert.Equal("123456780000001", root.GetProperty("originalTraceNumber").GetString());
+        Assert.Equal("f.ach", root.GetProperty("fileName").GetString());
+        Assert.True(root.GetProperty("stateChanged").GetBoolean());
+        Assert.True(DateTime.TryParse(root.GetProperty("appliedAtUtc").GetString(), out _));
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldNotCreateStateEvent_WhenRejectedTotal()
+    {
+        await using var c = Ctx();
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+
+        var r = await sut.IngestAsync(new("f.ach", BuildType7("R01", "000000000000001"), new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc)), CancellationToken.None);
+
+        Assert.Equal(AchIncomingReturnIngestionDecision.RejectedTotal, r.Decision);
+        Assert.Empty(await c.AchTransactionStateEvents.ToListAsync());
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldCreateStateEventOnlyForAppliedRecords_WhenRejectedPartial()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001, txId: 10);
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+
+        var content = BuildType7("R01", "123456780000001") + BuildType7("R01", "000000000000002");
+        var r = await sut.IngestAsync(new("f.ach", content, new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc)), CancellationToken.None);
+
+        Assert.Equal(AchIncomingReturnIngestionDecision.RejectedPartial, r.Decision);
+        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, (await c.AchTransactions.SingleAsync(x => x.Id == 10)).State);
+        var events = await c.AchTransactionStateEvents.ToListAsync();
+        Assert.Single(events);
+        Assert.Equal(10, events[0].AchTransactionId);
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldNotCreateStateEvent_ForDuplicateRecordInSameFile_CurrentBehavior()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001, txId: 10);
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+
+        var content = BuildType7("R01", "123456780000001") + BuildType7("R01", "123456780000001");
+        var r = await sut.IngestAsync(new("f.ach", content, new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc)), CancellationToken.None);
+
+        Assert.Equal(AchIncomingReturnIngestionDecision.RejectedPartial, r.Decision);
+        Assert.Equal(0, r.UpdatedTransactionCount);
+        Assert.Empty(await c.AchTransactionStateEvents.Where(x => x.AchTransactionId == 10).ToListAsync());
     }
 
     [Fact]
