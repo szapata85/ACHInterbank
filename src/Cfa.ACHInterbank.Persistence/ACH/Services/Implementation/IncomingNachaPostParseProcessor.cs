@@ -156,10 +156,20 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
                 classificationRow.EligibilityStatus = IncomingNachaEligibilityStatus.Bloqueada;
                 classificationRow.RequiresManualResolution = true;
                 link.EvidenceJson = JsonSerializer.Serialize(unresolvedEvidence);
-                await AddEventAsync(ingestionId, entry.EntryDetailID, relatedAddenda?.AddendaID, null,
-                    "LinkingBloqueado", linkResult.IsAmbiguous ? "Ambiguo" : "NoEncontrado",
-                    "Linking no determinístico. Se bloquea avance automático.",
-                    unresolvedEvidence, executedBy, ct);
+                var addendaId = relatedAddenda != null ? relatedAddenda.AddendaID : (int?)null;
+                var alreadyExists = await _context.IncomingNachaProcessingEvents.AnyAsync(x =>
+                    x.IncomingNachaFileIngestionId == ingestionId
+                    && x.EntryDetailId == entry.EntryDetailID
+                    && x.AddendaRecordId == addendaId
+                    && x.EventType == "LinkingBloqueado"
+                    && x.EventStatus == (linkResult.IsAmbiguous ? "Ambiguo" : "NoEncontrado"), ct);
+                if (!alreadyExists)
+                {
+                    await AddEventAsync(ingestionId, entry.EntryDetailID, relatedAddenda?.AddendaID, null,
+                        "LinkingBloqueado", linkResult.IsAmbiguous ? "Ambiguo" : "NoEncontrado",
+                        "Linking no determinístico. Se bloquea avance automático.",
+                        unresolvedEvidence, executedBy, ct);
+                }
                 continue;
             }
 
