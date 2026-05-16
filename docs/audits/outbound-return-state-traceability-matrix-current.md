@@ -295,3 +295,7 @@ No se recomienda introducir state machine completa de inmediato porque:
 - **NO-GO productivo:** sí.
 - Próximo hito técnico: evento auditable `ReturnFileGenerated`.
 - Próximo hito de riesgo: idempotencia DB-first / multiinstancia.
+
+## Referencia cruzada UAT
+- Checklist UAT de estado/evento/trazabilidad outbound return:
+  - `docs/uat/outbound-return-state-traceability-acceptance-checklist.md`

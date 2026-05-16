@@ -92,3 +92,4 @@
 - Evidencia UAT complementaria de causales por cámara/flujo: `docs/uat/cause-code-acceptance-checklist.md` (pendiente cierre formal; mantiene NO-GO productivo).
 
 - Referencia de control vigente para devolución saliente (estado/evento/idempotencia): `docs/audits/outbound-return-state-traceability-matrix-current.md` (mantiene NO-GO productivo).
+- Checklist UAT de estado/evento/trazabilidad de devolución saliente: `docs/uat/outbound-return-state-traceability-acceptance-checklist.md` (control UAT formal para salida de NO-GO productivo).

@@ -201,3 +201,4 @@ La actualización documental no cambia la decisión actual: **NO-GO productivo**
 - Checklist UAT de causales por cámara/flujo: `docs/uat/cause-code-acceptance-checklist.md` (evidencia complementaria; no cambia decisión NO-GO productivo).
 
 - Evidencia adicional de brechas P0 en devolución saliente: `docs/audits/outbound-return-state-traceability-matrix-current.md` (estado/evento/idempotencia multiinstancia).
+- Checklist UAT para estado/evento/trazabilidad de devolución saliente: `docs/uat/outbound-return-state-traceability-acceptance-checklist.md` (evidencia requerida para salida de NO-GO productivo).

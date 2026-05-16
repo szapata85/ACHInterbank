@@ -1178,3 +1178,4 @@ Esta referencia mantiene la decisión: **GO técnico / GO UAT controlado / NO-GO
 - Referencia UAT de causales por cámara/flujo: `docs/uat/cause-code-acceptance-checklist.md` (incluye validación de devolución saliente/entrante/ROR, rechazos Dxx, técnicos Ixxx e internos; mantiene NO-GO productivo).
 
 - Matriz vigente de estado/evento/trazabilidad/idempotencia de devolución saliente: `docs/audits/outbound-return-state-traceability-matrix-current.md`.
+- Checklist UAT de estado/evento/trazabilidad de devolución saliente: `docs/uat/outbound-return-state-traceability-acceptance-checklist.md`.
