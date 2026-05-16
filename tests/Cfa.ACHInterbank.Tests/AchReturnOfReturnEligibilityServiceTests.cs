@@ -70,6 +70,73 @@ public class AchReturnOfReturnEligibilityServiceTests
         Assert.True(result.IsUniquePerTransaction);
     }
 
+    [Fact]
+    public async Task ReturnOfReturnEligibility_ShouldEvaluateCausePolicy_ForReturnOfReturn()
+    {
+        await using var context = BuildContext();
+        SeedBase(context, returnReasonCode: "R01", clearingHouseId: 7001);
+        context.ClearingHouses.Add(new ClearingHouse { Id = 7001, Code = "CENIT", Name = "CENIT", OriginCode = "000101006" });
+        await context.SaveChangesAsync();
+
+        var causePolicy = new Mock<IAchCauseCodePolicy>(MockBehavior.Strict);
+        causePolicy.Setup(x => x.EvaluateAsync(
+                It.Is<AchCauseCodePolicyRequest>(r =>
+                    r.Flow == AchCauseCodeFlow.ReturnOfReturn &&
+                    r.ClearingHouseId == 7001 &&
+                    r.ClearingHouseCode == "CENIT" &&
+                    r.OriginalReasonCode == "R01" &&
+                    r.NewReasonCode == "R02" &&
+                    r.Code == "R02" &&
+                    r.Source == "AchReturnOfReturnEligibilityService"),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchCauseCodePolicyResult(true, AchCauseCodeRail.Cenit, AchCauseCodeKind.ReturnOfReturnReason, true, [new("NORMATIVE_PENDING", "pending", AchCauseCodePolicySeverity.Warning)]));
+
+        var catalog = new Mock<IAchRegulatoryCatalogService>();
+        catalog.Setup(x => x.ValidateReturnOfReturnAsync(7001, "R01", "R02", "ReturnedByOperator", It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, null, true));
+        var sut = new AchReturnOfReturnEligibilityService(context, catalog.Object, causePolicy.Object);
+
+        var result = await sut.EvaluateAsync(new AchReturnOfReturnEligibilityRequest(20, "R02", DateTime.UtcNow), CancellationToken.None);
+        Assert.True(result.IsEligible);
+        causePolicy.VerifyAll();
+    }
+
+    [Fact]
+    public async Task ReturnOfReturnEligibility_ShouldReject_WhenCausePolicyRejectsRailFlow()
+    {
+        await using var context = BuildContext();
+        SeedBase(context, returnReasonCode: "R01", clearingHouseId: 7001);
+        var causePolicy = new Mock<IAchCauseCodePolicy>();
+        causePolicy.Setup(x => x.EvaluateAsync(It.IsAny<AchCauseCodePolicyRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchCauseCodePolicyResult(false, AchCauseCodeRail.Cenit, AchCauseCodeKind.ReturnOfReturnReason, true, [new("RAIL_MISMATCH_OR_NOT_CONFIGURED", "mismatch", AchCauseCodePolicySeverity.Error)]));
+        var catalog = new Mock<IAchRegulatoryCatalogService>(MockBehavior.Strict);
+        var sut = new AchReturnOfReturnEligibilityService(context, catalog.Object, causePolicy.Object);
+
+        var result = await sut.EvaluateAsync(new AchReturnOfReturnEligibilityRequest(20, "R02", DateTime.UtcNow), CancellationToken.None);
+        Assert.False(result.IsEligible);
+        Assert.Contains(result.Failures, x => x.Code == "RETURN_OF_RETURN_CAUSE_POLICY_REJECTED");
+        catalog.VerifyNoOtherCalls();
+    }
+
+    [Theory]
+    [InlineData("D04")]
+    [InlineData("I500")]
+    [InlineData("DXX-LIQ")]
+    public async Task ReturnOfReturnEligibility_ShouldReject_WhenInvalidNewReturnReasonByType(string newCode)
+    {
+        await using var context = BuildContext();
+        SeedBase(context, returnReasonCode: "R01", clearingHouseId: 7001);
+        var causePolicy = new Mock<IAchCauseCodePolicy>();
+        causePolicy.Setup(x => x.EvaluateAsync(It.IsAny<AchCauseCodePolicyRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchCauseCodePolicyResult(false, AchCauseCodeRail.Cenit, AchCauseCodeKind.Unknown, true, [new("FLOW_MISMATCH", "invalid", AchCauseCodePolicySeverity.Error)]));
+        var catalog = new Mock<IAchRegulatoryCatalogService>(MockBehavior.Strict);
+        var sut = new AchReturnOfReturnEligibilityService(context, catalog.Object, causePolicy.Object);
+
+        var result = await sut.EvaluateAsync(new AchReturnOfReturnEligibilityRequest(20, newCode, DateTime.UtcNow), CancellationToken.None);
+        Assert.False(result.IsEligible);
+        Assert.Contains(result.Failures, x => x.Code == "RETURN_OF_RETURN_CAUSE_POLICY_REJECTED");
+    }
+
 
     [Fact]
     public async Task EvaluateAsync_ShouldReturnPolicyRejected_AndExposeUniquenessFlag()

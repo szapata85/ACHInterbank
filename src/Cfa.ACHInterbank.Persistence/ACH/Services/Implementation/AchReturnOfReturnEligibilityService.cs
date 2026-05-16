@@ -8,7 +8,8 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 public class AchReturnOfReturnEligibilityService(
     AchDbContext context,
-    IAchRegulatoryCatalogService regulatoryCatalogService) : IAchReturnOfReturnEligibilityService
+    IAchRegulatoryCatalogService regulatoryCatalogService,
+    IAchCauseCodePolicy? causeCodePolicy = null) : IAchReturnOfReturnEligibilityService
 {
     public async Task<AchReturnOfReturnEligibilityResult> EvaluateAsync(AchReturnOfReturnEligibilityRequest request, CancellationToken cancellationToken)
     {
@@ -53,6 +54,44 @@ public class AchReturnOfReturnEligibilityService(
         {
             failures.Add(new("NEW_RETURN_REASON_REQUIRED", "La nueva causal de devolución es obligatoria.", nameof(request.NewReturnReasonCode)));
             return new(false, clearingHouseId, sourceReturn.Id, originalReasonCode, null, false, failures);
+        }
+
+        if (causeCodePolicy is not null)
+        {
+            var clearingHouseCode = sourceReturn.AchCycle?.ClearingHouse?.Code;
+            if (string.IsNullOrWhiteSpace(clearingHouseCode))
+            {
+                clearingHouseCode = await context.ClearingHouses
+                    .AsNoTracking()
+                    .Where(x => x.Id == clearingHouseId.Value)
+                    .Select(x => x.Code)
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
+
+            var policyResult = await causeCodePolicy.EvaluateAsync(
+                new AchCauseCodePolicyRequest(
+                    newReasonCode,
+                    AchCauseCodeFlow.ReturnOfReturn,
+                    clearingHouseId.Value,
+                    clearingHouseCode,
+                    sourceReturn.Type.ToString(),
+                    sourceReturn.EffectiveEntryDate.Date,
+                    originalReasonCode,
+                    newReasonCode,
+                    nameof(AchReturnOfReturnEligibilityService)),
+                cancellationToken);
+
+            if (!policyResult.IsAllowed || policyResult.Issues.Any(x => x.Severity == AchCauseCodePolicySeverity.Error))
+            {
+                var detail = string.Join(" | ", policyResult.Issues.Where(x => x.Severity == AchCauseCodePolicySeverity.Error).Select(x => $"{x.Code}: {x.Message}"));
+                failures.Add(new(
+                    "RETURN_OF_RETURN_CAUSE_POLICY_REJECTED",
+                    string.IsNullOrWhiteSpace(detail)
+                        ? "La política rail-flow rechazó la causal de devolución de devolución."
+                        : $"La política rail-flow rechazó la causal de devolución de devolución. {detail}",
+                    nameof(request.NewReturnReasonCode)));
+                return new(false, clearingHouseId, sourceReturn.Id, originalReasonCode, newReasonCode, false, failures);
+            }
         }
 
         var validation = await regulatoryCatalogService.ValidateReturnOfReturnAsync(
