@@ -203,19 +203,43 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         using var doc = System.Text.Json.JsonDocument.Parse(evt.PayloadJson!);
         var root = doc.RootElement;
 
+        Assert.Equal(1, root.GetProperty("schemaVersion").GetInt32());
         Assert.Equal("ReturnFileGenerated", root.GetProperty("eventType").GetString());
         Assert.Equal("AchReturnsService.GenerateReturnsFileAsync", root.GetProperty("source").GetString());
+        Assert.Equal("outbound-return", root.GetProperty("generationMode").GetString());
+        Assert.False(root.GetProperty("stateChanged").GetBoolean());
+
         Assert.Equal(2005, root.GetProperty("originalTransactionId").GetInt32());
+        Assert.Equal("EXT-2005", root.GetProperty("transactionExternalId").GetString());
+        Assert.Equal("REF-2005", root.GetProperty("reference").GetString());
+        Assert.Equal("Debit", root.GetProperty("transactionType").GetString());
+        Assert.Equal("Pending", root.GetProperty("previousState").GetString());
+        Assert.Equal("Pending", root.GetProperty("newState").GetString());
+
         Assert.Equal("DEV14", root.GetProperty("returnReasonCode").GetString());
         Assert.Equal("ACH-CHAR-PAYLOAD-1", root.GetProperty("returnCycleId").GetString());
         Assert.Equal(7002, root.GetProperty("clearingHouseId").GetInt32());
         Assert.Equal("ACH", root.GetProperty("clearingHouseCode").GetString());
+        Assert.Equal("ACH Colombia", root.GetProperty("clearingHouseName").GetString());
+
         Assert.Equal(response.FileName, root.GetProperty("fileName").GetString());
+        Assert.Equal(response.FileName, root.GetProperty("externalFileName").GetString());
+        Assert.Equal(string.Empty, root.GetProperty("contentSha256").GetString());
+        Assert.True(root.GetProperty("recordCount").GetInt32() > 0);
+        Assert.Equal(1, root.GetProperty("returnCount").GetInt32());
+
         Assert.Equal("091000020000001", root.GetProperty("originalTraceNumber").GetString());
         Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("newTraceNumber").GetString()));
+        Assert.Equal("091000020000001", root.GetProperty("originalSequenceNumber").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("newSequenceNumber").GetString()));
+
         Assert.Equal(125.55m, root.GetProperty("amount").GetDecimal());
-        Assert.Equal("outbound-return", root.GetProperty("generationMode").GetString());
-        Assert.False(root.GetProperty("stateChanged").GetBoolean());
+        Assert.Equal("COP", root.GetProperty("currency").GetString());
+        Assert.Equal("09100001", root.GetProperty("receiverEntityCode").GetString());
+        Assert.Equal("09100002", root.GetProperty("originatorEntityCode").GetString());
+
+        Assert.Equal("GeneratedNotTransmitted", root.GetProperty("transmissionStatus").GetString());
+        Assert.Equal("TechnicalGeneratedOnly", root.GetProperty("productiveStatus").GetString());
     }
 
     [Fact]

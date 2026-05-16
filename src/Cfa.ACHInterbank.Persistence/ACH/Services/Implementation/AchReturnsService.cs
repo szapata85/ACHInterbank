@@ -356,23 +356,14 @@ public class AchReturnsService(
                 ToState = originalTx.State,
                 Source = Domain.Entities.Transactions.Enums.AchStateEventSourceEnum.System,
                 ReasonCode = row.ReturnReasonCode,
-                PayloadJson = System.Text.Json.JsonSerializer.Serialize(new
-                {
-                    eventType = "ReturnFileGenerated",
-                    source = $"{nameof(AchReturnsService)}.{nameof(GenerateReturnsFileAsync)}",
-                    originalTransactionId = row.OriginalTransactionId,
-                    returnReasonCode = row.ReturnReasonCode,
-                    returnCycleId = row.ReturnCycleId,
-                    clearingHouseId = cycle.ClearingHouseId,
-                    clearingHouseCode = cycle.ClearingHouse?.Code,
+                PayloadJson = BuildReturnFileGeneratedPayload(
+                    originalTx,
+                    row,
+                    cycle,
                     fileName,
-                    originalTraceNumber = row.OriginalSequenceNumber,
-                    newTraceNumber = row.NewSequenceNumber,
-                    amount = row.Amount,
-                    generatedAtUtc = row.GeneratedAtUtc,
-                    generationMode = "outbound-return",
-                    stateChanged = false
-                })
+                    lines.Count,
+                    generatedRows.Count,
+                    now)
             };
         }).ToList();
 
@@ -381,6 +372,57 @@ public class AchReturnsService(
         await context.SaveChangesAsync(ct);
 
         return new GenerateReturnsFileResponse(fileName, "text/plain", Encoding.UTF8.GetBytes(fileContent), lines.Count, generatedRows.Count);
+    }
+
+
+    private static string BuildReturnFileGeneratedPayload(
+        AchTransaction originalTx,
+        AchReturnGenerated generatedRow,
+        AchCycle cycle,
+        string fileName,
+        int recordCount,
+        int returnCount,
+        DateTime createdAtUtc)
+    {
+        var payload = new
+        {
+            schemaVersion = 1,
+            eventType = "ReturnFileGenerated",
+            source = $"{nameof(AchReturnsService)}.{nameof(GenerateReturnsFileAsync)}",
+            generationMode = "outbound-return",
+            stateChanged = false,
+            originalTransactionId = generatedRow.OriginalTransactionId,
+            transactionExternalId = originalTx.TransactionExternalId,
+            reference = originalTx.Reference,
+            transactionType = originalTx.Type.ToString(),
+            previousState = originalTx.State.ToString(),
+            newState = originalTx.State.ToString(),
+            returnReasonCode = generatedRow.ReturnReasonCode,
+            returnCycleId = generatedRow.ReturnCycleId,
+            clearingHouseId = cycle.ClearingHouseId,
+            clearingHouseCode = cycle.ClearingHouse?.Code,
+            clearingHouseName = cycle.ClearingHouse?.Name,
+            fileName,
+            externalFileName = fileName,
+            contentSha256 = string.Empty,
+            recordCount,
+            returnCount,
+            originalTraceNumber = generatedRow.OriginalSequenceNumber,
+            newTraceNumber = generatedRow.NewSequenceNumber,
+            originalSequenceNumber = generatedRow.OriginalSequenceNumber,
+            newSequenceNumber = generatedRow.NewSequenceNumber,
+            amount = generatedRow.Amount,
+            currency = "COP",
+            receiverEntityCode = generatedRow.ReceiverEntityCode,
+            originatorEntityCode = generatedRow.OriginatorEntityCode,
+            generatedAtUtc = generatedRow.GeneratedAtUtc,
+            createdAtUtc,
+            warnings = Array.Empty<string>(),
+            transmissionStatus = "GeneratedNotTransmitted",
+            productiveStatus = "TechnicalGeneratedOnly"
+        };
+
+        return System.Text.Json.JsonSerializer.Serialize(payload);
     }
 
 
