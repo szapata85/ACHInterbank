@@ -1,5 +1,8 @@
 # S1 — Matriz maestra trazable funcional-normativa (ACHInterbank)
 
+> Referencia UAT complementaria: `docs/uat/incoming-return-orphan-acceptance-checklist.md`.
+
+
 **Fecha:** 2026-04-26 (UTC)  
 **Objetivo:** Trazabilidad auditable: requisito normativo/funcional → fuente documental → implementación → pruebas → evidencia → dueño → estado.  
 **Estado base:** P0 técnico backend en verde, producción funcional/normativa en NO-GO (según scorecard).  

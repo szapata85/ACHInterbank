@@ -1,5 +1,8 @@
 # Checklist UAT — Devolución saliente normal: estado, evento y trazabilidad
 
+> Referencia UAT complementaria: `docs/uat/incoming-return-orphan-acceptance-checklist.md`.
+
+
 ## 1. Propósito
 Validar la generación de devolución saliente normal con evidencia técnica y funcional sobre:
 - creación de `AchReturnGenerated`;

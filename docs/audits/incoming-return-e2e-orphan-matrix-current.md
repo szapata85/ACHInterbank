@@ -1,5 +1,8 @@
 # Matriz vigente — Devolución entrante E2E y huérfanas
 
+> Referencia UAT complementaria: `docs/uat/incoming-return-orphan-acceptance-checklist.md`.
+
+
 ## 1. Propósito
 Esta matriz consolida el estado vigente de devolución entrante en ACHInterbank para:
 - aplicación E2E de devolución entrante;

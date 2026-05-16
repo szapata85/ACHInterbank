@@ -1,5 +1,8 @@
 # Auditoría técnica de devoluciones ACH — CENIT vs ACH Colombia
 
+> Referencia UAT complementaria: `docs/uat/incoming-return-orphan-acceptance-checklist.md`.
+
+
 Fecha: 2026-05-12  
 Alcance: diagnóstico documental (sin cambios funcionales)
 

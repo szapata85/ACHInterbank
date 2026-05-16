@@ -1,5 +1,8 @@
 # Go/No-Go Scorecard — Auditoría funcional-normativa ACH/CENIT/NACHA-M
 
+> Referencia UAT complementaria: `docs/uat/incoming-return-orphan-acceptance-checklist.md`.
+
+
 **Fecha:** 2026-04-26 (UTC)  
 **Ámbito:** Formalización de readiness funcional-normativo para salida productiva.  
 **Restricciones aplicadas:** sin cambios de código/servicios/tests/Angular/cripto/migraciones.

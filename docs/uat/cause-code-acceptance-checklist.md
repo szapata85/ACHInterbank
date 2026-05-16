@@ -1,5 +1,8 @@
 # Checklist UAT — Causales por cámara y flujo
 
+> Referencia UAT complementaria: `docs/uat/incoming-return-orphan-acceptance-checklist.md`.
+
+
 ## 1. Propósito
 Este checklist valida causales por:
 - cámara;

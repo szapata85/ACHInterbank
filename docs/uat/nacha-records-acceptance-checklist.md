@@ -1,5 +1,8 @@
 # Checklist UAT — Registros NACHA-M ACH Colombia / CENIT
 
+> Referencia UAT complementaria: `docs/uat/incoming-return-orphan-acceptance-checklist.md`.
+
+
 ## 1. Propósito
 Este checklist UAT valida, con trazabilidad técnica y normativa, los siguientes registros NACHA-M:
 - **1 File Header**
