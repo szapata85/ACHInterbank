@@ -100,7 +100,7 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
     }
 
     [Fact]
-    public void AchReturnGeneratedConfiguration_ShouldNotDeclareUniqueIndex_CurrentBehavior()
+    public void AchReturnGeneratedConfiguration_ShouldDeclareUniqueIndex_ForReturnIdempotency()
     {
         using var context = BuildContext();
         var entityType = context.Model.FindEntityType(typeof(AchReturnGenerated));
@@ -115,7 +115,7 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
             }));
 
         Assert.NotNull(target);
-        Assert.False(target!.IsUnique);
+        Assert.True(target!.IsUnique);
     }
 
     [Fact]
