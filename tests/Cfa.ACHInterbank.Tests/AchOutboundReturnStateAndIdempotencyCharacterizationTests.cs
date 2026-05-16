@@ -130,6 +130,155 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         Assert.DoesNotContain("RejectedAtUtc", propertyNames);
     }
 
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_ShouldCreateOneReturnFileGeneratedEvent_PerReturnedTransaction()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, transactionId: 2001, cycleId: "ACH-CHAR-MULTI-1");
+        SeedScenario(context, transactionId: 2002, cycleId: "ACH-CHAR-MULTI-1");
+
+        var sut = BuildSut(context, new Dictionary<int, string> { [2001] = "DEV14", [2002] = "DEV14" });
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-MULTI-1", [new ReturnSelectionItemDto(2001, "DEV14"), new ReturnSelectionItemDto(2002, "DEV14")]), CancellationToken.None);
+
+        Assert.Equal(2, await context.Set<AchReturnGenerated>().CountAsync(x => x.ReturnCycleId == "ACH-CHAR-MULTI-1"));
+        var events = await context.AchTransactionStateEvents.Where(x => x.AchTransactionId == 2001 || x.AchTransactionId == 2002).ToListAsync();
+        Assert.Equal(2, events.Count);
+        Assert.Contains(events, x => x.AchTransactionId == 2001);
+        Assert.Contains(events, x => x.AchTransactionId == 2002);
+        Assert.All(events, x =>
+        {
+            Assert.Contains("ReturnFileGenerated", x.PayloadJson, StringComparison.Ordinal);
+            Assert.Contains("outbound-return", x.PayloadJson, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_ShouldNotCreateStateEvent_WhenGenerationFailsBeforePersistence()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, transactionId: 2003, cycleId: "ACH-CHAR-FAIL-1");
+
+        var eligibility = new Mock<IAchReturnEligibilityService>(MockBehavior.Strict);
+        eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchReturnEligibilityResult(false, "DEV14", 7002, "Debit", "Pending", [new AchReturnEligibilityFailure("RETURN_POLICY_REJECTED", "reject") ]));
+
+        var sut = new AchReturnsService(
+            context,
+            regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(),
+            returnEligibilityService: eligibility.Object,
+            returnGenerationLockService: new TestReturnGenerationLockService());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-FAIL-1", [new ReturnSelectionItemDto(2003, "DEV14")]), CancellationToken.None));
+
+        Assert.Equal(0, await context.Set<AchReturnGenerated>().CountAsync(x => x.OriginalTransactionId == 2003));
+        Assert.Equal(0, await context.AchTransactionStateEvents.CountAsync(x => x.AchTransactionId == 2003));
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_ShouldNotCreateDuplicateStateEvent_WhenSecondGenerationRejected()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, transactionId: 2004, cycleId: "ACH-CHAR-DUP-1");
+
+        var sut = BuildSut(context, 2004, "DEV14");
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-DUP-1", [new ReturnSelectionItemDto(2004, "DEV14")]), CancellationToken.None);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-DUP-1", [new ReturnSelectionItemDto(2004, "DEV14")]), CancellationToken.None));
+
+        Assert.Equal(1, await context.Set<AchReturnGenerated>().CountAsync(x => x.OriginalTransactionId == 2004));
+        Assert.Equal(1, await context.AchTransactionStateEvents.CountAsync(x => x.AchTransactionId == 2004));
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_ShouldCreateReturnFileGeneratedEvent_WithStructuredPayload()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, transactionId: 2005, cycleId: "ACH-CHAR-PAYLOAD-1");
+
+        var sut = BuildSut(context, 2005, "DEV14");
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-PAYLOAD-1", [new ReturnSelectionItemDto(2005, "DEV14")]), CancellationToken.None);
+
+        var evt = await context.AchTransactionStateEvents.SingleAsync(x => x.AchTransactionId == 2005);
+        using var doc = System.Text.Json.JsonDocument.Parse(evt.PayloadJson!);
+        var root = doc.RootElement;
+
+        Assert.Equal("ReturnFileGenerated", root.GetProperty("eventType").GetString());
+        Assert.Equal("AchReturnsService.GenerateReturnsFileAsync", root.GetProperty("source").GetString());
+        Assert.Equal(2005, root.GetProperty("originalTransactionId").GetInt32());
+        Assert.Equal("DEV14", root.GetProperty("returnReasonCode").GetString());
+        Assert.Equal("ACH-CHAR-PAYLOAD-1", root.GetProperty("returnCycleId").GetString());
+        Assert.Equal(7002, root.GetProperty("clearingHouseId").GetInt32());
+        Assert.Equal("ACH", root.GetProperty("clearingHouseCode").GetString());
+        Assert.Equal(response.FileName, root.GetProperty("fileName").GetString());
+        Assert.Equal("091000020000001", root.GetProperty("originalTraceNumber").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("newTraceNumber").GetString()));
+        Assert.Equal(125.55m, root.GetProperty("amount").GetDecimal());
+        Assert.Equal("outbound-return", root.GetProperty("generationMode").GetString());
+        Assert.False(root.GetProperty("stateChanged").GetBoolean());
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_ShouldCreateAuditEventWithoutChangingTransactionState()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, transactionId: 2006, cycleId: "ACH-CHAR-STATE-1", state: AchTransferStateEnum.Pending);
+        var before = await context.AchTransactions.SingleAsync(x => x.Id == 2006);
+        var beforeChangedAt = before.StateChangedAtUtc;
+
+        var sut = BuildSut(context, 2006, "DEV14");
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-STATE-1", [new ReturnSelectionItemDto(2006, "DEV14")]), CancellationToken.None);
+
+        var after = await context.AchTransactions.SingleAsync(x => x.Id == 2006);
+        var evt = await context.AchTransactionStateEvents.SingleAsync(x => x.AchTransactionId == 2006);
+
+        Assert.Equal(AchTransferStateEnum.Pending, after.State);
+        Assert.Equal(beforeChangedAt, after.StateChangedAtUtc);
+        Assert.Equal(evt.FromState, evt.ToState);
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_ShouldKeepNachaOutputUnchanged_WhenStateEventAuditIsCreated()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, transactionId: 2007, cycleId: "ACH-CHAR-NACHA-1");
+
+        var sut = BuildSut(context, 2007, "DEV14");
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-NACHA-1", [new ReturnSelectionItemDto(2007, "DEV14")]), CancellationToken.None);
+
+        var content = System.Text.Encoding.UTF8.GetString(response.Content);
+        Assert.Contains("A094101", content, StringComparison.Ordinal);
+        Assert.Contains("DEV14", content, StringComparison.Ordinal);
+        Assert.Contains('1', content);
+        Assert.Contains('5', content);
+        Assert.Contains('6', content);
+        Assert.Contains('7', content);
+        Assert.Contains('8', content);
+        Assert.Contains('9', content);
+        Assert.Equal(1, await context.AchTransactionStateEvents.CountAsync(x => x.AchTransactionId == 2007));
+    }
+
+
+    private static AchReturnsService BuildSut(AchDbContext context, IReadOnlyDictionary<int, string> reasonCodes, IAchReturnGenerationLockService? lockService = null)
+    {
+        var eligibility = new Mock<IAchReturnEligibilityService>(MockBehavior.Strict);
+        eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AchReturnEligibilityRequest r, CancellationToken _) =>
+            {
+                if (!reasonCodes.TryGetValue(r.TransactionId, out var reasonCode))
+                {
+                    return new AchReturnEligibilityResult(false, null, null, null, null, [new AchReturnEligibilityFailure("TX_NOT_CONFIGURED", "tx")]);
+                }
+                return new AchReturnEligibilityResult(true, reasonCode, 7002, "Debit", "Pending", []);
+            });
+
+        return new AchReturnsService(
+            context,
+            regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(),
+            returnEligibilityService: eligibility.Object,
+            returnGenerationLockService: lockService ?? new TestReturnGenerationLockService());
+    }
+
     private static AchReturnsService BuildSut(AchDbContext context, int txId, string reasonCode, IAchReturnGenerationLockService? lockService = null)
     {
         var eligibility = new Mock<IAchReturnEligibilityService>(MockBehavior.Strict);
@@ -161,8 +310,16 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
 
     private static void SeedScenario(AchDbContext context, int transactionId, string cycleId, AchTransferStateEnum state = AchTransferStateEnum.Pending)
     {
-        context.ClearingHouses.Add(new ClearingHouse { Id = 7002, Code = "ACH", Name = "ACH Colombia", OriginCode = "901289999" });
-        context.AchCycles.Add(new AchCycle { Id = cycleId, CycleName = cycleId, ProcessingDate = new DateTime(2026, 05, 01), ClearingHouseId = 7002, CutoffTime = new TimeSpan(12, 0, 0) });
+        if (!context.ClearingHouses.Any(x => x.Id == 7002))
+        {
+            context.ClearingHouses.Add(new ClearingHouse { Id = 7002, Code = "ACH", Name = "ACH Colombia", OriginCode = "901289999" });
+        }
+
+        if (!context.AchCycles.Any(x => x.Id == cycleId))
+        {
+            context.AchCycles.Add(new AchCycle { Id = cycleId, CycleName = cycleId, ProcessingDate = new DateTime(2026, 05, 01), ClearingHouseId = 7002, CutoffTime = new TimeSpan(12, 0, 0) });
+        }
+
         context.AchTransactions.Add(new AchTransaction
         {
             Id = transactionId,
