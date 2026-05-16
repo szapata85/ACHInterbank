@@ -346,11 +346,95 @@ public class AchReturnsService(
             row.FileName = fileName;
         }
 
+        var stateEvents = generatedRows.Select(row =>
+        {
+            var originalTx = transactions.First(t => t.Id == row.OriginalTransactionId);
+            return new AchTransactionStateEvent
+            {
+                AchTransactionId = row.OriginalTransactionId,
+                FromState = originalTx.State,
+                ToState = originalTx.State,
+                Source = Domain.Entities.Transactions.Enums.AchStateEventSourceEnum.System,
+                ReasonCode = row.ReturnReasonCode,
+                PayloadJson = BuildReturnFileGeneratedPayload(
+                    originalTx,
+                    row,
+                    cycle,
+                    fileName,
+                    lines.Count,
+                    generatedRows.Count,
+                    now,
+                    fileContent)
+            };
+        }).ToList();
+
         context.Set<AchReturnGenerated>().AddRange(generatedRows);
+        context.AchTransactionStateEvents.AddRange(stateEvents);
         await context.SaveChangesAsync(ct);
 
         return new GenerateReturnsFileResponse(fileName, "text/plain", Encoding.UTF8.GetBytes(fileContent), lines.Count, generatedRows.Count);
     }
+
+
+    private static string BuildReturnFileGeneratedPayload(
+        AchTransaction originalTx,
+        AchReturnGenerated generatedRow,
+        AchCycle cycle,
+        string fileName,
+        int recordCount,
+        int returnCount,
+        DateTime createdAtUtc,
+        string fileContent)
+    {
+        var payload = new
+        {
+            schemaVersion = 1,
+            eventType = "ReturnFileGenerated",
+            source = $"{nameof(AchReturnsService)}.{nameof(GenerateReturnsFileAsync)}",
+            generationMode = "outbound-return",
+            stateChanged = false,
+            originalTransactionId = generatedRow.OriginalTransactionId,
+            transactionExternalId = originalTx.TransactionExternalId,
+            reference = originalTx.Reference,
+            transactionType = originalTx.Type.ToString(),
+            previousState = originalTx.State.ToString(),
+            newState = originalTx.State.ToString(),
+            returnReasonCode = generatedRow.ReturnReasonCode,
+            returnCycleId = generatedRow.ReturnCycleId,
+            clearingHouseId = cycle.ClearingHouseId,
+            clearingHouseCode = cycle.ClearingHouse?.Code,
+            clearingHouseName = cycle.ClearingHouse?.Name,
+            fileName,
+            externalFileName = fileName,
+            contentSha256 = ComputeSha256Hex(fileContent),
+            recordCount,
+            returnCount,
+            originalTraceNumber = generatedRow.OriginalSequenceNumber,
+            newTraceNumber = generatedRow.NewSequenceNumber,
+            originalSequenceNumber = generatedRow.OriginalSequenceNumber,
+            newSequenceNumber = generatedRow.NewSequenceNumber,
+            amount = generatedRow.Amount,
+            currency = "COP",
+            receiverEntityCode = generatedRow.ReceiverEntityCode,
+            originatorEntityCode = generatedRow.OriginatorEntityCode,
+            generatedAtUtc = generatedRow.GeneratedAtUtc,
+            createdAtUtc,
+            warnings = Array.Empty<string>(),
+            transmissionStatus = "GeneratedNotTransmitted",
+            productiveStatus = "TechnicalGeneratedOnly"
+        };
+
+        return System.Text.Json.JsonSerializer.Serialize(payload);
+    }
+
+
+    private static string ComputeSha256Hex(string content)
+    {
+        var bytes = Encoding.UTF8.GetBytes(content);
+        var hash = System.Security.Cryptography.SHA256.HashData(bytes);
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
 
 
     private NachaRailRecordConfig ResolveReturnOutNachaConfig(AchCycle cycle)
