@@ -392,6 +392,63 @@ public class AchReturnsFileByClearingHouseTests
         Assert.Contains("R01", string.Concat(records.Where(r => r[0] == '7')));
     }
 
+    [Fact]
+    public async Task GenerateReturnsFileAsync_ShouldEvaluateCausePolicy_ForOutboundReturn()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", 701, "ACH-CP-1");
+        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult> { [701] = new(true, "DEV14", 7002, "Debit", "Pending", []) });
+        var causePolicy = new Mock<IAchCauseCodePolicy>(MockBehavior.Strict);
+        causePolicy.Setup(x => x.EvaluateAsync(It.Is<AchCauseCodePolicyRequest>(r =>
+                r.Code == "DEV14" &&
+                r.Flow == AchCauseCodeFlow.OutboundReturn &&
+                r.ClearingHouseId == 7002 &&
+                r.ClearingHouseCode == "ACH" &&
+                r.Source == "GenerateReturnsFileAsync"),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchCauseCodePolicyResult(true, AchCauseCodeRail.AchColombia, AchCauseCodeKind.ReturnReason, true, [new("NORMATIVE_PENDING", "pending", AchCauseCodePolicySeverity.Warning)]));
+
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), causeCodePolicy: causePolicy.Object);
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CP-1", [new ReturnSelectionItemDto(701, "DEV14")]), CancellationToken.None);
+
+        Assert.NotNull(response.Content);
+        Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 701));
+        causePolicy.VerifyAll();
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_ShouldBlock_WhenCausePolicyRejectsRailFlow()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", 702, "ACH-CP-2");
+        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult> { [702] = new(true, "R01", 7002, "Debit", "Pending", []) });
+        var causePolicy = new Mock<IAchCauseCodePolicy>();
+        causePolicy.Setup(x => x.EvaluateAsync(It.IsAny<AchCauseCodePolicyRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchCauseCodePolicyResult(false, AchCauseCodeRail.AchColombia, AchCauseCodeKind.ReturnReason, true, [new("RAIL_MISMATCH_OR_NOT_CONFIGURED", "mismatch", AchCauseCodePolicySeverity.Error)]));
+
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), causeCodePolicy: causePolicy.Object);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CP-2", [new ReturnSelectionItemDto(702, "R01")]), CancellationToken.None));
+        Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 702));
+    }
+
+    [Theory]
+    [InlineData("D04")]
+    [InlineData("I500")]
+    [InlineData("DXX-LIQ")]
+    public async Task GenerateReturnsFileAsync_ShouldBlock_WhenNonReturnCodeIsUsedAsReturnReason(string reason)
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", 703, "ACH-CP-3");
+        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult> { [703] = new(true, reason, 7002, "Debit", "Pending", []) });
+        var causePolicy = new Mock<IAchCauseCodePolicy>();
+        causePolicy.Setup(x => x.EvaluateAsync(It.IsAny<AchCauseCodePolicyRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchCauseCodePolicyResult(false, AchCauseCodeRail.AchColombia, AchCauseCodeKind.Unknown, true, [new("FLOW_MISMATCH", "invalid", AchCauseCodePolicySeverity.Error)]));
+
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), causeCodePolicy: causePolicy.Object);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CP-3", [new ReturnSelectionItemDto(703, reason)]), CancellationToken.None));
+        Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 703));
+    }
+
     static List<string> SplitRecords(string content)
     {
         var normalized = (content ?? string.Empty).Replace("\r", "");

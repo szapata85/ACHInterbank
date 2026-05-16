@@ -1166,3 +1166,13 @@ WHERE "GeneratedAtUtc" >= TIMESTAMP '2026-05-14 00:00:00';
 - Fuente de control vigente para revisión de registros NACHA-M (1/5/6/7/8/9) por cámara: `docs/audits/nacha-record-level-normative-matrix-ach-cenit-current.md`.
 
 - Checklist UAT registros NACHA-M (ACH/CENIT): `docs/uat/nacha-records-acceptance-checklist.md` como evidencia documental para 1/5/6/7/8/9 y control de NO-GO productivo.
+
+
+## Control documental vigente de causales por cámara/flujo
+
+La referencia vigente para control de causales por cámara y flujo es:
+- `docs/audits/cause-code-normative-matrix-ach-cenit-sta-current.md`
+
+Esta referencia mantiene la decisión: **GO técnico / GO UAT controlado / NO-GO productivo** hasta cierre normativo y evidencia UAT por causal.
+
+- Referencia UAT de causales por cámara/flujo: `docs/uat/cause-code-acceptance-checklist.md` (incluye validación de devolución saliente/entrante/ROR, rechazos Dxx, técnicos Ixxx e internos; mantiene NO-GO productivo).

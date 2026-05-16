@@ -87,6 +87,28 @@ public class AchIncomingReturnIngestionServiceTests
     }
 
     [Fact]
+    public async Task IngestAsync_ShouldEvaluateCausePolicy_ForIncomingReturn()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var causePolicy = new Mock<IAchCauseCodePolicy>(MockBehavior.Strict);
+        causePolicy.Setup(x => x.EvaluateAsync(
+                It.Is<AchCauseCodePolicyRequest>(r =>
+                    r.Code == "R01" &&
+                    r.Flow == AchCauseCodeFlow.IncomingReturn &&
+                    r.ClearingHouseId == 7001 &&
+                    r.ClearingHouseCode == "CENIT" &&
+                    r.Source == "AchIncomingReturnIngestionService"),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchCauseCodePolicyResult(true, AchCauseCodeRail.Cenit, AchCauseCodeKind.ReturnReason, true, [new("NORMATIVE_PENDING", "pending", AchCauseCodePolicySeverity.Warning)]));
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll(), causePolicy.Object);
+
+        var r = await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
+        Assert.True(r.ParsedReturnCount > 0);
+        causePolicy.VerifyAll();
+    }
+
+    [Fact]
     public async Task IngestAsync_ShouldNormalizeIncomingReturnReasonCode()
     {
         await using var c = Ctx();
@@ -106,6 +128,37 @@ public class AchIncomingReturnIngestionServiceTests
         var sut = new AchIncomingReturnIngestionService(c, catalog.Object);
         await sut.IngestAsync(new("f.ach", BuildType7("dev14", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
         catalog.Verify(x => x.ValidateReturnCodeAsync(7001, "DEV14", TransactionTypeEnum.Credit, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldRejectOrIssue_WhenCausePolicyRejectsRailFlow()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var causePolicy = new Mock<IAchCauseCodePolicy>();
+        causePolicy.Setup(x => x.EvaluateAsync(It.IsAny<AchCauseCodePolicyRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchCauseCodePolicyResult(false, AchCauseCodeRail.Cenit, AchCauseCodeKind.ReturnReason, true, [new("RAIL_MISMATCH_OR_NOT_CONFIGURED", "mismatch", AchCauseCodePolicySeverity.Error)]));
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll(), causePolicy.Object);
+
+        var r = await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
+        Assert.Contains(r.Failures, x => x.Code == "INCOMING_RETURN_CAUSE_POLICY_REJECTED");
+    }
+
+    [Theory]
+    [InlineData("D04")]
+    [InlineData("I500")]
+    [InlineData("DXX-LIQ")]
+    public async Task IngestAsync_ShouldRejectOrIssue_WhenNonReturnCodeUsedAsIncomingReason(string reason)
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var causePolicy = new Mock<IAchCauseCodePolicy>();
+        causePolicy.Setup(x => x.EvaluateAsync(It.IsAny<AchCauseCodePolicyRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchCauseCodePolicyResult(false, AchCauseCodeRail.Cenit, AchCauseCodeKind.Unknown, true, [new("FLOW_MISMATCH", "invalid", AchCauseCodePolicySeverity.Error)]));
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll(), causePolicy.Object);
+
+        var r = await sut.IngestAsync(new("f.ach", BuildType7(reason, "123456780000001"), DateTime.UtcNow), CancellationToken.None);
+        Assert.Contains(r.Failures, x => x.Code == "INCOMING_RETURN_CAUSE_POLICY_REJECTED");
     }
 
     [Fact]
