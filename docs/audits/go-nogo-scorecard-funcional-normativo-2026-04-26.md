@@ -197,3 +197,5 @@ La actualización documental no cambia la decisión actual: **NO-GO productivo**
 - Soporte UAT registros NACHA-M: `docs/uat/nacha-records-acceptance-checklist.md` (GO técnico + GO UAT controlado + NO-GO productivo).
 
 - Evidencia documental vigente de causales por cámara/flujo: `docs/audits/cause-code-normative-matrix-ach-cenit-sta-current.md` (referencia de control; no cambia decisión NO-GO productivo).
+
+- Checklist UAT de causales por cámara/flujo: `docs/uat/cause-code-acceptance-checklist.md` (evidencia complementaria; no cambia decisión NO-GO productivo).

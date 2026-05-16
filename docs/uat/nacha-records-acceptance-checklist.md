@@ -184,3 +184,5 @@ Regla de control: no extrapolar causales ACH hacia CENIT y mantener separación 
 - **GO técnico:** sí.
 - **GO UAT controlado:** sí.
 - **NO-GO productivo:** sí (se mantiene).
+
+- Checklist UAT complementario de causales (registro 7 / Return Reason Code): `docs/uat/cause-code-acceptance-checklist.md`.

@@ -88,3 +88,5 @@
 - Evidencia UAT de registros NACHA-M: `docs/uat/nacha-records-acceptance-checklist.md` (controla aceptación por cámara y salida de NO-GO productivo).
 
 - Matriz vigente de causales por cámara/flujo: `docs/audits/cause-code-normative-matrix-ach-cenit-sta-current.md` (mantiene NO-GO productivo hasta cierre normativo/UAT firmado).
+
+- Evidencia UAT complementaria de causales por cámara/flujo: `docs/uat/cause-code-acceptance-checklist.md` (pendiente cierre formal; mantiene NO-GO productivo).

@@ -245,3 +245,5 @@ Ejemplo: `DXX-LIQ`. **No deben enviarse como causal externa**.
 - **NO-GO productivo:** sí.
 - **Opción recomendada:** **B** — matriz/catálogo unificada en modo **warning UAT** antes de hard-block productivo.
 
+
+- Checklist UAT de causales por cámara/flujo: `docs/uat/cause-code-acceptance-checklist.md` (control de aceptación UAT; mantiene NO-GO productivo hasta cierre firmado).
