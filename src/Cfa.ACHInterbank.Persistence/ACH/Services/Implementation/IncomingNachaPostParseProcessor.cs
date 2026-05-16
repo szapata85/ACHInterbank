@@ -146,12 +146,20 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
 
             if (linkResult.IsAmbiguous || linkResult.IsNotFound)
             {
+                var unresolvedEvidence = BuildUnresolvedIncomingReturnEvidence(
+                    ingestion,
+                    entry,
+                    relatedAddenda,
+                    classification,
+                    linkResult,
+                    executedBy);
                 classificationRow.EligibilityStatus = IncomingNachaEligibilityStatus.Bloqueada;
                 classificationRow.RequiresManualResolution = true;
+                link.EvidenceJson = JsonSerializer.Serialize(unresolvedEvidence);
                 await AddEventAsync(ingestionId, entry.EntryDetailID, relatedAddenda?.AddendaID, null,
                     "LinkingBloqueado", linkResult.IsAmbiguous ? "Ambiguo" : "NoEncontrado",
                     "Linking no determinístico. Se bloquea avance automático.",
-                    new { linkResult.LinkType, linkResult.EvidenceJson }, executedBy, ct);
+                    unresolvedEvidence, executedBy, ct);
                 continue;
             }
 
@@ -164,6 +172,79 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
 
         await _context.SaveChangesAsync(ct);
         await _dispatchPlanner.PlanForIngestionAsync(ingestionId, executedBy, ct);
+    }
+
+    private static object BuildUnresolvedIncomingReturnEvidence(
+        IncomingNachaFileIngestion ingestion,
+        EntryDetail entry,
+        AddendaRecord? addenda,
+        IncomingNachaClassificationResult classification,
+        IncomingNachaLinkingResult linkResult,
+        string executedBy)
+    {
+        var candidateIds = ExtractCandidateIds(linkResult.EvidenceJson);
+        var isAmbiguous = linkResult.IsAmbiguous || linkResult.LinkType == IncomingNachaLinkType.Ambiguous;
+        var resolutionReason = isAmbiguous ? "Ambiguous" : "NotFound";
+        var originalTrace = (classification.OriginalTraceRef ?? addenda?.OriginalTraceNumber ?? string.Empty).Trim();
+        return new
+        {
+            schemaVersion = 1,
+            eventType = "IncomingReturnUnresolved",
+            resolutionStatus = "Unresolved",
+            resolutionReason,
+            manualReviewRequired = true,
+            source = "IncomingNachaPostParseProcessor.ProcessAsync",
+            linkSource = "IncomingNachaTransactionLinker.LinkAsync",
+            incomingFileId = ingestion.Id,
+            fileName = ingestion.FileName,
+            fileHashSha256 = ingestion.FileHashSha256,
+            fileSize = ingestion.FileSize,
+            uploadedBy = ingestion.UploadedBy,
+            receivedAtUtc = ingestion.ReceivedAtUtc,
+            clearingHouseId = ingestion.ResolvedClearingHouseId,
+            achCycleId = ingestion.ResolvedAchCycleId,
+            operationalDate = ingestion.OperationalDate?.ToString("yyyy-MM-dd"),
+            functionalClass = classification.FunctionalClass.ToString(),
+            returnReasonCode = classification.ReturnReasonCode,
+            originalTraceNumber = originalTrace,
+            entrySequenceNumber = entry.SequenceNumber,
+            entryDetailId = entry.EntryDetailID,
+            addendaId = addenda?.AddendaID,
+            addendaType = addenda?.CodeTypeAddendumRecord,
+            linkType = linkResult.LinkType.ToString(),
+            candidateCount = candidateIds.Count,
+            candidateTransactionIds = candidateIds,
+            stateChanged = false,
+            applied = false,
+            requestedBy = string.IsNullOrWhiteSpace(executedBy) ? "sistema" : executedBy,
+            createdAtUtc = DateTime.UtcNow
+        };
+    }
+
+    private static List<int> ExtractCandidateIds(string? evidenceJson)
+    {
+        if (string.IsNullOrWhiteSpace(evidenceJson))
+        {
+            return [];
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(evidenceJson);
+            if (!doc.RootElement.TryGetProperty("candidates", out var candidates) || candidates.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            return candidates.EnumerateArray()
+                .Where(x => x.ValueKind == JsonValueKind.Number && x.TryGetInt32(out _))
+                .Select(x => x.GetInt32())
+                .ToList();
+        }
+        catch
+        {
+            return [];
+        }
     }
 
     private async Task ApplyBusinessEffectsAsync(
