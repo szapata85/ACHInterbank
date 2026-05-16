@@ -48,7 +48,7 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_ShouldNotCreateTransactionStateEvent_CurrentBehavior()
+    public async Task GenerateReturnsFileAsync_ShouldCreateTransactionStateEvent_ForReturnFileGenerated_CurrentBehavior()
     {
         await using var context = BuildContext();
         SeedScenario(context, transactionId: 1003, cycleId: "ACH-CHAR-3");
@@ -58,7 +58,13 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         var sut = BuildSut(context, 1003, "DEV14");
         await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-3", [new ReturnSelectionItemDto(1003, "DEV14")]), CancellationToken.None);
 
-        Assert.Equal(0, await context.AchTransactionStateEvents.CountAsync(x => x.AchTransactionId == 1003));
+        var evt = await context.AchTransactionStateEvents.SingleAsync(x => x.AchTransactionId == 1003);
+        Assert.Equal(AchTransferStateEnum.Pending, evt.FromState);
+        Assert.Equal(AchTransferStateEnum.Pending, evt.ToState);
+        Assert.Equal(AchStateEventSourceEnum.System, evt.Source);
+        Assert.Equal("DEV14", evt.ReasonCode);
+        Assert.Contains("ReturnFileGenerated", evt.PayloadJson, StringComparison.Ordinal);
+        Assert.Contains("outbound-return", evt.PayloadJson, StringComparison.Ordinal);
     }
 
     [Fact]

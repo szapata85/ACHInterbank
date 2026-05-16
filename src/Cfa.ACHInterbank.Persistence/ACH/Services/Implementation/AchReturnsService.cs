@@ -346,7 +346,38 @@ public class AchReturnsService(
             row.FileName = fileName;
         }
 
+        var stateEvents = generatedRows.Select(row =>
+        {
+            var originalTx = transactions.First(t => t.Id == row.OriginalTransactionId);
+            return new AchTransactionStateEvent
+            {
+                AchTransactionId = row.OriginalTransactionId,
+                FromState = originalTx.State,
+                ToState = originalTx.State,
+                Source = Domain.Entities.Transactions.Enums.AchStateEventSourceEnum.System,
+                ReasonCode = row.ReturnReasonCode,
+                PayloadJson = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    eventType = "ReturnFileGenerated",
+                    source = $"{nameof(AchReturnsService)}.{nameof(GenerateReturnsFileAsync)}",
+                    originalTransactionId = row.OriginalTransactionId,
+                    returnReasonCode = row.ReturnReasonCode,
+                    returnCycleId = row.ReturnCycleId,
+                    clearingHouseId = cycle.ClearingHouseId,
+                    clearingHouseCode = cycle.ClearingHouse?.Code,
+                    fileName,
+                    originalTraceNumber = row.OriginalSequenceNumber,
+                    newTraceNumber = row.NewSequenceNumber,
+                    amount = row.Amount,
+                    generatedAtUtc = row.GeneratedAtUtc,
+                    generationMode = "outbound-return",
+                    stateChanged = false
+                })
+            };
+        }).ToList();
+
         context.Set<AchReturnGenerated>().AddRange(generatedRows);
+        context.AchTransactionStateEvents.AddRange(stateEvents);
         await context.SaveChangesAsync(ct);
 
         return new GenerateReturnsFileResponse(fileName, "text/plain", Encoding.UTF8.GetBytes(fileContent), lines.Count, generatedRows.Count);
