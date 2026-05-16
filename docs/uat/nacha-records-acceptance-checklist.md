@@ -189,3 +189,10 @@ Regla de control: no extrapolar causales ACH hacia CENIT y mantener separación 
 
 - Referencia cruzada de trazabilidad del archivo de devolución saliente: `docs/audits/outbound-return-state-traceability-matrix-current.md`.
 - Checklist UAT de estado/evento/idempotencia de devolución saliente: `docs/uat/outbound-return-state-traceability-acceptance-checklist.md`.
+
+
+## Referencia cruzada record 7 / addenda 99
+
+Para control funcional de devolución entrante (registro 7 / addenda 99) y huérfanas:
+
+- `docs/audits/incoming-return-e2e-orphan-matrix-current.md`

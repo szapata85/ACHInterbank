@@ -1179,3 +1179,12 @@ Esta referencia mantiene la decisión: **GO técnico / GO UAT controlado / NO-GO
 
 - Matriz vigente de estado/evento/trazabilidad/idempotencia de devolución saliente: `docs/audits/outbound-return-state-traceability-matrix-current.md`.
 - Checklist UAT de estado/evento/trazabilidad de devolución saliente: `docs/uat/outbound-return-state-traceability-acceptance-checklist.md`.
+
+
+## Referencia vigente incoming/orphan (control documental)
+
+Para el frente de devolución entrante E2E y huérfanas/no resueltas, la referencia vigente de control es:
+
+- `docs/audits/incoming-return-e2e-orphan-matrix-current.md`
+
+Esta referencia mantiene la postura actual: **GO técnico**, **GO UAT controlado**, **NO-GO productivo**.

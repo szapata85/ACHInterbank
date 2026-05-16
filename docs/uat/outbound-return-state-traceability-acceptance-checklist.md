@@ -189,3 +189,10 @@ Checklist mínimo de salida:
 - **GO UAT controlado:** sí.
 - **NO-GO productivo:** sí.
 - Próximo hito: devolución de entrada E2E y manejo de huérfanas.
+
+
+## Referencia cruzada outbound vs incoming
+
+Para diferenciar explícitamente `outbound generated` vs `incoming applied` y su trazabilidad:
+
+- `docs/audits/incoming-return-e2e-orphan-matrix-current.md`
