@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
 using Moq;
 
 namespace Cfa.ACHInterbank.Tests;
@@ -224,7 +225,10 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
 
         Assert.Equal(response.FileName, root.GetProperty("fileName").GetString());
         Assert.Equal(response.FileName, root.GetProperty("externalFileName").GetString());
-        Assert.Equal(string.Empty, root.GetProperty("contentSha256").GetString());
+        var expectedHash = Convert.ToHexString(SHA256.HashData(response.Content)).ToLowerInvariant();
+        var contentSha256 = root.GetProperty("contentSha256").GetString();
+        Assert.Equal(expectedHash, contentSha256);
+        Assert.Matches("^[a-f0-9]{64}$", contentSha256);
         Assert.True(root.GetProperty("recordCount").GetInt32() > 0);
         Assert.Equal(1, root.GetProperty("returnCount").GetInt32());
 

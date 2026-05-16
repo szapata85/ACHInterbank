@@ -363,7 +363,8 @@ public class AchReturnsService(
                     fileName,
                     lines.Count,
                     generatedRows.Count,
-                    now)
+                    now,
+                    fileContent)
             };
         }).ToList();
 
@@ -382,7 +383,8 @@ public class AchReturnsService(
         string fileName,
         int recordCount,
         int returnCount,
-        DateTime createdAtUtc)
+        DateTime createdAtUtc,
+        string fileContent)
     {
         var payload = new
         {
@@ -404,7 +406,7 @@ public class AchReturnsService(
             clearingHouseName = cycle.ClearingHouse?.Name,
             fileName,
             externalFileName = fileName,
-            contentSha256 = string.Empty,
+            contentSha256 = ComputeSha256Hex(fileContent),
             recordCount,
             returnCount,
             originalTraceNumber = generatedRow.OriginalSequenceNumber,
@@ -424,6 +426,15 @@ public class AchReturnsService(
 
         return System.Text.Json.JsonSerializer.Serialize(payload);
     }
+
+
+    private static string ComputeSha256Hex(string content)
+    {
+        var bytes = Encoding.UTF8.GetBytes(content);
+        var hash = System.Security.Cryptography.SHA256.HashData(bytes);
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
 
 
     private NachaRailRecordConfig ResolveReturnOutNachaConfig(AchCycle cycle)
