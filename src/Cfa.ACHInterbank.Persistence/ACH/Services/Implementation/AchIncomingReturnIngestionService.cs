@@ -9,7 +9,8 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 public class AchIncomingReturnIngestionService(
     AchDbContext context,
-    IAchRegulatoryCatalogService regulatoryCatalogService) : IAchIncomingReturnIngestionService
+    IAchRegulatoryCatalogService regulatoryCatalogService,
+    IAchCauseCodePolicy? causeCodePolicy = null) : IAchIncomingReturnIngestionService
 {
     public async Task<AchIncomingReturnIngestionResult> IngestAsync(AchIncomingReturnIngestionRequest request, CancellationToken cancellationToken)
     {
@@ -76,6 +77,45 @@ public class AchIncomingReturnIngestionService(
             }
             else if (!string.IsNullOrWhiteSpace(normalizedReason))
             {
+                if (causeCodePolicy is not null)
+                {
+                    var clearingHouseCode = originalTx.AchCycle?.ClearingHouse?.Code;
+                    if (string.IsNullOrWhiteSpace(clearingHouseCode))
+                    {
+                        clearingHouseCode = await context.ClearingHouses
+                            .AsNoTracking()
+                            .Where(x => x.Id == clearingHouseId.Value)
+                            .Select(x => x.Code)
+                            .FirstOrDefaultAsync(cancellationToken);
+                    }
+
+                    var causePolicyResult = await causeCodePolicy.EvaluateAsync(
+                        new AchCauseCodePolicyRequest(
+                            normalizedReason,
+                            AchCauseCodeFlow.IncomingReturn,
+                            clearingHouseId.Value,
+                            clearingHouseCode,
+                            originalTx.Type.ToString(),
+                            originalTx.EffectiveEntryDate,
+                            Source: nameof(AchIncomingReturnIngestionService)),
+                        cancellationToken);
+
+                    if (!causePolicyResult.IsAllowed || causePolicyResult.Issues.Any(x => x.Severity == AchCauseCodePolicySeverity.Error))
+                    {
+                        var detail = string.Join(" | ", causePolicyResult.Issues.Where(x => x.Severity == AchCauseCodePolicySeverity.Error).Select(x => $"{x.Code}: {x.Message}"));
+                        failures.Add(new(
+                            "INCOMING_RETURN_CAUSE_POLICY_REJECTED",
+                            string.IsNullOrWhiteSpace(detail)
+                                ? "La causal entrante no cumple la política rail-flow para devoluciones entrantes."
+                                : $"La causal entrante no cumple la política rail-flow para devoluciones entrantes. {detail}",
+                            "ReturnReasonCode",
+                            trace));
+                        items.Add(new(trace, originalTrace, normalizedReason, originalTx.Id, clearingHouseId, originalTx.Type.ToString(), originalTx.State.ToString(), true, record));
+                        auditRecords.Add(BuildAuditRecord(recordIndex, record, trace, originalTrace, normalizedReason, originalTx.Id, clearingHouseId, true));
+                        continue;
+                    }
+                }
+
                 // TODO Fase 4.x: validar duplicados contra auditoría persistente cuando exista modelo de ingesta entrante.
                 var returnCodeValidation = await regulatoryCatalogService.ValidateReturnCodeAsync(
                     clearingHouseId.Value,
