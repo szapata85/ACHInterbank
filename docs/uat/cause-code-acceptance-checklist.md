@@ -245,3 +245,5 @@ Filtros ejecutados recientemente:
 - **GO UAT controlado:** sí.
 - **NO-GO productivo:** sí.
 - **Próximo hito:** UAT con evidencia por causal/cámara/flujo y firmas.
+
+- Referencia obligatoria para devolución saliente (estado/evento/idempotencia y trazabilidad): `docs/audits/outbound-return-state-traceability-matrix-current.md`.

@@ -186,3 +186,5 @@ Regla de control: no extrapolar causales ACH hacia CENIT y mantener separación 
 - **NO-GO productivo:** sí (se mantiene).
 
 - Checklist UAT complementario de causales (registro 7 / Return Reason Code): `docs/uat/cause-code-acceptance-checklist.md`.
+
+- Referencia cruzada de trazabilidad del archivo de devolución saliente: `docs/audits/outbound-return-state-traceability-matrix-current.md`.
