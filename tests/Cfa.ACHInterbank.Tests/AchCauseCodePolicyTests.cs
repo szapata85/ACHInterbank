@@ -32,6 +32,90 @@ public class AchCauseCodePolicyTests
             Assert.True((await sut.EvaluateAsync(new(code, AchCauseCodeFlow.OutboundReturn, cenit.Id, "CENIT"))).IsAllowed);
     }
 
+
+    [Fact]
+    public async Task AchCauseCodePolicy_ShouldAllowDxx_ForFileRejectTotalAndPartial()
+    {
+        await using var c = await BuildContextAsync(); await SeedRails(c); await new RegulatoryCatalogSeeder(c).SeedAsync();
+        var sut = new AchCauseCodePolicy(c);
+        foreach (var code in new[] { "D01", "D02", "D03", "D04", "D05", "D06" })
+        {
+            var total = await sut.EvaluateAsync(new(code, AchCauseCodeFlow.FileRejectTotal));
+            Assert.True(total.IsAllowed, $"Expected {code} to be allowed in FileRejectTotal");
+            Assert.Equal(AchCauseCodeKind.FileRejection, total.Kind);
+
+            var partial = await sut.EvaluateAsync(new(code, AchCauseCodeFlow.FileRejectPartial));
+            Assert.True(partial.IsAllowed, $"Expected {code} to be allowed in FileRejectPartial");
+            Assert.Equal(AchCauseCodeKind.FileRejection, partial.Kind);
+        }
+    }
+
+    [Fact]
+    public async Task AchCauseCodePolicy_ShouldRejectDxx_ForReturnFlows()
+    {
+        await using var c = await BuildContextAsync(); await SeedRails(c); await new RegulatoryCatalogSeeder(c).SeedAsync();
+        var sut = new AchCauseCodePolicy(c);
+        foreach (var flow in new[] { AchCauseCodeFlow.OutboundReturn, AchCauseCodeFlow.IncomingReturn, AchCauseCodeFlow.ReturnOfReturn })
+        {
+            var result = await sut.EvaluateAsync(new("D04", flow));
+            Assert.False(result.IsAllowed);
+            Assert.Equal(AchCauseCodeKind.FileRejection, result.Kind);
+        }
+    }
+
+    [Fact]
+    public async Task AchCauseCodePolicy_ShouldAllowIxxx_ForOperatorResponseAndCommandCenter()
+    {
+        await using var c = await BuildContextAsync(); await SeedRails(c); await new RegulatoryCatalogSeeder(c).SeedAsync();
+        var sut = new AchCauseCodePolicy(c);
+        foreach (var code in new[] { "I500", "I503", "ITIMEOUT", "ISOAP", "IFUNC" })
+        {
+            var operatorResponse = await sut.EvaluateAsync(new(code, AchCauseCodeFlow.OperatorResponse));
+            Assert.True(operatorResponse.IsAllowed, $"Expected {code} to be allowed in OperatorResponse");
+            Assert.Equal(AchCauseCodeKind.TechnicalIntegration, operatorResponse.Kind);
+
+            var commandCenter = await sut.EvaluateAsync(new(code, AchCauseCodeFlow.CommandCenter));
+            Assert.True(commandCenter.IsAllowed, $"Expected {code} to be allowed in CommandCenter");
+            Assert.Equal(AchCauseCodeKind.TechnicalIntegration, commandCenter.Kind);
+        }
+    }
+
+    [Fact]
+    public async Task AchCauseCodePolicy_ShouldRejectIxxx_ForReturnFlows()
+    {
+        await using var c = await BuildContextAsync(); await SeedRails(c); await new RegulatoryCatalogSeeder(c).SeedAsync();
+        var sut = new AchCauseCodePolicy(c);
+        foreach (var flow in new[] { AchCauseCodeFlow.OutboundReturn, AchCauseCodeFlow.IncomingReturn, AchCauseCodeFlow.ReturnOfReturn })
+        {
+            var result = await sut.EvaluateAsync(new("I500", flow));
+            Assert.False(result.IsAllowed);
+            Assert.Equal(AchCauseCodeKind.TechnicalIntegration, result.Kind);
+        }
+    }
+
+    [Fact]
+    public async Task AchCauseCodePolicy_ShouldRejectRxxDevxx_ForFileRejectFlows()
+    {
+        await using var c = await BuildContextAsync(); var (cenit, ach) = await SeedRails(c); await new RegulatoryCatalogSeeder(c).SeedAsync();
+        var sut = new AchCauseCodePolicy(c);
+
+        foreach (var flow in new[] { AchCauseCodeFlow.FileRejectTotal, AchCauseCodeFlow.FileRejectPartial })
+        {
+            Assert.False((await sut.EvaluateAsync(new("R01", flow, cenit.Id, "CENIT"))).IsAllowed);
+            Assert.False((await sut.EvaluateAsync(new("DEV14", flow, ach.Id, "ACH"))).IsAllowed);
+        }
+    }
+
+    [Fact]
+    public async Task AchCauseCodePolicy_ShouldRejectInternalCode_ForFileRejectFlows()
+    {
+        await using var c = await BuildContextAsync(); await SeedRails(c); await new RegulatoryCatalogSeeder(c).SeedAsync();
+        var sut = new AchCauseCodePolicy(c);
+
+        Assert.False((await sut.EvaluateAsync(new("DXX-LIQ", AchCauseCodeFlow.FileRejectTotal))).IsAllowed);
+        Assert.False((await sut.EvaluateAsync(new("DXX-LIQ", AchCauseCodeFlow.FileRejectPartial))).IsAllowed);
+        Assert.True((await sut.EvaluateAsync(new("DXX-LIQ", AchCauseCodeFlow.InternalOnly))).IsAllowed);
+    }
     [Fact] public async Task AchCauseCodePolicy_ShouldRejectCenitOnlyCode_ForAchRail() { await using var c = await BuildContextAsync(); var (_, ach)=await SeedRails(c); await new RegulatoryCatalogSeeder(c).SeedAsync(); var r=await new AchCauseCodePolicy(c).EvaluateAsync(new("R01", AchCauseCodeFlow.OutboundReturn, ach.Id, "ACH")); Assert.False(r.IsAllowed); }
     [Fact] public async Task AchCauseCodePolicy_ShouldRejectAchOnlyCode_ForCenitRail() { await using var c = await BuildContextAsync(); var (cenit,_)=await SeedRails(c); await new RegulatoryCatalogSeeder(c).SeedAsync(); var r=await new AchCauseCodePolicy(c).EvaluateAsync(new("DEV14", AchCauseCodeFlow.OutboundReturn, cenit.Id, "CENIT")); Assert.False(r.IsAllowed); }
 
