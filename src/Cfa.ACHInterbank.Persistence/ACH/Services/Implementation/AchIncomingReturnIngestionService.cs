@@ -2,6 +2,8 @@ using System.Security.Cryptography;
 using System.Text;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 
@@ -198,10 +200,39 @@ public class AchIncomingReturnIngestionService(
                 var toUpdate = await context.AchTransactions.Where(x => eligibleIds.Contains(x.Id)).ToListAsync(cancellationToken);
                 foreach (var tx in toUpdate)
                 {
+                    var fromState = tx.State;
                     // Devolución entrante recibida desde cámara/EPR; se usa estado existente ReturnedByEpr.
-                    tx.State = Cfa.ACHInterbank.Domain.Entities.Transactions.Enums.AchTransferStateEnum.ReturnedByEpr;
+                    tx.State = AchTransferStateEnum.ReturnedByEpr;
                     tx.StateChangedAtUtc = DateTime.UtcNow;
                     updatedTransactionIds.Add(tx.Id);
+
+                    var matchedItem = items.FirstOrDefault(x => x.OriginalTransactionId == tx.Id);
+                    var payload = $$"""
+{
+  "schemaVersion": 1,
+  "eventType": "IncomingReturnApplied",
+  "source": "AchIncomingReturnIngestionService.IngestAsync",
+  "generationMode": "incoming-return",
+  "achTransactionId": {{tx.Id}},
+  "previousState": "{{fromState}}",
+  "newState": "{{tx.State}}",
+  "returnReasonCode": "{{matchedItem?.ReturnReasonCode ?? string.Empty}}",
+  "originalTraceNumber": "{{matchedItem?.OriginalTraceNumber ?? string.Empty}}",
+  "fileName": "{{request.FileName}}",
+  "effectiveEntryDate": "{{tx.EffectiveEntryDate:yyyy-MM-dd}}",
+  "appliedAtUtc": "{{tx.StateChangedAtUtc:O}}",
+  "stateChanged": {{(fromState != tx.State).ToString().ToLowerInvariant()}}
+}
+""";
+                    context.AchTransactionStateEvents.Add(new AchTransactionStateEvent
+                    {
+                        AchTransactionId = tx.Id,
+                        FromState = fromState,
+                        ToState = tx.State,
+                        Source = AchStateEventSourceEnum.Epr,
+                        ReasonCode = matchedItem?.ReturnReasonCode,
+                        PayloadJson = payload
+                    });
                 }
                 await context.SaveChangesAsync(cancellationToken);
             }

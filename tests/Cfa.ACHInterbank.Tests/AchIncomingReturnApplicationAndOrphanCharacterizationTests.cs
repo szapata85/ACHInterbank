@@ -28,7 +28,7 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
     }
 
     [Fact]
-    public async Task IngestAsync_ShouldNotCreateStateEvent_WhenApplyingIncomingReturn_CurrentBehavior()
+    public async Task IngestAsync_ShouldCreateStateEvent_WhenApplyingIncomingReturn_CurrentBehavior()
     {
         await using var c = Ctx();
         SeedTx(c, "123456780000001", 7001, txId: 10);
@@ -36,7 +36,12 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
 
         await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc)), CancellationToken.None);
 
-        Assert.Empty(await c.AchTransactionStateEvents.Where(x => x.AchTransactionId == 10).ToListAsync());
+        var ev = await c.AchTransactionStateEvents.SingleAsync(x => x.AchTransactionId == 10);
+        Assert.Equal(AchTransferStateEnum.Pending, ev.FromState);
+        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, ev.ToState);
+        Assert.Equal(AchStateEventSourceEnum.Epr, ev.Source);
+        Assert.Equal("R01", ev.ReasonCode);
+        Assert.Contains("\"eventType\": \"IncomingReturnApplied\"", ev.PayloadJson);
     }
 
     [Fact]
