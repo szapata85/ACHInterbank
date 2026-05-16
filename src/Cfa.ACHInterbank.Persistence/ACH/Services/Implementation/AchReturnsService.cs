@@ -27,6 +27,7 @@ public class AchReturnsService(
     IExternalFileNamePolicy? externalFileNamePolicy = null,
     INachaRecordConfigProvider? nachaRecordConfigProvider = null,
     INachaRecordFieldValidator? nachaRecordFieldValidator = null,
+    IAchCauseCodePolicy? causeCodePolicy = null,
     ILogger<AchReturnsService>? logger = null) : IAchReturnsService
 {
     private readonly IAchRegulatoryCatalogService _regulatoryCatalogService = regulatoryCatalogService
@@ -42,6 +43,7 @@ public class AchReturnsService(
     private readonly IExternalFileNamePolicy? _externalFileNamePolicy = externalFileNamePolicy;
     private readonly INachaRecordConfigProvider? _nachaRecordConfigProvider = nachaRecordConfigProvider;
     private readonly INachaRecordFieldValidator? _nachaRecordFieldValidator = nachaRecordFieldValidator;
+    private readonly IAchCauseCodePolicy? _causeCodePolicy = causeCodePolicy;
     private readonly ILogger<AchReturnsService> _logger = logger ?? NullLogger<AchReturnsService>.Instance;
     private const int MaxCyclesForReturn = 4;
     private const string ImmediateDestinationAchColombia = "000101006";
@@ -197,6 +199,33 @@ public class AchReturnsService(
             }
 
             var reasonCode = eligibility.NormalizedReasonCode!;
+            if (_causeCodePolicy is not null)
+            {
+                var policyResult = await _causeCodePolicy.EvaluateAsync(
+                    new AchCauseCodePolicyRequest(
+                        reasonCode,
+                        AchCauseCodeFlow.OutboundReturn,
+                        cycle.ClearingHouseId,
+                        cycle.ClearingHouse?.Code,
+                        tx.Type.ToString(),
+                        tx.EffectiveEntryDate,
+                        Source: nameof(GenerateReturnsFileAsync)),
+                    ct);
+
+                foreach (var issue in policyResult.Issues.Where(i => i.Severity != AchCauseCodePolicySeverity.Error))
+                {
+                    _logger.LogWarning("CAUSE_POLICY_WARNING flow={Flow} code={Code} severity={Severity} detail={Detail}", AchCauseCodeFlow.OutboundReturn, reasonCode, issue.Severity, issue.Message);
+                }
+
+                var blocking = policyResult.Issues.Where(i => i.Severity == AchCauseCodePolicySeverity.Error).ToList();
+                if (!policyResult.IsAllowed || blocking.Count > 0)
+                {
+                    var detail = blocking.Count > 0
+                        ? string.Join(" | ", blocking.Select(x => $"{x.Code}: {x.Message}"))
+                        : "Causal no permitida por política rail-flow.";
+                    throw new InvalidOperationException($"La causal {reasonCode} no está permitida para la cámara/flujo de devolución saliente. {detail}");
+                }
+            }
 
             var amount = tx.IsPrenotification ? 0m : tx.Amount;
             var newSequence = await GenerateNewReturnSequenceAsync(tx.ReceivingDFI, now.Date, ct);
