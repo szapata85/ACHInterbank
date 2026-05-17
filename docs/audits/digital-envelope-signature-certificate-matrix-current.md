@@ -251,3 +251,5 @@ La capa cripto protege sobre/transporte de archivo; no reemplaza validación fun
 - La matriz no habilita producción.
 - No queda legacy/bypass exitoso.
 - Brechas principales: revocación, EKU/KeyUsage, evidencia operativa, rotación y runbook.
+
+- Referencia checklist UAT de sobre/firma/certificados: `docs/uat/digital-envelope-certificate-acceptance-checklist.md` (no modifica decisión NO-GO productivo).

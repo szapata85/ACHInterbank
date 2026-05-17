@@ -275,3 +275,5 @@ Cada categoría debe poder reportarse separadamente.
 - Próximo paso: runbook operativo o diseño documental del simulador CUD parametrizable.
 
 - Referencia matriz vigente de sobre/firma/certificados: `docs/audits/digital-envelope-signature-certificate-matrix-current.md` (no modifica decisión NO-GO productivo).
+
+- Referencia checklist UAT de sobre/firma/certificados: `docs/uat/digital-envelope-certificate-acceptance-checklist.md` (no modifica decisión NO-GO productivo).
