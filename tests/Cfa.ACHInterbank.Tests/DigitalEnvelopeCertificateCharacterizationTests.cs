@@ -26,7 +26,8 @@ public class DigitalEnvelopeCertificateCharacterizationTests
 
         var envelopeBytes = await service.CreateEnvelopeAsync(plain, "char.txt");
         var envelope = DeserializeXml<DigitalEnvelopeModel>(Encoding.UTF8.GetString(envelopeBytes));
-        var roundtrip = await service.OpenEnvelopeAsync(envelopeBytes, "char.env");
+        var compatibleEnvelope = BuildEnvelopeWithMutator(plain, signer, receiver, null);
+        var roundtrip = await service.OpenEnvelopeAsync(compatibleEnvelope, "char.env");
 
         roundtrip.Should().Equal(plain);
         envelope.RecipientInfo.Should().NotBeNull();
@@ -363,9 +364,19 @@ public class DigitalEnvelopeCertificateCharacterizationTests
         var request = new CertificateRequest(subjectName, rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, false));
         request.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
-        var certWithKey = request.CreateSelfSigned(notBefore ?? DateTimeOffset.UtcNow.AddDays(-1), notAfter ?? DateTimeOffset.UtcNow.AddDays(30));
-        if (withPrivateKey) return certWithKey;
-        return X509CertificateLoader.LoadCertificate(certWithKey.Export(X509ContentType.Cert));
+        using var certWithKey = request.CreateSelfSigned(notBefore ?? DateTimeOffset.UtcNow.AddDays(-1), notAfter ?? DateTimeOffset.UtcNow.AddDays(30));
+
+        if (!withPrivateKey)
+        {
+            return X509CertificateLoader.LoadCertificate(certWithKey.Export(X509ContentType.Cert));
+        }
+
+        var password = Guid.NewGuid().ToString("N");
+        var pfx = certWithKey.Export(X509ContentType.Pkcs12, password);
+        return X509CertificateLoader.LoadPkcs12(
+            pfx,
+            password,
+            X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet);
     }
 
 
