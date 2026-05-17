@@ -10,7 +10,7 @@ namespace Cfa.ACHInterbank.Tests;
 public class RsaKeyProviderSecretResolverTests
 {
     [Fact]
-    public async Task RsaKeyProvider_ShouldUseCertificateManagementPrivateKey_WhenSecretRefResolvable()
+    public async Task RsaKeyProvider_ShouldRejectCertificateManagementPrivateKey_ForRuntime()
     {
         var cert = CreateSelfSignedCertificate();
         var resolver = new Mock<IDigitalEnvelopeCertificateResolver>(MockBehavior.Strict);
@@ -29,15 +29,15 @@ public class RsaKeyProviderSecretResolverTests
                 Array.Empty<string>()));
 
         var provider = new RsaKeyProvider(resolver.Object);
-        var resolved = provider.ObtenerCertificate("CertSign");
+        var act = () => provider.ObtenerCertificate("CertSign");
 
-        resolved.Should().NotBeNull();
-        resolved.HasPrivateKey.Should().BeTrue();
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*CERTIFICATE_RUNTIME_SECRET_REF_NOT_ALLOWED*");
         await Task.CompletedTask;
     }
 
     [Fact]
-    public void RsaKeyProvider_HistoricalDecrypt_ShouldUseHistoricalCertificate_WhenResolvable()
+    public void RsaKeyProvider_HistoricalDecrypt_ShouldRejectHistoricalSecretProvider_ForRuntime()
     {
         var cert = CreateSelfSignedCertificate();
         var resolver = new Mock<IDigitalEnvelopeCertificateResolver>(MockBehavior.Strict);
@@ -56,10 +56,10 @@ public class RsaKeyProviderSecretResolverTests
                 Array.Empty<string>()));
 
         var provider = new RsaKeyProvider(resolver.Object);
-        var resolved = provider.ObtenerCertificateForDecrypt("CN=hist", "SER-1");
+        var act = () => provider.ObtenerCertificateForDecrypt("CN=hist", "SER-1");
 
-        resolved.Should().NotBeNull();
-        resolved.Thumbprint.Should().Be(cert.Thumbprint);
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*CERTIFICATE_SECRET_PROVIDER_NOT_SUPPORTED_FOR_RUNTIME*");
     }
 
     [Fact]

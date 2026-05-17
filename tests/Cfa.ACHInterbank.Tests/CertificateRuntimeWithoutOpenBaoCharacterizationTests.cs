@@ -100,6 +100,58 @@ public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
     }
 
     [Fact]
+    public void RsaKeyProvider_ShouldRejectOpenBaoReference_ForRuntimeCertificate()
+    {
+        var cert = CreateCert("CN=cm", true);
+        var resolver = new Mock<IDigitalEnvelopeCertificateResolver>(MockBehavior.Strict);
+        resolver.Setup(x => x.ResolveAsync("CertSign", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DigitalEnvelopeCertificateResolutionResult(
+                true,
+                cert,
+                22,
+                DigitalEnvelopeCertificateSource.CertificateManagement,
+                CertificatePurpose.OutboundSigning,
+                cert.Thumbprint,
+                cert.SerialNumber,
+                cert.Subject,
+                null,
+                null,
+                Array.Empty<string>()));
+
+        var provider = new RsaKeyProvider(resolver.Object);
+        var act = () => provider.ObtenerCertificate("CertSign");
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*CERTIFICATE_RUNTIME_SECRET_REF_NOT_ALLOWED*");
+    }
+
+    [Fact]
+    public void HistoricalDecrypt_ShouldFailClosed_WhenOnlyOpenBaoSecretRefIsAvailable()
+    {
+        var cert = CreateCert("CN=hist", true);
+        var resolver = new Mock<IDigitalEnvelopeCertificateResolver>(MockBehavior.Strict);
+        resolver.Setup(x => x.ResolveHistoricalDecryptAsync(It.IsAny<HistoricalDecryptCertificateCriteria>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DigitalEnvelopeCertificateResolutionResult(
+                true,
+                cert,
+                100,
+                DigitalEnvelopeCertificateSource.CertificateManagement,
+                CertificatePurpose.InboundDecryption,
+                cert.Thumbprint,
+                cert.SerialNumber,
+                cert.Subject,
+                null,
+                null,
+                Array.Empty<string>()));
+
+        var provider = new RsaKeyProvider(resolver.Object);
+        var act = () => provider.ObtenerCertificateForDecrypt("issuer", "serial");
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*CERTIFICATE_SECRET_PROVIDER_NOT_SUPPORTED_FOR_RUNTIME*");
+    }
+
+    [Fact]
     public void CertificateGovernance_ShouldTreatSecretRefMaskedAsMetadataOnly_CurrentBehavior()
     {
         var apiDtoProps = typeof(CertificateManagementController.CertificateVersionApiDto).GetProperties().Select(p => p.Name).ToList();
@@ -130,6 +182,35 @@ public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
         var paramTypes = ctor.GetParameters().Select(x => x.ParameterType.Name).ToArray();
         paramTypes.Should().NotContain(t => t.Contains("OpenBao", StringComparison.OrdinalIgnoreCase));
         paramTypes.Should().Contain(new[] { "IRsaKeyProvider", "IDigitalEnvelopeSignatureValidator", "IDigitalEnvelopeSignatureAuditService" });
+    }
+
+    [Fact]
+    public void DockerCompose_ShouldNotRequireOpenBao_ForApiCertificateRuntime()
+    {
+        var text = File.ReadAllText(Path.Combine(ResolveRepositoryRoot(), "docker-compose.yml"));
+        text.Should().Contain("DigitalEnvelope__OpenBao__Enabled: \"false\"");
+        text.Should().Contain("WAIT_FOR_OPENBAO_TOKEN_FILE: \"false\"");
+        text.Should().NotContain("openbao-bootstrap:\n        condition: service_completed_successfully");
+    }
+
+    [Fact]
+    public void Entrypoint_ShouldNotWaitForOpenBao_WhenOpenBaoDisabled()
+    {
+        var text = File.ReadAllText(Path.Combine(ResolveRepositoryRoot(), "src", "Cfa.ACHInterbank.Api", "entrypoint.sh"));
+        text.Should().Contain("openbao_enabled=\"${DigitalEnvelope__OpenBao__Enabled:-false}\"");
+        text.Should().Contain("if [ \"$openbao_enabled\" = \"true\" ] && [ \"$wait_openbao_token\" = \"true\" ]");
+    }
+
+    private static string ResolveRepositoryRoot()
+    {
+        var dir = AppContext.BaseDirectory;
+        for (var i = 0; i < 8; i++)
+        {
+            if (File.Exists(Path.Combine(dir, "ACHInterbank.sln"))) return dir;
+            dir = Path.GetFullPath(Path.Combine(dir, ".."));
+        }
+
+        throw new DirectoryNotFoundException("No se pudo resolver raíz repo.");
     }
 
     private static CryptoServiceScoped CreateCrypto(IRsaKeyProvider provider)
