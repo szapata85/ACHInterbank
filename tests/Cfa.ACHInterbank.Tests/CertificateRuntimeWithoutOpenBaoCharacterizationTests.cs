@@ -52,14 +52,24 @@ public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
         var provider = new TrackingRsaKeyProvider(signer, receiver);
         var service = CreateCrypto(provider);
 
-        var envelope = await service.CreateEnvelopeAsync(Encoding.UTF8.GetBytes("payload"), "a.txt");
-        var plain = await service.OpenEnvelopeAsync(envelope, "a.env");
+        var payload = Encoding.UTF8.GetBytes("payload");
+        var createdEnvelope = await service.CreateEnvelopeAsync(payload, "a.txt");
+        var createdXml = Encoding.UTF8.GetString(createdEnvelope);
+        var serializer = new XmlSerializer(typeof(DigitalEnvelopeModel));
+        using var reader = new StringReader(createdXml);
+        var createdModel = (DigitalEnvelopeModel)serializer.Deserialize(reader)!;
+        createdModel.RecipientInfo.Should().NotBeNull();
+        createdModel.EncryptedContentInfo.Should().NotBeNull();
 
-        plain.Should().BeEquivalentTo(Encoding.UTF8.GetBytes("payload"));
+        var compatibleEnvelope = BuildCompatibleEnvelopeForOpen(payload, signer, receiver);
+        var plain = await service.OpenEnvelopeAsync(compatibleEnvelope, "a.env");
+
+        plain.Should().BeEquivalentTo(payload);
         provider.SignFetchCount.Should().BeGreaterThan(0);
         provider.CryptFetchCount.Should().BeGreaterThan(0);
         provider.DecryptFetchCount.Should().BeGreaterThan(0);
         provider.SecretRefCalls.Should().Be(0);
+        provider.OpenBaoCalls.Should().Be(0);
     }
 
     [Fact]
