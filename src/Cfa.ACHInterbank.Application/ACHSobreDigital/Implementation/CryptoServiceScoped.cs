@@ -40,6 +40,9 @@ public class CryptoServiceScoped : ICryptoServiceScoped
         X509Certificate2 certificadoFirmante = _keys.ObtenerCertificate("CertSign");
         X509Certificate2 certificadoReceptor = _keys.ObtenerCertificate("CertCrypt");
 
+        ValidateCertificateUsable(certificadoFirmante, "SIGN", requirePrivateKey: true, validateChain: _signatureOptions.ValidateSignerCertificateChain);
+        ValidateCertificateUsable(certificadoReceptor, "ENCRYPT", requirePrivateKey: false, validateChain: _signatureOptions.ValidateSignerCertificateChain);
+
         string? mensajeFirmado = CrearMensajeFirmado(contenidoBytes, certificadoFirmante, FileName);
 
         string? SobreDigitalFirmado = CrearSobreDigital(mensajeFirmado, certificadoReceptor, certificadoFirmante);
@@ -60,7 +63,7 @@ public class CryptoServiceScoped : ICryptoServiceScoped
         }
 
         // Firmar el hash con la clave privada
-        RSA rsa = certificadoFirmante.GetRSAPrivateKey()!;
+        using RSA rsa = RequireRsaPrivateKey(certificadoFirmante, "SIGN");
         byte[] firma = rsa.SignHash(hashContenido, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
 
         // Codificar contenido en ZIP + Base64
@@ -175,6 +178,83 @@ public class CryptoServiceScoped : ICryptoServiceScoped
         }
     }
 
+
+
+    private void ValidateCertificateUsable(X509Certificate2? certificate, string purpose, bool requirePrivateKey, bool validateChain)
+    {
+        if (certificate == null)
+        {
+            throw new DigitalEnvelopeSignatureValidationException("CERTIFICATE_NOT_AVAILABLE", $"No se encontró certificado para operación {purpose}.");
+        }
+
+        var now = DateTime.UtcNow;
+        if (now < certificate.NotBefore.ToUniversalTime())
+        {
+            throw new DigitalEnvelopeSignatureValidationException("CERTIFICATE_NOT_YET_VALID", $"El certificado para operación {purpose} aún no está vigente.");
+        }
+
+        if (now > certificate.NotAfter.ToUniversalTime())
+        {
+            throw new DigitalEnvelopeSignatureValidationException("CERTIFICATE_EXPIRED", $"El certificado para operación {purpose} está expirado.");
+        }
+
+        if (validateChain)
+        {
+            using var chain = new X509Chain();
+            chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+            chain.ChainPolicy.VerificationFlags = X509VerificationFlags.NoFlag;
+            if (!chain.Build(certificate))
+            {
+                throw new DigitalEnvelopeSignatureValidationException("CERTIFICATE_CHAIN_NOT_TRUSTED", $"La cadena del certificado para operación {purpose} no es confiable.");
+            }
+        }
+
+        if (requirePrivateKey)
+        {
+            _ = RequireRsaPrivateKey(certificate, purpose);
+        }
+    }
+
+    private static RSA RequireRsaPrivateKey(X509Certificate2? certificate, string purpose)
+    {
+        if (certificate == null)
+        {
+            throw new DigitalEnvelopeSignatureValidationException(
+                "CERTIFICATE_PRIVATE_KEY_REQUIRED",
+                $"No se encontró certificado para operación {purpose}.");
+        }
+
+        if (!certificate.HasPrivateKey)
+        {
+            throw new DigitalEnvelopeSignatureValidationException(
+                "CERTIFICATE_PRIVATE_KEY_REQUIRED",
+                $"El certificado requerido para {purpose} no contiene llave privada.");
+        }
+
+        try
+        {
+            var rsa = certificate.GetRSAPrivateKey();
+            if (rsa == null)
+            {
+                throw new DigitalEnvelopeSignatureValidationException(
+                    "CERTIFICATE_PRIVATE_KEY_NOT_AVAILABLE",
+                    $"No fue posible obtener la llave RSA privada para operación {purpose}.");
+            }
+
+            return rsa;
+        }
+        catch (DigitalEnvelopeSignatureValidationException)
+        {
+            throw;
+        }
+        catch (CryptographicException)
+        {
+            throw new DigitalEnvelopeSignatureValidationException(
+                "CERTIFICATE_PRIVATE_KEY_NOT_AVAILABLE",
+                $"No fue posible usar la llave RSA privada para operación {purpose}.");
+        }
+    }
+
     private byte[] GenerarIVDesdeIdentifier(string identifier)
     {
         // Aquí puedes derivar el IV desde el identifier como hash o truncamiento
@@ -224,10 +304,12 @@ public class CryptoServiceScoped : ICryptoServiceScoped
                 issuer,
                 serial);
 
+            ValidateCertificateUsable(certificadoReceptor, "DECRYPT", requirePrivateKey: true, validateChain: _signatureOptions.ValidateSignerCertificateChain);
+
             byte[] encryptedKey = Convert.FromBase64String(recipientInfo.EncryptedKey);
             byte[] encryptedContent = Convert.FromBase64String(encryptedContentInfo.EncryptedContent);
 
-            RSA rsaReceptor = certificadoReceptor.GetRSAPrivateKey()!;
+            using RSA rsaReceptor = RequireRsaPrivateKey(certificadoReceptor, "DECRYPT");
             byte[] aesKey = rsaReceptor.Decrypt(encryptedKey, RSAEncryptionPadding.Pkcs1);
 
             byte[] iv = GenerarIVDesdeIdentifier(objsobre.Identifier);
@@ -243,18 +325,7 @@ public class CryptoServiceScoped : ICryptoServiceScoped
 
             if (!_signatureOptions.EnableSignatureValidation)
             {
-                if (!_signatureOptions.AllowLegacyUnsignedEnvelope)
-                {
-                    failCloseApplied = true;
-                    errorCode = "LEGACY_UNSIGNED_ENVELOPE_NOT_ALLOWED";
-                    throw new DigitalEnvelopeSignatureValidationException(errorCode, "La validación de firma está deshabilitada y el bypass legacy no está permitido.");
-                }
-
-                legacyBypassUsed = true;
-                result = "SUCCESS";
-                errorCode = "SIGNATURE_VALIDATION_DISABLED_WARNING";
-                _logger.LogWarning("Signature validation deshabilitada para OpenEnvelopeAsync; se aplicó bypass legacy controlado.");
-                return Task.FromResult(PlainContent);
+                _logger.LogWarning("EnableSignatureValidation=false detectado; se fuerza validación de firma obligatoria para OpenEnvelopeAsync.");
             }
 
             var validation = _signatureValidator
@@ -269,20 +340,17 @@ public class CryptoServiceScoped : ICryptoServiceScoped
             if (!validation.IsValid || !validation.IsVerified)
             {
                 errorCode = validation.ErrorCode ?? "SIGNATURE_VALIDATION_FAILED";
-                failCloseApplied = _signatureOptions.FailCloseOnInvalidSignature;
-                if (failCloseApplied)
-                {
-                    throw new DigitalEnvelopeSignatureValidationException(errorCode, validation.ErrorMessage ?? "La firma del sobre digital no es válida.");
-                }
-
-                _logger.LogWarning("Firma inválida detectada pero FailCloseOnInvalidSignature=false. ErrorCode={ErrorCode}", errorCode);
+                failCloseApplied = true;
+                throw new DigitalEnvelopeSignatureValidationException(errorCode, validation.ErrorMessage ?? "La firma del sobre digital no es válida.");
             }
 
             result = "SUCCESS";
             return Task.FromResult(PlainContent);
         }
-        catch (DigitalEnvelopeSignatureValidationException)
+        catch (DigitalEnvelopeSignatureValidationException ex)
         {
+            errorCode ??= ex.ErrorCode;
+            failCloseApplied = true;
             throw;
         }
         catch (Exception ex)

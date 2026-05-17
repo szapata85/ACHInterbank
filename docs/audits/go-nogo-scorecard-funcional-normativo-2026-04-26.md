@@ -230,3 +230,11 @@ Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPar
 - Referencia complementaria ciclos/neteo/liquidez/evidencia CUD: `docs/audits/cenit-cycles-netting-liquidity-cud-matrix-current.md` (no cambia decisión NO-GO productivo).
 
 - Referencia UAT ciclos/liquidez/evidencia CUD: `docs/uat/cenit-cycles-liquidity-cud-acceptance-checklist.md` (no cambia decisión NO-GO productivo).
+
+- Referencia matriz vigente de sobre/firma/certificados: `docs/audits/digital-envelope-signature-certificate-matrix-current.md` (no modifica decisión NO-GO productivo).
+
+- Referencia checklist UAT de sobre/firma/certificados: `docs/uat/digital-envelope-certificate-acceptance-checklist.md` (no modifica decisión NO-GO productivo).
+
+- Referencia runbook operativo de certificados: `docs/ops/certificate-operations-runbook.md` (no modifica decisión NO-GO productivo).
+
+- Decisión arquitectura certificados: OpenBao/SecretRef excluido del flujo de certificados; BD solo metadata; llaves privadas fuera de BD.

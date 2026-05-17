@@ -111,16 +111,16 @@ services:
       ConnectionStrings__PostgresConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB:-ACHInterbank};Username=${POSTGRES_USER:-sa};Password=${POSTGRES_PASSWORD:-Cooperativa1*}
       Database__ApplyMigrations: "true"
 
-      DigitalEnvelope__OpenBao__Enabled: "true"
+      DigitalEnvelope__OpenBao__Enabled: "false"
       DigitalEnvelope__OpenBao__BaseUrl: http://openbao:8200
       DigitalEnvelope__OpenBao__KvMount: ${OPENBAO_KV_MOUNT:-secret}
       DigitalEnvelope__OpenBao__CertificatesPrefix: ${OPENBAO_CERTIFICATES_PREFIX:-certificates}
       DigitalEnvelope__OpenBao__ApiToken: ${OPENBAO_API_TOKEN:-}
       DigitalEnvelope__OpenBao__ApiTokenFilePath: /openbao-bootstrap/api-token
 
-      DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable: "true"
+      DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable: "false"
 
-      WAIT_FOR_OPENBAO_TOKEN_FILE: "true"
+      WAIT_FOR_OPENBAO_TOKEN_FILE: "false"
       WAIT_FOR_OPENBAO_TIMEOUT_SECONDS: ${WAIT_FOR_OPENBAO_TIMEOUT_SECONDS:-90}
 
     ports:
@@ -133,13 +133,6 @@ services:
       postgres:
         condition: service_healthy
 
-      # No dependemos de openbao service_healthy para evitar bloqueo por healthcheck.
-      # El bootstrap ya valida que OpenBao esté inicializado, unsealed y con token.
-      openbao:
-        condition: service_started
-
-      openbao-bootstrap:
-        condition: service_completed_successfully
 
     restart: unless-stopped
     networks: [ach_onprem]

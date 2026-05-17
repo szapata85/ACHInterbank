@@ -224,3 +224,5 @@ Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPar
 - `docs/uat/rejection-total-partial-acceptance-checklist.md`
 
 - Referencia complementaria ciclos/neteo/liquidez/evidencia CUD: `docs/audits/cenit-cycles-netting-liquidity-cud-matrix-current.md` (no cambia decisión NO-GO productivo).
+
+- Referencia matriz vigente de sobre/firma/certificados: `docs/audits/digital-envelope-signature-certificate-matrix-current.md` (no modifica decisión NO-GO productivo).

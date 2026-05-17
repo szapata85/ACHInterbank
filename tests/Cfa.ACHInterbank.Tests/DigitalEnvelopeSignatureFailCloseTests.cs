@@ -133,7 +133,7 @@ public class DigitalEnvelopeSignatureFailCloseTests
     }
 
     [Fact]
-    public async Task OpenEnvelopeAsync_ShouldRespectLegacyCompatibilityFlag_WhenDisabledOnlyInTest()
+    public async Task OpenEnvelopeAsync_ShouldRejectUnsignedEnvelope_EvenWhenLegacyBypassEnabled()
     {
         var signer = CreateSelfSignedCertificate("CN=Signer-Legacy");
         var receiver = CreateSelfSignedCertificate("CN=Receiver-Legacy");
@@ -146,10 +146,10 @@ public class DigitalEnvelopeSignatureFailCloseTests
             AuditInvalidSignature = true
         }, out var audit);
 
-        var result = await service.OpenEnvelopeAsync(envelope, "legacy.env");
+        var ex = await Assert.ThrowsAsync<DigitalEnvelopeSignatureValidationException>(() => service.OpenEnvelopeAsync(envelope, "legacy.env"));
 
-        result.Should().Equal(plain);
-        audit.Events.Should().Contain(e => e.ErrorCode == "SIGNATURE_VALIDATION_DISABLED_WARNING" && e.LegacyBypassUsed);
+        ex.ErrorCode.Should().Be("SIGNATURE_VALIDATION_FAILED");
+        audit.Events.Should().Contain(e => e.Result == "FAILED" && !e.LegacyBypassUsed);
     }
 
     private static IDigitalEnvelopeSignatureValidator CreateValidator(DigitalEnvelopeSignatureValidationOptions? options = null)

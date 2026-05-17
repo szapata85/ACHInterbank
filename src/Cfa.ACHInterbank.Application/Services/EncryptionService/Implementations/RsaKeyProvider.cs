@@ -26,6 +26,11 @@ public class RsaKeyProvider : IRsaKeyProvider
         var fromResolver = _certificateResolver.ResolveAsync(Key_cert).GetAwaiter().GetResult();
         if (fromResolver.Success && fromResolver.Certificate != null)
         {
+            if (fromResolver.Source == DigitalEnvelopeCertificateSource.CertificateManagement)
+            {
+                throw new InvalidOperationException("CERTIFICATE_RUNTIME_SECRET_REF_NOT_ALLOWED: runtime core no soporta CertificateManagement/OpenBao para certificados de operación.");
+            }
+
             return fromResolver.Certificate;
         }
 
@@ -89,6 +94,11 @@ public class RsaKeyProvider : IRsaKeyProvider
 
         if (result.Success && result.Certificate != null)
         {
+            if (result.Source == DigitalEnvelopeCertificateSource.CertificateManagement)
+            {
+                throw new InvalidOperationException("CERTIFICATE_SECRET_PROVIDER_NOT_SUPPORTED_FOR_RUNTIME: decrypt histórico desde SecretRef/OpenBao no está permitido en runtime core.");
+            }
+
             return result.Certificate;
         }
 

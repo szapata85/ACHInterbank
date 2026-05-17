@@ -9,10 +9,12 @@ if [ -z "${Database__Provider:-}" ] && [ -n "${ConnectionStrings__PostgresConnec
 fi
 
 openbao_token_file="${DigitalEnvelope__OpenBao__ApiTokenFilePath:-/openbao-bootstrap/api-token}"
-wait_openbao_token="${WAIT_FOR_OPENBAO_TOKEN_FILE:-true}"
+wait_openbao_token="${WAIT_FOR_OPENBAO_TOKEN_FILE:-false}"
 wait_openbao_timeout="${WAIT_FOR_OPENBAO_TIMEOUT_SECONDS:-90}"
 
-if [ "$wait_openbao_token" = "true" ] && [ -z "${DigitalEnvelope__OpenBao__ApiToken:-}" ]; then
+openbao_enabled="${DigitalEnvelope__OpenBao__Enabled:-false}"
+
+if [ "$openbao_enabled" = "true" ] && [ "$wait_openbao_token" = "true" ] && [ -z "${DigitalEnvelope__OpenBao__ApiToken:-}" ]; then
   elapsed=0
   while [ ! -s "$openbao_token_file" ] && [ "$elapsed" -lt "$wait_openbao_timeout" ]; do
     echo "Waiting for OpenBao API token file at $openbao_token_file (${elapsed}s/${wait_openbao_timeout}s)"
