@@ -105,3 +105,10 @@ Se agrega como soporte de trazabilidad vigente:
 - `docs/audits/incoming-return-e2e-orphan-matrix-current.md`
 
 Esta inclusión no cambia el estado global de readiness: se mantiene **NO-GO productivo**.
+
+## Referencia cruzada total vs partial
+
+Para la frontera semántica canónica entre `RejectedTotal`, `RejectedPartial`, `Accepted`, orphan/unresolved, manual audit-only y la distinción formal frente a devolución parcial por monto, ver:
+
+- `docs/audits/total-vs-partial-rejection-matrix-current.md`
+
