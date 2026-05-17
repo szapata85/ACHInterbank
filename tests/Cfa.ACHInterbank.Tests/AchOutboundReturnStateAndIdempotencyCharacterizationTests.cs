@@ -94,9 +94,11 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         var t1 = ExecuteIgnoringFailureAsync(() => sut.GenerateReturnsFileAsync(request, CancellationToken.None));
         var t2 = ExecuteIgnoringFailureAsync(() => sut.GenerateReturnsFileAsync(request, CancellationToken.None));
         await Task.WhenAll(t1, t2);
+        var r1 = await t1;
+        var r2 = await t2;
 
         Assert.Equal(1, await context.Set<AchReturnGenerated>().CountAsync(x => x.OriginalTransactionId == 1005));
-        Assert.True(t1.Result.Succeeded ^ t2.Result.Succeeded);
+        Assert.True(r1.Succeeded ^ r2.Succeeded);
     }
 
     [Fact]

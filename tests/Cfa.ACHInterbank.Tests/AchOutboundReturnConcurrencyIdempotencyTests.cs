@@ -67,9 +67,11 @@ public class AchOutboundReturnConcurrencyIdempotencyTests
         var t1 = ExecuteIgnoringFailureAsync(() => sutA.GenerateReturnsFileAsync(request, CancellationToken.None));
         var t2 = ExecuteIgnoringFailureAsync(() => sutB.GenerateReturnsFileAsync(request, CancellationToken.None));
         await Task.WhenAll(t1, t2);
+        var r1 = await t1;
+        var r2 = await t2;
 
-        Assert.True(t1.Result.Succeeded ^ t2.Result.Succeeded);
-        var error = t1.Result.Succeeded ? t2.Result.Error : t1.Result.Error;
+        Assert.True(r1.Succeeded ^ r2.Succeeded);
+        var error = r1.Succeeded ? r2.Error : r1.Error;
         Assert.NotNull(error);
         Assert.Contains("devolución registrada", error!.Message, StringComparison.OrdinalIgnoreCase);
 
