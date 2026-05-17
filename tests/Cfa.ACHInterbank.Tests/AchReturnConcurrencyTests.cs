@@ -62,11 +62,23 @@ public class AchReturnConcurrencyTests
     public async Task ReturnGenerationLockService_ShouldAcquireMultipleTransactionLocksInStableOrder()
     {
         var svc = new AchReturnGenerationLockService();
-        var t1 = Task.Run(async () => { await using var l = await svc.AcquireAsync([3, 1, 2], CancellationToken.None); await Task.Delay(50); });
-        var t2 = Task.Run(async () => { await using var l = await svc.AcquireAsync([2, 1, 3], CancellationToken.None); await Task.Delay(50); });
-        var all = Task.WhenAll(t1, t2);
-        var completed = await Task.WhenAny(all, Task.Delay(2000));
-        Assert.Same(all, completed);
+        var acquiredCount = 0;
+
+        var t1 = Task.Run(async () =>
+        {
+            await using var l = await svc.AcquireAsync([3, 1, 2], CancellationToken.None);
+            Interlocked.Increment(ref acquiredCount);
+            await Task.Delay(50);
+        });
+        var t2 = Task.Run(async () =>
+        {
+            await using var l = await svc.AcquireAsync([2, 1, 3], CancellationToken.None);
+            Interlocked.Increment(ref acquiredCount);
+            await Task.Delay(50);
+        });
+
+        await Task.WhenAll(t1, t2).WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(2, acquiredCount);
     }
 
     [Fact]
