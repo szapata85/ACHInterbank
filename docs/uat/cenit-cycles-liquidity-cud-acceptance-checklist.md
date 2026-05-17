@@ -281,3 +281,5 @@ Cada categoría debe poder reportarse separadamente.
 > Referencia punto 10 (reportería/conciliación revisión contable terceros, no contable): `docs/audits/accounting-review-reconciliation-matrix-current.md`.
 
 - Referencia checklist UAT punto 10: `docs/uat/accounting-review-reconciliation-acceptance-checklist.md`.
+
+- Referencia runbook operativo conciliación punto 10: `docs/ops/reconciliation-operations-runbook.md`.

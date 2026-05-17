@@ -340,3 +340,5 @@ No se recomienda integración contable online.
 - Esta matriz no habilita producción.
 
 - Referencia checklist UAT punto 10: `docs/uat/accounting-review-reconciliation-acceptance-checklist.md`.
+
+- Referencia runbook operativo conciliación punto 10: `docs/ops/reconciliation-operations-runbook.md`.

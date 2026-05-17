@@ -266,3 +266,5 @@ Diferenciar: idempotencia ACH existente; idempotencia reportería no formal; ide
 - El sistema no contabiliza.
 - Este checklist no habilita producción.
 - Próximo recomendado: `docs(ops): add reconciliation operations runbook`.
+
+- Referencia runbook operativo conciliación punto 10: `docs/ops/reconciliation-operations-runbook.md`.
