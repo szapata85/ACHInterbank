@@ -60,7 +60,7 @@ public class CryptoServiceScoped : ICryptoServiceScoped
         }
 
         // Firmar el hash con la clave privada
-        RSA rsa = certificadoFirmante.GetRSAPrivateKey()!;
+        using RSA rsa = RequireRsaPrivateKey(certificadoFirmante, "SIGN");
         byte[] firma = rsa.SignHash(hashContenido, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
 
         // Codificar contenido en ZIP + Base64
@@ -175,6 +175,47 @@ public class CryptoServiceScoped : ICryptoServiceScoped
         }
     }
 
+
+    private static RSA RequireRsaPrivateKey(X509Certificate2? certificate, string purpose)
+    {
+        if (certificate == null)
+        {
+            throw new DigitalEnvelopeSignatureValidationException(
+                "CERTIFICATE_PRIVATE_KEY_REQUIRED",
+                $"No se encontró certificado para operación {purpose}.");
+        }
+
+        if (!certificate.HasPrivateKey)
+        {
+            throw new DigitalEnvelopeSignatureValidationException(
+                "CERTIFICATE_PRIVATE_KEY_REQUIRED",
+                $"El certificado requerido para {purpose} no contiene llave privada.");
+        }
+
+        try
+        {
+            var rsa = certificate.GetRSAPrivateKey();
+            if (rsa == null)
+            {
+                throw new DigitalEnvelopeSignatureValidationException(
+                    "CERTIFICATE_PRIVATE_KEY_NOT_AVAILABLE",
+                    $"No fue posible obtener la llave RSA privada para operación {purpose}.");
+            }
+
+            return rsa;
+        }
+        catch (DigitalEnvelopeSignatureValidationException)
+        {
+            throw;
+        }
+        catch (CryptographicException)
+        {
+            throw new DigitalEnvelopeSignatureValidationException(
+                "CERTIFICATE_PRIVATE_KEY_NOT_AVAILABLE",
+                $"No fue posible usar la llave RSA privada para operación {purpose}.");
+        }
+    }
+
     private byte[] GenerarIVDesdeIdentifier(string identifier)
     {
         // Aquí puedes derivar el IV desde el identifier como hash o truncamiento
@@ -227,7 +268,7 @@ public class CryptoServiceScoped : ICryptoServiceScoped
             byte[] encryptedKey = Convert.FromBase64String(recipientInfo.EncryptedKey);
             byte[] encryptedContent = Convert.FromBase64String(encryptedContentInfo.EncryptedContent);
 
-            RSA rsaReceptor = certificadoReceptor.GetRSAPrivateKey()!;
+            using RSA rsaReceptor = RequireRsaPrivateKey(certificadoReceptor, "DECRYPT");
             byte[] aesKey = rsaReceptor.Decrypt(encryptedKey, RSAEncryptionPadding.Pkcs1);
 
             byte[] iv = GenerarIVDesdeIdentifier(objsobre.Identifier);
@@ -265,8 +306,10 @@ public class CryptoServiceScoped : ICryptoServiceScoped
             result = "SUCCESS";
             return Task.FromResult(PlainContent);
         }
-        catch (DigitalEnvelopeSignatureValidationException)
+        catch (DigitalEnvelopeSignatureValidationException ex)
         {
+            errorCode ??= ex.ErrorCode;
+            failCloseApplied = true;
             throw;
         }
         catch (Exception ex)

@@ -78,7 +78,22 @@ public class DigitalEnvelopeCertificateCharacterizationTests
         var service = CreateCryptoService(signer, receiverPublicOnly, DefaultOptions(), out _);
         var envelope = BuildEnvelopeWithMutator(Encoding.UTF8.GetBytes("NACHA"), signer, CreateSelfSignedCertificate("CN=receiver-real", true), null);
 
-        await Assert.ThrowsAsync<DigitalEnvelopeSignatureValidationException>(() => service.OpenEnvelopeAsync(envelope, "privatekey.env"));
+        var ex = await Assert.ThrowsAsync<DigitalEnvelopeSignatureValidationException>(() => service.OpenEnvelopeAsync(envelope, "privatekey.env"));
+        ex.ErrorCode.Should().Be("CERTIFICATE_PRIVATE_KEY_REQUIRED");
+        ex.Message.ToLowerInvariant().Should().NotContain("password").And.NotContain("private key");
+    }
+
+    [Fact]
+    public async Task CryptoService_ShouldFailWithFunctionalError_WhenSigningCertificateHasNoPrivateKey()
+    {
+        var signerWithoutPrivate = CreateSelfSignedCertificate("CN=sign-no-private", false);
+        var receiver = CreateSelfSignedCertificate("CN=receiver-private", true);
+        var service = CreateCryptoService(signerWithoutPrivate, receiver, DefaultOptions(), out _);
+
+        var ex = await Assert.ThrowsAsync<DigitalEnvelopeSignatureValidationException>(() => service.CreateEnvelopeAsync(Encoding.UTF8.GetBytes("NACHA"), "sign.env"));
+
+        ex.ErrorCode.Should().Be("CERTIFICATE_PRIVATE_KEY_REQUIRED");
+        ex.Message.ToLowerInvariant().Should().NotContain("password").And.NotContain("private key");
     }
 
     [Fact]
@@ -157,6 +172,20 @@ public class DigitalEnvelopeCertificateCharacterizationTests
 
         ex.ErrorCode.Should().Be("SIGNATURE_VALIDATION_FAILED");
         audit.Events.Should().Contain(x => x.Result == "FAILED" && x.LegacyBypassUsed == false);
+    }
+
+    [Fact]
+    public async Task Audit_ShouldRecordPrivateKeyValidationFailure_WhenDecryptFails()
+    {
+        var signer = CreateSelfSignedCertificate("CN=audit-sign", true);
+        var receiverPublicOnly = CreateSelfSignedCertificate("CN=audit-receiver", false);
+        var service = CreateCryptoService(signer, receiverPublicOnly, DefaultOptions(), out var audit);
+        var envelope = BuildEnvelopeWithMutator(Encoding.UTF8.GetBytes("audit-fail"), signer, CreateSelfSignedCertificate("CN=receiver-real2", true), null);
+
+        var ex = await Assert.ThrowsAsync<DigitalEnvelopeSignatureValidationException>(() => service.OpenEnvelopeAsync(envelope, "audit-fail.env"));
+
+        ex.ErrorCode.Should().Be("CERTIFICATE_PRIVATE_KEY_REQUIRED");
+        audit.Events.Should().Contain(x => x.Result == "FAILED" && x.ErrorCode == "CERTIFICATE_PRIVATE_KEY_REQUIRED" && x.LegacyBypassUsed == false);
     }
 
     [Fact]
