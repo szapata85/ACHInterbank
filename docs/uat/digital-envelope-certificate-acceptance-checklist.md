@@ -261,3 +261,5 @@ EKU/KeyUsage no está implementado actualmente.
 - NO-GO productivo: **sí**.
 - Este checklist no habilita producción.
 - Próximo paso recomendado: `docs(ops): add certificate operations runbook`.
+
+- Referencia runbook operativo de certificados: `docs/ops/certificate-operations-runbook.md` (no modifica decisión NO-GO productivo).

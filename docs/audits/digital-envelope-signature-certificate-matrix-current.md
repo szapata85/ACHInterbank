@@ -253,3 +253,5 @@ La capa cripto protege sobre/transporte de archivo; no reemplaza validación fun
 - Brechas principales: revocación, EKU/KeyUsage, evidencia operativa, rotación y runbook.
 
 - Referencia checklist UAT de sobre/firma/certificados: `docs/uat/digital-envelope-certificate-acceptance-checklist.md` (no modifica decisión NO-GO productivo).
+
+- Referencia runbook operativo de certificados: `docs/ops/certificate-operations-runbook.md` (no modifica decisión NO-GO productivo).
