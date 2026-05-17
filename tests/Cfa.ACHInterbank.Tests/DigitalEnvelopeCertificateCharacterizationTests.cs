@@ -206,6 +206,66 @@ public class DigitalEnvelopeCertificateCharacterizationTests
         evt.ToString().Should().NotContain("PrivateKey").And.NotContain("PfxPassword");
     }
 
+    [Fact]
+    public async Task SignatureValidator_ShouldRejectNotYetValidSignerCertificate_WhenValidityValidationEnabled()
+    {
+        var future = CreateSelfSignedCertificate("CN=future", true, DateTimeOffset.UtcNow.AddDays(2), DateTimeOffset.UtcNow.AddDays(30));
+        var content = Encoding.UTF8.GetBytes("abc");
+        var signedData = CreateSignedData(content, future);
+        var validator = new DigitalEnvelopeSignatureValidator(Options.Create(new DigitalEnvelopeSignatureValidationOptions { FailWhenSignerCertificateExpired = true }));
+
+        var result = await validator.ValidateAsync(new DigitalEnvelopeSignatureValidationRequest(signedData, content));
+
+        result.ErrorCode.Should().Be("SIGNER_CERTIFICATE_NOT_YET_VALID");
+    }
+
+    [Fact]
+    public async Task SignatureValidator_ShouldAcceptSelfSignedCertificate_WhenChainValidationDisabled_CurrentDevBehavior()
+    {
+        var signer = CreateSelfSignedCertificate("CN=selfsigned", true);
+        var content = Encoding.UTF8.GetBytes("abc");
+        var signedData = CreateSignedData(content, signer);
+        var validator = new DigitalEnvelopeSignatureValidator(Options.Create(new DigitalEnvelopeSignatureValidationOptions { ValidateSignerCertificateChain = false, FailWhenSignerCertificateExpired = true }));
+
+        var result = await validator.ValidateAsync(new DigitalEnvelopeSignatureValidationRequest(signedData, content));
+        result.IsVerified.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task CryptoService_ShouldRejectExpiredSigningCertificate_WhenCreatingEnvelope()
+    {
+        var signerExpired = CreateSelfSignedCertificate("CN=sign-exp", true, DateTimeOffset.UtcNow.AddDays(-10), DateTimeOffset.UtcNow.AddDays(-1));
+        var receiver = CreateSelfSignedCertificate("CN=recv-ok", true);
+        var service = CreateCryptoService(signerExpired, receiver, DefaultOptions(), out _);
+
+        var ex = await Assert.ThrowsAsync<DigitalEnvelopeSignatureValidationException>(() => service.CreateEnvelopeAsync(Encoding.UTF8.GetBytes("x"), "e.env"));
+        ex.ErrorCode.Should().Be("CERTIFICATE_EXPIRED");
+    }
+
+    [Fact]
+    public async Task CryptoService_ShouldRejectExpiredDecryptCertificate_WhenOpeningEnvelope()
+    {
+        var signer = CreateSelfSignedCertificate("CN=sign-ok", true);
+        var decryptExpired = CreateSelfSignedCertificate("CN=recv-exp", true, DateTimeOffset.UtcNow.AddDays(-10), DateTimeOffset.UtcNow.AddDays(-1));
+        var service = CreateCryptoService(signer, decryptExpired, DefaultOptions(), out var audit);
+        var envelope = BuildEnvelopeWithMutator(Encoding.UTF8.GetBytes("x"), signer, CreateSelfSignedCertificate("CN=recv-valid", true), null);
+
+        var ex = await Assert.ThrowsAsync<DigitalEnvelopeSignatureValidationException>(() => service.OpenEnvelopeAsync(envelope, "exp.env"));
+        ex.ErrorCode.Should().Be("CERTIFICATE_EXPIRED");
+        audit.Events.Should().Contain(x => x.Result == "FAILED" && x.ErrorCode == "CERTIFICATE_EXPIRED");
+    }
+
+    [Fact]
+    public async Task CryptoService_ShouldRejectExpiredRecipientCertificate_WhenCreatingEnvelope()
+    {
+        var signer = CreateSelfSignedCertificate("CN=sign-ok2", true);
+        var receiverExpired = CreateSelfSignedCertificate("CN=recv-exp2", true, DateTimeOffset.UtcNow.AddDays(-20), DateTimeOffset.UtcNow.AddDays(-1));
+        var service = CreateCryptoService(signer, receiverExpired, DefaultOptions(), out _);
+
+        var ex = await Assert.ThrowsAsync<DigitalEnvelopeSignatureValidationException>(() => service.CreateEnvelopeAsync(Encoding.UTF8.GetBytes("x"), "exp2.env"));
+        ex.ErrorCode.Should().Be("CERTIFICATE_EXPIRED");
+    }
+
     private static DigitalEnvelopeSignatureValidationOptions DefaultOptions() => new()
     {
         EnableSignatureValidation = true,

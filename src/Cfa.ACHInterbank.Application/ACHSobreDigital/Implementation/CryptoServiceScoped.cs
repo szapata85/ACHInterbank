@@ -40,6 +40,9 @@ public class CryptoServiceScoped : ICryptoServiceScoped
         X509Certificate2 certificadoFirmante = _keys.ObtenerCertificate("CertSign");
         X509Certificate2 certificadoReceptor = _keys.ObtenerCertificate("CertCrypt");
 
+        ValidateCertificateUsable(certificadoFirmante, "SIGN", requirePrivateKey: true, validateChain: _signatureOptions.ValidateSignerCertificateChain);
+        ValidateCertificateUsable(certificadoReceptor, "ENCRYPT", requirePrivateKey: false, validateChain: _signatureOptions.ValidateSignerCertificateChain);
+
         string? mensajeFirmado = CrearMensajeFirmado(contenidoBytes, certificadoFirmante, FileName);
 
         string? SobreDigitalFirmado = CrearSobreDigital(mensajeFirmado, certificadoReceptor, certificadoFirmante);
@@ -176,6 +179,42 @@ public class CryptoServiceScoped : ICryptoServiceScoped
     }
 
 
+
+    private void ValidateCertificateUsable(X509Certificate2? certificate, string purpose, bool requirePrivateKey, bool validateChain)
+    {
+        if (certificate == null)
+        {
+            throw new DigitalEnvelopeSignatureValidationException("CERTIFICATE_NOT_AVAILABLE", $"No se encontró certificado para operación {purpose}.");
+        }
+
+        var now = DateTime.UtcNow;
+        if (now < certificate.NotBefore.ToUniversalTime())
+        {
+            throw new DigitalEnvelopeSignatureValidationException("CERTIFICATE_NOT_YET_VALID", $"El certificado para operación {purpose} aún no está vigente.");
+        }
+
+        if (now > certificate.NotAfter.ToUniversalTime())
+        {
+            throw new DigitalEnvelopeSignatureValidationException("CERTIFICATE_EXPIRED", $"El certificado para operación {purpose} está expirado.");
+        }
+
+        if (validateChain)
+        {
+            using var chain = new X509Chain();
+            chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+            chain.ChainPolicy.VerificationFlags = X509VerificationFlags.NoFlag;
+            if (!chain.Build(certificate))
+            {
+                throw new DigitalEnvelopeSignatureValidationException("CERTIFICATE_CHAIN_NOT_TRUSTED", $"La cadena del certificado para operación {purpose} no es confiable.");
+            }
+        }
+
+        if (requirePrivateKey)
+        {
+            _ = RequireRsaPrivateKey(certificate, purpose);
+        }
+    }
+
     private static RSA RequireRsaPrivateKey(X509Certificate2? certificate, string purpose)
     {
         if (certificate == null)
@@ -264,6 +303,8 @@ public class CryptoServiceScoped : ICryptoServiceScoped
             X509Certificate2 certificadoReceptor = _keys.ObtenerCertificateForDecrypt(
                 issuer,
                 serial);
+
+            ValidateCertificateUsable(certificadoReceptor, "DECRYPT", requirePrivateKey: true, validateChain: _signatureOptions.ValidateSignerCertificateChain);
 
             byte[] encryptedKey = Convert.FromBase64String(recipientInfo.EncryptedKey);
             byte[] encryptedContent = Convert.FromBase64String(encryptedContentInfo.EncryptedContent);
