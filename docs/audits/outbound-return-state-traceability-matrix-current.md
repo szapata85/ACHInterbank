@@ -299,3 +299,5 @@ No se recomienda introducir state machine completa de inmediato porque:
 ## Referencia cruzada UAT
 - Checklist UAT de estado/evento/trazabilidad outbound return:
   - `docs/uat/outbound-return-state-traceability-acceptance-checklist.md`
+
+- Referencia complementaria ciclos/neteo/liquidez/evidencia CUD: `docs/audits/cenit-cycles-netting-liquidity-cud-matrix-current.md` (no cambia decisión NO-GO productivo).
