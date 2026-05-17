@@ -303,3 +303,16 @@ Filtros de ejecución referencia:
 - **NO-GO productivo:** sí.
 - Próximo hito después del checklist: decidir si se implementa aplicación manual real a transacción o se pasa a conciliación/reportes.
 - No se habilita producción sin UAT y firmas.
+
+## Referencia cruzada total vs partial
+
+Para la frontera semántica canónica entre `RejectedTotal`, `RejectedPartial`, `Accepted`, orphan/unresolved, manual audit-only y la distinción formal frente a devolución parcial por monto, ver:
+
+- `docs/audits/total-vs-partial-rejection-matrix-current.md`
+
+## Referencia cruzada checklist UAT total vs partial
+
+Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPartial`, orphan/unresolved, manual audit-only, separación de códigos y relación con ROR/contabilidad, ver:
+
+- `docs/uat/rejection-total-partial-acceptance-checklist.md`
+

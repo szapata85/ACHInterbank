@@ -247,3 +247,10 @@ Ejemplo: `DXX-LIQ`. **No deben enviarse como causal externa**.
 
 
 - Checklist UAT de causales por cámara/flujo: `docs/uat/cause-code-acceptance-checklist.md` (control de aceptación UAT; mantiene NO-GO productivo hasta cierre firmado).
+
+## Referencia cruzada total vs partial
+
+Para la frontera semántica canónica entre `RejectedTotal`, `RejectedPartial`, `Accepted`, orphan/unresolved, manual audit-only y la distinción formal frente a devolución parcial por monto, ver:
+
+- `docs/audits/total-vs-partial-rejection-matrix-current.md`
+

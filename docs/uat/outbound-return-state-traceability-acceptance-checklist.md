@@ -199,3 +199,16 @@ Checklist mínimo de salida:
 Para diferenciar explícitamente `outbound generated` vs `incoming applied` y su trazabilidad:
 
 - `docs/audits/incoming-return-e2e-orphan-matrix-current.md`
+
+## Referencia cruzada total vs partial
+
+Para la frontera semántica canónica entre `RejectedTotal`, `RejectedPartial`, `Accepted`, orphan/unresolved, manual audit-only y la distinción formal frente a devolución parcial por monto, ver:
+
+- `docs/audits/total-vs-partial-rejection-matrix-current.md`
+
+## Referencia cruzada checklist UAT total vs partial
+
+Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPartial`, orphan/unresolved, manual audit-only, separación de códigos y relación con ROR/contabilidad, ver:
+
+- `docs/uat/rejection-total-partial-acceptance-checklist.md`
+

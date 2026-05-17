@@ -319,3 +319,10 @@ No se recomienda rediseño total inmediato porque:
 - **NO-GO productivo:** sí.
 - Próximo hito técnico: evento auditado para Ruta A **o** payload canónico de huérfanas según riesgo operativo.
 - Próximo hito documental: checklist UAT incoming/orphan.
+
+## Referencia cruzada total vs partial
+
+Para la frontera semántica canónica entre `RejectedTotal`, `RejectedPartial`, `Accepted`, orphan/unresolved, manual audit-only y la distinción formal frente a devolución parcial por monto, ver:
+
+- `docs/audits/total-vs-partial-rejection-matrix-current.md`
+
