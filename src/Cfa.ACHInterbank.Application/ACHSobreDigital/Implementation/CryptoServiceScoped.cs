@@ -199,12 +199,33 @@ public class CryptoServiceScoped : ICryptoServiceScoped
             string sobre = Encoding.UTF8.GetString(contenidoBytes);
 
             DigitalEnvelopeModel objsobre = DeserializeXml<DigitalEnvelopeModel>(sobre);
-            X509Certificate2 certificadoReceptor = _keys.ObtenerCertificateForDecrypt(
-                objsobre.RecipientInfo?.CertificateInfo?.Issuer,
-                objsobre.RecipientInfo?.CertificateInfo?.Serial);
+            var recipientInfo = objsobre.RecipientInfo
+                ?? throw new InvalidOperationException("El sobre digital no contiene RecipientInfo.");
+            var certificateInfo = recipientInfo.CertificateInfo
+                ?? throw new InvalidOperationException("El sobre digital no contiene CertificateInfo.");
+            var issuer = certificateInfo.Issuer;
+            var serial = certificateInfo.Serial;
+            if (string.IsNullOrWhiteSpace(issuer) || string.IsNullOrWhiteSpace(serial))
+            {
+                throw new InvalidOperationException("El sobre digital no contiene datos válidos de emisor/serial para el certificado receptor.");
+            }
+            if (string.IsNullOrWhiteSpace(recipientInfo.EncryptedKey))
+            {
+                throw new InvalidOperationException("El sobre digital no contiene EncryptedKey válido.");
+            }
+            var encryptedContentInfo = objsobre.EncryptedContentInfo
+                ?? throw new InvalidOperationException("El sobre digital no contiene EncryptedContentInfo.");
+            if (string.IsNullOrWhiteSpace(encryptedContentInfo.EncryptedContent))
+            {
+                throw new InvalidOperationException("El sobre digital no contiene EncryptedContent válido.");
+            }
 
-            byte[] encryptedKey = Convert.FromBase64String(objsobre.RecipientInfo.EncryptedKey);
-            byte[] encryptedContent = Convert.FromBase64String(objsobre.EncryptedContentInfo.EncryptedContent);
+            X509Certificate2 certificadoReceptor = _keys.ObtenerCertificateForDecrypt(
+                issuer,
+                serial);
+
+            byte[] encryptedKey = Convert.FromBase64String(recipientInfo.EncryptedKey);
+            byte[] encryptedContent = Convert.FromBase64String(encryptedContentInfo.EncryptedContent);
 
             RSA rsaReceptor = certificadoReceptor.GetRSAPrivateKey()!;
             byte[] aesKey = rsaReceptor.Decrypt(encryptedKey, RSAEncryptionPadding.Pkcs1);

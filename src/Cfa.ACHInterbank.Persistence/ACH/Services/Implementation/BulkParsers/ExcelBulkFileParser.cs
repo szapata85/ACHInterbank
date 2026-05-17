@@ -24,8 +24,16 @@ public class ExcelBulkFileParser : IBulkFileParser
             throw new ArgumentException("La hoja principal de Excel no tiene un identificador válido.");
         }
 
-        var worksheetPart = (WorksheetPart)workbookPart.GetPartById(firstSheet.Id);
-        var rows = worksheetPart.Worksheet.Descendants<Row>().ToList();
+        var sheetId = firstSheet.Id?.Value;
+        if (string.IsNullOrWhiteSpace(sheetId))
+        {
+            throw new ArgumentException("La hoja principal de Excel no tiene un identificador válido.");
+        }
+        var worksheetPart = workbookPart.GetPartById(sheetId) as WorksheetPart
+            ?? throw new ArgumentException("El archivo Excel no contiene un WorksheetPart válido para la hoja principal.");
+        var worksheet = worksheetPart.Worksheet
+            ?? throw new ArgumentException("El archivo Excel no contiene un Worksheet válido para la hoja principal.");
+        var rows = worksheet.Descendants<Row>().ToList();
         if (rows.Count == 0)
         {
             throw new ArgumentException("La hoja principal de Excel está vacía.");

@@ -8,6 +8,7 @@ using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.Text.RegularExpressions;
@@ -1405,11 +1406,13 @@ public class NachaParserService : INachaParserService
         return $"{dxxCode}: {fallbackMessage}";
     }
 
+    [DoesNotReturn]
     private void ThrowRegulatory(string dxxCode, string fallbackMessage)
     {
         throw new InvalidOperationException($"[{ValidationBoundary.Regulatory}] {GetRegulatoryError(dxxCode, fallbackMessage)}");
     }
 
+    [DoesNotReturn]
     private static void ThrowTechnical(string message)
     {
         throw new InvalidOperationException($"[{ValidationBoundary.Technical}] {message}");

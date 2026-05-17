@@ -355,7 +355,8 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                 });
             }
 
-            await _postParseProcessor.ProcessAsync(ingestion.Id, request.RequestedBy, ct);
+            var executedBy = string.IsNullOrWhiteSpace(request.RequestedBy) ? "sistema" : request.RequestedBy.Trim();
+            await _postParseProcessor.ProcessAsync(ingestion.Id, executedBy, ct);
 
             await _context.SaveChangesAsync(ct);
             return BuildResponse(ingestion, processingResult, parseResult.Failures.Select(x => x.Reason).ToList());

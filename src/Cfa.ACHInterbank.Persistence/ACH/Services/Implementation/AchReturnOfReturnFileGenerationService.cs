@@ -161,8 +161,33 @@ public class AchReturnOfReturnFileGenerationService(
 
         foreach (var flow in flows)
         {
-            flow.SourceReturnTransaction ??= await context.AchTransactions.Include(x => x.AchCycle).ThenInclude(x => x.ClearingHouse).FirstOrDefaultAsync(x => x.Id == flow.SourceReturnTransactionId, cancellationToken);
-            flow.ReturnOfReturnTransaction ??= await context.AchTransactions.Include(x => x.AchCycle).ThenInclude(x => x.ClearingHouse).FirstOrDefaultAsync(x => x.Id == flow.ReturnOfReturnTransactionId, cancellationToken);
+            if (flow.SourceReturnTransaction is null)
+            {
+                var sourceTx = await context.AchTransactions
+                    .Include(x => x.AchCycle).ThenInclude(x => x.ClearingHouse)
+                    .FirstOrDefaultAsync(x => x.Id == flow.SourceReturnTransactionId, cancellationToken);
+                if (sourceTx is not null)
+                {
+                    flow.SourceReturnTransaction = sourceTx;
+                }
+            }
+
+            if (flow.ReturnOfReturnTransaction is null)
+            {
+                var rorTx = await context.AchTransactions
+                    .Include(x => x.AchCycle).ThenInclude(x => x.ClearingHouse)
+                    .FirstOrDefaultAsync(x => x.Id == flow.ReturnOfReturnTransactionId, cancellationToken);
+                if (rorTx is not null)
+                {
+                    flow.ReturnOfReturnTransaction = rorTx;
+                }
+            }
+        }
+
+        if (flows.Any(x => x.SourceReturnTransaction is null || x.ReturnOfReturnTransaction is null))
+        {
+            failures.Add(new("RETURN_OF_RETURN_FLOW_NOT_FOUND", "No se pudo resolver la transacción origen o la transacción de devolución de devolución para todos los flujos.", nameof(request.ReturnOfReturnFlowIds)));
+            return new(false, null, null, null, 0, flows.Select(x => (int)x.Id).ToArray(), failures, null, null);
         }
 
         var clearingHouseIds = flows
