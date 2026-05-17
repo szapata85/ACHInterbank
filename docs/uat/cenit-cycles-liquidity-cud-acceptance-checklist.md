@@ -273,3 +273,5 @@ Cada categoría debe poder reportarse separadamente.
 - NO-GO productivo: sí.
 - Este checklist no habilita producción.
 - Próximo paso: runbook operativo o diseño documental del simulador CUD parametrizable.
+
+- Referencia matriz vigente de sobre/firma/certificados: `docs/audits/digital-envelope-signature-certificate-matrix-current.md` (no modifica decisión NO-GO productivo).

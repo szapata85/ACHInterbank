@@ -301,3 +301,5 @@ No se recomienda introducir state machine completa de inmediato porque:
   - `docs/uat/outbound-return-state-traceability-acceptance-checklist.md`
 
 - Referencia complementaria ciclos/neteo/liquidez/evidencia CUD: `docs/audits/cenit-cycles-netting-liquidity-cud-matrix-current.md` (no cambia decisión NO-GO productivo).
+
+- Referencia matriz vigente de sobre/firma/certificados: `docs/audits/digital-envelope-signature-certificate-matrix-current.md` (no modifica decisión NO-GO productivo).
