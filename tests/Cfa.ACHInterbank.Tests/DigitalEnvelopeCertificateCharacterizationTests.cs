@@ -140,11 +140,11 @@ public class DigitalEnvelopeCertificateCharacterizationTests
         var envelope = BuildEnvelopeWithMutator(Encoding.UTF8.GetBytes("abc"), signer, receiver, _ => { }, removeSignature: true);
 
         await Assert.ThrowsAsync<DigitalEnvelopeSignatureValidationException>(() => service.OpenEnvelopeAsync(envelope, "legacy-off.env"));
-        audit.Events.Should().Contain(x => x.ErrorCode == "LEGACY_UNSIGNED_ENVELOPE_NOT_ALLOWED");
+        audit.Events.Should().Contain(x => x.ErrorCode == "SIGNATURE_VALIDATION_FAILED" && x.Result == "FAILED");
     }
 
     [Fact]
-    public async Task SignatureValidator_ShouldAllowUnsignedEnvelope_WhenLegacyBypassEnabled_CurrentBehavior()
+    public async Task SignatureValidator_ShouldRejectUnsignedEnvelope_EvenWhenLegacyBypassOptionIsEnabled_CurrentBehavior()
     {
         var signer = CreateSelfSignedCertificate("CN=s2", true);
         var receiver = CreateSelfSignedCertificate("CN=r2", true);
@@ -153,10 +153,10 @@ public class DigitalEnvelopeCertificateCharacterizationTests
         var plain = Encoding.UTF8.GetBytes("legacy");
         var envelope = BuildEnvelopeWithMutator(plain, signer, receiver, _ => { }, removeSignature: true);
 
-        var result = await service.OpenEnvelopeAsync(envelope, "legacy-on.env");
+        var ex = await Assert.ThrowsAsync<DigitalEnvelopeSignatureValidationException>(() => service.OpenEnvelopeAsync(envelope, "legacy-on.env"));
 
-        result.Should().Equal(plain);
-        audit.Events.Should().Contain(x => x.LegacyBypassUsed && x.ErrorCode == "SIGNATURE_VALIDATION_DISABLED_WARNING");
+        ex.ErrorCode.Should().Be("SIGNATURE_VALIDATION_FAILED");
+        audit.Events.Should().Contain(x => x.Result == "FAILED" && x.LegacyBypassUsed == false);
     }
 
     [Fact]

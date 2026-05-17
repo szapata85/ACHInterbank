@@ -243,18 +243,7 @@ public class CryptoServiceScoped : ICryptoServiceScoped
 
             if (!_signatureOptions.EnableSignatureValidation)
             {
-                if (!_signatureOptions.AllowLegacyUnsignedEnvelope)
-                {
-                    failCloseApplied = true;
-                    errorCode = "LEGACY_UNSIGNED_ENVELOPE_NOT_ALLOWED";
-                    throw new DigitalEnvelopeSignatureValidationException(errorCode, "La validación de firma está deshabilitada y el bypass legacy no está permitido.");
-                }
-
-                legacyBypassUsed = true;
-                result = "SUCCESS";
-                errorCode = "SIGNATURE_VALIDATION_DISABLED_WARNING";
-                _logger.LogWarning("Signature validation deshabilitada para OpenEnvelopeAsync; se aplicó bypass legacy controlado.");
-                return Task.FromResult(PlainContent);
+                _logger.LogWarning("EnableSignatureValidation=false detectado; se fuerza validación de firma obligatoria para OpenEnvelopeAsync.");
             }
 
             var validation = _signatureValidator
@@ -269,13 +258,8 @@ public class CryptoServiceScoped : ICryptoServiceScoped
             if (!validation.IsValid || !validation.IsVerified)
             {
                 errorCode = validation.ErrorCode ?? "SIGNATURE_VALIDATION_FAILED";
-                failCloseApplied = _signatureOptions.FailCloseOnInvalidSignature;
-                if (failCloseApplied)
-                {
-                    throw new DigitalEnvelopeSignatureValidationException(errorCode, validation.ErrorMessage ?? "La firma del sobre digital no es válida.");
-                }
-
-                _logger.LogWarning("Firma inválida detectada pero FailCloseOnInvalidSignature=false. ErrorCode={ErrorCode}", errorCode);
+                failCloseApplied = true;
+                throw new DigitalEnvelopeSignatureValidationException(errorCode, validation.ErrorMessage ?? "La firma del sobre digital no es válida.");
             }
 
             result = "SUCCESS";
