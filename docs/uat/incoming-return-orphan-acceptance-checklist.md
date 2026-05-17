@@ -310,3 +310,9 @@ Para la frontera semántica canónica entre `RejectedTotal`, `RejectedPartial`, 
 
 - `docs/audits/total-vs-partial-rejection-matrix-current.md`
 
+## Referencia cruzada checklist UAT total vs partial
+
+Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPartial`, orphan/unresolved, manual audit-only, separación de códigos y relación con ROR/contabilidad, ver:
+
+- `docs/uat/rejection-total-partial-acceptance-checklist.md`
+

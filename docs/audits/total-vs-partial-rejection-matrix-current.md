@@ -216,3 +216,10 @@ Evidencia mínima por caso:
 - **NO-GO productivo:** sí.
 - Esta matriz reduce ambigüedad semántica, pero no habilita producción.
 - Próximo paso recomendado: estandarizar eventos de rechazo y/o crear checklist UAT específico total-vs-partial.
+
+## Referencia cruzada checklist UAT total vs partial
+
+Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPartial`, orphan/unresolved, manual audit-only, separación de códigos y relación con ROR/contabilidad, ver:
+
+- `docs/uat/rejection-total-partial-acceptance-checklist.md`
+
