@@ -338,3 +338,5 @@ No se recomienda integración contable online.
 - NO-GO productivo: **sí**.
 - El sistema no contabiliza.
 - Esta matriz no habilita producción.
+
+- Referencia checklist UAT punto 10: `docs/uat/accounting-review-reconciliation-acceptance-checklist.md`.
