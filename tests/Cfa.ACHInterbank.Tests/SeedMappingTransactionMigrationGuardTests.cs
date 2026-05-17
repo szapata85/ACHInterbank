@@ -5,15 +5,19 @@ namespace Cfa.ACHInterbank.Tests;
 public class SeedMappingTransactionMigrationGuardTests
 {
     [Fact]
-    public void Migration_ShouldTargetOnlySeedMappingTransaction()
+    public void PostgresMigrations_ShouldNotContainBroadSeedMappingTransactionDelete()
     {
         var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
-        var migrationPath = Path.Combine(repoRoot, "src", "Cfa.ACHInterbank.Persistence", "DataBase", "Migrations", "Postgres", "20260511230542_RemoveSeedMappingTransactionFromAchTransactions.cs");
+        var migrationsPath = Path.Combine(repoRoot, "src", "Cfa.ACHInterbank.Persistence", "DataBase", "Migrations", "Postgres");
 
-        var content = File.ReadAllText(migrationPath);
+        var migrationFiles = Directory.GetFiles(migrationsPath, "*.cs", SearchOption.TopDirectoryOnly);
 
-        Assert.Contains("SEED-MAPPING-001", content);
-        Assert.Contains("SEED COMPANY", content);
-        Assert.DoesNotContain("DELETE FROM \"AchTransactions\" t\n                WHERE t.\"Reference\" IS NOT NULL", content);
+        Assert.Contains(migrationFiles, x => Path.GetFileName(x).Contains("InitialPostgresSchemaBaseline"));
+        Assert.DoesNotContain(migrationFiles, x => Path.GetFileName(x).Contains("RemoveSeedMappingTransactionFromAchTransactions"));
+
+        var allContent = string.Join("\n", migrationFiles.Select(File.ReadAllText));
+
+        Assert.DoesNotContain("DELETE FROM \"AchTransactions\" t\n                WHERE t.\"Reference\" IS NOT NULL", allContent);
+        Assert.DoesNotContain("DELETE FROM \"AchTransactions\"", allContent);
     }
 }

@@ -131,6 +131,43 @@ export interface GenerateReturnsFileRequest {
   items: ReturnSelectionItem[];
 }
 
+export interface EvaluateReturnOfReturnRequest {
+  sourceReturnTransactionId: number;
+  newReturnReasonCode: string;
+  requestedBy?: string;
+  source?: string;
+}
+
+export interface AchReturnOfReturnEligibilityFailure {
+  code: string;
+  message: string;
+  field?: string | null;
+}
+
+export interface AchReturnOfReturnEligibilityResult {
+  isEligible: boolean;
+  clearingHouseId?: number | null;
+  sourceReturnTransactionId?: number | null;
+  originalReturnReasonCode?: string | null;
+  newReturnReasonCode?: string | null;
+  isUniquePerTransaction: boolean;
+  failures: AchReturnOfReturnEligibilityFailure[];
+}
+
+export interface GenerateReturnOfReturnAuditFileRequest {
+  flowIds: number[];
+  requestedBy?: string;
+  source?: string;
+}
+
+export interface GenerateReturnOfReturnNachaFileRequest {
+  flowIds: number[];
+  cycleId?: string | null;
+  valueDate?: string | null;
+  requestedBy?: string;
+  source?: string;
+}
+
 export interface TransactionPolicyPreview {
   canSubmit: boolean;
   message?: string | null;

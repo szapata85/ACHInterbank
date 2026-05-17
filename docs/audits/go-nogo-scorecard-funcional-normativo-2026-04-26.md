@@ -1,5 +1,8 @@
 # Go/No-Go Scorecard — Auditoría funcional-normativa ACH/CENIT/NACHA-M
 
+> Referencia UAT complementaria: `docs/uat/incoming-return-orphan-acceptance-checklist.md`.
+
+
 **Fecha:** 2026-04-26 (UTC)  
 **Ámbito:** Formalización de readiness funcional-normativo para salida productiva.  
 **Restricciones aplicadas:** sin cambios de código/servicios/tests/Angular/cripto/migraciones.
@@ -32,9 +35,10 @@ Evidencia:
 | Reportería (returns/reconciliation/auditoría) | Listo (técnico) / Parcial (normativo) | Media | Tests de servicios + endpoints + evidencia CR-4 | **GO para UAT ampliado** |
 | Ciclos CENIT + gobernanza operativa | Parcialmente listo | Alta | pruebas unitarias de política/ciclos | **NO-GO productivo sin E2E operativo** |
 | Neteo/liquidez CENIT | Parcialmente listo | **Crítica** | cobertura unitaria + shadow compare pasivo | **NO-GO productivo** |
-| Naming externo ACH/CENIT/STA | Parcialmente listo | **Crítica** | matriz normativa con reglas pendientes de confirmación | **NO-GO productivo** |
+| Naming externo ACH/CENIT/STA | Parcialmente listo | **Crítica** | matriz vigente `docs/audits/external-filename-normative-matrix-ach-cenit-sta-current.md`; cobertura técnica parcial y hardcodes RET/RORNACHA pendientes | **NO-GO productivo** |
 | Sobre digital NACHA-M | Parcialmente listo | Alta | fail-close y harness técnico; falta cierre externo | **NO-GO productivo sin validación externa** |
 | UAT NACHA Security | Parcialmente listo | Alta | plan UAT con ítems pendientes | **GO solo para UAT ampliado** |
+| Return-of-return (ROR) | Cerrado técnico / UAT GO controlado | Alta | Endpoints evaluate + generate-audit-file + generate-nacha-file; UI `/transactions/returns-ror`; gating 409 en UI | **NO-GO productivo hasta cierre normativo/UAT/firma** |
 | Trazabilidad normativa maestra (requisito→norma→código→prueba→evidencia) | No listo | **Crítica** | brecha explícita en auditorías actuales | **NO-GO productivo** |
 | Consistencia documental de readiness | No listo | Alta | drift entre docs históricos y cierre P0 | **NO-GO de certificación formal** |
 
@@ -137,3 +141,92 @@ Objetivo: unificar estado de readiness, retirar contradicciones y emitir acta fi
 **Veredicto funcional-normativo actual: `NO-GO PRODUCTIVO`**.  
 **Veredicto técnico backend P0: `GO TÉCNICO`**.  
 **Veredicto operativo recomendado: `GO PARA UAT AMPLIADO CONTROLADO`** (sin salida productiva).
+
+## 12) Estado actualizado ROR
+
+- **Endpoints implementados**
+  - `POST /ach-returns/return-of-return/evaluate`
+  - `POST /ach-returns/return-of-return/generate-audit-file`
+  - `POST /ach-returns/return-of-return/generate-nacha-file`
+- **Archivos generados**
+  - Audit-mode interno pipe: `ROR|...` y `FLOW|...`.
+  - NACHA-M productivo independiente: registros `1,5,6,7,8,9`.
+- **UI disponible**
+  - Ruta Angular: `/transactions/returns-ror`.
+- **Pruebas ejecutadas (estado reportado de cierre técnico)**
+  - `dotnet restore` OK, `dotnet build -c Release` OK, `dotnet test` filtrado OK (291 passed), `npm run build` OK.
+  - `npm test` pendiente por dependencia de `ChromeHeadless` (`libatk-1.0.so.0`).
+- **Pendientes UAT**
+  - validación E2E con datos representativos/reales en entorno controlado.
+  - acta UAT de operación ROR sin pendientes críticos.
+- **Pendientes normativos**
+  - CENIT: validación explícita de causales/reglas aplicables a devolución de devolución según documentación vigente.
+  - ACH Colombia: confirmación de aplicabilidad del flujo según manual vigente y reglas de operador/devolución correspondientes.
+- **Riesgos residuales**
+  - rechazo externo por formato/naming sin cierre formal con cámara/operador.
+  - desalineación de readiness si se interpreta GO técnico como GO productivo.
+
+## 13) No regresión
+
+- No se modificó devolución normal.
+- No se modificó incoming NACHA.
+- No se modificó parser.
+- No se crearon migraciones.
+- No se tocaron reglas regulatorias base.
+
+## 14) Pendientes para GO productivo
+
+1. Validación con datos reales.
+2. Validación por cámara.
+3. Aceptación de formato NACHA-M.
+4. Confirmación de naming externo.
+5. Trazabilidad requisito→norma→código→prueba→evidencia.
+6. Acta UAT.
+7. Firma negocio/compliance/operaciones.
+
+
+## 15) Referencia vigente para diagnóstico de naming externo
+
+La fuente documental vigente para naming externo ACH/CENIT/STA es `docs/audits/external-filename-normative-matrix-ach-cenit-sta-current.md`.
+
+Las matrices `...-2026-04-20.md` y `...-2026-04-20-v2.md` se conservan como histórico de auditoría.
+
+La actualización documental no cambia la decisión actual: **NO-GO productivo** para naming externo hasta cierre normativo, remediación técnica y firmas de negocio/compliance/operaciones.
+
+- Soporte UAT documental de naming: `docs/uat/naming-returns-ror-acceptance-checklist.md` (checklist funcional/técnico/normativo; no implica GO productivo).
+
+- Evidencia documental NACHA-M campo-a-campo por cámara: `docs/audits/nacha-record-level-normative-matrix-ach-cenit-current.md` (no cambia decisión NO-GO productivo).
+
+- Soporte UAT registros NACHA-M: `docs/uat/nacha-records-acceptance-checklist.md` (GO técnico + GO UAT controlado + NO-GO productivo).
+
+- Evidencia documental vigente de causales por cámara/flujo: `docs/audits/cause-code-normative-matrix-ach-cenit-sta-current.md` (referencia de control; no cambia decisión NO-GO productivo).
+
+- Checklist UAT de causales por cámara/flujo: `docs/uat/cause-code-acceptance-checklist.md` (evidencia complementaria; no cambia decisión NO-GO productivo).
+
+- Evidencia adicional de brechas P0 en devolución saliente: `docs/audits/outbound-return-state-traceability-matrix-current.md` (estado/evento/idempotencia multiinstancia).
+- Checklist UAT para estado/evento/trazabilidad de devolución saliente: `docs/uat/outbound-return-state-traceability-acceptance-checklist.md` (evidencia requerida para salida de NO-GO productivo).
+
+
+## Evidencia complementaria de brechas P0 incoming
+
+Se incorpora como evidencia documental vigente para brechas P0 de devolución entrante:
+
+- `docs/audits/incoming-return-e2e-orphan-matrix-current.md`
+
+La decisión se mantiene sin cambios: **NO-GO productivo**.
+
+## Referencia cruzada total vs partial
+
+Para la frontera semántica canónica entre `RejectedTotal`, `RejectedPartial`, `Accepted`, orphan/unresolved, manual audit-only y la distinción formal frente a devolución parcial por monto, ver:
+
+- `docs/audits/total-vs-partial-rejection-matrix-current.md`
+
+## Referencia cruzada checklist UAT total vs partial
+
+Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPartial`, orphan/unresolved, manual audit-only, separación de códigos y relación con ROR/contabilidad, ver:
+
+- `docs/uat/rejection-total-partial-acceptance-checklist.md`
+
+- Referencia complementaria ciclos/neteo/liquidez/evidencia CUD: `docs/audits/cenit-cycles-netting-liquidity-cud-matrix-current.md` (no cambia decisión NO-GO productivo).
+
+- Referencia UAT ciclos/liquidez/evidencia CUD: `docs/uat/cenit-cycles-liquidity-cud-acceptance-checklist.md` (no cambia decisión NO-GO productivo).

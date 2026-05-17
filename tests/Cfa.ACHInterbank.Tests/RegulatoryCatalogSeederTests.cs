@@ -24,12 +24,34 @@ public class RegulatoryCatalogSeederTests
     }
 
     [Fact]
+    public async Task Seeder_ShouldFailClearly_WhenNoClearingHouseExists()
+    {
+        var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection)
+            .EnableSensitiveDataLogging()
+            .Options;
+
+        await using var context = new AchDbContext(options);
+        context.Database.EnsureCreated();
+        context.ClearingHouses.RemoveRange(context.ClearingHouses);
+        await context.SaveChangesAsync();
+
+        var sut = new RegulatoryCatalogSeeder(context);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.SeedAsync());
+        Assert.Contains("CENIT", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task SeedAsync_ShouldRepairDriftAndInsertMissingRows_WhenCatalogsArePartial()
     {
         await using var context = await CreateContextAsync();
+        var clearingHouse = await EnsureClearingHouseAsync(context);
 
         context.AchReturnCodes.Add(new AchReturnCode
         {
+            ClearingHouseId = clearingHouse.Id,
             Code = "R01",
             Description = "legacy",
             AppliesToDebit = false,
@@ -84,6 +106,30 @@ public class RegulatoryCatalogSeederTests
 
         var context = new AchDbContext(options);
         context.Database.EnsureCreated();
+        await EnsureClearingHouseAsync(context, "CENIT", "CENIT");
+        await EnsureClearingHouseAsync(context, "ACH", "ACH Colombia");
         return context;
+    }
+
+    private static async Task<ClearingHouse> EnsureClearingHouseAsync(AchDbContext context, string code = "CENIT", string name = "CENIT")
+    {
+        var existing = await context.ClearingHouses.FirstOrDefaultAsync(x => x.Code == code);
+        if (existing is not null) return existing;
+
+        var config = new ClearingHouseConfig { ClearingHouseId = 9000 + Math.Abs(code.GetHashCode() % 1000), HolidayStrategy = "Colombian" };
+        context.ClearingHouseConfigs.Add(config);
+        await context.SaveChangesAsync();
+
+        var clearingHouse = new ClearingHouse
+        {
+            Name = name,
+            Code = code,
+            OriginCode = "000101006",
+            ClearingHouseId = config.Id
+        };
+
+        context.ClearingHouses.Add(clearingHouse);
+        await context.SaveChangesAsync();
+        return clearingHouse;
     }
 }

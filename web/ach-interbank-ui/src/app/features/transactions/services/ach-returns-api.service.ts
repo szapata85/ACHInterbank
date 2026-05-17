@@ -1,7 +1,14 @@
 import { Injectable, inject } from '@angular/core';
 import { map, Observable } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
-import { GenerateReturnsFileRequest, ReturnEligibleTransaction } from '../transactions.models';
+import {
+  AchReturnOfReturnEligibilityResult,
+  EvaluateReturnOfReturnRequest,
+  GenerateReturnOfReturnAuditFileRequest,
+  GenerateReturnOfReturnNachaFileRequest,
+  GenerateReturnsFileRequest,
+  ReturnEligibleTransaction
+} from '../transactions.models';
 
 @Injectable({ providedIn: 'root' })
 export class AchReturnsApiService {
@@ -15,5 +22,17 @@ export class AchReturnsApiService {
 
   generateFile(request: GenerateReturnsFileRequest): Observable<Blob> {
     return this.api.postBlob('ach-returns/generate-file', request);
+  }
+
+  evaluateReturnOfReturn(request: EvaluateReturnOfReturnRequest): Observable<AchReturnOfReturnEligibilityResult> {
+    return this.api.post<AchReturnOfReturnEligibilityResult>('ach-returns/return-of-return/evaluate', request);
+  }
+
+  generateReturnOfReturnAuditFile(request: GenerateReturnOfReturnAuditFileRequest): Observable<Blob> {
+    return this.api.postBlob('ach-returns/return-of-return/generate-audit-file', request);
+  }
+
+  generateReturnOfReturnNachaFile(request: GenerateReturnOfReturnNachaFileRequest): Observable<Blob> {
+    return this.api.postBlob('ach-returns/return-of-return/generate-nacha-file', request);
   }
 }

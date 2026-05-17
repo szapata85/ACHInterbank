@@ -109,13 +109,17 @@ public class AchPreproductionCertificationTests
         await SeedReturnCertificationScenarioAsync(context);
 
         var fixedNow = new DateTimeOffset(2026, 03, 23, 11, 45, 00, TimeSpan.Zero);
-        var service = new AchReturnsService(context, new FixedTimeProvider(fixedNow), new AchRegulatoryCatalogService(context));
+        var eligibility = new Mock<IAchReturnEligibilityService>();
+        eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AchReturnEligibilityRequest req, CancellationToken _) => new AchReturnEligibilityResult(true, req.ReturnReasonCode.Trim().ToUpperInvariant(), 1, "Debit", "Pending", []));
+        var service = new AchReturnsService(context, new FixedTimeProvider(fixedNow), new AchRegulatoryCatalogService(context), eligibility.Object, new TestReturnGenerationLockService());
 
         var response = await service.GenerateReturnsFileAsync(
             new GenerateReturnsFileRequest("cycle-ret", [new ReturnSelectionItemDto(501, "DEV14")]),
             CancellationToken.None);
 
         var expected = BuildExpectedReturnGoldenMaster(fixedNow.UtcDateTime);
+        Assert.Contains("A094101ACH-RET", expected, StringComparison.Ordinal);
 
         Assert.Equal("RET_cycle-ret_20260323114500.RET", response.FileName);
         Assert.Equal(expected, Encoding.UTF8.GetString(response.Content));
@@ -425,8 +429,10 @@ public class AchPreproductionCertificationTests
             }
         });
 
+        var returnClearingHouseId = context.ClearingHouses.Select(x => x.Id).First();
         context.AchReturnCodes.Add(new AchReturnCode
         {
+            ClearingHouseId = returnClearingHouseId,
             Code = "DEV14",
             Description = "No consentimiento",
             AppliesToDebit = true,
@@ -437,6 +443,7 @@ public class AchPreproductionCertificationTests
         });
         context.AchReturnPolicies.Add(new AchReturnPolicy
         {
+            ClearingHouseId = returnClearingHouseId,
             TransactionType = "Debit",
             AllowedReturnCodesCsv = "DEV14",
             MaxDays = 60,
@@ -618,10 +625,10 @@ public class AchPreproductionCertificationTests
         Write(buffer, 22, nowUtc.ToString("yyMMdd"));
         Write(buffer, 28, nowUtc.ToString("HHmm"));
         Write(buffer, 32, "A");
-        Write(buffer, 33, "09410");
-        Write(buffer, 38, Alpha("ACH-RET", 23));
-        Write(buffer, 61, "ACH Colombia".PadRight(23));
-        Write(buffer, 84, Alpha("RET", 23));
+        Write(buffer, 33, "094101");
+        Write(buffer, 39, Alpha("ACH-RET", 23));
+        Write(buffer, 62, "ACH Colombia".PadRight(23));
+        Write(buffer, 85, Alpha("RET", 22));
         return new string(buffer);
     }
 

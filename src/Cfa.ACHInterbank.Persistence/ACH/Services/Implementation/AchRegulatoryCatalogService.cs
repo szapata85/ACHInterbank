@@ -37,10 +37,15 @@ public class AchRegulatoryCatalogService : IAchRegulatoryCatalogService
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<(bool IsAllowed, string? Reason)> ValidateReturnCodeAsync(string returnCode, TransactionTypeEnum transactionType, DateTime originalDate, DateTime currentDate, CancellationToken ct)
+    public async Task<(bool IsAllowed, string? Reason)> ValidateReturnCodeAsync(int clearingHouseId, string returnCode, TransactionTypeEnum transactionType, DateTime originalDate, DateTime currentDate, CancellationToken ct)
     {
         var code = returnCode.Trim().ToUpperInvariant();
-        var model = await _context.AchReturnCodes.AsNoTracking().FirstOrDefaultAsync(x => x.Code == code && x.IsActive, ct);
+        var model = await _context.AchReturnCodes.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.ClearingHouseId == clearingHouseId &&
+            x.Code == code &&
+            x.IsActive &&
+            x.EffectiveFrom.Date <= currentDate.Date &&
+            (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= currentDate.Date), ct);
         if (model is null)
         {
             return (false, $"Código de devolución {code} no existe en catálogo regulatorio.");
@@ -66,12 +71,19 @@ public class AchRegulatoryCatalogService : IAchRegulatoryCatalogService
             : (false, $"Código {code} no aplica al tipo {transactionType}.");
     }
 
-    public async Task<(bool IsAllowed, string? Reason)> ValidateReturnPolicyAsync(TransactionTypeEnum transactionType, string returnCode, DateTime originalDate, DateTime currentDate, bool hasAddenda, string originalState, CancellationToken ct)
+    public async Task<(bool IsAllowed, string? Reason)> ValidateReturnPolicyAsync(int clearingHouseId, TransactionTypeEnum transactionType, string returnCode, DateTime originalDate, DateTime currentDate, bool hasAddenda, string originalState, CancellationToken ct)
     {
         var mappedType = MapType(transactionType);
         var policy = await _context.AchReturnPolicies
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.IsActive && x.TransactionType == mappedType, ct);
+            .FirstOrDefaultAsync(x =>
+                x.ClearingHouseId == clearingHouseId &&
+                x.IsActive &&
+                x.TransactionType == mappedType &&
+                x.Direction == AchReturnDirection.Any &&
+                x.FlowType == AchReturnFlowType.Return &&
+                x.EffectiveFrom.Date <= currentDate.Date &&
+                (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= currentDate.Date), ct);
 
         if (policy is null)
         {
@@ -104,11 +116,18 @@ public class AchRegulatoryCatalogService : IAchRegulatoryCatalogService
         return (true, null);
     }
 
-    public async Task<(bool IsAllowed, string? Reason, bool IsUniquePerTransaction)> ValidateReturnOfReturnAsync(string originalReturnCode, string newReturnCode, string originalState, DateTime originalDate, DateTime currentDate, CancellationToken ct)
+    public async Task<(bool IsAllowed, string? Reason, bool IsUniquePerTransaction)> ValidateReturnOfReturnAsync(int clearingHouseId, string originalReturnCode, string newReturnCode, string originalState, DateTime originalDate, DateTime currentDate, CancellationToken ct)
     {
         var policy = await _context.AchReturnOfReturnPolicies
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.IsActive && x.OriginalReturnCode == originalReturnCode.Trim().ToUpperInvariant(), ct);
+            .FirstOrDefaultAsync(x =>
+                x.ClearingHouseId == clearingHouseId &&
+                x.IsActive &&
+                x.OriginalReturnCode == originalReturnCode.Trim().ToUpperInvariant() &&
+                x.Direction == AchReturnDirection.Any &&
+                x.FlowType == AchReturnFlowType.ReturnOfReturn &&
+                x.EffectiveFrom.Date <= currentDate.Date &&
+                (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= currentDate.Date), ct);
 
         if (policy is null)
         {

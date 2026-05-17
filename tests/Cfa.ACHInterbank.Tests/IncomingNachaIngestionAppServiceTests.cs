@@ -81,6 +81,7 @@ public class IncomingNachaIngestionAppServiceTests
 
         Assert.Equal(IncomingNachaIngestionStatus.Duplicado, response.IngestionStatus);
         Assert.Equal(1, await context.IncomingNachaFileIngestions.CountAsync());
+        Assert.Equal(context.IncomingNachaFileIngestions.Single().Id, response.IngestionId);
         parser.Verify(x => x.ParseAndSaveDetailedAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<NachaParseRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 

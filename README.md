@@ -65,6 +65,20 @@ docker compose up --build --detach
 ./scripts/open-swagger.ps1
 ```
 
+
+## Setup rápido para pruebas locales
+
+Para preparar el entorno backend de forma reproducible:
+
+```bash
+bash scripts/codex/setup-codex-env.sh
+docker compose -f docker-compose.test.yml --env-file .env.test.example up -d
+dotnet restore ACHInterbank.sln
+dotnet build ACHInterbank.sln -c Release
+```
+
+Con esto queda listo el stack base para ejecutar migraciones EF y pruebas automatizadas.
+
 ## Getting started
 
 To make it easy for you to get started with GitLab, here's a list of recommended next steps.

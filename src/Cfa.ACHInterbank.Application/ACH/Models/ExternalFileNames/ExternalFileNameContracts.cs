@@ -6,7 +6,12 @@ public enum ExternalFileType
     NachaIn = 2,
     StaReject = 3,
     StaOut = 4,
-    StaIn = 5
+    StaIn = 5,
+    ReturnOut = 6,
+    ReturnOfReturnOut = 7,
+    OperatorReturnOut = 8,
+    ResponseOut = 9,
+    RejectionOut = 10
 }
 
 public enum ExternalFileFlow

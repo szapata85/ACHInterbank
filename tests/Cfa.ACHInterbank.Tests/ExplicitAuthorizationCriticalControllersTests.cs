@@ -43,11 +43,21 @@ public class ExplicitAuthorizationCriticalControllersTests
         AssertPolicy(nameof(AchReturnsController.GenerateFile), P0Policies.ReturnsGenerateFile);
     }
 
+    [Fact]
+    public void AchReturnOfReturnController_TieneAuthorizeYPoliciesCorrectas()
+    {
+        Assert.NotNull(typeof(AchReturnOfReturnController).GetCustomAttribute<AuthorizeAttribute>());
+        AssertPolicy(nameof(AchReturnOfReturnController.Evaluate), P0Policies.ReturnsRead);
+        AssertPolicy(nameof(AchReturnOfReturnController.GenerateAuditFile), P0Policies.ReturnsGenerateFile);
+        AssertPolicy(nameof(AchReturnOfReturnController.GenerateNachaFile), P0Policies.ReturnsGenerateFile);
+    }
+
     private static void AssertPolicy(string methodName, string expectedPolicy)
     {
         var method = typeof(TransactionsController).GetMethod(methodName)
             ?? typeof(AchTraceabilityController).GetMethod(methodName)
-            ?? typeof(AchReturnsController).GetMethod(methodName);
+            ?? typeof(AchReturnsController).GetMethod(methodName)
+            ?? typeof(AchReturnOfReturnController).GetMethod(methodName);
         Assert.NotNull(method);
         var attr = method!.GetCustomAttribute<AuthorizeAttribute>();
         Assert.NotNull(attr);

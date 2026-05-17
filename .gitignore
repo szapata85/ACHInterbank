@@ -336,4 +336,6 @@ ASALocalRun/
 
 # Local History for Visual Studio
 .localhistory/
-**/Migrations/
+
+# Prevent accidental Windows-absolute-path artifact folders
+**/C:/

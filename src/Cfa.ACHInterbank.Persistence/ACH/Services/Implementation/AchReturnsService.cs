@@ -1,6 +1,8 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -17,22 +19,34 @@ public class AchReturnsService(
     AchDbContext context,
     TimeProvider? timeProvider = null,
     IAchRegulatoryCatalogService? regulatoryCatalogService = null,
+    IAchReturnEligibilityService? returnEligibilityService = null,
+    IAchReturnGenerationLockService? returnGenerationLockService = null,
     IPaymentRailContextService? paymentRailContextService = null,
     IPaymentRailOperationalStrategyResolver? strategyResolver = null,
     IPaymentRailShadowCompareService? shadowCompareService = null,
+    IExternalFileNamePolicy? externalFileNamePolicy = null,
+    INachaRecordConfigProvider? nachaRecordConfigProvider = null,
+    INachaRecordFieldValidator? nachaRecordFieldValidator = null,
+    IAchCauseCodePolicy? causeCodePolicy = null,
     ILogger<AchReturnsService>? logger = null) : IAchReturnsService
 {
     private readonly IAchRegulatoryCatalogService _regulatoryCatalogService = regulatoryCatalogService
                                                                            ?? throw new InvalidOperationException("IAchRegulatoryCatalogService es requerido para gobernanza regulatoria de devoluciones.");
+    private readonly IAchReturnEligibilityService _returnEligibilityService = returnEligibilityService
+                                                                        ?? throw new InvalidOperationException("IAchReturnEligibilityService es requerido para evaluar elegibilidad de devoluciones.");
+    private readonly IAchReturnGenerationLockService _returnGenerationLockService = returnGenerationLockService
+        ?? throw new InvalidOperationException("IAchReturnGenerationLockService es requerido para control de concurrencia en devoluciones.");
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
     private readonly IPaymentRailContextService? _paymentRailContextService = paymentRailContextService;
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver = strategyResolver;
     private readonly IPaymentRailShadowCompareService? _shadowCompareService = shadowCompareService;
+    private readonly IExternalFileNamePolicy? _externalFileNamePolicy = externalFileNamePolicy;
+    private readonly INachaRecordConfigProvider? _nachaRecordConfigProvider = nachaRecordConfigProvider;
+    private readonly INachaRecordFieldValidator? _nachaRecordFieldValidator = nachaRecordFieldValidator;
+    private readonly IAchCauseCodePolicy? _causeCodePolicy = causeCodePolicy;
     private readonly ILogger<AchReturnsService> _logger = logger ?? NullLogger<AchReturnsService>.Instance;
     private const int MaxCyclesForReturn = 4;
     private const string ImmediateDestinationAchColombia = "000101006";
-    private const string ReturnOriginatorId = "BANCORET";
-    private const string ReturnBatchNumber = "0000001";
     private static readonly HashSet<string> CreditTransactionCodes = new(StringComparer.Ordinal)
     {
         "21", "22", "23", "31", "32", "33", "42", "51", "52", "53"
@@ -112,7 +126,7 @@ public class AchReturnsService(
             .FirstOrDefault(group => group.Count() > 1);
         if (duplicateSelections is not null)
         {
-            throw new InvalidOperationException($"La transacción {duplicateSelections.Key} fue seleccionada más de una vez en la misma generación.");
+            throw new InvalidOperationException($"La transacción {duplicateSelections.Key} está repetida en la solicitud de devolución.");
         }
 
         var cycle = await context.AchCycles
@@ -122,7 +136,10 @@ public class AchReturnsService(
             ?? throw new InvalidOperationException("No se encontró el ciclo de operación.");
 
         var selectedIds = request.Items.Select(i => i.TransactionId).Distinct().ToList();
+        await using var generationLock = await _returnGenerationLockService.AcquireAsync(selectedIds, ct);
+
         var transactions = await context.AchTransactions
+            .Include(t => t.AchCycle)
             .Where(t => selectedIds.Contains(t.Id))
             .ToListAsync(ct);
 
@@ -169,8 +186,46 @@ public class AchReturnsService(
                 throw new InvalidOperationException($"La transacción {tx.Id} excede la ventana máxima de 4 ciclos para devolución.");
             }
 
-            var reasonCode = item.ReturnReasonCode.Trim().ToUpperInvariant();
-            await ValidateReturnPolicyAsync(tx, reasonCode, now, ct);
+            var eligibility = await _returnEligibilityService.EvaluateOutgoingReturnAsync(
+                new AchReturnEligibilityRequest(
+                    tx.Id,
+                    item.ReturnReasonCode,
+                    now,
+                    HasAddenda: true),
+                ct);
+            if (!eligibility.IsEligible)
+            {
+                throw new InvalidOperationException(eligibility.Failures.First().Message);
+            }
+
+            var reasonCode = eligibility.NormalizedReasonCode!;
+            if (_causeCodePolicy is not null)
+            {
+                var policyResult = await _causeCodePolicy.EvaluateAsync(
+                    new AchCauseCodePolicyRequest(
+                        reasonCode,
+                        AchCauseCodeFlow.OutboundReturn,
+                        cycle.ClearingHouseId,
+                        cycle.ClearingHouse?.Code,
+                        tx.Type.ToString(),
+                        tx.EffectiveEntryDate,
+                        Source: nameof(GenerateReturnsFileAsync)),
+                    ct);
+
+                foreach (var issue in policyResult.Issues.Where(i => i.Severity != AchCauseCodePolicySeverity.Error))
+                {
+                    _logger.LogWarning("CAUSE_POLICY_WARNING flow={Flow} code={Code} severity={Severity} detail={Detail}", AchCauseCodeFlow.OutboundReturn, reasonCode, issue.Severity, issue.Message);
+                }
+
+                var blocking = policyResult.Issues.Where(i => i.Severity == AchCauseCodePolicySeverity.Error).ToList();
+                if (!policyResult.IsAllowed || blocking.Count > 0)
+                {
+                    var detail = blocking.Count > 0
+                        ? string.Join(" | ", blocking.Select(x => $"{x.Code}: {x.Message}"))
+                        : "Causal no permitida por política rail-flow.";
+                    throw new InvalidOperationException($"La causal {reasonCode} no está permitida para la cámara/flujo de devolución saliente. {detail}");
+                }
+            }
 
             var amount = tx.IsPrenotification ? 0m : tx.Amount;
             var newSequence = await GenerateNewReturnSequenceAsync(tx.ReceivingDFI, now.Date, ct);
@@ -213,13 +268,14 @@ public class AchReturnsService(
             .Where(entry => CreditTransactionCodes.Contains(entry.TransactionCode))
             .Sum(entry => entry.Amount);
         var hash = ComputeEntryHash(returnEntries.Select(entry => entry.ReceiverEntityCode));
-        var fileName = $"RET_{request.CycleId}_{now:yyyyMMddHHmmss}.RET";
-        var originatingDfi = NormalizeDigits(cycle.ClearingHouse?.OriginCode, 8);
+        var provisionalFileName = $"RET_{request.CycleId}_{now:yyyyMMddHHmmss}.RET";
+        var nachaConfig = ResolveReturnOutNachaConfig(cycle);
+        var originatingDfi = NormalizeDigits(cycle.ClearingHouse?.OriginCode ?? nachaConfig.Record5.OriginatingDfi, 8);
 
         var lines = new List<string>
         {
-            BuildType1HeaderLine(cycle, now),
-            BuildType5HeaderLine(now, serviceClassCode, ReturnOriginatorId, ReturnBatchNumber, originatingDfi),
+            BuildType1HeaderLine(cycle, now, nachaConfig),
+            BuildType5HeaderLine(now, serviceClassCode, nachaConfig.Record5.CompanyIdentification, nachaConfig.Record5.BatchNumberDefault, originatingDfi, nachaConfig),
         };
 
         for (int i = 0; i < entryLines.Count; i++)
@@ -235,9 +291,9 @@ public class AchReturnsService(
             totalDebit,
             totalCredit,
             serviceClassCode,
-            ReturnOriginatorId,
+            nachaConfig.Record89.CompanyIdentification,
             originatingDfi,
-            ReturnBatchNumber);
+            nachaConfig.Record89.BatchNumber);
 
         ValidateGeneratedBatchControl(
             lines[1],
@@ -248,9 +304,9 @@ public class AchReturnsService(
             totalDebit,
             totalCredit,
             serviceClassCode,
-            ReturnOriginatorId,
+            nachaConfig.Record89.CompanyIdentification,
             originatingDfi,
-            ReturnBatchNumber);
+            nachaConfig.Record89.BatchNumber);
 
         lines.Add(batchControlLine);
 
@@ -280,16 +336,173 @@ public class AchReturnsService(
             }
         }
 
+        var fileContent = string.Concat(lines);
+        ValidateNachaRecords(cycle.ClearingHouseId, cycle.ClearingHouse?.Code, NachaRecordFlow.ReturnOut, nachaConfig, fileContent);
+
+        var fileName = await ResolveReturnExternalFileNameAsync(cycle, request, provisionalFileName, fileContent, ct);
+
         foreach (var row in generatedRows)
         {
             row.FileName = fileName;
         }
 
+        var stateEvents = generatedRows.Select(row =>
+        {
+            var originalTx = transactions.First(t => t.Id == row.OriginalTransactionId);
+            return new AchTransactionStateEvent
+            {
+                AchTransactionId = row.OriginalTransactionId,
+                FromState = originalTx.State,
+                ToState = originalTx.State,
+                Source = Domain.Entities.Transactions.Enums.AchStateEventSourceEnum.System,
+                ReasonCode = row.ReturnReasonCode,
+                PayloadJson = BuildReturnFileGeneratedPayload(
+                    originalTx,
+                    row,
+                    cycle,
+                    fileName,
+                    lines.Count,
+                    generatedRows.Count,
+                    now,
+                    fileContent)
+            };
+        }).ToList();
+
         context.Set<AchReturnGenerated>().AddRange(generatedRows);
+        context.AchTransactionStateEvents.AddRange(stateEvents);
         await context.SaveChangesAsync(ct);
 
-        var fileContent = string.Concat(lines);
         return new GenerateReturnsFileResponse(fileName, "text/plain", Encoding.UTF8.GetBytes(fileContent), lines.Count, generatedRows.Count);
+    }
+
+
+    private static string BuildReturnFileGeneratedPayload(
+        AchTransaction originalTx,
+        AchReturnGenerated generatedRow,
+        AchCycle cycle,
+        string fileName,
+        int recordCount,
+        int returnCount,
+        DateTime createdAtUtc,
+        string fileContent)
+    {
+        var payload = new
+        {
+            schemaVersion = 1,
+            eventType = "ReturnFileGenerated",
+            source = $"{nameof(AchReturnsService)}.{nameof(GenerateReturnsFileAsync)}",
+            generationMode = "outbound-return",
+            stateChanged = false,
+            originalTransactionId = generatedRow.OriginalTransactionId,
+            transactionExternalId = originalTx.TransactionExternalId,
+            reference = originalTx.Reference,
+            transactionType = originalTx.Type.ToString(),
+            previousState = originalTx.State.ToString(),
+            newState = originalTx.State.ToString(),
+            returnReasonCode = generatedRow.ReturnReasonCode,
+            returnCycleId = generatedRow.ReturnCycleId,
+            clearingHouseId = cycle.ClearingHouseId,
+            clearingHouseCode = cycle.ClearingHouse?.Code,
+            clearingHouseName = cycle.ClearingHouse?.Name,
+            fileName,
+            externalFileName = fileName,
+            contentSha256 = ComputeSha256Hex(fileContent),
+            recordCount,
+            returnCount,
+            originalTraceNumber = generatedRow.OriginalSequenceNumber,
+            newTraceNumber = generatedRow.NewSequenceNumber,
+            originalSequenceNumber = generatedRow.OriginalSequenceNumber,
+            newSequenceNumber = generatedRow.NewSequenceNumber,
+            amount = generatedRow.Amount,
+            currency = "COP",
+            receiverEntityCode = generatedRow.ReceiverEntityCode,
+            originatorEntityCode = generatedRow.OriginatorEntityCode,
+            generatedAtUtc = generatedRow.GeneratedAtUtc,
+            createdAtUtc,
+            warnings = Array.Empty<string>(),
+            transmissionStatus = "GeneratedNotTransmitted",
+            productiveStatus = "TechnicalGeneratedOnly"
+        };
+
+        return System.Text.Json.JsonSerializer.Serialize(payload);
+    }
+
+
+    private static string ComputeSha256Hex(string content)
+    {
+        var bytes = Encoding.UTF8.GetBytes(content);
+        var hash = System.Security.Cryptography.SHA256.HashData(bytes);
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+
+
+    private NachaRailRecordConfig ResolveReturnOutNachaConfig(AchCycle cycle)
+    {
+        if (_nachaRecordConfigProvider is not null)
+        {
+            return _nachaRecordConfigProvider.Resolve(cycle.ClearingHouseId, cycle.ClearingHouse?.Code, NachaRecordFlow.ReturnOut, NachaRecordDirection.Outbound);
+        }
+
+        return new NachaRecordConfigProvider().Resolve(cycle.ClearingHouseId, cycle.ClearingHouse?.Code, NachaRecordFlow.ReturnOut, NachaRecordDirection.Outbound);
+    }
+
+
+    private void ValidateNachaRecords(int clearingHouseId, string? clearingHouseCode, NachaRecordFlow flow, NachaRailRecordConfig config, string content)
+    {
+        if (_nachaRecordFieldValidator is null) return;
+        var result = _nachaRecordFieldValidator.Validate(new NachaRecordValidationContext(clearingHouseId, clearingHouseCode, flow, NachaRecordDirection.Outbound, config, content, true));
+        foreach (var w in result.Issues.Where(i => i.Severity != NachaRecordValidationSeverity.Error))
+            _logger.LogWarning("NACHA_RECORD_VALIDATION_{Severity}|Code={Code}|Message={Message}", w.Severity, w.Code, w.Message);
+        if (result.HasErrors) throw new InvalidOperationException("Error Fatal: NACHA record validation failed.");
+    }
+
+    private async Task<string> ResolveReturnExternalFileNameAsync(
+        AchCycle cycle,
+        GenerateReturnsFileRequest request,
+        string provisionalFileName,
+        string nachaContent,
+        CancellationToken ct)
+    {
+        if (_externalFileNamePolicy is null || cycle.ClearingHouse is null)
+        {
+            return provisionalFileName;
+        }
+
+        var context = new ExternalFileNameContext
+        {
+            ClearingHouseId = cycle.ClearingHouseId,
+            ClearingHouseCode = cycle.ClearingHouse.Code,
+            ClearingHouseOriginCode = cycle.ClearingHouse.OriginCode,
+            CycleId = cycle.Id,
+            CycleName = cycle.CycleName,
+            ProcessingDate = cycle.ProcessingDate,
+            ExternalFileType = ExternalFileType.ReturnOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound,
+            InternalFileName = provisionalFileName,
+            NachaContent = nachaContent,
+            RequestedBy = "system"
+        };
+
+        var policyResult = await _externalFileNamePolicy.GenerateExternalNameAsync(context, ct);
+        if (policyResult.Validation.IsHardBlocked)
+        {
+            var details = string.Join(" | ", policyResult.Validation.Issues.Select(x => $"{x.RuleCode}:{x.Message}"));
+            throw new InvalidOperationException($"Error Fatal ID: External filename validation failed. {details}");
+        }
+
+        if (policyResult.Validation.Issues.Count > 0)
+        {
+            _logger.LogWarning("RETURN_FILENAME_POLICY_WARNING|CycleId={CycleId}|FileName={FileName}|Issues={Issues}",
+                cycle.Id,
+                policyResult.ExternalFileName,
+                string.Join(" | ", policyResult.Validation.Issues.Select(x => $"{x.RuleCode}:{x.Message}")));
+        }
+
+        return string.IsNullOrWhiteSpace(policyResult.ExternalFileName)
+            ? provisionalFileName
+            : policyResult.ExternalFileName;
     }
 
     private void CompareReturnShadow(
@@ -334,35 +547,6 @@ public class AchReturnsService(
     }
 
 
-    private async Task ValidateReturnPolicyAsync(AchTransaction transaction, string reasonCode, DateTime nowUtc, CancellationToken ct)
-    {
-        var returnCodeValidation = await _regulatoryCatalogService.ValidateReturnCodeAsync(
-            reasonCode,
-            transaction.Type,
-            transaction.EffectiveEntryDate.Date,
-            nowUtc.Date,
-            ct);
-        if (!returnCodeValidation.IsAllowed)
-        {
-            throw new InvalidOperationException(returnCodeValidation.Reason
-                                                ?? $"La causal {reasonCode} no está permitida para la transacción {transaction.Id}.");
-        }
-
-        var returnPolicyValidation = await _regulatoryCatalogService.ValidateReturnPolicyAsync(
-            transaction.Type,
-            reasonCode,
-            transaction.EffectiveEntryDate.Date,
-            nowUtc.Date,
-            hasAddenda: true,
-            transaction.State.ToString(),
-            ct);
-        if (!returnPolicyValidation.IsAllowed)
-        {
-            throw new InvalidOperationException(returnPolicyValidation.Reason
-                                                ?? $"La política regulatoria no permite devolver la transacción {transaction.Id}.");
-        }
-    }
-
     private async Task<Dictionary<string, int>> GetCycleOrderAsync(int clearingHouseId, CancellationToken ct)
     {
         var buffered = await context.AchCycles
@@ -398,22 +582,24 @@ public class AchReturnsService(
         return $"{entityCode}{next:0000000}";
     }
 
-    private static string BuildType1HeaderLine(AchCycle cycle, DateTime nowUtc)
+    private static string BuildType1HeaderLine(AchCycle cycle, DateTime nowUtc, NachaRailRecordConfig nachaConfig)
     {
         var originCode = NormalizeDigits(cycle.ClearingHouse?.OriginCode, 9);
         var text = new StringBuilder(106);
         text.Append('1');
         text.Append(PadNum("01", 2));
-        text.Append(PadNum(ImmediateDestinationAchColombia, 9));
+        text.Append(PadNum(nachaConfig.Record1.ImmediateDestination, 9));
         text.Append(PadNum(originCode, 9));
         text.Append(nowUtc.ToString("yyMMdd"));
         text.Append(nowUtc.ToString("HHmm"));
-        text.Append('A');
-        text.Append("09410");
+        text.Append(nachaConfig.Record1.FileIdModifier);
+        text.Append("094");
+        text.Append(PadNum(nachaConfig.Record1.BlockingFactor.ToString(), 2));
+        text.Append(nachaConfig.Record1.FormatCode);
         text.Append(PadAlpha("ACH-RET", 23));
         text.Append(PadAlpha(cycle.ClearingHouse?.Name ?? "BANCO ORIGEN", 23));
         text.Append(PadAlpha("RET", 30));
-        return Ensure106(text.ToString());
+        return EnsureLength(text.ToString(), nachaConfig.Record1.RecordSize);
     }
 
     private static string BuildType5HeaderLine(
@@ -421,23 +607,24 @@ public class AchReturnsService(
         string serviceClassCode,
         string companyIdentification,
         string batchNumber,
-        string originatingDfi)
+        string originatingDfi,
+        NachaRailRecordConfig nachaConfig)
     {
         var text = new StringBuilder(106);
         text.Append('5');
         text.Append(PadNum(serviceClassCode, 3));
-        text.Append(PadAlpha("DEVOLUCIONES", 16));
+        text.Append(PadAlpha(nachaConfig.Record5.CompanyName, 16));
         text.Append(PadAlpha(string.Empty, 20));
         text.Append(PadAlpha(companyIdentification, 10));
         text.Append("PPD");
-        text.Append(PadAlpha("RETORNO", 10));
+        text.Append(PadAlpha(nachaConfig.Record5.CompanyEntryDescription, 10));
         text.Append(nowUtc.ToString("yyyyMMdd"));
         text.Append(nowUtc.ToString("yyyyMMdd"));
         text.Append("000");
         text.Append('1');
         text.Append(PadNum(originatingDfi, 8));
         text.Append(PadNum(batchNumber, 7));
-        return Ensure106(text.ToString());
+        return EnsureLength(text.ToString(), nachaConfig.Record1.RecordSize);
     }
 
     private static string BuildType6ReturnLine(AchTransaction tx, string receiverEntityCode, decimal amount, string newSequence)
@@ -733,6 +920,17 @@ public class AchReturnsService(
         }
 
         return value.PadRight(106, ' ');
+    }
+
+
+    private static string EnsureLength(string value, int length)
+    {
+        if (value.Length > length)
+        {
+            return value[..length];
+        }
+
+        return value.PadRight(length, ' ');
     }
 
     private static void WriteValue(char[] buffer, int startPosition, string value)
