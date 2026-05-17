@@ -154,7 +154,58 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         };
 
         _context.IncomingNachaFileIngestions.Add(ingestion);
-        await _context.SaveChangesAsync(ct);
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            // Hardening DB-first: carrera multiinstancia/multinodo para el mismo hash+tamaño.
+            if (!request.ForceReprocess)
+            {
+                var existing = await _context.IncomingNachaFileIngestions.AsNoTracking()
+                    .Where(x => !x.IsReprocess && x.FileHashSha256 == fileHash && x.FileSize == fileBytes.LongLength)
+                    .OrderByDescending(x => x.UploadedAtUtc)
+                    .FirstOrDefaultAsync(ct);
+                if (existing is not null)
+                {
+                    var nextAttempt = await _context.IncomingNachaFileProcessingResults
+                        .AsNoTracking()
+                        .Where(x => x.IncomingNachaFileIngestionId == existing.Id)
+                        .Select(x => (int?)x.AttemptNumber)
+                        .MaxAsync(ct) ?? 0;
+
+                    _context.IncomingNachaFileProcessingResults.Add(new IncomingNachaFileProcessingResult
+                    {
+                        IncomingNachaFileIngestionId = existing.Id,
+                        AttemptNumber = nextAttempt + 1,
+                        StartedAtUtc = DateTime.UtcNow,
+                        FinishedAtUtc = DateTime.UtcNow,
+                        OutcomeStatus = IncomingNachaProcessingOutcomeStatus.Duplicado,
+                        FailureStage = "ValidacionDuplicidadDbFirst",
+                        ErrorCount = 1,
+                        ParserErrorsJson = JsonSerializer.Serialize(new[] { "Archivo duplicado (DB-first)." }),
+                        IsReprocessable = true
+                    });
+                    await _context.SaveChangesAsync(ct);
+                    return new IncomingNachaIngestionResponse
+                    {
+                        IngestionId = existing.Id,
+                        IngestionStatus = IncomingNachaIngestionStatus.Duplicado,
+                        CycleResolutionStatus = existing.CycleResolutionStatus,
+                        ParsingStatus = existing.ParsingStatus,
+                        DetectedClearingHouseId = existing.DetectedClearingHouseId,
+                        ResolvedClearingHouseId = existing.ResolvedClearingHouseId,
+                        ResolvedAchCycleId = existing.ResolvedAchCycleId,
+                        OperationalDate = existing.OperationalDate,
+                        ErrorCount = 1,
+                        Errors = new[] { "Archivo duplicado detectado por hash/tamaño (DB-first)." }
+                    };
+                }
+            }
+
+            throw;
+        }
 
         ingestion.IngestionStatus = IncomingNachaIngestionStatus.EnValidacion;
         ingestion.Notes = "Validación de resolución de cámara/ciclo en proceso.";

@@ -1,5 +1,8 @@
 # Checklist UAT — Causales por cámara y flujo
 
+> Referencia UAT complementaria: `docs/uat/incoming-return-orphan-acceptance-checklist.md`.
+
+
 ## 1. Propósito
 Este checklist valida causales por:
 - cámara;
@@ -247,3 +250,10 @@ Filtros ejecutados recientemente:
 - **Próximo hito:** UAT con evidencia por causal/cámara/flujo y firmas.
 
 - Referencia obligatoria para devolución saliente (estado/evento/idempotencia y trazabilidad): `docs/audits/outbound-return-state-traceability-matrix-current.md`.
+
+
+## Referencia cruzada incoming/orphan
+
+Para validación de causales entrantes en contexto E2E + huérfanas/no resueltas, usar también:
+
+- `docs/audits/incoming-return-e2e-orphan-matrix-current.md`

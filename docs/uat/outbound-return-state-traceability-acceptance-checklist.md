@@ -1,5 +1,8 @@
 # Checklist UAT — Devolución saliente normal: estado, evento y trazabilidad
 
+> Referencia UAT complementaria: `docs/uat/incoming-return-orphan-acceptance-checklist.md`.
+
+
 ## 1. Propósito
 Validar la generación de devolución saliente normal con evidencia técnica y funcional sobre:
 - creación de `AchReturnGenerated`;
@@ -189,3 +192,10 @@ Checklist mínimo de salida:
 - **GO UAT controlado:** sí.
 - **NO-GO productivo:** sí.
 - Próximo hito: devolución de entrada E2E y manejo de huérfanas.
+
+
+## Referencia cruzada outbound vs incoming
+
+Para diferenciar explícitamente `outbound generated` vs `incoming applied` y su trazabilidad:
+
+- `docs/audits/incoming-return-e2e-orphan-matrix-current.md`

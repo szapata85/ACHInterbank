@@ -1,5 +1,8 @@
 # Go/No-Go Scorecard — Auditoría funcional-normativa ACH/CENIT/NACHA-M
 
+> Referencia UAT complementaria: `docs/uat/incoming-return-orphan-acceptance-checklist.md`.
+
+
 **Fecha:** 2026-04-26 (UTC)  
 **Ámbito:** Formalización de readiness funcional-normativo para salida productiva.  
 **Restricciones aplicadas:** sin cambios de código/servicios/tests/Angular/cripto/migraciones.
@@ -202,3 +205,12 @@ La actualización documental no cambia la decisión actual: **NO-GO productivo**
 
 - Evidencia adicional de brechas P0 en devolución saliente: `docs/audits/outbound-return-state-traceability-matrix-current.md` (estado/evento/idempotencia multiinstancia).
 - Checklist UAT para estado/evento/trazabilidad de devolución saliente: `docs/uat/outbound-return-state-traceability-acceptance-checklist.md` (evidencia requerida para salida de NO-GO productivo).
+
+
+## Evidencia complementaria de brechas P0 incoming
+
+Se incorpora como evidencia documental vigente para brechas P0 de devolución entrante:
+
+- `docs/audits/incoming-return-e2e-orphan-matrix-current.md`
+
+La decisión se mantiene sin cambios: **NO-GO productivo**.

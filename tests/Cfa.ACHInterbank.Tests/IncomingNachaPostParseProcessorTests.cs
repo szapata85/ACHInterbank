@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Moq;
+using System.Text.Json;
 using Xunit;
 
 namespace Cfa.ACHInterbank.Tests;
@@ -54,6 +55,77 @@ public class IncomingNachaPostParseProcessorTests
 
         state.Verify(x => x.TransitionAsync(It.IsAny<int>(), It.IsAny<AchTransferStateEnum>(), It.IsAny<AchStateEventSourceEnum>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
         Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(e => e.EventType == "LinkingBloqueado"));
+        var link = await context.IncomingNachaTransactionLinks.SingleAsync();
+        using var linkDoc = JsonDocument.Parse(link.EvidenceJson!);
+        Assert.Equal("IncomingReturnUnresolved", linkDoc.RootElement.GetProperty("eventType").GetString());
+        Assert.Equal("Unresolved", linkDoc.RootElement.GetProperty("resolutionStatus").GetString());
+        Assert.Equal("Ambiguous", linkDoc.RootElement.GetProperty("resolutionReason").GetString());
+        Assert.Equal(0, linkDoc.RootElement.GetProperty("candidateCount").GetInt32());
+        Assert.Equal("R01", linkDoc.RootElement.GetProperty("returnReasonCode").GetString());
+        Assert.Equal("123456789012345", linkDoc.RootElement.GetProperty("originalTraceNumber").GetString());
+        var ev = await context.IncomingNachaProcessingEvents.SingleAsync(x => x.EventType == "LinkingBloqueado");
+        using var evDoc = JsonDocument.Parse(ev.EvidenceJson!);
+        Assert.Equal("IncomingReturnUnresolved", evDoc.RootElement.GetProperty("eventType").GetString());
+    }
+
+    [Fact]
+    public async Task ProcessAsync_PersistsStructuredOrphanPayload_ForNotFound()
+    {
+        using var context = BuildContext();
+        SeedMinimalParsed(context, out var ingestionId, out _, out _);
+
+        var classifier = new Mock<IIncomingNachaFunctionalClassifier>();
+        classifier.Setup(x => x.Classify(It.IsAny<EntryDetail>(), It.IsAny<AddendaRecord?>()))
+            .Returns(new IncomingNachaClassificationResult
+            {
+                FunctionalClass = IncomingNachaFunctionalClass.Devolucion,
+                EligibilityStatus = IncomingNachaEligibilityStatus.PendienteResolucion,
+                RequiresLink = true,
+                BusinessMeaning = "devolución",
+                ReturnReasonCode = "R01",
+                OriginalTraceRef = "999999999999999",
+                ClassifierVersion = "vtest"
+            });
+
+        var linker = new Mock<IIncomingNachaTransactionLinker>();
+        linker.Setup(x => x.LinkAsync(It.IsAny<EntryDetail>(), It.IsAny<AddendaRecord?>(), It.IsAny<IncomingNachaLinkingContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IncomingNachaLinkingResult
+            {
+                LinkType = IncomingNachaLinkType.NotFound,
+                IsNotFound = true,
+                IsFinal = false,
+                ConfidenceScore = 0,
+                EvidenceJson = "{\"criterion\":\"NotFound\",\"candidates\":[]}"
+            });
+
+        var state = new Mock<IAchStateTransitionService>();
+        var regulatory = new Mock<IAchRegulatoryCatalogService>();
+        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AchReturnCode> { new() { Code = "R01", Description = "Fondos insuficientes", AppliesToReturn = true, IsActive = true, RegulatorySource = "EPR" } });
+        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, state.Object);
+
+        await sut.ProcessAsync(ingestionId, "tester");
+
+        var link = await context.IncomingNachaTransactionLinks.SingleAsync();
+        using var doc = JsonDocument.Parse(link.EvidenceJson!);
+        var root = doc.RootElement;
+        Assert.Equal(1, root.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal("IncomingReturnUnresolved", root.GetProperty("eventType").GetString());
+        Assert.Equal("Unresolved", root.GetProperty("resolutionStatus").GetString());
+        Assert.Equal("NotFound", root.GetProperty("resolutionReason").GetString());
+        Assert.True(root.GetProperty("manualReviewRequired").GetBoolean());
+        Assert.Equal("IncomingNachaPostParseProcessor.ProcessAsync", root.GetProperty("source").GetString());
+        Assert.Equal("IncomingNachaTransactionLinker.LinkAsync", root.GetProperty("linkSource").GetString());
+        Assert.Equal("in.ach", root.GetProperty("fileName").GetString());
+        Assert.Equal(1, root.GetProperty("fileSize").GetInt64());
+        Assert.True(root.TryGetProperty("clearingHouseId", out _));
+        Assert.True(root.TryGetProperty("achCycleId", out _));
+        Assert.Equal("R01", root.GetProperty("returnReasonCode").GetString());
+        Assert.Equal("999999999999999", root.GetProperty("originalTraceNumber").GetString());
+        Assert.Equal("NotFound", root.GetProperty("linkType").GetString());
+        Assert.Equal(0, root.GetProperty("candidateCount").GetInt32());
+        Assert.False(root.GetProperty("stateChanged").GetBoolean());
+        Assert.False(root.GetProperty("applied").GetBoolean());
     }
 
     [Fact]

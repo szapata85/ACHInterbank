@@ -31,9 +31,10 @@ public class IncomingNachaFileIngestionConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.ResolutionEvidenceJson).IsRequired();
         builder.Property(x => x.WarningsJson).IsRequired();
 
-        // Índice de búsqueda para duplicidad técnica (la unicidad estricta se controla con filtros
-        // en scripts SQL por proveedor para no bloquear reprocesos autorizados).
-        builder.HasIndex(x => new { x.FileHashSha256, x.FileSize });
+        builder.HasIndex(x => new { x.FileHashSha256, x.FileSize })
+            .IsUnique()
+            .HasDatabaseName("UX_IncomingNachaFileIngestions_FileHash_FileSize_Canonical")
+            .HasFilter("\"IsReprocess\" = false");
         builder.HasIndex(x => new { x.FileHashSha256, x.FileSize, x.IsReprocess, x.ParentIngestionId });
         builder.HasIndex(x => new { x.UploadedAtUtc, x.FileName });
         builder.HasIndex(x => new { x.ResolvedClearingHouseId, x.OperationalDate, x.ResolvedAchCycleId });
