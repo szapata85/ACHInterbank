@@ -70,7 +70,7 @@ Este runbook no habilita producción por sí solo.
 | algoritmo | algoritmo de llave/firma | Sí | metadata cert |
 | tamaño de llave | bits de llave | Sí | metadata cert |
 | private key | sí/no según propósito | Sí | validación técnica |
-| ubicación | store/PFX/SecretRef | Sí | evidencia instalación |
+| ubicación | store/PFX protegido por ambiente | Sí | evidencia instalación |
 | owner | dueño funcional/técnico | Sí | inventario |
 | responsable operativo | responsable de operación | Sí | inventario |
 | fecha instalación | fecha efectiva | Sí | acta cambio |
@@ -109,13 +109,14 @@ Este runbook no habilita producción por sí solo.
 - Rotar sin dejar residuos (archivos/copias temporales).
 - Adjuntar evidencia de acceso correcto.
 
-### 7.3 SecretRef/OpenBao si aplica
-- Aplicar solo si el ambiente lo utiliza.
-- Usar `secretRefMasked` en auditoría.
-- No registrar secreto en texto plano.
-- Controlar acceso por rol.
-- Registrar rotación y lectura autorizada.
-- Adjuntar evidencia.
+### 7.3 Modelo operativo sin OpenBao
+- OpenBao/SecretRef no aplica para certificados en sobre digital/firma.
+- Windows: X509 Store + permisos de private key.
+- Linux/containers: PFX/CER protegido por ambiente y permisos mínimos.
+- BD: solo metadata, inventario, auditoría y evidencia.
+- Prohibido guardar PFX + password en BD.
+- Prohibido guardar private key en texto plano.
+- Prohibido depender de OpenBao para abrir/firma/descifrar sobres.
 
 ## 8. Validación posterior a instalación
 - certificado encontrado.
@@ -234,7 +235,7 @@ Checklist diario/semanal:
 | chain no confiable | validar trust store | DevSecOps + Seguridad | evidencia trust store | chain OK según política |
 | posible compromiso private key | revocar/retirar certificado | Seguridad + Riesgo | incidente crítico | nuevo certificado operativo |
 | password filtrado | rotación inmediata de secreto | Seguridad + Operaciones | acta incidente | secreto reemplazado |
-| falla SecretRef/OpenBao (si aplica) | fallback según política segura | DevSecOps | logs + evidencia | servicio restablecido |
+| dependencia OpenBao/SecretRef detectada en certificados | retirar dependencia y aplicar modelo vigente | DevSecOps | evidencia de remediación | flujo sin OpenBao para certificados |
 | mismatch issuer/serial/thumbprint | detener procesamiento | Operaciones | evidencia mismatch | fuente certificada validada |
 
 ## 17. Controles de seguridad
@@ -244,7 +245,7 @@ Checklist diario/semanal:
 - no secretos en repositorio.
 - no PFX sin protección.
 - no password en appsettings.
-- masking de secretRef.
+- no uso de SecretRef en certificados.
 - auditoría de acceso.
 - revisión periódica.
 - backup seguro.

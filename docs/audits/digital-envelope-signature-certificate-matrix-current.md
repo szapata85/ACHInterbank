@@ -89,9 +89,11 @@ No usa `SignedCms`/`EnvelopedCms` ni PKCS#7 nativo; es implementación XML custo
 | búsqueda issuer/serial/thumbprint | Implementado | resolver/provider | Medio | Evidencia operativa |
 | store X509 | Implementado | `RsaKeyProvider` | Parcial | Validar permisos |
 | PFX/CER | Implementado | resolver/loader | Parcial | Runbook |
-| SecretRef/OpenBao | Parcial | resolver phase | Medio | Evidencia entorno |
+| OpenBao/SecretRef | No aplica | modelo operativo vigente | Bajo | Mantener exclusión arquitectónica |
 | HasPrivateKey | Implementado | helper+resolver | Bajo | Mantener |
 | GetRSAPrivateKey controlado | Implementado | helper seguro | Bajo | Mantener |
+
+- Modelo operativo vigente: BD guarda solo metadata/inventario/auditoría/evidencia; private key/PFX/password fuera de BD.
 
 ## 8. Matriz de llave privada
 | Operación | Requiere private key | Validación actual | Error funcional | Observación |
@@ -102,7 +104,7 @@ No usa `SignedCms`/`EnvelopedCms` ni PKCS#7 nativo; es implementación XML custo
 | ENCRYPT TO RECIPIENT | No | pública en cifrado | N/A | Permitido |
 | carga PFX | Sí aplica | resolver/loader | según loader | Parcial |
 | carga store | Sí aplica | provider | según provider | Parcial |
-| carga SecretRef | Sí aplica | resolver | según resolver | Parcial |
+| OpenBao/SecretRef en carga de certificados | No aplica | modelo operativo vigente | Bajo | Mantener exclusión arquitectónica |
 
 Errores relevantes: `CERTIFICATE_PRIVATE_KEY_REQUIRED`, `CERTIFICATE_PRIVATE_KEY_NOT_AVAILABLE`, `CERTIFICATE_NOT_AVAILABLE`.
 
@@ -147,7 +149,7 @@ No se activó CRL/OCSP sin infraestructura real. `NoCheck` queda como deuda expl
 | timestamp | Implementado | `OccurredAtUtc` | N/A |
 | hash contenido | Parcial | operaciones específicas | normalizar payload |
 | correlationId | Parcial | operation id en servicios | normalizar payload |
-| secretRefMasked | Parcial | resolver docs/tests | estandarizar |
+| secretRefMasked | No aplica para certificados | modelo operativo vigente | N/A | No aplica |
 | no private key | Implementado | tests | N/A |
 | no PFX password | Implementado | tests | N/A |
 
@@ -211,7 +213,7 @@ La capa cripto protege sobre/transporte de archivo; no reemplaza validación fun
   - automatización rotación.
   - dashboard de certificados.
   - alertas.
-  - integración avanzada SecretRef/OpenBao si aplica.
+  - No aplica OpenBao/SecretRef para certificados.
 
 ## 16. Recomendación
 - No conviene más hardening runtime antes de cierre documental/UAT, salvo hallazgo crítico.
