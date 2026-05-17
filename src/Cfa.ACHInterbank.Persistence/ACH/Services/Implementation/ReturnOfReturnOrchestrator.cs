@@ -146,7 +146,7 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
             var cycleInfo = _context.AchCycles
                 .AsNoTracking()
                 .Where(x => x.Id == sourceReturn.AchCycleId)
-                .Select(x => new { x.ClearingHouseId, x.ClearingHouse.Code, x.ProcessingDate })
+                .Select(x => new { x.ClearingHouseId, Code = x.ClearingHouse != null ? x.ClearingHouse.Code : null, x.ProcessingDate })
                 .FirstOrDefault();
             var context = _paymentRailContextService.ResolveContext(
                 cycleInfo?.ClearingHouseId,
