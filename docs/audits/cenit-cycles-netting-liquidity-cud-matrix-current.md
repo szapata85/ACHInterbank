@@ -281,3 +281,5 @@ La conciliación debe separar: generado, enviado, aceptado, neteado, pendiente l
 - NO-GO productivo: sí.
 - Esta matriz no habilita producción.
 - Próximo paso: checklist UAT CENIT ciclos/liquidez/CUD o diseño documental de simulador CUD parametrizable.
+
+- Referencia UAT ciclos/liquidez/evidencia CUD: `docs/uat/cenit-cycles-liquidity-cud-acceptance-checklist.md` (no cambia decisión NO-GO productivo).

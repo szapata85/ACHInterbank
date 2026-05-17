@@ -310,3 +310,5 @@ Adjuntar mínimo:
 - Próximo paso recomendado después del checklist: decidir si hace falta estandarizar eventos de rechazo o pasar a contabilidad/conciliación según brechas UAT.
 
 - Referencia complementaria ciclos/neteo/liquidez/evidencia CUD: `docs/audits/cenit-cycles-netting-liquidity-cud-matrix-current.md` (no cambia decisión NO-GO productivo).
+
+- Referencia UAT ciclos/liquidez/evidencia CUD: `docs/uat/cenit-cycles-liquidity-cud-acceptance-checklist.md` (no cambia decisión NO-GO productivo).
