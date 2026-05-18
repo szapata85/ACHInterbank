@@ -207,3 +207,12 @@ Ningún documento de política puede convertirlos a GO productivo sin evidencia 
 - GO UAT documental: **Parcial/controlado**.
 - GO productivo: **NO**.
 - NO-GO productivo vigente.
+
+## 14. Referencia cruzada punto 12 (UAT real con datos reales/anonimizados)
+
+- Documento vigente del protocolo: `docs/uat/real-data-uat-execution-protocol.md`.
+- Plantillas de cierre humano:
+  - `docs/uat/templates/real-data-uat-acta-template.md`
+  - `docs/uat/templates/real-data-uat-evidence-index-template.md`
+- Regla de gobierno: la existencia del protocolo y plantillas no cambia por sí sola el estado GO/NO-GO productivo.
+- Para cambio de estado se requiere ejecución real, evidencia suficiente, aprobaciones humanas y scorecard actualizado.

@@ -172,3 +172,10 @@ Referencia consolidada punto 11:
 - Referencia: `docs/governance/current-vs-historical-matrix-policy.md`.
 - Define precedencia current vs historical.
 - NO-GO productivo se mantiene.
+
+## Referencia cruzada punto 12 — Protocolo UAT real
+
+- Protocolo UAT con datos reales: `docs/uat/real-data-uat-execution-protocol.md`.
+- Plantilla de acta: `docs/uat/templates/real-data-uat-acta-template.md`.
+- Plantilla de índice de evidencias: `docs/uat/templates/real-data-uat-evidence-index-template.md`.
+- Mantiene NO-GO productivo hasta ejecución real y aprobación humana.

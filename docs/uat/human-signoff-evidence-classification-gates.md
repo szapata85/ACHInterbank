@@ -135,3 +135,10 @@ Esta guía complementa la matriz, no cambia estados S1, define clasificación de
 
 - Esta guía se alinea con la política `docs/governance/current-vs-historical-matrix-policy.md`.
 - La política define qué documentos son vigentes y cómo evitar drift documental.
+
+## Referencia cruzada — Protocolo UAT con datos reales (punto 12)
+
+- Protocolo formal: `docs/uat/real-data-uat-execution-protocol.md`.
+- Plantilla de acta: `docs/uat/templates/real-data-uat-acta-template.md`.
+- Plantilla de índice de evidencias: `docs/uat/templates/real-data-uat-evidence-index-template.md`.
+- Esta guía de compuertas no reemplaza ejecución humana real ni habilita GO productivo por sí sola.

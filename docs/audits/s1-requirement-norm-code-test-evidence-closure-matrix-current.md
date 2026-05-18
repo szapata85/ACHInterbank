@@ -212,3 +212,10 @@ Política de gobierno documental vigente/histórico: `docs/governance/current-vs
 - Define precedencia documental.
 - No cambia estados S1.
 - No habilita producción.
+
+## Referencia cruzada punto 12 — UAT con datos reales y actas
+
+- Protocolo UAT real S1: `docs/uat/real-data-uat-execution-protocol.md`.
+- Acta UAT humana (plantilla): `docs/uat/templates/real-data-uat-acta-template.md`.
+- Índice de evidencias (plantilla): `docs/uat/templates/real-data-uat-evidence-index-template.md`.
+- Estado actual: protocolo definido; ejecución real y actas firmadas pendientes.
