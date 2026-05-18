@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml.Serialization;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Implementation;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
@@ -196,7 +197,14 @@ public class DigitalEnvelopeCertificateCharacterizationTests
         var receiver = CreateSelfSignedCertificate("CN=r3", true);
         var service = CreateCryptoService(signer, receiver, DefaultOptions(), out var audit);
 
-        await service.OpenEnvelopeAsync(await service.CreateEnvelopeAsync(Encoding.UTF8.GetBytes("audit"), "a.txt"), "a.env");
+        var plain = Encoding.UTF8.GetBytes("audit");
+        var created = await service.CreateEnvelopeAsync(plain, "a.txt");
+        var createdEnvelope = DeserializeXml<DigitalEnvelopeModel>(Encoding.UTF8.GetString(created));
+        createdEnvelope.RecipientInfo.Should().NotBeNull();
+        createdEnvelope.EncryptedContentInfo.Should().NotBeNull();
+
+        var envelope = BuildEnvelopeWithMutator(plain, signer, receiver, null);
+        await service.OpenEnvelopeAsync(envelope, "a.env");
 
         var evt = audit.Events.Single();
         evt.SignerThumbprint.Should().NotBeNullOrWhiteSpace();
@@ -205,6 +213,23 @@ public class DigitalEnvelopeCertificateCharacterizationTests
         evt.ErrorCode.Should().BeNull();
         evt.Actor.Should().Contain("CryptoServiceScoped");
         evt.ToString().Should().NotContain("PrivateKey").And.NotContain("PfxPassword");
+    }
+
+
+    [Fact]
+    public void DigitalEnvelopeTestGuardrails_ShouldNotUseDirectCreateThenOpenRoundtripPattern()
+    {
+        var testsRoot = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..");
+        var pattern = string.Concat("OpenEnvelopeAsync", @"\s*\(\s*await\s+[^;\n]*", "CreateEnvelopeAsync");
+        var regex = new Regex(pattern, RegexOptions.CultureInvariant);
+        var offenders = Directory.GetFiles(testsRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(f => f.Contains("DigitalEnvelope", StringComparison.Ordinal) || f.Contains("Crypto", StringComparison.Ordinal))
+            .Select(f => new { File = f, Text = File.ReadAllText(f) })
+            .Where(x => regex.IsMatch(x.Text))
+            .Select(x => x.File)
+            .ToArray();
+
+        offenders.Should().BeEmpty("No usar CreateEnvelopeAsync -> OpenEnvelopeAsync directo en tests cripto; usar BuildEnvelopeWithMutator/BuildCompatibleEnvelopeForOpen para apertura determinística.");
     }
 
     [Fact]
