@@ -4,7 +4,7 @@
 # For more information, please see https://aka.ms/containercompat
 
 # This stage is used when running from VS in fast mode (Default for Debug configuration)
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.5 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.8 AS base
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
@@ -14,7 +14,7 @@ RUN apt-get update \
 
 
 # This stage is used to build the service project
-FROM mcr.microsoft.com/dotnet/sdk:10.0.203 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.300 AS builds
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj", "src/Cfa.ACHInterbank.Api/"]
