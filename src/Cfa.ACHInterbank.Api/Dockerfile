@@ -14,7 +14,7 @@ RUN apt-get update \
 
 
 # This stage is used to build the service project
-FROM mcr.microsoft.com/dotnet/sdk:10.0.300 AS builds
+FROM mcr.microsoft.com/dotnet/sdk:10.0.300 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj", "src/Cfa.ACHInterbank.Api/"]
@@ -25,7 +25,7 @@ COPY ["src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj", "s
 RUN dotnet restore "./src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj"
 COPY . .
 WORKDIR "/src/src/Cfa.ACHInterbank.Api"
-RUN dotnet build "./Cfa.ACHInterbank.Api.csproj" -c $BUILD_CONFIGURATION -o /app/builds
+RUN dotnet build "./Cfa.ACHInterbank.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # This stage is used to publish the service project to be copied to the final stage
 FROM build AS publish
