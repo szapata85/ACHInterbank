@@ -165,3 +165,10 @@ Referencia consolidada punto 11:
 - Guía de compuertas de evidencia y aprobación humana: `docs/uat/human-signoff-evidence-classification-gates.md`.
 - GO UAT formal requiere aprobación humana.
 - NO-GO productivo se mantiene.
+
+
+## Política de gobierno documental (current vs historical)
+
+- Referencia: `docs/governance/current-vs-historical-matrix-policy.md`.
+- Define precedencia current vs historical.
+- NO-GO productivo se mantiene.

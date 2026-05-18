@@ -292,3 +292,10 @@ Bloqueantes vigentes:
 - GO UAT formal pendiente aprobación humana.
 - GO productivo: NO-GO.
 - Bloqueantes vigentes: S1-10, S1-11, S1-12, S1-13, S1-20.
+
+
+### Gobernanza documental — current vs historical
+
+- Política current-vs-historical creada: `docs/governance/current-vs-historical-matrix-policy.md`.
+- El scorecard sigue siendo la vista ejecutiva.
+- NO-GO productivo vigente.

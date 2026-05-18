@@ -203,3 +203,12 @@ Regla: evidencia técnica automatizada por sí sola no habilita producción.
 Referencia de compuertas de evidencia y aprobación humana: `docs/uat/human-signoff-evidence-classification-gates.md`.
 
 Esta guía define clasificación de evidencia, no cambia estados S1 y no habilita producción.
+
+
+## Política de gobierno documental vigente/histórico
+
+Política de gobierno documental vigente/histórico: `docs/governance/current-vs-historical-matrix-policy.md`.
+
+- Define precedencia documental.
+- No cambia estados S1.
+- No habilita producción.

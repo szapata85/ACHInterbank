@@ -1240,3 +1240,9 @@ Para trazabilidad consolidada requisito→norma→código→prueba→evidencia p
 `docs/audits/s1-requirement-norm-code-test-evidence-closure-matrix-current.md`.
 
 Esta referencia mantiene la diferenciación normativa ACH Colombia vs CENIT y no modifica el estado NO-GO productivo vigente.
+
+
+## Referencia de gobernanza documental current-vs-historical
+
+- Para resolver contradicciones documentales, usar: `docs/governance/current-vs-historical-matrix-policy.md`.
+- Mantener diferenciación normativa ACH Colombia vs CENIT.

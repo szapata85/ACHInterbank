@@ -129,3 +129,9 @@ Esta guía complementa la matriz, no cambia estados S1, define clasificación de
 - GO UAT formal: **pendiente aprobación humana**.
 - GO productivo: **NO**.
 - NO-GO productivo vigente.
+
+
+## Referencia de gobernanza documental current-vs-historical
+
+- Esta guía se alinea con la política `docs/governance/current-vs-historical-matrix-policy.md`.
+- La política define qué documentos son vigentes y cómo evitar drift documental.
