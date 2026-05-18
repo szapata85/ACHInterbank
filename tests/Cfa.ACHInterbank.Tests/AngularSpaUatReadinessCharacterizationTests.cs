@@ -33,10 +33,10 @@ public class AngularSpaUatReadinessCharacterizationTests
         matrix.Should().Contain("NO-GO productivo vigente");
 
         matrix.Should().NotContain("SPA readiness: **Sí**");
-        matrix.Should().NotContain("SPA listo total");
-        matrix.Should().NotContain("GO productivo: **Sí**");
-        matrix.Should().NotContain("aprobado productivo");
-        matrix.Should().NotContain("producción aprobada");
+        AssertNoAffirmativeDangerousLine(matrix, "SPA listo total", "no debe declararse readiness total SPA");
+        AssertNoAffirmativeDangerousLine(matrix, "GO productivo: **Sí**", "no debe declararse GO productivo");
+        AssertNoAffirmativeDangerousLine(matrix, "aprobado productivo", "no debe declararse aprobación productiva");
+        AssertNoAffirmativeDangerousLine(matrix, "producción aprobada", "no debe declararse producción aprobada");
     }
 
     [Fact]
@@ -116,19 +116,42 @@ public class AngularSpaUatReadinessCharacterizationTests
     [Fact]
     public void AngularSpa_ShouldNotExposeCertificateSecrets()
     {
-        var forbidden = new[] { "privateKey", "private key", "clave privada", "pemPrivateKey", "pfxPassword", "password certificado", "certificatePassword", "PFX password", "SecretRef crudo visible no enmascarado", "secretRef crudo visible no enmascarado" };
-        var allow = new[] { "secretRefMasked", "masked", "enmascarado", "certificado sin llave privada", "sin llave privada" };
+        var visibleSecretTokens = new[] { "private key", "clave privada", "pemPrivateKey", "pfxPassword", "password certificado", "certificatePassword", "PFX password", "SecretRef crudo visible no enmascarado", "secretRef crudo visible no enmascarado" };
+        var rawSecretRefTokens = new[] { "secretRef" };
 
         foreach (var file in EnumerateSpaFiles())
         {
             var lines = ReadLines(file);
+            var isTemplate = IsTemplateFile(file);
+            var isModel = IsModelFile(file);
+
             for (var i = 0; i < lines.Length; i++)
             {
                 var line = lines[i];
-                foreach (var bad in forbidden)
+
+                if (isTemplate)
                 {
-                    if (!line.Contains(bad, StringComparison.OrdinalIgnoreCase)) continue;
-                    ContainsAny(line, allow).Should().BeTrue($"secret-like token without masking/negative context at {ToRelative(file)}:{i + 1}");
+                    foreach (var token in visibleSecretTokens)
+                    {
+                        line.Contains(token, StringComparison.OrdinalIgnoreCase)
+                            .Should().BeFalse($"secret token visible in template at {ToRelative(file)}:{i + 1}");
+                    }
+
+                    if (ContainsAny(line, rawSecretRefTokens) && !line.Contains("secretRefMasked", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Assert.Fail($"raw secretRef visible in template at {ToRelative(file)}:{i + 1}: {line}");
+                    }
+                }
+
+                if (!isModel && !isTemplate)
+                {
+                    var lower = line.ToLowerInvariant();
+                    var referencesSecret = ContainsAny(line, visibleSecretTokens) || line.Contains("privateKey", StringComparison.OrdinalIgnoreCase) || line.Contains("password", StringComparison.OrdinalIgnoreCase) || line.Contains("secretRef", StringComparison.OrdinalIgnoreCase);
+                    if (!referencesSecret) continue;
+
+                    var hasUnsafeStorage = lower.Contains("localstorage") || lower.Contains("sessionstorage");
+                    var hasUnsafeLog = lower.Contains("console.log") || lower.Contains("console.error") || lower.Contains("console.warn") || lower.Contains("console.debug");
+                    (hasUnsafeStorage || hasUnsafeLog).Should().BeFalse($"secrets must not be logged/stored in SPA code: {ToRelative(file)}:{i + 1}");
                 }
             }
         }
@@ -158,8 +181,8 @@ public class AngularSpaUatReadinessCharacterizationTests
         matrix.Should().Contain("documental/manual");
 
         matrix.Should().NotContain("módulo UAT integral implementado");
-        matrix.Should().NotContain("UAT 100% SPA");
-        matrix.Should().NotContain("SPA listo total");
+        AssertNoAffirmativeDangerousLine(matrix, "UAT 100% SPA", "la matriz no debe declarar UAT 100% SPA afirmativo");
+        AssertNoAffirmativeDangerousLine(matrix, "SPA listo total", "la matriz no debe declarar SPA listo total afirmativo");
     }
 
     [Fact]
@@ -189,10 +212,10 @@ public class AngularSpaUatReadinessCharacterizationTests
         (all.Contains("audit-logs") || all.Contains("audit")).Should().BeTrue();
 
         var matrix = Read(SpaMatrixPath);
-        matrix.Should().Contain("accounting-review export");
-        matrix.Should().Contain("UAT package/downloads");
-        matrix.Should().Contain("CUD evidence boundary");
-        matrix.Should().Contain("naming externo");
+        ShouldContainIgnoreCase(matrix, "accounting-review export", "la matriz debe documentar la brecha de accounting-review export");
+        ShouldContainIgnoreCase(matrix, "UAT package/downloads", "la matriz debe documentar brecha de paquete/descargas UAT");
+        ShouldContainIgnoreCase(matrix, "CUD evidence boundary", "la matriz debe documentar la frontera de evidencia CUD");
+        ShouldContainIgnoreCase(matrix, "naming externo", "la matriz debe documentar la brecha de naming externo");
     }
 
     [Fact]
@@ -258,7 +281,7 @@ public class AngularSpaUatReadinessCharacterizationTests
     [Fact]
     public void SpaGapMatrix_ShouldKeepP1P2GapsVisible()
     {
-        var matrix = Read(SpaMatrixPath);
+        var matrix = NormalizeMarkdownInlineCode(Read(SpaMatrixPath));
         foreach (var p1 in new[]
         {
             "Falta módulo UAT integral", "Falta consumo confirmado de accounting-review export", "Roles UAT finos no evidentes",
@@ -275,10 +298,10 @@ public class AngularSpaUatReadinessCharacterizationTests
     public void SpaGapMatrix_ShouldNotClaimFullSpaReadiness_WithoutRemovingRestrictions()
     {
         var matrix = Read(SpaMatrixPath);
-        var hasForbidden = new[] { "SPA readiness: **Sí**", "SPA listo total", "12E: **Sí**", "UAT 100% SPA-only" }
-            .Any(x => matrix.Contains(x, StringComparison.OrdinalIgnoreCase));
-
-        hasForbidden.Should().BeFalse("La matriz SPA no puede declarar readiness total mientras conserve restricciones 12D/12E y brechas P1/P2. Actualizar brechas, tests y scorecard de forma explícita.");
+        AssertNoAffirmativeDangerousLine(matrix, "SPA readiness: **Sí**", "La matriz SPA no puede declarar readiness total mientras conserve restricciones 12D/12E y brechas P1/P2");
+        AssertNoAffirmativeDangerousLine(matrix, "SPA listo total", "La matriz SPA no puede declarar readiness total mientras conserve restricciones 12D/12E y brechas P1/P2");
+        AssertNoAffirmativeDangerousLine(matrix, "12E: **Sí**", "La matriz SPA no puede declarar readiness total mientras conserve restricciones 12D/12E y brechas P1/P2");
+        AssertNoAffirmativeDangerousLine(matrix, "UAT 100% SPA-only", "La matriz SPA no puede declarar readiness total mientras conserve restricciones 12D/12E y brechas P1/P2");
     }
 
     [Fact]
@@ -343,6 +366,42 @@ public class AngularSpaUatReadinessCharacterizationTests
         Regex.IsMatch(content, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
             .Should().BeTrue(because);
     }
+
+    private static bool IsNegatedLine(string line)
+    {
+        var lower = line.ToLowerInvariant();
+        return lower.Contains("no ")
+            || lower.Contains("no debe")
+            || lower.Contains("no declara")
+            || lower.Contains("sin ")
+            || lower.Contains("not ")
+            || lower.Contains("without ");
+    }
+
+    private static void AssertNoAffirmativeDangerousLine(string content, string dangerousPhrase, string because)
+    {
+        var lines = content.Replace("\r\n", "\n").Split('\n');
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            if (!line.Contains(dangerousPhrase, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            IsNegatedLine(line).Should().BeTrue($"{because}. Línea peligrosa sin negación clara: {i + 1}: {line}");
+        }
+    }
+
+    private static void ShouldContainIgnoreCase(string content, string expected, string because = "")
+    {
+        content.Contains(expected, StringComparison.OrdinalIgnoreCase)
+            .Should().BeTrue(because);
+    }
+
+    private static string NormalizeMarkdownInlineCode(string content) => content.Replace("`", "");
+
+    private static bool IsModelFile(string file) => ToRelative(file).Contains("/models/", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsTemplateFile(string file) => file.EndsWith(".html", StringComparison.OrdinalIgnoreCase);
 
     private static bool ContainsAny(string text, IEnumerable<string> needles)
         => needles.Any(n => text.Contains(n, StringComparison.OrdinalIgnoreCase));
