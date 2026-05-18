@@ -342,3 +342,4 @@ ASALocalRun/
 
 docs/uat/operator-guides/exports/*.pdf
 docs/uat/operator-guides/exports/*.xlsx
+compose.effective*.yml
