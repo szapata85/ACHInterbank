@@ -1,0 +1,43 @@
+name: angular-ci
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - ".github/workflows/angular-ci.yml"
+      - "web/ach-interbank-ui/**"
+  pull_request:
+    paths:
+      - ".github/workflows/angular-ci.yml"
+      - "web/ach-interbank-ui/**"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: web/ach-interbank-ui
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24.x"
+          cache: npm
+          cache-dependency-path: web/ach-interbank-ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test -- --watch=false --browsers=ChromeHeadless

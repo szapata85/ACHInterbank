@@ -15,6 +15,7 @@ Clasificacion: no incluir secretos, datos personales, certificados privados ni e
 - Se corrigio configuracion productiva SPA para no apuntar a `localhost`; queda pendiente validar build/deploy UAT.
 - Se identifico archivo `.env` versionado en la raiz del repositorio. BRECHA: confirmar si contiene secretos reales o valores reutilizables.
 - Se reemplazaron defaults sensibles por placeholders locales/de demo en `docker-compose.yml`; queda pendiente validacion de seguridad/operaciones.
+- Backend CI `dotnet-ci` paso exitosamente para commit `3cbff61`; Angular CI fue agregado y queda pendiente de evidencia exitosa. En validacion local, `dotnet test` y `npm test` presentan fallas existentes que deben cerrarse o explicarse antes de release candidate.
 - `docker-compose.yml` no evidencia servicio OpenBao, aunque existen configuraciones y scripts relacionados con OpenBao/secrets provider.
 - Existen componentes de certificados, sobre digital, NACHA security, ROR y ACH responses que requieren validacion de autorizacion, auditoria, trazabilidad y pruebas E2E.
 - Productivo no debe aprobarse sin acta UAT, evidencias firmables, aceptacion de riesgos y validacion de seguridad/operacion.
@@ -32,7 +33,7 @@ Clasificacion: no incluir secretos, datos personales, certificados privados ni e
 | Health checks | `src/Cfa.ACHInterbank.Api/Health` y configuracion API | Evidencia parcial de health checks; falta evidencia UAT/preproductivo. |
 | Scripts OpenBao | `scripts/openbao` | Evidencia de soporte documental/operativo parcial; falta compose principal o runbook validado. |
 | Tests backend | `tests/Cfa.ACHInterbank.Tests` | Existen pruebas; no se ejecutaron en esta fase documental. |
-| Tests Angular | `web/ach-interbank-ui/src/**/*.spec.ts` | Existen pruebas; no se ejecutaron en esta fase documental. |
+| Tests Angular | `web/ach-interbank-ui/src/**/*.spec.ts`, `.github/workflows/angular-ci.yml` | Workflow CI agregado; pendiente primera ejecucion exitosa en GitHub Actions. |
 
 ## 3. Controllers sensibles
 
@@ -143,6 +144,8 @@ Accion recomendada: ejecutar escenarios UAT de idempotencia, reproceso, eventos 
 | OpenAPI/Scalar restringido por ambiente | Configuracion API | PENDIENTE VALIDAR | Enumeracion de API en productivo. | Restringir por ambiente/red/rol o documentar excepcion. | Si aplica |
 | Roles operativos definidos | Auth/Users y SPA | PENDIENTE VALIDAR | Usuarios con privilegios excesivos. | Matriz rol-permiso y pruebas UAT. | Si |
 | Backup/restore/rollback evidenciado | Documentacion operativa | NO ENCONTRADO | Recuperacion incierta. | Ejecutar y documentar simulacro. | Si |
+| CI backend | `.github/workflows/dotnet-ci.yml`, commit `3cbff61` | OK CI / PARCIAL LOCAL | Divergencia local puede ocultar dependencia de entorno o dato de prueba. | Mantener compuerta y analizar falla local preproductiva. | Si para release candidate |
+| CI Angular | `.github/workflows/angular-ci.yml` | PENDIENTE VALIDAR | SPA sin evidencia CI hasta primer run verde; localmente fallan 3 specs. | Ejecutar workflow y corregir specs `TransactionCreateComponent`. | Si para release candidate |
 
 ## 7. Recomendaciones previas a productivo
 

@@ -19,18 +19,18 @@ Uso: instrumento preliminar para comite; requiere evidencias y firmas.
 
 | Categoria | Peso | Estado inicial | Puntaje preliminar | Puntaje ponderado | Evidencia | Observacion |
 |---|---:|---|---:|---:|---|---|
-| Funcionalidad core | 20% | PARCIAL | 70 | 14.0 | Backend/SPA amplios | Falta UAT E2E formal |
+| Funcionalidad core | 20% | PARCIAL | 72 | 14.4 | Backend CI OK; Angular CI creado | Falta UAT E2E formal, Angular CI verde y reconciliar test local backend |
 | UAT y evidencias | 20% | CRITICO | 35 | 7.0 | Docs UAT y plantillas | Actas/evidencias pendientes |
 | Seguridad | 15% | PARCIAL | 65 | 9.75 | Politicas/middleware + `[Authorize]` en AchResponses | `.env` trackeado, roles/policies y secretos requieren validacion |
 | Interoperabilidad externa | 15% | CRITICO | 35 | 5.25 | Sobre digital/naming/CENIT | Validacion externa pendiente |
-| Operacion y soporte | 10% | PARCIAL | 55 | 5.5 | Runbooks/docs | Backup/restore/rollback pendientes |
-| Observabilidad | 10% | PARCIAL | 60 | 6.0 | Logs, audit, health | Health parcial |
+| Operacion y soporte | 10% | PARCIAL | 58 | 5.8 | Runbooks/docs + dotnet-ci OK | Backup/restore/rollback y Docker/health pendientes |
+| Observabilidad | 10% | PARCIAL | 60 | 6.0 | Logs, audit, health | Health parcial; evidencia Docker/health pendiente |
 | Documentacion y trazabilidad | 10% | PARCIAL | 70 | 7.0 | README y docs readiness actualizados | Firmas/evidencias pendientes |
-| **Total** | **100%** | **NO-GO** |  | **54.5** |  | **NO-GO** |
+| **Total** | **100%** | **NO-GO** |  | **55.2** |  | **NO-GO** |
 
 ## Estado Inicial
 
-Resultado preliminar tras correcciones de bajo riesgo: **54.5 / 100 - NO-GO productivo**.
+Resultado preliminar tras backend CI OK y creacion de Angular CI: **55.2 / 100 - NO-GO productivo**.
 
 Clasificacion operacional: **Candidato UAT controlado**.
 
@@ -44,6 +44,9 @@ Clasificacion operacional: **Candidato UAT controlado**.
 - Falta matriz endpoint-rol y validacion de politica granular para `AchResponsesController` aunque ya tiene `[Authorize]`.
 - Endpoint mismatch de interoperabilidad SPA/backend.
 - `environment.prod.ts` corregido a base relativa; falta evidencia de build/deploy UAT.
+- Angular CI pendiente hasta que el nuevo workflow pase en GitHub Actions; localmente `npm test` falla 3 specs existentes.
+- Backend CI remoto OK para `3cbff61`; localmente `dotnet test` muestra divergencia en 1 test preproductivo.
+- Docker/health checks pendientes de evidencia en ambiente.
 - Riesgo de `.env` versionado y defaults sensibles en compose/documentacion.
 - OpenBao no levantado en compose principal si aplica al ambiente.
 - Backup/restore/rollback sin evidencia.
@@ -57,6 +60,8 @@ Clasificacion operacional: **Candidato UAT controlado**.
 - SPA prod localhost = NO-GO despliegue productivo.
 - Defecto bloqueante abierto = NO-GO productivo.
 - Evidencia tecnica automatizada no reemplaza aprobacion humana.
+- Backend CI OK no implica GO productivo.
+- Angular CI pendiente mantiene release candidate tecnico incompleto.
 
 ## Proyeccion De Mejora
 

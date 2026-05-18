@@ -25,12 +25,13 @@ Estado: plan de trabajo actualizado; incluye correcciones de bajo riesgo aplicad
 | G-14 | Documentar y ensayar backup/restore/rollback. | Operacion/Evidencia | Alto | Runbook, evidencia externa | Operaciones/Tecnologia | Ambiente UAT | Ensayo con evidencia | Pendiente |
 | G-15 | Completar health checks o monitoreo alterno. | Codigo medio riesgo/Operacion | Medio | API health checks o docs monitoreo | Tecnologia/Operaciones | Alcance observabilidad | Checks o monitoreo aprobados | Pendiente |
 | G-16 | Definir documentos current y archivar drift. | Documental | Bajo | README/docs/audits | Auditoria/Tecnologia | Decision comite | Fuente canonica publicada | Pendiente |
-| G-17 | Ejecutar build/test no destructivos. | Evidencia | Medio | Evidencias docs | Tecnologia/QA | SDK/Node/Chrome | Builds OK; suites completas sin fallos o fallos aceptados formalmente | Parcial |
+| G-17 | Registrar evidencia CI backend aprobada y reconciliar divergencia local de test preproductivo. | Evidencia/CI | Medio | `.github/workflows/dotnet-ci.yml`, docs readiness, tests si aplica | Tecnologia/QA | GitHub Actions / entorno local | Commit `3cbff61` OK y causa de divergencia local documentada o corregida | Backend CI OK / local parcial |
+| G-18 | Ejecutar y validar nuevo Angular CI; corregir fallas locales de `TransactionCreateComponent`. | Evidencia/CI | Medio | `.github/workflows/angular-ci.yml`, specs Angular si aplica | Tecnologia/QA | Node/npm/ChromeHeadless en GitHub Actions | Workflow Angular verde con `npm ci`, build y test | Pendiente validar |
 
 ## Priorizacion
 
 1. Bloqueantes productivos: G-01, G-02, G-03, G-04, G-05, G-07, G-09, G-14.
-2. Bloqueantes de UAT operativo: G-01, G-06, G-13, G-17.
+2. Bloqueantes de UAT operativo: G-01, G-06, G-13, G-18.
 3. Higiene documental/configuracion: G-08, G-10, G-11, G-12, G-15, G-16.
 
 ## Restriccion De Esta Fase
