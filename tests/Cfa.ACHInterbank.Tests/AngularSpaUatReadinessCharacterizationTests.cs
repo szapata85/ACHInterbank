@@ -16,7 +16,7 @@ public class AngularSpaUatReadinessCharacterizationTests
         File.Exists(Path.Combine(SpaRoot, "angular.json")).Should().BeTrue();
         var packageJsonPath = Path.Combine(SpaRoot, "package.json");
         File.Exists(packageJsonPath).Should().BeTrue();
-        Read(packageJsonPath).Should().MatchRegex("@angular/(core|)", RegexOptions.IgnoreCase);
+        ShouldMatchRegexIgnoreCase(Read(packageJsonPath), "@angular/(core|)", "package.json debe declarar dependencias Angular");
 
         var matrix = Read(SpaMatrixPath);
         matrix.Should().Contain("web/ach-interbank-ui");
@@ -140,8 +140,8 @@ public class AngularSpaUatReadinessCharacterizationTests
         var matrix = Read(SpaMatrixPath);
         matrix.Should().Contain("POST /api/reports/accounting-review/export");
         matrix.Should().Contain("Parcial");
-        matrix.Should().MatchRegex("(Consumo SPA no confirmado|No confirmado)", RegexOptions.IgnoreCase);
-        matrix.Should().MatchRegex("Exponer flujo explícito en UI|equivalente", RegexOptions.IgnoreCase);
+        ShouldMatchRegexIgnoreCase(matrix, "(Consumo SPA no confirmado|No confirmado)", "la matriz debe documentar consumo SPA no confirmado para accounting-review export");
+        ShouldMatchRegexIgnoreCase(matrix, "Exponer flujo explícito en UI|equivalente", "la matriz debe exigir explicitación del flujo en la UI o equivalente");
     }
 
     [Fact]
@@ -204,7 +204,7 @@ public class AngularSpaUatReadinessCharacterizationTests
         matrix.Should().Contain("Riesgo/Compliance");
         matrix.Should().Contain("Tecnología/QA");
         matrix.Should().Contain("Parcial");
-        matrix.Should().MatchRegex("Falta separación fina|No explícito por dominio|Granularidad de negocio limitada", RegexOptions.IgnoreCase);
+        ShouldMatchRegexIgnoreCase(matrix, "Falta separación fina|No explícito por dominio|Granularidad de negocio limitada", "la matriz debe dejar explícita la parcialidad de granularidad de roles UAT");
     }
 
     [Fact]
@@ -249,7 +249,7 @@ public class AngularSpaUatReadinessCharacterizationTests
         content.Should().Contain("GO productivo");
         content.Should().Contain("NO");
         content.Should().Contain("NO-GO productivo");
-        content.Should().MatchRegex("Vigente|vigente");
+        ShouldMatchRegexIgnoreCase(content, "Vigente|vigente", "el generador debe declarar vigencia de resguardos NO-GO");
 
         foreach (var sheet in new[] { "Instrucciones", "Casos_UAT", "Evidencias", "Defectos", "Aprobadores", "Resumen_Ejecucion", "Scorecard_UAT" })
             content.Should().Contain(sheet);
@@ -318,7 +318,7 @@ public class AngularSpaUatReadinessCharacterizationTests
             return;
         }
 
-        Assert.True(false, "Se detectan señales de módulo UAT integral en SPA; actualizar matriz, scorecard y guías antes de cambiar readiness.");
+        Assert.Fail("Se detectan señales de módulo UAT integral en SPA; actualizar matriz, scorecard y guías antes de cambiar readiness.");
     }
 
     private static IEnumerable<string> EnumerateSpaFiles()
@@ -336,6 +336,12 @@ public class AngularSpaUatReadinessCharacterizationTests
                      || f.EndsWith(".html", StringComparison.OrdinalIgnoreCase)
                      || f.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
                      || f.EndsWith(".scss", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void ShouldMatchRegexIgnoreCase(string content, string pattern, string because = "")
+    {
+        Regex.IsMatch(content, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
+            .Should().BeTrue(because);
     }
 
     private static bool ContainsAny(string text, IEnumerable<string> needles)
