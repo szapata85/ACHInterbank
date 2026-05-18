@@ -9,7 +9,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 {
     /// <inheritdoc />
-    public partial class InitialPostgresSchemaBaseline : Migration
+    public partial class initdbpostgres : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -5079,11 +5079,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                 column: "CorrelationId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_IncomingNachaFileIngestions_FileHashSha256_FileSize",
-                table: "IncomingNachaFileIngestions",
-                columns: new[] { "FileHashSha256", "FileSize" });
-
-            migrationBuilder.CreateIndex(
                 name: "IX_IncomingNachaFileIngestions_FileHashSha256_FileSize_IsRepro~",
                 table: "IncomingNachaFileIngestions",
                 columns: new[] { "FileHashSha256", "FileSize", "IsReprocess", "ParentIngestionId" });
@@ -5102,6 +5097,13 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                 name: "IX_IncomingNachaFileIngestions_UploadedAtUtc_FileName",
                 table: "IncomingNachaFileIngestions",
                 columns: new[] { "UploadedAtUtc", "FileName" });
+
+            migrationBuilder.CreateIndex(
+                name: "UX_IncomingNachaFileIngestions_FileHash_FileSize_Canonical",
+                table: "IncomingNachaFileIngestions",
+                columns: new[] { "FileHashSha256", "FileSize" },
+                unique: true,
+                filter: "\"IsReprocess\" = false");
 
             migrationBuilder.CreateIndex(
                 name: "IX_IncomingNachaFileProcessingResults_IncomingNachaFileIngesti~",

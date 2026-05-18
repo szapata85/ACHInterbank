@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 {
     [DbContext(typeof(AchDbContext))]
-    [Migration("20260516221927_AddIncomingCanonicalFileIdempotencyIndex")]
-    partial class AddIncomingCanonicalFileIdempotencyIndex
+    [Migration("20260518183252_initdb-postgres")]
+    partial class initdbpostgres
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
