@@ -299,3 +299,24 @@ Bloqueantes vigentes:
 - Política current-vs-historical creada: `docs/governance/current-vs-historical-matrix-policy.md`.
 - El scorecard sigue siendo la vista ejecutiva.
 - NO-GO productivo vigente.
+
+### Punto 12 — Ejecución UAT con datos reales y actas
+
+- Protocolo definido en: `docs/uat/real-data-uat-execution-protocol.md`.
+- Plantillas vigentes:
+  - `docs/uat/templates/real-data-uat-acta-template.md`
+  - `docs/uat/templates/real-data-uat-evidence-index-template.md`
+- Estado: ejecución UAT real pendiente, actas humanas pendientes.
+- GO UAT formal: pendiente.
+- GO productivo: NO.
+- NO-GO productivo vigente.
+
+### Punto 12B — Guías operativas para usuarios no técnicos
+
+- 12B guías operativas para usuarios no técnicos: definido.
+- PDF/Excel especificados como entregables derivados:
+  - `UAT_ACHInterbank_Guia_Operativa_Usuarios.pdf`
+  - `UAT_ACHInterbank_Set_Pruebas_Operativas.xlsx`
+- Ejecución real sigue pendiente.
+- GO productivo: NO.
+- NO-GO productivo vigente.
