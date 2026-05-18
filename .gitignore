@@ -343,3 +343,11 @@ ASALocalRun/
 docs/uat/operator-guides/exports/*.pdf
 docs/uat/operator-guides/exports/*.xlsx
 compose.effective*.yml
+
+# Local environment files can contain credentials, tokens or private endpoints.
+# Keep only sanitized templates under version control.
+.env
+.env.local
+.env.*.local
+!.env.example
+!.env.test.example

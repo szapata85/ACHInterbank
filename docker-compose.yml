@@ -6,12 +6,13 @@ services:
     container_name: achinterbank-postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ACHInterbank}
-      POSTGRES_USER: ${POSTGRES_USER:-sa}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Cooperativa1*}
+      # Local/demo placeholders only. Use an untracked .env or secret manager for UAT/prod.
+      POSTGRES_USER: ${POSTGRES_USER:-example_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-example_password_change_me}
     volumes:
       - ach_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sa} -d ${POSTGRES_DB:-ACHInterbank}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-example_user} -d ${POSTGRES_DB:-ACHInterbank}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -30,7 +31,7 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       EnableHttpsRedirection: ${ENABLE_HTTPS_REDIRECTION:-false}
       Database__Provider: Postgres
-      ConnectionStrings__PostgresConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB:-ACHInterbank};Username=${POSTGRES_USER:-sa};Password=${POSTGRES_PASSWORD:-Cooperativa1*}
+      ConnectionStrings__PostgresConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB:-ACHInterbank};Username=${POSTGRES_USER:-example_user};Password=${POSTGRES_PASSWORD:-example_password_change_me}
       Database__ApplyMigrations: "true"
       DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable: "false"
     ports:
