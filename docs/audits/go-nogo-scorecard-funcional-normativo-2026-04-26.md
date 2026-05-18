@@ -230,3 +230,72 @@ Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPar
 - Referencia complementaria ciclos/neteo/liquidez/evidencia CUD: `docs/audits/cenit-cycles-netting-liquidity-cud-matrix-current.md` (no cambia decisión NO-GO productivo).
 
 - Referencia UAT ciclos/liquidez/evidencia CUD: `docs/uat/cenit-cycles-liquidity-cud-acceptance-checklist.md` (no cambia decisión NO-GO productivo).
+
+- Referencia matriz vigente de sobre/firma/certificados: `docs/audits/digital-envelope-signature-certificate-matrix-current.md` (no modifica decisión NO-GO productivo).
+
+- Referencia checklist UAT de sobre/firma/certificados: `docs/uat/digital-envelope-certificate-acceptance-checklist.md` (no modifica decisión NO-GO productivo).
+
+- Referencia runbook operativo de certificados: `docs/ops/certificate-operations-runbook.md` (no modifica decisión NO-GO productivo).
+
+- Decisión arquitectura certificados: OpenBao/SecretRef excluido del flujo de certificados; BD solo metadata; llaves privadas fuera de BD.
+
+> Referencia punto 10 (reportería/conciliación revisión contable terceros, no contable): `docs/audits/accounting-review-reconciliation-matrix-current.md`.
+
+- Referencia checklist UAT punto 10: `docs/uat/accounting-review-reconciliation-acceptance-checklist.md`.
+
+- Referencia runbook operativo conciliación punto 10: `docs/ops/reconciliation-operations-runbook.md`.
+
+
+## Actualización de scorecard - Punto 10
+
+- Dominio: Reportería, conciliación operativa y revisión contra terceros.
+- Estado técnico: **GO técnico controlado**.
+- Estado UAT: **GO UAT parcial (pendiente evidencia formal)**.
+- Estado productivo: **NO-GO**.
+
+Evidencias implementadas:
+- Endpoint backend export.
+- Export PDF/CSV/XLSX.
+- Exportaciones visibles en español.
+- Pruebas backend automatizadas.
+- CI verde para alcance del punto.
+- Población desde servicios existentes (parcial).
+
+Bloqueantes vigentes:
+- UAT formal pendiente.
+- CUD sin cierre runtime E2E.
+- Neteo/liquidez sin cierre E2E.
+- Aprobación negocio/operaciones/riesgo/compliance/tecnología pendiente.
+- Scorecard productivo sin aprobación final.
+
+
+## Actualización de evidencia — UAT asistida IA (punto 10)
+- Harness UAT automatizado: `tests/Cfa.ACHInterbank.Tests/AccountingReviewUatEvidenceHarnessTests.cs`.
+- Reporte UAT asistida por IA: `docs/uat/accounting-review-ai-assisted-uat-execution-report.md`.
+- GO UAT formal: pendiente aprobación humana.
+- GO productivo: NO-GO vigente.
+
+
+## Punto 11 — Cierre trazabilidad requisito/norma/código/prueba/evidencia
+
+- Matriz consolidada creada: `docs/audits/s1-requirement-norm-code-test-evidence-closure-matrix-current.md`.
+- Estado técnico: GO técnico controlado.
+- Estado UAT: parcial.
+- Estado productivo: NO-GO.
+- Bloqueantes: S1-10, S1-11, S1-12, S1-13, S1-20.
+
+
+### Punto 11 — Compuertas de evidencia y aprobación humana
+
+- Referencia: `docs/uat/human-signoff-evidence-classification-gates.md`.
+- GO técnico controlado.
+- GO UAT formal pendiente aprobación humana.
+- GO productivo: NO-GO.
+- Bloqueantes vigentes: S1-10, S1-11, S1-12, S1-13, S1-20.
+
+
+### Gobernanza documental — current vs historical
+
+- Política current-vs-historical creada: `docs/governance/current-vs-historical-matrix-policy.md`.
+- El scorecard sigue siendo la vista ejecutiva.
+- NO-GO productivo vigente.

@@ -1207,3 +1207,42 @@ Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPar
 - Referencia complementaria ciclos/neteo/liquidez/evidencia CUD: `docs/audits/cenit-cycles-netting-liquidity-cud-matrix-current.md` (no cambia decisión NO-GO productivo).
 
 - Referencia UAT ciclos/liquidez/evidencia CUD: `docs/uat/cenit-cycles-liquidity-cud-acceptance-checklist.md` (no cambia decisión NO-GO productivo).
+
+- Referencia matriz vigente de sobre/firma/certificados: `docs/audits/digital-envelope-signature-certificate-matrix-current.md` (no modifica decisión NO-GO productivo).
+
+- Referencia checklist UAT de sobre/firma/certificados: `docs/uat/digital-envelope-certificate-acceptance-checklist.md` (no modifica decisión NO-GO productivo).
+
+- Referencia runbook operativo de certificados: `docs/ops/certificate-operations-runbook.md` (no modifica decisión NO-GO productivo).
+
+- Decisión arquitectura certificados: OpenBao/SecretRef excluido del flujo de certificados; BD solo metadata; llaves privadas fuera de BD.
+
+> Referencia punto 10 (reportería/conciliación revisión contable terceros, no contable): `docs/audits/accounting-review-reconciliation-matrix-current.md`.
+
+- Referencia checklist UAT punto 10: `docs/uat/accounting-review-reconciliation-acceptance-checklist.md`.
+
+- Referencia runbook operativo conciliación punto 10: `docs/ops/reconciliation-operations-runbook.md`.
+
+
+## Actualización punto 10: reportería/conciliación contra terceros
+
+- Existe endpoint backend de export accounting-review: `POST /api/reports/accounting-review/export`.
+- Soporta exportación en PDF/CSV/XLSX.
+- Pobla información usando servicios existentes de reportes.
+- Soporta devoluciones, rechazos, ROR, diferencias y evidencias de NACHA/auditoría dentro de alcance técnico actual.
+- No contabiliza.
+- No reemplaza contabilidad de terceros.
+- NO-GO productivo se mantiene.
+
+
+## Referencia cruzada trazabilidad consolidada por cámara
+
+Para trazabilidad consolidada requisito→norma→código→prueba→evidencia por cámara, ver:
+`docs/audits/s1-requirement-norm-code-test-evidence-closure-matrix-current.md`.
+
+Esta referencia mantiene la diferenciación normativa ACH Colombia vs CENIT y no modifica el estado NO-GO productivo vigente.
+
+
+## Referencia de gobernanza documental current-vs-historical
+
+- Para resolver contradicciones documentales, usar: `docs/governance/current-vs-historical-matrix-policy.md`.
+- Mantener diferenciación normativa ACH Colombia vs CENIT.

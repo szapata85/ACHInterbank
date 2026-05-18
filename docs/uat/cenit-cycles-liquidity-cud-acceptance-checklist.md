@@ -273,3 +273,26 @@ Cada categoría debe poder reportarse separadamente.
 - NO-GO productivo: sí.
 - Este checklist no habilita producción.
 - Próximo paso: runbook operativo o diseño documental del simulador CUD parametrizable.
+
+- Referencia matriz vigente de sobre/firma/certificados: `docs/audits/digital-envelope-signature-certificate-matrix-current.md` (no modifica decisión NO-GO productivo).
+
+- Referencia checklist UAT de sobre/firma/certificados: `docs/uat/digital-envelope-certificate-acceptance-checklist.md` (no modifica decisión NO-GO productivo).
+
+> Referencia punto 10 (reportería/conciliación revisión contable terceros, no contable): `docs/audits/accounting-review-reconciliation-matrix-current.md`.
+
+- Referencia checklist UAT punto 10: `docs/uat/accounting-review-reconciliation-acceptance-checklist.md`.
+
+- Referencia runbook operativo conciliación punto 10: `docs/ops/reconciliation-operations-runbook.md`.
+
+
+> Referencia cruzada punto 10 (reportería/conciliación contra terceros):
+> - `docs/audits/accounting-review-reconciliation-matrix-current.md`
+> - `docs/uat/accounting-review-reconciliation-acceptance-checklist.md`
+> - `docs/ops/reconciliation-operations-runbook.md`
+>
+> El endpoint backend `POST /api/reports/accounting-review/export` provee exportación PDF/CSV/XLSX para soporte de revisión operativa, sin contabilizar y sin cambiar el NO-GO productivo.
+
+Referencia de trazabilidad consolidada: para trazabilidad requisito→norma→código→prueba→evidencia por cámara, ver `docs/audits/s1-requirement-norm-code-test-evidence-closure-matrix-current.md`. Esta referencia no cambia NO-GO productivo.
+
+
+Referencia de compuertas de evidencia y aprobación humana: para clasificación de evidencia, GO UAT formal y aprobación humana, ver `docs/uat/human-signoff-evidence-classification-gates.md`. Esta referencia no cambia NO-GO productivo.

@@ -121,3 +121,54 @@ Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPar
 - Referencia complementaria ciclos/neteo/liquidez/evidencia CUD: `docs/audits/cenit-cycles-netting-liquidity-cud-matrix-current.md` (no cambia decisión NO-GO productivo).
 
 - Referencia UAT ciclos/liquidez/evidencia CUD: `docs/uat/cenit-cycles-liquidity-cud-acceptance-checklist.md` (no cambia decisión NO-GO productivo).
+
+- Referencia matriz vigente de sobre/firma/certificados: `docs/audits/digital-envelope-signature-certificate-matrix-current.md` (no modifica decisión NO-GO productivo).
+
+- Referencia checklist UAT de sobre/firma/certificados: `docs/uat/digital-envelope-certificate-acceptance-checklist.md` (no modifica decisión NO-GO productivo).
+
+- Referencia runbook operativo de certificados: `docs/ops/certificate-operations-runbook.md` (no modifica decisión NO-GO productivo).
+
+- Decisión arquitectura certificados: OpenBao/SecretRef excluido del flujo de certificados; BD solo metadata; llaves privadas fuera de BD.
+
+> Referencia punto 10 (reportería/conciliación revisión contable terceros, no contable): `docs/audits/accounting-review-reconciliation-matrix-current.md`.
+
+- Referencia checklist UAT punto 10: `docs/uat/accounting-review-reconciliation-acceptance-checklist.md`.
+
+- Referencia runbook operativo conciliación punto 10: `docs/ops/reconciliation-operations-runbook.md`.
+
+
+## Actualización puntual - Punto 10 (estado backend)
+
+- Avance técnico backend significativo implementado.
+- Endpoint export implementado: `POST /api/reports/accounting-review/export`.
+- Export PDF/CSV/XLSX implementado.
+- Población desde servicios existentes implementada parcialmente.
+- Tests y CI en verde para el alcance técnico.
+- NO-GO productivo se mantiene por: UAT formal pendiente, cierre E2E CUD/neteo/liquidez pendiente y aprobaciones transversales pendientes.
+
+
+- Referencia UAT asistida por IA de punto 10: `docs/uat/accounting-review-ai-assisted-uat-execution-report.md` (evidencia técnica automatizada; GO UAT formal pendiente de aprobación humana; NO-GO productivo vigente).
+
+
+## Referencia consolidada punto 11
+
+Referencia consolidada punto 11:
+`docs/audits/s1-requirement-norm-code-test-evidence-closure-matrix-current.md`
+
+- Consolida requisito→norma→código→prueba→evidencia por cámara.
+- No cambia NO-GO productivo.
+- Ningún dominio se declara cerrado trazablemente si falta evidencia completa.
+
+
+## Referencia de compuertas de evidencia y aprobación humana (punto 11)
+
+- Guía de compuertas de evidencia y aprobación humana: `docs/uat/human-signoff-evidence-classification-gates.md`.
+- GO UAT formal requiere aprobación humana.
+- NO-GO productivo se mantiene.
+
+
+## Política de gobierno documental (current vs historical)
+
+- Referencia: `docs/governance/current-vs-historical-matrix-policy.md`.
+- Define precedencia current vs historical.
+- NO-GO productivo se mantiene.

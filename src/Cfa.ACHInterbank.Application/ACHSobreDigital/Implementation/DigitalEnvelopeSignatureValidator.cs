@@ -49,9 +49,14 @@ public class DigitalEnvelopeSignatureValidator : IDigitalEnvelopeSignatureValida
         if (_options.FailWhenSignerCertificateExpired)
         {
             var now = DateTime.UtcNow;
-            if (now < signerCertificate.NotBefore.ToUniversalTime() || now > signerCertificate.NotAfter.ToUniversalTime())
+            if (now < signerCertificate.NotBefore.ToUniversalTime())
             {
-                return Task.FromResult(Fail("SIGNER_CERTIFICATE_EXPIRED", "El certificado firmante está expirado o fuera de vigencia.", warnings, signerCertificate));
+                return Task.FromResult(Fail("SIGNER_CERTIFICATE_NOT_YET_VALID", "El certificado firmante aún no está vigente.", warnings, signerCertificate));
+            }
+
+            if (now > signerCertificate.NotAfter.ToUniversalTime())
+            {
+                return Task.FromResult(Fail("SIGNER_CERTIFICATE_EXPIRED", "El certificado firmante está expirado.", warnings, signerCertificate));
             }
         }
 

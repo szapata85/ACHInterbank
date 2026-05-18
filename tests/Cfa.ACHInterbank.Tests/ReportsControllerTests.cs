@@ -2,6 +2,7 @@ using Cfa.ACHInterbank.Api.Controllers;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.Reports.Interfaces;
 using Cfa.ACHInterbank.Application.Reports.Models;
+using Cfa.ACHInterbank.Application.Reports.Export.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -160,6 +161,7 @@ public class ReportsControllerTests
             reconciliation,
             auditHistory,
             clearingHouse.Object,
+            new Mock<IAccountingReviewExportAppService>().Object,
             NullLogger<ReportsController>.Instance);
     }
 }
