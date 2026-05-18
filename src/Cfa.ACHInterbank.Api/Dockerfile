@@ -25,7 +25,7 @@ COPY ["src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj", "s
 RUN dotnet restore "./src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj"
 COPY . .
 WORKDIR "/src/src/Cfa.ACHInterbank.Api"
-RUN dotnet build "./Cfa.ACHInterbank.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build "./Cfa.ACHInterbank.Api.csproj" -c $BUILD_CONFIGURATION -o /app/builds
 
 # This stage is used to publish the service project to be copied to the final stage
 FROM build AS publish
