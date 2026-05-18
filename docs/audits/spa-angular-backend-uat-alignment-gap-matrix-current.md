@@ -137,6 +137,10 @@ Commits propuestos a futuro (no implementados en este documento):
 - `feat(spa): add UAT guide links in operational screens`
 - `docs(uat): update operator guide with SPA execution paths`
 
+Estado de cobertura documental:
+- `docs(uat): update operator guide with SPA execution paths` → **cubierto** (guía operativa actualizada para ejecución híbrida SPA + Excel/PDF/manual).
+- Esta cobertura **no cambia** readiness global SPA ni estado GO/NO-GO productivo.
+
 ## 13. Veredicto
 - SPA readiness: **Parcial**.
 - 12D: **Sí con restricciones**.
