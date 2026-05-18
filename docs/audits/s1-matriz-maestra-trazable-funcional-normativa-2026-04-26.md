@@ -146,3 +146,5 @@ Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPar
 - Tests y CI en verde para el alcance técnico.
 - NO-GO productivo se mantiene por: UAT formal pendiente, cierre E2E CUD/neteo/liquidez pendiente y aprobaciones transversales pendientes.
 
+
+- Referencia UAT asistida por IA de punto 10: `docs/uat/accounting-review-ai-assisted-uat-execution-report.md` (evidencia técnica automatizada; GO UAT formal pendiente de aprobación humana; NO-GO productivo vigente).

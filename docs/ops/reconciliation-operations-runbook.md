@@ -316,3 +316,10 @@ Notas de control:
 - Exportar no implica GO productivo.
 - Se mantiene NO-GO productivo.
 
+
+## Referencia de ejecución UAT asistida (IA)
+Para soporte de revisión operativa del punto 10, consultar:
+- `docs/uat/accounting-review-ai-assisted-uat-execution-report.md`.
+- `tests/Cfa.ACHInterbank.Tests/AccountingReviewUatEvidenceHarnessTests.cs`.
+
+Esta evidencia es técnica/asistida por IA, no reemplaza aprobación humana y no habilita GO productivo.

@@ -268,3 +268,9 @@ Bloqueantes vigentes:
 - Aprobación negocio/operaciones/riesgo/compliance/tecnología pendiente.
 - Scorecard productivo sin aprobación final.
 
+
+## Actualización de evidencia — UAT asistida IA (punto 10)
+- Harness UAT automatizado: `tests/Cfa.ACHInterbank.Tests/AccountingReviewUatEvidenceHarnessTests.cs`.
+- Reporte UAT asistida por IA: `docs/uat/accounting-review-ai-assisted-uat-execution-report.md`.
+- GO UAT formal: pendiente aprobación humana.
+- GO productivo: NO-GO vigente.

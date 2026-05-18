@@ -421,3 +421,9 @@ Resultado CI (último CI validado para el alcance de este punto):
 - Modelo formal de evidencia implementado.
 - Tests de export/población implementados.
 
+
+## 19. Actualización UAT asistida por IA (punto 10)
+- UAT asistida por IA implementada para `POST /api/reports/accounting-review/export`.
+- Evidencia automatizada disponible en `AccountingReviewUatEvidenceHarnessTests`.
+- Reporte documental disponible en `docs/uat/accounting-review-ai-assisted-uat-execution-report.md`.
+- Estado: pendiente validación y aprobación humana para GO UAT formal; NO-GO productivo vigente.

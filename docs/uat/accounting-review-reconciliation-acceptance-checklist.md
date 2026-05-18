@@ -305,3 +305,10 @@ Diferenciar: idempotencia ACH existente; idempotencia reportería no formal; ide
 13. Validar huérfanas cuando la fuente exista.
 14. Validar que ACHInterbank soporta revisión de terceros y no contabiliza.
 
+
+## 22. Evidencia UAT asistida por IA (punto 10)
+- [x] Evidencia UAT automatizada/asistida por IA disponible (`tests/Cfa.ACHInterbank.Tests/AccountingReviewUatEvidenceHarnessTests.cs`).
+- [x] Reporte de ejecución UAT asistida por IA disponible (`docs/uat/accounting-review-ai-assisted-uat-execution-report.md`).
+- [ ] Aprobación humana de GO UAT formal pendiente.
+- [ ] Acta UAT formal pendiente.
+- [ ] GO productivo pendiente (NO-GO vigente).
