@@ -135,3 +135,8 @@ La ejecución UAT real debe actualizar, cuando aplique:
 - Guía de aprobación/firma: `docs/uat/operator-guides/uat-operator-signoff-guide.md`.
 - Paquete PDF/Excel: `docs/uat/operator-guides/uat-final-user-delivery-pack.md`.
 - Este paquete no habilita producción por sí solo y mantiene NO-GO productivo vigente.
+
+## 14. Referencia de brechas SPA para compuerta 12D
+- Matriz de brechas SPA↔backend↔normativa↔UAT: `docs/audits/spa-angular-backend-uat-alignment-gap-matrix-current.md`.
+- Regla: si SPA no cubre un caso UAT, debe ejecutarse por vía documental/manual controlada y quedar trazado en evidencia/acta.
+- Para ejecución asistida por SPA (rutas/pantallas operativas, exportación Accounting Review y fronteras CENIT/CUD), usar: `docs/uat/operator-guides/uat-operator-execution-guide.md` (sección **10. Ejecución UAT con apoyo del SPA**).

@@ -36,3 +36,8 @@
 - No exponer cuentas o identificaciones completas.
 - Registrar hash o referencia interna en lugar de datos completos.
 - Guardar soportes sensibles en ubicación segura aprobada.
+
+## 5. Nota para evidencias originadas en SPA
+- Toda evidencia generada desde SPA (capturas, reportes, exportaciones PDF/CSV/XLSX) debe registrarse en el índice de evidencias 12B/12C.
+- La custodia debe seguir reglas de datos sensibles y repositorio documental aprobado.
+- Esta evidencia no reemplaza aprobación humana ni habilita GO productivo.

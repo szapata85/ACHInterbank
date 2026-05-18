@@ -1,5 +1,7 @@
 # Set de pruebas UAT operativas — bloqueantes S1
 
+> Referencia operativa complementaria (rutas SPA y ejecución híbrida 12D/12E): `docs/uat/operator-guides/uat-operator-execution-guide.md` (sección **10. Ejecución UAT con apoyo del SPA**).
+
 ## S1-10 Neteo CENIT E2E
 
 ### UAT-OP-S1-10-001 Validar neteo por ciclo CENIT
