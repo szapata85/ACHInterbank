@@ -320,3 +320,11 @@ Bloqueantes vigentes:
 - Ejecución real sigue pendiente.
 - GO productivo: NO.
 - NO-GO productivo vigente.
+
+### Punto 13 — Alineación SPA Angular ↔ backend ↔ normativa ↔ UAT
+
+- Matriz de brechas SPA vigente: `docs/audits/spa-angular-backend-uat-alignment-gap-matrix-current.md`.
+- Resultado 13A/13B: SPA parcial para UAT operativa no técnica.
+- 12D puede iniciar solo con restricciones y soporte documental 12B/12C.
+- GO productivo: NO.
+- NO-GO productivo vigente.

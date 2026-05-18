@@ -228,3 +228,9 @@ Política de gobierno documental vigente/histórico: `docs/governance/current-vs
 - Plantilla de defectos: `docs/uat/operator-guides/uat-operator-defect-report-template.md`.
 - Guía de firma/aprobación: `docs/uat/operator-guides/uat-operator-signoff-guide.md`.
 - Entregables derivados PDF/Excel: `docs/uat/operator-guides/uat-final-user-delivery-pack.md`.
+
+## Referencia cruzada 13A/13B — Brechas de alineación SPA↔backend↔UAT
+
+- Matriz vigente de brechas SPA Angular ↔ backend ↔ normativa ↔ UAT:
+  - `docs/audits/spa-angular-backend-uat-alignment-gap-matrix-current.md`
+- Estado documentado: SPA readiness parcial, 12D solo con restricciones y NO-GO productivo vigente.

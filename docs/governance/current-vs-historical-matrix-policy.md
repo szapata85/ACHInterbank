@@ -224,3 +224,9 @@ Ningún documento de política puede convertirlos a GO productivo sin evidencia 
   - `docs/uat/operator-guides/uat-operator-test-cases-s1-blockers.md`
   - `docs/uat/operator-guides/uat-final-user-delivery-pack.md`
 - Regla: estas guías facilitan ejecución funcional y evidencia humana, pero no habilitan GO productivo por sí solas.
+
+## 16. Referencia cruzada 13A/13B (alineación SPA para UAT)
+
+- Documento vigente de brechas SPA para compuerta 12D:
+  - `docs/audits/spa-angular-backend-uat-alignment-gap-matrix-current.md`
+- Regla de gobierno: hallazgos SPA parciales deben declararse como restricción UAT y no pueden interpretarse como GO productivo.

@@ -64,3 +64,8 @@ Esta guía ayuda a ejecutar pruebas UAT con datos reales o anonimizados, sin nec
 - Esta guía no habilita producción.
 - GO productivo: NO.
 - NO-GO productivo vigente hasta scorecard y aprobación formal.
+
+## 9. Restricción de cobertura SPA para 12D
+- Referencia de brechas SPA vigente: `docs/audits/spa-angular-backend-uat-alignment-gap-matrix-current.md`.
+- Si una validación no está disponible completamente en SPA, debe ejecutarse por ruta documental/manual del paquete 12B/12C.
+- Esta restricción no habilita GO productivo y mantiene NO-GO productivo vigente.
