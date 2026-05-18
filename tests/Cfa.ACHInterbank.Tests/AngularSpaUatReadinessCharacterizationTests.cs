@@ -163,8 +163,9 @@ public class AngularSpaUatReadinessCharacterizationTests
         var matrix = Read(SpaMatrixPath);
         matrix.Should().Contain("POST /api/reports/accounting-review/export");
         matrix.Should().Contain("Parcial");
-        ShouldMatchRegexIgnoreCase(matrix, "(Consumo SPA no confirmado|No confirmado|Implementado en UI; pendiente validación UAT operativa)", "la matriz debe documentar estado parcial de consumo SPA para accounting-review export");
-        ShouldMatchRegexIgnoreCase(matrix, "Exponer flujo explícito en UI|equivalente", "la matriz debe exigir explicitación del flujo en la UI o equivalente");
+        ShouldMatchRegexIgnoreCase(matrix, "(Expuesto en SPA|Implementado en UI)", "la matriz debe documentar que el consumo SPA del export accounting-review ya está implementado");
+        ShouldMatchRegexIgnoreCase(matrix, "pendiente validación UAT operativa|pendiente validación UAT", "la matriz debe mantener la compuerta de validación UAT operativa");
+        ShouldMatchRegexIgnoreCase(matrix, "Mantener frontera no-contable|frontera no-contable", "la matriz debe mantener explícita la frontera no-contable");
     }
 
     [Fact]
