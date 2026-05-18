@@ -12,9 +12,17 @@ import { TransactionCreateComponent } from './transaction-create.component';
 describe('TransactionCreateComponent', () => {
   let component: TransactionCreateComponent;
   let txApi: jasmine.SpyObj<TransactionsApiService>;
+  let notifications: jasmine.SpyObj<NotificationService>;
+  const activeThirdPartyAccount = {
+    destinationAccountNumber: '9876543210',
+    destinationInstitutionId: 7,
+    recipientIdNumber: '10101010',
+    destinationInstitutionName: 'Banco destino UAT'
+  };
 
   beforeEach(async () => {
     txApi = jasmine.createSpyObj<TransactionsApiService>('TransactionsApiService', ['getCompanyEntryDescriptions', 'createTransaction', 'getActiveThirdParties', 'previewPolicy']);
+    notifications = jasmine.createSpyObj<NotificationService>('NotificationService', ['success', 'error']);
 
     await TestBed.configureTestingModule({
       imports: [TransactionCreateComponent],
@@ -22,7 +30,7 @@ describe('TransactionCreateComponent', () => {
         { provide: TransactionsApiService, useValue: txApi },
         { provide: FinancialInstitutionsApiService, useValue: { getAll: () => of([]) } },
         { provide: CustomersApiService, useValue: { getAll: () => of([] as CustomerSummary[]) } },
-        { provide: NotificationService, useValue: jasmine.createSpyObj('NotificationService', ['success', 'error']) },
+        { provide: NotificationService, useValue: notifications },
         { provide: Router, useValue: jasmine.createSpyObj('Router', ['navigate']) }
       ]
     })
@@ -32,7 +40,7 @@ describe('TransactionCreateComponent', () => {
     const fixture = TestBed.createComponent(TransactionCreateComponent);
     component = fixture.componentInstance;
     txApi.getCompanyEntryDescriptions.and.returnValue(of([{ id: 1, term: 'NOMINAS', description: 'Nómina' }] as any));
-    txApi.getActiveThirdParties.and.returnValue(of([]));
+    txApi.getActiveThirdParties.and.returnValue(of([activeThirdPartyAccount] as any));
     txApi.previewPolicy.and.returnValue(of({ canSubmit: true } as any));
     fixture.detectChanges();
   });
@@ -52,12 +60,20 @@ describe('TransactionCreateComponent', () => {
       recipientName: 'Receptor',
       requiresIdentityValidation: false,
       companyName: 'Empresa',
-      companyIdentification: 'ab12',
+      companyIdentification: 'AB12',
       sourcePersonType: 'PJ',
       recipientPersonType: 'PN',
       companyEntryDescriptionId: 1
     });
+    component.activeDestinationAccounts = [activeThirdPartyAccount] as any;
+    component.filteredDestinationAccounts = [activeThirdPartyAccount] as any;
+    component.form.patchValue({
+      destinationInstitutionId: activeThirdPartyAccount.destinationInstitutionId,
+      destinationAccountNumber: activeThirdPartyAccount.destinationAccountNumber,
+      recipientIdNumber: activeThirdPartyAccount.recipientIdNumber
+    }, { emitEvent: false });
     component.addendas.at(0).patchValue({ addendaType: '05', information: 'Detalle' });
+    component.form.updateValueAndValidity();
   }
 
   it('TransactionCreateComponent_ShouldBuildValidPayload_WhenFormValid', () => {
@@ -97,13 +113,22 @@ describe('TransactionCreateComponent', () => {
     component.submit();
 
     expect(txApi.createTransaction).toHaveBeenCalledTimes(1);
-    expect(component.successMessage.value).toContain('Transacción creada correctamente');
+    expect(component.createdResponse.value).toEqual({ id: 11 } as any);
+    expect(notifications.success).toHaveBeenCalledWith('Transacción creada correctamente');
   });
 
   it('TransactionCreateComponent_ShouldSupportPrenotificationWithZeroAmount', () => {
     txApi.createTransaction.and.returnValue(of({ id: 11 } as any));
     fillValidForm(0);
     component.form.patchValue({ isPrenotification: true, amount: 0 });
+    component.activeDestinationAccounts = [activeThirdPartyAccount] as any;
+    component.filteredDestinationAccounts = [activeThirdPartyAccount] as any;
+    component.form.patchValue({
+      destinationInstitutionId: activeThirdPartyAccount.destinationInstitutionId,
+      destinationAccountNumber: activeThirdPartyAccount.destinationAccountNumber,
+      recipientIdNumber: activeThirdPartyAccount.recipientIdNumber
+    }, { emitEvent: false });
+    component.form.updateValueAndValidity();
 
     component.submit();
 

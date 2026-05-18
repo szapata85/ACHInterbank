@@ -19,18 +19,18 @@ Uso: instrumento preliminar para comite; requiere evidencias y firmas.
 
 | Categoria | Peso | Estado inicial | Puntaje preliminar | Puntaje ponderado | Evidencia | Observacion |
 |---|---:|---|---:|---:|---|---|
-| Funcionalidad core | 20% | PARCIAL | 72 | 14.4 | Backend CI OK; Angular CI creado | Falta UAT E2E formal, Angular CI verde y reconciliar test local backend |
+| Funcionalidad core | 20% | PARCIAL | 74 | 14.8 | Backend CI OK; Angular build/test local OK; Angular CI creado | Falta UAT E2E formal, Angular CI verde y reconciliar test local backend |
 | UAT y evidencias | 20% | CRITICO | 35 | 7.0 | Docs UAT y plantillas | Actas/evidencias pendientes |
 | Seguridad | 15% | PARCIAL | 65 | 9.75 | Politicas/middleware + `[Authorize]` en AchResponses | `.env` trackeado, roles/policies y secretos requieren validacion |
 | Interoperabilidad externa | 15% | CRITICO | 35 | 5.25 | Sobre digital/naming/CENIT | Validacion externa pendiente |
 | Operacion y soporte | 10% | PARCIAL | 58 | 5.8 | Runbooks/docs + dotnet-ci OK | Backup/restore/rollback y Docker/health pendientes |
 | Observabilidad | 10% | PARCIAL | 60 | 6.0 | Logs, audit, health | Health parcial; evidencia Docker/health pendiente |
 | Documentacion y trazabilidad | 10% | PARCIAL | 70 | 7.0 | README y docs readiness actualizados | Firmas/evidencias pendientes |
-| **Total** | **100%** | **NO-GO** |  | **55.2** |  | **NO-GO** |
+| **Total** | **100%** | **NO-GO** |  | **55.6** |  | **NO-GO** |
 
 ## Estado Inicial
 
-Resultado preliminar tras backend CI OK y creacion de Angular CI: **55.2 / 100 - NO-GO productivo**.
+Resultado preliminar tras backend CI OK, creacion de Angular CI y validacion local Angular OK: **55.6 / 100 - NO-GO productivo**.
 
 Clasificacion operacional: **Candidato UAT controlado**.
 
@@ -44,7 +44,7 @@ Clasificacion operacional: **Candidato UAT controlado**.
 - Falta matriz endpoint-rol y validacion de politica granular para `AchResponsesController` aunque ya tiene `[Authorize]`.
 - Endpoint mismatch de interoperabilidad SPA/backend.
 - `environment.prod.ts` corregido a base relativa; falta evidencia de build/deploy UAT.
-- Angular CI pendiente hasta que el nuevo workflow pase en GitHub Actions; localmente `npm test` falla 3 specs existentes.
+- Angular tests locales OK (`npm run build` y `npm test -- --watch=false --browsers=ChromeHeadless`); Angular CI pendiente hasta que el nuevo workflow pase en GitHub Actions tras push.
 - Backend CI remoto OK para `3cbff61`; localmente `dotnet test` muestra divergencia en 1 test preproductivo.
 - Docker/health checks pendientes de evidencia en ambiente.
 - Riesgo de `.env` versionado y defaults sensibles en compose/documentacion.
@@ -61,7 +61,7 @@ Clasificacion operacional: **Candidato UAT controlado**.
 - Defecto bloqueante abierto = NO-GO productivo.
 - Evidencia tecnica automatizada no reemplaza aprobacion humana.
 - Backend CI OK no implica GO productivo.
-- Angular CI pendiente mantiene release candidate tecnico incompleto.
+- Angular CI remoto pendiente mantiene release candidate tecnico incompleto hasta obtener workflow verde.
 
 ## Proyeccion De Mejora
 
