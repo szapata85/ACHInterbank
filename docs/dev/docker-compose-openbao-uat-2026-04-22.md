@@ -1,5 +1,7 @@
 # Docker Compose UAT (OpenBao on-prem)
 
+> **Estado historico:** OpenBao fue retirado del compose local por defecto. Los secretos reales deben inyectarse por variables de entorno o mecanismo aprobado del ambiente.
+
 > **Ámbito:** Este bootstrap es para UAT/laboratorio controlado (no hardening productivo).
 
 ## Levantar todo en un solo flujo
