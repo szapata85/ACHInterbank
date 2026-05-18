@@ -2,6 +2,11 @@
   <ui-migas-pan [items]="migas"></ui-migas-pan>
   <ui-encabezado-pagina [titulo]="titulo" [descripcion]="subtitulo"></ui-encabezado-pagina>
   <ui-alerta tipo="info" [mensaje]="mensajeOperacion"></ui-alerta>
+  <ui-alerta
+    tipo="warning"
+    titulo="Frontera operativa CENIT/CUD"
+    mensaje="Liquidez simulada no equivale a saldo real CUD. Las decisiones mostradas son internas y operativas; no representan liquidación firme, no representan rechazo oficial CUD y no contabilizan. La evidencia CUD es operacional/manual y debe validarse con soporte externo aprobado."
+  ></ui-alerta>
 
   <ng-template #resumenTpl>
     <section class="resumen-grid">

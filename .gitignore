@@ -339,3 +339,7 @@ ASALocalRun/
 
 # Prevent accidental Windows-absolute-path artifact folders
 **/C:/
+
+docs/uat/operator-guides/exports/*.pdf
+docs/uat/operator-guides/exports/*.xlsx
+compose.effective*.yml

@@ -200,9 +200,9 @@ export class CenitOperationPageComponent implements OnInit {
   private mapNet(row: CenitNetPositionRow): Record<string, string> {
     return {
       Entidad: row.financialInstitutionName || String(row.financialInstitutionId ?? '-'),
-      Posición: this.formatAmount(row.netAmount ?? 0),
-      Liquidez: this.formatAmount(row.availableLiquidity ?? 0),
-      Tipo: row.liquiditySourceType || '-'
+      'Posición neta': this.formatAmount(row.netAmount ?? 0),
+      'Liquidez simulada': this.formatAmount(row.availableLiquidity ?? 0),
+      'Fuente de liquidez (referencia)': this.mapLiquiditySourceType(row.liquiditySourceType)
     };
   }
 
@@ -226,8 +226,8 @@ export class CenitOperationPageComponent implements OnInit {
   private mapOptimization(row: CenitOptimizationDecisionRow): Record<string, string> {
     return {
       Transacción: String(row.achTransactionId),
-      Decisión: row.decisionType,
-      Motivo: row.decisionReason,
+      'Decisión interna de liquidez': this.mapDecisionType(row.decisionType),
+      'Motivo operativo': this.mapDecisionReason(row.decisionReason),
       Prioridad: String(row.priority),
       'Ciclo origen': row.fromCycleId,
       'Ciclo destino': row.toCycleId || '-',
@@ -253,13 +253,13 @@ export class CenitOperationPageComponent implements OnInit {
       },
       neteo: {
         titulo: 'Posiciones netas por entidad',
-        subtitulo: 'Consolidado de posición y liquidez para compensación.',
-        mensaje: 'Identifique presión de liquidez y soporte decisiones de contingencia.'
+        subtitulo: 'Consolidado de posición neta y liquidez operativa para compensación.',
+        mensaje: 'Liquidez simulada para evaluación interna. No representa saldo real CUD ni liquidación firme.'
       },
       optimizacion: {
         titulo: 'Decisiones de optimización',
         subtitulo: 'Trazabilidad de reglas de liquidez, prioridad y diferimiento.',
-        mensaje: 'Analice por qué una transacción fue aprobada, diferida o rechazada.'
+        mensaje: 'Analice decisiones internas de liquidez. DXX-LIQ es causal interna y no representa rechazo oficial CUD.'
       },
       devoluciones: {
         titulo: 'Devoluciones operativas',
@@ -276,5 +276,28 @@ export class CenitOperationPageComponent implements OnInit {
     this.titulo = map[this.view].titulo;
     this.subtitulo = map[this.view].subtitulo;
     this.mensajeOperacion = map[this.view].mensaje;
+  }
+
+  private mapLiquiditySourceType(value?: string): string {
+    if (!value) return '-';
+    const lower = value.toLowerCase();
+    if (lower.includes('simulated')) return 'Liquidez simulada (no equivale a saldo real CUD)';
+    if (lower.includes('external')) return 'Liquidez externa reportada (referencia operacional)';
+    return value;
+  }
+
+  private mapDecisionType(value?: string): string {
+    if (!value) return '-';
+    const lower = value.toLowerCase();
+    if (lower.includes('processed')) return 'Procesado internamente';
+    if (lower.includes('deferred')) return 'Diferido por liquidez';
+    if (lower.includes('rejected')) return 'Rechazado internamente por liquidez';
+    return value;
+  }
+
+  private mapDecisionReason(value?: string): string {
+    if (!value) return '-';
+    if (value.toUpperCase().includes('DXX-LIQ')) return 'Causal interna DXX-LIQ (no representa rechazo oficial CUD)';
+    return value;
   }
 }

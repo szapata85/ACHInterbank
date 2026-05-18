@@ -1,0 +1,48 @@
+<section class="panel accounting-review-export">
+  <h3>Exportar reporte operativo de revisión</h3>
+  <p class="disclaimer">
+    Este reporte es operativo y de soporte de conciliación/revisión de terceros. NO contabiliza, no genera asientos y no reemplaza evidencia externa ni aprobación humana.
+  </p>
+  <p class="disclaimer">
+    La evidencia CUD es operacional/manual. No representa API CUD bancaria ni saldo real CUD. Liquidez simulada no equivale a saldo real CUD.
+  </p>
+
+  <form [formGroup]="form" (ngSubmit)="downloadReport()" class="grid">
+    <label>
+      Formato
+      <select formControlName="format">
+        <option *ngFor="let item of formats" [value]="item.value">{{ item.label }}</option>
+      </select>
+    </label>
+
+    <label *ngIf="isCsv">
+      Delimitador CSV
+      <input type="text" maxlength="1" formControlName="csvDelimiter" placeholder="," />
+    </label>
+
+    <label>Desde <input type="date" formControlName="dateFrom" /></label>
+    <label>Hasta <input type="date" formControlName="dateTo" /></label>
+    <label>Cámara <input type="text" formControlName="clearingHouseCode" placeholder="ACH/CENIT" /></label>
+    <label>Ciclo <input type="text" formControlName="cycleCode" /></label>
+    <label>Archivo <input type="text" formControlName="fileId" /></label>
+    <label>Hash archivo <input type="text" formControlName="fileHash" /></label>
+    <label>Transacción <input type="text" formControlName="transactionId" /></label>
+    <label>Estado <input type="text" formControlName="status" /></label>
+    <label>Causal <input type="text" formControlName="causeCode" /></label>
+
+    <div class="checks">
+      <label><input type="checkbox" formControlName="includeOutbound" /> Outbound</label>
+      <label><input type="checkbox" formControlName="includeIncoming" /> Incoming</label>
+      <label><input type="checkbox" formControlName="includeReturns" /> Devoluciones</label>
+      <label><input type="checkbox" formControlName="includeReturnOfReturn" /> Return of Return</label>
+      <label><input type="checkbox" formControlName="includeManualAuditOnly" /> Manual audit-only</label>
+      <label><input type="checkbox" formControlName="includeNetting" /> Neteo</label>
+      <label><input type="checkbox" formControlName="includeLiquidity" /> Liquidez</label>
+      <label><input type="checkbox" formControlName="includeCudEvidence" /> Evidencia CUD operacional</label>
+    </div>
+
+    <div class="actions">
+      <button type="submit" [disabled]="downloading">{{ downloading ? 'Generando...' : 'Descargar reporte' }}</button>
+    </div>
+  </form>
+</section>

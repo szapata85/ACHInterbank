@@ -207,3 +207,26 @@ Ningún documento de política puede convertirlos a GO productivo sin evidencia 
 - GO UAT documental: **Parcial/controlado**.
 - GO productivo: **NO**.
 - NO-GO productivo vigente.
+
+## 14. Referencia cruzada punto 12 (UAT real con datos reales/anonimizados)
+
+- Documento vigente del protocolo: `docs/uat/real-data-uat-execution-protocol.md`.
+- Plantillas de cierre humano:
+  - `docs/uat/templates/real-data-uat-acta-template.md`
+  - `docs/uat/templates/real-data-uat-evidence-index-template.md`
+- Regla de gobierno: la existencia del protocolo y plantillas no cambia por sí sola el estado GO/NO-GO productivo.
+- Para cambio de estado se requiere ejecución real, evidencia suficiente, aprobaciones humanas y scorecard actualizado.
+
+## 15. Referencia cruzada punto 12B (guías no técnicas para operación UAT)
+
+- Paquete no técnico vigente:
+  - `docs/uat/operator-guides/uat-operator-execution-guide.md`
+  - `docs/uat/operator-guides/uat-operator-test-cases-s1-blockers.md`
+  - `docs/uat/operator-guides/uat-final-user-delivery-pack.md`
+- Regla: estas guías facilitan ejecución funcional y evidencia humana, pero no habilitan GO productivo por sí solas.
+
+## 16. Referencia cruzada 13A/13B (alineación SPA para UAT)
+
+- Documento vigente de brechas SPA para compuerta 12D:
+  - `docs/audits/spa-angular-backend-uat-alignment-gap-matrix-current.md`
+- Regla de gobierno: hallazgos SPA parciales deben declararse como restricción UAT y no pueden interpretarse como GO productivo.

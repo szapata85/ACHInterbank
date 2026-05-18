@@ -2,6 +2,7 @@ import { HttpClient, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
+import { AccountingReviewExportRequest } from '../models/accounting-review-export.model';
 
 export interface TraceabilityReportFilter {
   fromUtc?: string;
@@ -399,6 +400,13 @@ export class ReportsApiService {
   downloadHistoryPdf(filter: HistoryReportFilter): Observable<HttpResponse<Blob>> {
     return this.http.get(this.api.resolveUrl('api/reports/history/pdf'), {
       params: this.buildHistoryParams(filter),
+      observe: 'response',
+      responseType: 'blob'
+    });
+  }
+
+  exportAccountingReview(request: AccountingReviewExportRequest): Observable<HttpResponse<Blob>> {
+    return this.http.post(this.api.resolveUrl('api/reports/accounting-review/export'), request, {
       observe: 'response',
       responseType: 'blob'
     });

@@ -206,10 +206,31 @@ public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
     [Fact]
     public void DockerCompose_ShouldNotRequireOpenBao_ForApiCertificateRuntime()
     {
-        var text = File.ReadAllText(Path.Combine(ResolveRepositoryRoot(), "docker-compose.yml"));
-        text.Should().Contain("DigitalEnvelope__OpenBao__Enabled: \"false\"");
-        text.Should().Contain("WAIT_FOR_OPENBAO_TOKEN_FILE: \"false\"");
-        text.Should().NotContain("openbao-bootstrap:\n        condition: service_completed_successfully");
+        var text = File.ReadAllText(Path.Combine(ResolveRepositoryRoot(), "docker-compose.yml"))
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        text.Should().Contain("achinterbank-api");
+        text.Should().Contain("achinterbank-spa");
+        text.Should().Contain("postgres");
+        text.Should().Contain("DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable: \"false\"");
+
+        var forbiddenComposeFragments = new[]
+        {
+            "openbao/openbao",
+            "openbao:",
+            "openbao-bootstrap",
+            "openbao-volume-perms",
+            "busybox:1.36",
+            "BAO_ADDR",
+            "OPENBAO_",
+            "DigitalEnvelope__OpenBao__",
+            "WAIT_FOR_OPENBAO",
+            "/openbao-bootstrap",
+            "ach_openbao_data",
+            "ach_openbao_bootstrap"
+        };
+
+        text.Should().NotContainAny(forbiddenComposeFragments);
     }
 
     [Fact]

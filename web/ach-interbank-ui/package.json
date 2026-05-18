@@ -2,7 +2,8 @@
   "name": "ach-interbank-ui",
   "version": "0.0.1",
   "scripts": {
-    "start": "ng serve --host 0.0.0.0 --port 4200",
+    "start": "ng serve --host localhost --port 4200",
+    "start:lan": "ng serve --host 0.0.0.0 --port 4200",
     "build": "ng build",
     "build:obfuscate": "ng build --configuration production && node scripts/obfuscate-dist.mjs",
     "test": "ng test"

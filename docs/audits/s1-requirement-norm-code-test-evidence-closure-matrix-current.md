@@ -212,3 +212,25 @@ Política de gobierno documental vigente/histórico: `docs/governance/current-vs
 - Define precedencia documental.
 - No cambia estados S1.
 - No habilita producción.
+
+## Referencia cruzada punto 12 — UAT con datos reales y actas
+
+- Protocolo UAT real S1: `docs/uat/real-data-uat-execution-protocol.md`.
+- Acta UAT humana (plantilla): `docs/uat/templates/real-data-uat-acta-template.md`.
+- Índice de evidencias (plantilla): `docs/uat/templates/real-data-uat-evidence-index-template.md`.
+- Estado actual: protocolo definido; ejecución real y actas firmadas pendientes.
+
+## Referencia cruzada punto 12B — Paquete operativo no técnico
+
+- Guía operativa UAT: `docs/uat/operator-guides/uat-operator-execution-guide.md`.
+- Set de pruebas operativas S1: `docs/uat/operator-guides/uat-operator-test-cases-s1-blockers.md`.
+- Checklist de evidencias: `docs/uat/operator-guides/uat-operator-evidence-checklist.md`.
+- Plantilla de defectos: `docs/uat/operator-guides/uat-operator-defect-report-template.md`.
+- Guía de firma/aprobación: `docs/uat/operator-guides/uat-operator-signoff-guide.md`.
+- Entregables derivados PDF/Excel: `docs/uat/operator-guides/uat-final-user-delivery-pack.md`.
+
+## Referencia cruzada 13A/13B — Brechas de alineación SPA↔backend↔UAT
+
+- Matriz vigente de brechas SPA Angular ↔ backend ↔ normativa ↔ UAT:
+  - `docs/audits/spa-angular-backend-uat-alignment-gap-matrix-current.md`
+- Estado documentado: SPA readiness parcial, 12D solo con restricciones y NO-GO productivo vigente.
