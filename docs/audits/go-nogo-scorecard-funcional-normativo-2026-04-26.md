@@ -274,3 +274,12 @@ Bloqueantes vigentes:
 - Reporte UAT asistida por IA: `docs/uat/accounting-review-ai-assisted-uat-execution-report.md`.
 - GO UAT formal: pendiente aprobación humana.
 - GO productivo: NO-GO vigente.
+
+
+## Punto 11 — Cierre trazabilidad requisito/norma/código/prueba/evidencia
+
+- Matriz consolidada creada: `docs/audits/s1-requirement-norm-code-test-evidence-closure-matrix-current.md`.
+- Estado técnico: GO técnico controlado.
+- Estado UAT: parcial.
+- Estado productivo: NO-GO.
+- Bloqueantes: S1-10, S1-11, S1-12, S1-13, S1-20.

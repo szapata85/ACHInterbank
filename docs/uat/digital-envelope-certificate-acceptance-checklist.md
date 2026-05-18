@@ -265,3 +265,5 @@ EKU/KeyUsage no está implementado actualmente.
 - Próximo paso recomendado: `docs(ops): add certificate operations runbook`.
 
 - Referencia runbook operativo de certificados: `docs/ops/certificate-operations-runbook.md` (no modifica decisión NO-GO productivo).
+
+Referencia de trazabilidad consolidada: para trazabilidad requisito→norma→código→prueba→evidencia por cámara, ver `docs/audits/s1-requirement-norm-code-test-evidence-closure-matrix-current.md`. Esta referencia no cambia NO-GO productivo.

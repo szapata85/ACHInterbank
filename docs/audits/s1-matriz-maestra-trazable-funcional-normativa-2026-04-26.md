@@ -148,3 +148,13 @@ Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPar
 
 
 - Referencia UAT asistida por IA de punto 10: `docs/uat/accounting-review-ai-assisted-uat-execution-report.md` (evidencia técnica automatizada; GO UAT formal pendiente de aprobación humana; NO-GO productivo vigente).
+
+
+## Referencia consolidada punto 11
+
+Referencia consolidada punto 11:
+`docs/audits/s1-requirement-norm-code-test-evidence-closure-matrix-current.md`
+
+- Consolida requisito→norma→código→prueba→evidencia por cámara.
+- No cambia NO-GO productivo.
+- Ningún dominio se declara cerrado trazablemente si falta evidencia completa.

@@ -124,3 +124,5 @@ Formato mínimo por ejecución UAT:
 - Riesgo de aceptar UAT técnico sin firma normativa/operativa.
 
 - Referencia cruzada de control de layout NACHA-M por registro/cámara: `docs/audits/nacha-record-level-normative-matrix-ach-cenit-current.md` (sin alterar estado NO-GO productivo).
+
+Referencia de trazabilidad consolidada: para trazabilidad requisito→norma→código→prueba→evidencia por cámara, ver `docs/audits/s1-requirement-norm-code-test-evidence-closure-matrix-current.md`. Esta referencia no cambia NO-GO productivo.
