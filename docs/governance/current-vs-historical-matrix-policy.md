@@ -216,3 +216,11 @@ Ningún documento de política puede convertirlos a GO productivo sin evidencia 
   - `docs/uat/templates/real-data-uat-evidence-index-template.md`
 - Regla de gobierno: la existencia del protocolo y plantillas no cambia por sí sola el estado GO/NO-GO productivo.
 - Para cambio de estado se requiere ejecución real, evidencia suficiente, aprobaciones humanas y scorecard actualizado.
+
+## 15. Referencia cruzada punto 12B (guías no técnicas para operación UAT)
+
+- Paquete no técnico vigente:
+  - `docs/uat/operator-guides/uat-operator-execution-guide.md`
+  - `docs/uat/operator-guides/uat-operator-test-cases-s1-blockers.md`
+  - `docs/uat/operator-guides/uat-final-user-delivery-pack.md`
+- Regla: estas guías facilitan ejecución funcional y evidencia humana, pero no habilitan GO productivo por sí solas.

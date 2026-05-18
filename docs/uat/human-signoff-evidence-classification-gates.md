@@ -142,3 +142,10 @@ Esta guía complementa la matriz, no cambia estados S1, define clasificación de
 - Plantilla de acta: `docs/uat/templates/real-data-uat-acta-template.md`.
 - Plantilla de índice de evidencias: `docs/uat/templates/real-data-uat-evidence-index-template.md`.
 - Esta guía de compuertas no reemplaza ejecución humana real ni habilita GO productivo por sí sola.
+
+## Referencia cruzada — Guías operativas no técnicas (paquete 12B)
+
+- Guía operativa UAT no técnica: `docs/uat/operator-guides/uat-operator-execution-guide.md`.
+- Casos operativos S1 bloqueantes: `docs/uat/operator-guides/uat-operator-test-cases-s1-blockers.md`.
+- Guía de aprobación/firma operativa: `docs/uat/operator-guides/uat-operator-signoff-guide.md`.
+- Estas guías operativas apoyan ejecución humana y no cambian por sí solas GO productivo.

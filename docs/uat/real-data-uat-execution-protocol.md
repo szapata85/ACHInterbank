@@ -126,3 +126,12 @@ La ejecución UAT real debe actualizar, cuando aplique:
 - `docs/uat/nacha-records-acceptance-checklist.md`
 - `docs/ops/reconciliation-operations-runbook.md`
 - `docs/ops/certificate-operations-runbook.md`
+
+## 13. Paquete 12B para usuarios operativos no técnicos
+- Guías operativas no técnicas: `docs/uat/operator-guides/uat-operator-execution-guide.md`.
+- Set de casos operativos: `docs/uat/operator-guides/uat-operator-test-cases-s1-blockers.md`.
+- Checklist de evidencias operativas: `docs/uat/operator-guides/uat-operator-evidence-checklist.md`.
+- Plantilla operativa de defectos: `docs/uat/operator-guides/uat-operator-defect-report-template.md`.
+- Guía de aprobación/firma: `docs/uat/operator-guides/uat-operator-signoff-guide.md`.
+- Paquete PDF/Excel: `docs/uat/operator-guides/uat-final-user-delivery-pack.md`.
+- Este paquete no habilita producción por sí solo y mantiene NO-GO productivo vigente.

@@ -310,3 +310,13 @@ Bloqueantes vigentes:
 - GO UAT formal: pendiente.
 - GO productivo: NO.
 - NO-GO productivo vigente.
+
+### Punto 12B — Guías operativas para usuarios no técnicos
+
+- 12B guías operativas para usuarios no técnicos: definido.
+- PDF/Excel especificados como entregables derivados:
+  - `UAT_ACHInterbank_Guia_Operativa_Usuarios.pdf`
+  - `UAT_ACHInterbank_Set_Pruebas_Operativas.xlsx`
+- Ejecución real sigue pendiente.
+- GO productivo: NO.
+- NO-GO productivo vigente.
