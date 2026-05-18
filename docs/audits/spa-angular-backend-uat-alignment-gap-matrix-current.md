@@ -96,7 +96,7 @@ No encontradas en 13A. Condiciones que serían P0 si aparecen:
 - CUD evidence boundary sin flujo UI integral.
 
 ### P2
-- Semántica CUD/liquidez debe reforzarse.
+- Semántica CUD/liquidez reforzada en SPA; pendiente validación UAT operativa con usuarios.
 - `environment.prod.ts` con IP fija.
 - Falta ayuda contextual y links a guías 12B.
 

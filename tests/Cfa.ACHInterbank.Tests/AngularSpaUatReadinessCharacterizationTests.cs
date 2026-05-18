@@ -384,6 +384,51 @@ public class AngularSpaUatReadinessCharacterizationTests
         ShouldContainIgnoreCase(reportsUi, "no equivale a saldo real CUD", "UI debe negar equivalencia con saldo real CUD");
     }
 
+    [Fact]
+    public void AngularSpa_CenitUi_ShouldDisplayLiquidityCudBoundaryDisclaimer()
+    {
+        var cenitUi = Read(Path.Combine(SpaRoot, "src", "app", "features", "cenit", "components", "cenit-operation-page.component.html"));
+        ShouldContainIgnoreCase(cenitUi, "Liquidez simulada no equivale a saldo real CUD");
+        ShouldContainIgnoreCase(cenitUi, "internas y operativas");
+        ShouldContainIgnoreCase(cenitUi, "no representan liquidación firme");
+        ShouldContainIgnoreCase(cenitUi, "no representa rechazo oficial CUD");
+    }
+
+    [Fact]
+    public void AngularSpa_CenitUi_ShouldTranslateOperationalLiquidityLabelsToSpanish()
+    {
+        var cenitTs = Read(Path.Combine(SpaRoot, "src", "app", "features", "cenit", "components", "cenit-operation-page.component.ts"));
+        ShouldContainIgnoreCase(cenitTs, "Liquidez simulada");
+        ShouldContainIgnoreCase(cenitTs, "Posición neta");
+        ShouldContainIgnoreCase(cenitTs, "Decisión interna de liquidez");
+        ShouldContainIgnoreCase(cenitTs, "Evidencia CUD");
+        (cenitTs.Contains("Diferido por liquidez", StringComparison.OrdinalIgnoreCase)
+            || cenitTs.Contains("Rechazado internamente por liquidez", StringComparison.OrdinalIgnoreCase))
+            .Should().BeTrue();
+    }
+
+    [Fact]
+    public void AngularSpa_CenitUi_ShouldNotExposeDangerousCudAssertions()
+    {
+        var cenitRoot = Path.Combine(SpaRoot, "src", "app", "features", "cenit");
+        var dangerous = new[] { "saldo real CUD", "liquidado CUD", "liquidación firme", "rechazo oficial CUD", "API CUD bancaria", "contabilizado", "asiento", "ledger", "journal", "posting" };
+
+        foreach (var file in Directory.EnumerateFiles(cenitRoot, "*.*", SearchOption.AllDirectories)
+                     .Where(f => f.EndsWith(".ts", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".html", StringComparison.OrdinalIgnoreCase)))
+        {
+            var lines = ReadLines(file);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                foreach (var phrase in dangerous)
+                {
+                    if (!line.Contains(phrase, StringComparison.OrdinalIgnoreCase)) continue;
+                    IsNegatedLine(line).Should().BeTrue($"frase riesgosa sin negación clara en {ToRelative(file)}:{i + 1}: {line}");
+                }
+            }
+        }
+    }
+
     private static IEnumerable<string> EnumerateSpaFiles()
     {
         var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
