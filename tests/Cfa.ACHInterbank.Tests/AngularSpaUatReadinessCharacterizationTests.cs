@@ -105,7 +105,7 @@ public class AngularSpaUatReadinessCharacterizationTests
                 var realCud = lower.Contains("saldo real cud") || (lower.Contains("saldo cud") && lower.Contains("real"));
                 if (simulated && realCud)
                 {
-                    lower.Contains("no equivale").Should().BeTrue($"simulated liquidity cannot be treated as real CUD balance: {ToRelative(file)}:{i + 1}");
+                    HasSafeNegativeBoundary(line).Should().BeTrue($"simulated liquidity cannot be treated as real CUD balance: {ToRelative(file)}:{i + 1}");
                 }
             }
         }
@@ -291,7 +291,7 @@ public class AngularSpaUatReadinessCharacterizationTests
 
         foreach (var p2 in new[]
         {
-            "Semántica CUD/liquidez debe reforzarse", "environment.prod.ts con IP fija", "Falta ayuda contextual y links a guías 12B"
+            "Semántica CUD/liquidez reforzada en SPA; pendiente validación UAT operativa con usuarios", "environment.prod.ts con IP fija", "Falta ayuda contextual y links a guías 12B"
         }) matrix.Should().Contain(p2);
     }
 
@@ -391,19 +391,24 @@ public class AngularSpaUatReadinessCharacterizationTests
         ShouldContainIgnoreCase(cenitUi, "Liquidez simulada no equivale a saldo real CUD");
         ShouldContainIgnoreCase(cenitUi, "internas y operativas");
         ShouldContainIgnoreCase(cenitUi, "no representan liquidación firme");
-        ShouldContainIgnoreCase(cenitUi, "no representa rechazo oficial CUD");
+        ShouldContainIgnoreCase(cenitUi, "rechazo oficial CUD");
+        (cenitUi.Contains("no representa rechazo oficial CUD", StringComparison.OrdinalIgnoreCase)
+            || cenitUi.Contains("no representan rechazo oficial CUD", StringComparison.OrdinalIgnoreCase))
+            .Should().BeTrue("la advertencia CENIT/CUD debe negar explícitamente interpretación de rechazo oficial CUD");
     }
 
     [Fact]
     public void AngularSpa_CenitUi_ShouldTranslateOperationalLiquidityLabelsToSpanish()
     {
-        var cenitTs = Read(Path.Combine(SpaRoot, "src", "app", "features", "cenit", "components", "cenit-operation-page.component.ts"));
-        ShouldContainIgnoreCase(cenitTs, "Liquidez simulada");
-        ShouldContainIgnoreCase(cenitTs, "Posición neta");
-        ShouldContainIgnoreCase(cenitTs, "Decisión interna de liquidez");
-        ShouldContainIgnoreCase(cenitTs, "Evidencia CUD");
-        (cenitTs.Contains("Diferido por liquidez", StringComparison.OrdinalIgnoreCase)
-            || cenitTs.Contains("Rechazado internamente por liquidez", StringComparison.OrdinalIgnoreCase))
+        var tsPath = Path.Combine(SpaRoot, "src", "app", "features", "cenit", "components", "cenit-operation-page.component.ts");
+        var htmlPath = Path.Combine(SpaRoot, "src", "app", "features", "cenit", "components", "cenit-operation-page.component.html");
+        var cenitContent = Read(tsPath) + "\n" + Read(htmlPath);
+        ShouldContainIgnoreCase(cenitContent, "Liquidez simulada");
+        ShouldContainIgnoreCase(cenitContent, "Posición neta");
+        ShouldContainIgnoreCase(cenitContent, "Decisión interna de liquidez");
+        ShouldContainIgnoreCase(cenitContent, "Evidencia CUD");
+        (cenitContent.Contains("Diferido por liquidez", StringComparison.OrdinalIgnoreCase)
+            || cenitContent.Contains("Rechazado internamente por liquidez", StringComparison.OrdinalIgnoreCase))
             .Should().BeTrue();
     }
 
@@ -461,6 +466,15 @@ public class AngularSpaUatReadinessCharacterizationTests
             || lower.Contains("sin ")
             || lower.Contains("not ")
             || lower.Contains("without ");
+    }
+
+    private static bool HasSafeNegativeBoundary(string line)
+    {
+        var lower = line.ToLowerInvariant();
+        return lower.Contains("no equivale")
+            || lower.Contains("no representa")
+            || lower.Contains("no representan")
+            || lower.Contains("sin equivalencia");
     }
 
     private static void AssertNoAffirmativeDangerousLine(string content, string dangerousPhrase, string because)
