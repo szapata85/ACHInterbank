@@ -129,3 +129,20 @@ Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPar
 - Referencia runbook operativo de certificados: `docs/ops/certificate-operations-runbook.md` (no modifica decisión NO-GO productivo).
 
 - Decisión arquitectura certificados: OpenBao/SecretRef excluido del flujo de certificados; BD solo metadata; llaves privadas fuera de BD.
+
+> Referencia punto 10 (reportería/conciliación revisión contable terceros, no contable): `docs/audits/accounting-review-reconciliation-matrix-current.md`.
+
+- Referencia checklist UAT punto 10: `docs/uat/accounting-review-reconciliation-acceptance-checklist.md`.
+
+- Referencia runbook operativo conciliación punto 10: `docs/ops/reconciliation-operations-runbook.md`.
+
+
+## Actualización puntual - Punto 10 (estado backend)
+
+- Avance técnico backend significativo implementado.
+- Endpoint export implementado: `POST /api/reports/accounting-review/export`.
+- Export PDF/CSV/XLSX implementado.
+- Población desde servicios existentes implementada parcialmente.
+- Tests y CI en verde para el alcance técnico.
+- NO-GO productivo se mantiene por: UAT formal pendiente, cierre E2E CUD/neteo/liquidez pendiente y aprobaciones transversales pendientes.
+

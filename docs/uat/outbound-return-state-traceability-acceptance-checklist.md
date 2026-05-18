@@ -219,3 +219,18 @@ Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPar
 - Referencia matriz vigente de sobre/firma/certificados: `docs/audits/digital-envelope-signature-certificate-matrix-current.md` (no modifica decisión NO-GO productivo).
 
 - Referencia checklist UAT de sobre/firma/certificados: `docs/uat/digital-envelope-certificate-acceptance-checklist.md` (no modifica decisión NO-GO productivo).
+
+> Referencia punto 10 (reportería/conciliación revisión contable terceros, no contable): `docs/audits/accounting-review-reconciliation-matrix-current.md`.
+
+- Referencia checklist UAT punto 10: `docs/uat/accounting-review-reconciliation-acceptance-checklist.md`.
+
+- Referencia runbook operativo conciliación punto 10: `docs/ops/reconciliation-operations-runbook.md`.
+
+
+> Referencia cruzada punto 10 (reportería/conciliación contra terceros):
+> - `docs/audits/accounting-review-reconciliation-matrix-current.md`
+> - `docs/uat/accounting-review-reconciliation-acceptance-checklist.md`
+> - `docs/ops/reconciliation-operations-runbook.md`
+>
+> El endpoint backend `POST /api/reports/accounting-review/export` provee exportación PDF/CSV/XLSX para soporte de revisión operativa, sin contabilizar y sin cambiar el NO-GO productivo.
+

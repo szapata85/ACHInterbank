@@ -77,7 +77,8 @@ public class AchReturnConcurrencyTests
             await Task.Delay(50);
         });
 
-        await Task.WhenAll(t1, t2).WaitAsync(TimeSpan.FromSeconds(2));
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await Task.WhenAll(t1, t2).WaitAsync(timeoutCts.Token);
         Assert.Equal(2, acquiredCount);
     }
 

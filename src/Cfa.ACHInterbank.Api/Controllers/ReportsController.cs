@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.Reports.Interfaces;
+using Cfa.ACHInterbank.Application.Reports.Export.Interfaces;
 using Cfa.ACHInterbank.Application.Reports.Models;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
@@ -24,6 +25,7 @@ public class ReportsController : ControllerBase
     private readonly IAchReconciliationReportService _reconciliationReportService;
     private readonly IAchAuditHistoryReportService _auditHistoryReportService;
     private readonly IClearingHouseService _clearingHouseService;
+    private readonly IAccountingReviewExportAppService _accountingReviewExportAppService;
     private readonly ILogger<ReportsController> _logger;
 
     public ReportsController(
@@ -34,6 +36,7 @@ public class ReportsController : ControllerBase
         IAchReconciliationReportService reconciliationReportService,
         IAchAuditHistoryReportService auditHistoryReportService,
         IClearingHouseService clearingHouseService,
+        IAccountingReviewExportAppService accountingReviewExportAppService,
         ILogger<ReportsController> logger)
     {
         _reportGenerator = reportGenerator;
@@ -43,6 +46,7 @@ public class ReportsController : ControllerBase
         _reconciliationReportService = reconciliationReportService;
         _auditHistoryReportService = auditHistoryReportService;
         _clearingHouseService = clearingHouseService;
+        _accountingReviewExportAppService = accountingReviewExportAppService;
         _logger = logger;
     }
 
@@ -701,6 +705,36 @@ public class ReportsController : ControllerBase
             {
                 message = "No fue posible generar el reporte en este momento. Intenta de nuevo más tarde."
             });
+        }
+    }
+
+
+    [EndpointSummary("Exportación de revisión contable de terceros en PDF/CSV/Excel")]
+    [EndpointDescription("Qué hace: exporta reporte de conciliación operativa para revisión contra terceros. Cuándo se usa: conciliación y evidencia operativa. Tipo de operación: solo consulta y exportación en memoria. No genera contabilización ni asientos.")]
+    [HttpPost("accounting-review/export")]
+    [Authorize(Policy = "CanReadAch")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ExportAccountingReview([FromBody] AccountingReviewExportApiRequest? request, CancellationToken ct = default)
+    {
+        if (request is null)
+        {
+            return BadRequest(new { message = "El cuerpo de la solicitud es requerido." });
+        }
+
+        try
+        {
+            var result = await _accountingReviewExportAppService.ExportAsync(request, ct);
+            if (result.Content is null || result.Content.Length == 0)
+            {
+                return BadRequest(new { message = "No fue posible generar contenido exportable para el alcance solicitado." });
+            }
+
+            return File(result.Content, result.ContentType, result.FileName);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
     }
 

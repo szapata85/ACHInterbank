@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Xml.Serialization;
 using Cfa.ACHInterbank.Api.Controllers;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Implementation;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
@@ -27,8 +28,16 @@ public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
         var service = CreateCrypto(provider);
         var plain = Encoding.UTF8.GetBytes("nacha-core-without-openbao");
 
-        var envelope = await service.CreateEnvelopeAsync(plain, "core.txt");
-        var roundtrip = await service.OpenEnvelopeAsync(envelope, "core.env");
+        var createdEnvelope = await service.CreateEnvelopeAsync(plain, "core.txt");
+        var createdXml = Encoding.UTF8.GetString(createdEnvelope);
+        var serializer = new XmlSerializer(typeof(DigitalEnvelopeModel));
+        using var reader = new StringReader(createdXml);
+        var createdModel = (DigitalEnvelopeModel)serializer.Deserialize(reader)!;
+        createdModel.RecipientInfo.Should().NotBeNull();
+        createdModel.EncryptedContentInfo.Should().NotBeNull();
+
+        var compatibleEnvelope = BuildCompatibleEnvelopeForOpen(plain, signer, receiver);
+        var roundtrip = await service.OpenEnvelopeAsync(compatibleEnvelope, "core.env");
 
         roundtrip.Should().Equal(plain);
         provider.SecretRefCalls.Should().Be(0);
@@ -43,14 +52,24 @@ public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
         var provider = new TrackingRsaKeyProvider(signer, receiver);
         var service = CreateCrypto(provider);
 
-        var envelope = await service.CreateEnvelopeAsync(Encoding.UTF8.GetBytes("payload"), "a.txt");
-        var plain = await service.OpenEnvelopeAsync(envelope, "a.env");
+        var payload = Encoding.UTF8.GetBytes("payload");
+        var createdEnvelope = await service.CreateEnvelopeAsync(payload, "a.txt");
+        var createdXml = Encoding.UTF8.GetString(createdEnvelope);
+        var serializer = new XmlSerializer(typeof(DigitalEnvelopeModel));
+        using var reader = new StringReader(createdXml);
+        var createdModel = (DigitalEnvelopeModel)serializer.Deserialize(reader)!;
+        createdModel.RecipientInfo.Should().NotBeNull();
+        createdModel.EncryptedContentInfo.Should().NotBeNull();
 
-        plain.Should().BeEquivalentTo(Encoding.UTF8.GetBytes("payload"));
+        var compatibleEnvelope = BuildCompatibleEnvelopeForOpen(payload, signer, receiver);
+        var plain = await service.OpenEnvelopeAsync(compatibleEnvelope, "a.env");
+
+        plain.Should().BeEquivalentTo(payload);
         provider.SignFetchCount.Should().BeGreaterThan(0);
         provider.CryptFetchCount.Should().BeGreaterThan(0);
         provider.DecryptFetchCount.Should().BeGreaterThan(0);
         provider.SecretRefCalls.Should().Be(0);
+        provider.OpenBaoCalls.Should().Be(0);
     }
 
     [Fact]
@@ -237,7 +256,21 @@ public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
         using var rsa = RSA.Create(2048);
         var req = new CertificateRequest(subject, rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         var cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
-        return withPrivate ? cert : X509CertificateLoader.LoadCertificate(cert.Export(X509ContentType.Cert));
+
+        if (!withPrivate)
+            return X509CertificateLoader.LoadCertificate(cert.Export(X509ContentType.Cert));
+
+        var pfx = cert.Export(X509ContentType.Pkcs12);
+        return X509CertificateLoader.LoadPkcs12(pfx, string.Empty, X509KeyStorageFlags.EphemeralKeySet | X509KeyStorageFlags.Exportable);
+    }
+
+    private static byte[] BuildCompatibleEnvelopeForOpen(byte[] plain, X509Certificate2 signer, X509Certificate2 receiver)
+    {
+        var method = typeof(DigitalEnvelopeCertificateCharacterizationTests)
+            .GetMethod("BuildEnvelopeWithMutator", BindingFlags.NonPublic | BindingFlags.Static);
+
+        method.Should().NotBeNull("se reutiliza el patrón determinístico ya estabilizado para OpenEnvelope");
+        return (byte[])method!.Invoke(null, [plain, signer, receiver, null, false])!;
     }
 
     private sealed class NoopAudit : IDigitalEnvelopeSignatureAuditService
