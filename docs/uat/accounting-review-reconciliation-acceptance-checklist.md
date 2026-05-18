@@ -312,3 +312,8 @@ Diferenciar: idempotencia ACH existente; idempotencia reportería no formal; ide
 - [ ] Aprobación humana de GO UAT formal pendiente.
 - [ ] Acta UAT formal pendiente.
 - [ ] GO productivo pendiente (NO-GO vigente).
+
+Referencia de trazabilidad consolidada: para trazabilidad requisito→norma→código→prueba→evidencia por cámara, ver `docs/audits/s1-requirement-norm-code-test-evidence-closure-matrix-current.md`. Esta referencia no cambia NO-GO productivo.
+
+
+Referencia de compuertas de evidencia y aprobación humana: para clasificación de evidencia, GO UAT formal y aprobación humana, ver `docs/uat/human-signoff-evidence-classification-gates.md`. Esta referencia no cambia NO-GO productivo.

@@ -292,3 +292,7 @@ Cada categoría debe poder reportarse separadamente.
 >
 > El endpoint backend `POST /api/reports/accounting-review/export` provee exportación PDF/CSV/XLSX para soporte de revisión operativa, sin contabilizar y sin cambiar el NO-GO productivo.
 
+Referencia de trazabilidad consolidada: para trazabilidad requisito→norma→código→prueba→evidencia por cámara, ver `docs/audits/s1-requirement-norm-code-test-evidence-closure-matrix-current.md`. Esta referencia no cambia NO-GO productivo.
+
+
+Referencia de compuertas de evidencia y aprobación humana: para clasificación de evidencia, GO UAT formal y aprobación humana, ver `docs/uat/human-signoff-evidence-classification-gates.md`. Esta referencia no cambia NO-GO productivo.

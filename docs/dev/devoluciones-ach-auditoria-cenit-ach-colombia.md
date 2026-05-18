@@ -1233,3 +1233,16 @@ Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPar
 - No reemplaza contabilidad de terceros.
 - NO-GO productivo se mantiene.
 
+
+## Referencia cruzada trazabilidad consolidada por cámara
+
+Para trazabilidad consolidada requisito→norma→código→prueba→evidencia por cámara, ver:
+`docs/audits/s1-requirement-norm-code-test-evidence-closure-matrix-current.md`.
+
+Esta referencia mantiene la diferenciación normativa ACH Colombia vs CENIT y no modifica el estado NO-GO productivo vigente.
+
+
+## Referencia de gobernanza documental current-vs-historical
+
+- Para resolver contradicciones documentales, usar: `docs/governance/current-vs-historical-matrix-policy.md`.
+- Mantener diferenciación normativa ACH Colombia vs CENIT.
