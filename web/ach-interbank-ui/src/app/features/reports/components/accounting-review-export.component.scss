@@ -1,0 +1,19 @@
+.accounting-review-export {
+  margin-bottom: 1rem;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+.checks {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+.actions {
+  grid-column: 1 / -1;
+}
+.disclaimer {
+  margin-bottom: 0.5rem;
+}

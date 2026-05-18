@@ -163,7 +163,7 @@ public class AngularSpaUatReadinessCharacterizationTests
         var matrix = Read(SpaMatrixPath);
         matrix.Should().Contain("POST /api/reports/accounting-review/export");
         matrix.Should().Contain("Parcial");
-        ShouldMatchRegexIgnoreCase(matrix, "(Consumo SPA no confirmado|No confirmado)", "la matriz debe documentar consumo SPA no confirmado para accounting-review export");
+        ShouldMatchRegexIgnoreCase(matrix, "(Consumo SPA no confirmado|No confirmado|Implementado en UI; pendiente validación UAT operativa)", "la matriz debe documentar estado parcial de consumo SPA para accounting-review export");
         ShouldMatchRegexIgnoreCase(matrix, "Exponer flujo explícito en UI|equivalente", "la matriz debe exigir explicitación del flujo en la UI o equivalente");
     }
 
@@ -284,7 +284,7 @@ public class AngularSpaUatReadinessCharacterizationTests
         var matrix = NormalizeMarkdownInlineCode(Read(SpaMatrixPath));
         foreach (var p1 in new[]
         {
-            "Falta módulo UAT integral", "Falta consumo confirmado de accounting-review export", "Roles UAT finos no evidentes",
+            "Falta módulo UAT integral", "Accounting-review export expuesto en SPA; pendiente validación UAT con usuarios y evidencias", "Roles UAT finos no evidentes",
             "Trazabilidad directa parcial/no confirmada", "CUD evidence boundary sin flujo UI integral"
         }) matrix.Should().Contain(p1);
 
@@ -342,6 +342,45 @@ public class AngularSpaUatReadinessCharacterizationTests
         }
 
         Assert.Fail("Se detectan señales de módulo UAT integral en SPA; actualizar matriz, scorecard y guías antes de cambiar readiness.");
+    }
+
+    [Fact]
+    public void AngularSpa_ShouldExposeAccountingReviewExportEndpointInReportsUi()
+    {
+        var allSpa = string.Join("\n", EnumerateSpaFiles().Select(Read));
+        ShouldContainIgnoreCase(allSpa, "api/reports/accounting-review/export", "SPA debe consumir endpoint de exportación accounting-review");
+        ShouldContainIgnoreCase(allSpa, "exportAccountingReview", "SPA debe exponer método de exportación accounting-review");
+        ShouldContainIgnoreCase(allSpa, "'pdf'", "SPA debe soportar formato PDF");
+        ShouldContainIgnoreCase(allSpa, "'csv'", "SPA debe soportar formato CSV");
+        (allSpa.Contains("'excel'", StringComparison.OrdinalIgnoreCase) || allSpa.Contains("'xlsx'", StringComparison.OrdinalIgnoreCase))
+            .Should().BeTrue("SPA debe soportar formato Excel/XLSX");
+        ShouldContainIgnoreCase(allSpa, "responseType: 'blob'", "SPA debe descargar archivo como blob");
+        ShouldContainIgnoreCase(allSpa, "observe: 'response'", "SPA debe leer headers de respuesta");
+    }
+
+    [Fact]
+    public void AngularSpa_AccountingReviewExportUi_ShouldDisplayNonAccountingDisclaimer()
+    {
+        var reportsUi = Read(Path.Combine(SpaRoot, "src", "app", "features", "reports", "components", "accounting-review-export.component.html"));
+        ShouldContainIgnoreCase(reportsUi, "NO contabiliza", "UI debe indicar frontera no contable");
+        (reportsUi.Contains("no genera asientos", StringComparison.OrdinalIgnoreCase) || reportsUi.Contains("no genera asiento", StringComparison.OrdinalIgnoreCase))
+            .Should().BeTrue("UI debe indicar que no genera asientos");
+        (reportsUi.Contains("operativo", StringComparison.OrdinalIgnoreCase) || reportsUi.Contains("revisión", StringComparison.OrdinalIgnoreCase))
+            .Should().BeTrue("UI debe describir su propósito operativo/revisión");
+        reportsUi.Contains("ledger", StringComparison.OrdinalIgnoreCase).Should().BeFalse();
+        reportsUi.Contains("journal", StringComparison.OrdinalIgnoreCase).Should().BeFalse();
+        reportsUi.Contains("posting", StringComparison.OrdinalIgnoreCase).Should().BeFalse();
+    }
+
+    [Fact]
+    public void AngularSpa_AccountingReviewExportUi_ShouldRespectCudBoundary()
+    {
+        var reportsUi = Read(Path.Combine(SpaRoot, "src", "app", "features", "reports", "components", "accounting-review-export.component.html"));
+        ShouldContainIgnoreCase(reportsUi, "Evidencia CUD", "UI debe mencionar evidencia CUD");
+        (reportsUi.Contains("operacional", StringComparison.OrdinalIgnoreCase) || reportsUi.Contains("manual", StringComparison.OrdinalIgnoreCase))
+            .Should().BeTrue("UI debe describir evidencia CUD como operacional/manual");
+        ShouldContainIgnoreCase(reportsUi, "No representa API CUD", "UI debe aclarar que no representa API CUD");
+        ShouldContainIgnoreCase(reportsUi, "no equivale a saldo real CUD", "UI debe negar equivalencia con saldo real CUD");
     }
 
     private static IEnumerable<string> EnumerateSpaFiles()

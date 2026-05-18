@@ -33,7 +33,7 @@ Aclaraciones:
 | Ciclos | `reports`, `cenit` | `GET /api/reports/cycles`, `GET /api/cenit/queues` | Implementado | Menor | Bajo | Mantener |
 | Conciliación | `reports` | `GET /api/reports/reconciliation` | Implementado | Semántica operativa | Medio | Reforzar mensaje no-contabilidad |
 | Auditoría/histórico | `reports`, `audit-logs` | `GET /api/reports/audit`, `GET /api/reports/history` | Implementado | Menor | Bajo | Mantener |
-| Accounting-review export | No confirmado explícito en SPA | `POST /api/reports/accounting-review/export` | Parcial | Consumo SPA no confirmado | P1 | Exponer flujo explícito en UI |
+| Accounting-review export | Expuesto en SPA (reportes) | `POST /api/reports/accounting-review/export` | Parcial | Implementado en UI; pendiente validación UAT operativa | P1 | Mantener frontera no-contable y validar con evidencias humanas |
 | Trazabilidad ACH | Parcial en reportes/PDF | `/api/ach-traceability/*` | Parcial | Uso directo parcial/no confirmado | P1 | Confirmar consumo directo o documentar restricción |
 | Certificate management | `nacha-security` | `nacha-security/certificates/management/*` | Implementado | Menor | Bajo | Mantener |
 | Digital envelope certificates | `nacha-security` | `nacha-security/certificates/*` | Implementado | Menor | Bajo | Mantener masking |
@@ -90,7 +90,7 @@ No encontradas en 13A. Condiciones que serían P0 si aparecen:
 
 ### P1
 - Falta módulo UAT integral (evidencias, defectos, aprobadores, scorecard UAT).
-- Falta consumo confirmado de accounting-review export.
+- Accounting-review export expuesto en SPA; pendiente validación UAT con usuarios y evidencias.
 - Roles UAT finos no evidentes.
 - Trazabilidad directa parcial/no confirmada.
 - CUD evidence boundary sin flujo UI integral.
