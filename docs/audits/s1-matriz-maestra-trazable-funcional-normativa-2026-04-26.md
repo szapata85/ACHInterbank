@@ -158,3 +158,10 @@ Referencia consolidada punto 11:
 - Consolida requisito→norma→código→prueba→evidencia por cámara.
 - No cambia NO-GO productivo.
 - Ningún dominio se declara cerrado trazablemente si falta evidencia completa.
+
+
+## Referencia de compuertas de evidencia y aprobación humana (punto 11)
+
+- Guía de compuertas de evidencia y aprobación humana: `docs/uat/human-signoff-evidence-classification-gates.md`.
+- GO UAT formal requiere aprobación humana.
+- NO-GO productivo se mantiene.

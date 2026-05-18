@@ -196,3 +196,10 @@ Regla: evidencia técnica automatizada por sí sola no habilita producción.
 2. `docs(uat): add human-signoff evidence classification gates`.
 3. `docs(governance): freeze current-vs-historical matrix policy`.
 4. `docs(traceability): update scorecard once human UAT/evidence closes`.
+
+
+## Referencia de compuertas de evidencia y aprobación humana
+
+Referencia de compuertas de evidencia y aprobación humana: `docs/uat/human-signoff-evidence-classification-gates.md`.
+
+Esta guía define clasificación de evidencia, no cambia estados S1 y no habilita producción.
