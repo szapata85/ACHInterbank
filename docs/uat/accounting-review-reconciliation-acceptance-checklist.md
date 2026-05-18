@@ -268,3 +268,40 @@ Diferenciar: idempotencia ACH existente; idempotencia reportería no formal; ide
 - Próximo recomendado: `docs(ops): add reconciliation operations runbook`.
 
 - Referencia runbook operativo conciliación punto 10: `docs/ops/reconciliation-operations-runbook.md`.
+
+
+## Prerrequisitos técnicos disponibles para UAT
+
+- [x] Endpoint backend de exportación disponible.
+- [x] Formato PDF disponible.
+- [x] Formato CSV disponible.
+- [x] Formato Excel/XLSX disponible.
+- [x] Contenido visible en español.
+- [x] Frontera no-contable visible.
+- [x] Población parcial desde servicios existentes.
+- [x] Pruebas automatizadas backend.
+- [ ] Evidencia UAT formal adjunta.
+- [ ] Validación negocio.
+- [ ] Validación operaciones.
+- [ ] Validación riesgo/compliance.
+- [ ] Validación tecnología.
+- [ ] Cierre E2E CUD/neteo/liquidez.
+- [ ] Scorecard productivo aprobado.
+
+## Escenarios UAT específicos punto 10
+
+1. Descargar PDF con filtros.
+2. Descargar CSV con filtros.
+3. Descargar XLSX con filtros.
+4. Validar español en contenido visible.
+5. Validar que no afirma contabilización/asientos.
+6. Validar que no existe API CUD.
+7. Validar warning CUD cuando no hay evidencia runtime.
+8. Validar returns/rejections.
+9. Validar ROR.
+10. Validar diferencias.
+11. Validar evidencia NACHA/auditoría.
+12. Validar manual audit-only.
+13. Validar huérfanas cuando la fuente exista.
+14. Validar que ACHInterbank soporta revisión de terceros y no contabiliza.
+

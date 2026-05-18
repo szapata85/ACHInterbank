@@ -283,3 +283,12 @@ Cada categoría debe poder reportarse separadamente.
 - Referencia checklist UAT punto 10: `docs/uat/accounting-review-reconciliation-acceptance-checklist.md`.
 
 - Referencia runbook operativo conciliación punto 10: `docs/ops/reconciliation-operations-runbook.md`.
+
+
+> Referencia cruzada punto 10 (reportería/conciliación contra terceros):
+> - `docs/audits/accounting-review-reconciliation-matrix-current.md`
+> - `docs/uat/accounting-review-reconciliation-acceptance-checklist.md`
+> - `docs/ops/reconciliation-operations-runbook.md`
+>
+> El endpoint backend `POST /api/reports/accounting-review/export` provee exportación PDF/CSV/XLSX para soporte de revisión operativa, sin contabilizar y sin cambiar el NO-GO productivo.
+

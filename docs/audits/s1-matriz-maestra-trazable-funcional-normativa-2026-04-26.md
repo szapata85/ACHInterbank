@@ -135,3 +135,14 @@ Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPar
 - Referencia checklist UAT punto 10: `docs/uat/accounting-review-reconciliation-acceptance-checklist.md`.
 
 - Referencia runbook operativo conciliación punto 10: `docs/ops/reconciliation-operations-runbook.md`.
+
+
+## Actualización puntual - Punto 10 (estado backend)
+
+- Avance técnico backend significativo implementado.
+- Endpoint export implementado: `POST /api/reports/accounting-review/export`.
+- Export PDF/CSV/XLSX implementado.
+- Población desde servicios existentes implementada parcialmente.
+- Tests y CI en verde para el alcance técnico.
+- NO-GO productivo se mantiene por: UAT formal pendiente, cierre E2E CUD/neteo/liquidez pendiente y aprobaciones transversales pendientes.
+

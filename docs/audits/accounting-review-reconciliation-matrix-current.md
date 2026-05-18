@@ -342,3 +342,82 @@ No se recomienda integración contable online.
 - Referencia checklist UAT punto 10: `docs/uat/accounting-review-reconciliation-acceptance-checklist.md`.
 
 - Referencia runbook operativo conciliación punto 10: `docs/ops/reconciliation-operations-runbook.md`.
+
+
+## Estado de implementación backend actualizado
+
+| Componente | Estado anterior | Estado actual | Evidencia | Límite |
+|---|---|---|---|---|
+| Boundary no-contable | Definido | Implementado y validado | Tests de frontera + exports | NO-GO productivo |
+| Modelo `AccountingReviewReport` | Pendiente | Implementado | Modelos + builder + tests | Parcial funcional |
+| Modelo `ReconciliationEvidence` | Pendiente | Implementado | Modelos + builder + tests | Sin cierre E2E productivo |
+| Exportador PDF/CSV/XLSX | Pendiente | Implementado | Endpoint + regression tests | Uso operativo controlado |
+| Localización español | Parcial | Implementado | PDF/CSV/XLSX en español | Mantener regresión |
+| Endpoint backend export | No disponible | Implementado | `POST /api/reports/accounting-review/export` | Sin persistencia |
+| Población desde servicios existentes | No disponible | Parcial implementado | Transaction/Returns/Nacha/Reconciliation/Audit services | Cobertura parcial runtime |
+| Evidencia NACHA/auditoría | Parcial | Implementado parcial | Referencias en export poblado | Sin binarios persistidos |
+| Diferencias de conciliación | Parcial | Implementado parcial | Mapeo de differences en export | Sin cierre E2E completo |
+| CUD | Sin API | Sin API (warning operacional) | Warnings explícitos en export | Sin runtime E2E cerrado |
+| Neteo/Liquidez | Parcial | Parcial | Warnings y alcance controlado | Sin cierre E2E productivo |
+| UAT | Pendiente | Pendiente ejecución formal | Checklist UAT actualizado | Falta evidencia formal |
+| Productivo | NO-GO | NO-GO | Scorecard actualizado | Falta aprobaciones |
+
+## Endpoint backend implementado
+
+- Ruta: `POST /api/reports/accounting-review/export`.
+- Formatos soportados: `pdf`, `csv`, `excel`, `xlsx`.
+- Retorna archivo en memoria.
+- No persiste exportaciones.
+- No escribe a disco.
+- No contabiliza.
+- No genera asientos.
+- No reemplaza contabilidad de terceros.
+
+## Población desde servicios existentes
+
+La exportación poblada utiliza servicios existentes:
+- `IAchTransactionReportService`.
+- `IAchReturnRejectionReportService`.
+- `IAchNachaCycleReportService`.
+- `IAchReconciliationReportService`.
+- `IAchAuditHistoryReportService`.
+
+Cobertura actual poblada:
+- filas salientes/entrantes;
+- devoluciones/rechazos;
+- ROR por `OriginalTransactionId`;
+- diferencias de conciliación;
+- evidencia NACHA;
+- evidencia auditoría/trazabilidad;
+- warnings para CUD/neteo/liquidez/parcialidad.
+
+## Cobertura de pruebas actualizada
+
+- `AccountingReviewBoundaryCharacterizationTests`.
+- `AccountingReviewReportModelTests`.
+- `ReconciliationEvidenceModelTests`.
+- `AccountingReviewReportExportTests`.
+- `AccountingReviewExportEndpointTests`.
+- `AccountingReviewExportDiCompositionTests`.
+- `AccountingReviewExportPopulationTests`.
+
+Resultado CI (último CI validado para el alcance de este punto):
+- Build: 0 warnings / 0 errors.
+- Tests: 1028 passed, 1 skipped, 1029 total.
+
+## Brechas P0/P1/P2 actualizadas
+
+### P0 (mantener abiertas)
+- NO-GO productivo.
+- UAT formal pendiente.
+- CUD sin API y sin cierre runtime E2E.
+- Neteo/liquidez sin cierre E2E productivo.
+- Aprobación negocio/operaciones/riesgo/compliance/tecnología pendiente.
+
+### Cerrado o mitigado
+- Endpoint backend de export implementado.
+- Export PDF/CSV/XLSX implementado.
+- Modelo formal de reporte implementado.
+- Modelo formal de evidencia implementado.
+- Tests de export/población implementados.
+

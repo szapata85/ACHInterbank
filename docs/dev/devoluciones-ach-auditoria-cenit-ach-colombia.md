@@ -1221,3 +1221,15 @@ Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPar
 - Referencia checklist UAT punto 10: `docs/uat/accounting-review-reconciliation-acceptance-checklist.md`.
 
 - Referencia runbook operativo conciliación punto 10: `docs/ops/reconciliation-operations-runbook.md`.
+
+
+## Actualización punto 10: reportería/conciliación contra terceros
+
+- Existe endpoint backend de export accounting-review: `POST /api/reports/accounting-review/export`.
+- Soporta exportación en PDF/CSV/XLSX.
+- Pobla información usando servicios existentes de reportes.
+- Soporta devoluciones, rechazos, ROR, diferencias y evidencias de NACHA/auditoría dentro de alcance técnico actual.
+- No contabiliza.
+- No reemplaza contabilidad de terceros.
+- NO-GO productivo se mantiene.
+

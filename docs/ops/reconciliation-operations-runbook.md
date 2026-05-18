@@ -288,3 +288,31 @@ Niveles: Nivel 1 Operaciones; Nivel 2 Tecnología; Nivel 3 Riesgo/Compliance; Ni
 - El sistema no contabiliza.
 - Este runbook no habilita producción.
 - Próximo recomendado: `feat(reporting): add accounting-review report model`, solo si matriz/checklist/runbook son aprobados.
+
+
+## Exportación backend de reporte de revisión
+
+Endpoint implementado:
+- `POST /api/reports/accounting-review/export`.
+
+Pasos operativos:
+1. Seleccionar alcance de filtros.
+2. Seleccionar formato: PDF/CSV/XLSX.
+3. Generar exportación.
+4. Validar advertencias incluidas.
+5. Revisar frontera no-contable.
+6. Adjuntar evidencia al caso operativo.
+7. Escalar diferencias para análisis.
+8. No registrar asiento desde ACHInterbank.
+
+Uso recomendado:
+- PDF: evidencia formal.
+- CSV: intercambio/revisión externa.
+- XLSX: análisis operativo.
+
+Notas de control:
+- Exportar no cambia estado contable.
+- Exportar no implica cierre contable.
+- Exportar no implica GO productivo.
+- Se mantiene NO-GO productivo.
+
