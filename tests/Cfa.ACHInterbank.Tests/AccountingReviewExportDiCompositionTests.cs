@@ -22,6 +22,12 @@ public class AccountingReviewExportDiCompositionTests
         services.AddLogging();
         services.AddApplication();
 
+        services.AddSingleton(Mock.Of<IAchTransactionReportService>());
+        services.AddSingleton(Mock.Of<IAchReturnRejectionReportService>());
+        services.AddSingleton(Mock.Of<IAchNachaCycleReportService>());
+        services.AddSingleton(Mock.Of<IAchReconciliationReportService>());
+        services.AddSingleton(Mock.Of<IAchAuditHistoryReportService>());
+
         services.Should().Contain(s => s.ServiceType == typeof(IAccountingReviewExportAppService) && s.ImplementationType == typeof(AccountingReviewExportAppService));
         services.Should().Contain(s => s.ServiceType == typeof(IAccountingReviewReportExporter) && s.ImplementationType == typeof(AccountingReviewReportExporter));
         services.Should().Contain(s => s.ServiceType == typeof(IAccountingReviewReportBuilder) && s.ImplementationType == typeof(AccountingReviewReportBuilder));
@@ -101,6 +107,11 @@ public class AccountingReviewExportDiCompositionTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddApplication();
+        services.AddSingleton(Mock.Of<IAchTransactionReportService>());
+        services.AddSingleton(Mock.Of<IAchReturnRejectionReportService>());
+        services.AddSingleton(Mock.Of<IAchNachaCycleReportService>());
+        services.AddSingleton(Mock.Of<IAchReconciliationReportService>());
+        services.AddSingleton(Mock.Of<IAchAuditHistoryReportService>());
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = false });
     }
 
