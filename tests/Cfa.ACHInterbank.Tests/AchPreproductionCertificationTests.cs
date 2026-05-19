@@ -30,12 +30,13 @@ public class AchPreproductionCertificationTests
         SeedReferenceData(context);
         SeedInstitutions(context);
         var companyEntryDescriptionId = SeedCompanyEntryDescription(context, "PAGOS PSE");
+        var fixedNow = new DateTimeOffset(2026, 03, 23, 12, 00, 00, TimeSpan.Zero);
 
         context.AchCycles.Add(new AchCycle
         {
             Id = "cycle-closed",
             CycleName = "CICLO-1",
-            ProcessingDate = new DateTime(2026, 03, 23),
+            ProcessingDate = fixedNow.Date.AddDays(-1),
             StartTime = new TimeSpan(8, 0, 0),
             EndTime = new TimeSpan(10, 0, 0),
             CutoffTime = new TimeSpan(10, 0, 0),
@@ -49,7 +50,7 @@ public class AchPreproductionCertificationTests
             .ReturnsAsync("cycle-closed");
 
         var batchRepo = new AchBatchRepository(context);
-        var resolver = new BatchResolver(context, batchRepo, routing.Object, new FixedTimeProvider(new DateTimeOffset(2026, 03, 23, 12, 00, 00, TimeSpan.Zero)));
+        var resolver = new BatchResolver(context, batchRepo, routing.Object, new FixedTimeProvider(fixedNow));
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new AchTransactionRequestData
         {

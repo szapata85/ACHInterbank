@@ -1,8 +1,8 @@
 # Revision seguridad pre-go-live - ACH Interbank
 
 Fecha de generacion: 2026-05-18  
-Version: 0.1 preliminar  
-Rama analizada: ACH-Interbank-Postgresql  
+Version: 0.8 preliminar
+Rama analizada: `fix/uat-operator-role-seed`
 Estado: borrador tecnico para validacion humana  
 Clasificacion: no incluir secretos, datos personales, certificados privados ni evidencias sensibles en Git.
 
@@ -17,7 +17,8 @@ Clasificacion: no incluir secretos, datos personales, certificados privados ni e
 - Se reemplazaron defaults sensibles por placeholders locales/de demo en `docker-compose.yml`; queda pendiente validacion de seguridad/operaciones.
 - Backend CI `dotnet-ci` y Angular CI `angular-ci` se reportan OK en GitHub Actions; adjuntar evidencia al paquete de release candidate.
 - Docker runtime paso para API, PostgreSQL, health checks, Scalar/OpenAPI, SPA estatica y proxy SPA->API/Auth/Navigation por Nginx.
-- Durante `docker compose build` se reporto NU1903 por vulnerabilidad alta en `System.Security.Cryptography.Xml` 10.0.0; requiere revision y actualizacion controlada.
+- NU1903 de `System.Security.Cryptography.Xml` 10.0.0 queda corregida en esta estabilizacion: la dependencia transitiva por `System.ServiceModel.*` se fija explicitamente en `10.0.8` en Application y `dotnet list ... --vulnerable --include-transitive` no reporta paquetes vulnerables.
+- Rol `ACH.Operator`: cerrado para UAT controlado; `admin` queda asignado a `Admin` y `ACH.Operator` por seed/migracion controlada, y login/JWT sanitizados evidencian ambos roles.
 - `docker-compose.yml` no evidencia servicio OpenBao, aunque existen configuraciones y scripts relacionados con OpenBao/secrets provider.
 - Existen componentes de certificados, sobre digital, NACHA security, ROR y ACH responses que requieren validacion de autorizacion, auditoria, trazabilidad y pruebas E2E.
 - Productivo no debe aprobarse sin acta UAT, evidencias firmables, aceptacion de riesgos y validacion de seguridad/operacion.
@@ -38,6 +39,8 @@ Clasificacion: no incluir secretos, datos personales, certificados privados ni e
 | Tests Angular | `web/ach-interbank-ui/src/**/*.spec.ts`, `.github/workflows/angular-ci.yml` | Angular CI remoto reportado OK. |
 | Docker runtime | `docs/go-live-readiness/DOCKER_RUNTIME_READINESS.md` | API/DB/SPA static OK; SPA->API/Auth/Navigation por puerto 743 validado tecnicamente. |
 | PostgreSQL publicado al host | `docker-compose.yml` | `127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432` habilitado solo para UAT tecnico/local; no usar como patron productivo. |
+| Dependencia criptografica vulnerable | `src/Cfa.ACHInterbank.Application/Cfa.ACHInterbank.Application.csproj` | Corregido: `System.Security.Cryptography.Xml` 10.0.8; sin paquetes vulnerables reportados por NuGet. |
+| Rol demo `ACH.Operator` | `RoleConfiguration`, `UserRoleConfiguration`, migracion `AddAdminOperatorRoleSeed`, login sanitizado | Cerrado para UAT controlado: `admin` evidencia `Admin` y `ACH.Operator` en respuesta/JWT. |
 
 ## 3. Controllers sensibles
 
@@ -128,6 +131,20 @@ Evidencia: existen componentes de trazabilidad/idempotencia; falta evidencia UAT
 Riesgo: reprocesos, doble afectacion o imposibilidad de explicar eventos.  
 Accion recomendada: ejecutar escenarios UAT de idempotencia, reproceso, eventos y conciliacion con evidencia.
 
+### 5.9 NU1903 `System.Security.Cryptography.Xml`
+
+Estado: CORREGIDO TECNICAMENTE.
+Evidencia: `dotnet list ACHInterbank.sln package --vulnerable --include-transitive` reporto inicialmente `System.Security.Cryptography.Xml` 10.0.0 como transitiva de `System.ServiceModel.*`; se agrego referencia explicita a `System.Security.Cryptography.Xml` 10.0.8 en `Cfa.ACHInterbank.Application.csproj`.
+Validacion: `dotnet restore`, `dotnet list ... --vulnerable`, build y tests backend quedan OK.
+Riesgo residual: mantener monitoreo de advisories y evitar introducir previews o upgrades mayores no controlados.
+
+### 5.10 Rol `ACH.Operator`
+
+Estado: CERRADO PARA UAT CONTROLADO.
+Evidencia: `RoleConfiguration` define `ACH.Operator`; `UserRoleConfiguration` asigna al usuario seed `admin` los roles `Admin` y `ACH.Operator`; la migracion `AddAdminOperatorRoleSeed` inserta la relacion faltante en bases existentes; login sanitizado confirma roles respuesta/JWT = `Admin,ACH.Operator`.
+Validacion: `dotnet build ACHInterbank.sln -c Release` OK; suite backend completa OK; `UserRoleSeedTests` OK; runtime Docker API reconstruido y `/navigation/menu`, `/api/roles`, `/api/users`, `/api/ach/responses` responden 200 con Bearer.
+Riesgo residual: `admin` queda como usuario demo multirol para UAT controlado. Antes de preproductivo/productivo, seguridad puede exigir usuario operador separado y matriz endpoint-rol firmada.
+
 ## 6. Tabla de controles pre-go-live
 
 | Control | Evidencia | Estado | Riesgo | Accion recomendada | Bloquea productivo |
@@ -146,10 +163,10 @@ Accion recomendada: ejecutar escenarios UAT de idempotencia, reproceso, eventos 
 | Idempotencia comprobada | Componentes y pruebas | PARCIAL | Doble procesamiento. | Ejecutar pruebas UAT de reintento, duplicado y reproceso. | Si |
 | Health checks aptos para UAT/prod | `/health/live`, `/health/ready` | PARCIAL | Monitoreo insuficiente o filtracion de detalle. | Validar respuestas, dependencias y seguridad de detalles. | Si aplica |
 | OpenAPI/Scalar restringido por ambiente | Configuracion API | PENDIENTE VALIDAR | Enumeracion de API en productivo. | Restringir por ambiente/red/rol o documentar excepcion. | Si aplica |
-| Roles operativos definidos | Auth/Users y SPA | PENDIENTE VALIDAR | Usuarios con privilegios excesivos. | Matriz rol-permiso y pruebas UAT. | Si |
+| Roles operativos definidos | Auth/Users y SPA | OK UAT / PARCIAL PRODUCTIVO | Usuario demo evidencia `Admin` y `ACH.Operator`; falta matriz endpoint-rol productiva formal. | Mantener evidencia UAT y definir usuario operador separado si seguridad lo exige para preproductivo/productivo. | Si para productivo formal |
 | Backup/restore/rollback evidenciado | Documentacion operativa | NO ENCONTRADO | Recuperacion incierta. | Ejecutar y documentar simulacro. | Si |
-| CI backend | `.github/workflows/dotnet-ci.yml`, commit `3cbff61` | OK CI / PARCIAL LOCAL | Divergencia local puede ocultar dependencia de entorno o dato de prueba. | Mantener compuerta y analizar falla local preproductiva. | Si para release candidate |
-| CI Angular | `.github/workflows/angular-ci.yml` | PENDIENTE VALIDAR | SPA sin evidencia CI hasta primer run verde; localmente fallan 3 specs. | Ejecutar workflow y corregir specs `TransactionCreateComponent`. | Si para release candidate |
+| CI backend | `.github/workflows/dotnet-ci.yml`, commit `49b810f9` | OK CI / OK LOCAL | Build y suite backend local pasan tras estabilizacion. | Adjuntar evidencia CI/local al paquete release candidate. | Si para release candidate |
+| CI Angular | `.github/workflows/angular-ci.yml` | OK CI RAMA / OK LOCAL | Ultimo `angular-ci` de rama OK; localmente `npm run build` y 147 specs pasan. | Adjuntar evidencia y vigilar warnings no bloqueantes. | Si para release candidate |
 
 ## 7. Recomendaciones previas a productivo
 

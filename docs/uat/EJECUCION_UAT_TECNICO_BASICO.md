@@ -118,7 +118,7 @@ Tipo: seed sintetico.
 |---|---|---|---|
 | DEF-UAT-013 | Alta | Variables demo no disponibles en ejecucion anterior. En este reintento estan presentes y permitieron login real controlado. | Cerrado |
 | DEF-UAT-014 | Media | Browser integrado no pudo aportar evidencia visual automatizada confiable. | Abierto como limitacion de herramienta |
-| DEF-UAT-015 | Media | Rol esperado `ACH.Operator` no aparece en respuesta de login ni JWT; `Admin` si aparece y autoriza menu/endpoints. | Abierto |
+| DEF-UAT-015 | Media | Rol esperado `ACH.Operator` ya aparece junto con `Admin` en respuesta de login/JWT para `admin`; menu y endpoints read-only responden 200 con Bearer. | Cerrado para UAT controlado |
 | OBS-UAT-001 | Baja | Logs PostgreSQL tienen FATAL previos por usuarios `root`/`sa` inexistentes. | Abierto operativo |
 
 ## Conclusion
