@@ -1,9 +1,9 @@
 # Evidencias UAT Funcional Sintetico - ACH Interbank
 
 Fecha de generacion/revalidacion: 2026-05-18 / 2026-05-19 America/Bogota
-Version: 0.5 contrato idempotencia DEF-UAT-018
+Version: 0.7 estabilizacion final UAT/readiness
 Rama ejecutada: `fix/spa-functional-root-routes-proxy`
-Commit base: `469e2a60`
+Commit base: `49b810f9`
 Clasificacion: no incluir password, token completo, datos reales, cuentas reales, certificados reales ni secretos.
 
 ## Indice De Evidencias
@@ -38,12 +38,17 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 | EV-FUNC-026 | Correccion evento inicial | Codigo/Test | Nuevas transacciones agregan evento `Pending -> Pending`, `Source=System`, `ReasonCode=CREATED`; duplicado rechazado no crea segundo evento. | `TransactionPersister.cs`, `AchTransactionNachaTests.cs`. | OK |
 | EV-FUNC-027 | Build Release | Build | `dotnet build ACHInterbank.sln -c Release` finaliza con 0 errores y 0 warnings. | Consola Codex. | OK |
 | EV-FUNC-028 | Suite backend completa | Test | `dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release` ejecuta 1090 pruebas: 1088 OK, 1 omitida, 1 falla existente DEF-UAT-011. | Consola Codex. | OK parcial por defecto preexistente |
-| EV-FUNC-029 | Runtime API corregido | Docker | `docker compose build achinterbank-api` y `docker compose up -d achinterbank-api` ejecutados sin borrar volumenes; API queda Up. | Consola Codex. | OK con warning NU1903 conocido |
+| EV-FUNC-029 | Runtime API corregido | Docker | `docker compose build achinterbank-api` y `docker compose up -d achinterbank-api` ejecutados sin borrar volumenes; API queda Up. | Consola Codex. | OK; NU1903 corregida posteriormente en EV-FUNC-037 |
 | EV-FUNC-030 | Revalidacion DEF-UAT-017 | HTTP/API | `POST http://localhost:743/transactions` crea `UAT-SINT-TRACE-001`, transaction ID `2`, estado `Pending`. | Token no documentado completo; datos sinteticos. | OK |
 | EV-FUNC-031 | Evento inicial revalidado | PostgreSQL/API | `UAT-SINT-TRACE-001` tiene 1 evento `Pending -> Pending`, `Source=System`, `ReasonCode=CREATED`, `PayloadJson` presente. | `docker exec` + `GET /api/ach-traceability/transactions/2`. | OK |
 | EV-FUNC-032 | Idempotencia no duplica evento | HTTP/PostgreSQL | Reintento identico devuelve 400 JSON controlado; `transaction_count=1`, `event_count=1`. | `POST /transactions` y consulta read-only. | OK |
 | EV-FUNC-033 | Build/test focal revalidado | Build/Test | `dotnet build ACHInterbank.sln -c Release` OK; `AchTransactionNachaTests` 17/17 OK. | Consola Codex. | OK |
 | EV-FUNC-034 | Contrato idempotencia DEF-UAT-018 | Documentacion/Test | Contrato actual observado formalizado: deduplicacion previa a persistencia por ciclo/tipo/monto/cuentas/`TransactionExternalId` o `Reference`, respuesta 400 JSON. | `docs/go-live-readiness/CONTRATO_IDEMPOTENCIA_TRANSACCIONES.md`, `TransactionPolicyServiceTests`, `TransactionsControllerTests`. | Cerrado documentalmente |
+| EV-FUNC-035 | CI backend local | Build/Test | `dotnet build` OK y suite backend completa OK tras cierre de BatchResolver fixture/timezone. | Consola Codex; 1091 OK, 1 omitida, 0 fallas. | OK |
+| EV-FUNC-036 | CI Angular local | Build/Test | `npm run build` OK y `npm test -- --watch=false --browsers=ChromeHeadless` OK. | Consola Codex; 147 specs OK. | OK |
+| EV-FUNC-037 | Seguridad dependencias | NuGet | `System.Security.Cryptography.Xml` transitiva por `System.ServiceModel.*` se fijo en `10.0.8`; `dotnet list ... --vulnerable` queda sin vulnerabilidades. | `Cfa.ACHInterbank.Application.csproj`. | OK |
+| EV-FUNC-038 | NACHA layouts proxy | HTTP/Docker | `docker compose build achinterbank-spa` y `up -d`; `/nacha-layouts`, `/nacha-record-definitions` y `/nacha-config/catalogos-filtro` por `:743` devuelven 401 sin token y JSON con Bearer. | Token no documentado completo. | OK tecnico |
+| EV-FUNC-039 | Rol `ACH.Operator` | Auth/Seed | Login y JWT muestran solo `Admin`; seed contiene rol `ACH.Operator` pero `UserRoleConfiguration` no lo asigna a `admin`. | Revision de codigo y login sanitizado. | Abierto por seed/seguridad |
 
 ## Evidencia HTTP Sanitizada
 
@@ -80,6 +85,15 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 | Reintento `POST http://localhost:743/transactions` con `UAT-SINT-TRACE-001` | 400, JSON, duplicado equivalente controlado. |
 | `TransactionPolicyServiceTests.PreviewAsync_CurrentContractReturnsDuplicateMessageAndSyntheticKey` | Valida `WouldDuplicate=true`, mensaje controlado e `IdempotencyKey` informativo. |
 | `TransactionsControllerTests.CreateTransaction_ReturnsBadRequestJson_WhenDuplicatePolicyRejects` | Valida que el controller conserva `HTTP 400` y cuerpo JSON con `message`. |
+| `GET http://localhost:743/nacha-layouts` sin token | 401 controlado desde API, no HTML. |
+| `GET http://localhost:743/nacha-record-definitions` sin token | 401 controlado desde API, no HTML. |
+| `GET http://localhost:743/nacha-config/catalogos-filtro` sin token | 401 controlado desde API, no HTML. |
+| `GET http://localhost:743/nacha-layouts` con Bearer | 200, `application/json`, 6 registros, no HTML. |
+| `GET http://localhost:743/nacha-record-definitions` con Bearer | 200, `application/json`, 6 registros, no HTML. |
+| `GET http://localhost:743/nacha-config/catalogos-filtro` con Bearer | 200, `application/json`, no HTML. |
+| `dotnet list ACHInterbank.sln package --vulnerable --include-transitive` | Sin paquetes vulnerables reportados tras fijar `System.Security.Cryptography.Xml` 10.0.8. |
+| `dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release` | 1091 OK, 1 omitida, 0 fallas. |
+| `npm test -- --watch=false --browsers=ChromeHeadless` | 147 specs OK. |
 
 ## Evidencia De Datos Maestros
 
@@ -91,7 +105,7 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 | Company Entry Descriptions | 38 registros observados. |
 | Cause Codes | 56 return reasons, 20 return codes, 11 file rejection codes. |
 | ROR | 4 return-of-return policies observadas. |
-| NACHA-M | 6 record definitions observadas; layouts endpoint pendiente/defectuoso. |
+| NACHA-M | 6 record definitions y 6 layouts observados por API directa y proxy SPA Docker; validacion normativa campo-a-campo sigue parcial. |
 | CENIT | Queues 0; traceability 1 posterior a transaccion sintetica. |
 
 ## Evidencia DB Sanitizada
@@ -112,12 +126,12 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 | Fuente | Observacion |
 |---|---|
 | API | Sin 500 criticos en la revalidacion; se observo warning esperado por regla de negocio de duplicado: `Ya existe una transaccion equivalente para el mismo ciclo.` |
-| SPA/Nginx | Registros 200 con tamano `2123` para `/financial-institutions`, `/clearing-houses`, `/ach-cycles`, `/transactions/company-entry-descriptions`, consistente con fallback SPA indebidamente aplicado a rutas API funcionales. |
+| SPA/Nginx | Fallback historico de rutas funcionales cerrado. Revalidacion NACHA: rutas `/nacha-layouts`, `/nacha-record-definitions` y `/nacha-config/catalogos-filtro` ya no devuelven `index.html`. |
 | PostgreSQL | Servicio healthy; se mantienen FATAL previos por usuarios inexistentes `root`/`sa` como observacion no bloqueante del UAT funcional API. |
 
 ## Conclusiones De Evidencia
 
-La evidencia permite sostener que el core API funcional sintetico creo, persistio y rechazo duplicado de forma controlada para una transaccion sintetica. Tras el ajuste de `web/ach-interbank-ui/nginx.conf`, las rutas funcionales raiz requeridas por pantallas transaccionales ya responden desde API por `http://localhost:743` y no devuelven `index.html`.
+La evidencia permite sostener que el core API funcional sintetico creo, persistio y rechazo duplicado de forma controlada para una transaccion sintetica. Tras los ajustes de `web/ach-interbank-ui/nginx.conf`, las rutas funcionales raiz y catalogos NACHA usados por Angular ya responden desde API por `http://localhost:743` y no devuelven `index.html`.
 
 DEF-UAT-017 queda cerrado funcionalmente para nuevas transacciones: `UAT-SINT-TRACE-001` genero el evento inicial esperado y el reintento duplicado no genero transaccion ni evento adicional. No se hizo backfill de `UAT-SINT-001`. DEF-UAT-018 queda cerrado documentalmente para el contrato actual observado: duplicado equivalente retorna `HTTP 400` JSON controlado, sin segunda transaccion y sin segundo evento inicial. Las alternativas `409 Conflict`, replay idempotente o header `Idempotency-Key` quedan como decision evolutiva.
 

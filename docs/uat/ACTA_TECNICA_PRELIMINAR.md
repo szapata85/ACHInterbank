@@ -1,11 +1,11 @@
-# Acta Tecnica Preliminar - UAT Funcional Sintetico ACH Interbank
+# Acta Tecnica Preliminar Final - ACH Interbank
 
-Fecha: 2026-05-18 America/Bogota  
-Version: 0.1 preliminar no firmada  
-Rama: `fix/spa-docker-runtime-proxy-and-images`  
-Commit: `261b1e0537e5d941f4d5f39c28bc4dc06d24f805`  
-Ambiente: Docker Compose local, SPA `http://localhost:743`, API directa `http://localhost:843`  
-Caracter: tecnico preliminar; no sustituye acta UAT formal de negocio, operaciones, seguridad ni auditoria.
+Fecha: 2026-05-19 America/Bogota
+Version: 0.7 preliminar final no firmada
+Rama: `fix/spa-functional-root-routes-proxy`
+Commit base: `49b810f9`
+Ambiente: Docker Compose local, SPA `http://localhost:743`, API directa `http://localhost:843`
+Caracter: acta tecnica preliminar; no sustituye acta UAT formal de negocio, operaciones, seguridad ni auditoria.
 
 ## Participantes Requeridos Para Firma Formal
 
@@ -20,51 +20,84 @@ Caracter: tecnico preliminar; no sustituye acta UAT formal de negocio, operacion
 
 ## Alcance Ejecutado
 
-Se ejecuto una prueba funcional sintetica controlada con usuario demo `admin`, sin imprimir password ni token completo, usando datos anonimizados:
+Se ejecuto estabilizacion final controlada de UAT/readiness con datos sinteticos y evidencias tecnicas:
 
-- Documento sintetico `999999999`.
-- Cuentas sinteticas `0000000001` y `0000000002`.
-- Bancos sinteticos `Banco UAT Origen` y `Banco UAT Destino`.
-- Referencia `UAT-SINT-001`.
-- Monto `1000`.
+- CI local backend y frontend.
+- Revalidacion del test BatchResolver previamente inestable.
+- Correccion de dependencia vulnerable `System.Security.Cryptography.Xml`.
+- Diagnostico/cierre tecnico de catalogos NACHA-M layouts por API/proxy.
+- Diagnostico del rol `ACH.Operator` no visible en JWT/respuesta.
+- Actualizacion documental UAT/readiness.
 
 No se usaron datos reales, cuentas reales, bancos productivos reales, certificados reales, NACHA-M productivo ni conexiones externas ACH Colombia/CENIT.
 
-## Resultado
+## CI Y Validaciones
+
+| Control | Resultado | Observacion |
+|---|---|---|
+| GitHub `dotnet-ci` | OK | Workflow remoto exitoso para commit `49b810f9`. |
+| GitHub `angular-ci` | OK rama | Ultimo workflow remoto de rama exitoso en commit `469e2a60`; no se disparo para `49b810f9` por cambios sin impacto Angular. |
+| `dotnet build ACHInterbank.sln -c Release` | OK | 0 errores. |
+| `dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release` | OK | 1091 OK, 1 omitida, 0 fallas tras ajustar fixture deterministico. |
+| `npm run build` | OK | Build Angular OK; advertencias Browserslist no bloqueantes. |
+| `npm test -- --watch=false --browsers=ChromeHeadless` | OK | 147 specs OK; quedan warnings template/testbed no bloqueantes. |
+| `docker compose config --quiet` | OK | Compose valido. |
+| `docker compose build achinterbank-spa` | OK | SPA reconstruida para aplicar Nginx. |
+| `docker compose up -d` | OK | PostgreSQL healthy, API Up, SPA Up. |
+
+## Runtime
+
+| Componente | Estado | Evidencia |
+|---|---|---|
+| PostgreSQL | Healthy | `docker compose ps`; sin borrado de volumenes. |
+| API | Up | Health checks y endpoints protegidos responden. |
+| SPA Docker | Up | Nginx sirve SPA y proxya rutas API confirmadas. |
+| Proxy Nginx | OK tecnico | `/auth`, `/navigation`, `/api`, `/health`, `/openapi`, `/scalar`, rutas funcionales y NACHA layouts salen por API. |
+| Health | OK | `GET /health/live` y `GET /health/ready` por `:743` responden 200. |
+
+## Resultado UAT
 
 | Area | Resultado | Observacion |
 |---|---|---|
-| UAT tecnico autenticado | OK con observaciones | Login, token, menu y endpoints protegidos validados. |
-| Datos maestros | OK con observaciones | Datos suficientes via API directa; algunos catalogos/configuraciones requieren cierre formal. |
-| Transaccion sintetica | OK API directa | Creacion HTTP 201, persistencia y estado `Pending`. |
-| Idempotencia | OK controlado con observacion | Reintento rechazado por duplicado con HTTP 400. |
-| Trazabilidad | PARCIAL | Estado y timestamps presentes; evento inicial ausente. |
-| Conciliacion basica | OK lectura | Endpoint responde 200 para ciclo/fecha sinteticos. |
-| SPA Docker funcional | FALLA | Rutas funcionales raiz devuelven `index.html` en `:743`. |
-| Productivo | NO-GO | Siguen pendientes actas, UAT bancario, homologaciones externas y brechas criticas. |
+| UAT tecnico autenticado | OK con observaciones | Login demo, token, menu, roles/permisos y endpoints read-only validados. `ACH.Operator` no esta asignado al usuario demo. |
+| UAT funcional sintetico | PARCIALMENTE OK | Transacciones sinteticas, trazabilidad nueva, idempotencia documental y proxy SPA/API OK; faltan actas, evidencia visual y UAT bancario formal. |
+| DEF-UAT-016 | Cerrado | Proxy funcional SPA corregido para rutas raiz. |
+| DEF-UAT-017 | Cerrado funcionalmente | Nuevas transacciones generan evento inicial `Pending -> Pending`, `System`, `CREATED`; sin backfill historico. |
+| DEF-UAT-018 | Cerrado documentalmente | Contrato actual observado documentado: duplicado retorna 400 JSON controlado, sin replay/idempotency key. |
+| DEF-UAT-019 | Cerrado tecnicamente | Rutas reales `/nacha-layouts` y `/nacha-record-definitions` responden JSON por API directa y `:743`. |
 
-## Defectos Relevantes
+## Defectos Abiertos Relevantes
 
 | ID | Severidad | Estado | Resumen |
 |---|---|---|---|
-| DEF-UAT-016 | Bloqueante UAT SPA | Abierto | Rutas funcionales raiz no proxied por SPA Docker devuelven `index.html`. |
-| DEF-UAT-017 | Alta/Media | Abierto | No se genera evento inicial de estado para la transaccion sintetica. |
-| DEF-UAT-018 | Media | Abierto | Idempotencia controlada, pero contrato HTTP/idempotency key no esta formalizado. |
-| DEF-UAT-019 | Media/Baja | Abierto | Catalogo/layout NACHA-M esperado no disponible como endpoint validado. |
+| DEF-UAT-003 | Alta | En analisis | SPA consume endpoints de interoperabilidad NACHA security sin backend equivalente confirmado. |
+| DEF-UAT-005 | Alta | Abierto | `.env` versionado requiere revision/rotacion si contiene secretos reutilizables. |
+| DEF-UAT-007 | Media | Abierto | OpenBao no esta en compose principal; requiere decision de seguridad/operacion. |
+| DEF-UAT-009 | Media | Abierto | Health checks no cubren Quartz/OpenBao/externos. |
+| DEF-UAT-010 | Bloqueante | Abierto | CENIT/CUD sin evidencia operacional homologada. |
+| DEF-UAT-014 | Media | Abierto | Evidencia visual automatizada pendiente por limitacion de browser integrado. |
+| DEF-UAT-015 | Media | Abierto por seed/seguridad | Rol `ACH.Operator` existe pero `admin` solo tiene relacion seed con `Admin`. |
+| DEF-UAT-020 | Alta/Media | Abierto | Validacion NACHA-M campo-a-campo y homologacion externa de registros 1/5/6/7/8/9 pendiente. |
+
+## Riesgos
+
+- Productivo no puede aprobarse sin UAT formal firmado.
+- CENIT/CUD, sobre digital, certificados, naming externo y backup/restore siguen sin evidencia de homologacion.
+- `ACH.Operator` requiere decision: asignarlo al usuario demo por seed/migracion controlada o declarar que `Admin` cubre UAT tecnico.
+- El contrato de idempotencia actual usa HTTP 400; migrar a 409, `Idempotency-Key` o replay requiere aprobacion de arquitectura/API.
+- La validacion tecnica NACHA-M no reemplaza firma normativa campo-a-campo ni vector externo.
 
 ## Decision Tecnica Preliminar
 
-El UAT funcional sintetico queda **PARCIALMENTE OK** para el core API directo: datos maestros suficientes, transaccion sintetica creada, persistida, trazable parcialmente y con rechazo duplicado controlado.
-
-No se puede declarar OK funcional E2E desde la SPA Docker hasta corregir el proxy/ruteo de rutas funcionales raiz y reintentar navegacion transaccional autenticada desde `http://localhost:743`.
+El ambiente queda **apto para continuar UAT tecnico/funcional controlado con observaciones**, usando datos sinteticos/anonimizados y sin conexiones externas reales.
 
 Estado productivo: **NO-GO**.
 
-## Condiciones Para Cierre Posterior
+## Condiciones Para Cierre Formal
 
-1. Corregir proxy SPA Docker o contrato de rutas para que pantallas funcionales consuman JSON y no `index.html`.
-2. Definir y validar evento inicial obligatorio de estado o documentar formalmente la razon de ausencia.
-3. Formalizar contrato de idempotencia: codigo HTTP esperado, clave idempotente y comportamiento de replay.
-4. Revalidar catalogos NACHA-M/layouts si aplican al alcance.
-5. Ejecutar UAT funcional E2E desde SPA con evidencia visual sanitizada.
+1. Ejecutar UAT formal con datos anonimizados representativos y actas firmadas.
+2. Adjuntar evidencia visual sanitizada de SPA autenticada si el comite la exige.
+3. Resolver o aceptar formalmente `ACH.Operator` para el usuario demo/roles UAT.
+4. Validar NACHA-M 1/5/6/7/8/9 campo-a-campo y con evidencia externa o waiver.
+5. Cerrar CENIT/CUD, sobre digital, certificados, backup/restore y secretos.
 6. Mantener productivo en **NO-GO** hasta aprobaciones humanas y validaciones externas.

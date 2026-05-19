@@ -1,7 +1,7 @@
 # Checklist GO / NO-GO - ACH Interbank
 
 Fecha de generacion/revalidacion: 2026-05-18 / 2026-05-19
-Version: 0.6 preliminar
+Version: 0.7 preliminar
 Rama analizada: `fix/spa-functional-root-routes-proxy`
 Estado inicial: Candidato UAT controlado / NO-GO productivo.  
 Uso: checklist para comite; requiere evidencia y aprobacion humana.
@@ -13,12 +13,12 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 | GNG-001 | Funcional | Transacciones ACH individuales funcionan con datos anonimizados? | PENDIENTE VALIDAR | UAT-REAL-007 | Operaciones | Si | |
 | GNG-002 | Funcional | Bulk ingestion procesa errores parciales y retry? | PENDIENTE VALIDAR | UAT-REAL-008 | Operaciones/Tecnologia | Si | |
 | GNG-003 | Normativa | Existe trazabilidad norma-codigo-prueba-evidencia por camara? | PARCIAL | `docs/audits/s1-requirement-norm-code-test-evidence-closure-matrix-current.md` | Compliance | Si | Requiere firma |
-| GNG-004 | Backend | Build y tests backend actuales pasan? | OK | GitHub Actions `dotnet-ci`: OK segun contexto | Tecnologia | Si | Adjuntar evidencia al paquete RC |
-| GNG-005 | Frontend | Build SPA actual pasa? | OK | GitHub Actions `angular-ci`: OK segun contexto; validacion local previa build/test OK | Tecnologia | Si | Adjuntar evidencia al paquete RC |
+| GNG-004 | Backend | Build y tests backend actuales pasan? | OK | GitHub Actions `dotnet-ci` OK para `49b810f9`; `dotnet build` OK; suite backend local 1091 OK, 1 omitida, 0 fallas | Tecnologia | Si | Adjuntar evidencia al paquete RC |
+| GNG-005 | Frontend | Build SPA actual pasa? | OK | `angular-ci` de rama OK; `npm run build` OK; `npm test` 147 specs OK | Tecnologia | Si | Adjuntar evidencia al paquete RC; warnings no bloqueantes |
 | GNG-006 | Seguridad | Todos los controllers sensibles tienen autorizacion explicita? | PARCIAL | `AchResponsesController` ahora tiene `[Authorize]`; falta matriz endpoint-rol completa | Seguridad | Si | |
 | GNG-007 | OpenBao/secretos | OpenBao UAT esta disponible o existe excepcion aprobada? | PENDIENTE VALIDAR | `scripts/openbao`, compose principal sin OpenBao | Seguridad | Si si aplica | |
 | GNG-008 | Certificados/firma/sobre digital | Existe validacion externa oficial? | CRITICO | Docs UAT marcan pendiente | Seguridad | Si | |
-| GNG-009 | NACHA-M | Registros 1/5/6/7/8/9 validados por campo? | PARCIAL | Matrices NACHA | Operaciones/QA | Si | Falta evidencia UAT |
+| GNG-009 | NACHA-M | Registros 1/5/6/7/8/9 validados por campo? | PARCIAL | `docs/go-live-readiness/MATRIZ_NACHA_M_LAYOUTS.md`; endpoints `/nacha-layouts` y `/nacha-record-definitions` OK tecnico | Operaciones/QA/Compliance | Si | Codigo/layouts/tests existen; falta firma campo-a-campo y homologacion |
 | GNG-010 | ACH Colombia | Flujos ACH tienen aceptacion funcional? | PENDIENTE VALIDAR | Acta UAT pendiente | Negocio | Si | |
 | GNG-011 | CENIT | Ciclos CENIT tienen evidencia homologada? | PARCIAL | Checklist CENIT | Operaciones | Si | |
 | GNG-012 | STA | STA aplica al alcance y esta validado? | NO CLARO | NO ENCONTRADO | Compliance | PENDIENTE VALIDAR | |
@@ -49,6 +49,8 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 | GNG-037 | Trazabilidad transaccional | La transaccion sintetica tiene estado, timestamps, auditoria y eventos de ciclo de vida? | OK FUNCIONAL NUEVAS TRANSACCIONES | `UAT-SINT-TRACE-001` ID `2` tiene evento inicial `Pending -> Pending`, `Source=System`, `ReasonCode=CREATED`; duplicado deja `transaction_count=1`, `event_count=1` | Tecnologia/QA/Auditoria | Si | `UAT-SINT-001` historica conserva `0` eventos por decision de no backfill |
 | GNG-038 | Idempotencia | Reintento identico tiene comportamiento controlado y contrato claro? | OK DOCUMENTAL ACTUAL | Reintento del mismo payload devuelve 400 con mensaje de duplicado equivalente; contrato actual formalizado por ciclo/tipo/monto/cuentas/`TransactionExternalId` o `Reference` en `CONTRATO_IDEMPOTENCIA_TRANSACCIONES.md` | Arquitectura/Tecnologia | Si | 409 Conflict, `Idempotency-Key` y replay quedan como decision evolutiva, no implementada en esta fase |
 | GNG-039 | Conciliacion sintetica | Existe lectura basica de conciliacion para ciclo/fecha sinteticos? | OK TECNICO | `GET /api/reports/reconciliation` responde 200 por API directa | Auditoria/Operaciones | Si | No reemplaza conciliacion bancaria real |
+| GNG-040 | Seguridad dependencias | No hay paquetes NuGet vulnerables conocidos en la solucion? | OK TECNICO | `System.Security.Cryptography.Xml` fijado en 10.0.8; `dotnet list ... --vulnerable --include-transitive` sin hallazgos | Seguridad/Tecnologia | Si | Mantener monitoreo de advisories |
+| GNG-041 | Rol ACH.Operator | Usuario demo evidencia roles esperados `Admin` y `ACH.Operator`? | PARCIAL/ABIERTO | Login/JWT muestran solo `Admin`; seed contiene rol `ACH.Operator` pero no relacion con `admin` | Seguridad/Tecnologia/QA | Si para cierre formal de matriz rol-permiso | Requiere decision de seed/migracion o usuario sintetico operador |
 
 ## Regla De Decision
 
@@ -56,4 +58,4 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 - UAT puede avanzar si no hay bloqueantes de ambiente y los riesgos estan comunicados.
 - Go productivo requiere estados `OK` o riesgo aceptado formalmente en todos los controles bloqueantes.
 
-Estado tras cierre documental DEF-UAT-018: **UAT tecnico autenticado basico OK con observaciones**. **UAT funcional sintetico PARCIALMENTE OK** por API directa y reintento HTTP desde SPA Docker; ya no falla por `index.html`, DEF-UAT-017 queda cerrado funcionalmente para nuevas transacciones y DEF-UAT-018 queda cerrado documentalmente para el contrato actual. Siguen pendientes evidencia visual, actas y validaciones externas. Productivo permanece **NO-GO**.
+Estado tras estabilizacion final: **UAT tecnico autenticado basico OK con observaciones**. **UAT funcional sintetico PARCIALMENTE OK** por API directa y reintento HTTP desde SPA Docker; ya no falla por `index.html` en rutas funcionales ni NACHA layouts, DEF-UAT-017 queda cerrado funcionalmente para nuevas transacciones, DEF-UAT-018 queda cerrado documentalmente para el contrato actual y DEF-UAT-019 queda cerrado tecnicamente. Siguen pendientes evidencia visual, actas, `ACH.Operator`, NACHA-M formal y validaciones externas. Productivo permanece **NO-GO**.

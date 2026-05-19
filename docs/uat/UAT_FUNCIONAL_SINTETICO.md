@@ -1,9 +1,9 @@
 # UAT Funcional Sintetico - ACH Interbank
 
 Fecha de ejecucion/revalidacion: 2026-05-18 / 2026-05-19 America/Bogota
-Version: 0.5 contrato idempotencia DEF-UAT-018
+Version: 0.7 estabilizacion final UAT/readiness
 Rama ejecutada: `fix/spa-functional-root-routes-proxy`
-Commit base: `469e2a60`
+Commit base: `49b810f9`
 Ambiente: Docker Compose local, SPA `http://localhost:743`, API directa `http://localhost:843`  
 Clasificacion: no incluir password, token completo, datos reales, cuentas reales, certificados reales ni archivos externos productivos.
 
@@ -15,7 +15,7 @@ Usuario demo: `admin`
 Password: no documentada; tomada desde variable de entorno.  
 Token: recibido y no documentado completo; evidencia enmascarada `eyJ...Iso`.  
 Roles esperados: `Admin`, `ACH.Operator`.  
-Roles observados: `Admin`; `ACH.Operator` no visible en respuesta/JWT, pero el token autorizo endpoints protegidos del alcance.
+Roles observados: `Admin`; `ACH.Operator` no visible en respuesta/JWT. Diagnostico 2026-05-19: el rol existe en seed (`RoleConfiguration`), pero `UserRoleConfiguration` asigna al usuario demo solo `Admin`; el token autoriza endpoints por permisos `CanManageAch`/`CanReadAch` derivados de `Admin`.
 
 ## Resultado Ejecutivo
 
@@ -79,7 +79,7 @@ No se usaron datos reales, cuentas reales, bancos productivos reales, certificad
 | Estados transaccionales | PARCIAL | Estado inicial persistido como `Pending`; evento inicial corregido tecnicamente para nuevas transacciones, sin backfill de `UAT-SINT-001`. |
 | Event types | PARCIAL | No se valido catalogo dedicado; el evento inicial implementado usa fuente `System` y `ReasonCode=CREATED`. |
 | Configuracion ROR | OK lectura | `return-of-return-policies` responde 200, 4 politicas observadas. |
-| Configuracion NACHA-M | PARCIAL | `nacha-record-definitions` responde 200 con 6 definiciones; `nacha-record-layouts` no respondio como endpoint esperado. |
+| Configuracion NACHA-M | OK tecnico / PARCIAL normativo | `nacha-record-definitions` y `nacha-layouts` responden 200 con 6 registros por API directa y proxy SPA Docker. La ruta `nacha-record-layouts` no es endpoint real. Falta validacion normativa campo-a-campo y homologacion externa. |
 | Configuracion CENIT | OK lectura | `cenit/queues` y `cenit/traceability` responden 200; cola sin registros y trazabilidad con 1 registro posterior a la transaccion. |
 | Conciliacion | OK lectura | `api/reports/reconciliation` responde 200 para el ciclo/fecha sinteticos. |
 
@@ -152,6 +152,19 @@ Se reintento la misma operacion con la misma referencia y el mismo payload.
 |---|---|---|---|
 | DEF-UAT-017 | La creacion persistia `AchTransaction.State=Pending` y `StateChangedAtUtc`, pero no agregaba fila en `AchTransactionStateEvents`; los eventos se creaban solo en transiciones posteriores. | Se agrego evento inicial en `TransactionPersister.PersistAsync`: `Pending -> Pending`, `Source=System`, `ReasonCode=CREATED`, payload tecnico sanitizado. Se agregaron pruebas y se revalido en runtime con `UAT-SINT-TRACE-001`. | Cerrado funcionalmente para nuevas transacciones; sin backfill historico. |
 | DEF-UAT-018 | La idempotencia real es deduplicacion funcional previa a persistencia, no replay exacto ni contrato por header. El 400 actual es controlado por politica. | No se cambio el comportamiento HTTP; se formalizo el contrato actual observado, se agregaron pruebas de caracterizacion y se documentaron decisiones evolutivas. | Cerrado documentalmente para contrato actual; abierto solo como decision evolutiva si se requiere 409/Idempotency-Key/replay. |
+
+## Estabilizacion Final 2026-05-19
+
+| Control | Resultado |
+|---|---|
+| `dotnet build ACHInterbank.sln -c Release` | OK, 0 errores. |
+| `dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release` | OK, 1091 pruebas aprobadas, 1 omitida, 0 fallas. |
+| BatchResolver preexistente | Cerrado: falla era fixture no deterministico por timezone; se ajusto solo el test para usar ciclo cerrado respecto al `FixedTimeProvider`. |
+| `npm run build` | OK. |
+| `npm test -- --watch=false --browsers=ChromeHeadless` | OK, 147 specs. |
+| NU1903 | Corregido: `System.Security.Cryptography.Xml` queda en `10.0.8`; `dotnet list ... --vulnerable` no reporta vulnerabilidades. |
+| NACHA layouts por `:743` | OK: sin token devuelve 401 controlado; con token devuelve JSON para `/nacha-layouts`, `/nacha-record-definitions` y `/nacha-config/catalogos-filtro`. |
+| `ACH.Operator` | Abierto por seed/seguridad: rol existe, pero `admin` no tiene relacion seed con ese rol. No se modifico auth ni BD. |
 
 ## Revalidacion Runtime DEF-UAT-017
 
@@ -242,7 +255,8 @@ No se generaron devoluciones reales, archivos reales ni conexiones externas.
 | DEF-UAT-016 | Cerrado | Rutas funcionales raiz fueron proxied por Nginx y revalidadas por `:743` sin devolver `index.html`. |
 | DEF-UAT-017 | Alta/Media | Cerrado funcionalmente para nuevas transacciones: `UAT-SINT-TRACE-001` genero evento inicial y el duplicado no creo evento adicional. |
 | DEF-UAT-018 | Media | Cerrado documentalmente: contrato actual observado formalizado como deduplicacion funcional previa a persistencia con HTTP 400 JSON; decisiones 409/idempotency key/replay quedan evolutivas. |
-| DEF-UAT-019 | Media/Baja | Endpoint esperado de layouts NACHA-M no responde como catalogo disponible. |
+| DEF-UAT-019 | Media/Baja | Cerrado tecnicamente: endpoint real `/nacha-layouts` responde JSON; `/nacha-record-layouts` era ruta esperada incorrecta. |
+| DEF-UAT-020 | Alta/Media | Abierto: validacion NACHA-M campo-a-campo y homologacion externa de registros 1/5/6/7/8/9 pendiente. |
 
 ## Clasificacion Final
 

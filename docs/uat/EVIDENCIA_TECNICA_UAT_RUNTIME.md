@@ -108,7 +108,7 @@ No se usa Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^22.1
 - `/auth/login` via `http://localhost:743` respondio 401 JSON con credenciales dummy, confirmando que ya llega al backend y no cae en Nginx estatico.
 - `/navigation/menu` via `http://localhost:743` respondio 401 sin token, confirmando que ya llega al backend y no cae al fallback Angular; con token valido debe devolver JSON del menu.
 - PostgreSQL quedo publicado en `localhost:5432` solo para UAT tecnico/local controlado; esto no implica exposicion productiva aprobada.
-- Durante `docker compose build`, `dotnet restore` reporto warning NU1903 de vulnerabilidad alta en `System.Security.Cryptography.Xml` 10.0.0. Requiere revision de seguridad y actualizacion controlada.
+- Durante `docker compose build`, `dotnet restore` reporto warning NU1903 de vulnerabilidad alta en `System.Security.Cryptography.Xml` 10.0.0. Revalidacion 2026-05-19: corregido tecnicamente con referencia explicita `System.Security.Cryptography.Xml` 10.0.8 y `dotnet list ... --vulnerable` sin hallazgos.
 
 ## Resultado API y base de datos
 
@@ -156,7 +156,7 @@ No se usa Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^22.1
 |---|---|---|---|
 | RUNTIME-01 | SPA productiva usa base relativa y Nginx proxya API/Auth correctamente. | Mejora UAT tecnico E2E basico desde SPA. | Cerrada tecnicamente; validar funcionalmente con usuarios/datos anonimizados. |
 | RUNTIME-02 | OpenAPI tarda aprox. 79-96 segundos en generarse. | Puede causar timeouts de validacion/observabilidad. | Evaluar cache/generacion previa o ampliar timeout operativo para evidencia. |
-| RUNTIME-03 | `System.Security.Cryptography.Xml` 10.0.0 reporta vulnerabilidad alta. | Riesgo de seguridad pre-go-live. | Revisar advisory y actualizar paquete de forma controlada con pruebas. |
+| RUNTIME-03 | `System.Security.Cryptography.Xml` 10.0.0 reportaba vulnerabilidad alta. | Riesgo mitigado tecnicamente; requiere monitoreo continuo. | Corregido con 10.0.8; build/test/list vulnerable OK. |
 | RUNTIME-04 | `.env` esta versionado. | Riesgo de secretos si contiene valores reales. | Revision segura, rotacion si aplica y destrackeo controlado. |
 | RUNTIME-05 | Migraciones automaticas activas en compose. | Puede no ser politica aceptada para UAT/preproductivo. | Definir si UAT usa migracion automatica o ventana DBA controlada. |
 | RUNTIME-06 | PostgreSQL publicado en `localhost:5432`. | Facilita UAT tecnico local y troubleshooting con DBeaver/pgAdmin. | Mantener restringido a `127.0.0.1`; no asumir esta exposicion para productivo. |
