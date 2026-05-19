@@ -1,9 +1,9 @@
 # Matriz de Defectos UAT - ACH Interbank
 
 Fecha de generacion: 2026-05-18  
-Version: 0.2  
+Version: 0.3  
 Rama analizada: `fix/spa-docker-runtime-proxy-and-images`  
-Estado: matriz actualizada tras reintento UAT tecnico autenticado.
+Estado: matriz actualizada tras UAT funcional sintetico controlado.
 
 ## Severidades
 
@@ -41,4 +41,8 @@ Estado: matriz actualizada tras reintento UAT tecnico autenticado.
 | DEF-UAT-013 | UAT-TECH-005 | Alta | Variables `ACH_UAT_DEMO_USERNAME` y `ACH_UAT_DEMO_PASSWORD` no estaban disponibles en ejecuciones previas; bloqueaban login real controlado. | Ambiente/UAT tecnico | `docs/uat/EJECUCION_UAT_TECNICO_BASICO.md` | Operaciones/QA/DevOps | Cerrado | 2026-05-18 | 2026-05-18 | Variables presentes en este reintento; login demo 200 ejecutado sin imprimir secretos. |
 | DEF-UAT-014 | UAT-TECH-009 | Media | Browser integrado no pudo aportar evidencia visual automatizada confiable en esta sesion. | Browser/SPA | `docs/uat/EVIDENCIAS_UAT_TECNICO_BASICO.md` | QA/DevOps | Abierto | 2026-05-18 | PENDIENTE | Mantener como limitacion de herramienta; validacion HTTP con token y logs pasa. |
 | DEF-UAT-015 | UAT-TECH-006 | Media | Rol esperado `ACH.Operator` no aparece en respuesta de login ni JWT; rol visible `Admin` autoriza menu y endpoints read-only. | Identidad/Autorizacion | `docs/uat/EJECUCION_UAT_TECNICO_BASICO.md` | Seguridad/Tecnologia | Abierto | 2026-05-18 | PENDIENTE | Confirmar si `ACH.Operator` debe estar asignado al seed `admin` o si `Admin` cubre permisos operativos. |
+| DEF-UAT-016 | UAT-FUNC-001 / UAT-FUNC-004 | Bloqueante | La SPA Docker en `http://localhost:743` devuelve `index.html` para rutas funcionales raiz requeridas por pantallas ACH, incluyendo `/financial-institutions`, `/ach-cycles`, `/clearing-houses` y `/transactions/company-entry-descriptions`. | SPA/Nginx/proxy runtime | `docs/uat/UAT_FUNCIONAL_SINTETICO.md`, `docs/uat/EVIDENCIAS_UAT_FUNCIONAL.md`; logs SPA con 200 tamano `2123` para rutas funcionales | Tecnologia/DevOps | Abierto | 2026-05-18 | PENDIENTE | Bloquea cierre UAT funcional E2E desde SPA Docker; core API se valido por `http://localhost:843`. |
+| DEF-UAT-017 | UAT-FUNC-006 | Alta | La creacion de la transaccion sintetica `UAT-SINT-001` persiste estado `Pending` y timestamps, pero no genera evento inicial en `AchTransactionStateEvents`; trazabilidad reporta eventos `0`. | Backend trazabilidad/auditoria | `docs/uat/UAT_FUNCIONAL_SINTETICO.md`, `docs/uat/EVIDENCIAS_UAT_FUNCIONAL.md`; `state_event_count=0` | Tecnologia/QA | Abierto | 2026-05-18 | PENDIENTE | Definir si el evento inicial es obligatorio; si aplica, corregir sin alterar reglas ACH/NACHA-M/CENIT. |
+| DEF-UAT-018 | UAT-FUNC-005 | Media | La idempotencia/deduplicacion funciona de forma controlada para payload duplicado, pero responde HTTP 400 en lugar de contrato explicito 409/idempotency key/replay. | Backend transacciones/API contract | `docs/uat/UAT_FUNCIONAL_SINTETICO.md`; reintento `POST /transactions` devuelve 400 con mensaje de duplicado | Tecnologia/Arquitectura | Abierto | 2026-05-18 | PENDIENTE | Formalizar contrato de idempotencia para UAT formal y clientes API. |
+| DEF-UAT-019 | UAT-FUNC-002 | Media | Catalogo/configuracion NACHA-M queda parcialmente validado: `nacha-record-definitions` responde, pero `nacha-record-layouts` no queda disponible como endpoint validado. | Backend catalogos NACHA-M | `docs/uat/UAT_FUNCIONAL_SINTETICO.md`, `docs/uat/EVIDENCIAS_UAT_FUNCIONAL.md` | Tecnologia/Compliance | Abierto | 2026-05-18 | PENDIENTE | Confirmar endpoint real o documentar que el catalogo no aplica al alcance funcional actual. |
 | OBS-UAT-001 | UAT-TECH-011 | Baja | Logs PostgreSQL muestran FATAL previos por usuarios inexistentes `root`/`sa`. | PostgreSQL/Operacion | `docker compose logs postgres --tail=120` | Operaciones/DevOps | Abierto | 2026-05-18 | PENDIENTE | Revisar origen de probes/conexiones; no bloqueo del UAT tecnico basico. |

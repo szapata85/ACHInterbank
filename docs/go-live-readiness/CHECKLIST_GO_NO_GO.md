@@ -1,9 +1,9 @@
 # Checklist GO / NO-GO - ACH Interbank
 
 Fecha de generacion: 2026-05-18  
-Version: 0.2 preliminar  
+Version: 0.3 preliminar  
 Rama analizada: `fix/spa-docker-runtime-proxy-and-images`  
-Estado inicial: Candidato UAT / NO-GO productivo.  
+Estado inicial: Candidato UAT controlado / NO-GO productivo.  
 Uso: checklist para comite; requiere evidencia y aprobacion humana.
 
 ## Checklist
@@ -44,6 +44,11 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 | GNG-032 | SPA/API runtime | La SPA servida por Docker consume API correctamente por la misma URL o proxy aprobado? | OK TECNICO | `http://localhost:743/health/live` OK, `:743/api/ach/responses` 401, `:743/auth/login` 401 JSON, `:743/navigation/menu` 401 sin token desde API | DevOps/Tecnologia | Si | Auth intacta; con token valido navigation debe devolver JSON; ejecutar UAT tecnico funcional |
 | GNG-033 | UAT tecnico autenticado | Login real con usuario demo, token y menu fueron validados por automatizacion segura? | OK CON OBSERVACIONES | Login demo `admin` HTTP 200, token recibido/enmascarado, `/navigation/menu`, `/api/roles`, `/api/users`, `/api/ach/responses` HTTP 200 JSON con Bearer | QA/DevOps | Si | No documentar password/token; rol `ACH.Operator` no visible en JWT/respuesta y requiere confirmacion |
 | GNG-034 | Evidencia visual UAT tecnico | Existe evidencia visual automatizada o manual de navegacion SPA autenticada? | PARCIAL | Logs SPA muestran dashboard, usuarios, transacciones, reportes y ACH responses; browser integrado sin herramienta ejecutable en esta sesion | QA/DevOps | No para UAT tecnico HTTP, si si acta exige captura | Adjuntar capturas sanitizadas en cierre formal |
+| GNG-035 | UAT funcional sintetico | Existe flujo sintetico controlado de transaccion con datos anonimizados? | PARCIALMENTE OK | `docs/uat/UAT_FUNCIONAL_SINTETICO.md`: transaccion `UAT-SINT-001` creada por API directa, persistida y rechazada en duplicado controlado | QA/Operaciones | Si | Core API OK; E2E SPA Docker bloqueado por proxy funcional |
+| GNG-036 | SPA funcional Docker | Las pantallas funcionales consumen JSON desde `http://localhost:743` y no reciben `index.html`? | FALLA | DEF-UAT-016; `/financial-institutions`, `/ach-cycles`, `/clearing-houses`, `/transactions/company-entry-descriptions` devuelven HTML por `:743` | Tecnologia/DevOps | Si | Bloquea cierre UAT funcional E2E desde SPA Docker |
+| GNG-037 | Trazabilidad transaccional | La transaccion sintetica tiene estado, timestamps, auditoria y eventos de ciclo de vida? | PARCIAL | Estado `Pending`, timestamps y auditoria presentes; `AchTransactionStateEvents` devuelve `0` eventos | Tecnologia/QA/Auditoria | Si | Definir/corregir evento inicial si es requisito |
+| GNG-038 | Idempotencia | Reintento identico tiene comportamiento controlado y contrato claro? | PARCIAL | Reintento del mismo payload devuelve 400 con mensaje de duplicado equivalente | Arquitectura/Tecnologia | Si | Control funciona; contrato HTTP/idempotency key pendiente |
+| GNG-039 | Conciliacion sintetica | Existe lectura basica de conciliacion para ciclo/fecha sinteticos? | OK TECNICO | `GET /api/reports/reconciliation` responde 200 por API directa | Auditoria/Operaciones | Si | No reemplaza conciliacion bancaria real |
 
 ## Regla De Decision
 
@@ -51,4 +56,4 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 - UAT puede avanzar si no hay bloqueantes de ambiente y los riesgos estan comunicados.
 - Go productivo requiere estados `OK` o riesgo aceptado formalmente en todos los controles bloqueantes.
 
-Estado tras reintento autenticado: **UAT tecnico autenticado basico OK con observaciones**. UAT funcional con transacciones sinteticas sigue pendiente. Productivo permanece **NO-GO**.
+Estado tras UAT funcional sintetico: **UAT tecnico autenticado basico OK con observaciones**. **UAT funcional sintetico PARCIALMENTE OK por API directa**, pero **FALLA/BLOQUEA E2E desde SPA Docker** hasta corregir rutas funcionales que devuelven `index.html`. Productivo permanece **NO-GO**.
