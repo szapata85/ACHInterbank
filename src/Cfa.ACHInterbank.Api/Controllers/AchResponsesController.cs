@@ -5,12 +5,14 @@ using Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Notification.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Processing.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Repositories;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
 [Route("api/ach/responses")]
+[Authorize]
 public class AchResponsesController : ControllerBase
 {
     [HttpPost("process")]

@@ -1,169 +1,90 @@
-# GenericArchitecture
+# ACH Interbank
 
-## Soporte Docker (Linux)
+ACH Interbank es una solucion para procesamiento operativo de transferencias interbancarias ACH, con backend .NET, persistencia EF Core, PostgreSQL, SPA Angular y soporte documental para UAT / go-live readiness.
 
-El API incluye un Dockerfile con imagen base Linux. Para construir y ejecutar el contenedor:
+Estado actual documentado: candidato a UAT controlado. No declarar GO productivo sin acta UAT firmada, evidencias, aprobaciones de negocio/operaciones/seguridad y cierre o aceptacion formal de riesgos.
 
-```bash
-docker build -f src/Cfa.ACHInterbank.Api/Dockerfile -t achinterbank-api .
-docker run --rm \
-  -e ConnectionStrings__SqlConnection="Server=host.docker.internal,1433;Database=ACHInterbank;User Id=sa;Password=Cooperativa1*;TrustServerCertificate=True" \
-  -e Database__ApplyMigrations=true \
-  -e Database__AllowSeed=true \
-  -p 8080:8080 -p 8081:8081 \
-  achinterbank-api
-```
+## Estructura del repositorio
 
-En contenedores, las migraciones y el endpoint de seeding se omiten por defecto; use `Database__ApplyMigrations=true` y `Database__AllowSeed=true` si desea habilitarlos.
-Por defecto, el servicio queda disponible en `http://localhost:8080`.
+| Ruta | Proposito |
+|---|---|
+| `ACHInterbank.sln` | Solucion principal .NET. |
+| `src/Cfa.ACHInterbank.Api` | API principal ASP.NET Core. |
+| `src/Cfa.ACHInterbank.Application` | Casos de uso, DTOs, contratos y reglas de aplicacion. |
+| `src/Cfa.ACHInterbank.Domain` | Entidades, enums y modelos de dominio. |
+| `src/Cfa.ACHInterbank.Persistence` | EF Core, DbContext, configuraciones, migraciones y servicios persistentes. |
+| `src/Cfa.ACHInterbank.External` | Integraciones externas. |
+| `tests/Cfa.ACHInterbank.Tests` | Pruebas automatizadas backend. |
+| `web/ach-interbank-ui` | SPA Angular. |
+| `docs/uat` | Plan, escenarios, datos, acta, evidencias y defectos UAT. |
+| `docs/go-live-readiness` | Checklist, scorecard, brechas, matriz SPA/backend/norma/UAT y paquete comite. |
+| `docs/security` | Revision de seguridad pre-go-live. |
+| `docs/operations` | Runbooks y evidencias operativas. |
 
-Si la base de datos corre en otro contenedor, conecte ambos servicios a la misma red de Docker y use el nombre del contenedor como host (por ejemplo `db,1433`).
-También puede usar el archivo `docker-compose.yml` incluido:
+## Backend .NET
 
-```bash
-docker compose up --build
-```
-
-Si la base de datos está fuera de `docker compose` (otro contenedor o el host), use `host.docker.internal` como host en Linux o conecte ambos contenedores a una red compartida.
-
-El frontend Angular se levanta en `https://localhost:4200` mediante el servicio `web` del compose.
-
-### HTTPS y Swagger en Docker
-
-El `docker-compose.yml` expone HTTP (8080) y HTTPS (8081). Para habilitar HTTPS, coloque un certificado PFX en `./certs/aspnetapp.pfx` con contraseña `changeit` (o actualice los valores en el compose). El volumen `./certs` se monta con permisos de escritura para permitir la generación automática.
-
-```bash
-dotnet dev-certs https -ep certs/aspnetapp.pfx -p changeit
-```
-
-Si no existe el PFX, el contenedor generará uno automáticamente al iniciar.
-
-Para evitar timeouts durante el seeding en contenedor, puede ajustar `Database__CommandTimeoutSeconds` (por ejemplo `180`) en el compose o en `docker run`.
-
-El seeding de instituciones financieras solo se ejecuta en entornos Development/Testing; el `docker-compose.yml` ya configura `ASPNETCORE_ENVIRONMENT=Development`.
-
-Para el frontend HTTPS (`https://localhost:4200`), asegúrese de que existan `certs/aspnetapp.crt` y `certs/aspnetapp.key`. Si inició el API primero, estos archivos se generan automáticamente y el servicio `web` los reutiliza.
-
-Con el contenedor arriba, Swagger queda disponible en:
-
-- HTTP: `http://localhost:8080`
-- HTTPS: `https://localhost:8081`
-
-En Docker Desktop, puede usar el botón **Open in browser** del servicio `api` y abrirá `https://localhost:8081` (el puerto HTTPS está listado primero).
-
-Para abrir automáticamente en el navegador al levantar Docker Compose:
-
-```bash
-docker compose up --build --detach
-./scripts/open-swagger.sh
-```
-
-En Windows:
+Comandos no destructivos sugeridos:
 
 ```powershell
-docker compose up --build --detach
-./scripts/open-swagger.ps1
-```
-
-
-## Setup rápido para pruebas locales
-
-Para preparar el entorno backend de forma reproducible:
-
-```bash
-bash scripts/codex/setup-codex-env.sh
-docker compose -f docker-compose.test.yml --env-file .env.test.example up -d
 dotnet restore ACHInterbank.sln
 dotnet build ACHInterbank.sln -c Release
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release
 ```
 
-Con esto queda listo el stack base para ejecutar migraciones EF y pruebas automatizadas.
+Migraciones EF Core: aplicar solo en ambientes autorizados, con backup previo y aprobacion de DBA/operaciones. No ejecutar migraciones como parte de una revision documental o sin ventana aprobada.
 
-## Getting started
+## SPA Angular
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+La SPA esta en `web/ach-interbank-ui`.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin http://minotauro.coocfa.local/Desarroladores/genericarchitecture.git
-git branch -M main
-git push -uf origin main
+```powershell
+cd web/ach-interbank-ui
+npm ci
+npm run build
+npm test -- --watch=false --browsers=ChromeHeadless
 ```
 
-## Integrate with your tools
+La configuracion productiva no debe apuntar a `localhost`. Si API y SPA se publican tras el mismo reverse proxy, usar ruta relativa; si se requiere dominio dedicado, parametrizarlo en pipeline o configuracion de despliegue aprobada.
 
-- [ ] [Set up project integrations](http://minotauro.coocfa.local/Desarroladores/genericarchitecture/-/settings/integrations)
+## PostgreSQL y Docker Compose
 
-## Collaborate with your team
+El compose principal es `docker-compose.yml`. Los defaults incluidos son placeholders locales/de demostracion y no son aptos para UAT/preproductivo/productivo.
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Automatically merge when pipeline succeeds](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+```powershell
+docker compose config
+docker compose build
+docker compose up -d
+docker compose logs --tail=200
+```
 
-## Test and Deploy
+No usar `docker compose down -v` salvo instruccion operativa explicita. No borrar volumenes como mecanismo normal de rollback.
 
-Use the built-in continuous integration in GitLab.
+## Secretos y datos sensibles
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+- No versionar `.env` reales.
+- No versionar contrasenas, tokens, certificados privados, llaves privadas, PFX reales ni datos personales/financieros.
+- Usar `.env.example` y `.env.test.example` solo como plantillas sanitizadas.
+- Usar vault/secret manager o mecanismo aprobado para UAT/preproductivo/productivo.
+- Evidencias con datos sensibles deben almacenarse fuera de Git y referenciarse por ID, hash o ruta segura.
 
-***
+## Documentacion UAT y go-live
 
-# Editing this README
+Documentos principales:
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thank you to [makeareadme.com](https://www.makeareadme.com/) for this template.
+- `docs/uat/PLAN_UAT_DATOS_REALES.md`
+- `docs/uat/ESCENARIOS_UAT_DATOS_REALES.md`
+- `docs/uat/ACTA_UAT_DATOS_REALES_TEMPLATE.md`
+- `docs/go-live-readiness/README_OPERATIVO_RELEASE_UAT.md`
+- `docs/go-live-readiness/CHECKLIST_GO_NO_GO.md`
+- `docs/go-live-readiness/SCORECARD_GO_LIVE_READINESS.md`
+- `docs/go-live-readiness/BRECHAS_CRITICAS_GO_LIVE.md`
+- `docs/security/REVISION_SEGURIDAD_PRE_GO_LIVE.md`
+- `docs/operations/RUNBOOK_UAT_Y_PREPRODUCTIVO.md`
 
-## Suggestions for a good README
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+## OpenBao
 
-## Name
-Choose a self-explaining name for your project.
+El repositorio contiene scripts y documentacion para OpenBao bajo `scripts/openbao`, `ops/openbao` y documentos en `docs/architecture` / `docs/dev`. El compose principal no debe asumirse como stack UAT completo con OpenBao si no existe decision operativa aprobada.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+## Readiness
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Nivel actual: candidato a UAT controlado. Productivo permanece NO-GO hasta cerrar o aceptar formalmente brechas de UAT, seguridad, secretos, CENIT, firma/sobre digital, rollback, health checks y evidencias.

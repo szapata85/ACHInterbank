@@ -11,6 +11,7 @@ using Cfa.ACHInterbank.Application.ACH.Responses.Queries.Models;
 using Cfa.ACHInterbank.Application.ACH.Responses.Repositories;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using System.Reflection;
@@ -19,6 +20,15 @@ namespace Cfa.ACHInterbank.Tests;
 
 public class AchResponsesControllerTests
 {
+    [Fact]
+    public void AchResponsesController_ShouldRequireAuthorization()
+    {
+        var controllerType = typeof(AchResponsesController);
+
+        controllerType.GetCustomAttribute<AuthorizeAttribute>().Should().NotBeNull();
+        controllerType.GetCustomAttribute<AllowAnonymousAttribute>().Should().BeNull();
+    }
+
     [Fact]
     public async Task Process_ShouldReturnBadRequest_WhenRequestInvalid(){var c=new AchResponsesController();var r=await c.Process(new("X","","",null,null,"",null,null,0,"",0,null,null),new ProcesarRespuestaAchRequestValidator(),new ProcesarRespuestaAchApiMapper(),Mock.Of<IProcesarRespuestaAchUseCase>(),default);r.Should().BeOfType<BadRequestObjectResult>();}
 

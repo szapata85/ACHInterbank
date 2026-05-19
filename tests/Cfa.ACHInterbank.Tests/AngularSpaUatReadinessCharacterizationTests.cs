@@ -203,6 +203,16 @@ public class AngularSpaUatReadinessCharacterizationTests
     }
 
     [Fact]
+    public void AngularSpa_ProdEnvironment_ShouldNotPointToLocalhost()
+    {
+        var envProd = Path.Combine(SpaRoot, "src", "environments", "environment.prod.ts");
+        File.Exists(envProd).Should().BeTrue();
+
+        var content = Read(envProd);
+        content.Should().NotMatchRegex(@"https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?", "production builds must not target a local API endpoint");
+    }
+
+    [Fact]
     public void AngularSpa_CriticalRoutes_ShouldBePresentOrDocumentedAsGap()
     {
         var all = string.Join("\n", EnumerateSpaFiles().Select(Read));

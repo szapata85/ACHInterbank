@@ -6,6 +6,8 @@ import { InteroperabilityStatus } from '../models/nacha-security-operation.model
 @Injectable({ providedIn: 'root' })
 export class InteroperabilityApiService {
   private readonly api = inject(ApiService);
+  // TODO(UAT): No se encontro controller backend equivalente para este contrato.
+  // Mantener documentado como brecha hasta definir endpoint real de interoperabilidad.
   private readonly basePath = 'nacha-security/interoperability';
 
   getStatus(): Observable<InteroperabilityStatus> {
