@@ -4,6 +4,7 @@ using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using System.Text.Json;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -59,6 +60,7 @@ public class TransactionPersister : ITransactionPersister
 
         string traceNumber = $"{traceOriginatingDfi}{nextSeq.ToString().PadLeft(7, '0')}";
 
+        var stateChangedAtUtc = DateTime.UtcNow;
         var tx = new AchTransaction
         {
             Amount = request.Amount,
@@ -79,6 +81,8 @@ public class TransactionPersister : ITransactionPersister
             TraceSequenceNumber = nextSeq,
 
             EffectiveEntryDate = context.EffectiveEntryDate,
+            State = AchTransferStateEnum.Pending,
+            StateChangedAtUtc = stateChangedAtUtc,
             AddendaRecordIndicator = true,
             IsPrenotification = effectiveType == TransactionTypeEnum.Prenotification || request.IsPrenotification,
             SlaDeadlineAtUtc = context.ReturnSlaDeadlineAtUtc,
@@ -94,6 +98,23 @@ public class TransactionPersister : ITransactionPersister
             AchCycleId = context.AchCycleId,
             AchBatch = context.Batch
         };
+
+        tx.StateEvents.Add(new AchTransactionStateEvent
+        {
+            FromState = AchTransferStateEnum.Pending,
+            ToState = AchTransferStateEnum.Pending,
+            Source = AchStateEventSourceEnum.System,
+            ReasonCode = "CREATED",
+            PayloadJson = JsonSerializer.Serialize(new
+            {
+                eventType = "TransactionCreated",
+                transactionExternalId = tx.TransactionExternalId,
+                reference = tx.Reference,
+                achCycleId = tx.AchCycleId,
+                traceNumber = tx.TraceNumber,
+                stateChangedAtUtc
+            })
+        });
 
         if (request.Addendas != null)
         {

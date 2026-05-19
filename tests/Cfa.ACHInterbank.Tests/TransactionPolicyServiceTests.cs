@@ -113,6 +113,71 @@ public class TransactionPolicyServiceTests
     }
 
     [Fact]
+    public async Task PreviewAsync_CurrentContractReturnsDuplicateMessageAndSyntheticKey()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateContext(connection);
+        var companyEntryDescriptionId = SeedCatalog(context);
+        var cycle = SeedCycle(context, "cycle-contract", DateTime.Today, TimeSpan.Zero, new TimeSpan(23, 59, 0));
+        context.AchBatches.Add(new AchBatch
+        {
+            Id = 3,
+            AchCycleId = cycle.Id,
+            CompanyName = "EMPRESA DEMO",
+            CompanyIdentification = "900123456",
+            CompanyEntryDescription = "NOMINAS",
+            CompanyEntryDescriptionId = companyEntryDescriptionId,
+            OriginOrOdfi = "12345678",
+            EffectiveEntryDate = DateTime.Today
+        });
+
+        context.AchTransactions.Add(new AchTransaction
+        {
+            Amount = 1500m,
+            TransactionExternalId = string.Empty,
+            Reference = "REF-CONTRACT-001",
+            Type = TransactionTypeEnum.Credit,
+            SourceAccountNumber = "1234567890",
+            DestinationAccountNumber = "9876543210",
+            AchCycleId = cycle.Id,
+            CompanyIdentification = "900123456",
+            CompanyName = "EMPRESA DEMO",
+            TransactionCode = "22",
+            OriginatingDFI = "123456780",
+            ReceivingDFI = "765432100",
+            AchBatchId = 3,
+            CompanyEntryDescriptionId = companyEntryDescriptionId,
+            SourceInstitutionId = TestSourceInstitutionId,
+            DestinationInstitutionId = TestDestinationInstitutionId,
+            EffectiveEntryDate = DateTime.Today
+        });
+        await context.SaveChangesAsync();
+
+        var routing = new Mock<IRoutingStrategyService>();
+        routing.Setup(x => x.ResolveClearingHouseForTransactionAsync(TestDestinationInstitutionId, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(cycle.Id);
+
+        var service = CreateService(context, routing.Object);
+        var preview = await service.PreviewAsync(new TransactionPolicyPreviewRequest(
+            1500m,
+            null,
+            "REF-CONTRACT-001",
+            TransactionTypeEnum.Credit,
+            AccountTypeEnum.Checking,
+            false,
+            TestDestinationInstitutionId,
+            "1234567890",
+            "9876543210",
+            "900123456",
+            null));
+
+        Assert.False(preview.CanSubmit);
+        Assert.True(preview.WouldDuplicate);
+        Assert.Equal("Ya existe una transacción equivalente para el mismo ciclo.", preview.Message);
+        Assert.Equal($"{cycle.Id}:Credit:1234567890:9876543210:1500:REF-CONTRACT-001", preview.IdempotencyKey);
+    }
+
+    [Fact]
     public void ValidateRequest_RejectsInvalidNaturalPersonIdentity()
     {
         using var connection = CreateOpenConnection();

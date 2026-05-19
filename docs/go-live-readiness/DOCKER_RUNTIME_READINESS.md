@@ -96,7 +96,7 @@ No se adopta Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^2
 |---|---|---|---|
 | SPA no enrutaba API/Auth/Navigation en compose actual | CERRADO TECNICAMENTE para UAT basico | `nginx.conf` ahora proxya rutas API/Auth/Navigation; `/api/ach/responses`, `/auth/login` y `/navigation/menu` llegan a API. | Ejecutar UAT tecnico con datos anonimizados y usuarios/roles. |
 | PostgreSQL no publicado al host | CERRADO TECNICAMENTE para UAT local | Compose publica `127.0.0.1:5432->5432` y `Test-NetConnection` pasa. | Usar solo en UAT tecnico/local; restringir o retirar exposicion en productivo segun arquitectura. |
-| Vulnerabilidad NU1903 en `System.Security.Cryptography.Xml` 10.0.0 | ALTA seguridad | Warning durante `docker compose build`. | Actualizar dependencia de forma controlada y ejecutar CI completo. |
+| Vulnerabilidad NU1903 en `System.Security.Cryptography.Xml` 10.0.0 | Cerrada tecnicamente | Warning observado durante `docker compose build`; corregido luego con referencia explicita `System.Security.Cryptography.Xml` 10.0.8 y `dotnet list ... --vulnerable` sin hallazgos. | Mantener monitoreo de advisories y CI completo. |
 | OpenAPI lento | MEDIA | 79s directo y 96s via proxy para `/openapi/v1.json`. | Documentar timeout o optimizar generacion. |
 | `.env` versionado | ALTA seguridad | `.env` existe y esta trackeado. | Revisar contenido, rotar si aplica, destrackear con procedimiento aprobado. |
 | Migraciones automaticas en startup | MEDIA operacion | `Database__ApplyMigrations=true`. | Decidir si UAT/preproductivo permite auto-migrate o requiere DBA. |
