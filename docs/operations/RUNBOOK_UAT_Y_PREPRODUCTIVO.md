@@ -112,11 +112,13 @@ docker compose logs --tail=200
 | Docker build | OK | `docker compose build`. |
 | Docker runtime | OK tecnico | `docker compose up -d`; `postgres`, `achinterbank-api` y `achinterbank-spa` quedaron `Up`. |
 | PostgreSQL | OK | Contenedor `achinterbank-postgres` `healthy`; esquema con 130 tablas. |
+| PostgreSQL host local | OK tecnico/local | Publicado en `127.0.0.1:5432`; parametrizable con `POSTGRES_HOST_PORT`; no aplica como decision productiva. |
 | API live | OK | `http://localhost:843/health/live` HTTP 200. |
 | API ready | OK | `http://localhost:843/health/ready` HTTP 200 con DB healthy. |
 | SPA estatica | OK | `http://localhost:743` HTTP 200. |
 | SPA hacia API | OK tecnico | `http://localhost:743/api/ach/responses` devolvio 401 desde API, no `index.html`. |
 | SPA hacia Auth | OK tecnico | `POST http://localhost:743/auth/login` devolvio 401 JSON desde API con credenciales dummy, no 405 ni `index.html`. |
+| SPA hacia Navigation | OK tecnico | `http://localhost:743/navigation/menu` devolvio 401 desde API sin token, no `index.html`; con token valido debe devolver JSON del menu. |
 | Scalar | OK | `http://localhost:843/scalar` HTTP 200. |
 | OpenAPI | OK con observacion | `http://localhost:843/openapi/v1.json` HTTP 200 con timeout ampliado; aprox. 79s directo y 96s via proxy. |
 | OpenBao | PENDIENTE / NO APLICA compose actual | No existe servicio OpenBao en `docker-compose.yml`. |
@@ -126,7 +128,7 @@ Documentos de evidencia:
 - `docs/uat/EVIDENCIA_TECNICA_UAT_RUNTIME.md`
 - `docs/go-live-readiness/DOCKER_RUNTIME_READINESS.md`
 
-Decision operativa: el stack es valido para pruebas tecnicas directas de API, BD, health, SPA estatica y proxy SPA->API/Auth. Puede iniciar UAT tecnico E2E basico desde SPA con datos anonimizados, usuarios/roles y registro formal de evidencias.
+Decision operativa: el stack es valido para pruebas tecnicas directas de API, BD, health, SPA estatica y proxy SPA->API/Auth/Navigation. PostgreSQL queda disponible en `localhost:5432` solo para UAT tecnico/local y troubleshooting controlado. Puede iniciar UAT tecnico E2E basico desde SPA con datos anonimizados, usuarios/roles y registro formal de evidencias.
 
 ## 5. Verificacion PostgreSQL
 

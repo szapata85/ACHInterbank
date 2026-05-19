@@ -104,6 +104,8 @@ Evidencia runtime Docker 2026-05-18:
 | `http://localhost:743` | OK | SPA estatica servida. |
 | `http://localhost:743/api/...` | OK tecnico | Proxy Nginx hacia API; endpoint protegido devuelve 401, no `index.html`. |
 | `POST http://localhost:743/auth/login` | OK tecnico | Proxy Nginx hacia API; credenciales dummy devuelven 401 JSON, no 405 ni `index.html`. |
+| `GET http://localhost:743/navigation/menu` | OK tecnico | Proxy Nginx hacia API; sin token devuelve 401, no `index.html`. |
+| `localhost:5432` | OK tecnico/local | PostgreSQL publicado en `127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432`; no implica aprobacion productiva. |
 | `http://localhost:843/openapi/v1.json` | OK lento | HTTP 200 con timeout ampliado; aprox. 79s directo y 96s via proxy. |
 
 Ver detalle en `docs/uat/EVIDENCIA_TECNICA_UAT_RUNTIME.md` y `docs/go-live-readiness/DOCKER_RUNTIME_READINESS.md`.
@@ -182,5 +184,8 @@ Defectos bloqueantes o altos requieren decision formal antes de go productivo.
 | `Invoke-WebRequest http://localhost:743/scalar` | OK | Retorna Scalar por proxy, no SPA. |
 | `Invoke-WebRequest http://localhost:743/api/ach/responses` | OK tecnico | Retorna 401 desde API; autorizacion intacta. |
 | `Invoke-WebRequest -Method Post http://localhost:743/auth/login` | OK tecnico | Retorna 401 JSON desde API con credenciales dummy; no retorna 405 ni HTML SPA. |
+| `Invoke-WebRequest http://localhost:743/navigation/menu` | OK tecnico | Retorna 401 desde API sin token; no retorna HTML SPA. |
+| `docker compose port postgres 5432` | OK | `127.0.0.1:5432`. |
+| `Test-NetConnection localhost -Port 5432` | OK | `TcpTestSucceeded=True`. |
 
-Decision: el compose queda apto para UAT tecnico E2E basico desde SPA, incluido login contra API via proxy `/auth/`, condicionado a datos anonimizados, usuarios/roles y evidencias. Productivo sigue NO-GO.
+Decision: el compose queda apto para UAT tecnico E2E basico desde SPA, incluido login via `/auth/`, menu via `/navigation/` y PostgreSQL local para troubleshooting controlado, condicionado a datos anonimizados, usuarios/roles y evidencias. Productivo sigue NO-GO.

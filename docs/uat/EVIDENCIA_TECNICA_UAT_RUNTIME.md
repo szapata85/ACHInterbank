@@ -19,13 +19,14 @@ Clasificacion: no incluir secretos, tokens, certificados privados, datos persona
 | Docker Compose version | OK | Docker Compose `v5.1.3`. |
 | Docker compose config | OK | `docker compose config --quiet` finalizo con exit code 0. |
 | Docker build | OK | `docker compose build achinterbank-spa` construyo `achinterbank-spa:local` con Node 24 y Nginx 1.30.1; `docker compose up -d` reconstruyo API OK. |
-| Docker runtime | OK tecnico | `postgres`, `achinterbank-api` y `achinterbank-spa` levantaron; proxy SPA->API validado por puerto 743. |
-| PostgreSQL runtime | OK | Contenedor `achinterbank-postgres` en estado `healthy`. |
+| Docker runtime | OK tecnico | `postgres`, `achinterbank-api` y `achinterbank-spa` levantaron; proxy SPA->API/Auth/Navigation validado por puerto 743. |
+| PostgreSQL runtime | OK | Contenedor `achinterbank-postgres` en estado `healthy`; publicado solo en loopback `127.0.0.1:5432->5432` para UAT tecnico/local. |
 | API live | OK | `GET http://localhost:843/health/live` respondio 200. |
 | API ready | OK | `GET http://localhost:843/health/ready` respondio 200 con `database=Healthy`. |
 | SPA runtime | OK tecnico | `GET http://localhost:743` respondio 200 con `index.html`. |
 | SPA hacia API same-origin | OK tecnico | `GET http://localhost:743/api/ach/responses` respondio 401 desde API, no `index.html`; auth intacta. |
 | SPA hacia Auth same-origin | OK tecnico | `POST http://localhost:743/auth/login` con credenciales dummy respondio 401 JSON desde API, no 405 ni `index.html`. |
+| SPA hacia Navigation same-origin | OK tecnico | `GET http://localhost:743/navigation/menu` sin token respondio 401 desde API, no `index.html`; con token valido debe devolver JSON del menu. |
 | OpenAPI | OK con observacion | `GET http://localhost:843/openapi/v1.json` respondio 200 en aproximadamente 79s; via proxy `http://localhost:743/openapi/v1.json` respondio 200 en aproximadamente 96s. |
 | Scalar | OK | `GET http://localhost:843/scalar` respondio 200. |
 | OpenBao/secrets | PENDIENTE / NO APLICA compose actual | OpenBao no esta en `docker-compose.yml`; hay scripts y docs historicas. |
@@ -58,9 +59,9 @@ No se usa Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^22.1
 
 | Servicio | Imagen | Estado observado | Puerto host | Puerto contenedor | Observacion |
 |---|---|---|---:|---:|---|
-| `postgres` | `postgres:16` | Up / healthy | No publicado | 5432 | Volumen `ach_postgres_data`. |
+| `postgres` | `postgres:16` | Up / healthy | 5432 en `127.0.0.1` | 5432 | Volumen `ach_postgres_data`; publicacion local parametrizada con `POSTGRES_HOST_PORT`. |
 | `achinterbank-api` | `achinterbank-api:local` | Up | 843 | 8080 | Health live/ready OK. |
-| `achinterbank-spa` | `achinterbank-spa:local` | Up | 743 | 80 | Sirve SPA y proxya `/auth`, `/api`, `/health`, `/openapi`, `/scalar` hacia API. |
+| `achinterbank-spa` | `achinterbank-spa:local` | Up | 743 | 80 | Sirve SPA y proxya `/auth`, `/navigation`, `/api`, `/health`, `/openapi`, `/scalar` hacia API. |
 
 ## Validaciones ejecutadas
 
@@ -88,6 +89,10 @@ No se usa Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^22.1
 | `Invoke-WebRequest http://localhost:743/scalar` | OK | HTTP 200 Scalar via proxy, no SPA. |
 | `Invoke-WebRequest http://localhost:743/api/ach/responses` | OK tecnico | HTTP 401 desde API; no retorna `index.html`. |
 | `Invoke-WebRequest -Method Post http://localhost:743/auth/login` | OK tecnico | HTTP 401 JSON desde API con credenciales dummy; no retorna 405 ni `index.html`. |
+| `Invoke-WebRequest http://localhost:743/navigation/menu` | OK tecnico | HTTP 401 desde API sin token; no retorna `index.html`. |
+| `docker compose port postgres 5432` | OK | `127.0.0.1:5432`. |
+| `Test-NetConnection localhost -Port 5432` | OK | `TcpTestSucceeded=True`. |
+| `docker exec achinterbank-postgres pg_isready -h localhost -p 5432` | OK | `localhost:5432 - accepting connections`. |
 | `docker compose exec -T achinterbank-spa ... achinterbank-api:8080/health/*` | OK | API interna Docker responde live/ready desde la red del compose. |
 | `docker exec achinterbank-postgres ... information_schema.tables` | OK | 130 tablas en esquema `public`. |
 
@@ -98,9 +103,11 @@ No se usa Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^22.1
 - Se observaron inserts en `__EFMigrationsHistory` y creacion de indice de idempotencia para ingestion NACHA entrante.
 - El mensaje inicial de PostgreSQL sobre `__EFMigrationsHistory` inexistente aparece durante la deteccion normal previa a crear/aplicar historial.
 - Nginx de la SPA sirvio `index.html` correctamente.
-- Nginx de la SPA proxyo `/auth`, `/api`, `/health`, `/openapi` y `/scalar` hacia `achinterbank-api:8080`.
+- Nginx de la SPA proxyo `/auth`, `/navigation`, `/api`, `/health`, `/openapi` y `/scalar` hacia `achinterbank-api:8080`.
 - `/api/ach/responses` via `http://localhost:743` respondio 401, confirmando que ya llega al backend y mantiene autorizacion.
 - `/auth/login` via `http://localhost:743` respondio 401 JSON con credenciales dummy, confirmando que ya llega al backend y no cae en Nginx estatico.
+- `/navigation/menu` via `http://localhost:743` respondio 401 sin token, confirmando que ya llega al backend y no cae al fallback Angular; con token valido debe devolver JSON del menu.
+- PostgreSQL quedo publicado en `localhost:5432` solo para UAT tecnico/local controlado; esto no implica exposicion productiva aprobada.
 - Durante `docker compose build`, `dotnet restore` reporto warning NU1903 de vulnerabilidad alta en `System.Security.Cryptography.Xml` 10.0.0. Requiere revision de seguridad y actualizacion controlada.
 
 ## Resultado API y base de datos
@@ -122,7 +129,8 @@ No se usa Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^22.1
 | Build productivo en Docker | OK | `npm run build -- --configuration production` dentro de Docker finalizo OK. |
 | API relativa desde SPA | OK tecnico | `http://localhost:743/api/ach/responses` respondio 401 desde API, no HTML SPA. |
 | Auth relativa desde SPA | OK tecnico | `http://localhost:743/auth/login` respondio 401 JSON desde API con credenciales dummy, no 405 ni HTML SPA. |
-| Nginx proxy API/Auth | OK | `web/ach-interbank-ui/nginx.conf` proxya `/auth`, `/api`, `/health`, `/openapi` y `/scalar`. |
+| Navigation relativa desde SPA | OK tecnico | `http://localhost:743/navigation/menu` respondio 401 desde API sin token, no HTML SPA. |
+| Nginx proxy API/Auth/Navigation | OK | `web/ach-interbank-ui/nginx.conf` proxya `/auth`, `/navigation`, `/api`, `/health`, `/openapi` y `/scalar`. |
 
 ## OpenAPI / Scalar
 
@@ -151,10 +159,11 @@ No se usa Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^22.1
 | RUNTIME-03 | `System.Security.Cryptography.Xml` 10.0.0 reporta vulnerabilidad alta. | Riesgo de seguridad pre-go-live. | Revisar advisory y actualizar paquete de forma controlada con pruebas. |
 | RUNTIME-04 | `.env` esta versionado. | Riesgo de secretos si contiene valores reales. | Revision segura, rotacion si aplica y destrackeo controlado. |
 | RUNTIME-05 | Migraciones automaticas activas en compose. | Puede no ser politica aceptada para UAT/preproductivo. | Definir si UAT usa migracion automatica o ventana DBA controlada. |
+| RUNTIME-06 | PostgreSQL publicado en `localhost:5432`. | Facilita UAT tecnico local y troubleshooting con DBeaver/pgAdmin. | Mantener restringido a `127.0.0.1`; no asumir esta exposicion para productivo. |
 
 ## Conclusion
 
-El stack Docker queda validado tecnicamente para API, PostgreSQL, build de imagenes, health checks directos, SPA servida y proxy SPA->API/Auth. Las rutas `/auth`, `/api`, `/health`, `/openapi` y `/scalar` desde `http://localhost:743` ya no caen al fallback Angular.
+El stack Docker queda validado tecnicamente para API, PostgreSQL, build de imagenes, health checks directos, SPA servida y proxy SPA->API/Auth/Navigation. Las rutas `/auth`, `/navigation`, `/api`, `/health`, `/openapi` y `/scalar` desde `http://localhost:743` ya no caen al fallback Angular.
 
 Estado recomendado: **ambiente apto para UAT tecnico E2E basico desde SPA**, condicionado a ejecutar escenarios con datos anonimizados, usuarios/roles y evidencias formales.
 
