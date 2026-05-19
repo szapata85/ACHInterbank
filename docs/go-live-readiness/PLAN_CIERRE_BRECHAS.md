@@ -1,9 +1,9 @@
 # Plan de Cierre de Brechas - ACH Interbank
 
-Fecha de generacion: 2026-05-18  
-Version: 0.3 preliminar  
-Rama analizada: `fix/spa-docker-runtime-proxy-and-images`  
-Estado: plan de trabajo actualizado tras correccion de proxy funcional SPA Docker; incluye correcciones de bajo riesgo aplicadas y pendientes de validacion.
+Fecha de generacion/revalidacion: 2026-05-18 / 2026-05-19
+Version: 0.5 preliminar
+Rama analizada: `fix/spa-functional-root-routes-proxy`
+Estado: plan de trabajo actualizado tras diagnostico de trazabilidad/idempotencia; incluye correcciones de bajo riesgo aplicadas y pendientes de validacion.
 
 ## Matriz De Acciones
 
@@ -34,8 +34,8 @@ Estado: plan de trabajo actualizado tras correccion de proxy funcional SPA Docke
 | G-23 | Adjuntar evidencia visual sanitizada de navegacion SPA autenticada si el acta formal la exige. | Evidencia UAT | Bajo/Medio | `docs/uat/EVIDENCIAS_UAT_TECNICO_BASICO.md`, acta UAT | QA/DevOps | Browser local/manual o herramienta habilitada | Capturas sin datos sensibles de login post-redireccion, dashboard/menu y pantallas permitidas | Pendiente |
 | G-24 | Reejecutar UAT funcional sintetico desde SPA Docker tras corregir proxy funcional. | Prueba UAT/Evidencia | Alto | `docs/uat/UAT_FUNCIONAL_SINTETICO.md`, `docs/uat/EVIDENCIAS_UAT_FUNCIONAL.md`, acta | QA/Operaciones/Tecnologia | Cierre G-25 | Transaccion sintetica y rutas funcionales reintentadas desde `http://localhost:743` con llamadas JSON, sin HTML fallback; falta evidencia visual y acta | Parcialmente OK |
 | G-25 | Corregir proxy/ruteo de rutas funcionales raiz usadas por SPA. | Configuracion/Frontend runtime | Alto | `web/ach-interbank-ui/nginx.conf` | Tecnologia/DevOps | Inventario de endpoints SPA | `/financial-institutions`, `/ach-cycles`, `/clearing-houses`, `/transactions/company-entry-descriptions` y rutas transaccionales relacionadas devuelven JSON/401/403/404 controlado, nunca `index.html` | Corregida tecnicamente - validada HTTP |
-| G-26 | Definir y validar generacion de evento inicial de estado transaccional. | Codigo/QA/Auditoria | Medio/Alto | Backend transacciones/trazabilidad/tests, docs UAT | Tecnologia/QA/Auditoria | Decision arquitectura trazabilidad | `AchTransactionStateEvents` contiene evento inicial o existe waiver formal; trazabilidad API refleja lifecycle esperado | Pendiente |
-| G-27 | Formalizar contrato de idempotencia transaccional. | Arquitectura/API contract | Medio | Backend transacciones/tests/docs API | Arquitectura/Tecnologia | Decision negocio/API | Reintentos identicos tienen contrato firmado: 409, replay idempotente o 400 documentado; pruebas automatizadas y UAT actualizados | Pendiente |
+| G-26 | Mantener evidencia de generacion de evento inicial de estado transaccional para nuevas transacciones. | QA/Auditoria | Bajo/Medio | Docs UAT/evidencia runtime | Tecnologia/QA/Auditoria | Cerrado con `UAT-SINT-TRACE-001` | `AchTransactionStateEvents` contiene evento inicial `Pending -> Pending` y trazabilidad API refleja lifecycle esperado en runtime | Cerrada funcionalmente |
+| G-27 | Formalizar contrato de idempotencia transaccional. | Arquitectura/API contract | Medio | Backend transacciones/tests/docs API | Arquitectura/Tecnologia | Decision negocio/API | Reintentos identicos tienen contrato firmado: 409, replay idempotente o 400 documentado; pruebas automatizadas y UAT actualizados | Pendiente decision |
 
 ## Priorizacion
 
@@ -44,7 +44,7 @@ Estado: plan de trabajo actualizado tras correccion de proxy funcional SPA Docke
 3. Higiene documental/configuracion: G-08, G-10, G-11, G-12, G-15, G-16.
 
 Estado especifico UAT tecnico autenticado: G-22 deja de estar bloqueada por variables. Quedan observaciones de roles (`ACH.Operator`) y evidencia visual, sin declarar GO productivo.
-Estado especifico UAT funcional sintetico: G-24 queda parcialmente cubierto por API directa y reintento HTTP desde SPA Docker. G-25 queda corregida tecnicamente. G-26 y G-27 requieren decision tecnica/arquitectonica antes de UAT formal.
+Estado especifico UAT funcional sintetico: G-24 queda parcialmente cubierto por API directa y reintento HTTP desde SPA Docker. G-25 queda corregida tecnicamente. G-26 queda cerrada funcionalmente para nuevas transacciones tras revalidacion con `UAT-SINT-TRACE-001`. G-27 requiere decision tecnica/arquitectonica antes de UAT formal.
 
 ## Restriccion De Esta Fase
 

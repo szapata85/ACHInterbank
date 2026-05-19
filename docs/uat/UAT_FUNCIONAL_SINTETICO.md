@@ -1,9 +1,9 @@
 # UAT Funcional Sintetico - ACH Interbank
 
-Fecha de ejecucion: 2026-05-18 America/Bogota  
-Version: 0.2 reintento proxy funcional  
-Rama ejecutada: `fix/spa-docker-runtime-proxy-and-images`  
-Commit: `261b1e0537e5d941f4d5f39c28bc4dc06d24f805`  
+Fecha de ejecucion/revalidacion: 2026-05-18 / 2026-05-19 America/Bogota
+Version: 0.4 revalidacion runtime DEF-UAT-017
+Rama ejecutada: `fix/spa-functional-root-routes-proxy`
+Commit base: `469e2a60`
 Ambiente: Docker Compose local, SPA `http://localhost:743`, API directa `http://localhost:843`  
 Clasificacion: no incluir password, token completo, datos reales, cuentas reales, certificados reales ni archivos externos productivos.
 
@@ -30,12 +30,12 @@ Roles observados: `Admin`; `ACH.Operator` no visible en respuesta/JWT, pero el t
 | Datos maestros API directa | OK con observaciones | API directa `:843` expone datos maestros suficientes; ACH cycles se resuelve/genera on-demand. |
 | Transaccion sintetica | OK API directa y reintento proxy | `POST /transactions` por `:843` creo transaccion ID `1`; reintento por `:743` con mismo payload devuelve 400 JSON controlado por duplicado. |
 | Persistencia DB | OK | PostgreSQL contiene la transaccion sintetica con timestamps y referencias sinteticas. |
-| Evento inicial | FALLA/OBSERVACION | No se genero evento inicial en `AchTransactionStateEvents`; `state_event_count=0`. |
-| Trazabilidad API | PARCIAL | `GET /api/ach-traceability/transactions/1` responde 200, pero sin eventos iniciales. |
+| Evento inicial | OK REVALIDADO | `UAT-SINT-TRACE-001` creo transaccion ID `2` y evento inicial `Pending -> Pending`, `Source=System`, `ReasonCode=CREATED`. `UAT-SINT-001` historica conserva `state_event_count=0` sin backfill. |
+| Trazabilidad API | OK REVALIDADO | `GET /api/ach-traceability/transactions/2` responde 200 JSON con 1 evento inicial. |
 | Conciliacion basica | OK API directa | `GET /api/reports/reconciliation` responde 200 para ciclo/fecha sinteticos. |
-| Idempotencia | OK controlado con observacion | Reintento del mismo payload devuelve 400 con mensaje de duplicado controlado. |
+| Idempotencia | OK controlado con observacion contractual | Reintento del mismo payload devuelve 400 con mensaje de duplicado controlado; contrato formal observado queda documentado, pero se mantiene pendiente decidir 409/idempotency key. |
 | Logs | OK con observaciones | Sin patrones criticos de 500/secreto en muestra API; SPA levanta estable tras ajuste Nginx. |
-| UAT funcional sintetico | PARCIALMENTE OK | Core API funcional y reintento HTTP desde SPA Docker pasan; quedan observaciones de trazabilidad/evento inicial, contrato de idempotencia, evidencia visual y actas. |
+| UAT funcional sintetico | PARCIALMENTE OK | Core API funcional, reintento HTTP desde SPA Docker y DEF-UAT-017 pasan; quedan contrato formal de idempotencia, evidencia visual, actas y UAT bancario. |
 | Productivo | NO-GO | No hay UAT bancario formal, actas firmadas, validacion externa ni cierre de brechas criticas. |
 
 ## Datos Sinteticos Usados
@@ -76,8 +76,8 @@ No se usaron datos reales, cuentas reales, bancos productivos reales, certificad
 | Financial Institutions | OK | Endpoint directo responde JSON; existian instituciones seed y se crearon 2 instituciones sinteticas UAT (`92`, `93`) para el caso controlado. |
 | ACH Cycles | OK con observacion | Endpoint directo inicialmente sin ciclos abiertos; el backend resolvio/genero on-demand `Ciclo 1` para la transaccion. |
 | Cause Codes | OK | `return-reasons` 56, `return-codes` 20, `file-rejection-codes` 11. |
-| Estados transaccionales | PARCIAL | Estado inicial persistido como `Pending`; no se observo evento inicial asociado. |
-| Event types | PARCIAL | No se valido catalogo dedicado; trazabilidad no mostro evento inicial. |
+| Estados transaccionales | PARCIAL | Estado inicial persistido como `Pending`; evento inicial corregido tecnicamente para nuevas transacciones, sin backfill de `UAT-SINT-001`. |
+| Event types | PARCIAL | No se valido catalogo dedicado; el evento inicial implementado usa fuente `System` y `ReasonCode=CREATED`. |
 | Configuracion ROR | OK lectura | `return-of-return-policies` responde 200, 4 politicas observadas. |
 | Configuracion NACHA-M | PARCIAL | `nacha-record-definitions` responde 200 con 6 definiciones; `nacha-record-layouts` no respondio como endpoint esperado. |
 | Configuracion CENIT | OK lectura | `cenit/queues` y `cenit/traceability` responden 200; cola sin registros y trazabilidad con 1 registro posterior a la transaccion. |
@@ -128,7 +128,7 @@ Resultado:
 | Trace | Presente, formato sintetico `999990010000001`. |
 | Timestamps | `CreatedAt` y `StateChangedAtUtc` presentes en DB. |
 | Auditoria | 1 registro de auditoria relacionado con transaccion observado. |
-| Evento inicial | No generado en tabla de eventos de estado. |
+| Evento inicial | No generado para la transaccion historica `UAT-SINT-001`; corregido tecnicamente para nuevas transacciones sin migracion/backfill. |
 
 Nota operativa: se creo un ciclo auxiliar `UAT-SINT-CICLO`, pero no fue usado por la transaccion porque quedo cerrado por ventana horaria. El backend resolvio el ciclo operativo abierto `Ciclo 1`. La fuente default se restauro al valor previo despues de crear la transaccion sintetica.
 
@@ -141,7 +141,41 @@ Se reintento la misma operacion con la misma referencia y el mismo payload.
 | HTTP status | 400 Bad Request. |
 | Mensaje | Duplicado equivalente para el mismo ciclo. |
 | Comportamiento | Rechazo controlado/deduplicacion funcional. |
-| Observacion | El contrato deberia definir si corresponde 409 Conflict o idempotency key formal. |
+| Contrato observado | La deduplicacion actual se evalua antes de persistir usando ciclo, tipo, monto, cuentas origen/destino y `TransactionExternalId` como identificador operativo, con fallback a `Reference` cuando no existe external id. |
+| Observacion | No existe contrato formal por header `Idempotency-Key`, hash de payload ni constraint unico especifico para transaccion individual; decidir si se conserva 400 documentado o se migra a 409 Conflict/replay idempotente. |
+
+## Diagnostico DEF-UAT-017 / DEF-UAT-018
+
+| Defecto | Diagnostico | Accion aplicada | Estado |
+|---|---|---|---|
+| DEF-UAT-017 | La creacion persistia `AchTransaction.State=Pending` y `StateChangedAtUtc`, pero no agregaba fila en `AchTransactionStateEvents`; los eventos se creaban solo en transiciones posteriores. | Se agrego evento inicial en `TransactionPersister.PersistAsync`: `Pending -> Pending`, `Source=System`, `ReasonCode=CREATED`, payload tecnico sanitizado. Se agregaron pruebas y se revalido en runtime con `UAT-SINT-TRACE-001`. | Cerrado funcionalmente para nuevas transacciones; sin backfill historico. |
+| DEF-UAT-018 | La idempotencia real es deduplicacion funcional previa a persistencia, no replay exacto ni contrato por header. El 400 actual es controlado por politica, pero el contrato API no esta cerrado formalmente. | No se cambio el comportamiento HTTP para evitar ruptura contractual sin aprobacion; se documenta contrato observado y recomendacion de arquitectura. | Abierto para decision de contrato formal. |
+
+## Revalidacion Runtime DEF-UAT-017
+
+Fecha: 2026-05-19 America/Bogota.
+
+Se reconstruyo y reinicio solo `achinterbank-api` para asegurar que el runtime Docker ejecutara la correccion de `TransactionPersister`. No se borraron volumenes ni se ejecutaron migraciones manuales.
+
+| Control | Resultado |
+|---|---|
+| Referencia usada | `UAT-SINT-TRACE-001` |
+| HTTP creacion | `POST http://localhost:743/transactions` -> 201 JSON |
+| TransactionId | `2` |
+| Estado inicial | `Pending` (`1`) |
+| Banco origen sintetico | `92`, `Banco UAT Origen`; usado como default temporal y restaurado al finalizar |
+| Banco destino sintetico | `93`, `Banco UAT Destino` |
+| Evento inicial DB | 1 evento en `AchTransactionStateEvents` |
+| FromState / ToState | `Pending` -> `Pending` |
+| Source | `System` |
+| ReasonCode | `CREATED` |
+| PayloadJson | Presente; incluye `eventType=TransactionCreated` y referencia sintetica |
+| Trazabilidad API | `GET /api/ach-traceability/transactions/2` -> 200 JSON con 1 evento |
+| Idempotencia | Reintento identico -> 400 JSON controlado: `Ya existe una transaccion equivalente para el mismo ciclo.` |
+| No duplicacion | `transaction_count=1`, `event_count=1` para `UAT-SINT-TRACE-001` |
+| Restore default source | OK; default original ID `34` restaurado y `92` queda no default |
+
+DEF-UAT-017 queda cerrado funcionalmente para nuevas transacciones. No se hizo backfill de transacciones historicas.
 
 ## Reintento Proxy Funcional SPA Docker
 
@@ -174,9 +208,11 @@ Validacion con token demo por `http://localhost:743`:
 | Fuente | Resultado |
 |---|---|
 | API `GET /transactions/1` | HTTP 200; referencia, monto, estado y timestamps correctos. |
-| API `GET /api/ach-traceability/transactions/1` | HTTP 200; origen/destino sinteticos visibles; eventos `0`. |
+| API `GET /api/ach-traceability/transactions/1` | HTTP 200; origen/destino sinteticos visibles; eventos `0` para `UAT-SINT-001` historica. |
+| API `GET /api/ach-traceability/transactions/2` | HTTP 200; evento inicial presente para `UAT-SINT-TRACE-001`. |
 | PostgreSQL `AchTransactions` | Fila persistida con referencia `UAT-SINT-001`, monto `1000`, estado `Pending`. |
-| PostgreSQL `AchTransactionStateEvents` | `0` eventos para la transaccion sintetica. |
+| PostgreSQL `AchTransactions` revalidacion | Fila persistida con referencia `UAT-SINT-TRACE-001`, ID `2`, estado `Pending`, source institution `92`, destination institution `93`. |
+| PostgreSQL `AchTransactionStateEvents` | `0` eventos para la transaccion sintetica historica; `UAT-SINT-TRACE-001` tiene 1 evento inicial `Pending -> Pending`, `System`, `CREATED`. |
 | Auditoria DB | 1 registro relacionado con transaccion observado. |
 
 ## Conciliacion Basica
@@ -202,12 +238,12 @@ No se generaron devoluciones reales, archivos reales ni conexiones externas.
 | ID | Severidad | Resumen |
 |---|---|---|
 | DEF-UAT-016 | Cerrado | Rutas funcionales raiz fueron proxied por Nginx y revalidadas por `:743` sin devolver `index.html`. |
-| DEF-UAT-017 | Alta/Media | Creacion de transaccion no genera evento inicial de estado. |
-| DEF-UAT-018 | Media | Idempotencia controlada con HTTP 400; falta contrato explicito 409/idempotency key. |
+| DEF-UAT-017 | Alta/Media | Cerrado funcionalmente para nuevas transacciones: `UAT-SINT-TRACE-001` genero evento inicial y el duplicado no creo evento adicional. |
+| DEF-UAT-018 | Media | Idempotencia controlada con HTTP 400 y contrato observado documentado; falta decision explicita 409/idempotency key/replay. |
 | DEF-UAT-019 | Media/Baja | Endpoint esperado de layouts NACHA-M no responde como catalogo disponible. |
 
 ## Clasificacion Final
 
 UAT tecnico autenticado basico: **OK con observaciones**.  
-UAT funcional sintetico: **PARCIALMENTE OK** por API directa y reintento HTTP desde SPA Docker; ya no queda bloqueado por proxy funcional, pero siguen pendientes evento inicial, contrato de idempotencia, evidencia visual/acta formal y UAT bancario.  
+UAT funcional sintetico: **PARCIALMENTE OK** por API directa, reintento HTTP desde SPA Docker y cierre funcional de DEF-UAT-017; siguen pendientes contrato formal de idempotencia, evidencia visual/acta formal y UAT bancario.
 Productivo: **NO-GO**.

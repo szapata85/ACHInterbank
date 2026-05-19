@@ -102,6 +102,118 @@ public class AchTransactionNachaTests
     }
 
     [Fact]
+    public async Task RegisterTransactionAsync_CreatesInitialStateEventAndTraceabilityIncludesIt()
+    {
+        using var connection = CreateOpenConnection();
+
+        AchTransaction tx;
+        using (var arrangeContext = CreateContext(connection))
+        {
+            SeedCoreEntities(arrangeContext);
+
+            string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+            var service = BuildTransactionService(arrangeContext, cycleId);
+
+            tx = await service.RegisterTransactionAsync(
+                amount: 1500m,
+                reference: "PAGO-REF-EVENT-001",
+                type: TransactionTypeEnum.Credit,
+                accountType: AccountTypeEnum.Checking,
+                isPrenotification: false,
+                destinationInstitutionId: 2,
+                sourceAccountNumber: "111122223333",
+                destinationAccountNumber: "999988887777",
+                companyName: "Empresa Demo",
+                companyIdentification: "123456780",
+                companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "PAGOS PSE"),
+                transactionExternalId: "TX-EVENT-001",
+                recipientIdNumber: null,
+                requiresIdentityValidation: false,
+                addendas: null,
+                ct: CancellationToken.None);
+        }
+
+        using var verification = CreateContext(connection);
+
+        var stateEvent = await verification.AchTransactionStateEvents.SingleAsync(x => x.AchTransactionId == tx.Id);
+        Assert.Equal(AchTransferStateEnum.Pending, stateEvent.FromState);
+        Assert.Equal(AchTransferStateEnum.Pending, stateEvent.ToState);
+        Assert.Equal(AchStateEventSourceEnum.System, stateEvent.Source);
+        Assert.Equal("CREATED", stateEvent.ReasonCode);
+        Assert.Contains("TransactionCreated", stateEvent.PayloadJson);
+        Assert.Contains("TX-EVENT-001", stateEvent.PayloadJson);
+
+        var traceability = new AchTraceabilityService(verification, new AchStateTransitionService(verification));
+        var detail = await traceability.GetTransactionTraceabilityAsync(tx.Id);
+
+        Assert.NotNull(detail);
+        var traceEvent = Assert.Single(detail.Events);
+        Assert.Equal(stateEvent.Id, traceEvent.Id);
+        Assert.Equal(AchTransferStateEnum.Pending, traceEvent.FromState);
+        Assert.Equal(AchTransferStateEnum.Pending, traceEvent.ToState);
+        Assert.Equal(AchStateEventSourceEnum.System, traceEvent.Source);
+    }
+
+    [Fact]
+    public async Task RegisterTransactionAsync_WhenPolicyRejectsDuplicate_DoesNotCreateSecondInitialStateEvent()
+    {
+        using var connection = CreateOpenConnection();
+
+        using var context = CreateContext(connection);
+        SeedCoreEntities(context);
+
+        string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var policyService = new Mock<ITransactionPolicyService>();
+        policyService
+            .SetupSequence(x => x.PreviewAsync(It.IsAny<TransactionPolicyPreviewRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TransactionPolicyPreview(true, null, cycleId, "CICLO-TEST", DateTime.Today, "ACH Colombia", 1, "", true, null, null, null, $"{cycleId}:Credit:111122223333:999988887777:1500:TX-DUP-001", false))
+            .ReturnsAsync(new TransactionPolicyPreview(false, "Ya existe una transacción equivalente para el mismo ciclo.", cycleId, "CICLO-TEST", DateTime.Today, "ACH Colombia", 1, "", true, null, null, null, $"{cycleId}:Credit:111122223333:999988887777:1500:TX-DUP-001", true));
+
+        var service = BuildTransactionService(context, cycleId, policyService.Object);
+
+        await service.RegisterTransactionAsync(
+            amount: 1500m,
+            reference: "PAGO-REF-DUP-001",
+            type: TransactionTypeEnum.Credit,
+            accountType: AccountTypeEnum.Checking,
+            isPrenotification: false,
+            destinationInstitutionId: 2,
+            sourceAccountNumber: "111122223333",
+            destinationAccountNumber: "999988887777",
+            companyName: "Empresa Demo",
+            companyIdentification: "123456780",
+            companyEntryDescriptionId: GetCompanyEntryDescriptionId(context, "PAGOS PSE"),
+            transactionExternalId: "TX-DUP-001",
+            recipientIdNumber: null,
+            requiresIdentityValidation: false,
+            addendas: null,
+            ct: CancellationToken.None);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterTransactionAsync(
+            amount: 1500m,
+            reference: "PAGO-REF-DUP-001",
+            type: TransactionTypeEnum.Credit,
+            accountType: AccountTypeEnum.Checking,
+            isPrenotification: false,
+            destinationInstitutionId: 2,
+            sourceAccountNumber: "111122223333",
+            destinationAccountNumber: "999988887777",
+            companyName: "Empresa Demo",
+            companyIdentification: "123456780",
+            companyEntryDescriptionId: GetCompanyEntryDescriptionId(context, "PAGOS PSE"),
+            transactionExternalId: "TX-DUP-001",
+            recipientIdNumber: null,
+            requiresIdentityValidation: false,
+            addendas: null,
+            ct: CancellationToken.None));
+
+        Assert.Contains("equivalente", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, await context.AchTransactions.CountAsync());
+        Assert.Equal(1, await context.AchTransactionStateEvents.CountAsync());
+        policyService.Verify(x => x.PreviewAsync(It.IsAny<TransactionPolicyPreviewRequest>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
     public async Task RegisterTransactionAsync_WithoutDefaultSource_Throws()
     {
         using var connection = CreateOpenConnection();
@@ -1058,7 +1170,10 @@ public class AchTransactionNachaTests
         });
     }
 
-    private static AchTransactionService BuildTransactionService(AchDbContext context, string cycleId)
+    private static AchTransactionService BuildTransactionService(
+        AchDbContext context,
+        string cycleId,
+        ITransactionPolicyService? policyServiceOverride = null)
     {
         var routing = new Mock<IRoutingStrategyService>();
         routing
@@ -1091,7 +1206,7 @@ public class AchTransactionNachaTests
         var contrapartida = new Mock<IContrapartidaDispatchPersistenceService>();
         contrapartida.Setup(x => x.EnsurePendingDispatchAsync(It.IsAny<AchTransaction>(), It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(new ContrapartidaDispatchItem());
 
-        return new AchTransactionService(context, unitOfWork, customerRepo, holiday.Object, validator, batchResolver, persister, prenotificationHandler, contrapartida.Object, null, null, policyService.Object);
+        return new AchTransactionService(context, unitOfWork, customerRepo, holiday.Object, validator, batchResolver, persister, prenotificationHandler, contrapartida.Object, null, null, policyServiceOverride ?? policyService.Object);
     }
 
     private static void SeedNachaLayouts(AchDbContext context)

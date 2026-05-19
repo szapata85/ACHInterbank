@@ -1,9 +1,9 @@
 # Evidencias UAT Funcional Sintetico - ACH Interbank
 
-Fecha de generacion: 2026-05-18 America/Bogota  
-Version: 0.2 reintento proxy funcional  
-Rama ejecutada: `fix/spa-docker-runtime-proxy-and-images`  
-Commit: `261b1e0537e5d941f4d5f39c28bc4dc06d24f805`  
+Fecha de generacion/revalidacion: 2026-05-18 / 2026-05-19 America/Bogota
+Version: 0.4 revalidacion runtime DEF-UAT-017
+Rama ejecutada: `fix/spa-functional-root-routes-proxy`
+Commit base: `469e2a60`
 Clasificacion: no incluir password, token completo, datos reales, cuentas reales, certificados reales ni secretos.
 
 ## Indice De Evidencias
@@ -22,9 +22,9 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 | EV-FUNC-010 | Preview transaccion | HTTP/API | Preview de `UAT-SINT-001` permite envio, sin duplicado inicial. | API directa. | OK |
 | EV-FUNC-011 | Creacion transaccion | HTTP/API | `POST /transactions` HTTP 201, transaccion ID `1`, estado `Pending`. | API directa. | OK |
 | EV-FUNC-012 | Persistencia DB | PostgreSQL | `AchTransactions` contiene referencia `UAT-SINT-001`, monto `1000`, estado `Pending`, timestamps presentes. | `docker exec` + `psql`, salida sanitizada. | OK |
-| EV-FUNC-013 | Evento inicial | PostgreSQL/API | `AchTransactionStateEvents` devuelve `0` eventos para la transaccion sintetica. | `docker exec` + trazabilidad API. | FALLA/OBS |
+| EV-FUNC-013 | Evento inicial historico | PostgreSQL/API | `AchTransactionStateEvents` devuelve `0` eventos para la transaccion sintetica historica `UAT-SINT-001`; no se ejecuto backfill. | `docker exec` + trazabilidad API. | Observacion historica documentada |
 | EV-FUNC-014 | Idempotencia | HTTP/API | Reintento del mismo payload devuelve HTTP 400 con rechazo controlado por duplicado. | API directa. | OK con observacion |
-| EV-FUNC-015 | Trazabilidad | HTTP/API | `GET /api/ach-traceability/transactions/1` HTTP 200; origen/destino sinteticos; eventos `0`. | API directa. | PARCIAL |
+| EV-FUNC-015 | Trazabilidad historica | HTTP/API | `GET /api/ach-traceability/transactions/1` HTTP 200; origen/destino sinteticos; eventos `0` para registro historico. | API directa + tests backend. | Observacion historica |
 | EV-FUNC-016 | Conciliacion | HTTP/API | `GET /api/reports/reconciliation` HTTP 200 para ciclo/fecha sinteticos. | API directa. | OK |
 | EV-FUNC-017 | ROR/CENIT lectura | HTTP/API | Politicas ROR, causas, colas CENIT y trazabilidad CENIT responden 200. | API directa. | OK |
 | EV-FUNC-018 | Logs API | Logs | Muestra revisada sin errores 500 criticos ni tokens/passwords completos. | `docker compose logs achinterbank-api --tail=900`. | OK |
@@ -34,6 +34,15 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 | EV-FUNC-022 | Proxy funcional sin token | HTTP | `/financial-institutions`, `/ach-cycles`, `/clearing-houses`, `/transactions/company-entry-descriptions` devuelven 401 desde API, no HTML. | `curl.exe` por `http://localhost:743`. | OK |
 | EV-FUNC-023 | Proxy funcional con token | HTTP | Las 4 rutas funcionales devuelven 200 JSON con Bearer demo, sin `index.html`. | Token no documentado completo. | OK |
 | EV-FUNC-024 | Transacciones por proxy SPA | HTTP | `/transactions`, `/transactions/1`, `/transactions/policies/preview` devuelven 200 JSON; `POST /transactions` duplicado devuelve 400 JSON controlado. | `http://localhost:743`, salida sanitizada. | OK con observacion |
+| EV-FUNC-025 | Diagnostico DEF-UAT-017/018 | Codigo | Se confirmo que el evento inicial faltaba en `TransactionPersister.PersistAsync` y que la idempotencia observada vive en `TransactionPolicyService` sin header `Idempotency-Key`. | Revision de entidades, servicios, constraints y tests. | OK |
+| EV-FUNC-026 | Correccion evento inicial | Codigo/Test | Nuevas transacciones agregan evento `Pending -> Pending`, `Source=System`, `ReasonCode=CREATED`; duplicado rechazado no crea segundo evento. | `TransactionPersister.cs`, `AchTransactionNachaTests.cs`. | OK |
+| EV-FUNC-027 | Build Release | Build | `dotnet build ACHInterbank.sln -c Release` finaliza con 0 errores y 0 warnings. | Consola Codex. | OK |
+| EV-FUNC-028 | Suite backend completa | Test | `dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release` ejecuta 1090 pruebas: 1088 OK, 1 omitida, 1 falla existente DEF-UAT-011. | Consola Codex. | OK parcial por defecto preexistente |
+| EV-FUNC-029 | Runtime API corregido | Docker | `docker compose build achinterbank-api` y `docker compose up -d achinterbank-api` ejecutados sin borrar volumenes; API queda Up. | Consola Codex. | OK con warning NU1903 conocido |
+| EV-FUNC-030 | Revalidacion DEF-UAT-017 | HTTP/API | `POST http://localhost:743/transactions` crea `UAT-SINT-TRACE-001`, transaction ID `2`, estado `Pending`. | Token no documentado completo; datos sinteticos. | OK |
+| EV-FUNC-031 | Evento inicial revalidado | PostgreSQL/API | `UAT-SINT-TRACE-001` tiene 1 evento `Pending -> Pending`, `Source=System`, `ReasonCode=CREATED`, `PayloadJson` presente. | `docker exec` + `GET /api/ach-traceability/transactions/2`. | OK |
+| EV-FUNC-032 | Idempotencia no duplica evento | HTTP/PostgreSQL | Reintento identico devuelve 400 JSON controlado; `transaction_count=1`, `event_count=1`. | `POST /transactions` y consulta read-only. | OK |
+| EV-FUNC-033 | Build/test focal revalidado | Build/Test | `dotnet build ACHInterbank.sln -c Release` OK; `AchTransactionNachaTests` 17/17 OK. | Consola Codex. | OK |
 
 ## Evidencia HTTP Sanitizada
 
@@ -61,8 +70,13 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 | `POST http://localhost:843/transactions` | 201, JSON, transaccion sintetica creada. |
 | Reintento `POST http://localhost:843/transactions` | 400, JSON, rechazo controlado por duplicado. |
 | `GET http://localhost:843/transactions/1` | 200, JSON. |
-| `GET http://localhost:843/api/ach-traceability/transactions/1` | 200, JSON; sin eventos iniciales. |
+| `GET http://localhost:843/api/ach-traceability/transactions/1` | 200, JSON; sin eventos iniciales para `UAT-SINT-001` historica. |
 | `GET http://localhost:843/api/reports/reconciliation` | 200. |
+| `dotnet test ... --filter "FullyQualifiedName~AchTransactionNachaTests"` | 17 pruebas OK, incluyendo evento inicial y duplicado sin evento repetido. |
+| `POST http://localhost:743/transactions` con `UAT-SINT-TRACE-001` | 201, JSON, transaccion ID `2`, estado `Pending`. |
+| `GET http://localhost:743/transactions/2` | 200, JSON, referencia `UAT-SINT-TRACE-001`, estado `Pending`. |
+| `GET http://localhost:743/api/ach-traceability/transactions/2` | 200, JSON, 1 evento inicial `Pending -> Pending`, `Source=System`, `ReasonCode=CREATED`. |
+| Reintento `POST http://localhost:743/transactions` con `UAT-SINT-TRACE-001` | 400, JSON, duplicado equivalente controlado. |
 
 ## Evidencia De Datos Maestros
 
@@ -83,7 +97,10 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 |---|---|
 | Transaccion sintetica | ID `1`, referencia `UAT-SINT-001`, external ID `UAT-SINT-001`, monto `1000`, estado `Pending`, source institution `92`, destination institution `93`. |
 | Timestamps | `CreatedAt` presente, `StateChangedAtUtc` presente. |
-| Eventos de estado | `state_event_count = 0`. |
+| Eventos de estado | `state_event_count = 0` para `UAT-SINT-001` historica; no se aplico migracion ni backfill. |
+| Transaccion revalidacion | ID `2`, referencia `UAT-SINT-TRACE-001`, external ID `UAT-SINT-TRACE-001`, monto `1000`, estado `Pending`, source institution `92`, destination institution `93`. |
+| Evento inicial revalidacion | `event_count = 1`; `FromState=Pending`, `ToState=Pending`, `Source=System`, `ReasonCode=CREATED`, `CreatedAt` presente, `PayloadJson` presente. |
+| Idempotencia revalidacion | Despues del reintento duplicado: `transaction_count = 1`, `event_count = 1`. |
 | Cliente/cuentas sinteticas | Conteo de cliente sintetico `999999999`: 2; cuentas sinteticas `0000000001`/`0000000002`: 2. |
 | Auditoria | `audit_rows = 1` para transaccion sintetica. |
 
@@ -91,7 +108,7 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 
 | Fuente | Observacion |
 |---|---|
-| API | Sin coincidencias criticas revisadas para `fail`, `exception`, `500`, `password`, `token` en muestra de 900 lineas. |
+| API | Sin 500 criticos en la revalidacion; se observo warning esperado por regla de negocio de duplicado: `Ya existe una transaccion equivalente para el mismo ciclo.` |
 | SPA/Nginx | Registros 200 con tamano `2123` para `/financial-institutions`, `/clearing-houses`, `/ach-cycles`, `/transactions/company-entry-descriptions`, consistente con fallback SPA indebidamente aplicado a rutas API funcionales. |
 | PostgreSQL | Servicio healthy; se mantienen FATAL previos por usuarios inexistentes `root`/`sa` como observacion no bloqueante del UAT funcional API. |
 
@@ -99,5 +116,7 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 
 La evidencia permite sostener que el core API funcional sintetico creo, persistio y rechazo duplicado de forma controlada para una transaccion sintetica. Tras el ajuste de `web/ach-interbank-ui/nginx.conf`, las rutas funcionales raiz requeridas por pantallas transaccionales ya responden desde API por `http://localhost:743` y no devuelven `index.html`.
 
-UAT funcional sintetico: **PARCIALMENTE OK** por observaciones restantes de trazabilidad/evento inicial, contrato de idempotencia, evidencia visual y actas formales.  
+DEF-UAT-017 queda cerrado funcionalmente para nuevas transacciones: `UAT-SINT-TRACE-001` genero el evento inicial esperado y el reintento duplicado no genero transaccion ni evento adicional. No se hizo backfill de `UAT-SINT-001`. DEF-UAT-018 queda documentado como contrato observado, pero requiere decision formal si se espera `409 Conflict`, replay idempotente o header `Idempotency-Key`.
+
+UAT funcional sintetico: **PARCIALMENTE OK** por contrato formal de idempotencia, evidencia visual y actas formales pendientes.
 Productivo: **NO-GO**.
