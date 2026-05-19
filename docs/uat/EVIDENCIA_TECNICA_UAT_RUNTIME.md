@@ -25,6 +25,7 @@ Clasificacion: no incluir secretos, tokens, certificados privados, datos persona
 | API ready | OK | `GET http://localhost:843/health/ready` respondio 200 con `database=Healthy`. |
 | SPA runtime | OK tecnico | `GET http://localhost:743` respondio 200 con `index.html`. |
 | SPA hacia API same-origin | OK tecnico | `GET http://localhost:743/api/ach/responses` respondio 401 desde API, no `index.html`; auth intacta. |
+| SPA hacia Auth same-origin | OK tecnico | `POST http://localhost:743/auth/login` con credenciales dummy respondio 401 JSON desde API, no 405 ni `index.html`. |
 | OpenAPI | OK con observacion | `GET http://localhost:843/openapi/v1.json` respondio 200 en aproximadamente 79s; via proxy `http://localhost:743/openapi/v1.json` respondio 200 en aproximadamente 96s. |
 | Scalar | OK | `GET http://localhost:843/scalar` respondio 200. |
 | OpenBao/secrets | PENDIENTE / NO APLICA compose actual | OpenBao no esta en `docker-compose.yml`; hay scripts y docs historicas. |
@@ -59,7 +60,7 @@ No se usa Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^22.1
 |---|---|---|---:|---:|---|
 | `postgres` | `postgres:16` | Up / healthy | No publicado | 5432 | Volumen `ach_postgres_data`. |
 | `achinterbank-api` | `achinterbank-api:local` | Up | 843 | 8080 | Health live/ready OK. |
-| `achinterbank-spa` | `achinterbank-spa:local` | Up | 743 | 80 | Sirve SPA y proxya `/api`, `/health`, `/openapi`, `/scalar` hacia API. |
+| `achinterbank-spa` | `achinterbank-spa:local` | Up | 743 | 80 | Sirve SPA y proxya `/auth`, `/api`, `/health`, `/openapi`, `/scalar` hacia API. |
 
 ## Validaciones ejecutadas
 
@@ -86,6 +87,7 @@ No se usa Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^22.1
 | `Invoke-WebRequest http://localhost:743/openapi/v1.json` | OK lento | HTTP 200 JSON desde API por proxy en aprox. 96s. |
 | `Invoke-WebRequest http://localhost:743/scalar` | OK | HTTP 200 Scalar via proxy, no SPA. |
 | `Invoke-WebRequest http://localhost:743/api/ach/responses` | OK tecnico | HTTP 401 desde API; no retorna `index.html`. |
+| `Invoke-WebRequest -Method Post http://localhost:743/auth/login` | OK tecnico | HTTP 401 JSON desde API con credenciales dummy; no retorna 405 ni `index.html`. |
 | `docker compose exec -T achinterbank-spa ... achinterbank-api:8080/health/*` | OK | API interna Docker responde live/ready desde la red del compose. |
 | `docker exec achinterbank-postgres ... information_schema.tables` | OK | 130 tablas en esquema `public`. |
 
@@ -96,8 +98,9 @@ No se usa Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^22.1
 - Se observaron inserts en `__EFMigrationsHistory` y creacion de indice de idempotencia para ingestion NACHA entrante.
 - El mensaje inicial de PostgreSQL sobre `__EFMigrationsHistory` inexistente aparece durante la deteccion normal previa a crear/aplicar historial.
 - Nginx de la SPA sirvio `index.html` correctamente.
-- Nginx de la SPA proxyo `/api`, `/health`, `/openapi` y `/scalar` hacia `achinterbank-api:8080`.
+- Nginx de la SPA proxyo `/auth`, `/api`, `/health`, `/openapi` y `/scalar` hacia `achinterbank-api:8080`.
 - `/api/ach/responses` via `http://localhost:743` respondio 401, confirmando que ya llega al backend y mantiene autorizacion.
+- `/auth/login` via `http://localhost:743` respondio 401 JSON con credenciales dummy, confirmando que ya llega al backend y no cae en Nginx estatico.
 - Durante `docker compose build`, `dotnet restore` reporto warning NU1903 de vulnerabilidad alta en `System.Security.Cryptography.Xml` 10.0.0. Requiere revision de seguridad y actualizacion controlada.
 
 ## Resultado API y base de datos
@@ -118,7 +121,8 @@ No se usa Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^22.1
 | SPA servida | OK | `http://localhost:743` HTTP 200. |
 | Build productivo en Docker | OK | `npm run build -- --configuration production` dentro de Docker finalizo OK. |
 | API relativa desde SPA | OK tecnico | `http://localhost:743/api/ach/responses` respondio 401 desde API, no HTML SPA. |
-| Nginx proxy API | OK | `web/ach-interbank-ui/nginx.conf` proxya `/api`, `/health`, `/openapi` y `/scalar`. |
+| Auth relativa desde SPA | OK tecnico | `http://localhost:743/auth/login` respondio 401 JSON desde API con credenciales dummy, no 405 ni HTML SPA. |
+| Nginx proxy API/Auth | OK | `web/ach-interbank-ui/nginx.conf` proxya `/auth`, `/api`, `/health`, `/openapi` y `/scalar`. |
 
 ## OpenAPI / Scalar
 
@@ -142,7 +146,7 @@ No se usa Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^22.1
 
 | ID | Brecha | Impacto | Accion recomendada |
 |---|---|---|---|
-| RUNTIME-01 | SPA productiva usa base relativa y Nginx proxya API correctamente. | Mejora UAT tecnico E2E basico desde SPA. | Cerrada tecnicamente; validar funcionalmente con usuarios/datos anonimizados. |
+| RUNTIME-01 | SPA productiva usa base relativa y Nginx proxya API/Auth correctamente. | Mejora UAT tecnico E2E basico desde SPA. | Cerrada tecnicamente; validar funcionalmente con usuarios/datos anonimizados. |
 | RUNTIME-02 | OpenAPI tarda aprox. 79-96 segundos en generarse. | Puede causar timeouts de validacion/observabilidad. | Evaluar cache/generacion previa o ampliar timeout operativo para evidencia. |
 | RUNTIME-03 | `System.Security.Cryptography.Xml` 10.0.0 reporta vulnerabilidad alta. | Riesgo de seguridad pre-go-live. | Revisar advisory y actualizar paquete de forma controlada con pruebas. |
 | RUNTIME-04 | `.env` esta versionado. | Riesgo de secretos si contiene valores reales. | Revision segura, rotacion si aplica y destrackeo controlado. |
@@ -150,7 +154,7 @@ No se usa Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^22.1
 
 ## Conclusion
 
-El stack Docker queda validado tecnicamente para API, PostgreSQL, build de imagenes, health checks directos, SPA servida y proxy SPA->API. Las rutas `/api`, `/health`, `/openapi` y `/scalar` desde `http://localhost:743` ya no caen al fallback Angular.
+El stack Docker queda validado tecnicamente para API, PostgreSQL, build de imagenes, health checks directos, SPA servida y proxy SPA->API/Auth. Las rutas `/auth`, `/api`, `/health`, `/openapi` y `/scalar` desde `http://localhost:743` ya no caen al fallback Angular.
 
 Estado recomendado: **ambiente apto para UAT tecnico E2E basico desde SPA**, condicionado a ejecutar escenarios con datos anonimizados, usuarios/roles y evidencias formales.
 
