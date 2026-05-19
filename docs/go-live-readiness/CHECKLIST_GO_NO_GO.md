@@ -1,8 +1,8 @@
 # Checklist GO / NO-GO - ACH Interbank
 
 Fecha de generacion: 2026-05-18  
-Version: 0.1 preliminar  
-Rama analizada: `ACH-Interbank-Postgresql`  
+Version: 0.2 preliminar  
+Rama analizada: `fix/spa-docker-runtime-proxy-and-images`  
 Estado inicial: Candidato UAT / NO-GO productivo.  
 Uso: checklist para comite; requiere evidencia y aprobacion humana.
 
@@ -42,9 +42,13 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 | GNG-030 | README/runbook | README operativo no tiene drift? | OK | README raiz saneado y referencia docs UAT/go-live | Tecnologia | No para UAT, si para release formal | |
 | GNG-031 | Datos sensibles | No hay datos sensibles versionados? | PENDIENTE VALIDAR | Pre-check `.env` versionado | Seguridad | Si | Requiere revision |
 | GNG-032 | SPA/API runtime | La SPA servida por Docker consume API correctamente por la misma URL o proxy aprobado? | OK TECNICO | `http://localhost:743/health/live` OK, `:743/api/ach/responses` 401, `:743/auth/login` 401 JSON, `:743/navigation/menu` 401 sin token desde API | DevOps/Tecnologia | Si | Auth intacta; con token valido navigation debe devolver JSON; ejecutar UAT tecnico funcional |
+| GNG-033 | UAT tecnico autenticado | Login real con usuario demo, token y menu fueron validados por automatizacion segura? | OK CON OBSERVACIONES | Login demo `admin` HTTP 200, token recibido/enmascarado, `/navigation/menu`, `/api/roles`, `/api/users`, `/api/ach/responses` HTTP 200 JSON con Bearer | QA/DevOps | Si | No documentar password/token; rol `ACH.Operator` no visible en JWT/respuesta y requiere confirmacion |
+| GNG-034 | Evidencia visual UAT tecnico | Existe evidencia visual automatizada o manual de navegacion SPA autenticada? | PARCIAL | Logs SPA muestran dashboard, usuarios, transacciones, reportes y ACH responses; browser integrado sin herramienta ejecutable en esta sesion | QA/DevOps | No para UAT tecnico HTTP, si si acta exige captura | Adjuntar capturas sanitizadas en cierre formal |
 
 ## Regla De Decision
 
 - Cualquier item `CRITICO` con `Bloquea go-live = Si` mantiene NO-GO productivo.
 - UAT puede avanzar si no hay bloqueantes de ambiente y los riesgos estan comunicados.
 - Go productivo requiere estados `OK` o riesgo aceptado formalmente en todos los controles bloqueantes.
+
+Estado tras reintento autenticado: **UAT tecnico autenticado basico OK con observaciones**. UAT funcional con transacciones sinteticas sigue pendiente. Productivo permanece **NO-GO**.

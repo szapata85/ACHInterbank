@@ -1,8 +1,8 @@
 # Plan de Cierre de Brechas - ACH Interbank
 
 Fecha de generacion: 2026-05-18  
-Version: 0.1 preliminar  
-Rama analizada: `ACH-Interbank-Postgresql`  
+Version: 0.2 preliminar  
+Rama analizada: `fix/spa-docker-runtime-proxy-and-images`  
 Estado: plan de trabajo actualizado; incluye correcciones de bajo riesgo aplicadas y pendientes de validacion.
 
 ## Matriz De Acciones
@@ -29,12 +29,17 @@ Estado: plan de trabajo actualizado; incluye correcciones de bajo riesgo aplicad
 | G-18 | Adjuntar evidencia Angular CI remota aprobada al paquete RC. | Evidencia/CI | Bajo | Docs readiness/paquete comite | Tecnologia/QA | GitHub Actions | angular-ci remoto OK adjunto | CI Angular OK |
 | G-19 | Resolver enrutamiento SPA->API en compose/UAT. | Configuracion/Operacion | Medio | `web/ach-interbank-ui/nginx.conf`, `web/ach-interbank-ui/src/environments/environment.prod.ts` | Tecnologia/DevOps/Operaciones | Decision de arquitectura de despliegue | `http://localhost:743/api/...` proxya a API; health/openapi/scalar por 743 no devuelven `index.html` | Corregida tecnicamente - UAT pendiente |
 | G-20 | Revisar y actualizar dependencia vulnerable `System.Security.Cryptography.Xml`. | Seguridad/Codigo bajo riesgo | Medio | `.csproj` que referencia paquete transitivo/directo | Seguridad/Tecnologia | Analisis advisory y compatibilidad .NET | Build/test/CI OK con version segura | Nuevo - pendiente |
+| G-21 | Mantener PostgreSQL publicado solo en loopback para UAT local o parametrizar puerto alterno. | Configuracion/Operacion | Bajo | `docker-compose.yml`, `.env.example`, docs | DevOps/Operaciones | Politica ambiente | `localhost:5432` OK en UAT local; no expuesto en productivo sin aprobacion | Corregida tecnicamente - no productivo |
+| G-22 | Confirmar formalmente roles/claims del usuario demo tras cierre tecnico autenticado. | Prueba UAT/Evidencia | Medio | `docs/uat/EJECUCION_UAT_TECNICO_BASICO.md`, `docs/uat/MATRIZ_DEFECTOS_UAT.md` | Seguridad/Tecnologia/QA | UAT tecnico autenticado reejecutado con variables seguras | Decidir si `ACH.Operator` debe estar visible/asignado o si `Admin` cubre el alcance tecnico | OK tecnico con observaciones |
+| G-23 | Adjuntar evidencia visual sanitizada de navegacion SPA autenticada si el acta formal la exige. | Evidencia UAT | Bajo/Medio | `docs/uat/EVIDENCIAS_UAT_TECNICO_BASICO.md`, acta UAT | QA/DevOps | Browser local/manual o herramienta habilitada | Capturas sin datos sensibles de login post-redireccion, dashboard/menu y pantallas permitidas | Pendiente |
 
 ## Priorizacion
 
 1. Bloqueantes productivos: G-01, G-02, G-03, G-04, G-05, G-07, G-09, G-14.
 2. Bloqueantes de UAT operativo: G-01, G-06, G-13 y ejecucion formal con datos anonimizados/evidencias.
 3. Higiene documental/configuracion: G-08, G-10, G-11, G-12, G-15, G-16.
+
+Estado especifico UAT tecnico autenticado: G-22 deja de estar bloqueada por variables. Quedan observaciones de roles (`ACH.Operator`) y evidencia visual, sin declarar GO productivo.
 
 ## Restriccion De Esta Fase
 

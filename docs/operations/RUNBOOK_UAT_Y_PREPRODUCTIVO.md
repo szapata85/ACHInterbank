@@ -1,8 +1,8 @@
 # Runbook UAT y preproductivo - ACH Interbank
 
 Fecha de generacion: 2026-05-18  
-Version: 0.1 preliminar  
-Rama analizada: ACH-Interbank-Postgresql  
+Version: 0.2 preliminar  
+Rama analizada: fix/spa-docker-runtime-proxy-and-images  
 Estado: borrador operativo para validacion humana  
 Clasificacion: no incluir secretos, datos personales, certificados privados ni evidencias sensibles en Git.
 
@@ -63,6 +63,8 @@ No registrar valores reales en Git. Documentar solo nombres, origen autorizado y
 | `DigitalEnvelope__*` | Sobre digital/firma/certificados | Secret manager/vault | PENDIENTE VALIDAR |
 | `OpenBao__*` o equivalente | Secrets provider | OpenBao/vault | PENDIENTE VALIDAR |
 | `apiBaseUrl` SPA | URL API consumida por SPA | Build/runtime config | CORREGIDO TECNICAMENTE: base relativa; PENDIENTE VALIDAR reverse proxy/deploy |
+| `ACH_UAT_DEMO_USERNAME` | Usuario demo sintetico UAT tecnico | Entorno seguro local/UAT | VALIDADO PRESENTE 2026-05-18; no imprimir valor |
+| `ACH_UAT_DEMO_PASSWORD` | Password demo sintetico UAT tecnico | Entorno seguro local/UAT | VALIDADO PRESENTE 2026-05-18; no imprimir valor |
 
 ## 4. Preparacion de ambiente
 
@@ -130,6 +132,22 @@ Documentos de evidencia:
 
 Decision operativa: el stack es valido para pruebas tecnicas directas de API, BD, health, SPA estatica y proxy SPA->API/Auth/Navigation. PostgreSQL queda disponible en `localhost:5432` solo para UAT tecnico/local y troubleshooting controlado. Puede iniciar UAT tecnico E2E basico desde SPA con datos anonimizados, usuarios/roles y registro formal de evidencias.
 
+### 4.4 UAT tecnico autenticado basico 2026-05-18
+
+| Control | Resultado | Evidencia |
+|---|---|---|
+| Usuario demo esperado | OK | `admin`; password debe venir de `ACH_UAT_DEMO_PASSWORD` y no documentarse. |
+| Variables demo en sesion Codex | OK | `ACH_UAT_DEMO_USERNAME` y `ACH_UAT_DEMO_PASSWORD` presentes; valores no impresos. |
+| Login dummy | OK tecnico | `POST /auth/login` con credenciales dummy devolvio 401 JSON desde API. |
+| Menu sin token | OK tecnico | `GET /navigation/menu` devolvio 401 desde API. |
+| Login real demo | OK | `POST /auth/login` devolvio 200 JSON y token presente; token enmascarado en evidencia. |
+| Menu autenticado | OK | `GET /navigation/menu` con Bearer devolvio 200 JSON. |
+| Endpoints read-only | OK | `/api/roles`, `/api/users`, `/api/ach/responses` devolvieron 200 JSON con Bearer. |
+| Roles | OK con observacion | `Admin` visible; `ACH.Operator` no visible en respuesta/JWT. |
+| Browser integrado | PARCIAL | No se conto con herramienta ejecutable para evidencia visual; logs SPA respaldan navegacion autenticada. |
+
+Accion siguiente: ejecutar UAT funcional con datos maestros y transacciones sinteticas; confirmar formalmente rol `ACH.Operator` o documentar excepcion; adjuntar capturas sanitizadas si el acta formal las exige.
+
 ## 5. Verificacion PostgreSQL
 
 | Paso | Accion | Resultado esperado | Evidencia |
@@ -176,6 +194,8 @@ BRECHA: no ejecutar migraciones sin aprobacion DBA/operaciones, backup previo y 
 | SPA-006 | Validar endpoints consumidos. | Cada consumo tiene backend equivalente o brecha registrada. | Matriz SPA-backend. |
 
 Estado: `web/ach-interbank-ui/src/environments/environment.prod.ts` usa base relativa y ya no apunta a `localhost`. Validar que el reverse proxy UAT/preproductivo enrute correctamente API y SPA.
+
+Resultado UAT tecnico 2026-05-18: login demo `admin`, token, menu y endpoints read-only fueron validados por `http://localhost:743` sin exponer password ni token completo. Productivo sigue NO-GO.
 
 ## 8. Verificacion health checks
 

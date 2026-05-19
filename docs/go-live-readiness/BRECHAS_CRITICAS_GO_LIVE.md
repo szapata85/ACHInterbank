@@ -1,9 +1,9 @@
 # Brechas Criticas Go-Live - ACH Interbank
 
 Fecha de generacion: 2026-05-18  
-Version: 0.1 preliminar  
-Rama analizada: `ACH-Interbank-Postgresql`  
-Estado: registro actualizado tras correcciones tecnicas de bajo riesgo; requiere triage y aceptacion humana.
+Version: 0.2 preliminar  
+Rama analizada: `fix/spa-docker-runtime-proxy-and-images`  
+Estado: registro actualizado tras cierre del UAT tecnico autenticado basico; requiere triage y aceptacion humana para go-live.
 
 ## Matriz
 
@@ -30,7 +30,9 @@ Estado: registro actualizado tras correcciones tecnicas de bajo riesgo; requiere
 | G-19 | ALTO | Docker runtime levanta API/PostgreSQL/SPA y Nginx enruta SPA->API/Auth/Navigation same-origin. | `docs/uat/EVIDENCIA_TECNICA_UAT_RUNTIME.md`, `docs/go-live-readiness/DOCKER_RUNTIME_READINESS.md`; `:743/health/live` OK, `:743/health/ready` OK, `:743/api/ach/responses` 401, `:743/auth/login` 401 JSON, `:743/navigation/menu` 401 sin token | Habilita UAT tecnico E2E basico desde SPA; no reemplaza UAT funcional ni actas. | Medio | Ejecutar UAT tecnico con datos anonimizados, usuarios/roles y evidencias; mantener auth intacta. | Tecnologia/DevOps/Operaciones | No adicional | Si | Corregida tecnicamente - UAT pendiente |
 | G-20 | ALTO | Warning NU1903 por vulnerabilidad alta en `System.Security.Cryptography.Xml` 10.0.0 durante build Docker. | `docker compose build` | Riesgo de seguridad pre-go-live, especialmente por uso criptografico/certificados. | Alto | Revisar advisory, actualizar dependencia de forma controlada y ejecutar CI completo. | Seguridad/Tecnologia | Si | Si | Abierto |
 | G-21 | MEDIO | PostgreSQL no estaba publicado al host para validacion UAT tecnica local. | `docker-compose.yml`, `.env.example`, `docker compose port postgres 5432`, `Test-NetConnection localhost -Port 5432` | Dificultaba troubleshooting con DBeaver/pgAdmin y verificacion local controlada. | Medio | Publicado solo en loopback `127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432`; documentar que no aplica como patron productivo. | DevOps/Operaciones | Si | Si | Corregida tecnicamente - no productivo |
+| G-22 | MEDIO | UAT tecnico autenticado basico fue reintentado con variables demo seguras presentes; login real, token, menu y endpoints read-only pasan. Queda observacion por rol `ACH.Operator` no visible en respuesta/JWT. | `docs/uat/EJECUCION_UAT_TECNICO_BASICO.md`, `docs/uat/EVIDENCIAS_UAT_TECNICO_BASICO.md`, `docs/uat/MATRIZ_DEFECTOS_UAT.md` | Ya no bloquea el UAT tecnico autenticado basico; no reemplaza UAT funcional ni actas. | Medio | Confirmar asignacion/claims del rol `ACH.Operator` o aceptar formalmente que `Admin` cubre el alcance tecnico. | Seguridad/Tecnologia/QA | No inicialmente | Si | OK tecnico con observaciones |
+| G-23 | MEDIO | Browser integrado no aporto evidencia visual automatizada en esta sesion; la navegacion quedo soportada por logs SPA y validaciones HTTP con token. | `docs/uat/EVIDENCIAS_UAT_TECNICO_BASICO.md`, DEF-UAT-014 | Riesgo bajo para UAT tecnico HTTP; requiere captura manual o herramienta habilitada si el acta exige evidencia visual. | Medio | Reintentar con navegador local/manual controlado o adjuntar capturas sanitizadas. | QA/DevOps | No | Si | Abierto |
 
 ## Decision Inicial
 
-Con cualquier brecha CRITICA abierta, el estado permanece **NO-GO productivo**. UAT controlado puede avanzar si el ambiente esta disponible, los datos estan anonimizados y las brechas se comunican como restricciones. Backend CI y Angular CI remotos estan OK; Docker compose config/build/runtime estan OK para API, PostgreSQL, health checks, SPA estatica y proxy SPA->API/Auth/Navigation. El ambiente queda apto para UAT tecnico autenticado basico desde SPA, no para productivo.
+Con cualquier brecha CRITICA abierta, el estado permanece **NO-GO productivo**. UAT controlado puede avanzar si el ambiente esta disponible, los datos estan anonimizados y las brechas se comunican como restricciones. Backend CI y Angular CI remotos estan OK; Docker compose config/build/runtime estan OK para API, PostgreSQL, health checks, SPA estatica y proxy SPA->API/Auth/Navigation. El UAT tecnico autenticado basico queda **OK con observaciones**: login demo `admin`, token, menu y endpoints read-only fueron validados sin imprimir password ni token completo. Productivo sigue **NO-GO**.
