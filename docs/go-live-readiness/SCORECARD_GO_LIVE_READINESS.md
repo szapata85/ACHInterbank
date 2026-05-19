@@ -19,18 +19,18 @@ Uso: instrumento preliminar para comite; requiere evidencias y firmas.
 
 | Categoria | Peso | Estado inicial | Puntaje preliminar | Puntaje ponderado | Evidencia | Observacion |
 |---|---:|---|---:|---:|---|---|
-| Funcionalidad core | 20% | PARCIAL | 74 | 14.8 | Backend CI OK; Angular CI OK; API/DB health OK; proxy SPA->API/Auth/Navigation OK; login demo/token/menu/endpoints read-only OK; transaccion sintetica `UAT-SINT-001` creada por API directa | Core API funcional sintetico OK parcial; E2E SPA Docker bloqueado por proxy funcional |
-| UAT y evidencias | 20% | PARCIAL | 52 | 10.4 | Docs UAT tecnico y funcional actualizados; evidencia de transaccion sintetica, persistencia, idempotencia y logs | Actas firmadas, evidencia visual SPA, UAT bancario formal y homologaciones siguen pendientes |
+| Funcionalidad core | 20% | PARCIAL | 76 | 15.2 | Backend CI OK; Angular CI OK; API/DB health OK; proxy SPA->API/Auth/Navigation OK; login demo/token/menu/endpoints read-only OK; transaccion sintetica `UAT-SINT-001` creada por API directa; rutas funcionales reintentadas por `:743` sin HTML fallback | Core API funcional sintetico y reintento HTTP SPA Docker OK; quedan trazabilidad/evento inicial e idempotencia formal |
+| UAT y evidencias | 20% | PARCIAL | 54 | 10.8 | Docs UAT tecnico y funcional actualizados; evidencia de transaccion sintetica, persistencia, idempotencia, proxy funcional y logs | Actas firmadas, evidencia visual SPA, UAT bancario formal y homologaciones siguen pendientes |
 | Seguridad | 15% | PARCIAL | 65 | 9.75 | Politicas/middleware + `[Authorize]` en AchResponses | `.env` trackeado, roles/policies y secretos requieren validacion |
 | Interoperabilidad externa | 15% | CRITICO | 35 | 5.25 | Sobre digital/naming/CENIT | Validacion externa pendiente |
 | Operacion y soporte | 10% | PARCIAL | 66 | 6.6 | Docker compose config/build/runtime, proxy SPA->API/Auth/Navigation OK y PostgreSQL loopback 5432 para UAT local; runbooks/docs | Backup/restore/rollback pendientes |
 | Observabilidad | 10% | PARCIAL | 68 | 6.8 | `/health/live` y `/health/ready` OK en Docker | Health cubre API/DB; faltan Quartz/OpenBao/externos y monitoreo |
 | Documentacion y trazabilidad | 10% | PARCIAL | 76 | 7.6 | README, docs readiness, evidencia runtime y UAT funcional sintetico actualizados | Firmas/evidencias UAT formales pendientes; evento inicial no generado |
-| **Total** | **100%** | **NO-GO con brechas altas** |  | **61.2** |  | **NO-GO productivo** |
+| **Total** | **100%** | **NO-GO con brechas altas** |  | **62.0** |  | **NO-GO productivo** |
 
 ## Estado Inicial
 
-Resultado preliminar tras backend CI OK, angular CI OK, validacion Docker runtime, proxy SPA->API/Auth/Navigation OK, UAT tecnico autenticado basico OK con observaciones y UAT funcional sintetico parcial por API directa: **61.2 / 100 - NO-GO productivo con brechas altas**.
+Resultado preliminar tras backend CI OK, angular CI OK, validacion Docker runtime, proxy SPA->API/Auth/Navigation OK, UAT tecnico autenticado basico OK con observaciones, UAT funcional sintetico parcial por API directa y reintento HTTP de rutas funcionales por SPA Docker: **62.0 / 100 - NO-GO productivo con brechas altas**.
 
 Clasificacion operacional: **Candidato UAT controlado**, no apto para productivo.
 
@@ -48,8 +48,8 @@ Clasificacion operacional: **Candidato UAT controlado**, no apto para productivo
 - Backend CI remoto OK segun contexto; adjuntar evidencia al paquete RC.
 - Docker compose config/build/runtime OK para API/PostgreSQL/SPA estatica y proxy SPA->API/Auth/Navigation; PostgreSQL publicado en loopback 5432 solo para UAT local.
 - UAT tecnico autenticado basico queda OK con observaciones: login demo `admin`, token, menu y endpoints read-only pasan; falta confirmar rol `ACH.Operator` visible/asignado y adjuntar evidencia visual si el acta la exige.
-- UAT funcional sintetico queda parcialmente OK por API directa: datos maestros suficientes, transaccion `UAT-SINT-001` creada, persistida, conciliacion basica consultada e idempotencia controlada.
-- SPA Docker bloquea el cierre funcional E2E: rutas raiz funcionales devuelven `index.html` en `http://localhost:743`.
+- UAT funcional sintetico queda parcialmente OK: datos maestros suficientes, transaccion `UAT-SINT-001` creada, persistida, conciliacion basica consultada e idempotencia controlada.
+- SPA Docker ya no devuelve `index.html` para las rutas funcionales reintentadas; falta evidencia visual/acta formal.
 - Trazabilidad transaccional parcial: no se genero evento inicial de estado para la transaccion sintetica.
 - Contrato de idempotencia pendiente: duplicado controlado devuelve HTTP 400, falta definicion 409/idempotency key si aplica.
 - Warning NU1903 de vulnerabilidad alta en `System.Security.Cryptography.Xml` 10.0.0 durante build Docker.

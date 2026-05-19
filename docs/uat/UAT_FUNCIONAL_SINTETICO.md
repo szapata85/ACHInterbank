@@ -1,7 +1,7 @@
 # UAT Funcional Sintetico - ACH Interbank
 
 Fecha de ejecucion: 2026-05-18 America/Bogota  
-Version: 0.1 ejecucion controlada  
+Version: 0.2 reintento proxy funcional  
 Rama ejecutada: `fix/spa-docker-runtime-proxy-and-images`  
 Commit: `261b1e0537e5d941f4d5f39c28bc4dc06d24f805`  
 Ambiente: Docker Compose local, SPA `http://localhost:743`, API directa `http://localhost:843`  
@@ -26,16 +26,16 @@ Roles observados: `Admin`; `ACH.Operator` no visible en respuesta/JWT, pero el t
 | Login real demo | OK | `POST /auth/login` por `:743` devuelve 200 JSON y token usable. |
 | Menu autenticado | OK | `GET /navigation/menu` por `:743` devuelve 200 JSON con Bearer. |
 | Endpoints protegidos tecnicos | OK | `/api/roles`, `/api/users`, `/api/ach/responses` devuelven 200 JSON con Bearer. |
-| Rutas funcionales SPA Docker | FALLA | Varias rutas raiz funcionales devuelven `index.html` por `:743`: `/financial-institutions`, `/ach-cycles`, `/clearing-houses`, `/transactions/company-entry-descriptions`. |
+| Rutas funcionales SPA Docker | OK tecnico | Reintento tras ajuste Nginx: sin token responden 401 no HTML; con token responden 200 JSON para `/financial-institutions`, `/ach-cycles`, `/clearing-houses`, `/transactions/company-entry-descriptions`. |
 | Datos maestros API directa | OK con observaciones | API directa `:843` expone datos maestros suficientes; ACH cycles se resuelve/genera on-demand. |
-| Transaccion sintetica | OK API directa | `POST /transactions` por `:843` creo transaccion ID `1`, referencia `UAT-SINT-001`, estado `Pending`. |
+| Transaccion sintetica | OK API directa y reintento proxy | `POST /transactions` por `:843` creo transaccion ID `1`; reintento por `:743` con mismo payload devuelve 400 JSON controlado por duplicado. |
 | Persistencia DB | OK | PostgreSQL contiene la transaccion sintetica con timestamps y referencias sinteticas. |
 | Evento inicial | FALLA/OBSERVACION | No se genero evento inicial en `AchTransactionStateEvents`; `state_event_count=0`. |
 | Trazabilidad API | PARCIAL | `GET /api/ach-traceability/transactions/1` responde 200, pero sin eventos iniciales. |
 | Conciliacion basica | OK API directa | `GET /api/reports/reconciliation` responde 200 para ciclo/fecha sinteticos. |
 | Idempotencia | OK controlado con observacion | Reintento del mismo payload devuelve 400 con mensaje de duplicado controlado. |
-| Logs | OK con observaciones | Sin patrones criticos de 500/secreto en muestra API; logs SPA evidencian defecto de proxy funcional. |
-| UAT funcional sintetico | PARCIALMENTE OK | Core API funcional sintetico pasa; E2E desde SPA Docker queda bloqueado por proxy funcional. |
+| Logs | OK con observaciones | Sin patrones criticos de 500/secreto en muestra API; SPA levanta estable tras ajuste Nginx. |
+| UAT funcional sintetico | PARCIALMENTE OK | Core API funcional y reintento HTTP desde SPA Docker pasan; quedan observaciones de trazabilidad/evento inicial, contrato de idempotencia, evidencia visual y actas. |
 | Productivo | NO-GO | No hay UAT bancario formal, actas firmadas, validacion externa ni cierre de brechas criticas. |
 
 ## Datos Sinteticos Usados
@@ -85,8 +85,9 @@ No se usaron datos reales, cuentas reales, bancos productivos reales, certificad
 
 ## Creacion De Transaccion Sintetica
 
-Endpoint real: `POST http://localhost:843/transactions`  
-Motivo de uso API directa: la SPA Docker por `:743` no proxya rutas raiz funcionales y devuelve `index.html` para varias rutas necesarias.
+Endpoint real: `POST /transactions`  
+Primera ejecucion: API directa `http://localhost:843/transactions`.  
+Reintento proxy funcional: `http://localhost:743/transactions` con mismo payload, sin crear datos nuevos; devuelve JSON controlado por duplicado.
 
 Payload sanitizado:
 
@@ -142,6 +143,32 @@ Se reintento la misma operacion con la misma referencia y el mismo payload.
 | Comportamiento | Rechazo controlado/deduplicacion funcional. |
 | Observacion | El contrato deberia definir si corresponde 409 Conflict o idempotency key formal. |
 
+## Reintento Proxy Funcional SPA Docker
+
+Cambio aplicado: `web/ach-interbank-ui/nginx.conf`, agregando locations explicitos antes del fallback Angular.
+
+Validacion sin token por `http://localhost:743`:
+
+| Ruta | Resultado |
+|---|---|
+| `/financial-institutions` | 401 desde API, no HTML. |
+| `/ach-cycles` | 401 desde API, no HTML. |
+| `/clearing-houses` | 401 desde API, no HTML. |
+| `/transactions/company-entry-descriptions` | 401 desde API, no HTML. |
+
+Validacion con token demo por `http://localhost:743`:
+
+| Ruta | Resultado |
+|---|---|
+| `/financial-institutions` | 200 JSON, no `index.html`. |
+| `/ach-cycles` | 200 JSON, no `index.html`. |
+| `/clearing-houses` | 200 JSON, no `index.html`. |
+| `/transactions/company-entry-descriptions` | 200 JSON, no `index.html`. |
+| `/transactions` | 200 JSON, no `index.html`. |
+| `/transactions/1` | 200 JSON, no `index.html`. |
+| `/transactions/policies/preview` | 200 JSON, no `index.html`. |
+| `POST /transactions` con payload duplicado | 400 JSON controlado, no `index.html`. |
+
 ## Trazabilidad Y Auditoria
 
 | Fuente | Resultado |
@@ -174,7 +201,7 @@ No se generaron devoluciones reales, archivos reales ni conexiones externas.
 
 | ID | Severidad | Resumen |
 |---|---|---|
-| DEF-UAT-016 | Bloqueante para UAT funcional SPA | Rutas funcionales raiz no proxied por SPA Docker devuelven `index.html`. |
+| DEF-UAT-016 | Cerrado | Rutas funcionales raiz fueron proxied por Nginx y revalidadas por `:743` sin devolver `index.html`. |
 | DEF-UAT-017 | Alta/Media | Creacion de transaccion no genera evento inicial de estado. |
 | DEF-UAT-018 | Media | Idempotencia controlada con HTTP 400; falta contrato explicito 409/idempotency key. |
 | DEF-UAT-019 | Media/Baja | Endpoint esperado de layouts NACHA-M no responde como catalogo disponible. |
@@ -182,5 +209,5 @@ No se generaron devoluciones reales, archivos reales ni conexiones externas.
 ## Clasificacion Final
 
 UAT tecnico autenticado basico: **OK con observaciones**.  
-UAT funcional sintetico: **PARCIALMENTE OK** por API directa; **bloqueado para cierre E2E desde SPA Docker** por defecto de proxy funcional.  
+UAT funcional sintetico: **PARCIALMENTE OK** por API directa y reintento HTTP desde SPA Docker; ya no queda bloqueado por proxy funcional, pero siguen pendientes evento inicial, contrato de idempotencia, evidencia visual/acta formal y UAT bancario.  
 Productivo: **NO-GO**.

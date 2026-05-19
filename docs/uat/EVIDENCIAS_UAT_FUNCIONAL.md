@@ -1,7 +1,7 @@
 # Evidencias UAT Funcional Sintetico - ACH Interbank
 
 Fecha de generacion: 2026-05-18 America/Bogota  
-Version: 0.1 ejecucion controlada  
+Version: 0.2 reintento proxy funcional  
 Rama ejecutada: `fix/spa-docker-runtime-proxy-and-images`  
 Commit: `261b1e0537e5d941f4d5f39c28bc4dc06d24f805`  
 Clasificacion: no incluir password, token completo, datos reales, cuentas reales, certificados reales ni secretos.
@@ -16,7 +16,7 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 | EV-FUNC-004 | Login demo | HTTP | `POST http://localhost:743/auth/login` HTTP 200 JSON con token presente. | Token enmascarado `eyJ...Iso`; password no impresa. | OK |
 | EV-FUNC-005 | Menu autenticado | HTTP | `GET http://localhost:743/navigation/menu` HTTP 200 JSON con Bearer. | Consola Codex. | OK |
 | EV-FUNC-006 | Endpoints protegidos | HTTP | `/api/roles`, `/api/users`, `/api/ach/responses` HTTP 200 JSON con Bearer. | Consola Codex. | OK |
-| EV-FUNC-007 | Proxy funcional SPA | HTTP/Log SPA | Rutas raiz funcionales por `:743` devuelven `text/html`/`index.html` con 200. | Logs Nginx SPA y respuestas HTTP sanitizadas. | FALLA |
+| EV-FUNC-007 | Proxy funcional SPA | HTTP/Log SPA | Evidencia historica: rutas raiz funcionales por `:743` devolvian `text/html`/`index.html` con 200 antes del ajuste Nginx. | Logs Nginx SPA y respuestas HTTP sanitizadas. | Cerrado por reintento |
 | EV-FUNC-008 | Datos maestros API directa | HTTP | Catalogos y configuraciones consultados por `:843` responden JSON. | Consola Codex. | OK con observaciones |
 | EV-FUNC-009 | Datos sinteticos | HTTP/API | Creacion de `Banco UAT Origen` ID `92`, `Banco UAT Destino` ID `93` y preferencias sinteticas. | API directa, sin datos reales. | OK |
 | EV-FUNC-010 | Preview transaccion | HTTP/API | Preview de `UAT-SINT-001` permite envio, sin duplicado inicial. | API directa. | OK |
@@ -28,8 +28,12 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 | EV-FUNC-016 | Conciliacion | HTTP/API | `GET /api/reports/reconciliation` HTTP 200 para ciclo/fecha sinteticos. | API directa. | OK |
 | EV-FUNC-017 | ROR/CENIT lectura | HTTP/API | Politicas ROR, causas, colas CENIT y trazabilidad CENIT responden 200. | API directa. | OK |
 | EV-FUNC-018 | Logs API | Logs | Muestra revisada sin errores 500 criticos ni tokens/passwords completos. | `docker compose logs achinterbank-api --tail=900`. | OK |
-| EV-FUNC-019 | Logs SPA | Logs | Nginx registra rutas funcionales raiz con 200 y tamano `2123`, consistente con `index.html`. | `docker compose logs achinterbank-spa --tail=260`. | FALLA |
+| EV-FUNC-019 | Logs SPA | Logs | Evidencia historica: Nginx registraba rutas funcionales raiz con 200 y tamano `2123`, consistente con `index.html`. | `docker compose logs achinterbank-spa --tail=260`. | Cerrado por reintento |
 | EV-FUNC-020 | Logs PostgreSQL | Logs | PostgreSQL sigue healthy; FATAL previos por usuarios `root`/`sa` se mantienen como observacion operativa. | `docker compose logs postgres --tail=120`. | OK con observacion |
+| EV-FUNC-021 | Build/runtime SPA | Docker | `docker compose config --quiet`, `docker compose build achinterbank-spa` y `docker compose up -d` ejecutados; SPA queda Up. | Consola Codex, salida sanitizada. | OK |
+| EV-FUNC-022 | Proxy funcional sin token | HTTP | `/financial-institutions`, `/ach-cycles`, `/clearing-houses`, `/transactions/company-entry-descriptions` devuelven 401 desde API, no HTML. | `curl.exe` por `http://localhost:743`. | OK |
+| EV-FUNC-023 | Proxy funcional con token | HTTP | Las 4 rutas funcionales devuelven 200 JSON con Bearer demo, sin `index.html`. | Token no documentado completo. | OK |
+| EV-FUNC-024 | Transacciones por proxy SPA | HTTP | `/transactions`, `/transactions/1`, `/transactions/policies/preview` devuelven 200 JSON; `POST /transactions` duplicado devuelve 400 JSON controlado. | `http://localhost:743`, salida sanitizada. | OK con observacion |
 
 ## Evidencia HTTP Sanitizada
 
@@ -42,10 +46,18 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 | `GET http://localhost:743/api/roles` con Bearer | 200, JSON. |
 | `GET http://localhost:743/api/users` con Bearer | 200, JSON. |
 | `GET http://localhost:743/api/ach/responses` con Bearer | 200, JSON. |
-| `GET http://localhost:743/financial-institutions?includeInactive=true` | 200, `text/html`, devuelve SPA `index.html`. |
-| `GET http://localhost:743/ach-cycles` | 200, `text/html`, devuelve SPA `index.html`. |
-| `GET http://localhost:743/clearing-houses` | 200, `text/html`, devuelve SPA `index.html`. |
-| `GET http://localhost:743/transactions/company-entry-descriptions` | 200, `text/html`, devuelve SPA `index.html`. |
+| `GET http://localhost:743/financial-institutions` sin token | 401 desde API, no HTML. |
+| `GET http://localhost:743/ach-cycles` sin token | 401 desde API, no HTML. |
+| `GET http://localhost:743/clearing-houses` sin token | 401 desde API, no HTML. |
+| `GET http://localhost:743/transactions/company-entry-descriptions` sin token | 401 desde API, no HTML. |
+| `GET http://localhost:743/financial-institutions` con Bearer | 200, `application/json`, no HTML. |
+| `GET http://localhost:743/ach-cycles` con Bearer | 200, `application/json`, no HTML. |
+| `GET http://localhost:743/clearing-houses` con Bearer | 200, `application/json`, no HTML. |
+| `GET http://localhost:743/transactions/company-entry-descriptions` con Bearer | 200, `application/json`, no HTML. |
+| `GET http://localhost:743/transactions` con Bearer | 200, `application/json`, no HTML. |
+| `GET http://localhost:743/transactions/1` con Bearer | 200, `application/json`, no HTML. |
+| `GET http://localhost:743/transactions/policies/preview` con Bearer | 200, `application/json`, no HTML. |
+| `POST http://localhost:743/transactions` duplicado con Bearer | 400, `application/json`, rechazo controlado por duplicado, no HTML. |
 | `POST http://localhost:843/transactions` | 201, JSON, transaccion sintetica creada. |
 | Reintento `POST http://localhost:843/transactions` | 400, JSON, rechazo controlado por duplicado. |
 | `GET http://localhost:843/transactions/1` | 200, JSON. |
@@ -85,7 +97,7 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 
 ## Conclusiones De Evidencia
 
-La evidencia permite sostener que el core API funcional sintetico creo, persistio y rechazo duplicado de forma controlada para una transaccion sintetica. No permite cerrar UAT funcional E2E desde la SPA Docker porque rutas funcionales raiz requeridas por pantallas transaccionales devuelven `index.html` en `http://localhost:743`.
+La evidencia permite sostener que el core API funcional sintetico creo, persistio y rechazo duplicado de forma controlada para una transaccion sintetica. Tras el ajuste de `web/ach-interbank-ui/nginx.conf`, las rutas funcionales raiz requeridas por pantallas transaccionales ya responden desde API por `http://localhost:743` y no devuelven `index.html`.
 
-UAT funcional sintetico: **PARCIALMENTE OK**.  
+UAT funcional sintetico: **PARCIALMENTE OK** por observaciones restantes de trazabilidad/evento inicial, contrato de idempotencia, evidencia visual y actas formales.  
 Productivo: **NO-GO**.

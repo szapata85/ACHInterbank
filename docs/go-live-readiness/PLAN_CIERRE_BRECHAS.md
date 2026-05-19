@@ -3,7 +3,7 @@
 Fecha de generacion: 2026-05-18  
 Version: 0.3 preliminar  
 Rama analizada: `fix/spa-docker-runtime-proxy-and-images`  
-Estado: plan de trabajo actualizado tras UAT funcional sintetico; incluye correcciones de bajo riesgo aplicadas y pendientes de validacion.
+Estado: plan de trabajo actualizado tras correccion de proxy funcional SPA Docker; incluye correcciones de bajo riesgo aplicadas y pendientes de validacion.
 
 ## Matriz De Acciones
 
@@ -32,19 +32,19 @@ Estado: plan de trabajo actualizado tras UAT funcional sintetico; incluye correc
 | G-21 | Mantener PostgreSQL publicado solo en loopback para UAT local o parametrizar puerto alterno. | Configuracion/Operacion | Bajo | `docker-compose.yml`, `.env.example`, docs | DevOps/Operaciones | Politica ambiente | `localhost:5432` OK en UAT local; no expuesto en productivo sin aprobacion | Corregida tecnicamente - no productivo |
 | G-22 | Confirmar formalmente roles/claims del usuario demo tras cierre tecnico autenticado. | Prueba UAT/Evidencia | Medio | `docs/uat/EJECUCION_UAT_TECNICO_BASICO.md`, `docs/uat/MATRIZ_DEFECTOS_UAT.md` | Seguridad/Tecnologia/QA | UAT tecnico autenticado reejecutado con variables seguras | Decidir si `ACH.Operator` debe estar visible/asignado o si `Admin` cubre el alcance tecnico | OK tecnico con observaciones |
 | G-23 | Adjuntar evidencia visual sanitizada de navegacion SPA autenticada si el acta formal la exige. | Evidencia UAT | Bajo/Medio | `docs/uat/EVIDENCIAS_UAT_TECNICO_BASICO.md`, acta UAT | QA/DevOps | Browser local/manual o herramienta habilitada | Capturas sin datos sensibles de login post-redireccion, dashboard/menu y pantallas permitidas | Pendiente |
-| G-24 | Reejecutar UAT funcional sintetico desde SPA Docker tras corregir proxy funcional. | Prueba UAT/Evidencia | Alto | `docs/uat/UAT_FUNCIONAL_SINTETICO.md`, `docs/uat/EVIDENCIAS_UAT_FUNCIONAL.md`, acta | QA/Operaciones/Tecnologia | Cierre G-25 | Transaccion sintetica ejecutada desde `http://localhost:743` con menu/pantallas y llamadas JSON, sin HTML fallback | Parcialmente OK por API directa |
-| G-25 | Corregir proxy/ruteo de rutas funcionales raiz usadas por SPA. | Configuracion/Frontend runtime | Alto | `web/ach-interbank-ui/nginx.conf`, configuracion runtime SPA/API o rutas de servicios SPA | Tecnologia/DevOps | Inventario de endpoints SPA | `/financial-institutions`, `/ach-cycles`, `/clearing-houses`, `/transactions/company-entry-descriptions` y rutas funcionales relacionadas devuelven JSON/401/403/404 controlado, nunca `index.html` | Pendiente |
+| G-24 | Reejecutar UAT funcional sintetico desde SPA Docker tras corregir proxy funcional. | Prueba UAT/Evidencia | Alto | `docs/uat/UAT_FUNCIONAL_SINTETICO.md`, `docs/uat/EVIDENCIAS_UAT_FUNCIONAL.md`, acta | QA/Operaciones/Tecnologia | Cierre G-25 | Transaccion sintetica y rutas funcionales reintentadas desde `http://localhost:743` con llamadas JSON, sin HTML fallback; falta evidencia visual y acta | Parcialmente OK |
+| G-25 | Corregir proxy/ruteo de rutas funcionales raiz usadas por SPA. | Configuracion/Frontend runtime | Alto | `web/ach-interbank-ui/nginx.conf` | Tecnologia/DevOps | Inventario de endpoints SPA | `/financial-institutions`, `/ach-cycles`, `/clearing-houses`, `/transactions/company-entry-descriptions` y rutas transaccionales relacionadas devuelven JSON/401/403/404 controlado, nunca `index.html` | Corregida tecnicamente - validada HTTP |
 | G-26 | Definir y validar generacion de evento inicial de estado transaccional. | Codigo/QA/Auditoria | Medio/Alto | Backend transacciones/trazabilidad/tests, docs UAT | Tecnologia/QA/Auditoria | Decision arquitectura trazabilidad | `AchTransactionStateEvents` contiene evento inicial o existe waiver formal; trazabilidad API refleja lifecycle esperado | Pendiente |
 | G-27 | Formalizar contrato de idempotencia transaccional. | Arquitectura/API contract | Medio | Backend transacciones/tests/docs API | Arquitectura/Tecnologia | Decision negocio/API | Reintentos identicos tienen contrato firmado: 409, replay idempotente o 400 documentado; pruebas automatizadas y UAT actualizados | Pendiente |
 
 ## Priorizacion
 
-1. Bloqueantes productivos: G-01, G-02, G-03, G-04, G-05, G-07, G-09, G-14, G-25.
-2. Bloqueantes de UAT operativo: G-01, G-06, G-13, G-24, G-25 y ejecucion formal con datos anonimizados/evidencias.
+1. Bloqueantes productivos: G-01, G-02, G-03, G-04, G-05, G-07, G-09, G-14.
+2. Bloqueantes de UAT operativo: G-01, G-06, G-13, G-24 y ejecucion formal con datos anonimizados/evidencias.
 3. Higiene documental/configuracion: G-08, G-10, G-11, G-12, G-15, G-16.
 
 Estado especifico UAT tecnico autenticado: G-22 deja de estar bloqueada por variables. Quedan observaciones de roles (`ACH.Operator`) y evidencia visual, sin declarar GO productivo.
-Estado especifico UAT funcional sintetico: G-24 queda parcialmente cubierto por API directa, pero no puede cerrarse desde SPA Docker hasta resolver G-25. G-26 y G-27 requieren decision tecnica/arquitectonica antes de UAT formal.
+Estado especifico UAT funcional sintetico: G-24 queda parcialmente cubierto por API directa y reintento HTTP desde SPA Docker. G-25 queda corregida tecnicamente. G-26 y G-27 requieren decision tecnica/arquitectonica antes de UAT formal.
 
 ## Restriccion De Esta Fase
 
