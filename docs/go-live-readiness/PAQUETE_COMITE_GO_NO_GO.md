@@ -1,115 +1,95 @@
-# Paquete para Comite GO / NO-GO - ACH Interbank
+# Paquete de Comite GO/NO-GO - ACH Interbank
 
-Fecha de generacion: 2026-05-18  
-Version: 0.1 preliminar  
-Rama analizada: `ACH-Interbank-Postgresql`  
-Estado: resumen ejecutivo para comite; requiere validacion humana.
+Fecha: 2026-05-19
+Version: 1.0 preliminar
+Estado recomendado: Continuar UAT controlado / NO-GO productivo
+Scorecard vigente: 67.6 / 100
 
-## 1. Estado Actual
+## Paquete Formal
 
-El proyecto ACH Interbank se clasifica como **Nivel 3: Candidato a UAT controlado**. No esta listo para go productivo.
+El paquete formal de comite se consolida en:
 
-Decision recomendada al corte documental:
+- docs/comite-go-no-go/
 
-- Avanzar a UAT controlado con datos anonimizados representativos.
-- No avanzar a productivo todavia.
-- Mantener NO-GO productivo hasta cerrar brechas criticas, evidencias y aprobaciones.
+Indice principal:
 
-## 2. Nivel De Preparacion
+- docs/comite-go-no-go/README.md
+- docs/comite-go-no-go/00_RESUMEN_EJECUTIVO_COMITE.md
+- docs/comite-go-no-go/01_DECISION_GO_NO_GO.md
+- docs/comite-go-no-go/02_SCORECARD_READINESS.md
+- docs/comite-go-no-go/03_EVIDENCIAS_TECNICAS.md
+- docs/comite-go-no-go/04_EVIDENCIAS_UAT.md
+- docs/comite-go-no-go/05_BRECHAS_CRITICAS.md
+- docs/comite-go-no-go/06_PLAN_CIERRE_BRECHAS.md
+- docs/comite-go-no-go/07_RIESGOS_Y_ACEPTACIONES.md
+- docs/comite-go-no-go/08_RECOMENDACION_FINAL.md
+- docs/comite-go-no-go/09_ANEXOS_TECNICOS.md
 
-| Dimension | Estado |
-|---|---|
-| Backend tecnico | Parcial alto |
-| SPA Angular | Parcial |
-| PostgreSQL/migraciones | Parcial; requiere revalidacion UAT |
-| UAT/evidencias | Critico pendiente |
-| Seguridad/configuracion | Parcial con brechas altas |
-| Interoperabilidad externa | Critico pendiente |
-| Operacion/soporte | Parcial |
-| Go productivo | NO-GO |
+## Decision Recomendada
 
-## 3. Que Esta Listo
+No se recomienda salida productiva.
 
-- Solucion .NET y capas principales existen.
-- API REST amplia para transacciones, ciclos, NACHA, retornos, ROR, CENIT, reportes, auditoria y seguridad.
-- SPA Angular cubre flujos operativos relevantes.
-- Documentacion normativa, UAT y auditorias previas abundantes.
-- Tests backend y Angular existen.
-- Docker Compose principal y test existen.
-- Health checks basicos existen.
+Decision alternativa permitida:
 
-## 4. Que Falta
+- Continuar UAT controlado con datos sinteticos/anonimizados.
+- Mantener bloqueo productivo hasta cerrar brechas criticas.
+- Ejecutar UAT formal, validaciones de interoperabilidad, seguridad, operacion y aprobaciones.
 
-- UAT con datos reales anonimizados ejecutado y firmado.
-- Evidencias completas con hash y custodia segura.
-- Cierre CENIT neteo/liquidez/CUD.
-- Validacion externa sobre digital/firma/certificados.
-- Cierre formal naming externo ACH/CENIT/STA.
-- Correcciones o aceptaciones de seguridad/configuracion.
-- Backup/restore/rollback ensayado.
-- Scorecard final sin brechas criticas.
+## Estado Consolidado
 
-## 5. Riesgos Criticos
+| Area | Estado | Evidencia |
+| --- | --- | --- |
+| dotnet-ci | OK | docs/comite-go-no-go/03_EVIDENCIAS_TECNICAS.md |
+| angular-ci | OK | docs/comite-go-no-go/03_EVIDENCIAS_TECNICAS.md |
+| Backend local | OK | docs/comite-go-no-go/03_EVIDENCIAS_TECNICAS.md |
+| Angular local | OK | docs/comite-go-no-go/03_EVIDENCIAS_TECNICAS.md |
+| Docker runtime | OK | docs/go-live-readiness/DOCKER_RUNTIME_READINESS.md |
+| PostgreSQL | OK | docs/uat/EVIDENCIA_TECNICA_UAT_RUNTIME.md |
+| SPA Docker | OK | docs/comite-go-no-go/03_EVIDENCIAS_TECNICAS.md |
+| Proxy SPA -> API | OK | docs/uat/EVIDENCIAS_UAT_TECNICO_BASICO.md |
+| Auth/login | OK | docs/uat/EJECUCION_UAT_TECNICO_BASICO.md |
+| Navigation/menu | OK | docs/uat/EVIDENCIAS_UAT_TECNICO_BASICO.md |
+| UAT tecnico autenticado | OK con observaciones | docs/comite-go-no-go/04_EVIDENCIAS_UAT.md |
+| UAT funcional sintetico | PARCIALMENTE OK | docs/uat/UAT_FUNCIONAL_SINTETICO.md |
+| NU1903 | Corregido tecnicamente | docs/security/REVISION_SEGURIDAD_PRE_GO_LIVE.md |
+| Scorecard | 67.6 / 100 | docs/go-live-readiness/SCORECARD_GO_LIVE_READINESS.md |
 
-| Riesgo | Impacto | Decision requerida |
-|---|---|---|
-| UAT sin acta firmada | No permite productivo | Ejecutar y firmar |
-| CUD sin evidencia | Riesgo operativo-financiero | Evidencia o alcance excluido formalmente |
-| Sobre digital sin validacion externa | Rechazo por contraparte | Validacion oficial o waiver |
-| Naming sin cierre | Rechazo/duplicidad archivos | Cierre por camara |
-| Seguridad controller/config | Exposicion o despliegue fragil | Corregir o aceptar riesgo |
+## Defectos y Brechas Clave
 
-## 6. Decisiones Requeridas Del Comite
+Defectos cerrados segun estado actual:
 
-- Aprobar inicio de UAT controlado.
-- Confirmar que UAT usara datos anonimizados representativos o datos reales bajo custodia segura.
-- Definir aprobadores por dominio.
-- Definir si CENIT/CUD y sobre digital estan dentro del alcance UAT actual.
-- Aceptar que no hay GO productivo hasta cierre de brechas.
-- Priorizar correcciones de bajo riesgo para el siguiente ciclo.
+- DEF-UAT-011.
+- DEF-UAT-012.
+- DEF-UAT-016.
+- DEF-UAT-017.
+- DEF-UAT-018 documentalmente.
+- DEF-UAT-019 tecnicamente por endpoint/proxy.
 
-## 7. Evidencias Disponibles
+Brechas abiertas relevantes:
 
-- `docs/uat/PLAN_UAT_DATOS_REALES.md`.
-- `docs/uat/ESCENARIOS_UAT_DATOS_REALES.md`.
-- `docs/uat/MATRIZ_DATOS_UAT.md`.
-- `docs/go-live-readiness/MATRIZ_SPA_BACKEND_NORMA_UAT.md`.
-- `docs/go-live-readiness/CHECKLIST_GO_NO_GO.md`.
-- `docs/go-live-readiness/SCORECARD_GO_LIVE_READINESS.md`.
-- Auditorias previas en `docs/audits`.
-- Normativa en `docs/normativa/md`.
+- DEF-UAT-015: ACH.Operator no asignado/no visible para usuario demo.
+- DEF-UAT-020: NACHA-M 1/5/6/7/8/9 requiere validacion campo-a-campo y homologacion/waiver.
+- UAT funcional formal con actas pendiente.
+- Evidencia visual/operativa pendiente.
+- CENIT/CUD pendiente.
+- Sobre digital/firma/certificados pendiente.
+- OpenBao/secrets pendiente segun alcance.
+- Backup/restore/rollback pendiente.
+- UAT bancario formal pendiente.
 
-## 8. Evidencias Pendientes
+Detalle consolidado:
 
-- Acta UAT firmada.
-- Indice de evidencias completo.
-- Resultados build/test actuales.
-- Evidencia CENIT/CUD.
-- Evidencia externa sobre digital/firma/certificados.
-- Evidencia de naming por camara.
-- Evidencia backup/restore/rollback.
-- Evidencia de health checks completos o monitoreo equivalente.
+- docs/comite-go-no-go/05_BRECHAS_CRITICAS.md
+- docs/comite-go-no-go/06_PLAN_CIERRE_BRECHAS.md
 
-## 9. Condiciones Para GO Productivo
+## Recomendacion al Comite
 
-- Cero defectos bloqueantes abiertos.
-- Acta UAT firmada.
-- Evidencias completas y custodiadas.
-- Riesgos residuales aceptados.
-- CENIT/CUD cerrado o fuera de alcance formal.
-- Sobre digital/naming externo cerrados o waiver formal.
-- Seguridad/configuracion saneada.
-- Build/test actuales en verde.
-- Runbook operativo aprobado.
-- Backup/restore/rollback probado.
+Decision propuesta:
 
-## 10. Anexos Documentales
+- Productivo: NO-GO.
+- UAT controlado: continuar con observaciones.
+- Proximo hito: cerrar brechas bloqueantes y convocar nuevo comite GO/NO-GO.
 
-- `docs/go-live-readiness/BRECHAS_CRITICAS_GO_LIVE.md`.
-- `docs/go-live-readiness/PLAN_CIERRE_BRECHAS.md`.
-- `docs/security/REVISION_SEGURIDAD_PRE_GO_LIVE.md`.
-- `docs/operations/RUNBOOK_UAT_Y_PREPRODUCTIVO.md`.
-- `docs/uat/ACTA_UAT_DATOS_REALES_TEMPLATE.md`.
-- `docs/uat/INDICE_EVIDENCIAS_UAT.md`.
-- `docs/uat/MATRIZ_DEFECTOS_UAT.md`.
+## Advertencia
 
+Este documento no contiene passwords, tokens completos, datos reales ni certificados privados. Tampoco constituye aprobacion productiva.
