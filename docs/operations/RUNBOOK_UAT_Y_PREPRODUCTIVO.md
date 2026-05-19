@@ -104,6 +104,29 @@ docker compose ps
 docker compose logs --tail=200
 ```
 
+### 4.3 Evidencia runtime Docker 2026-05-18
+
+| Control | Resultado | Evidencia |
+|---|---|---|
+| Docker compose config | OK | `docker compose config --quiet`. |
+| Docker build | OK | `docker compose build`. |
+| Docker runtime | PARCIAL | `docker compose up -d`; `postgres`, `achinterbank-api` y `achinterbank-spa` quedaron `Up`. |
+| PostgreSQL | OK | Contenedor `achinterbank-postgres` `healthy`; esquema con 130 tablas. |
+| API live | OK | `http://localhost:843/health/live` HTTP 200. |
+| API ready | OK | `http://localhost:843/health/ready` HTTP 200 con DB healthy. |
+| SPA estatica | OK | `http://localhost:743` HTTP 200. |
+| SPA hacia API | BRECHA | `http://localhost:743/api/ach/responses` devolvio `index.html`; falta proxy/API base UAT. |
+| Scalar | OK | `http://localhost:843/scalar` HTTP 200. |
+| OpenAPI | OK con observacion | `http://localhost:843/openapi/v1.json` HTTP 200 con timeout ampliado; aprox. 49s. |
+| OpenBao | PENDIENTE / NO APLICA compose actual | No existe servicio OpenBao en `docker-compose.yml`. |
+
+Documentos de evidencia:
+
+- `docs/uat/EVIDENCIA_TECNICA_UAT_RUNTIME.md`
+- `docs/go-live-readiness/DOCKER_RUNTIME_READINESS.md`
+
+Decision operativa: el stack es valido para pruebas tecnicas directas de API, BD, health y SPA estatica. No iniciar UAT tecnico E2E desde SPA hasta cerrar el enrutamiento SPA->API mediante reverse proxy o configuracion aprobada.
+
 ## 5. Verificacion PostgreSQL
 
 | Paso | Accion | Resultado esperado | Evidencia |

@@ -15,7 +15,9 @@ Clasificacion: no incluir secretos, datos personales, certificados privados ni e
 - Se corrigio configuracion productiva SPA para no apuntar a `localhost`; queda pendiente validar build/deploy UAT.
 - Se identifico archivo `.env` versionado en la raiz del repositorio. BRECHA: confirmar si contiene secretos reales o valores reutilizables.
 - Se reemplazaron defaults sensibles por placeholders locales/de demo en `docker-compose.yml`; queda pendiente validacion de seguridad/operaciones.
-- Backend CI `dotnet-ci` paso exitosamente para commit `3cbff61`; Angular CI fue agregado y queda pendiente de evidencia exitosa. En validacion local, `dotnet test` y `npm test` presentan fallas existentes que deben cerrarse o explicarse antes de release candidate.
+- Backend CI `dotnet-ci` y Angular CI `angular-ci` se reportan OK en GitHub Actions; adjuntar evidencia al paquete de release candidate.
+- Docker runtime directo paso para API, PostgreSQL, health checks, Scalar/OpenAPI y SPA estatica; queda brecha critica de enrutamiento SPA->API en compose actual.
+- Durante `docker compose build` se reporto NU1903 por vulnerabilidad alta en `System.Security.Cryptography.Xml` 10.0.0; requiere revision y actualizacion controlada.
 - `docker-compose.yml` no evidencia servicio OpenBao, aunque existen configuraciones y scripts relacionados con OpenBao/secrets provider.
 - Existen componentes de certificados, sobre digital, NACHA security, ROR y ACH responses que requieren validacion de autorizacion, auditoria, trazabilidad y pruebas E2E.
 - Productivo no debe aprobarse sin acta UAT, evidencias firmables, aceptacion de riesgos y validacion de seguridad/operacion.
@@ -30,10 +32,11 @@ Clasificacion: no incluir secretos, datos personales, certificados privados ni e
 | Archivo de entorno versionado | `.env` | BRECHA: existe en repositorio; revisar contenido sin exponer valores. |
 | API csproj | `src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj` | Corregido: `DocumentationFile` relativo MSBuild; pendiente build. |
 | Controladores API | `src/Cfa.ACHInterbank.Api/Controllers` | Existen controladores funcionales, operativos y de interoperabilidad; requieren matriz de autorizacion. |
-| Health checks | `src/Cfa.ACHInterbank.Api/Health` y configuracion API | Evidencia parcial de health checks; falta evidencia UAT/preproductivo. |
+| Health checks | `/health/live`, `/health/ready` | Docker runtime 2026-05-18: ambos HTTP 200; ready confirma DB healthy. |
 | Scripts OpenBao | `scripts/openbao` | Evidencia de soporte documental/operativo parcial; falta compose principal o runbook validado. |
 | Tests backend | `tests/Cfa.ACHInterbank.Tests` | Existen pruebas; no se ejecutaron en esta fase documental. |
-| Tests Angular | `web/ach-interbank-ui/src/**/*.spec.ts`, `.github/workflows/angular-ci.yml` | Workflow CI agregado; pendiente primera ejecucion exitosa en GitHub Actions. |
+| Tests Angular | `web/ach-interbank-ui/src/**/*.spec.ts`, `.github/workflows/angular-ci.yml` | Angular CI remoto reportado OK. |
+| Docker runtime | `docs/go-live-readiness/DOCKER_RUNTIME_READINESS.md` | API/DB/SPA static OK; SPA->API por puerto 743 pendiente. |
 
 ## 3. Controllers sensibles
 
@@ -86,8 +89,8 @@ Accion recomendada: parametrizar por variables externas, usar vault/secrets prov
 
 Estado: CORREGIDO TECNICAMENTE / PENDIENTE VALIDAR.  
 Evidencia: `web/ach-interbank-ui/src/environments/environment.prod.ts`.  
-Riesgo residual: el reverse proxy o pipeline UAT debe enrutar correctamente las rutas relativas.  
-Accion recomendada: validar build productivo contra URL UAT/preproductiva.
+Riesgo residual: el reverse proxy o pipeline UAT debe enrutar correctamente las rutas relativas. En Docker runtime 2026-05-18, `http://localhost:743/api/ach/responses` devolvio `index.html`, por lo que el compose actual no habilita consumo API same-origin desde SPA.  
+Accion recomendada: definir reverse proxy UAT o ajustar `nginx.conf`/compose en una fase aprobada, sin exponer endpoints indebidos.
 
 ### 5.4 Certificados privados
 

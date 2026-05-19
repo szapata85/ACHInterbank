@@ -92,6 +92,21 @@ curl http://localhost:843/health/ready
 
 Observacion: los health checks actuales validan live y ready con DB. Quartz/OpenBao/externos requieren evidencia adicional o monitoreo alterno.
 
+Evidencia runtime Docker 2026-05-18:
+
+| Validacion | Resultado | Observacion |
+|---|---|---|
+| `docker compose config --quiet` | OK | Configuracion valida. |
+| `docker compose build` | OK | API y SPA construyen imagenes. |
+| `docker compose up -d` | OK directo | PostgreSQL, API y SPA levantaron. |
+| `http://localhost:843/health/live` | OK | HTTP 200. |
+| `http://localhost:843/health/ready` | OK | HTTP 200 con DB healthy. |
+| `http://localhost:743` | OK | SPA estatica servida. |
+| `http://localhost:743/api/...` | BRECHA | Devuelve `index.html`; falta proxy/reverse proxy para UAT E2E desde SPA. |
+| `http://localhost:843/openapi/v1.json` | OK lento | HTTP 200 con timeout ampliado; aprox. 49s. |
+
+Ver detalle en `docs/uat/EVIDENCIA_TECNICA_UAT_RUNTIME.md` y `docs/go-live-readiness/DOCKER_RUNTIME_READINESS.md`.
+
 ## 9. Secretos Y Certificados
 
 - No registrar tokens, passwords, PFX, llaves privadas ni certificados privados en Git.
@@ -143,6 +158,23 @@ Defectos bloqueantes o altos requieren decision formal antes de go productivo.
 | `dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release` | PARCIAL | 1086 OK, 1 skip, 1 falla existente en certificacion preproductiva de ciclo cerrado. |
 | `dotnet test ... --filter ...correcciones...` | OK | 5/5 pruebas nuevas o relacionadas pasaron. |
 | `npm run build` | OK | Build Angular exitoso; advertencia Browserslist fuera de soporte. |
-| `npm test -- --watch=false --browsers=ChromeHeadless` | PARCIAL | 144 OK, 3 fallas existentes en `TransactionCreateComponent`. |
+| `npm test -- --watch=false --browsers=ChromeHeadless` | OK | 147 specs OK en validacion local posterior; Angular CI remoto reportado OK. |
 | `npm test -- --include=...interoperability-api.service.spec.ts` | OK | 3/3 pruebas de contrato SPA de interoperabilidad pasaron. |
-| `docker compose config --quiet` | OK | Validacion sintactica sin levantar servicios. |
+| `docker compose config --quiet` | OK | Validacion sintactica OK. |
+
+## 15. Validacion Docker Runtime 2026-05-18
+
+| Comando | Resultado | Observacion |
+|---|---|---|
+| `docker compose config --quiet` | OK | Sin errores. |
+| `docker compose build` | OK | Build API/SPA OK; warning NU1903 en `System.Security.Cryptography.Xml` 10.0.0. |
+| `docker compose up -d` | OK | No se ejecuto `down -v` ni borrado de volumenes. |
+| `docker compose ps` | OK | `postgres` healthy; API y SPA Up. |
+| `Invoke-WebRequest http://localhost:843/health/live` | OK | HTTP 200. |
+| `Invoke-WebRequest http://localhost:843/health/ready` | OK | HTTP 200, DB healthy. |
+| `Invoke-WebRequest http://localhost:743` | OK | SPA servida. |
+| `Invoke-WebRequest http://localhost:843/scalar` | OK | HTTP 200. |
+| `Invoke-WebRequest http://localhost:843/openapi/v1.json` | OK con observacion | Requiere timeout amplio; aprox. 49s. |
+| `Invoke-WebRequest http://localhost:743/api/ach/responses` | BRECHA | Retorna HTML SPA; falta proxy API. |
+
+Decision: no iniciar UAT tecnico E2E desde la SPA con este compose hasta cerrar enrutamiento SPA->API o usar un reverse proxy UAT aprobado.

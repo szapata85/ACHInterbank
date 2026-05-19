@@ -3,7 +3,7 @@ export const environment = {
   // Produccion/UAT debe publicar la API detras del mismo host o reverse proxy de la SPA.
   // No usar endpoints locales en builds productivos; si el despliegue requiere dominio dedicado,
   // parametrizarlo en el pipeline o reemplazo de ambiente aprobado.
-  apiBaseUrl: '',
+  apiBaseUrl: 'http://localhost:843',
   authEndpoint: 'auth',
   requestTimeoutMs: 15000,
   appVersion: '0.1.0'
