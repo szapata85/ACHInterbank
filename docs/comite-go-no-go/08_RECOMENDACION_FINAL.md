@@ -20,8 +20,8 @@ No aprobar productivo todavia.
 - Validar interoperabilidad externa.
 - Completar backup/restore/rollback.
 - Completar NACHA-M campo-a-campo y homologacion o waiver.
-- Resolver ACH.Operator o formalizar usuario operador sintetico.
+- Mantener evidencia de `ACH.Operator` para UAT controlado y definir usuario operador separado si seguridad lo exige para preproductivo/productivo.
 
 ## Texto Formal Recomendado
 
-Con base en la evidencia tecnica y funcional disponible, el proyecto ACH Interbank presenta avances significativos en CI, runtime Docker, autenticacion, proxy SPA/API, trazabilidad, idempotencia documentada y UAT tecnico. Sin embargo, persisten brechas funcionales, operativas, de seguridad e interoperabilidad que impiden recomendar salida productiva. Se recomienda continuar con UAT controlado y mantener decision NO-GO productivo hasta nuevo comite.
+Con base en la evidencia tecnica y funcional disponible, el proyecto ACH Interbank presenta avances significativos en CI, runtime Docker, autenticacion, proxy SPA/API, trazabilidad, idempotencia documentada, UAT tecnico y cierre de `ACH.Operator` para el usuario demo multirol. Sin embargo, persisten brechas funcionales, operativas, de seguridad e interoperabilidad que impiden recomendar salida productiva. Se recomienda continuar con UAT controlado y mantener decision NO-GO productivo hasta nuevo comite.

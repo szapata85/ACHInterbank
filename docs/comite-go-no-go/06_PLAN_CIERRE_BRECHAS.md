@@ -5,7 +5,7 @@ Estado general: Plan ejecutivo para habilitar reconsideracion futura de GO
 
 | Fase | Objetivo | Brechas relacionadas | Entregable | Criterio de cierre | Responsable | Estado |
 | --- | --- | --- | --- | --- | --- | --- |
-| Fase 1 | Cerrar ACH.Operator o definir usuario operador sintetico | DEF-UAT-015 | Evidencia de rol visible/asignado | Login/claims/politicas validados sin secretos | Seguridad / Backend | Pendiente |
+| Fase 1 | Cerrar ACH.Operator para UAT controlado | DEF-UAT-015 | Evidencia de rol visible/asignado | Login/claims/politicas validados sin secretos | Seguridad / Backend | Cerrado para UAT controlado |
 | Fase 2 | Validar NACHA-M campo-a-campo con archivo sintetico | DEF-UAT-020 | Matriz NACHA-M completa | Registros 1/5/6/7/8/9 aprobados u homologacion/waiver | Arquitectura ACH / QA | Pendiente |
 | Fase 3 | Validar CENIT/CUD | CENIT-CUD | Evidencia de integracion o waiver | Pruebas sinteticas aprobadas o excepcion formal | Integracion / Negocio | Pendiente |
 | Fase 4 | Validar sobre digital, firma y certificados | SOBRE-DIGITAL | Evidencia de firma/certificados | Flujo criptografico aprobado | Seguridad / Integracion | Pendiente |

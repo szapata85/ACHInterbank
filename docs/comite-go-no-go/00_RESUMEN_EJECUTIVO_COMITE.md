@@ -2,7 +2,7 @@
 
 Fecha: 2026-05-19
 Estado recomendado: Continuar UAT controlado / NO-GO productivo
-Scorecard vigente: 67.6 / 100
+Scorecard vigente: 67.8 / 100
 
 ## Estado General
 
@@ -23,6 +23,7 @@ ACH Interbank se encuentra tecnicamente estabilizado para continuar pruebas cont
 - Endpoints protegidos read-only OK.
 - UAT tecnico autenticado basico OK con observaciones.
 - UAT funcional sintetico parcialmente OK.
+- DEF-UAT-015 cerrado para UAT controlado: `admin` evidencia `Admin` y `ACH.Operator`.
 - DEF-UAT-016 cerrado.
 - DEF-UAT-017 cerrado funcionalmente.
 - DEF-UAT-018 cerrado documentalmente.
@@ -33,7 +34,6 @@ ACH Interbank se encuentra tecnicamente estabilizado para continuar pruebas cont
 
 - UAT funcional formal con actas.
 - Evidencia visual y operativa completa.
-- DEF-UAT-015: ACH.Operator no asignado/no visible.
 - DEF-UAT-020: NACHA-M 1/5/6/7/8/9 pendiente de validacion campo-a-campo y homologacion/waiver.
 - CENIT/CUD.
 - Sobre digital, firma y certificados.

@@ -76,7 +76,7 @@ No se usaron datos reales, cuentas reales, bancos productivos reales, certificad
 | DEF-UAT-009 | Media | Abierto | Health checks no cubren Quartz/OpenBao/externos. |
 | DEF-UAT-010 | Bloqueante | Abierto | CENIT/CUD sin evidencia operacional homologada. |
 | DEF-UAT-014 | Media | Abierto | Evidencia visual automatizada pendiente por limitacion de browser integrado. |
-| DEF-UAT-015 | Media | Abierto por seed/seguridad | Rol `ACH.Operator` existe pero `admin` solo tiene relacion seed con `Admin`. |
+| DEF-UAT-015 | Media | Cerrado para UAT controlado | Usuario demo `admin` evidencia roles `Admin` y `ACH.Operator` por seed/migracion controlada; evaluar usuario operador separado antes de productivo si seguridad lo exige. |
 | DEF-UAT-020 | Alta/Media | Abierto | Validacion NACHA-M campo-a-campo y homologacion externa de registros 1/5/6/7/8/9 pendiente. |
 
 ## Riesgos

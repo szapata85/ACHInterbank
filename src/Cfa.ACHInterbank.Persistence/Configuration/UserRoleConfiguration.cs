@@ -28,12 +28,20 @@ public class UserRoleConfiguration : IEntityTypeConfiguration<UserRole>
             .IsRequired()
             .ValueGeneratedOnAdd();
 
-        builder.HasData(new UserRole
-        {
-            UserId = UserConfiguration.AdminUserId,
-            RoleId = RoleConfiguration.AdminRoleId,
-            CreatedAt = UserConfiguration.SeedAuditTimestamp,
-            UpdatedAt = UserConfiguration.SeedAuditTimestamp
-        });
+        builder.HasData(
+            new UserRole
+            {
+                UserId = UserConfiguration.AdminUserId,
+                RoleId = RoleConfiguration.AdminRoleId,
+                CreatedAt = UserConfiguration.SeedAuditTimestamp,
+                UpdatedAt = UserConfiguration.SeedAuditTimestamp
+            },
+            new UserRole
+            {
+                UserId = UserConfiguration.AdminUserId,
+                RoleId = RoleConfiguration.OperatorRoleId,
+                CreatedAt = UserConfiguration.SeedAuditTimestamp,
+                UpdatedAt = UserConfiguration.SeedAuditTimestamp
+            });
     }
 }

@@ -1,9 +1,9 @@
 # Evidencias UAT Funcional Sintetico - ACH Interbank
 
 Fecha de generacion/revalidacion: 2026-05-18 / 2026-05-19 America/Bogota
-Version: 0.7 estabilizacion final UAT/readiness
-Rama ejecutada: `fix/spa-functional-root-routes-proxy`
-Commit base: `49b810f9`
+Version: 0.8 cierre rol ACH.Operator
+Rama ejecutada: `fix/uat-operator-role-seed`
+Commit base: `efac77e4`
 Clasificacion: no incluir password, token completo, datos reales, cuentas reales, certificados reales ni secretos.
 
 ## Indice De Evidencias
@@ -48,7 +48,7 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 | EV-FUNC-036 | CI Angular local | Build/Test | `npm run build` OK y `npm test -- --watch=false --browsers=ChromeHeadless` OK. | Consola Codex; 147 specs OK. | OK |
 | EV-FUNC-037 | Seguridad dependencias | NuGet | `System.Security.Cryptography.Xml` transitiva por `System.ServiceModel.*` se fijo en `10.0.8`; `dotnet list ... --vulnerable` queda sin vulnerabilidades. | `Cfa.ACHInterbank.Application.csproj`. | OK |
 | EV-FUNC-038 | NACHA layouts proxy | HTTP/Docker | `docker compose build achinterbank-spa` y `up -d`; `/nacha-layouts`, `/nacha-record-definitions` y `/nacha-config/catalogos-filtro` por `:743` devuelven 401 sin token y JSON con Bearer. | Token no documentado completo. | OK tecnico |
-| EV-FUNC-039 | Rol `ACH.Operator` | Auth/Seed | Login y JWT muestran solo `Admin`; seed contiene rol `ACH.Operator` pero `UserRoleConfiguration` no lo asigna a `admin`. | Revision de codigo y login sanitizado. | Abierto por seed/seguridad |
+| EV-FUNC-039 | Rol `ACH.Operator` | Auth/Seed | `admin` queda asignado a `Admin` y `ACH.Operator` por seed/migracion controlada; login y JWT sanitizados muestran ambos roles. | `UserRoleConfiguration`, migracion `AddAdminOperatorRoleSeed`, `UserRoleSeedTests`; runtime `:743` login 200, token enmascarado, roles `Admin,ACH.Operator`. | OK |
 
 ## Evidencia HTTP Sanitizada
 
@@ -61,6 +61,9 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 | `GET http://localhost:743/api/roles` con Bearer | 200, JSON. |
 | `GET http://localhost:743/api/users` con Bearer | 200, JSON. |
 | `GET http://localhost:743/api/ach/responses` con Bearer | 200, JSON. |
+| `POST http://localhost:743/auth/login` tras cierre DEF-UAT-015 | 200, JSON, roles respuesta/JWT `Admin,ACH.Operator`; token enmascarado, password no impresa. |
+| `GET http://localhost:743/navigation/menu` tras cierre DEF-UAT-015 | 200, JSON con Bearer. |
+| `GET http://localhost:743/api/roles`, `/api/users`, `/api/ach/responses` tras cierre DEF-UAT-015 | 200, JSON con Bearer. |
 | `GET http://localhost:743/financial-institutions` sin token | 401 desde API, no HTML. |
 | `GET http://localhost:743/ach-cycles` sin token | 401 desde API, no HTML. |
 | `GET http://localhost:743/clearing-houses` sin token | 401 desde API, no HTML. |

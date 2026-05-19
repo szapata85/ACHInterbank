@@ -1,8 +1,8 @@
 # Checklist GO / NO-GO - ACH Interbank
 
 Fecha de generacion/revalidacion: 2026-05-18 / 2026-05-19
-Version: 0.7 preliminar
-Rama analizada: `fix/spa-functional-root-routes-proxy`
+Version: 0.8 preliminar
+Rama analizada: `fix/uat-operator-role-seed`
 Estado inicial: Candidato UAT controlado / NO-GO productivo.  
 Uso: checklist para comite; requiere evidencia y aprobacion humana.
 
@@ -42,7 +42,7 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 | GNG-030 | README/runbook | README operativo no tiene drift? | OK | README raiz saneado y referencia docs UAT/go-live | Tecnologia | No para UAT, si para release formal | |
 | GNG-031 | Datos sensibles | No hay datos sensibles versionados? | PENDIENTE VALIDAR | Pre-check `.env` versionado | Seguridad | Si | Requiere revision |
 | GNG-032 | SPA/API runtime | La SPA servida por Docker consume API correctamente por la misma URL o proxy aprobado? | OK TECNICO | `http://localhost:743/health/live` OK, `:743/api/ach/responses` 401, `:743/auth/login` 401 JSON, `:743/navigation/menu` 401 sin token desde API | DevOps/Tecnologia | Si | Auth intacta; con token valido navigation debe devolver JSON; ejecutar UAT tecnico funcional |
-| GNG-033 | UAT tecnico autenticado | Login real con usuario demo, token y menu fueron validados por automatizacion segura? | OK CON OBSERVACIONES | Login demo `admin` HTTP 200, token recibido/enmascarado, `/navigation/menu`, `/api/roles`, `/api/users`, `/api/ach/responses` HTTP 200 JSON con Bearer | QA/DevOps | Si | No documentar password/token; rol `ACH.Operator` no visible en JWT/respuesta y requiere confirmacion |
+| GNG-033 | UAT tecnico autenticado | Login real con usuario demo, token y menu fueron validados por automatizacion segura? | OK CON OBSERVACIONES | Login demo `admin` HTTP 200, token recibido/enmascarado, roles respuesta/JWT `Admin,ACH.Operator`, `/navigation/menu`, `/api/roles`, `/api/users`, `/api/ach/responses` HTTP 200 JSON con Bearer | QA/DevOps | Si | No documentar password/token; evidencia visual sigue pendiente si el acta formal la exige |
 | GNG-034 | Evidencia visual UAT tecnico | Existe evidencia visual automatizada o manual de navegacion SPA autenticada? | PARCIAL | Logs SPA muestran dashboard, usuarios, transacciones, reportes y ACH responses; browser integrado sin herramienta ejecutable en esta sesion | QA/DevOps | No para UAT tecnico HTTP, si si acta exige captura | Adjuntar capturas sanitizadas en cierre formal |
 | GNG-035 | UAT funcional sintetico | Existe flujo sintetico controlado de transaccion con datos anonimizados? | PARCIALMENTE OK | `docs/uat/UAT_FUNCIONAL_SINTETICO.md`: `UAT-SINT-001` historica creada; `UAT-SINT-TRACE-001` revalida evento inicial; duplicado controlado por `:743`; contrato idempotencia documentado | QA/Operaciones | Si | Core API, reintento HTTP SPA Docker, DEF-UAT-017 y DEF-UAT-018 documental OK; evidencia visual y actas pendientes |
 | GNG-036 | SPA funcional Docker | Las pantallas funcionales consumen JSON desde `http://localhost:743` y no reciben `index.html`? | OK TECNICO | DEF-UAT-016 cerrado; rutas funcionales sin token devuelven 401 no HTML y con token devuelven 200 JSON por `:743` | Tecnologia/DevOps | No para esta brecha | Mantener cobertura cuando se agreguen nuevos endpoints raiz |
@@ -50,7 +50,7 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 | GNG-038 | Idempotencia | Reintento identico tiene comportamiento controlado y contrato claro? | OK DOCUMENTAL ACTUAL | Reintento del mismo payload devuelve 400 con mensaje de duplicado equivalente; contrato actual formalizado por ciclo/tipo/monto/cuentas/`TransactionExternalId` o `Reference` en `CONTRATO_IDEMPOTENCIA_TRANSACCIONES.md` | Arquitectura/Tecnologia | Si | 409 Conflict, `Idempotency-Key` y replay quedan como decision evolutiva, no implementada en esta fase |
 | GNG-039 | Conciliacion sintetica | Existe lectura basica de conciliacion para ciclo/fecha sinteticos? | OK TECNICO | `GET /api/reports/reconciliation` responde 200 por API directa | Auditoria/Operaciones | Si | No reemplaza conciliacion bancaria real |
 | GNG-040 | Seguridad dependencias | No hay paquetes NuGet vulnerables conocidos en la solucion? | OK TECNICO | `System.Security.Cryptography.Xml` fijado en 10.0.8; `dotnet list ... --vulnerable --include-transitive` sin hallazgos | Seguridad/Tecnologia | Si | Mantener monitoreo de advisories |
-| GNG-041 | Rol ACH.Operator | Usuario demo evidencia roles esperados `Admin` y `ACH.Operator`? | PARCIAL/ABIERTO | Login/JWT muestran solo `Admin`; seed contiene rol `ACH.Operator` pero no relacion con `admin` | Seguridad/Tecnologia/QA | Si para cierre formal de matriz rol-permiso | Requiere decision de seed/migracion o usuario sintetico operador |
+| GNG-041 | Rol ACH.Operator | Usuario demo evidencia roles esperados `Admin` y `ACH.Operator`? | OK TECNICO | `UserRoleConfiguration` y migracion `AddAdminOperatorRoleSeed` asignan `admin` a `Admin` y `ACH.Operator`; login/JWT sanitizados muestran ambos roles; menu y endpoints read-only responden 200 con Bearer | Seguridad/Tecnologia/QA | No para UAT controlado; si para matriz rol-permiso productiva formal | `admin` queda como usuario demo multirol para UAT controlado; evaluar usuario operador separado antes de preproductivo si seguridad lo exige |
 
 ## Regla De Decision
 
@@ -58,4 +58,4 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 - UAT puede avanzar si no hay bloqueantes de ambiente y los riesgos estan comunicados.
 - Go productivo requiere estados `OK` o riesgo aceptado formalmente en todos los controles bloqueantes.
 
-Estado tras estabilizacion final: **UAT tecnico autenticado basico OK con observaciones**. **UAT funcional sintetico PARCIALMENTE OK** por API directa y reintento HTTP desde SPA Docker; ya no falla por `index.html` en rutas funcionales ni NACHA layouts, DEF-UAT-017 queda cerrado funcionalmente para nuevas transacciones, DEF-UAT-018 queda cerrado documentalmente para el contrato actual y DEF-UAT-019 queda cerrado tecnicamente. Siguen pendientes evidencia visual, actas, `ACH.Operator`, NACHA-M formal y validaciones externas. Productivo permanece **NO-GO**.
+Estado tras cierre DEF-UAT-015: **UAT tecnico autenticado basico OK con observaciones** y usuario demo `admin` evidencia `Admin` + `ACH.Operator`. **UAT funcional sintetico PARCIALMENTE OK** por API directa y reintento HTTP desde SPA Docker; ya no falla por `index.html` en rutas funcionales ni NACHA layouts, DEF-UAT-017 queda cerrado funcionalmente para nuevas transacciones, DEF-UAT-018 queda cerrado documentalmente para el contrato actual y DEF-UAT-019 queda cerrado tecnicamente. Siguen pendientes evidencia visual, actas, NACHA-M formal y validaciones externas. Productivo permanece **NO-GO**.

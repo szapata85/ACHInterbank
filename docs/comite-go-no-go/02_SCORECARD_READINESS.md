@@ -1,7 +1,7 @@
 # Scorecard Readiness - Comite GO/NO-GO
 
 Fecha: 2026-05-19
-Score actual: 67.6 / 100
+Score actual: 67.8 / 100
 Estado: Naranja / NO-GO con brechas altas
 
 ## Semaforo
@@ -19,9 +19,9 @@ Estado: Naranja / NO-GO con brechas altas
 | --- | ---: | ---: | ---: | --- | --- |
 | Funcionalidad core | 20% | 82 | 16.4 | Parcial alto | Trazabilidad e idempotencia documentada avanzaron. |
 | UAT y evidencias | 20% | 64 | 12.8 | Parcial | UAT tecnico OK; UAT funcional sintetico parcial. |
-| Seguridad | 15% | 72 | 10.8 | Parcial | NU1903 corregido; pendientes secretos/certificados/OpenBao. |
+| Seguridad | 15% | 73 | 10.95 | Parcial | NU1903 corregido; `ACH.Operator` cerrado para UAT; pendientes secretos/certificados/OpenBao y matriz endpoint-rol formal. |
 | Interoperabilidad externa | 15% | 38 | 5.7 | Bajo | NACHA-M, CENIT/CUD y homologacion siguen pendientes. |
 | Operacion y soporte | 10% | 68 | 6.8 | Parcial | Runtime OK; backup/restore/rollback pendiente. |
 | Observabilidad | 10% | 68 | 6.8 | Parcial | Logs y runtime controlado OK. |
 | Documentacion y trazabilidad | 10% | 83 | 8.3 | Parcial alto | Documentacion avanzada; actas formales pendientes. |
-| Total | 100% |  | 67.6 | Naranja | NO-GO productivo / continuar UAT controlado. |
+| Total | 100% |  | 67.8 | Naranja | NO-GO productivo / continuar UAT controlado. |

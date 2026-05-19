@@ -1,9 +1,9 @@
 # UAT Funcional Sintetico - ACH Interbank
 
 Fecha de ejecucion/revalidacion: 2026-05-18 / 2026-05-19 America/Bogota
-Version: 0.7 estabilizacion final UAT/readiness
-Rama ejecutada: `fix/spa-functional-root-routes-proxy`
-Commit base: `49b810f9`
+Version: 0.8 cierre rol ACH.Operator
+Rama ejecutada: `fix/uat-operator-role-seed`
+Commit base: `efac77e4`
 Ambiente: Docker Compose local, SPA `http://localhost:743`, API directa `http://localhost:843`  
 Clasificacion: no incluir password, token completo, datos reales, cuentas reales, certificados reales ni archivos externos productivos.
 
@@ -15,7 +15,7 @@ Usuario demo: `admin`
 Password: no documentada; tomada desde variable de entorno.  
 Token: recibido y no documentado completo; evidencia enmascarada `eyJ...Iso`.  
 Roles esperados: `Admin`, `ACH.Operator`.  
-Roles observados: `Admin`; `ACH.Operator` no visible en respuesta/JWT. Diagnostico 2026-05-19: el rol existe en seed (`RoleConfiguration`), pero `UserRoleConfiguration` asigna al usuario demo solo `Admin`; el token autoriza endpoints por permisos `CanManageAch`/`CanReadAch` derivados de `Admin`.
+Roles observados tras cierre DEF-UAT-015: `Admin`, `ACH.Operator`. Diagnostico/correccion 2026-05-19: el rol existia en seed (`RoleConfiguration`) y se agrego la relacion `admin -> ACH.Operator` en `UserRoleConfiguration` con migracion controlada `AddAdminOperatorRoleSeed`; login/JWT sanitizados evidencian ambos roles.
 
 ## Resultado Ejecutivo
 
@@ -164,7 +164,7 @@ Se reintento la misma operacion con la misma referencia y el mismo payload.
 | `npm test -- --watch=false --browsers=ChromeHeadless` | OK, 147 specs. |
 | NU1903 | Corregido: `System.Security.Cryptography.Xml` queda en `10.0.8`; `dotnet list ... --vulnerable` no reporta vulnerabilidades. |
 | NACHA layouts por `:743` | OK: sin token devuelve 401 controlado; con token devuelve JSON para `/nacha-layouts`, `/nacha-record-definitions` y `/nacha-config/catalogos-filtro`. |
-| `ACH.Operator` | Abierto por seed/seguridad: rol existe, pero `admin` no tiene relacion seed con ese rol. No se modifico auth ni BD. |
+| `ACH.Operator` | Cerrado para UAT controlado: `admin` evidencia `Admin` y `ACH.Operator` en respuesta/JWT; no se modificaron auth/policies ni reglas ACH/NACHA-M/CENIT/ROR. |
 
 ## Revalidacion Runtime DEF-UAT-017
 
