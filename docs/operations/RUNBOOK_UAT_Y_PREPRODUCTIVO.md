@@ -110,14 +110,14 @@ docker compose logs --tail=200
 |---|---|---|
 | Docker compose config | OK | `docker compose config --quiet`. |
 | Docker build | OK | `docker compose build`. |
-| Docker runtime | PARCIAL | `docker compose up -d`; `postgres`, `achinterbank-api` y `achinterbank-spa` quedaron `Up`. |
+| Docker runtime | OK tecnico | `docker compose up -d`; `postgres`, `achinterbank-api` y `achinterbank-spa` quedaron `Up`. |
 | PostgreSQL | OK | Contenedor `achinterbank-postgres` `healthy`; esquema con 130 tablas. |
 | API live | OK | `http://localhost:843/health/live` HTTP 200. |
 | API ready | OK | `http://localhost:843/health/ready` HTTP 200 con DB healthy. |
 | SPA estatica | OK | `http://localhost:743` HTTP 200. |
-| SPA hacia API | BRECHA | `http://localhost:743/api/ach/responses` devolvio `index.html`; falta proxy/API base UAT. |
+| SPA hacia API | OK tecnico | `http://localhost:743/api/ach/responses` devolvio 401 desde API, no `index.html`. |
 | Scalar | OK | `http://localhost:843/scalar` HTTP 200. |
-| OpenAPI | OK con observacion | `http://localhost:843/openapi/v1.json` HTTP 200 con timeout ampliado; aprox. 49s. |
+| OpenAPI | OK con observacion | `http://localhost:843/openapi/v1.json` HTTP 200 con timeout ampliado; aprox. 79s directo y 96s via proxy. |
 | OpenBao | PENDIENTE / NO APLICA compose actual | No existe servicio OpenBao en `docker-compose.yml`. |
 
 Documentos de evidencia:
@@ -125,7 +125,7 @@ Documentos de evidencia:
 - `docs/uat/EVIDENCIA_TECNICA_UAT_RUNTIME.md`
 - `docs/go-live-readiness/DOCKER_RUNTIME_READINESS.md`
 
-Decision operativa: el stack es valido para pruebas tecnicas directas de API, BD, health y SPA estatica. No iniciar UAT tecnico E2E desde SPA hasta cerrar el enrutamiento SPA->API mediante reverse proxy o configuracion aprobada.
+Decision operativa: el stack es valido para pruebas tecnicas directas de API, BD, health, SPA estatica y proxy SPA->API. Puede iniciar UAT tecnico E2E basico desde SPA con datos anonimizados, usuarios/roles y registro formal de evidencias.
 
 ## 5. Verificacion PostgreSQL
 

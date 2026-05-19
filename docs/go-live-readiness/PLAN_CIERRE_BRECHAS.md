@@ -27,13 +27,13 @@ Estado: plan de trabajo actualizado; incluye correcciones de bajo riesgo aplicad
 | G-16 | Definir documentos current y archivar drift. | Documental | Bajo | README/docs/audits | Auditoria/Tecnologia | Decision comite | Fuente canonica publicada | Pendiente |
 | G-17 | Adjuntar evidencia CI backend remota aprobada al paquete RC. | Evidencia/CI | Bajo | Docs readiness/paquete comite | Tecnologia/QA | GitHub Actions | dotnet-ci remoto OK adjunto | CI backend OK |
 | G-18 | Adjuntar evidencia Angular CI remota aprobada al paquete RC. | Evidencia/CI | Bajo | Docs readiness/paquete comite | Tecnologia/QA | GitHub Actions | angular-ci remoto OK adjunto | CI Angular OK |
-| G-19 | Resolver enrutamiento SPA->API en compose/UAT. | Configuracion/Operacion | Medio | `web/ach-interbank-ui/nginx.conf`, `docker-compose.yml` o reverse proxy UAT | Tecnologia/DevOps/Operaciones | Decision de arquitectura de despliegue | `http://localhost:743/api/...` proxya a API o se define dominio/API base aprobada | Nuevo - pendiente |
+| G-19 | Resolver enrutamiento SPA->API en compose/UAT. | Configuracion/Operacion | Medio | `web/ach-interbank-ui/nginx.conf`, `web/ach-interbank-ui/src/environments/environment.prod.ts` | Tecnologia/DevOps/Operaciones | Decision de arquitectura de despliegue | `http://localhost:743/api/...` proxya a API; health/openapi/scalar por 743 no devuelven `index.html` | Corregida tecnicamente - UAT pendiente |
 | G-20 | Revisar y actualizar dependencia vulnerable `System.Security.Cryptography.Xml`. | Seguridad/Codigo bajo riesgo | Medio | `.csproj` que referencia paquete transitivo/directo | Seguridad/Tecnologia | Analisis advisory y compatibilidad .NET | Build/test/CI OK con version segura | Nuevo - pendiente |
 
 ## Priorizacion
 
 1. Bloqueantes productivos: G-01, G-02, G-03, G-04, G-05, G-07, G-09, G-14.
-2. Bloqueantes de UAT operativo: G-01, G-06, G-13, G-19.
+2. Bloqueantes de UAT operativo: G-01, G-06, G-13 y ejecucion formal con datos anonimizados/evidencias.
 3. Higiene documental/configuracion: G-08, G-10, G-11, G-12, G-15, G-16.
 
 ## Restriccion De Esta Fase

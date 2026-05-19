@@ -16,7 +16,7 @@ Clasificacion: no incluir secretos, datos personales, certificados privados ni e
 - Se identifico archivo `.env` versionado en la raiz del repositorio. BRECHA: confirmar si contiene secretos reales o valores reutilizables.
 - Se reemplazaron defaults sensibles por placeholders locales/de demo en `docker-compose.yml`; queda pendiente validacion de seguridad/operaciones.
 - Backend CI `dotnet-ci` y Angular CI `angular-ci` se reportan OK en GitHub Actions; adjuntar evidencia al paquete de release candidate.
-- Docker runtime directo paso para API, PostgreSQL, health checks, Scalar/OpenAPI y SPA estatica; queda brecha critica de enrutamiento SPA->API en compose actual.
+- Docker runtime paso para API, PostgreSQL, health checks, Scalar/OpenAPI, SPA estatica y proxy SPA->API por Nginx.
 - Durante `docker compose build` se reporto NU1903 por vulnerabilidad alta en `System.Security.Cryptography.Xml` 10.0.0; requiere revision y actualizacion controlada.
 - `docker-compose.yml` no evidencia servicio OpenBao, aunque existen configuraciones y scripts relacionados con OpenBao/secrets provider.
 - Existen componentes de certificados, sobre digital, NACHA security, ROR y ACH responses que requieren validacion de autorizacion, auditoria, trazabilidad y pruebas E2E.
@@ -87,10 +87,10 @@ Accion recomendada: parametrizar por variables externas, usar vault/secrets prov
 
 ### 5.3 SPA productiva apuntando a localhost
 
-Estado: CORREGIDO TECNICAMENTE / PENDIENTE VALIDAR.  
+Estado: CORREGIDO TECNICAMENTE / PENDIENTE VALIDAR UAT.  
 Evidencia: `web/ach-interbank-ui/src/environments/environment.prod.ts`.  
-Riesgo residual: el reverse proxy o pipeline UAT debe enrutar correctamente las rutas relativas. En Docker runtime 2026-05-18, `http://localhost:743/api/ach/responses` devolvio `index.html`, por lo que el compose actual no habilita consumo API same-origin desde SPA.  
-Accion recomendada: definir reverse proxy UAT o ajustar `nginx.conf`/compose en una fase aprobada, sin exponer endpoints indebidos.
+Riesgo residual: el reverse proxy o pipeline UAT debe mantener las rutas relativas correctamente. En Docker runtime 2026-05-18, `http://localhost:743/api/ach/responses` respondio 401 desde API, no `index.html`, confirmando proxy y autorizacion intacta.  
+Accion recomendada: ejecutar UAT tecnico funcional con usuarios/roles y datos anonimizados; no deshabilitar autorizacion para obtener 200 en endpoints protegidos.
 
 ### 5.4 Certificados privados
 

@@ -36,12 +36,12 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 | GNG-024 | Soporte | Equipo soporte y escalamiento definidos? | PENDIENTE VALIDAR | Acta/runbook | Operaciones | Si | |
 | GNG-025 | Mesa de ayuda | Canal de defectos/incidentes UAT definido? | PENDIENTE VALIDAR | Matriz defectos | Operaciones | No | |
 | GNG-026 | Aprobaciones | Negocio, Operaciones, Seguridad y Auditoria firmaron? | CRITICO | NO ENCONTRADO | Comite | Si | |
-| GNG-027 | Docker/ambiente | Compose UAT no expone secretos y esta parametrizado? | PARCIAL | `docker compose config/build/up` OK; API/Postgres/SPA Up; SPA no proxya API | Operaciones | Si | Bloquea UAT tecnico E2E hasta resolver enrutamiento |
+| GNG-027 | Docker/ambiente | Compose UAT no expone secretos y esta parametrizado? | PARCIAL | `docker compose config/build/up` OK; API/Postgres/SPA Up; SPA proxya API via Nginx | Operaciones | Si | Falta UAT tecnico con datos anonimizados y revision de secretos |
 | GNG-028 | PostgreSQL/migraciones | Migraciones aplicadas sin drift? | PARCIAL | API aplico migraciones automaticas en Docker; DB ready OK; 130 tablas public | Tecnologia | Si | Validar politica DBA para UAT/preproductivo |
 | GNG-029 | Seguridad configuracion | `.env`, compose y prod config estan saneados? | PARCIAL | `.gitignore`, compose placeholders, `environment.prod.ts` relativo; `.env` sigue trackeado | Seguridad | Si | Requiere revision humana de `.env` |
 | GNG-030 | README/runbook | README operativo no tiene drift? | OK | README raiz saneado y referencia docs UAT/go-live | Tecnologia | No para UAT, si para release formal | |
 | GNG-031 | Datos sensibles | No hay datos sensibles versionados? | PENDIENTE VALIDAR | Pre-check `.env` versionado | Seguridad | Si | Requiere revision |
-| GNG-032 | SPA/API runtime | La SPA servida por Docker consume API correctamente por la misma URL o proxy aprobado? | CRITICO | `http://localhost:743/api/ach/responses` devuelve `index.html`; `nginx.conf` sin proxy | DevOps/Tecnologia | Si | Definir proxy UAT o API base aprobada |
+| GNG-032 | SPA/API runtime | La SPA servida por Docker consume API correctamente por la misma URL o proxy aprobado? | OK TECNICO | `http://localhost:743/health/live` OK, `:743/openapi/v1.json` JSON OK, `:743/scalar` OK, `:743/api/ach/responses` 401 desde API | DevOps/Tecnologia | Si | Auth intacta; ejecutar UAT tecnico funcional |
 
 ## Regla De Decision
 

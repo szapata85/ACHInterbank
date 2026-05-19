@@ -97,13 +97,13 @@ Evidencia runtime Docker 2026-05-18:
 | Validacion | Resultado | Observacion |
 |---|---|---|
 | `docker compose config --quiet` | OK | Configuracion valida. |
-| `docker compose build` | OK | API y SPA construyen imagenes. |
+| `docker compose build achinterbank-spa` | OK | SPA construye con `node:24-alpine` y `nginx:1.30.1-alpine`. |
 | `docker compose up -d` | OK directo | PostgreSQL, API y SPA levantaron. |
 | `http://localhost:843/health/live` | OK | HTTP 200. |
 | `http://localhost:843/health/ready` | OK | HTTP 200 con DB healthy. |
 | `http://localhost:743` | OK | SPA estatica servida. |
-| `http://localhost:743/api/...` | BRECHA | Devuelve `index.html`; falta proxy/reverse proxy para UAT E2E desde SPA. |
-| `http://localhost:843/openapi/v1.json` | OK lento | HTTP 200 con timeout ampliado; aprox. 49s. |
+| `http://localhost:743/api/...` | OK tecnico | Proxy Nginx hacia API; endpoint protegido devuelve 401, no `index.html`. |
+| `http://localhost:843/openapi/v1.json` | OK lento | HTTP 200 con timeout ampliado; aprox. 79s directo y 96s via proxy. |
 
 Ver detalle en `docs/uat/EVIDENCIA_TECNICA_UAT_RUNTIME.md` y `docs/go-live-readiness/DOCKER_RUNTIME_READINESS.md`.
 
@@ -167,14 +167,18 @@ Defectos bloqueantes o altos requieren decision formal antes de go productivo.
 | Comando | Resultado | Observacion |
 |---|---|---|
 | `docker compose config --quiet` | OK | Sin errores. |
-| `docker compose build` | OK | Build API/SPA OK; warning NU1903 en `System.Security.Cryptography.Xml` 10.0.0. |
+| `docker compose build achinterbank-spa` | OK | Build SPA OK con `node:24-alpine` y `nginx:1.30.1-alpine`. |
 | `docker compose up -d` | OK | No se ejecuto `down -v` ni borrado de volumenes. |
 | `docker compose ps` | OK | `postgres` healthy; API y SPA Up. |
 | `Invoke-WebRequest http://localhost:843/health/live` | OK | HTTP 200. |
 | `Invoke-WebRequest http://localhost:843/health/ready` | OK | HTTP 200, DB healthy. |
 | `Invoke-WebRequest http://localhost:743` | OK | SPA servida. |
 | `Invoke-WebRequest http://localhost:843/scalar` | OK | HTTP 200. |
-| `Invoke-WebRequest http://localhost:843/openapi/v1.json` | OK con observacion | Requiere timeout amplio; aprox. 49s. |
-| `Invoke-WebRequest http://localhost:743/api/ach/responses` | BRECHA | Retorna HTML SPA; falta proxy API. |
+| `Invoke-WebRequest http://localhost:843/openapi/v1.json` | OK con observacion | Requiere timeout amplio; aprox. 79s. |
+| `Invoke-WebRequest http://localhost:743/health/live` | OK | HTTP 200 JSON desde API por proxy. |
+| `Invoke-WebRequest http://localhost:743/health/ready` | OK | HTTP 200 JSON desde API por proxy. |
+| `Invoke-WebRequest http://localhost:743/openapi/v1.json` | OK lento | Retorna JSON OpenAPI por proxy; aprox. 96s. |
+| `Invoke-WebRequest http://localhost:743/scalar` | OK | Retorna Scalar por proxy, no SPA. |
+| `Invoke-WebRequest http://localhost:743/api/ach/responses` | OK tecnico | Retorna 401 desde API; autorizacion intacta. |
 
-Decision: no iniciar UAT tecnico E2E desde la SPA con este compose hasta cerrar enrutamiento SPA->API o usar un reverse proxy UAT aprobado.
+Decision: el compose queda apto para UAT tecnico E2E basico desde SPA, condicionado a datos anonimizados, usuarios/roles y evidencias. Productivo sigue NO-GO.
