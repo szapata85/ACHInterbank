@@ -1,7 +1,7 @@
 # Matriz de Defectos UAT - ACH Interbank
 
 Fecha de generacion/revalidacion: 2026-05-18 / 2026-05-19
-Version: 0.5
+Version: 0.6
 Rama analizada: `fix/spa-functional-root-routes-proxy`
 Estado: matriz actualizada tras diagnostico de trazabilidad e idempotencia.
 
@@ -20,6 +20,7 @@ Estado: matriz actualizada tras diagnostico de trazabilidad e idempotencia.
 - Rechazado.
 - Diferido.
 - Aceptado como riesgo.
+- Cerrado documentalmente.
 - Cerrado.
 
 ## Matriz
@@ -43,6 +44,6 @@ Estado: matriz actualizada tras diagnostico de trazabilidad e idempotencia.
 | DEF-UAT-015 | UAT-TECH-006 | Media | Rol esperado `ACH.Operator` no aparece en respuesta de login ni JWT; rol visible `Admin` autoriza menu y endpoints read-only. | Identidad/Autorizacion | `docs/uat/EJECUCION_UAT_TECNICO_BASICO.md` | Seguridad/Tecnologia | Abierto | 2026-05-18 | PENDIENTE | Confirmar si `ACH.Operator` debe estar asignado al seed `admin` o si `Admin` cubre permisos operativos. |
 | DEF-UAT-016 | UAT-FUNC-001 / UAT-FUNC-004 | Bloqueante | La SPA Docker en `http://localhost:743` devolvia `index.html` para rutas funcionales raiz requeridas por pantallas ACH, incluyendo `/financial-institutions`, `/ach-cycles`, `/clearing-houses` y `/transactions/company-entry-descriptions`. | SPA/Nginx/proxy runtime | `web/ach-interbank-ui/nginx.conf`, `docs/uat/UAT_FUNCIONAL_SINTETICO.md`, `docs/uat/EVIDENCIAS_UAT_FUNCIONAL.md`; reintento `:743` sin token 401 no HTML y con token 200 JSON | Tecnologia/DevOps | Cerrado | 2026-05-18 | 2026-05-18 | Locations Nginx agregados y validados; `/transactions`, `/transactions/1`, `/transactions/policies/preview` y duplicado `POST /transactions` tambien responden desde API sin `index.html`. |
 | DEF-UAT-017 | UAT-FUNC-006 | Alta | La creacion de la transaccion sintetica historica `UAT-SINT-001` no genero evento inicial; la correccion fue revalidada en runtime con nueva transaccion sintetica. | Backend trazabilidad/auditoria | `TransactionPersister.cs`, `AchTransactionNachaTests.cs`, `docs/uat/EVIDENCIAS_UAT_FUNCIONAL.md`; `UAT-SINT-TRACE-001` ID `2` con evento `Pending -> Pending`, `System`, `CREATED`; duplicado deja `transaction_count=1`, `event_count=1` | Tecnologia/QA | Cerrado | 2026-05-18 | 2026-05-19 | Cerrado funcionalmente para nuevas transacciones. No se hizo backfill ni migracion; `UAT-SINT-001` historica conserva 0 eventos. |
-| DEF-UAT-018 | UAT-FUNC-005 | Media | La idempotencia/deduplicacion funciona de forma controlada para payload duplicado, pero el contrato formal no define header `Idempotency-Key`, hash de payload, replay ni uso de HTTP 409. | Backend transacciones/API contract | `TransactionPolicyService.cs`, `docs/uat/UAT_FUNCIONAL_SINTETICO.md`; reintento `POST /transactions` devuelve 400 con mensaje de duplicado | Tecnologia/Arquitectura | Abierto | 2026-05-18 | PENDIENTE | Contrato observado documentado: deduplicacion previa a persistencia por ciclo, tipo, monto, cuentas y `TransactionExternalId`/`Reference`; no se cambia HTTP 400 sin aprobacion de arquitectura/negocio. |
+| DEF-UAT-018 | UAT-FUNC-005 | Media | La idempotencia/deduplicacion funciona de forma controlada para payload duplicado; se formaliza el contrato actual sin cambiar HTTP 400 ni implementar `Idempotency-Key`. | Backend transacciones/API contract | `docs/go-live-readiness/CONTRATO_IDEMPOTENCIA_TRANSACCIONES.md`, `TransactionPolicyService.cs`, `TransactionPolicyServiceTests.cs`, `TransactionsControllerTests.cs`, `docs/uat/EVIDENCIAS_UAT_FUNCIONAL.md` | Tecnologia/Arquitectura | Cerrado documentalmente | 2026-05-18 | 2026-05-19 | Contrato actual observado: deduplicacion previa a persistencia por ciclo, tipo, monto, cuentas y `TransactionExternalId`/`Reference`; duplicado retorna 400 JSON controlado y no duplica transaccion/evento. 409/Idempotency-Key/replay quedan como decision evolutiva. |
 | DEF-UAT-019 | UAT-FUNC-002 | Media | Catalogo/configuracion NACHA-M queda parcialmente validado: `nacha-record-definitions` responde, pero `nacha-record-layouts` no queda disponible como endpoint validado. | Backend catalogos NACHA-M | `docs/uat/UAT_FUNCIONAL_SINTETICO.md`, `docs/uat/EVIDENCIAS_UAT_FUNCIONAL.md` | Tecnologia/Compliance | Abierto | 2026-05-18 | PENDIENTE | Confirmar endpoint real o documentar que el catalogo no aplica al alcance funcional actual. |
 | OBS-UAT-001 | UAT-TECH-011 | Baja | Logs PostgreSQL muestran FATAL previos por usuarios inexistentes `root`/`sa`. | PostgreSQL/Operacion | `docker compose logs postgres --tail=120` | Operaciones/DevOps | Abierto | 2026-05-18 | PENDIENTE | Revisar origen de probes/conexiones; no bloqueo del UAT tecnico basico. |

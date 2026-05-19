@@ -1,7 +1,7 @@
 # UAT Funcional Sintetico - ACH Interbank
 
 Fecha de ejecucion/revalidacion: 2026-05-18 / 2026-05-19 America/Bogota
-Version: 0.4 revalidacion runtime DEF-UAT-017
+Version: 0.5 contrato idempotencia DEF-UAT-018
 Rama ejecutada: `fix/spa-functional-root-routes-proxy`
 Commit base: `469e2a60`
 Ambiente: Docker Compose local, SPA `http://localhost:743`, API directa `http://localhost:843`  
@@ -33,9 +33,9 @@ Roles observados: `Admin`; `ACH.Operator` no visible en respuesta/JWT, pero el t
 | Evento inicial | OK REVALIDADO | `UAT-SINT-TRACE-001` creo transaccion ID `2` y evento inicial `Pending -> Pending`, `Source=System`, `ReasonCode=CREATED`. `UAT-SINT-001` historica conserva `state_event_count=0` sin backfill. |
 | Trazabilidad API | OK REVALIDADO | `GET /api/ach-traceability/transactions/2` responde 200 JSON con 1 evento inicial. |
 | Conciliacion basica | OK API directa | `GET /api/reports/reconciliation` responde 200 para ciclo/fecha sinteticos. |
-| Idempotencia | OK controlado con observacion contractual | Reintento del mismo payload devuelve 400 con mensaje de duplicado controlado; contrato formal observado queda documentado, pero se mantiene pendiente decidir 409/idempotency key. |
+| Idempotencia | OK DOCUMENTADO / DECISION EVOLUTIVA | Reintento del mismo payload devuelve 400 con mensaje de duplicado controlado; contrato actual observado queda formalizado en `docs/go-live-readiness/CONTRATO_IDEMPOTENCIA_TRANSACCIONES.md`. |
 | Logs | OK con observaciones | Sin patrones criticos de 500/secreto en muestra API; SPA levanta estable tras ajuste Nginx. |
-| UAT funcional sintetico | PARCIALMENTE OK | Core API funcional, reintento HTTP desde SPA Docker y DEF-UAT-017 pasan; quedan contrato formal de idempotencia, evidencia visual, actas y UAT bancario. |
+| UAT funcional sintetico | PARCIALMENTE OK | Core API funcional, reintento HTTP desde SPA Docker, DEF-UAT-017 y contrato documental DEF-UAT-018 pasan; quedan evidencia visual, actas y UAT bancario. |
 | Productivo | NO-GO | No hay UAT bancario formal, actas firmadas, validacion externa ni cierre de brechas criticas. |
 
 ## Datos Sinteticos Usados
@@ -142,14 +142,16 @@ Se reintento la misma operacion con la misma referencia y el mismo payload.
 | Mensaje | Duplicado equivalente para el mismo ciclo. |
 | Comportamiento | Rechazo controlado/deduplicacion funcional. |
 | Contrato observado | La deduplicacion actual se evalua antes de persistir usando ciclo, tipo, monto, cuentas origen/destino y `TransactionExternalId` como identificador operativo, con fallback a `Reference` cuando no existe external id. |
-| Observacion | No existe contrato formal por header `Idempotency-Key`, hash de payload ni constraint unico especifico para transaccion individual; decidir si se conserva 400 documentado o se migra a 409 Conflict/replay idempotente. |
+| Documento formal | `docs/go-live-readiness/CONTRATO_IDEMPOTENCIA_TRANSACCIONES.md`. |
+| Estado documental | Cerrado para contrato actual observado: `400 Bad Request` JSON controlado, sin persistencia duplicada y sin evento inicial adicional. |
+| Observacion evolutiva | No existe contrato por header `Idempotency-Key`, hash de payload ni replay; decidir en arquitectura si se conserva 400 o se migra a 409 Conflict/replay idempotente. |
 
 ## Diagnostico DEF-UAT-017 / DEF-UAT-018
 
 | Defecto | Diagnostico | Accion aplicada | Estado |
 |---|---|---|---|
 | DEF-UAT-017 | La creacion persistia `AchTransaction.State=Pending` y `StateChangedAtUtc`, pero no agregaba fila en `AchTransactionStateEvents`; los eventos se creaban solo en transiciones posteriores. | Se agrego evento inicial en `TransactionPersister.PersistAsync`: `Pending -> Pending`, `Source=System`, `ReasonCode=CREATED`, payload tecnico sanitizado. Se agregaron pruebas y se revalido en runtime con `UAT-SINT-TRACE-001`. | Cerrado funcionalmente para nuevas transacciones; sin backfill historico. |
-| DEF-UAT-018 | La idempotencia real es deduplicacion funcional previa a persistencia, no replay exacto ni contrato por header. El 400 actual es controlado por politica, pero el contrato API no esta cerrado formalmente. | No se cambio el comportamiento HTTP para evitar ruptura contractual sin aprobacion; se documenta contrato observado y recomendacion de arquitectura. | Abierto para decision de contrato formal. |
+| DEF-UAT-018 | La idempotencia real es deduplicacion funcional previa a persistencia, no replay exacto ni contrato por header. El 400 actual es controlado por politica. | No se cambio el comportamiento HTTP; se formalizo el contrato actual observado, se agregaron pruebas de caracterizacion y se documentaron decisiones evolutivas. | Cerrado documentalmente para contrato actual; abierto solo como decision evolutiva si se requiere 409/Idempotency-Key/replay. |
 
 ## Revalidacion Runtime DEF-UAT-017
 
@@ -239,11 +241,11 @@ No se generaron devoluciones reales, archivos reales ni conexiones externas.
 |---|---|---|
 | DEF-UAT-016 | Cerrado | Rutas funcionales raiz fueron proxied por Nginx y revalidadas por `:743` sin devolver `index.html`. |
 | DEF-UAT-017 | Alta/Media | Cerrado funcionalmente para nuevas transacciones: `UAT-SINT-TRACE-001` genero evento inicial y el duplicado no creo evento adicional. |
-| DEF-UAT-018 | Media | Idempotencia controlada con HTTP 400 y contrato observado documentado; falta decision explicita 409/idempotency key/replay. |
+| DEF-UAT-018 | Media | Cerrado documentalmente: contrato actual observado formalizado como deduplicacion funcional previa a persistencia con HTTP 400 JSON; decisiones 409/idempotency key/replay quedan evolutivas. |
 | DEF-UAT-019 | Media/Baja | Endpoint esperado de layouts NACHA-M no responde como catalogo disponible. |
 
 ## Clasificacion Final
 
 UAT tecnico autenticado basico: **OK con observaciones**.  
-UAT funcional sintetico: **PARCIALMENTE OK** por API directa, reintento HTTP desde SPA Docker y cierre funcional de DEF-UAT-017; siguen pendientes contrato formal de idempotencia, evidencia visual/acta formal y UAT bancario.
+UAT funcional sintetico: **PARCIALMENTE OK** por API directa, reintento HTTP desde SPA Docker, cierre funcional de DEF-UAT-017 y cierre documental de DEF-UAT-018; siguen pendientes evidencia visual/acta formal y UAT bancario.
 Productivo: **NO-GO**.

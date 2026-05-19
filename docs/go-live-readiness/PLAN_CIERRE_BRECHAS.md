@@ -1,7 +1,7 @@
 # Plan de Cierre de Brechas - ACH Interbank
 
 Fecha de generacion/revalidacion: 2026-05-18 / 2026-05-19
-Version: 0.5 preliminar
+Version: 0.6 preliminar
 Rama analizada: `fix/spa-functional-root-routes-proxy`
 Estado: plan de trabajo actualizado tras diagnostico de trazabilidad/idempotencia; incluye correcciones de bajo riesgo aplicadas y pendientes de validacion.
 
@@ -35,7 +35,7 @@ Estado: plan de trabajo actualizado tras diagnostico de trazabilidad/idempotenci
 | G-24 | Reejecutar UAT funcional sintetico desde SPA Docker tras corregir proxy funcional. | Prueba UAT/Evidencia | Alto | `docs/uat/UAT_FUNCIONAL_SINTETICO.md`, `docs/uat/EVIDENCIAS_UAT_FUNCIONAL.md`, acta | QA/Operaciones/Tecnologia | Cierre G-25 | Transaccion sintetica y rutas funcionales reintentadas desde `http://localhost:743` con llamadas JSON, sin HTML fallback; falta evidencia visual y acta | Parcialmente OK |
 | G-25 | Corregir proxy/ruteo de rutas funcionales raiz usadas por SPA. | Configuracion/Frontend runtime | Alto | `web/ach-interbank-ui/nginx.conf` | Tecnologia/DevOps | Inventario de endpoints SPA | `/financial-institutions`, `/ach-cycles`, `/clearing-houses`, `/transactions/company-entry-descriptions` y rutas transaccionales relacionadas devuelven JSON/401/403/404 controlado, nunca `index.html` | Corregida tecnicamente - validada HTTP |
 | G-26 | Mantener evidencia de generacion de evento inicial de estado transaccional para nuevas transacciones. | QA/Auditoria | Bajo/Medio | Docs UAT/evidencia runtime | Tecnologia/QA/Auditoria | Cerrado con `UAT-SINT-TRACE-001` | `AchTransactionStateEvents` contiene evento inicial `Pending -> Pending` y trazabilidad API refleja lifecycle esperado en runtime | Cerrada funcionalmente |
-| G-27 | Formalizar contrato de idempotencia transaccional. | Arquitectura/API contract | Medio | Backend transacciones/tests/docs API | Arquitectura/Tecnologia | Decision negocio/API | Reintentos identicos tienen contrato firmado: 409, replay idempotente o 400 documentado; pruebas automatizadas y UAT actualizados | Pendiente decision |
+| G-27 | Mantener contrato de idempotencia transaccional actual y decidir evolucion futura. | Arquitectura/API contract | Bajo/Medio | `docs/go-live-readiness/CONTRATO_IDEMPOTENCIA_TRANSACCIONES.md`, tests/docs API | Arquitectura/Tecnologia | Decision negocio/API para evolucion | Reintentos identicos tienen contrato documentado actual: 400 JSON controlado; 409, replay o `Idempotency-Key` quedan como decision evolutiva | Cerrada documentalmente |
 
 ## Priorizacion
 
@@ -44,7 +44,7 @@ Estado: plan de trabajo actualizado tras diagnostico de trazabilidad/idempotenci
 3. Higiene documental/configuracion: G-08, G-10, G-11, G-12, G-15, G-16.
 
 Estado especifico UAT tecnico autenticado: G-22 deja de estar bloqueada por variables. Quedan observaciones de roles (`ACH.Operator`) y evidencia visual, sin declarar GO productivo.
-Estado especifico UAT funcional sintetico: G-24 queda parcialmente cubierto por API directa y reintento HTTP desde SPA Docker. G-25 queda corregida tecnicamente. G-26 queda cerrada funcionalmente para nuevas transacciones tras revalidacion con `UAT-SINT-TRACE-001`. G-27 requiere decision tecnica/arquitectonica antes de UAT formal.
+Estado especifico UAT funcional sintetico: G-24 queda parcialmente cubierto por API directa y reintento HTTP desde SPA Docker. G-25 queda corregida tecnicamente. G-26 queda cerrada funcionalmente para nuevas transacciones tras revalidacion con `UAT-SINT-TRACE-001`. G-27 queda cerrada documentalmente para el contrato actual; la decision tecnica/arquitectonica pendiente aplica solo a evolucion 409/`Idempotency-Key`/replay.
 
 ## Restriccion De Esta Fase
 

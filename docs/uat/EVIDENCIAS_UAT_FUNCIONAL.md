@@ -1,7 +1,7 @@
 # Evidencias UAT Funcional Sintetico - ACH Interbank
 
 Fecha de generacion/revalidacion: 2026-05-18 / 2026-05-19 America/Bogota
-Version: 0.4 revalidacion runtime DEF-UAT-017
+Version: 0.5 contrato idempotencia DEF-UAT-018
 Rama ejecutada: `fix/spa-functional-root-routes-proxy`
 Commit base: `469e2a60`
 Clasificacion: no incluir password, token completo, datos reales, cuentas reales, certificados reales ni secretos.
@@ -43,6 +43,7 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 | EV-FUNC-031 | Evento inicial revalidado | PostgreSQL/API | `UAT-SINT-TRACE-001` tiene 1 evento `Pending -> Pending`, `Source=System`, `ReasonCode=CREATED`, `PayloadJson` presente. | `docker exec` + `GET /api/ach-traceability/transactions/2`. | OK |
 | EV-FUNC-032 | Idempotencia no duplica evento | HTTP/PostgreSQL | Reintento identico devuelve 400 JSON controlado; `transaction_count=1`, `event_count=1`. | `POST /transactions` y consulta read-only. | OK |
 | EV-FUNC-033 | Build/test focal revalidado | Build/Test | `dotnet build ACHInterbank.sln -c Release` OK; `AchTransactionNachaTests` 17/17 OK. | Consola Codex. | OK |
+| EV-FUNC-034 | Contrato idempotencia DEF-UAT-018 | Documentacion/Test | Contrato actual observado formalizado: deduplicacion previa a persistencia por ciclo/tipo/monto/cuentas/`TransactionExternalId` o `Reference`, respuesta 400 JSON. | `docs/go-live-readiness/CONTRATO_IDEMPOTENCIA_TRANSACCIONES.md`, `TransactionPolicyServiceTests`, `TransactionsControllerTests`. | Cerrado documentalmente |
 
 ## Evidencia HTTP Sanitizada
 
@@ -77,6 +78,8 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 | `GET http://localhost:743/transactions/2` | 200, JSON, referencia `UAT-SINT-TRACE-001`, estado `Pending`. |
 | `GET http://localhost:743/api/ach-traceability/transactions/2` | 200, JSON, 1 evento inicial `Pending -> Pending`, `Source=System`, `ReasonCode=CREATED`. |
 | Reintento `POST http://localhost:743/transactions` con `UAT-SINT-TRACE-001` | 400, JSON, duplicado equivalente controlado. |
+| `TransactionPolicyServiceTests.PreviewAsync_CurrentContractReturnsDuplicateMessageAndSyntheticKey` | Valida `WouldDuplicate=true`, mensaje controlado e `IdempotencyKey` informativo. |
+| `TransactionsControllerTests.CreateTransaction_ReturnsBadRequestJson_WhenDuplicatePolicyRejects` | Valida que el controller conserva `HTTP 400` y cuerpo JSON con `message`. |
 
 ## Evidencia De Datos Maestros
 
@@ -116,7 +119,7 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 
 La evidencia permite sostener que el core API funcional sintetico creo, persistio y rechazo duplicado de forma controlada para una transaccion sintetica. Tras el ajuste de `web/ach-interbank-ui/nginx.conf`, las rutas funcionales raiz requeridas por pantallas transaccionales ya responden desde API por `http://localhost:743` y no devuelven `index.html`.
 
-DEF-UAT-017 queda cerrado funcionalmente para nuevas transacciones: `UAT-SINT-TRACE-001` genero el evento inicial esperado y el reintento duplicado no genero transaccion ni evento adicional. No se hizo backfill de `UAT-SINT-001`. DEF-UAT-018 queda documentado como contrato observado, pero requiere decision formal si se espera `409 Conflict`, replay idempotente o header `Idempotency-Key`.
+DEF-UAT-017 queda cerrado funcionalmente para nuevas transacciones: `UAT-SINT-TRACE-001` genero el evento inicial esperado y el reintento duplicado no genero transaccion ni evento adicional. No se hizo backfill de `UAT-SINT-001`. DEF-UAT-018 queda cerrado documentalmente para el contrato actual observado: duplicado equivalente retorna `HTTP 400` JSON controlado, sin segunda transaccion y sin segundo evento inicial. Las alternativas `409 Conflict`, replay idempotente o header `Idempotency-Key` quedan como decision evolutiva.
 
-UAT funcional sintetico: **PARCIALMENTE OK** por contrato formal de idempotencia, evidencia visual y actas formales pendientes.
+UAT funcional sintetico: **PARCIALMENTE OK** por evidencia visual y actas formales pendientes.
 Productivo: **NO-GO**.
