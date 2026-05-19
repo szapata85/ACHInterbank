@@ -18,7 +18,7 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 | GNG-006 | Seguridad | Todos los controllers sensibles tienen autorizacion explicita? | PARCIAL | `AchResponsesController` ahora tiene `[Authorize]`; falta matriz endpoint-rol completa | Seguridad | Si | |
 | GNG-007 | OpenBao/secretos | OpenBao UAT esta disponible o existe excepcion aprobada? | PENDIENTE VALIDAR | `scripts/openbao`, compose principal sin OpenBao | Seguridad | Si si aplica | |
 | GNG-008 | Certificados/firma/sobre digital | Existe validacion externa oficial? | CRITICO | Docs UAT marcan pendiente | Seguridad | Si | |
-| GNG-009 | NACHA-M | Registros 1/5/6/7/8/9 validados por campo? | PARCIAL | `docs/go-live-readiness/MATRIZ_NACHA_M_LAYOUTS.md`; endpoints `/nacha-layouts` y `/nacha-record-definitions` OK tecnico | Operaciones/QA/Compliance | Si | Codigo/layouts/tests existen; falta firma campo-a-campo y homologacion |
+| GNG-009 | NACHA-M | Registros 1/5/6/7/8/9 validados por campo? | BLOQUEADO | `docs/uat/UAT_NACHA_M_CAMPO_A_CAMPO.md`; evidencias `docs/uat/evidencias/nacha-m-uat/` | Operaciones/QA/Compliance | Si | Transacciones por camara creadas, pero no hay archivo NACHA-M valido: exportacion 0 bytes y prenotificacion previa ausente |
 | GNG-010 | ACH Colombia | Flujos ACH tienen aceptacion funcional? | PENDIENTE VALIDAR | Acta UAT pendiente | Negocio | Si | |
 | GNG-011 | CENIT | Ciclos CENIT tienen evidencia homologada? | PARCIAL | Checklist CENIT | Operaciones | Si | |
 | GNG-012 | STA | STA aplica al alcance y esta validado? | NO CLARO | NO ENCONTRADO | Compliance | PENDIENTE VALIDAR | |
@@ -51,6 +51,8 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 | GNG-039 | Conciliacion sintetica | Existe lectura basica de conciliacion para ciclo/fecha sinteticos? | OK TECNICO | `GET /api/reports/reconciliation` responde 200 por API directa | Auditoria/Operaciones | Si | No reemplaza conciliacion bancaria real |
 | GNG-040 | Seguridad dependencias | No hay paquetes NuGet vulnerables conocidos en la solucion? | OK TECNICO | `System.Security.Cryptography.Xml` fijado en 10.0.8; `dotnet list ... --vulnerable --include-transitive` sin hallazgos | Seguridad/Tecnologia | Si | Mantener monitoreo de advisories |
 | GNG-041 | Rol ACH.Operator | Usuario demo evidencia roles esperados `Admin` y `ACH.Operator`? | OK TECNICO | `UserRoleConfiguration` y migracion `AddAdminOperatorRoleSeed` asignan `admin` a `Admin` y `ACH.Operator`; login/JWT sanitizados muestran ambos roles; menu y endpoints read-only responden 200 con Bearer | Seguridad/Tecnologia/QA | No para UAT controlado; si para matriz rol-permiso productiva formal | `admin` queda como usuario demo multirol para UAT controlado; evaluar usuario operador separado antes de preproductivo si seguridad lo exige |
+| GNG-042 | NACHA Export | El generador NACHA-M produce archivo UAT no vacio por camara? | BLOQUEADO | `docs/uat/EVIDENCIAS_NACHA_M_UAT.md` | Tecnologia/QA/Operaciones | Si | `/NachaExport` devolvio 0 bytes; requiere error controlado y archivo valido tras cumplir prerequisitos |
+| GNG-043 | SOAP Proc_Contrapartidas | Existe dry-run/mock autorizado sin transmision externa? | PARCIAL | `docs/uat/UAT_SOAP_PROC_CONTRAPARTIDAS.md`; envelopes sanitizados en `docs/uat/evidencias/soap-proc-contrapartidas/` | Integracion/DevOps/Seguridad | Si | Envelopes XML OK; job automatico intento endpoint externo/no resoluble, requiere guardrail UAT/mock |
 
 ## Regla De Decision
 
@@ -58,4 +60,4 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 - UAT puede avanzar si no hay bloqueantes de ambiente y los riesgos estan comunicados.
 - Go productivo requiere estados `OK` o riesgo aceptado formalmente en todos los controles bloqueantes.
 
-Estado tras cierre DEF-UAT-015: **UAT tecnico autenticado basico OK con observaciones** y usuario demo `admin` evidencia `Admin` + `ACH.Operator`. **UAT funcional sintetico PARCIALMENTE OK** por API directa y reintento HTTP desde SPA Docker; ya no falla por `index.html` en rutas funcionales ni NACHA layouts, DEF-UAT-017 queda cerrado funcionalmente para nuevas transacciones, DEF-UAT-018 queda cerrado documentalmente para el contrato actual y DEF-UAT-019 queda cerrado tecnicamente. Siguen pendientes evidencia visual, actas, NACHA-M formal y validaciones externas. Productivo permanece **NO-GO**.
+Estado tras UAT integrado NACHA/SOAP: **UAT tecnico autenticado basico OK con observaciones** y **UAT funcional sintetico PARCIALMENTE OK**. Se crearon transacciones por ACH Colombia y CENIT y se genero evidencia SOAP dry-run, pero NACHA-M UAT queda bloqueado: no hay archivo no vacio validado campo-a-campo. Productivo permanece **NO-GO**.

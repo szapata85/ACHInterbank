@@ -3,7 +3,7 @@
 Fecha: 2026-05-19
 Version: 1.0 preliminar
 Estado recomendado: Continuar UAT controlado / NO-GO productivo
-Scorecard vigente: 67.8 / 100
+Scorecard vigente: 67.4 / 100
 
 ## Paquete Formal
 
@@ -52,7 +52,7 @@ Decision alternativa permitida:
 | UAT tecnico autenticado | OK con observaciones | docs/comite-go-no-go/04_EVIDENCIAS_UAT.md |
 | UAT funcional sintetico | PARCIALMENTE OK | docs/uat/UAT_FUNCIONAL_SINTETICO.md |
 | NU1903 | Corregido tecnicamente | docs/security/REVISION_SEGURIDAD_PRE_GO_LIVE.md |
-| Scorecard | 67.8 / 100 | docs/go-live-readiness/SCORECARD_GO_LIVE_READINESS.md |
+| Scorecard | 67.4 / 100 | docs/go-live-readiness/SCORECARD_GO_LIVE_READINESS.md |
 
 ## Defectos y Brechas Clave
 
@@ -69,6 +69,8 @@ Defectos cerrados segun estado actual:
 Brechas abiertas relevantes:
 
 - DEF-UAT-020: NACHA-M 1/5/6/7/8/9 requiere validacion campo-a-campo y homologacion/waiver.
+- DEF-UAT-021: `/NachaExport/{cycleId}` devuelve archivo 0 bytes en escenario no exportable; requiere error controlado y archivo no vacio.
+- DEF-UAT-022: `Proc_Contrapartidas` requiere modo UAT/mock o guardrail dry-run; no usar endpoint externo no autorizado.
 - UAT funcional formal con actas pendiente.
 - Evidencia visual/operativa pendiente.
 - CENIT/CUD pendiente.

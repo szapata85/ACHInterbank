@@ -1,0 +1,67 @@
+﻿{
+    "fecha":  "2026-05-19T11:47:02.5324978-05:00",
+    "rama":  "uat/nacha-m-soap-proc-contrapartidas",
+    "commit":  "98934e01",
+    "camara":  "CENIT",
+    "transactionId":  4,
+    "referenciaUat":  "UAT-CENIT-NACHA-SOAP-001",
+    "achCycleId":  "7c0c26327f06a20d751ef72fc379ca6fe7166803",
+    "clearingHouseId":  2,
+    "rutaArchivoValido":  null,
+    "tamanoBytes":  0,
+    "hashSha256":  null,
+    "registrosDetectados":  [
+
+                            ],
+    "conteos":  {
+                    "record1":  0,
+                    "record5":  0,
+                    "record6":  0,
+                    "record7":  0,
+                    "record8":  0,
+                    "record9":  0,
+                    "total":  0
+                },
+    "totales":  {
+                    "debito":  0,
+                    "credito":  0,
+                    "entryHash":  null,
+                    "blockCount":  null
+                },
+    "validacionArchivo":  "FAIL",
+    "validacionNormativa":  "PENDIENTE",
+    "generadoPorSistema":  false,
+    "enviadoExterno":  false,
+    "endpointSoapInvocado":  false,
+    "documentosNormativosUsados":  [
+                                       "docs/go-live-readiness/MATRIZ_NACHA_M_LAYOUTS.md"
+                                   ],
+    "intentos":  [
+                     {
+                         "archivo":  "attempt_1_proxy_html_response.html",
+                         "bytes":  2123,
+                         "sha256":  "E7B3CD337D927561C2E3716A37A826B38649EDE65558B0D66C830E6C149DFE43",
+                         "esHtml":  true,
+                         "esJsonError":  false
+                     },
+                     {
+                         "archivo":  "attempt_2_zero_byte_response.txt",
+                         "bytes":  0,
+                         "sha256":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                         "esHtml":  false,
+                         "esJsonError":  false
+                     },
+                     {
+                         "archivo":  "attempt_3_export_response.txt",
+                         "bytes":  0,
+                         "sha256":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                         "esHtml":  false,
+                         "esJsonError":  false
+                     }
+                 ],
+    "correccionesAplicadas":  [
+                                  "Se corrigio proxy SPA/Nginx agregando location /NachaExport/ antes del fallback Angular."
+                              ],
+    "bloqueo":  "La exportacion por /NachaExport retorna HTTP 200 con 0 bytes; nacha-security confirma regla de negocio: transaccion sin prenotificacion previa. No se aplico bypass ni backdating.",
+    "observaciones":  "No existe archivo NACHA-M valido generado para esta camara en esta ejecucion. DEF-UAT-020 permanece abierto/parcial."
+}

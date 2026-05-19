@@ -140,3 +140,18 @@ DEF-UAT-017 queda cerrado funcionalmente para nuevas transacciones: `UAT-SINT-TR
 
 UAT funcional sintetico: **PARCIALMENTE OK** por evidencia visual y actas formales pendientes.
 Productivo: **NO-GO**.
+
+## Evidencia Integrada NACHA-M / SOAP 2026-05-19
+
+| Evidencia | Tipo | Resultado | Ruta |
+|---|---|---|---|
+| Transaccion ACH Colombia | HTTP/API/DB | `UAT-ACHCOL-NACHA-SOAP-001`, TransactionId `3`, estado `Pending`, datos sinteticos. | `docs/uat/UAT_NACHA_M_CAMPO_A_CAMPO.md` |
+| Transaccion CENIT | HTTP/API/DB | `UAT-CENIT-NACHA-SOAP-001`, TransactionId `4`, estado `Pending`, datos sinteticos. | `docs/uat/UAT_NACHA_M_CAMPO_A_CAMPO.md` |
+| NACHA-M ACH Colombia | Archivo/API | FALLA/BLOQUEADO: archivo 0 bytes; `nacha-security` confirma prenotificacion previa ausente. | `docs/uat/evidencias/nacha-m-uat/ach-colombia/` |
+| NACHA-M CENIT | Archivo/API | FALLA/BLOQUEADO: archivo 0 bytes; `nacha-security` confirma prenotificacion previa ausente. | `docs/uat/evidencias/nacha-m-uat/cenit/` |
+| SOAP Proc_Contrapartidas ACH Colombia | XML dry-run | Envelope sanitizado XML bien formado; no invocado manualmente. | `docs/uat/evidencias/soap-proc-contrapartidas/ach-colombia/` |
+| SOAP Proc_Contrapartidas CENIT | XML dry-run | Envelope sanitizado XML bien formado; no invocado manualmente. | `docs/uat/evidencias/soap-proc-contrapartidas/cenit/` |
+
+Observacion critica: se detectaron intentos automaticos del job `Proc_Contrapartidas` hacia endpoint externo/no resoluble, sin transmision exitosa. Requiere modo UAT/mock o guardrail antes de nuevo UAT integrado.
+
+DEF-UAT-020 permanece abierto/parcial; se agregan DEF-UAT-021 y DEF-UAT-022. Productivo sigue **NO-GO**.

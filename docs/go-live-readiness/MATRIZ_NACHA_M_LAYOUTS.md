@@ -45,4 +45,20 @@ No se cierra aun la validacion normativa campo-a-campo ni homologacion bancaria.
 
 DEF-UAT-019 queda cerrado como defecto tecnico de endpoint/proxy: la ruta real es `/nacha-layouts`, no `/nacha-record-layouts`, y el proxy SPA Docker fue corregido.
 
-La brecha normativa NACHA-M permanece **PARCIAL** hasta ejecutar validacion campo-a-campo, generacion/carga de archivo controlado, firma de matriz regulatoria y homologacion externa o waiver formal.
+## Revalidacion Integrada 2026-05-19
+
+Se ejecuto UAT integrado con transacciones sinteticas por camara:
+
+- ACH Colombia: `UAT-ACHCOL-NACHA-SOAP-001`, TransactionId `3`.
+- CENIT: `UAT-CENIT-NACHA-SOAP-001`, TransactionId `4`.
+
+Resultado: la generacion NACHA-M real UAT no produjo archivo valido. El primer intento por `http://localhost:743/NachaExport/{cycleId}` evidencio fallback Angular y se corrigio `web/ach-interbank-ui/nginx.conf` agregando `location /NachaExport/`. Los reintentos posteriores respondieron `HTTP 200` con `Content-Length: 0`. El modulo `nacha-security/operations/nacha/generate` registro falla por regla de negocio: transaccion sin prenotificacion previa.
+
+Evidencias:
+
+- `docs/uat/UAT_NACHA_M_CAMPO_A_CAMPO.md`
+- `docs/uat/EVIDENCIAS_NACHA_M_UAT.md`
+- `docs/go-live-readiness/MATRIZ_NACHA_M_ACH_COLOMBIA.md`
+- `docs/go-live-readiness/MATRIZ_NACHA_M_CENIT.md`
+
+La brecha normativa NACHA-M permanece **PARCIAL/BLOQUEADA** hasta resolver prerequisitos de exportacion sin bypass, generar archivo controlado no vacio, validar campo-a-campo, firmar matriz regulatoria y obtener homologacion externa o waiver formal.

@@ -263,3 +263,25 @@ No se generaron devoluciones reales, archivos reales ni conexiones externas.
 UAT tecnico autenticado basico: **OK con observaciones**.  
 UAT funcional sintetico: **PARCIALMENTE OK** por API directa, reintento HTTP desde SPA Docker, cierre funcional de DEF-UAT-017 y cierre documental de DEF-UAT-018; siguen pendientes evidencia visual/acta formal y UAT bancario.
 Productivo: **NO-GO**.
+
+## UAT Integrado NACHA-M / SOAP 2026-05-19
+
+Se extendio el UAT funcional sintetico con dos transacciones de salida por camara:
+
+| Camara | Referencia | TransactionId | Resultado |
+|---|---|---:|---|
+| ACH Colombia | `UAT-ACHCOL-NACHA-SOAP-001` | 3 | Creada y persistida con datos sinteticos |
+| CENIT | `UAT-CENIT-NACHA-SOAP-001` | 4 | Creada y persistida con datos sinteticos |
+
+La generacion NACHA-M real UAT quedo bloqueada. El primer intento evidencio fallback `index.html` en `/NachaExport`, corregido por Nginx. Los intentos posteriores respondieron 0 bytes; `nacha-security` registro la causa funcional de prenotificacion previa ausente. No se aplico bypass, backdating ni cambio de reglas ACH/NACHA-M/CENIT/ROR.
+
+Se genero evidencia SOAP `Proc_Contrapartidas` en modo dry-run documental usando payloads generados por el sistema y envelopes sanitizados. No se hizo invocacion manual SOAP. Se detectaron intentos automaticos fallidos del job hacia endpoint externo/no resoluble; queda brecha de configuracion UAT/mock.
+
+Documentos:
+
+- `docs/uat/UAT_NACHA_M_CAMPO_A_CAMPO.md`
+- `docs/uat/EVIDENCIAS_NACHA_M_UAT.md`
+- `docs/uat/UAT_SOAP_PROC_CONTRAPARTIDAS.md`
+- `docs/uat/EVIDENCIAS_SOAP_PROC_CONTRAPARTIDAS.md`
+
+Estado: UAT integrado NACHA/SOAP **PARCIAL/BLOQUEADO**. Productivo **NO-GO**.

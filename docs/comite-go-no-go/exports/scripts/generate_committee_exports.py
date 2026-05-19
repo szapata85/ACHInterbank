@@ -13,7 +13,7 @@ PROJECT = "ACH Interbank"
 PACKAGE_VERSION = "1.0 preliminar"
 GLOBAL_STATE = "UAT controlado / NO-GO productivo"
 RECOMMENDATION = "Continuar UAT controlado con observaciones"
-SCORECARD = "67.8 / 100"
+SCORECARD = "67.4 / 100"
 ENVIRONMENT = "Local Docker / UAT controlado"
 
 SOURCE_DOCS = [
@@ -416,7 +416,7 @@ def generate_excel() -> None:
         ("UAT-OP-016", "Acceso", "Validar logout", "Cerrar sesion.", "Admin", "Sesion activa", "N/A", "Ejecutar logout.", "Sesion cerrada.", "", "Pendiente", "", "", "Media", ""),
         ("UAT-OP-017", "Roles", "Validar rol Admin", "Confirmar permisos Admin.", "Admin", "Login exitoso", "Usuario admin", "Revisar menu y endpoints.", "Permisos Admin visibles.", "", "Pendiente", "", "", "Alta", ""),
         ("UAT-OP-018", "Roles", "Validar rol ACH.Operator", "Validar rol operador con usuario demo multirol.", "Admin + ACH.Operator", "Seed/migracion aplicada", "Usuario demo admin sin password documentado", "Login y revisar claims/menu.", "Rol visible y autorizado.", "Admin y ACH.Operator visibles en respuesta/JWT sanitizados.", "Ejecutada OK", "EV-FUNC-039", "DEF-UAT-015", "Alta", "Cerrado para UAT controlado; evaluar usuario operador separado antes de productivo."),
-        ("UAT-OP-019", "NACHA-M", "Validar NACHA-M layouts", "Revisar layout general.", "Admin/QA", "Endpoint/proxy OK", "Archivo sintetico", "Ejecutar validacion.", "Resultado conforme.", "", "Pendiente", "", "DEF-UAT-020", "Alta", ""),
+        ("UAT-OP-019", "NACHA-M", "Validar NACHA-M layouts", "Revisar layout general.", "Admin/QA", "Endpoint/proxy OK", "Archivo sintetico", "Ejecutar validacion.", "Resultado conforme.", "", "Bloqueada", "", "DEF-UAT-020", "Alta", "UAT integrado 2026-05-19 no obtuvo archivo NACHA-M valido."),
         ("UAT-OP-020", "NACHA-M", "Validar NACHA-M registro 1 sintetico", "Validar header.", "Admin/QA", "Archivo sintetico", "Registro 1", "Validar campos.", "Conforme o defecto.", "", "Pendiente", "", "DEF-UAT-020", "Alta", ""),
         ("UAT-OP-021", "NACHA-M", "Validar NACHA-M registro 5 sintetico", "Validar batch header.", "Admin/QA", "Archivo sintetico", "Registro 5", "Validar campos.", "Conforme o defecto.", "", "Pendiente", "", "DEF-UAT-020", "Alta", ""),
         ("UAT-OP-022", "NACHA-M", "Validar NACHA-M registro 6 sintetico", "Validar entry detail.", "Admin/QA", "Archivo sintetico", "Registro 6", "Validar campos.", "Conforme o defecto.", "", "Pendiente", "", "DEF-UAT-020", "Alta", ""),
@@ -428,6 +428,8 @@ def generate_excel() -> None:
         ("UAT-OP-028", "Seguridad", "Validar sobre digital/certificados", "Validar flujo sin certificados privados.", "Seguridad", "Alcance definido", "Certificados de prueba", "Ejecutar prueba segura.", "Evidencia o waiver.", "", "Bloqueada", "", "SOBRE-DIGITAL", "Alta", "No usar certificados productivos."),
         ("UAT-OP-029", "Operacion", "Validar backup/restore", "Ejecutar recuperacion controlada.", "SRE", "Ambiente controlado", "Backup de prueba", "Ejecutar restore/rollback.", "Recuperacion documentada.", "", "Bloqueada", "", "BKP-RESTORE", "Alta", "Pendiente."),
         ("UAT-OP-030", "Actas", "Validar acta y cierre de evidencias", "Cerrar paquete UAT.", "QA/PMO", "Evidencias completas", "N/A", "Revisar acta.", "Acta firmada o pendiente formal.", "", "Pendiente", "", "ACTAS", "Alta", ""),
+        ("UAT-OP-031", "NACHA-M", "Validar archivo NACHA-M no vacio por camara", "Confirmar que ACH Colombia y CENIT generan archivo real UAT por sistema.", "Admin/QA", "Transacciones exportables y prenotificacion previa cumplida", "Datos sinteticos", "Generar por /NachaExport o nacha-security y revisar size/hash/registros.", "Archivo > 0 bytes, no HTML/JSON error, registros 1/5/6/8/9.", "", "Bloqueada", "docs/uat/evidencias/nacha-m-uat/", "DEF-UAT-021", "Alta", ""),
+        ("UAT-OP-032", "SOAP", "Validar Proc_Contrapartidas dry-run/mock", "Confirmar que el job SOAP no usa endpoint externo no autorizado.", "Admin/Integracion", "Endpoint UAT/mock o dry-run configurado", "Payload sintetico", "Ejecutar dry-run autorizado y revisar request/response sanitizado.", "Sin transmision productiva; XML bien formado y auditado.", "", "Bloqueada", "docs/uat/evidencias/soap-proc-contrapartidas/", "DEF-UAT-022", "Alta", ""),
     ]
     ws_pruebas = add_sheet("Set_Pruebas_Operativas", pruebas_headers, prueba_specs)
 
@@ -443,7 +445,9 @@ def generate_excel() -> None:
     defectos_headers = ["ID Defecto", "ID Prueba", "Módulo", "Severidad", "Descripción", "Evidencia", "Responsable", "Estado", "Fecha apertura", "Fecha cierre", "Decisión", "Observación"]
     defectos_rows = [
         ("DEF-UAT-015", "UAT-OP-018", "Roles", "Alta", "ACH.Operator no asignado/no visible.", "EV-FUNC-039", "Seguridad/Backend", "Cerrado", "2026-05-18", "2026-05-19", "Opcion A: admin demo multirol para UAT controlado", "No debilita auth; evaluar operador separado para productivo."),
-        ("DEF-UAT-020", "UAT-OP-019", "NACHA-M", "Bloqueante", "NACHA-M 1/5/6/7/8/9 pendiente campo-a-campo.", "", "Arquitectura ACH/QA", "Abierto", "", "", "Pendiente", ""),
+        ("DEF-UAT-020", "UAT-OP-019", "NACHA-M", "Bloqueante", "NACHA-M 1/5/6/7/8/9 pendiente campo-a-campo; UAT integrado no genero archivo valido.", "docs/uat/EVIDENCIAS_NACHA_M_UAT.md", "Arquitectura ACH/QA", "Abierto", "2026-05-19", "", "Pendiente", "Requiere archivo no vacio, matriz y homologacion/waiver."),
+        ("DEF-UAT-021", "UAT-OP-031", "NACHA-M", "Alta", "/NachaExport devuelve 200 con archivo vacio en escenario no exportable.", "docs/uat/evidencias/nacha-m-uat/", "Backend/QA", "Abierto", "2026-05-19", "", "Pendiente", "Debe retornar error controlado o archivo valido."),
+        ("DEF-UAT-022", "UAT-OP-032", "SOAP", "Alta", "Proc_Contrapartidas requiere UAT/mock o guardrail dry-run; job intento endpoint externo no resoluble.", "docs/uat/EVIDENCIAS_SOAP_PROC_CONTRAPARTIDAS.md", "Integracion/DevOps/Seguridad", "Abierto", "2026-05-19", "", "Pendiente", "No hubo transmision exitosa."),
         ("CENIT-CUD", "UAT-OP-027", "CENIT", "Bloqueante", "CENIT/CUD pendiente.", "", "Integracion/Negocio", "Abierto", "", "", "Pendiente", ""),
         ("SOBRE-DIGITAL", "UAT-OP-028", "Seguridad", "Bloqueante", "Sobre digital/firma/certificados pendiente.", "", "Seguridad/Integracion", "Abierto", "", "", "Pendiente", ""),
         ("BKP-RESTORE", "UAT-OP-029", "Operacion", "Bloqueante", "Backup/restore/rollback pendiente.", "", "Operaciones/SRE", "Abierto", "", "", "Pendiente", ""),
@@ -472,7 +476,8 @@ def generate_excel() -> None:
         ("Runtime Docker", "OK", "Docker runtime", "No", "Mantener runtime estable", "DevOps/SRE", ""),
         ("UAT tecnico", "OK con observaciones", "Docs UAT tecnico", "No", "Sin regresiones", "QA", ""),
         ("UAT funcional", "PARCIALMENTE OK", "Docs UAT funcional", "Si", "UAT formal firmado", "QA/Negocio", ""),
-        ("NACHA-M campo-a-campo", "PENDIENTE", "Matriz NACHA-M", "Si", "Registros 1/5/6/7/8/9 validados", "Arquitectura ACH", ""),
+        ("NACHA-M campo-a-campo", "BLOQUEADO", "Matriz NACHA-M / evidencias 0 bytes", "Si", "Registros 1/5/6/7/8/9 validados con archivo no vacio", "Arquitectura ACH", "Resolver DEF-UAT-020/021."),
+        ("Proc_Contrapartidas dry-run/mock", "PARCIAL", "Envelopes XML sanitizados", "Si", "Endpoint UAT/mock o dry-run con no transmision", "Integracion/DevOps", "Resolver DEF-UAT-022."),
         ("CENIT/CUD", "PENDIENTE", "Brechas", "Si", "Validacion o waiver", "Integracion", ""),
         ("Sobre digital", "PENDIENTE", "Brechas", "Si", "Firma/certificados validados", "Seguridad", ""),
         ("Certificados", "PENDIENTE", "Revision seguridad", "Si", "Certificados de prueba y custodia aprobada", "Seguridad", ""),
