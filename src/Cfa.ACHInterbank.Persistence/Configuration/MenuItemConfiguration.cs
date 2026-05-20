@@ -37,6 +37,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int IntegrationsId = 29;
     public const int SoapIntegrationSettingsId = 30;
     public const int TransactionsReturnsId = 31;
+    public const int ClearingHouseTransactionRulesId = 32;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -403,6 +404,18 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Route = "/transactions/returns",
                 Icon = "assignment_return",
                 Order = 5,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = ClearingHouseTransactionRulesId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = TransactionsId,
+                Label = "Reglas por camara",
+                Route = "/transactions/clearing-house-rules",
+                Icon = "rule",
+                Order = 6,
                 Exact = true,
                 IsActive = true
             },

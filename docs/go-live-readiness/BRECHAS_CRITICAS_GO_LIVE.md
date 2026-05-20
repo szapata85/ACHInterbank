@@ -54,3 +54,6 @@ Se implemento configuracion administrable de reglas de prenotificacion por camar
 - `docs/go-live-readiness/MATRIZ_REGLAS_PRENOTIFICACION_POR_CAMARA.md`
 
 La brecha G-28/DEF-UAT-020 sigue abierta hasta generar archivo NACHA-M UAT no vacio con prenotificacion valida por camara. Productivo permanece **NO-GO**.
+## Actualizacion 2026-05-20 - NACHA-M UAT no vacio
+
+DEF-UAT-020 mejora de abierto bloqueado a **parcial tecnico**: se generaron archivos NACHA-M UAT no vacios por ACH Colombia y CENIT desde el sistema. Persisten brechas bloqueantes para productivo: transaccion debito monetaria post-prenotificacion madura por 3 dias habiles, validacion normativa campo-a-campo, homologacion/waiver y UAT formal con actas.

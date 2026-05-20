@@ -16,3 +16,16 @@ Productivo: **NO-GO**
 - La matriz no sustituye homologacion externa.
 - La regla CENIT no fue inferida desde ACH Colombia; se respaldo en DSP-152 Anexo 2.
 - DEF-UAT-020 sigue abierto hasta generar archivos NACHA-M no vacios por sistema y validar registros 1/5/6/7/8/9.
+
+## Revalidacion runtime 2026-05-20
+
+Las 4 reglas aparecen activas en PostgreSQL y el endpoint `POST /api/transaction-prerequisite-policy/preview` responde:
+
+| Caso | Decision | Resultado |
+|---|---|---|
+| ACH Colombia Debito | `PRENOTIFICATION_REQUIRED` | OK |
+| ACH Colombia Credito | `PRENOTIFICATION_OPTIONAL` | OK |
+| CENIT Debito | `PRENOTIFICATION_REQUIRED` | OK |
+| CENIT Credito | `PRENOTIFICATION_OPTIONAL` | OK |
+
+Se generaron archivos NACHA-M UAT no vacios por camara con prenotificacion debito sintetica y transaccion credito opcional. Sigue pendiente debito monetario post-prenotificacion madura por 3 dias habiles.

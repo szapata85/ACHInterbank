@@ -32,3 +32,6 @@ Estado general: Brechas bloqueantes para productivo
 ## Parametrizacion Reglas Camara 2026-05-19
 
 Se implemento `ClearingHouseTransactionRule` para reglas de prenotificacion por ACH Colombia/CENIT y naturaleza debit/credit. La brecha DEF-UAT-020 queda mejor acotada, pero sigue abierta hasta generar NACHA-M UAT no vacio con prenotificacion valida y validar campo-a-campo.
+## Actualizacion 2026-05-20
+
+La brecha NACHA-M pasa a estado **parcial tecnico**: existen archivos UAT no vacios generados por sistema para ACH Colombia y CENIT. Sigue bloqueando productivo hasta validar debitos monetarios post-prenotificacion madura, campo-a-campo, homologacion/waiver y actas.

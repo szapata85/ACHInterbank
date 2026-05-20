@@ -35,3 +35,9 @@ La pantalla consume endpoints protegidos. La lectura requiere permiso de configu
 ## Observaciones
 
 No se cambio Nginx porque los nuevos endpoints usan prefijo `/api`, ya cubierto por el proxy SPA Docker.
+## Revalidacion runtime 2026-05-20
+
+- Ruta Angular `/transactions/clearing-house-rules`: disponible por fallback SPA.
+- Menu dinamico `/navigation/menu`: incluye `/transactions/clearing-house-rules` bajo Transacciones para `admin` multirol.
+- APIs consumidas por pantalla: `/api/clearing-house-transaction-rules` y `/api/transaction-prerequisite-policy/preview` responden con Bearer.
+- Validacion visual automatizada con navegador integrado: no ejecutada en esta sesion; queda cubierta por validacion HTTP/API y pendiente de evidencia visual manual.

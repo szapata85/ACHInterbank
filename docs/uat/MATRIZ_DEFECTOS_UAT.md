@@ -63,3 +63,22 @@ Se implemento parametrizacion tecnica de reglas de prenotificacion por camara/na
 - Pantalla SPA `/transactions/clearing-house-rules`.
 
 DEF-UAT-020 permanece **Abierto/Parcial**: la parametrizacion es prerequisito para reintento, pero falta crear prenotificaciones UAT validas y generar archivos NACHA-M no vacios por ACH Colombia y CENIT.
+
+## Actualizacion DEF-UAT-020 - 2026-05-20
+
+Se reintento en runtime Docker con reglas por camara/naturaleza aplicadas:
+
+- Menu dinamico incluye `/transactions/clearing-house-rules` para usuario demo `admin` con roles `Admin, ACH.Operator`.
+- `ClearingHouseTransactionRules`: 4 reglas activas en runtime.
+- CFA/Cooperativa Financiera de Antioquia: unica institucion `IsDefaultSource=true`.
+- Prenotificaciones UAT debito creadas por API:
+  - ACH Colombia: `UAT-ACH-PRE-001`, TransactionId 246, codigo NACHA `28`.
+  - CENIT: `UAT-CEN-PRE-001`, TransactionId 247, codigo NACHA `28`.
+- Transacciones credito opcionales creadas por API:
+  - ACH Colombia: `UAT-ACH-CRED-001`, TransactionId 248.
+  - CENIT: `UAT-CEN-CRED-001`, TransactionId 249.
+- Archivos NACHA-M UAT no vacios generados por `/NachaExport/{cycleId}`:
+  - ACH Colombia: 1060 bytes, SHA256 `8EA137CBDCEA6CC4280E5183A66FD29983FE0BF0D4F42732A477AC18DD211844`.
+  - CENIT: 1060 bytes, SHA256 `248205FCE69769B8047FEED94346E2E9910918B386D553BC46D6F1218B3D125C`.
+
+Estado actualizado: **Abierto/Parcial**. Avanza la generacion tecnica no vacia por camara, pero sigue pendiente transaccion debito monetaria con prenotificacion ya madura por 3 dias habiles y homologacion campo-a-campo/waiver.

@@ -69,3 +69,11 @@ Estado tras UAT integrado NACHA/SOAP: **UAT tecnico autenticado basico OK con ob
 | Reglas de prenotificacion parametrizadas por camara | OK tecnico | Backend/API/SPA implementados; requiere validacion runtime con migracion aplicada. |
 | DEF-UAT-020 NACHA-M campo-a-campo | Parcial | Parametrizacion completada, archivo no vacio sigue pendiente. |
 | Productivo | NO-GO | Persisten UAT formal, CENIT/CUD, sobre digital, backup/restore y homologaciones. |
+## Actualizacion 2026-05-20
+
+- Menu `Transacciones > Reglas por camara`: OK runtime.
+- Reglas por camara/naturaleza: OK runtime.
+- NACHA-M UAT no vacio ACH Colombia/CENIT: OK tecnico parcial.
+- NACHA-M debito post-prenotificacion madura: pendiente.
+- Homologacion campo-a-campo/waiver: pendiente.
+- Productivo: **NO-GO**.

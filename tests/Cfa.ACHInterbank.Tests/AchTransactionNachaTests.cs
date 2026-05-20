@@ -618,8 +618,8 @@ public class AchTransactionNachaTests
 
             var prenote = await arrangeContext.AchTransactions
                 .SingleAsync(t => t.Reference == "PRE-RECAUDO-SERVICIO");
+            Assert.Equal("28", prenote.TransactionCode);
             prenote.EffectiveEntryDate = DateTime.Today.AddDays(-5);
-            prenote.TransactionCode = "28";
             arrangeContext.AchTransactions.Update(prenote);
             await arrangeContext.SaveChangesAsync();
         }

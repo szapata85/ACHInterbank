@@ -92,3 +92,6 @@ La parametrizacion de reglas por camara mejora readiness tecnico de NACHA-M, per
 | UAT y evidencias | Sigue parcial: falta archivo NACHA-M no vacio. |
 | Seguridad/operacion | Sin cambio productivo; endpoints protegidos. |
 | Readiness final | **NO-GO**. |
+## Ajuste 2026-05-20
+
+Se reconoce avance tecnico en DEF-UAT-020 por generacion de archivos NACHA-M UAT no vacios para ACH Colombia y CENIT, pero sin subir a estado GO: falta maduracion de prenotificacion para debito monetario, homologacion campo-a-campo, CENIT/CUD formal, certificados/sobre digital productivo y actas. Productivo permanece **NO-GO**.

@@ -96,3 +96,14 @@ Se implemento parametrizacion administrable para reglas de prenotificacion por c
 | CENIT | Credito | Prenotificacion no obligatoria/opcional | DSP-152 Anexo 2 | Implementada por seed; no bloquea export por ausencia de prenotificacion. |
 
 La validacion campo-a-campo de registros 1/5/6/7/8/9 sigue pendiente hasta generar archivos NACHA-M UAT no vacios por el sistema.
+
+## Revalidacion 2026-05-20 - Archivos UAT no vacios
+
+Se generaron archivos NACHA-M UAT no vacios por sistema para ambas camaras usando transacciones sinteticas. El alcance de esta evidencia es tecnico: confirma generacion, registros requeridos y no transmision externa. La homologacion normativa campo-a-campo sigue pendiente.
+
+| Camara | Archivo | Bytes | Registros | Estado tecnico | Estado normativo |
+|---|---|---:|---|---|---|
+| ACH Colombia | `docs/uat/evidencias/nacha-m-uat/ach-colombia/nacha-m-uat-ach-colombia-20260520.ach` | 1060 | 1/5/6/7/8/9 presentes | OK parcial | Pendiente homologacion/waiver |
+| CENIT | `docs/uat/evidencias/nacha-m-uat/cenit/nacha-m-uat-cenit-20260520.ach` | 1060 | 1/5/6/7/8/9 presentes | OK parcial | Pendiente homologacion/waiver |
+
+Transacciones debit post-prenotificacion: pendientes. Las prenotificaciones creadas tienen fecha efectiva 2026-05-20; el sistema conserva la restriccion de 3 dias habiles y no se aplico backdating.

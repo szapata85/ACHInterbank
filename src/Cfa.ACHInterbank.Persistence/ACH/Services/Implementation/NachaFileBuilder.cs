@@ -2100,6 +2100,11 @@ public class NachaFileBuilder : INachaFileBuilder
                     continue;
                 }
 
+                if (!RequiresLegacyMandatoryPrenote(tx.TransactionCode))
+                {
+                    continue;
+                }
+
                 if (prenoteDate is null)
                 {
                     throw new InvalidOperationException($"La transacción {tx.Id} no tiene prenotificación previa.");
@@ -2113,6 +2118,9 @@ public class NachaFileBuilder : INachaFileBuilder
             }
         }
     }
+
+    private static bool RequiresLegacyMandatoryPrenote(string transactionCode)
+        => transactionCode is "27" or "37" or "55";
 
     private async Task<DateTime?> GetPrenoteDateAsync(AchTransaction tx, CancellationToken ct)
     {

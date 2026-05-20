@@ -20,3 +20,6 @@ El UAT integrado NACHA/SOAP avanzo en transacciones sinteticas por camara, evide
 ## Nota De Parametrizacion 2026-05-19
 
 La fase previa al reintento NACHA-M ahora incluye aplicar la migracion `AddClearingHouseTransactionRules`, validar seeds ACH Colombia/CENIT y operar la pantalla `Transacciones > Reglas por camara` para confirmar reglas vigentes antes de crear prenotificaciones UAT.
+## Actualizacion 2026-05-20
+
+Agregar al plan de cierre NACHA-M: usar las prenotificaciones UAT `UAT-ACH-PRE-001` y `UAT-CEN-PRE-001` una vez cumplan 3 dias habiles, crear debitos monetarios posteriores y repetir exportacion no vacia con validacion campo-a-campo.

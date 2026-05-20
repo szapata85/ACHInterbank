@@ -34,6 +34,11 @@ public class NachaTransactionValidationService : INachaTransactionValidationServ
             if (!tx.IsPrenotification)
             {
                 var prenoteDate = GetPrenoteDate(tx, prenoteLookup);
+                if (!RequiresLegacyMandatoryPrenote(tx.TransactionCode))
+                {
+                    continue;
+                }
+
                 if (prenoteDate is null)
                 {
                     throw new InvalidOperationException($"La transacción {tx.Id} no tiene prenotificación previa.");
@@ -47,6 +52,9 @@ public class NachaTransactionValidationService : INachaTransactionValidationServ
             }
         }
     }
+
+    private static bool RequiresLegacyMandatoryPrenote(string transactionCode)
+        => transactionCode is "27" or "37" or "55";
 
     private static DateTime? GetPrenoteDate(AchTransaction tx, IReadOnlyDictionary<PrenoteLookupKey, DateTime> prenoteLookup)
     {

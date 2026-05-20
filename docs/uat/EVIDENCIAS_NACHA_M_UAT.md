@@ -58,3 +58,16 @@ Se agrego soporte tecnico para que NACHA Export consulte reglas parametrizadas d
 - Tests focalizados: `TransactionPrerequisitePolicyServiceTests`, `RegulatoryCatalogSeederTests`.
 
 Resultado: la ausencia de regla o de prenotificacion obligatoria se trata como prerequisito funcional controlado; no se habilito bypass ni backdating.
+
+## Evidencia 2026-05-20 - Runtime UAT con reglas aplicadas
+
+Se revalido runtime Docker despues de aplicar la migracion `AddClearingHouseRulesMenuAndRuntimeSeeds` y correcciones acotadas de prerequisitos NACHA.
+
+| Camara | Prenotificacion UAT | Transaccion credito UAT | Ciclo | Resultado export | Archivo | SHA256 |
+|---|---:|---:|---|---|---|---|
+| ACH Colombia | 246 (`UAT-ACH-PRE-001`) | 248 (`UAT-ACH-CRED-001`) | `7301fd9bf4c1bd7383399cd9d844fd1ccbd97649` | HTTP 200, 1060 bytes, 10 registros | `docs/uat/evidencias/nacha-m-uat/ach-colombia/nacha-m-uat-ach-colombia-20260520.ach` | `8EA137CBDCEA6CC4280E5183A66FD29983FE0BF0D4F42732A477AC18DD211844` |
+| CENIT | 247 (`UAT-CEN-PRE-001`) | 249 (`UAT-CEN-CRED-001`) | `52933d1ba0406af3e64800e809c5e73bab36dddd` | HTTP 200, 1060 bytes, 10 registros | `docs/uat/evidencias/nacha-m-uat/cenit/nacha-m-uat-cenit-20260520.ach` | `248205FCE69769B8047FEED94346E2E9910918B386D553BC46D6F1218B3D125C` |
+
+Registros detectados en ambos archivos: 1:1, 5:1, 6:2, 7:2, 8:1, 9:3. Los archivos fueron generados por `/NachaExport/{cycleId}`, no manualmente, y no se transmitieron a camaras externas.
+
+Limitacion controlada: no se creo transaccion debito monetaria post-prenotificacion porque la prenotificacion efectiva es 2026-05-20 y la regla exige 3 dias habiles. Crear un debito exportable en la misma sesion requeriria backdating o esperar la ventana normativa; no se hizo bypass.

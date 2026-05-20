@@ -37,3 +37,15 @@ ACH Colombia NACHA-M no queda cerrado. Requiere prenotificacion UAT valida, arch
 | Credito | Opcional | MAN-004 V32, secciones 2.10.2, 2.10.3, 2.10.3.1, 2.10.3.2 | `ClearingHouseTransactionRule` seed ACH Colombia Credit | Implementada para UAT controlado |
 
 Pendiente: crear prenotificacion UAT valida para debitos y reintentar archivo NACHA-M no vacio por sistema.
+## Evidencia runtime 2026-05-20
+
+Archivo generado por sistema: `docs/uat/evidencias/nacha-m-uat/ach-colombia/nacha-m-uat-ach-colombia-20260520.ach`.
+
+| Control | Resultado |
+|---|---|
+| HTTP `/NachaExport/{cycleId}` | 200 |
+| Tamano | 1060 bytes |
+| SHA256 | `8EA137CBDCEA6CC4280E5183A66FD29983FE0BF0D4F42732A477AC18DD211844` |
+| Registros | 1:1, 5:1, 6:2, 7:2, 8:1, 9:3 |
+| Transmision externa | No |
+| Estado | OK tecnico parcial; homologacion campo-a-campo pendiente |

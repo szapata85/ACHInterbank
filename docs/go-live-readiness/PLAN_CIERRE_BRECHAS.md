@@ -66,3 +66,11 @@ Esta actualizacion aplico solo cambios acotados de seguridad/configuracion/docum
 | 5 | Reintentar NACHA-M por ACH Colombia y CENIT. | Pendiente. |
 | 6 | Validar registros 1/5/6/7/8/9, totales/hash/block count. | Pendiente. |
 | 7 | Obtener homologacion/waiver/acta formal. | Pendiente. |
+## Actualizacion 2026-05-20
+
+Siguiente cierre para DEF-UAT-020:
+
+1. Esperar ventana normativa de 3 dias habiles desde las prenotificaciones UAT `UAT-ACH-PRE-001` y `UAT-CEN-PRE-001`, o ejecutar en ambiente UAT con prenotificaciones historicas validas aprobadas por negocio/camara.
+2. Crear transacciones debito monetarias post-prenotificacion sin backdating.
+3. Regenerar NACHA-M por ACH Colombia y CENIT.
+4. Diligenciar matriz campo-a-campo y obtener homologacion/waiver.

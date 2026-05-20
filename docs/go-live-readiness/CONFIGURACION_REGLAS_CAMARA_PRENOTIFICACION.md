@@ -57,3 +57,10 @@ Menu: `Transacciones > Reglas por camara`
 ## Control Normativo
 
 Toda regla requiere fuente y referencia normativa. La modificacion de reglas debe quedar sujeta a aprobacion de compliance/operaciones antes de preproductivo/productivo.
+## Revalidacion runtime 2026-05-20
+
+- Pantalla SPA: `/transactions/clearing-house-rules` responde como ruta Angular.
+- Menu dinamico: `/navigation/menu` incluye `Transacciones > Reglas por camara`.
+- API reglas: `/api/clearing-house-transaction-rules` devuelve 4 reglas activas.
+- Preview politica: ACH Colombia y CENIT aplican debito obligatorio y credito opcional.
+- Productivo: **NO-GO**.
