@@ -119,3 +119,20 @@ Se ejecuto UAT controlado de prenotificaciones CFA:
 - Archivos no vacios generados por `/NachaExport/{cycleId}`; patron `RRRRTTT.ZZZ.1`, campo 7 y hash validados.
 
 Estado: **OK tecnico UAT para prenotificaciones CFA; DEF-UAT-020 permanece parcial normativo por homologacion formal CENIT/campo-a-campo externo**.
+
+## Actualizacion 2026-05-20 - Simulador NACHA-M de Entrada
+
+Se implemento funcionalidad UAT/local para generar archivos NACHA-M de entrada sinteticos y descargables, separados del flujo real de procesamiento.
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-024 Simulador NACHA-M entrada inexistente | Cerrado tecnico UAT | `/api/uat/nacha-inbound-simulator`, `/uat/nacha-inbound-simulator` | Solo genera archivos; procesamiento posterior por NachaUpload |
+| DEF-UAT-020 NACHA-M campo-a-campo | Parcial | Simulador aporta datos de entrada controlados | Sigue pendiente validacion real por carga NachaUpload y homologacion normativa |
+
+Guardrails confirmados por diseno:
+
+- `generatedOnly=true`.
+- `autoImported=false`.
+- `uploadRequired=true`.
+- `externalTransmission=false`.
+- Productivo sigue **NO-GO**.

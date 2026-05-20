@@ -1,0 +1,14 @@
+﻿{
+    "simulationId":  "b520c4c4-cbf0-4c16-838b-d8a245dfa088",
+    "id":  1,
+    "fileName":  "99999001.001.1",
+    "downloadUrl":  "/api/uat/nacha-inbound-simulator/1/file",
+    "evidenceUrl":  "/api/uat/nacha-inbound-simulator/1/evidence",
+    "sha256":  "46173BD50F7864961103237C6A107B4408DBAAE1FD3089A3F963FF02721B4122",
+    "fileSizeBytes":  1060,
+    "generatedOnly":  true,
+    "autoImported":  false,
+    "uploadRequired":  true,
+    "externalTransmission":  false,
+    "message":  "Archivo NACHA-M de entrada generado. Debe cargarse manualmente por NachaUpload; no se importo ni se cambiaron estados."
+}

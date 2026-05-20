@@ -92,3 +92,12 @@ Se genero evidencia UAT de prenotificaciones CFA por ACH Colombia y CENIT:
 - CENIT: `UAT-CEN-PRE-CFA-001`, TransactionId 257, archivo `0001283.002.1`, codigo NACHA `28`, SHA256 `B36BE4DB8A9EC2E3384A69A06CC0866BF24E05A2E6886B056498E361236A024C`.
 
 Estado de brecha: **DEF-UAT-020 queda OK tecnico UAT para prenotificaciones CFA y permanece parcial normativo por homologacion formal CENIT/campo-a-campo externo**. Productivo sigue **NO-GO**.
+
+## Actualizacion 2026-05-20 - Simulador NACHA-M de Entrada
+
+| Brecha | Estado | Impacto | Accion requerida |
+|---|---|---|---|
+| Falta de archivos inbound sinteticos para ejecutar NachaUpload UAT | Cerrada tecnicamente para UAT/local | Permite preparar insumos de carga manual | Ejecutar carga real por NachaUpload y registrar resultados |
+| Validacion real de procesamiento inbound | Abierta | Bloquea GO productivo | Cargar manualmente archivos generados y validar estados/auditoria |
+
+El simulador queda deshabilitado por defecto fuera de Development/UAT, no transmite externamente y no importa automaticamente. Productivo continua **NO-GO**.

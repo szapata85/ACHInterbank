@@ -878,6 +878,29 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
+                            Id = 33,
+                            Exact = false,
+                            Icon = "science",
+                            IsActive = true,
+                            Label = "UAT / Simuladores",
+                            MenuId = 1,
+                            Order = 11,
+                            Route = "/uat"
+                        },
+                        new
+                        {
+                            Id = 34,
+                            Exact = true,
+                            Icon = "file_download",
+                            IsActive = true,
+                            Label = "Simulador NACHA-M Entrada",
+                            MenuId = 1,
+                            Order = 1,
+                            ParentId = 33,
+                            Route = "/uat/nacha-inbound-simulator"
+                        },
+                        new
+                        {
                             Id = 22,
                             Exact = true,
                             Icon = "history",
@@ -1125,6 +1148,26 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         },
                         new
                         {
+                            MenuItemId = 33,
+                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
+                        },
+                        new
+                        {
+                            MenuItemId = 33,
+                            PermissionId = new Guid("4f0cbde9-1b2e-4ad8-b8e6-62f0a1cd6cf7")
+                        },
+                        new
+                        {
+                            MenuItemId = 34,
+                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
+                        },
+                        new
+                        {
+                            MenuItemId = 34,
+                            PermissionId = new Guid("4f0cbde9-1b2e-4ad8-b8e6-62f0a1cd6cf7")
+                        },
+                        new
+                        {
                             MenuItemId = 18,
                             PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
                         },
@@ -1238,6 +1281,26 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         new
                         {
                             MenuItemId = 32,
+                            RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56")
+                        },
+                        new
+                        {
+                            MenuItemId = 33,
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
+                        },
+                        new
+                        {
+                            MenuItemId = 33,
+                            RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56")
+                        },
+                        new
+                        {
+                            MenuItemId = 34,
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
+                        },
+                        new
+                        {
+                            MenuItemId = 34,
                             RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56")
                         },
                         new
@@ -7884,6 +7947,208 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.ToTable("NachaHeaders", (string)null);
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaInboundSimulation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<bool>("AutoImported")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("ClearingHouseId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ClearingHouseName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("CycleCode")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("DestinationFinancialInstitutionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EntriesCount")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("ExternalTransmission")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("GeneratedOnly")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("MetadataJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("OriginFinancialInstitutionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ReasonCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("ResponseMode")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("ScenarioType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("SimulationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("UploadRequired")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("DestinationFinancialInstitutionId");
+
+                    b.HasIndex("FileName");
+
+                    b.HasIndex("OriginFinancialInstitutionId");
+
+                    b.HasIndex("SimulationId")
+                        .IsUnique();
+
+                    b.HasIndex("ClearingHouseId", "ScenarioType");
+
+                    b.ToTable("NachaInboundSimulations", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaInboundSimulationEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AccountNumberMasked")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ExpectedStatusAfterUpload")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<bool>("IsSynthetic")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<int>("NachaInboundSimulationId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Nature")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("PrenotificationReference")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("PreviousStatus")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("ReasonCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int?>("TransactionId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NachaInboundSimulationId");
+
+                    b.ToTable("NachaInboundSimulationEntries", (string)null);
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordDefinition", b =>
                 {
                     b.Property<int>("Id")
@@ -10690,6 +10955,44 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Navigation("IncomingNachaFileIngestion");
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaInboundSimulation", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
+                        .WithMany()
+                        .HasForeignKey("ClearingHouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.FinancialInstitution", "DestinationFinancialInstitution")
+                        .WithMany()
+                        .HasForeignKey("DestinationFinancialInstitutionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.FinancialInstitution", "OriginFinancialInstitution")
+                        .WithMany()
+                        .HasForeignKey("OriginFinancialInstitutionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ClearingHouse");
+
+                    b.Navigation("DestinationFinancialInstitution");
+
+                    b.Navigation("OriginFinancialInstitution");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaInboundSimulationEntry", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.NachaInboundSimulation", "Simulation")
+                        .WithMany("Entries")
+                        .HasForeignKey("NachaInboundSimulationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Simulation");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordField", b =>
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordLayout", "Layout")
@@ -11120,6 +11423,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Navigation("EntryDetails");
 
                     b.Navigation("FileControls");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaInboundSimulation", b =>
+                {
+                    b.Navigation("Entries");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.NachaRecordLayout", b =>

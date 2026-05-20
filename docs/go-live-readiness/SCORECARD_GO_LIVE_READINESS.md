@@ -132,3 +132,16 @@ Observacion normativa:
 
 - ACH Colombia se valida contra MAN-004 V32.
 - CENIT se valida tecnicamente con ejemplos disponibles en el proyecto y queda pendiente homologacion normativa formal.
+
+## Actualizacion 2026-05-20 - Simulador NACHA-M Entrada
+
+Impacto en scorecard: mejora capacidad UAT controlada, sin cambiar la decision productiva.
+
+| Categoria | Estado | Observacion |
+|---|---|---|
+| UAT y evidencias | Mejora tecnica | Hay generador inbound para preparar archivos de carga manual |
+| Seguridad/guardrails | OK tecnico | Simulador deshabilitado por defecto fuera de Development/UAT; sin transmision externa |
+| Interoperabilidad externa | Pendiente | No reemplaza homologacion de ACH Colombia/CENIT |
+| Operacion | Pendiente | Requiere ejecucion NachaUpload y acta de evidencias |
+
+Productivo permanece **NO-GO**.

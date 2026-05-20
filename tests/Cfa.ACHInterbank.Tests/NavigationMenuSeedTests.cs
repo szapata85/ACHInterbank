@@ -34,6 +34,27 @@ public class NavigationMenuSeedTests
             && x.PermissionId == PermissionConfiguration.ReadAchPermissionId));
     }
 
+    [Fact]
+    public async Task MainMenuSeed_ShouldExposeNachaInboundSimulatorUnderUat()
+    {
+        await using var context = CreateContext();
+
+        var menuItem = await context.MenuItems
+            .AsNoTracking()
+            .SingleAsync(x => x.Route == "/uat/nacha-inbound-simulator");
+
+        Assert.Equal(MenuItemConfiguration.NachaInboundSimulatorId, menuItem.Id);
+        Assert.Equal(MenuItemConfiguration.UatSimulatorsId, menuItem.ParentId);
+        Assert.True(menuItem.IsActive);
+
+        Assert.True(await context.MenuItemRoles.AnyAsync(x =>
+            x.MenuItemId == MenuItemConfiguration.NachaInboundSimulatorId
+            && x.RoleId == RoleConfiguration.AdminRoleId));
+        Assert.True(await context.MenuItemRoles.AnyAsync(x =>
+            x.MenuItemId == MenuItemConfiguration.NachaInboundSimulatorId
+            && x.RoleId == RoleConfiguration.OperatorRoleId));
+    }
+
     private static AchDbContext CreateContext()
     {
         var connection = new SqliteConnection("DataSource=:memory:");

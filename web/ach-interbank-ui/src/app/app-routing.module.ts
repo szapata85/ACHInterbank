@@ -151,6 +151,17 @@ const routes: Routes = [
         loadChildren: () => import('./features/nacha-config-admin/nacha-config-admin.module').then((m) => m.NachaConfigAdminModule)
       },
       {
+        path: 'uat',
+        canActivate: [roleGuard, permissionGuard],
+        data: {
+          roles: ['Admin', 'ACH.Operator'],
+          permissions: ['CanManageAch', 'CanReadAch'],
+          breadcrumb: 'UAT',
+          title: 'Simuladores UAT'
+        },
+        loadChildren: () => import('./features/uat/uat.module').then((m) => m.UatModule)
+      },
+      {
         path: 'incoming-nacha-command-center',
         canActivate: [roleGuard, permissionGuard],
         data: {

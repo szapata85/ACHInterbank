@@ -600,12 +600,54 @@ public class FinancialInstitutionSeeder : IDbSeeder
 
             _context.FinancialInstitutions.AddRange(institutions);
             await _context.SaveChangesAsync();
+            await EnsureSyntheticExternalInstitutionsAsync();
             await EnsureSingleDefaultSourceAsync();
             return;
         }
 
         // ✅ Garantizar que exista una entidad por defecto dentro de los registros actuales
+        await EnsureSyntheticExternalInstitutionsAsync();
         await EnsureSingleDefaultSourceAsync();
+    }
+
+    private async Task EnsureSyntheticExternalInstitutionsAsync()
+    {
+        if (!_environment.IsDevelopment() && !_environment.IsEnvironment("Testing"))
+        {
+            return;
+        }
+
+        var definitions = new[]
+        {
+            new { Name = "Banco UAT Externo ACH", Routing = "99999", Transit = "900" },
+            new { Name = "Banco UAT Externo CENIT", Routing = "99998", Transit = "900" }
+        };
+
+        var changed = false;
+        foreach (var definition in definitions)
+        {
+            if (await _context.FinancialInstitutions.AnyAsync(x => x.Name == definition.Name))
+            {
+                continue;
+            }
+
+            var institution = new FinancialInstitution
+            {
+                Name = definition.Name,
+                RoutingNumber = definition.Routing,
+                TransitCode = definition.Transit,
+                IsDefaultSource = false,
+                Status = FinancialInstitutionStatus.Active
+            };
+            institution.CalculateCheckDigit();
+            _context.FinancialInstitutions.Add(institution);
+            changed = true;
+        }
+
+        if (changed)
+        {
+            await _context.SaveChangesAsync();
+        }
     }
 
     private async Task EnsureSingleDefaultSourceAsync()

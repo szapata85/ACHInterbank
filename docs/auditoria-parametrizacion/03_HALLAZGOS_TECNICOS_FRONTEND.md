@@ -41,3 +41,12 @@ No se cambio Nginx porque los nuevos endpoints usan prefijo `/api`, ya cubierto 
 - Menu dinamico `/navigation/menu`: incluye `/transactions/clearing-house-rules` bajo Transacciones para `admin` multirol.
 - APIs consumidas por pantalla: `/api/clearing-house-transaction-rules` y `/api/transaction-prerequisite-policy/preview` responden con Bearer.
 - Validacion visual automatizada con navegador integrado: no ejecutada en esta sesion; queda cubierta por validacion HTTP/API y pendiente de evidencia visual manual.
+
+## Simulador NACHA-M Entrada - 2026-05-20
+
+- Nueva ruta Angular: `/uat/nacha-inbound-simulator`.
+- Nueva opcion de menu seed: `UAT / Simuladores > Simulador NACHA-M Entrada`.
+- La pantalla permite seleccionar camara, escenario, modo de respuesta, fecha de negocio, ciclo, referencias y causal cuando aplica.
+- La pantalla consume exclusivamente `/api/uat/nacha-inbound-simulator`; no invoca NachaUpload.
+- Mensaje visible obligatorio: el archivo generado debe cargarse posteriormente por NachaUpload.
+- Maneja errores 401/403/422 y muestra codigos funcionales para UAT.

@@ -110,3 +110,12 @@ Observacion normativa:
 | Generar NACHA-M prenotificacion ACH Colombia | OK tecnico UAT | `0001283.004.1` | Adjuntar a acta UAT |
 | Generar NACHA-M prenotificacion CENIT | OK tecnico UAT / parcial normativo | `0001283.002.1` | Obtener validacion/waiver CENIT |
 | Productivo | NO-GO | Brechas abiertas | No someter a GO hasta cierre formal |
+
+## Actualizacion 2026-05-20 - plan para simulador inbound
+
+| Accion | Estado | Entregable | Criterio de cierre |
+|---|---|---|---|
+| Implementar simulador NACHA-M entrada | OK tecnico UAT | API, SPA, EF Code First, menu seed | Genera archivo no vacio sin importar automaticamente |
+| Documentar reglas de respuestas inbound | OK inicial | `MATRIZ_REGLAS_RESPUESTAS_ENTRADA.md` | Reglas visibles para UAT |
+| Ejecutar carga manual NachaUpload con archivos simulados | Pendiente | Evidencia UAT de procesamiento | Estados, auditoria y errores validados |
+| Homologar comportamiento inbound por camara | Pendiente | Acta/waiver | Reglas ACH Colombia/CENIT aprobadas |

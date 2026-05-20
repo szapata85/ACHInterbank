@@ -78,6 +78,26 @@ public class MenuItemRoleConfiguration : IEntityTypeConfiguration<MenuItemRole>
             },
             new MenuItemRole
             {
+                MenuItemId = MenuItemConfiguration.UatSimulatorsId,
+                RoleId = RoleConfiguration.AdminRoleId
+            },
+            new MenuItemRole
+            {
+                MenuItemId = MenuItemConfiguration.UatSimulatorsId,
+                RoleId = RoleConfiguration.OperatorRoleId
+            },
+            new MenuItemRole
+            {
+                MenuItemId = MenuItemConfiguration.NachaInboundSimulatorId,
+                RoleId = RoleConfiguration.AdminRoleId
+            },
+            new MenuItemRole
+            {
+                MenuItemId = MenuItemConfiguration.NachaInboundSimulatorId,
+                RoleId = RoleConfiguration.OperatorRoleId
+            },
+            new MenuItemRole
+            {
                 MenuItemId = MenuItemConfiguration.NachaDefinitionsId,
                 RoleId = RoleConfiguration.AdminRoleId
             },

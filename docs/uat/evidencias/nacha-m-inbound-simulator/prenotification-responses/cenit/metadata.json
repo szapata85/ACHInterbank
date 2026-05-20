@@ -1,0 +1,23 @@
+﻿{
+    "simulationId":  "d3996660-ab20-470a-9987-2d7eea7da2ae",
+    "clearingHouse":  "CENIT",
+    "scenarioType":  "IncomingDebit",
+    "responseMode":  "0",
+    "originFinancialInstitution":  "Banco UAT Destino CENIT",
+    "destinationFinancialInstitution":  "Cooperativa Financiera de Antioquia",
+    "businessDate":  "2026-05-20",
+    "cycleCode":  "Ciclo 3",
+    "fileName":  "99998002.002.1",
+    "sha256":  "219AE7F11050FE7C60C292A1946F051BD52023B92511DC1708A69A1753176D07",
+    "fileSizeBytes":  1060,
+    "recordsDetected":  "1:1, 5:1, 6:1, 7:1, 8:1, 9:5",
+    "blockCount":  1,
+    "entryAddendaCount":  2,
+    "entryHash":  "0000001283",
+    "generatedOnly":  true,
+    "autoImported":  false,
+    "uploadRequired":  true,
+    "uploadFlow":  "NachaUpload",
+    "externalTransmission":  false,
+    "simulatorMode":  "UAT"
+}

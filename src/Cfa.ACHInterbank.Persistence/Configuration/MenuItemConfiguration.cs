@@ -38,6 +38,8 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int SoapIntegrationSettingsId = 30;
     public const int TransactionsReturnsId = 31;
     public const int ClearingHouseTransactionRulesId = 32;
+    public const int UatSimulatorsId = 33;
+    public const int NachaInboundSimulatorId = 34;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -309,6 +311,29 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Icon = "summarize",
                 Order = 10,
                 Exact = false,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = UatSimulatorsId,
+                MenuId = MenuConfiguration.MainMenuId,
+                Label = "UAT / Simuladores",
+                Route = "/uat",
+                Icon = "science",
+                Order = 11,
+                Exact = false,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = NachaInboundSimulatorId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = UatSimulatorsId,
+                Label = "Simulador NACHA-M Entrada",
+                Route = "/uat/nacha-inbound-simulator",
+                Icon = "file_download",
+                Order = 1,
+                Exact = true,
                 IsActive = true
             },
             new MenuItem

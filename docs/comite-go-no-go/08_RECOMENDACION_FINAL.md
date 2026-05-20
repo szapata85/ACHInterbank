@@ -58,3 +58,9 @@ Observacion normativa:
 
 - ACH Colombia se valida contra MAN-004 V32.
 - CENIT se valida tecnicamente con ejemplos disponibles en el proyecto y queda pendiente homologacion normativa formal.
+
+## Actualizacion 2026-05-20 - Simulador NACHA-M Entrada
+
+Se recomienda usar el simulador NACHA-M de entrada solo para continuar UAT controlado y preparar archivos que luego deben cargarse manualmente por NachaUpload. Esta capacidad no cambia la decision del comite: no habilita salida productiva, no reemplaza homologacion normativa y no constituye procesamiento bancario.
+
+Decision vigente: **continuar UAT controlado / Productivo NO-GO**.

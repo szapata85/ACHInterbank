@@ -1,0 +1,74 @@
+.notice {
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  border-left: 4px solid #2563eb;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-weight: 600;
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+input,
+select,
+textarea {
+  min-height: 40px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.5rem;
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+.actions,
+.section-title {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sim-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sim-table th,
+.sim-table td {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0.65rem;
+  text-align: left;
+}
+
+.hash {
+  max-width: 260px;
+  overflow-wrap: anywhere;
+  font-family: monospace;
+  font-size: 0.8rem;
+}
+
+.muted,
+small {
+  color: #64748b;
+}

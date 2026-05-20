@@ -1,0 +1,22 @@
+﻿{
+    "simulationId":  "b520c4c4-cbf0-4c16-838b-d8a245dfa088",
+    "clearingHouse":  "ACH Colombia",
+    "scenarioType":  "0",
+    "originFinancialInstitution":  "Banco UAT Origen",
+    "destinationFinancialInstitution":  "Cooperativa Financiera de Antioquia",
+    "businessDate":  "2026-05-20",
+    "cycleCode":  "Ciclo 3",
+    "fileName":  "99999001.001.1",
+    "sha256":  "46173BD50F7864961103237C6A107B4408DBAAE1FD3089A3F963FF02721B4122",
+    "fileSizeBytes":  1060,
+    "recordsDetected":  "1:1, 5:1, 6:2, 7:2, 8:1, 9:3",
+    "blockCount":  1,
+    "entryAddendaCount":  4,
+    "entryHash":  "0000002566",
+    "generatedOnly":  true,
+    "autoImported":  false,
+    "uploadRequired":  true,
+    "uploadFlow":  "NachaUpload",
+    "externalTransmission":  false,
+    "simulatorMode":  "UAT"
+}

@@ -112,3 +112,13 @@ Observacion normativa:
 | NACHA-M prenotificacion ACH Colombia | OK tecnico UAT | `0001283.004.1` | No por si solo | Codigo NACHA 28 y campo 7 validados |
 | NACHA-M prenotificacion CENIT | OK tecnico UAT / parcial normativo | `0001283.002.1` | Si para GO formal | Falta homologacion normativa formal CENIT |
 | Productivo | NO-GO | Scorecard/readiness | Si | Mantener UAT controlado |
+
+## Actualizacion 2026-05-20 - simulador NACHA-M de entrada
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| Simulador inbound UAT/local | OK tecnico | `/api/uat/nacha-inbound-simulator` | No por si solo | Solo genera archivos |
+| Descarga de archivo simulado | OK tecnico | Endpoint `/{id}/file` | No por si solo | Debe validarse runtime |
+| Auto-import deshabilitado | OK | Metadata `autoImported=false` | Si si falla | No llama NachaUpload |
+| Procesamiento real NachaUpload | Pendiente | Fase posterior | Si | Requiere carga manual |
+| Productivo | NO-GO | Readiness | Si | Mantener decision NO-GO |

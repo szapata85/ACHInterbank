@@ -1,0 +1,69 @@
+﻿{
+    "envUsernamePresent":  true,
+    "credentialValueDocumented":  false,
+    "healthLive":  200,
+    "healthReady":  200,
+    "login":  "OK autenticado",
+    "roles":  [
+                  "Admin",
+                  "ACH.Operator"
+              ],
+    "menuHasSimulator":  true,
+    "openapiHasSimulator":  true,
+    "beforeAchTransactions":  "255",
+    "beforeIncomingIngestions":  "0",
+    "afterAchTransactions":  "255",
+    "afterIncomingIngestions":  "0",
+    "generated":  [
+                      {
+                          "camera":  "ach-colombia",
+                          "id":  1,
+                          "fileName":  "99999001.001.1",
+                          "sha256":  "46173BD50F7864961103237C6A107B4408DBAAE1FD3089A3F963FF02721B4122",
+                          "bytes":  1060,
+                          "generatedOnly":  true,
+                          "autoImported":  false,
+                          "uploadRequired":  true,
+                          "externalTransmission":  false
+                      },
+                      {
+                          "camera":  "cenit",
+                          "id":  2,
+                          "fileName":  "99998002.001.1",
+                          "sha256":  "F4675D854F3A79055FE230E23F86948F9BF2EB47AD8F36F5AD5190A25429DEDC",
+                          "bytes":  1060,
+                          "generatedOnly":  true,
+                          "autoImported":  false,
+                          "uploadRequired":  true,
+                          "externalTransmission":  false
+                      }
+                  ],
+    "prenotificationResponses":  [
+                                     {
+                                         "reference":  "UAT-ACH-PRE-CFA-001",
+                                         "status":  "OK",
+                                         "id":  5,
+                                         "fileName":  "99999001.003.1",
+                                         "sha256":  "AA4B5FA47F89C0ADFE5B12DFA3D91043F6094110FB134E3C4000A37AA74F9FD5"
+                                     },
+                                     {
+                                         "reference":  "UAT-CEN-PRE-CFA-001",
+                                         "status":  "OK",
+                                         "id":  6,
+                                         "fileName":  "99998002.002.1",
+                                         "sha256":  "219AE7F11050FE7C60C292A1946F051BD52023B92511DC1708A69A1753176D07"
+                                     }
+                                 ],
+    "referencedStates":  [
+                             {
+                                 "stateAfterGeneration":  "Pending",
+                                 "reference":  "UAT-ACH-PRE-CFA-001"
+                             },
+                             {
+                                 "stateAfterGeneration":  "Pending",
+                                 "reference":  "UAT-CEN-PRE-CFA-001"
+                             }
+                         ],
+    "noAutoImportConfirmed":  true,
+    "noIncomingTransactionAutoCreationConfirmed":  true
+}

@@ -61,3 +61,13 @@ Observacion normativa:
 
 - ACH Colombia se valida contra MAN-004 V32.
 - CENIT se valida tecnicamente con ejemplos disponibles en el proyecto y queda pendiente homologacion normativa formal.
+
+## Actualizacion 2026-05-20 - Simulador NACHA-M Entrada
+
+La brecha de preparacion de archivos inbound sinteticos queda cerrada tecnicamente para UAT/local mediante simulador separado del procesamiento real. Persisten brechas bloqueantes productivas:
+
+- Carga manual y procesamiento real por NachaUpload pendiente.
+- Homologacion normativa formal por camara pendiente.
+- Actas UAT funcionales formales pendientes.
+
+Productivo sigue **NO-GO**.
