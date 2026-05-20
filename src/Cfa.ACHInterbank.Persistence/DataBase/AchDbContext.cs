@@ -112,6 +112,7 @@ public class AchDbContext : DbContext
     public DbSet<AchReturnOfReturnPolicy> AchReturnOfReturnPolicies => Set<AchReturnOfReturnPolicy>();
     public DbSet<AchPrenotificationPolicy> AchPrenotificationPolicies => Set<AchPrenotificationPolicy>();
     public DbSet<ClearingHouseTransactionRule> ClearingHouseTransactionRules => Set<ClearingHouseTransactionRule>();
+    public DbSet<NachaFileNamingRule> NachaFileNamingRules => Set<NachaFileNamingRule>();
     public DbSet<AchResponseStatusMapping> AchResponseStatusMappings => Set<AchResponseStatusMapping>();
     public DbSet<AchResponse> AchResponses => Set<AchResponse>();
     public DbSet<AchResponseNotificationAttempt> AchResponseNotificationAttempts => Set<AchResponseNotificationAttempt>();

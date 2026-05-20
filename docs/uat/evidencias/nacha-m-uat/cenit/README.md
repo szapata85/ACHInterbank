@@ -1,14 +1,12 @@
 ﻿# Evidencia NACHA-M UAT - CENIT
 
-Archivo NACHA-M real de UAT/preproduccion esperado, generado localmente con datos sinteticos/anonimizados. No transmitido a camaras reales. No apto para produccion.
+Archivo NACHA-M real de UAT/preproduccion generado localmente con datos sinteticos/anonimizados. No fue transmitido a camaras reales. No es apto para produccion.
 
-Resultado de esta ejecucion: FALLA/BLOQUEADO. No se obtuvo archivo NACHA-M valido; se conservan respuestas fallidas como evidencia.
+Contenido principal:
 
-Evidencias:
-- attempt_1_proxy_html_response.html: fallback Angular previo a correccion de proxy.
-- attempt_2_zero_byte_response.txt: respuesta de 0 bytes.
-- attempt_3_export_response.txt y headers: reintento final por proxy/API con 0 bytes.
-- attempt_4_controlled_422_response.txt: revalidacion post-fix DEF-UAT-021 con 422 JSON controlado por prenotificacion previa ausente.
-- metadata.json
-- validation_report.md
-- matriz_campo_a_campo.md
+- $name: archivo generado por el sistema con nomenclatura normativa.
+- metadata.json: metadata tecnica, hash SHA256 y controles.
+- alidation_report.md: reporte de validacion UAT.
+- matriz_campo_a_campo.md: matriz de validacion campo-a-campo.
+
+No contiene passwords, tokens, credenciales SOAP, certificados privados ni datos reales.

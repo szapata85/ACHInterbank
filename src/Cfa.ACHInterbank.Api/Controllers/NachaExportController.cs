@@ -65,15 +65,15 @@ public class NachaExportController : ControllerBase
             }
 
             string nachaContent = await _nachaBuilder.BuildNachaFileByCycleAsync(cycleId, ct);
-            string legacyFileName = BuildNachaFileName(clearingHouse, cycle);
-            string normalizedNachaContent = await NormalizeFileHeaderIdentifierForCenitAsync(nachaContent, clearingHouse, legacyFileName, ct);
-            if (IsEmptyExport(normalizedNachaContent))
+            string internalFileName = BuildInternalNachaFileName(cycle);
+            if (IsEmptyExport(nachaContent))
             {
                 return EmptyExport(cycleId);
             }
 
-            var fileNamePolicyResult = await GenerateAndEnforceExternalFileNamePolicyAsync(cycle, clearingHouse, legacyFileName, normalizedNachaContent, ct);
+            var fileNamePolicyResult = await GenerateAndEnforceExternalFileNamePolicyAsync(cycle, clearingHouse, internalFileName, nachaContent, ct);
             string fileName = fileNamePolicyResult.ExternalFileName;
+            string normalizedNachaContent = NormalizeFileHeaderIdentifier(nachaContent, fileNamePolicyResult.Components.FileIdModifier);
             await _fileExportAuditService.RecordGeneratedFileAsync(
                 cycle.Id,
                 cycle.ClearingHouseId,
@@ -112,15 +112,15 @@ public class NachaExportController : ControllerBase
                 return NotFound();
             }
 
-            string legacyFileName = BuildNachaFileName(clearingHouse, cycle);
-            string normalizedNachaContent = await NormalizeFileHeaderIdentifierForCenitAsync(nachaContent, clearingHouse, legacyFileName, ct);
-            if (IsEmptyExport(normalizedNachaContent))
+            string internalFileName = BuildInternalNachaFileName(cycle);
+            if (IsEmptyExport(nachaContent))
             {
                 return EmptyExport(cycleId);
             }
 
-            var fileNamePolicyResult = await GenerateAndEnforceExternalFileNamePolicyAsync(cycle, clearingHouse, legacyFileName, normalizedNachaContent, ct);
+            var fileNamePolicyResult = await GenerateAndEnforceExternalFileNamePolicyAsync(cycle, clearingHouse, internalFileName, nachaContent, ct);
             string fileName = fileNamePolicyResult.ExternalFileName;
+            string normalizedNachaContent = NormalizeFileHeaderIdentifier(nachaContent, fileNamePolicyResult.Components.FileIdModifier);
             await _fileExportAuditService.RecordGeneratedFileAsync(
                 cycle.Id,
                 cycle.ClearingHouseId,
@@ -197,26 +197,17 @@ public class NachaExportController : ControllerBase
         return "NACHA_EXPORT_ERROR";
     }
 
-    private static string BuildNachaFileName(ClearingHouseDto clearingHouse, AchCycleDto cycle)
+    private static string BuildInternalNachaFileName(AchCycleDto cycle)
+        => $"NACHA_{cycle.Id}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.tmp";
+
+    private static string NormalizeFileHeaderIdentifier(string nachaContent, char? expectedIdentifier)
     {
-        if (string.Equals(clearingHouse.Code, "CENIT", StringComparison.OrdinalIgnoreCase))
+        if (!expectedIdentifier.HasValue)
         {
-            string cycleNumber = GetCenitCycleNumber(cycle.CycleName);
-            return $"{clearingHouse.OriginCode}.{cycleNumber}.1";
+            return nachaContent;
         }
 
-        return $"NACHA_{cycle.Id}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.txt";
-    }
-
-    private static string GetCenitCycleNumber(string cycleName)
-    {
-        Match match = Regex.Match(cycleName, @"\d+");
-        if (!match.Success || !int.TryParse(match.Value, out int cycleNumber))
-        {
-            return "001";
-        }
-
-        return cycleNumber.ToString("D3");
+        return ReplaceHeaderPosition36(nachaContent, expectedIdentifier.Value);
     }
 
     private async Task<string> NormalizeFileHeaderIdentifierForCenitAsync(string nachaContent, ClearingHouseDto clearingHouse, string fileName, CancellationToken ct)
@@ -292,7 +283,6 @@ public class NachaExportController : ControllerBase
         string nachaContent,
         CancellationToken ct)
     {
-        var isAch = string.Equals(clearingHouse.Code, "ACH", StringComparison.OrdinalIgnoreCase);
         var context = new ExternalFileNameContext
         {
             ClearingHouseId = clearingHouse.Id,
@@ -304,7 +294,7 @@ public class NachaExportController : ControllerBase
             ExternalFileType = ExternalFileType.NachaOut,
             Flow = ExternalFileFlow.Originacion,
             Direction = ExternalFileDirection.Outbound,
-            ProvidedExternalFileName = isAch ? null : legacyFileName,
+            ProvidedExternalFileName = null,
             InternalFileName = legacyFileName,
             NachaContent = nachaContent,
             RequestedBy = User?.Identity?.Name ?? "system"

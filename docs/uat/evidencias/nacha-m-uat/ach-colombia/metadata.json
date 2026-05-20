@@ -1,76 +1,52 @@
 ﻿{
-    "fecha":  "2026-05-19T11:47:02.5324978-05:00",
-    "rama":  "uat/nacha-m-soap-proc-contrapartidas",
-    "commit":  "f8c39d53",
+    "fecha":  "2026-05-20T11:01:32-05:00",
+    "rama":  "feature/parametrizacion-reglas-camara-prenotificacion",
+    "commit":  "ffe311cf",
     "camara":  "ACH Colombia",
-    "transactionId":  3,
-    "referenciaUat":  "UAT-ACHCOL-NACHA-SOAP-001",
-    "achCycleId":  "2ada513804193e8aa8771252660182fdc7a55862",
-    "clearingHouseId":  1,
-    "rutaArchivoValido":  null,
-    "tamanoBytes":  0,
-    "hashSha256":  null,
-    "registrosDetectados":  [
-
-                            ],
-    "conteos":  {
-                    "record1":  0,
-                    "record5":  0,
-                    "record6":  0,
-                    "record7":  0,
-                    "record8":  0,
-                    "record9":  0,
-                    "total":  0
-                },
-    "totales":  {
-                    "debito":  0,
-                    "credito":  0,
-                    "entryHash":  null,
-                    "blockCount":  null
-                },
-    "validacionArchivo":  "FAIL",
-    "validacionNormativa":  "PENDIENTE",
-    "generadoPorSistema":  false,
+    "originador":  "Cooperativa Financiera de Antioquia",
+    "codigoRuta":  "0001",
+    "codigoTransito":  "283",
+    "prefijoArchivo":  "0001283",
+    "zzz":  "002",
+    "identificadorInternoRegistro1Campo7":  "B",
+    "nombreArchivo":  "0001283.002.1",
+    "rutaArchivo":  "docs\\uat\\evidencias\\nacha-m-uat\\ach-colombia\\0001283.002.1",
+    "tamanoBytes":  1060,
+    "sha256":  "E4DAEEE551596D067357953C552CD521871F635F6703D27700171EBC10A0026E",
+    "registrosDetectados":  {
+                                "tipo1":  1,
+                                "tipo5":  1,
+                                "tipo6":  1,
+                                "tipo7":  1,
+                                "tipo8":  1,
+                                "tipo9":  5
+                            },
+    "conteoRegistrosFisicos":  10,
+    "conteoEntradaAddenda":  "00000002",
+    "batchCount":  "000001",
+    "blockCount":  "000001",
+    "entryHash":  "0099999002",
+    "totalDebitoRaw":  "000000000000100000",
+    "transaccionesIncluidas":  [
+                                   {
+                                       "transactionId":  254,
+                                       "estado":  "Pending",
+                                       "naturaleza":  "Debit",
+                                       "monto":  1000,
+                                       "referencia":  "UAT-ACH-DEB-MATURED-001"
+                                   }
+                               ],
+    "prenotificacionRelacionada":  {
+                                       "transactionId":  252,
+                                       "fechaEfectiva":  "2026-05-13",
+                                       "estado":  "AppliedTacitly",
+                                       "control":  "PRENOTE_UAT_PRECONDITION_CREATED",
+                                       "referencia":  "UAT-ACH-PRE-MATURED-001"
+                                   },
+    "validacionNomenclatura":  "OK",
+    "validacionNormativa":  "OK tecnico UAT",
+    "documentoNormativoUsado":  "MAN-004 Servicio ACH Transferencias Interbancarias Para Entidades Participantes V32",
     "enviadoExterno":  false,
-    "endpointSoapInvocado":  false,
-    "documentosNormativosUsados":  [
-                                       "docs/go-live-readiness/MATRIZ_NACHA_M_LAYOUTS.md",
-                                       "docs/ACH/RegistroTipo5FechaJuliana.md"
-                                   ],
-    "intentos":  [
-                     {
-                         "archivo":  "attempt_1_proxy_html_response.html",
-                         "bytes":  2123,
-                         "sha256":  "E7B3CD337D927561C2E3716A37A826B38649EDE65558B0D66C830E6C149DFE43",
-                         "esHtml":  true,
-                         "esJsonError":  false
-                     },
-                     {
-                         "archivo":  "attempt_2_zero_byte_response.txt",
-                         "bytes":  0,
-                         "sha256":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-                         "esHtml":  false,
-                         "esJsonError":  false
-                     },
-                     {
-                         "archivo":  "attempt_3_export_response.txt",
-                         "bytes":  0,
-                         "sha256":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-                         "esHtml":  false,
-                         "esJsonError":  false
-                     },
-                     {
-                         "archivo":  "attempt_4_controlled_422_response.txt",
-                         "bytes":  354,
-                         "sha256":  "27E9CBFB6738527A85A93943BE285404A48F1F7BF7986465801240438873345C",
-                         "esHtml":  false,
-                         "esJsonError":  true
-                     }
-                 ],
-    "correccionesAplicadas":  [
-                                  "Se corrigio proxy SPA/Nginx agregando location /NachaExport/ antes del fallback Angular.",
-                                  "Se corrigio DEF-UAT-021: /NachaExport retorna HTTP 422 JSON controlado cuando falta prenotificacion previa y no genera archivo 0 bytes como exito."
-                              ],
-    "bloqueo":  "La exportacion por /NachaExport retorna HTTP 422 controlado; confirma regla de negocio: transaccion sin prenotificacion previa. No se aplico bypass ni backdating.",
-    "observaciones":  "No existe archivo NACHA-M valido generado para esta camara en esta ejecucion. DEF-UAT-020 permanece abierto/parcial."
+    "procContrapartidas":  "DryRun/No transmitido",
+    "observaciones":  "Archivo generado por endpoint real /NachaExport/{cycleId}; datos sinteticos UAT; no apto para produccion."
 }

@@ -1,25 +1,59 @@
-﻿# Validacion NACHA-M UAT - CENIT
+﻿# Evidencia NACHA-M UAT - CENIT
 
-Referencia UAT: UAT-CENIT-NACHA-SOAP-001
-TransactionId: 4
-CycleId: 7c0c26327f06a20d751ef72fc379ca6fe7166803
+Fecha: 2026-05-20T11:02:44-05:00
+Rama: feature/parametrizacion-reglas-camara-prenotificacion
+Commit base: ffe311cf
+Estado productivo: NO-GO
 
-| Control | Resultado | Evidencia |
-|---|---|---|
-| Archivo generado por sistema | FALLA CONTROLADA | /NachaExport responde 422 por prenotificacion previa ausente; no genera archivo vacio como exito |
-| Archivo no vacio | FALLA | No hay archivo exportable hasta cumplir prenotificacion UAT valida |
-| No HTML/JSON error | PARCIAL | intento 1 fue HTML; intentos 2/3 no fueron HTML pero vacios |
-| Registros 1/5/6/8/9 | NO VALIDABLE | no hay archivo NACHA valido |
-| Registro 7 | NO VALIDABLE | no hay archivo NACHA valido |
-| Totales/hash/block count | NO VALIDABLE | no hay archivo NACHA valido |
-| Validacion normativa camara | PENDIENTE | documentacion camara parcial/no homologada |
-| Transmision externa | OK | no se transmitio archivo NACHA a camara real |
+## Archivo generado
 
-Diagnostico:
-- Intento 1: la ruta /NachaExport devolvia index.html por falta de location explicito en Nginx.
-- Correccion aplicada: location /NachaExport/ agregado en web/ach-interbank-ui/nginx.conf y SPA reconstruida.
-- Intentos 2 y 3: la API respondio HTTP 200 con Content-Length 0.
-- nacha-security/operations/nacha/generate registro falla controlada por regla: transaccion sin prenotificacion previa.
-- No se aplico bypass de regla, backdating, cambio NACHA-M ni cambio ACH/CENIT.
+- Nombre normativo: 0001283.001.1
+- Ruta: docs/uat/evidencias/nacha-m-uat/cenit/0001283.001.1
+- Tamano: 1060 bytes
+- SHA256: FD52F7834ADEC53C720E4A877B1D48A8AC15B149BEB7FAFB91EC57CF1B88FCD4
+- Generado por: endpoint real /NachaExport/36e1bc97a46b0b1e7f7d04ed98030bda2c4d9c0e via SPA localhost:743
+- Envio externo: false
 
-Conclusion: archivo NACHA-M UAT no valido/no generado para esta camara. DEF-UAT-020 permanece abierto/parcial.
+## Nomenclatura
+
+| Campo | Valor | Resultado |
+|---|---:|---|
+| Patron | RRRRTTT.ZZZ.1 | OK |
+| RRRR | 0001 | OK |
+| TTT | 283 | OK |
+| ZZZ | 001 | OK |
+| Identificador interno registro 1 campo 7 | A | OK |
+| Mapeo ZZZ -> campo 7 | 001 -> A | OK |
+| Originador | Cooperativa Financiera de Antioquia | OK |
+
+## Registros y controles
+
+| Control | Valor |
+|---|---:|
+| Registros fisicos | 10 |
+| Tipo 1 | 1 |
+| Tipo 5 | 1 |
+| Tipo 6 | 1 |
+| Tipo 7 | 1 |
+| Tipo 8 | 1 |
+| Tipo 9 | 5 |
+| Batch count | 000001 |
+| Block count | 000001 |
+| Entry/addenda count | 00000002 |
+| Entry hash | 0099998002 |
+| Total debito raw | 000000000000100000 |
+
+## Transaccion y prenotificacion
+
+| Tipo | Id | Referencia | Estado | Observacion |
+|---|---:|---|---|---|
+| Prenotificacion UAT madura | 253 | UAT-CEN-PRE-MATURED-001 | AppliedTacitly | Precondicion UAT controlada, sin envio externo |
+| Debito monetario | 255 | UAT-CEN-DEB-MATURED-001 | Pending | Incluido en archivo NACHA-M |
+
+## Fuente normativa
+
+Ejemplos CENIT disponibles en el proyecto / pendiente homologacion normativa formal
+
+## Resultado
+
+Archivo NACHA-M UAT no vacio, no HTML, no JSON de error, con registros 1/5/6/7/8/9 y nomenclatura parametrizada por camara. No se transmitio a camaras reales.

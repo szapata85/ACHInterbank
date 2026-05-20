@@ -22,6 +22,7 @@ public class NachaExportControllerTests
     {
         const string cycleId = "cycle-42";
         const string nachaContent = "HEADER\nDETAIL";
+        const string externalFileName = "NACHA_cycle-42_20260520.txt";
 
         var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
         var crypto = new Mock<ICryptoServiceScoped>(MockBehavior.Strict);
@@ -42,13 +43,13 @@ public class NachaExportControllerTests
             .Setup(c => c.GetByIdAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ClearingHouseDto { Id = 1, Code = "ACHCOL", OriginCode = "12345678", Name = "ACH Colombia" });
         auditService
-            .Setup(s => s.RecordGeneratedFileAsync(cycleId, 1, "NACHA", It.Is<string>(f => f.StartsWith($"NACHA_{cycleId}_") && f.EndsWith(".txt")), 0, 0, false, It.IsAny<CancellationToken>()))
+            .Setup(s => s.RecordGeneratedFileAsync(cycleId, 1, "NACHA", externalFileName, 0, 0, false, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         externalFileNamePolicy
             .Setup(p => p.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((ExternalFileNameContext ctx, CancellationToken _) => new ExternalFileNamePolicyResult
             {
-                ExternalFileName = ctx.ProvidedExternalFileName ?? ctx.InternalFileName ?? "file.txt",
+                ExternalFileName = externalFileName,
                 Validation = new ExternalFileNameValidationResult { Disposition = ExternalFileValidationDisposition.Passed }
             });
 
@@ -66,8 +67,7 @@ public class NachaExportControllerTests
 
         var fileResult = Assert.IsType<FileContentResult>(result);
         Assert.Equal("text/plain", fileResult.ContentType);
-        Assert.StartsWith($"NACHA_{cycleId}_", fileResult.FileDownloadName);
-        Assert.EndsWith(".txt", fileResult.FileDownloadName);
+        Assert.Equal(externalFileName, fileResult.FileDownloadName);
         Assert.Equal(nachaContent, Encoding.ASCII.GetString(fileResult.FileContents));
 
         auditService.VerifyAll();
@@ -78,6 +78,7 @@ public class NachaExportControllerTests
     {
         const string cycleId = "cycle-99";
         const string nachaContent = "HEADER\nDETAIL\nTRAILER";
+        const string externalFileName = "NACHA_cycle-99_20260520.txt";
         byte[] expectedEnvelope = Encoding.UTF8.GetBytes("<envelope/>\n");
 
         var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
@@ -102,16 +103,16 @@ public class NachaExportControllerTests
             .Setup(p => p.ShouldEncrypt(7))
             .Returns(true);
         auditService
-            .Setup(s => s.RecordGeneratedFileAsync(cycleId, 7, "NACHA", It.Is<string>(f => f.StartsWith($"NACHA_{cycleId}_") && f.EndsWith(".txt")), 0, 0, true, It.IsAny<CancellationToken>()))
+            .Setup(s => s.RecordGeneratedFileAsync(cycleId, 7, "NACHA", externalFileName, 0, 0, true, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         crypto
-            .Setup(c => c.CreateEnvelopeAsync(It.Is<byte[]>(d => Encoding.ASCII.GetString(d) == nachaContent), It.Is<string>(f => f.StartsWith($"NACHA_{cycleId}_") && f.EndsWith(".txt"))))
+            .Setup(c => c.CreateEnvelopeAsync(It.Is<byte[]>(d => Encoding.ASCII.GetString(d) == nachaContent), externalFileName))
             .ReturnsAsync(expectedEnvelope);
         externalFileNamePolicy
             .Setup(p => p.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((ExternalFileNameContext ctx, CancellationToken _) => new ExternalFileNamePolicyResult
             {
-                ExternalFileName = ctx.ProvidedExternalFileName ?? ctx.InternalFileName ?? "file.txt",
+                ExternalFileName = externalFileName,
                 Validation = new ExternalFileNameValidationResult { Disposition = ExternalFileValidationDisposition.Passed }
             });
 
@@ -129,8 +130,7 @@ public class NachaExportControllerTests
 
         var fileResult = Assert.IsType<FileContentResult>(result);
         Assert.Equal("application/xml", fileResult.ContentType);
-        Assert.StartsWith($"NACHA_{cycleId}_", fileResult.FileDownloadName);
-        Assert.EndsWith(".ENV", fileResult.FileDownloadName);
+        Assert.Equal($"{externalFileName}.ENV", fileResult.FileDownloadName);
         Assert.Equal(expectedEnvelope, fileResult.FileContents);
 
         auditService.VerifyAll();
@@ -164,9 +164,6 @@ public class NachaExportControllerTests
         envelopePolicy
             .Setup(p => p.ShouldEncrypt(2))
             .Returns(false);
-        identifierMapService
-            .Setup(s => s.ResolveIdentifierAsync(3, It.IsAny<CancellationToken>()))
-            .ReturnsAsync('B');
         auditService
             .Setup(s => s.RecordGeneratedFileAsync(cycleId, 2, "NACHA", "12345678.003.1", 2, 0, false, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -175,6 +172,7 @@ public class NachaExportControllerTests
             .ReturnsAsync((ExternalFileNameContext ctx, CancellationToken _) => new ExternalFileNamePolicyResult
             {
                 ExternalFileName = "12345678.003.1",
+                Components = new ExternalFileNameComponents { FullName = "12345678.003.1", Prefix = "12345678", ExternalSequence = 3, FileIdModifier = 'B' },
                 Validation = new ExternalFileNameValidationResult { Disposition = ExternalFileValidationDisposition.Passed }
             });
 
@@ -196,7 +194,6 @@ public class NachaExportControllerTests
         Assert.Equal('B', Encoding.ASCII.GetString(fileResult.FileContents)[35]);
 
         auditService.VerifyAll();
-        identifierMapService.VerifyAll();
     }
 
     [Fact]

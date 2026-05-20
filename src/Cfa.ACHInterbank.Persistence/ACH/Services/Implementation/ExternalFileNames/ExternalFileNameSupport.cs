@@ -45,7 +45,8 @@ internal static class ExternalFileNameSupport
     }
 
     public static bool IsAch(ExternalFileNameContext context) =>
-        string.Equals(context.ClearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase);
+        context.ExternalFileType == ExternalFileType.NachaOut
+        && context.Direction == ExternalFileDirection.Outbound;
 
     public static bool IsCenit(ExternalFileNameContext context) =>
         string.Equals(context.ClearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase);
@@ -68,8 +69,34 @@ internal static class ExternalFileNameSupport
             throw new InvalidOperationException("Para ACH el origin code debe contener exactamente 7 dígitos (RRRRTTT).");
         }
 
-        var normalizedOriginCode = originCode[..7];
+        var normalizedOriginCode = originCode[^7..];
         return $"{normalizedOriginCode}.{sequence:D3}.1";
+    }
+
+    public static string ReplaceRecord1FileIdModifier(string nachaContent, char expectedIdentifier)
+    {
+        if (string.IsNullOrEmpty(nachaContent))
+        {
+            return nachaContent;
+        }
+
+        string[] lines = nachaContent.Split('\n');
+        if (lines.Length == 0)
+        {
+            return nachaContent;
+        }
+
+        string firstLine = lines[0].TrimEnd('\r');
+        if (firstLine.Length < 36)
+        {
+            return nachaContent;
+        }
+
+        char[] chars = firstLine.ToCharArray();
+        chars[35] = expectedIdentifier;
+        lines[0] = new string(chars);
+
+        return string.Join('\n', lines);
     }
 
     public static char? TryExtractRecord1FileIdModifier(string? nachaContent)
