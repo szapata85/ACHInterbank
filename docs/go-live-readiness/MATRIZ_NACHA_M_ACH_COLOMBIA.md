@@ -28,3 +28,12 @@ Se creo la transaccion sintetica `UAT-ACHCOL-NACHA-SOAP-001` (TransactionId `3`)
 ## Decision
 
 ACH Colombia NACHA-M no queda cerrado. Requiere prenotificacion UAT valida, archivo UAT no vacio, matriz campo-a-campo completa, homologacion o waiver. Productivo sigue **NO-GO**.
+
+## Parametrizacion 2026-05-19
+
+| Naturaleza | Prenotificacion | Fuente normativa | Implementacion | Estado |
+|---|---|---|---|---|
+| Debito | Obligatoria | MAN-004 V32, secciones 2.11.4, 2.11.4.1, 2.11.4.2, 2.11.6 | `ClearingHouseTransactionRule` seed ACH Colombia Debit | Implementada para UAT controlado |
+| Credito | Opcional | MAN-004 V32, secciones 2.10.2, 2.10.3, 2.10.3.1, 2.10.3.2 | `ClearingHouseTransactionRule` seed ACH Colombia Credit | Implementada para UAT controlado |
+
+Pendiente: crear prenotificacion UAT valida para debitos y reintentar archivo NACHA-M no vacio por sistema.

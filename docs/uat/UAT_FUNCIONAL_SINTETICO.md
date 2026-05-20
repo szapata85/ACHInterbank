@@ -285,3 +285,15 @@ Documentos:
 - `docs/uat/EVIDENCIAS_SOAP_PROC_CONTRAPARTIDAS.md`
 
 Estado: UAT integrado NACHA/SOAP **PARCIAL/BLOQUEADO**. Productivo **NO-GO**.
+
+## Actualizacion 2026-05-19 - Reglas de prenotificacion por camara
+
+Se implemento parametrizacion backend/frontend para preparar el reintento controlado de NACHA-M:
+
+- `ClearingHouseTransactionRule` como entidad EF Code First.
+- Seeds ACH Colombia/CENIT por naturaleza `Debit`/`Credit`.
+- API protegida `/api/clearing-house-transaction-rules`.
+- Preview protegido `/api/transaction-prerequisite-policy/preview`.
+- Pantalla SPA `/transactions/clearing-house-rules`.
+
+El UAT funcional sintetico sigue **PARCIALMENTE OK**. El siguiente cierre requiere aplicar migracion en runtime, crear prenotificaciones UAT validas y generar NACHA-M no vacio por camara.

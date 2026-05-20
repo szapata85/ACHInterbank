@@ -51,3 +51,15 @@ Estado: matriz actualizada tras cierre controlado de DEF-UAT-015.
 | DEF-UAT-021 | UAT-NACHA-EXPORT | Alta | `GET /NachaExport/{cycleId}` ya no responde `HTTP 200` con `Content-Length: 0`; retorna `HTTP 422` JSON controlado con `NACHA_EXPORT_PREREQUISITE_FAILED` cuando faltan prerequisitos de exportacion. | NACHA Export API | `docs/uat/evidencias/nacha-m-uat/*/attempt_4_controlled_422_response.txt`; tests `NachaExportControllerTests` | Tecnologia/QA | Cerrado tecnico | 2026-05-19 | CERRADO | Mantener pendiente solo la generacion de archivo no vacio cuando existan transacciones exportables con prenotificacion valida. |
 | DEF-UAT-022 | UAT-SOAP-001 | Alta | Job automatico `Proc_Contrapartidas` queda protegido por `ProcContrapartidas:Mode=DryRun` en UAT/local; evidencia runtime `PROC_DRY_RUN` confirma payload generado y no transmitido. | Integracion SOAP | `docs/uat/EVIDENCIAS_SOAP_PROC_CONTRAPARTIDAS.md`, `docs/uat/evidencias/soap-proc-contrapartidas/runtime_dry_run_validation.md`, tests `ContrapartidaDispatchJobServiceTests` | Integracion/DevOps/Seguridad | Cerrado tecnico UAT/local | 2026-05-19 | CERRADO | Pendiente homologar endpoint UAT/mock autorizado para integracion externa real; no usar `Live` sin aprobacion. |
 | OBS-UAT-001 | UAT-TECH-011 | Baja | Logs PostgreSQL muestran FATAL previos por usuarios inexistentes `root`/`sa`. | PostgreSQL/Operacion | `docker compose logs postgres --tail=120` | Operaciones/DevOps | Abierto | 2026-05-18 | PENDIENTE | Revisar origen de probes/conexiones; no bloqueo del UAT tecnico basico. |
+
+## Actualizacion DEF-UAT-020 - 2026-05-19
+
+Se implemento parametrizacion tecnica de reglas de prenotificacion por camara/naturaleza/tipo:
+
+- `ClearingHouseTransactionRule` + migracion EF `AddClearingHouseTransactionRules`.
+- Seeds iniciales ACH Colombia y CENIT basados en MAN-004 V32 y CENIT DSP-152 Anexo 2.
+- Endpoint CRUD `/api/clearing-house-transaction-rules`.
+- Endpoint preview `/api/transaction-prerequisite-policy/preview`.
+- Pantalla SPA `/transactions/clearing-house-rules`.
+
+DEF-UAT-020 permanece **Abierto/Parcial**: la parametrizacion es prerequisito para reintento, pero falta crear prenotificaciones UAT validas y generar archivos NACHA-M no vacios por ACH Colombia y CENIT.

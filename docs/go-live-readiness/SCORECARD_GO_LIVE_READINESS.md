@@ -81,3 +81,14 @@ Clasificacion operacional: **Candidato UAT controlado**, no apto para productivo
 | Validacion externa sobre/naming | Subir interoperabilidad a 75+ |
 | E2E CENIT/CUD | Subir funcionalidad/interoperabilidad |
 | Backup/restore/rollback ensayado | Subir operacion |
+
+## Actualizacion 2026-05-19
+
+La parametrizacion de reglas por camara mejora readiness tecnico de NACHA-M, pero no eleva a GO productivo. El score no debe subir artificialmente hasta revalidar runtime con migracion/seed, crear prenotificaciones UAT validas y generar archivo NACHA-M no vacio por camara.
+
+| Categoria | Impacto |
+|---|---|
+| Funcionalidad core | Mejora por control configurable de prerequisitos. |
+| UAT y evidencias | Sigue parcial: falta archivo NACHA-M no vacio. |
+| Seguridad/operacion | Sin cambio productivo; endpoints protegidos. |
+| Readiness final | **NO-GO**. |

@@ -22,6 +22,7 @@ export class NavigationService {
       { id: -2031, label: 'Carga masiva por archivo', route: '/transactions/bulk-ingestion/upload', icon: 'file_upload' },
       { id: -2032, label: 'Seguimiento lotes', route: '/transactions/bulk-ingestion/tracking', icon: 'monitoring' },
       { id: -2033, label: 'Config. ciclos', route: '/transactions/cycle-configs', icon: 'schedule' },
+      { id: -2034, label: 'Reglas por camara', route: '/transactions/clearing-house-rules', icon: 'rule' },
       { id: -204, label: 'Cargar NACHA-M', route: '/transactions/nacha-upload', icon: 'upload' },
       { id: -205, label: 'Devoluciones ACH', route: '/transactions/returns', icon: 'assignment_return' }
     ];

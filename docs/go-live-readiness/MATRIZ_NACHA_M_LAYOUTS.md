@@ -62,3 +62,14 @@ Evidencias:
 - `docs/go-live-readiness/MATRIZ_NACHA_M_CENIT.md`
 
 La brecha normativa NACHA-M permanece **PARCIAL/BLOQUEADA** hasta crear prenotificaciones UAT validas sin bypass/backdating, generar archivo controlado no vacio, validar campo-a-campo, firmar matriz regulatoria y obtener homologacion externa o waiver formal.
+
+## Actualizacion 2026-05-19 - Reglas por camara
+
+Se agrego parametrizacion tecnica y pantalla administrativa para reglas de prenotificacion:
+
+- `docs/go-live-readiness/MATRIZ_REGLAS_PRENOTIFICACION_POR_CAMARA.md`
+- `docs/go-live-readiness/CONFIGURACION_REGLAS_CAMARA_PRENOTIFICACION.md`
+- API `/api/clearing-house-transaction-rules`
+- SPA `/transactions/clearing-house-rules`
+
+Esto reduce hard-code normativo, pero no cierra DEF-UAT-020 sin archivo NACHA-M UAT no vacio y validacion campo-a-campo.

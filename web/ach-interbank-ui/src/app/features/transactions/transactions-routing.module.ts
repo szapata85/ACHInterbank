@@ -9,6 +9,7 @@ import { BulkIngestionUploadComponent } from './components/bulk-ingestion-upload
 import { BulkIngestionTrackingComponent } from './components/bulk-ingestion-tracking/bulk-ingestion-tracking.component';
 import { BulkIngestionDetailComponent } from './components/bulk-ingestion-detail/bulk-ingestion-detail.component';
 import { CycleConfigManagementComponent } from './components/cycle-config-management/cycle-config-management.component';
+import { ClearingHouseTransactionRulesComponent } from './components/clearing-house-transaction-rules/clearing-house-transaction-rules.component';
 import { AchReturnOfReturnManagementComponent } from './components/ach-return-of-return-management/ach-return-of-return-management.component';
 
 const routes: Routes = [
@@ -54,6 +55,11 @@ const routes: Routes = [
     path: 'cycle-configs',
     component: CycleConfigManagementComponent,
     data: { title: 'Configuración de ciclos', breadcrumb: 'Configuración de ciclos' }
+  },
+  {
+    path: 'clearing-house-rules',
+    component: ClearingHouseTransactionRulesComponent,
+    data: { title: 'Reglas por camara', breadcrumb: 'Reglas por camara' }
   },
   {
     path: 'returns',

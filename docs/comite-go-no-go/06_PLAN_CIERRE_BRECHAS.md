@@ -16,3 +16,7 @@ Estado general: Plan ejecutivo para habilitar reconsideracion futura de GO
 ## Nota De Replanificacion 2026-05-19
 
 El UAT integrado NACHA/SOAP avanzo en transacciones sinteticas por camara, evidencia XML dry-run, cierre tecnico DEF-UAT-021 y cierre tecnico UAT/local DEF-UAT-022. No avanzo a cierre normativo porque no se genero archivo NACHA-M no vacio. Antes de reintentar se debe crear prenotificacion UAT valida sin bypass/backdating y usar ciclos exportables posteriores.
+
+## Nota De Parametrizacion 2026-05-19
+
+La fase previa al reintento NACHA-M ahora incluye aplicar la migracion `AddClearingHouseTransactionRules`, validar seeds ACH Colombia/CENIT y operar la pantalla `Transacciones > Reglas por camara` para confirmar reglas vigentes antes de crear prenotificaciones UAT.

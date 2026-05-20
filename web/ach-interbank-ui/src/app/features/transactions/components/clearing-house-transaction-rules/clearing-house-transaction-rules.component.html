@@ -1,0 +1,167 @@
+<app-page-header title="Reglas por camara" subtitle="Configuracion ACH"></app-page-header>
+
+<section class="panel filters">
+  <h3>Filtros</h3>
+  <form [formGroup]="filterForm" (ngSubmit)="search()" class="filter-grid">
+    <label>
+      Camara
+      <ui-selector-buscable
+        [opciones]="clearingHouseOptions"
+        [formControl]="filterForm.controls.clearingHouseId"
+        placeholderBusqueda="Buscar camara"
+      ></ui-selector-buscable>
+    </label>
+
+    <label>
+      Naturaleza
+      <ui-selector-buscable
+        [opciones]="natureSelectorOptions"
+        [formControl]="filterForm.controls.transactionNature"
+        placeholderBusqueda="Buscar naturaleza"
+      ></ui-selector-buscable>
+    </label>
+
+    <label class="check-row">
+      <input type="checkbox" formControlName="includeInactive" />
+      Incluir inactivas
+    </label>
+
+    <div class="actions">
+      <button type="submit" class="btn btn-primary" [disabled]="loading">
+        <span class="material-symbols-outlined">search</span>
+        {{ loading ? 'Consultando...' : 'Consultar' }}
+      </button>
+      <button type="button" class="btn btn-outline" (click)="openCreateForm()">
+        <span class="material-symbols-outlined">add</span>
+        Nueva regla
+      </button>
+    </div>
+  </form>
+</section>
+
+<section class="panel" *ngIf="showForm">
+  <div class="section-title">
+    <h3>{{ editingRule ? 'Editar regla' : 'Crear regla' }}</h3>
+    <span *ngIf="editingRule" class="muted">ID {{ editingRule.id }}</span>
+  </div>
+
+  <form [formGroup]="form" class="form-grid">
+    <label>
+      Camara
+      <ui-selector-buscable
+        [opciones]="clearingHouseOptions"
+        [formControl]="form.controls.clearingHouseId"
+        placeholderBusqueda="Buscar camara"
+      ></ui-selector-buscable>
+    </label>
+
+    <label>
+      Naturaleza
+      <ui-selector-buscable
+        [opciones]="formNatureSelectorOptions"
+        [formControl]="form.controls.transactionNature"
+        placeholderBusqueda="Buscar naturaleza"
+      ></ui-selector-buscable>
+    </label>
+
+    <label>
+      Tipo transaccion
+      <select formControlName="transactionType">
+        <option [ngValue]="transactionTypes.Credit">Credito</option>
+        <option [ngValue]="transactionTypes.Debit">Debito</option>
+      </select>
+    </label>
+
+    <label>
+      Prenotificacion
+      <ui-selector-buscable
+        [opciones]="modeSelectorOptions"
+        [formControl]="form.controls.prenotificationMode"
+        placeholderBusqueda="Buscar modo"
+      ></ui-selector-buscable>
+    </label>
+
+    <label>
+      Validacion identificacion
+      <ui-selector-buscable
+        [opciones]="validationModeSelectorOptions"
+        [formControl]="form.controls.receiverIdentificationValidationMode"
+        placeholderBusqueda="Buscar modo"
+      ></ui-selector-buscable>
+    </label>
+
+    <label>
+      Vigente desde
+      <input type="date" formControlName="effectiveFrom" />
+    </label>
+
+    <label>
+      Vigente hasta
+      <input type="date" formControlName="effectiveTo" />
+    </label>
+
+    <label>
+      Fuente normativa
+      <input type="text" formControlName="normativeSource" placeholder="MAN-004 ACH Colombia V32" />
+    </label>
+
+    <label>
+      Referencia normativa
+      <input type="text" formControlName="normativeReference" placeholder="Seccion / numeral" />
+    </label>
+
+    <label class="wide">
+      Notas
+      <textarea formControlName="notes" rows="3"></textarea>
+    </label>
+
+    <div class="toggle-row wide">
+      <label>
+        <input type="checkbox" formControlName="appliesToNachaExport" />
+        Aplica export NACHA-M
+      </label>
+      <label>
+        <input type="checkbox" formControlName="appliesToMonetaryTransactions" />
+        Aplica transacciones monetarias
+      </label>
+    </div>
+
+    <div class="actions form-actions">
+      <button type="button" class="btn btn-outline" (click)="preview()" [disabled]="previewLoading">
+        <span class="material-symbols-outlined">rule</span>
+        {{ previewLoading ? 'Validando...' : 'Preview' }}
+      </button>
+      <button type="button" class="btn btn-outline" (click)="closeForm()">Cancelar</button>
+      <button type="button" class="btn btn-primary" (click)="save()" [disabled]="saving">
+        <span class="material-symbols-outlined">save</span>
+        {{ saving ? 'Guardando...' : 'Guardar' }}
+      </button>
+    </div>
+  </form>
+
+  <div class="preview" *ngIf="previewResult">
+    <strong>{{ previewResult.decision }}</strong>
+    <span>{{ previewResult.message }}</span>
+    <small *ngIf="previewResult.normativeSource">{{ previewResult.normativeSource }} - {{ previewResult.normativeReference }}</small>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="grid-header">
+    <h3>Reglas configuradas</h3>
+    <span class="result-count">{{ rules.length }} registros</span>
+  </div>
+
+  <div class="loading" *ngIf="loading">Cargando reglas...</div>
+  <div class="empty-state" *ngIf="!loading && loadError">{{ loadError }}</div>
+  <div class="empty-state" *ngIf="!loading && !loadError && rules.length === 0">No existen reglas para los filtros seleccionados.</div>
+
+  <ui-grilla-empresarial
+    *ngIf="!loading && !loadError && rules.length > 0"
+    [columnas]="columnDefs"
+    [datos]="rules"
+    [paginacion]="true"
+    [tamanoPagina]="15"
+    [seleccionFilas]="{ mode: 'singleRow' }"
+  ></ui-grilla-empresarial>
+</section>

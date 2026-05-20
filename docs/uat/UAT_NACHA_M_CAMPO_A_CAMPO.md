@@ -83,3 +83,16 @@ Matrices por camara:
 ## Decision
 
 NACHA-M + validacion normativa por camara queda **PARCIAL / BLOQUEADO**. Se mantiene **NO-GO productivo**.
+
+## Actualizacion 2026-05-19 - Parametrizacion de prenotificacion por camara
+
+Se implemento parametrizacion administrable para reglas de prenotificacion por camara/naturaleza/tipo mediante `ClearingHouseTransactionRule`.
+
+| Camara | Naturaleza | Regla | Fuente | Estado UAT |
+|---|---|---|---|---|
+| ACH Colombia | Debito | Prenotificacion obligatoria | MAN-004 V32 | Implementada por seed; pendiente reintento con prenotificacion UAT valida. |
+| ACH Colombia | Credito | Prenotificacion opcional | MAN-004 V32 | Implementada por seed; no bloquea export por ausencia de prenotificacion. |
+| CENIT | Debito | Prenotificacion obligatoria | DSP-152 Anexo 2 | Implementada por seed; pendiente reintento con prenotificacion UAT valida. |
+| CENIT | Credito | Prenotificacion no obligatoria/opcional | DSP-152 Anexo 2 | Implementada por seed; no bloquea export por ausencia de prenotificacion. |
+
+La validacion campo-a-campo de registros 1/5/6/7/8/9 sigue pendiente hasta generar archivos NACHA-M UAT no vacios por el sistema.

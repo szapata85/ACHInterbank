@@ -45,3 +45,16 @@ Se generaron evidencias de intento de exportacion NACHA-M para ACH Colombia y CE
 ## Conclusion
 
 La evidencia es suficiente para diagnosticar el bloqueo, pero no para cerrar DEF-UAT-020. Productivo permanece **NO-GO**.
+
+## Evidencia 2026-05-19 - Reglas parametrizadas
+
+Se agrego soporte tecnico para que NACHA Export consulte reglas parametrizadas de prenotificacion:
+
+- Entidad EF: `ClearingHouseTransactionRule`.
+- Migracion: `AddClearingHouseTransactionRules`.
+- API: `/api/clearing-house-transaction-rules`.
+- Preview: `/api/transaction-prerequisite-policy/preview`.
+- SPA: `/transactions/clearing-house-rules`.
+- Tests focalizados: `TransactionPrerequisitePolicyServiceTests`, `RegulatoryCatalogSeederTests`.
+
+Resultado: la ausencia de regla o de prenotificacion obligatoria se trata como prerequisito funcional controlado; no se habilito bypass ni backdating.

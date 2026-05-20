@@ -54,3 +54,15 @@ Estado especifico UAT funcional sintetico: G-24 queda parcialmente cubierto por 
 ## Restriccion De Esta Fase
 
 Esta actualizacion aplico solo cambios acotados de seguridad/configuracion/documentacion y pruebas de caracterizacion. No se tocaron reglas NACHA-M, CENIT, ROR, devoluciones, contabilidad ni conciliacion.
+
+## Actualizacion 2026-05-19 - DEF-UAT-020
+
+| Paso | Accion | Estado |
+|---|---|---|
+| 1 | Parametrizar reglas de prenotificacion por camara/naturaleza/tipo. | Completado tecnicamente. |
+| 2 | Aplicar migracion `AddClearingHouseTransactionRules` en UAT/local controlado. | Pendiente runtime. |
+| 3 | Validar seeds ACH Colombia/CENIT y banco origen default CFA/Cooperativa. | Pendiente runtime. |
+| 4 | Crear prenotificaciones UAT validas sin bypass/backdating. | Pendiente. |
+| 5 | Reintentar NACHA-M por ACH Colombia y CENIT. | Pendiente. |
+| 6 | Validar registros 1/5/6/7/8/9, totales/hash/block count. | Pendiente. |
+| 7 | Obtener homologacion/waiver/acta formal. | Pendiente. |

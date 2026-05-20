@@ -61,3 +61,11 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 - Go productivo requiere estados `OK` o riesgo aceptado formalmente en todos los controles bloqueantes.
 
 Estado tras UAT integrado NACHA/SOAP: **UAT tecnico autenticado basico OK con observaciones** y **UAT funcional sintetico PARCIALMENTE OK**. Se crearon transacciones por ACH Colombia y CENIT; DEF-UAT-021 evita falso exito con archivo 0 bytes y DEF-UAT-022 valida dry-run sin transmision externa. NACHA-M UAT queda bloqueado hasta crear prenotificacion valida y obtener archivo no vacio validado campo-a-campo. Productivo permanece **NO-GO**.
+
+## Actualizacion 2026-05-19
+
+| Control | Estado | Observacion |
+|---|---|---|
+| Reglas de prenotificacion parametrizadas por camara | OK tecnico | Backend/API/SPA implementados; requiere validacion runtime con migracion aplicada. |
+| DEF-UAT-020 NACHA-M campo-a-campo | Parcial | Parametrizacion completada, archivo no vacio sigue pendiente. |
+| Productivo | NO-GO | Persisten UAT formal, CENIT/CUD, sobre digital, backup/restore y homologaciones. |

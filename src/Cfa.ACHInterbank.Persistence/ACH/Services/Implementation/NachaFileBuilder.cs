@@ -45,6 +45,7 @@ public class NachaFileBuilder : INachaFileBuilder
     private readonly IFieldMappingPlanCompiler? _mappingPlanCompiler;
     private readonly NachaGenerationOptions _generationOptions;
     private readonly ILogger<NachaFileBuilder>? _logger;
+    private readonly ITransactionPrerequisitePolicyService? _prerequisitePolicyService;
 
     public NachaFileBuilder(
         AchDbContext context,
@@ -63,7 +64,8 @@ public class NachaFileBuilder : INachaFileBuilder
         IFieldMappingPlanCompiler? mappingPlanCompiler = null,
         IOptions<NachaGenerationOptions>? generationOptions = null,
         ILogger<NachaFileBuilder>? logger = null,
-        IBatchNumberGenerator? batchNumberGenerator = null)
+        IBatchNumberGenerator? batchNumberGenerator = null,
+        ITransactionPrerequisitePolicyService? prerequisitePolicyService = null)
     {
         _context = context;
         _holidayService = holidayService;
@@ -82,6 +84,7 @@ public class NachaFileBuilder : INachaFileBuilder
         _mappingPlanCompiler = mappingPlanCompiler;
         _generationOptions = generationOptions?.Value ?? new NachaGenerationOptions();
         _logger = logger;
+        _prerequisitePolicyService = prerequisitePolicyService;
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -2086,6 +2089,17 @@ public class NachaFileBuilder : INachaFileBuilder
             if (!tx.IsPrenotification)
             {
                 var prenoteDate = await GetPrenoteDateAsync(tx, prenoteLookup, ct);
+                if (_prerequisitePolicyService is not null)
+                {
+                    var validation = await _prerequisitePolicyService.ValidateForNachaExportAsync(tx, prenoteDate, ct);
+                    if (!validation.IsValid)
+                    {
+                        throw new InvalidOperationException(validation.Message);
+                    }
+
+                    continue;
+                }
+
                 if (prenoteDate is null)
                 {
                     throw new InvalidOperationException($"La transacción {tx.Id} no tiene prenotificación previa.");

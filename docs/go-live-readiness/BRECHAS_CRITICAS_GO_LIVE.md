@@ -44,3 +44,13 @@ Estado: registro actualizado tras cierre controlado de DEF-UAT-015; requiere tri
 ## Decision Inicial
 
 Con cualquier brecha CRITICA abierta, el estado permanece **NO-GO productivo**. UAT controlado puede avanzar si el ambiente esta disponible, los datos estan anonimizados y las brechas se comunican como restricciones. Backend CI/local y Angular CI de rama/local estan OK; Docker compose config/build/runtime estan OK para API, PostgreSQL, health checks, SPA estatica y proxy SPA->API/Auth/Navigation/funcional/NACHA. El UAT tecnico autenticado basico queda **OK con observaciones** y DEF-UAT-015 queda cerrado para el usuario demo `admin` multirol. El UAT funcional sintetico queda **PARCIALMENTE OK**. El UAT integrado NACHA/SOAP deja evidencia de transacciones por camara, export NACHA con 422 controlado por falta de prenotificacion y guardrail SOAP `DryRun` sin transmision externa. NACHA-M real UAT sigue bloqueado hasta prenotificacion valida y archivo no vacio. Productivo sigue **NO-GO**.
+
+## Actualizacion 2026-05-19 - Parametrizacion reglas por camara
+
+Se implemento configuracion administrable de reglas de prenotificacion por camara/naturaleza/tipo para reducir hard-code normativo y preparar el cierre de DEF-UAT-020. Nuevas evidencias:
+
+- `docs/auditoria-parametrizacion/`
+- `docs/go-live-readiness/CONFIGURACION_REGLAS_CAMARA_PRENOTIFICACION.md`
+- `docs/go-live-readiness/MATRIZ_REGLAS_PRENOTIFICACION_POR_CAMARA.md`
+
+La brecha G-28/DEF-UAT-020 sigue abierta hasta generar archivo NACHA-M UAT no vacio con prenotificacion valida por camara. Productivo permanece **NO-GO**.

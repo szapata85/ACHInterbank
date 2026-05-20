@@ -427,3 +427,65 @@ export interface UpsertCycleConfigRequest {
 export interface InactivateCycleConfigRequest {
   effectiveTo: string;
 }
+
+export type TransactionNature = 'Credit' | 'Debit';
+export type PrenotificationRequirementMode = 'Mandatory' | 'Optional' | 'NotApplicable';
+export type ValidationRequirementMode = 'Mandatory' | 'Optional' | 'NotApplicable';
+
+export interface ClearingHouseTransactionRuleItem {
+  id: number;
+  clearingHouseId: number;
+  clearingHouseName: string;
+  transactionNature: TransactionNature;
+  transactionType: TransactionTypeEnum;
+  requiresPrenotification: boolean;
+  prenotificationMode: PrenotificationRequirementMode;
+  requiresReceiverIdentificationValidation: boolean;
+  receiverIdentificationValidationMode: ValidationRequirementMode;
+  appliesToNachaExport: boolean;
+  appliesToMonetaryTransactions: boolean;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  isActive: boolean;
+  normativeSource: string;
+  normativeReference: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SaveClearingHouseTransactionRuleRequest {
+  clearingHouseId: number;
+  transactionNature: TransactionNature;
+  transactionType: TransactionTypeEnum;
+  requiresPrenotification: boolean;
+  prenotificationMode: PrenotificationRequirementMode;
+  requiresReceiverIdentificationValidation: boolean;
+  receiverIdentificationValidationMode: ValidationRequirementMode;
+  appliesToNachaExport: boolean;
+  appliesToMonetaryTransactions: boolean;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  normativeSource: string;
+  normativeReference: string;
+  notes?: string | null;
+}
+
+export interface TransactionPrerequisitePreviewRequest {
+  clearingHouseId: number;
+  transactionType: TransactionTypeEnum;
+  effectiveEntryDate: string;
+  appliesToNachaExport: boolean;
+}
+
+export interface TransactionPrerequisitePreviewResponse {
+  ruleConfigured: boolean;
+  requiresPrenotification: boolean;
+  prenotificationMode: PrenotificationRequirementMode;
+  requiresReceiverIdentificationValidation: boolean;
+  receiverIdentificationValidationMode: ValidationRequirementMode;
+  normativeSource?: string | null;
+  normativeReference?: string | null;
+  decision: string;
+  message: string;
+}

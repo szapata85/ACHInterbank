@@ -28,3 +28,12 @@ Se creo la transaccion sintetica `UAT-CENIT-NACHA-SOAP-001` (TransactionId `4`) 
 ## Decision
 
 CENIT NACHA-M no queda cerrado. Requiere prenotificacion UAT valida, archivo UAT no vacio, matriz campo-a-campo completa, homologacion o waiver. Productivo sigue **NO-GO**.
+
+## Parametrizacion 2026-05-19
+
+| Naturaleza | Prenotificacion | Fuente normativa | Implementacion | Estado |
+|---|---|---|---|---|
+| Debito | Obligatoria previa | CENIT DSP-152 Anexo 2, seccion 4.7 | `ClearingHouseTransactionRule` seed CENIT Debit | Implementada para UAT controlado |
+| Credito | No obligatoria/opcional | CENIT DSP-152 Anexo 2, seccion 4.7 | `ClearingHouseTransactionRule` seed CENIT Credit | Implementada para UAT controlado |
+
+Pendiente: crear prenotificacion UAT valida para debitos y reintentar archivo NACHA-M no vacio por sistema.

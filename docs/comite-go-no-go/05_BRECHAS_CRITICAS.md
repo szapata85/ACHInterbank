@@ -28,3 +28,7 @@ Estado general: Brechas bloqueantes para productivo
 - Evidencia NACHA-M: `docs/uat/evidencias/nacha-m-uat/`.
 - Evidencia SOAP dry-run: `docs/uat/evidencias/soap-proc-contrapartidas/`.
 - Resultado: DEF-UAT-021 y DEF-UAT-022 quedan cerrados tecnicamente para UAT/local; no se cierra DEF-UAT-020. Productivo sigue **NO-GO**.
+
+## Parametrizacion Reglas Camara 2026-05-19
+
+Se implemento `ClearingHouseTransactionRule` para reglas de prenotificacion por ACH Colombia/CENIT y naturaleza debit/credit. La brecha DEF-UAT-020 queda mejor acotada, pero sigue abierta hasta generar NACHA-M UAT no vacio con prenotificacion valida y validar campo-a-campo.
