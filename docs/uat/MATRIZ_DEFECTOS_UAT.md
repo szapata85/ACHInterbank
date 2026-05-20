@@ -108,3 +108,14 @@ Observacion normativa:
 
 - ACH Colombia se valida contra MAN-004 V32.
 - CENIT se valida tecnicamente con ejemplos disponibles en el proyecto y queda pendiente homologacion normativa formal.
+
+## Actualizacion DEF-UAT-020 - 2026-05-20 prenotificaciones CFA
+
+Se ejecuto UAT controlado de prenotificaciones CFA:
+
+- Endpoint read-only creado/validado: `GET /api/prenotifications/by-reference/{reference}`.
+- ACH Colombia: `UAT-ACH-PRE-CFA-001`, TransactionId 256, estado `Pending` / `Pendiente`, codigo NACHA `28`, archivo `0001283.004.1`.
+- CENIT: `UAT-CEN-PRE-CFA-001`, TransactionId 257, estado `Pending` / `Pendiente`, codigo NACHA `28`, archivo `0001283.002.1`.
+- Archivos no vacios generados por `/NachaExport/{cycleId}`; patron `RRRRTTT.ZZZ.1`, campo 7 y hash validados.
+
+Estado: **OK tecnico UAT para prenotificaciones CFA; DEF-UAT-020 permanece parcial normativo por homologacion formal CENIT/campo-a-campo externo**.

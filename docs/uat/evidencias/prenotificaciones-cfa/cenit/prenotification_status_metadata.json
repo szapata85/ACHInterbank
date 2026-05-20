@@ -1,0 +1,21 @@
+﻿{
+    "fecha":  "2026-05-20T12:25:07",
+    "rama":  "feature/parametrizacion-reglas-camara-prenotificacion",
+    "commit":  "33bbc145",
+    "camara":  "CENIT",
+    "referencia":  "UAT-CEN-PRE-CFA-001",
+    "transactionId":  257,
+    "bancoOrigen":  "Cooperativa Financiera de Antioquia",
+    "sourceIsDefault":  true,
+    "nachaCode":  "28",
+    "status":  "Pending",
+    "statusDescription":  "Pendiente",
+    "effectiveDate":  "2026-05-20T00:00:00Z",
+    "approvedAt":  null,
+    "maturityDate":  "2026-05-25T00:00:00Z",
+    "isMatured":  false,
+    "canBeUsedForDebit":  false,
+    "mensaje":  "La prenotificacion esta pendiente. Puede exportarse como prenotificacion, pero aun no habilita debito monetario posterior.",
+    "contieneSecretos":  false,
+    "datosReales":  false
+}

@@ -103,3 +103,12 @@ Observacion normativa:
 
 - ACH Colombia se valida contra MAN-004 V32.
 - CENIT se valida tecnicamente con ejemplos disponibles en el proyecto y queda pendiente homologacion normativa formal.
+
+## Actualizacion 2026-05-20 - prenotificaciones CFA
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| Consulta read-only de prenotificaciones | OK tecnico UAT | `GET /api/prenotifications/by-reference/{reference}` | No por si solo | Endpoint autenticado, estado en espanol |
+| NACHA-M prenotificacion ACH Colombia | OK tecnico UAT | `0001283.004.1` | No por si solo | Codigo NACHA 28 y campo 7 validados |
+| NACHA-M prenotificacion CENIT | OK tecnico UAT / parcial normativo | `0001283.002.1` | Si para GO formal | Falta homologacion normativa formal CENIT |
+| Productivo | NO-GO | Scorecard/readiness | Si | Mantener UAT controlado |

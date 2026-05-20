@@ -75,3 +75,18 @@ Observacion normativa:
 
 - ACH Colombia se valida contra MAN-004 V32.
 - CENIT se valida tecnicamente con ejemplos disponibles en el proyecto y queda pendiente homologacion normativa formal.
+
+## Actualizacion 2026-05-20 - prenotificacion CFA CENIT
+
+| Requisito | Valor esperado | Valor generado | Resultado | Evidencia |
+|---|---|---|---|---|
+| Camara | CENIT | CENIT | OK tecnico | `metadata.json` |
+| Referencia | `UAT-CEN-PRE-CFA-001` | `UAT-CEN-PRE-CFA-001` | OK tecnico | consulta read-only |
+| TransactionId | Generado por sistema | 257 | OK tecnico | consulta read-only |
+| Banco origen | CFA default source | Cooperativa Financiera de Antioquia | OK tecnico | consulta read-only |
+| Codigo NACHA | 28 | 28 | OK tecnico | archivo `0001283.002.1` |
+| Nomenclatura | `RRRRTTT.ZZZ.1` | `0001283.002.1` | OK tecnico | archivo |
+| Campo 7 registro 1 | `002 -> B` | B | OK tecnico | archivo |
+| Transmision externa | No | No | OK | metadata |
+
+Nota: CENIT mantiene pendiente homologacion normativa formal; esta evidencia cierra el componente tecnico UAT local de prenotificacion.

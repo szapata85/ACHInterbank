@@ -78,6 +78,17 @@ Clasificacion operacional: **Candidato UAT controlado**, no apto para productivo
 |---|---|
 | Acta UAT y evidencias firmadas | Subir UAT/evidencias a 75+ |
 | Cierre seguridad/configuracion | Subir seguridad a 75+ |
+
+## Actualizacion 2026-05-20 - prenotificaciones CFA
+
+Se agrego evidencia UAT tecnica de prenotificaciones CFA:
+
+- Consulta read-only autenticada con estado funcional en espanol.
+- NACHA-M no vacio de prenotificacion ACH Colombia: `0001283.004.1`, codigo `28`.
+- NACHA-M no vacio de prenotificacion CENIT: `0001283.002.1`, codigo `28`.
+- Nomenclatura `RRRRTTT.ZZZ.1`, campo 7 y hashes validados.
+
+El avance mejora la evidencia tecnica de interoperabilidad NACHA-M, pero no cambia la decision productiva: CENIT requiere homologacion normativa formal y UAT bancario/formal con actas. Estado global se mantiene **NO-GO productivo / continuar UAT controlado**.
 | Validacion externa sobre/naming | Subir interoperabilidad a 75+ |
 | E2E CENIT/CUD | Subir funcionalidad/interoperabilidad |
 | Backup/restore/rollback ensayado | Subir operacion |

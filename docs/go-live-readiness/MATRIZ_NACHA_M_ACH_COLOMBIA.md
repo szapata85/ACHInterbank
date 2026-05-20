@@ -75,3 +75,16 @@ Observacion normativa:
 
 - ACH Colombia se valida contra MAN-004 V32.
 - CENIT se valida tecnicamente con ejemplos disponibles en el proyecto y queda pendiente homologacion normativa formal.
+
+## Actualizacion 2026-05-20 - prenotificacion CFA ACH Colombia
+
+| Requisito | Valor esperado | Valor generado | Resultado | Evidencia |
+|---|---|---|---|---|
+| Camara | ACH Colombia | ACH Colombia | OK | `metadata.json` |
+| Referencia | `UAT-ACH-PRE-CFA-001` | `UAT-ACH-PRE-CFA-001` | OK | consulta read-only |
+| TransactionId | Generado por sistema | 256 | OK | consulta read-only |
+| Banco origen | CFA default source | Cooperativa Financiera de Antioquia | OK | consulta read-only |
+| Codigo NACHA | 28 | 28 | OK | archivo `0001283.004.1` |
+| Nomenclatura | `RRRRTTT.ZZZ.1` | `0001283.004.1` | OK | archivo |
+| Campo 7 registro 1 | `004 -> D` | D | OK | archivo |
+| Transmision externa | No | No | OK | metadata |

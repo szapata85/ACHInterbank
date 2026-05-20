@@ -100,3 +100,13 @@ Observacion normativa:
 
 - ACH Colombia se valida contra MAN-004 V32.
 - CENIT se valida tecnicamente con ejemplos disponibles en el proyecto y queda pendiente homologacion normativa formal.
+
+## Actualizacion 2026-05-20 - acciones DEF-UAT-020
+
+| Accion | Estado | Evidencia | Proximo paso |
+|---|---|---|---|
+| Crear prenotificacion CFA ACH Colombia | OK tecnico UAT | `UAT-ACH-PRE-CFA-001`, TransactionId 256 | Continuar validacion funcional formal |
+| Crear prenotificacion CFA CENIT | OK tecnico UAT | `UAT-CEN-PRE-CFA-001`, TransactionId 257 | Homologar norma CENIT |
+| Generar NACHA-M prenotificacion ACH Colombia | OK tecnico UAT | `0001283.004.1` | Adjuntar a acta UAT |
+| Generar NACHA-M prenotificacion CENIT | OK tecnico UAT / parcial normativo | `0001283.002.1` | Obtener validacion/waiver CENIT |
+| Productivo | NO-GO | Brechas abiertas | No someter a GO hasta cierre formal |
