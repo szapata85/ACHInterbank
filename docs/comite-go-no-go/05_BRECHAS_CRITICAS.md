@@ -5,9 +5,9 @@ Estado general: Brechas bloqueantes para productivo
 
 | ID | Brecha | Severidad | Impacto | Bloquea productivo | Accion requerida | Responsable sugerido |
 | --- | --- | --- | --- | --- | --- | --- |
-| DEF-UAT-020 | NACHA-M 1/5/6/7/8/9 requiere validacion campo-a-campo y homologacion/waiver; UAT integrado ACH Colombia/CENIT no genero archivo valido por respuesta 0 bytes y prenotificacion previa ausente | Critica | Riesgo de interoperabilidad y cumplimiento | Si | Resolver prerequisitos de exportacion, generar archivo no vacio por sistema y ejecutar matriz campo-a-campo | Arquitectura ACH / QA |
-| DEF-UAT-021 | `/NachaExport/{cycleId}` devuelve 200 con archivo vacio cuando no hay transacciones exportables validas | Alta | Riesgo de falsa evidencia operativa o archivo invalido | Si | Devolver error controlado y probar archivo no vacio | Backend / QA |
-| DEF-UAT-022 | `Proc_Contrapartidas` genero evidencia XML dry-run, pero el job automatico intento endpoint externo/no resoluble en UAT | Alta | Riesgo de intento de conexion externa no autorizada | Si | Configurar endpoint UAT/mock o guardrail dry-run | Integracion / DevOps / Seguridad |
+| DEF-UAT-020 | NACHA-M 1/5/6/7/8/9 requiere validacion campo-a-campo y homologacion/waiver; UAT integrado ACH Colombia/CENIT no genero archivo valido por prenotificacion previa ausente | Critica | Riesgo de interoperabilidad y cumplimiento | Si | Crear prenotificaciones UAT validas, generar archivo no vacio por sistema y ejecutar matriz campo-a-campo | Arquitectura ACH / QA |
+| DEF-UAT-021 | `/NachaExport/{cycleId}` ya no devuelve 200 con archivo vacio; responde 422 controlado cuando faltan prerequisitos | Alta | Riesgo de falsa evidencia mitigado, pero archivo no vacio sigue pendiente | Si | Reintentar con transacciones exportables validas y confirmar archivo > 0 bytes | Backend / QA |
+| DEF-UAT-022 | `Proc_Contrapartidas` opera en dry-run por defecto para UAT/local y no transmite externamente | Alta | Riesgo de endpoint externo mitigado en UAT/local; homologacion real pendiente | Si | Mantener dry-run hasta endpoint UAT/mock autorizado y aprobacion para modo Live | Integracion / DevOps / Seguridad |
 | UAT-FORMAL | UAT funcional formal con actas pendiente | Critica | No hay aceptacion funcional formal | Si | Ejecutar UAT formal, evidencias y firmas | Negocio / QA |
 | EVI-VISUAL | Evidencia visual/operativa pendiente | Alta | Debilita trazabilidad de aprobacion | Si | Completar evidencia de pantallas, flujos y operacion | QA / Operaciones |
 | CENIT-CUD | CENIT/CUD pendiente | Critica | Interoperabilidad externa no validada | Si | Definir alcance, pruebas sinteticas y homologacion | Arquitectura Integracion |
@@ -27,4 +27,4 @@ Estado general: Brechas bloqueantes para productivo
 - Transacciones UAT por camara creadas: `UAT-ACHCOL-NACHA-SOAP-001` y `UAT-CENIT-NACHA-SOAP-001`.
 - Evidencia NACHA-M: `docs/uat/evidencias/nacha-m-uat/`.
 - Evidencia SOAP dry-run: `docs/uat/evidencias/soap-proc-contrapartidas/`.
-- Resultado: no se cierra DEF-UAT-020; productivo sigue **NO-GO**.
+- Resultado: DEF-UAT-021 y DEF-UAT-022 quedan cerrados tecnicamente para UAT/local; no se cierra DEF-UAT-020. Productivo sigue **NO-GO**.

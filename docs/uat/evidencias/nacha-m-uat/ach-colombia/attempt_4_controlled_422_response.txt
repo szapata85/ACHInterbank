@@ -1,0 +1,11 @@
+HTTP/1.1 422 Unprocessable Entity
+Content-Type: application/json; charset=utf-8
+
+{
+  "codigo": "NACHA_EXPORT_PREREQUISITE_FAILED",
+  "mensaje": "La transaccion 3 no tiene prenotificacion previa. No se genero archivo NACHA-M.",
+  "cicloId": "2ada513804193e8aa8771252660182fdc7a55862"
+}
+
+Evidencia generada el 2026-05-19 en runtime Docker local via http://localhost:743/NachaExport/{cycleId}.
+No se genero archivo vacio y no se transmitio contenido a camaras externas.

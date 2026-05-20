@@ -52,7 +52,7 @@ Se ejecuto UAT integrado con transacciones sinteticas por camara:
 - ACH Colombia: `UAT-ACHCOL-NACHA-SOAP-001`, TransactionId `3`.
 - CENIT: `UAT-CENIT-NACHA-SOAP-001`, TransactionId `4`.
 
-Resultado: la generacion NACHA-M real UAT no produjo archivo valido. El primer intento por `http://localhost:743/NachaExport/{cycleId}` evidencio fallback Angular y se corrigio `web/ach-interbank-ui/nginx.conf` agregando `location /NachaExport/`. Los reintentos posteriores respondieron `HTTP 200` con `Content-Length: 0`. El modulo `nacha-security/operations/nacha/generate` registro falla por regla de negocio: transaccion sin prenotificacion previa.
+Resultado: la generacion NACHA-M real UAT no produjo archivo valido. El primer intento por `http://localhost:743/NachaExport/{cycleId}` evidencio fallback Angular y se corrigio `web/ach-interbank-ui/nginx.conf` agregando `location /NachaExport/`. Los reintentos posteriores inicialmente respondieron `HTTP 200` con `Content-Length: 0`; DEF-UAT-021 corrigio ese falso exito y ahora el endpoint responde `HTTP 422` JSON controlado por prenotificacion previa ausente. El modulo `nacha-security/operations/nacha/generate` tambien queda protegido contra exito con artefacto vacio.
 
 Evidencias:
 
@@ -61,4 +61,4 @@ Evidencias:
 - `docs/go-live-readiness/MATRIZ_NACHA_M_ACH_COLOMBIA.md`
 - `docs/go-live-readiness/MATRIZ_NACHA_M_CENIT.md`
 
-La brecha normativa NACHA-M permanece **PARCIAL/BLOQUEADA** hasta resolver prerequisitos de exportacion sin bypass, generar archivo controlado no vacio, validar campo-a-campo, firmar matriz regulatoria y obtener homologacion externa o waiver formal.
+La brecha normativa NACHA-M permanece **PARCIAL/BLOQUEADA** hasta crear prenotificaciones UAT validas sin bypass/backdating, generar archivo controlado no vacio, validar campo-a-campo, firmar matriz regulatoria y obtener homologacion externa o waiver formal.

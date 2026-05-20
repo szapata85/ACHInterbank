@@ -2,24 +2,24 @@
 
 Fecha: 2026-05-19 America/Bogota  
 Rama: `uat/nacha-m-soap-proc-contrapartidas`  
-Commit base: `98934e01`  
+Commit base: `f8c39d5`
 Ambiente: Docker Compose local, SPA `http://localhost:743`, API `http://localhost:843`.
 
 ## Resultado Ejecutivo
 
 Se ejecuto UAT funcional integrado con datos sinteticos/anonimizados para ACH Colombia y CENIT. Se crearon transacciones de salida UAT por API autenticada y se intento generar archivo NACHA-M UAT por el generador real del sistema.
 
-Resultado: **BLOQUEADO / PARCIAL**. No se obtuvo archivo NACHA-M valido para ninguna camara. Los intentos finales por `/NachaExport/{cycleId}` respondieron `HTTP 200` con `Content-Length: 0`. La ruta `nacha-security/operations/nacha/generate` registro falla controlada por regla de negocio: transaccion sin prenotificacion previa. No se aplico bypass, backdating, cambio de reglas ACH/NACHA-M/CENIT ni generacion manual de archivo.
+Resultado actualizado: **BLOQUEADO / PARCIAL** para validacion normativa campo-a-campo, con correccion tecnica aplicada a exportacion vacia. No se obtuvo archivo NACHA-M valido para ninguna camara porque las transacciones UAT no cumplen prenotificacion previa. Tras DEF-UAT-021, `/NachaExport/{cycleId}` ya no devuelve `HTTP 200` con archivo 0 bytes; ahora responde `HTTP 422` JSON con `NACHA_EXPORT_PREREQUISITE_FAILED` y causa funcional. No se aplico bypass, backdating, cambio de reglas ACH/NACHA-M/CENIT ni generacion manual de archivo.
 
 Productivo permanece **NO-GO**.
 
 ## Transacciones UAT
 
-Datos maestros sinteticos usados/ajustados para evitar bancos productivos reales:
+Datos maestros UAT usados/ajustados:
 
 | Dato maestro | ID | Uso |
 |---|---:|---|
-| Banco UAT Origen | 92 | Institucion origen default en runtime UAT local |
+| Cooperativa Financiera de Antioquia | 34 | Institucion origen default (`IsDefaultSource=true`), equivalente runtime a CFA Cooperativa Financiera |
 | Banco UAT Destino | 93 | Destino ACH Colombia, preferencia default ACH Colombia |
 | Banco UAT Destino CENIT | 94 | Destino CENIT, preferencia default CENIT |
 | Company Entry Description `TRASLADOS` | 30 | Descripcion de lote sintetica |
@@ -29,7 +29,7 @@ Datos maestros sinteticos usados/ajustados para evitar bancos productivos reales
 | ACH Colombia | `UAT-ACHCOL-NACHA-SOAP-001` | 3 | `Pending` | `2ada513804193e8aa8771252660182fdc7a55862` | Creada y persistida |
 | CENIT | `UAT-CENIT-NACHA-SOAP-001` | 4 | `Pending` | `7c0c26327f06a20d751ef72fc379ca6fe7166803` | Creada y persistida |
 
-Ambas transacciones usan datos sinteticos, monto `1000`, cuentas no reales y bancos UAT sinteticos.
+Ambas transacciones usan datos sinteticos, monto `1000`, cuentas no reales y destinos UAT sinteticos. El origen/default source queda en CFA/Cooperativa Financiera de Antioquia; `Banco UAT Origen` ya no es default.
 
 ## Intentos De Generacion NACHA-M
 
@@ -38,9 +38,11 @@ Ambas transacciones usan datos sinteticos, monto `1000`, cuentas no reales y ban
 | ACH Colombia | 1 | `/NachaExport` devolvio fallback Angular `index.html`; se corrigio proxy Nginx. | `docs/uat/evidencias/nacha-m-uat/ach-colombia/attempt_1_proxy_html_response.html` |
 | ACH Colombia | 2 | Respuesta 0 bytes. | `docs/uat/evidencias/nacha-m-uat/ach-colombia/attempt_2_zero_byte_response.txt` |
 | ACH Colombia | 3 | `HTTP 200`, `Content-Length: 0`; no HTML, no JSON, pero archivo vacio. | `docs/uat/evidencias/nacha-m-uat/ach-colombia/attempt_3_export_response_headers.txt` |
+| ACH Colombia | 4 | `HTTP 422` JSON controlado; causa: transaccion 3 sin prenotificacion previa. No se genero archivo vacio. | `docs/uat/evidencias/nacha-m-uat/ach-colombia/attempt_4_controlled_422_response.txt` |
 | CENIT | 1 | `/NachaExport` devolvio fallback Angular `index.html`; se corrigio proxy Nginx. | `docs/uat/evidencias/nacha-m-uat/cenit/attempt_1_proxy_html_response.html` |
 | CENIT | 2 | Respuesta 0 bytes. | `docs/uat/evidencias/nacha-m-uat/cenit/attempt_2_zero_byte_response.txt` |
 | CENIT | 3 | `HTTP 200`, `Content-Length: 0`; no HTML, no JSON, pero archivo vacio. | `docs/uat/evidencias/nacha-m-uat/cenit/attempt_3_export_response_headers.txt` |
+| CENIT | 4 | `HTTP 422` JSON controlado; causa: transaccion 4 sin prenotificacion previa. No se genero archivo vacio. | `docs/uat/evidencias/nacha-m-uat/cenit/attempt_4_controlled_422_response.txt` |
 
 ## Validacion Campo a Campo
 
@@ -48,12 +50,12 @@ No se puede marcar OK tecnico normativo porque no existe archivo NACHA-M valido 
 
 | Registro | ACH Colombia | CENIT | Resultado |
 |---|---|---|---|
-| 1 | No validable, archivo 0 bytes | No validable, archivo 0 bytes | FALLA |
-| 5 | No validable, archivo 0 bytes | No validable, archivo 0 bytes | FALLA |
-| 6 | No validable, archivo 0 bytes | No validable, archivo 0 bytes | FALLA |
+| 1 | No validable, sin archivo NACHA-M no vacio | No validable, sin archivo NACHA-M no vacio | PENDIENTE |
+| 5 | No validable, sin archivo NACHA-M no vacio | No validable, sin archivo NACHA-M no vacio | PENDIENTE |
+| 6 | No validable, sin archivo NACHA-M no vacio | No validable, sin archivo NACHA-M no vacio | PENDIENTE |
 | 7 | No validable | No validable | PENDIENTE/NO VALIDABLE |
-| 8 | No validable, archivo 0 bytes | No validable, archivo 0 bytes | FALLA |
-| 9 | No validable, archivo 0 bytes | No validable, archivo 0 bytes | FALLA |
+| 8 | No validable, sin archivo NACHA-M no vacio | No validable, sin archivo NACHA-M no vacio | PENDIENTE |
+| 9 | No validable, sin archivo NACHA-M no vacio | No validable, sin archivo NACHA-M no vacio | PENDIENTE |
 
 Matrices por camara:
 
@@ -63,8 +65,10 @@ Matrices por camara:
 ## Diagnostico
 
 - Proxy SPA/Nginx: corregido para `/NachaExport/`.
-- Generador real NACHA-M: no produjo archivo valido por endpoint de descarga; queda defecto por respuesta vacia `HTTP 200`.
+- Generador real NACHA-M: no produjo archivo valido porque las transacciones no tienen prenotificacion previa valida.
+- Export API: DEF-UAT-021 corregido tecnicamente; no retorna archivo 0 bytes como exito cuando faltan prerequisitos.
 - Generacion por modulo NACHA security: confirma precondicion funcional no cumplida: falta prenotificacion previa.
+- Banco origen default: runtime corregido para una unica institucion `IsDefaultSource=true`: `Cooperativa Financiera de Antioquia` ID 34. `Banco UAT Origen` ID 92 queda activo pero no default.
 - Documentacion normativa especifica por camara: parcial/no completa en repositorio; no permite homologacion campo-a-campo oficial.
 - No hubo transmision de archivos a ACH Colombia ni CENIT.
 
@@ -73,8 +77,8 @@ Matrices por camara:
 | Defecto | Estado | Observacion |
 |---|---|---|
 | DEF-UAT-020 | Abierto / Parcial | Falta validacion campo-a-campo y homologacion/waiver; el archivo real UAT no se genero validamente. |
-| DEF-UAT-021 | Abierto | `/NachaExport/{cycleId}` devuelve `HTTP 200` con 0 bytes para ciclos con transacciones sinteticas; debe responder error controlado si no hay archivo exportable. |
-| DEF-UAT-022 | Abierto | Job `Proc_Contrapartidas` intento automaticamente endpoint SOAP externo/no resoluble en ambiente UAT; requiere modo dry-run/mock o guardrail de ambiente. |
+| DEF-UAT-021 | Cerrado tecnico | `/NachaExport/{cycleId}` responde `HTTP 422` JSON controlado si faltan prerequisitos o no hay contenido exportable; no devuelve archivo 0 bytes como exito. |
+| DEF-UAT-022 | Cerrado tecnico UAT/local | `Proc_Contrapartidas` queda en `DryRun` por defecto; se genero evidencia runtime `PROC_DRY_RUN` sin transmision externa. |
 
 ## Decision
 

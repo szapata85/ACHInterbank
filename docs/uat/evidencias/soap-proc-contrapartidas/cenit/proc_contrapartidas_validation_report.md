@@ -11,4 +11,4 @@ Archivo generado en modo evidencia UAT/dry-run. No fue transmitido manualmente a
 | Endpoint SOAP invocado manualmente | No |
 | Transmisión productiva exitosa | No |
 
-Observación: el body fue tomado de ContrapartidaDispatchBatches.RequestPayloadXml, generado por el sistema para la transacción sintética UAT-CENIT-NACHA-SOAP-001. El runtime registró intentos automáticos del job SOAP con error de resolución DNS contra endpoint externo/no resoluble; se documenta como brecha de configuración UAT/mock.
+Observación: el body fue tomado de ContrapartidaDispatchBatches.RequestPayloadXml, generado por el sistema para la transacción sintética UAT-CENIT-NACHA-SOAP-001. Antes del guardrail se registraron intentos automáticos con error de DNS. Tras DEF-UAT-022, el runtime validó `PROC_DRY_RUN` con la referencia sintética `UAT-SOAP-DRYRUN-001`, sin `SOAP request` ni transmisión externa.

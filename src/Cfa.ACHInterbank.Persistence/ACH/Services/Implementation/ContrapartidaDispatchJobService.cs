@@ -7,6 +7,7 @@ using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -26,19 +27,22 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
     private readonly IProcContrapartidasRequestMapper _procContrapartidasRequestMapper;
     private readonly IProcContrapartidasResponseParser _responseParser;
     private readonly ILogger<ContrapartidaDispatchJobService> _logger;
+    private readonly ProcContrapartidasDispatchOptions _dispatchOptions;
 
     public ContrapartidaDispatchJobService(
         AchDbContext context,
         IWscfaachSoapClient soapClient,
         IProcContrapartidasRequestMapper procContrapartidasRequestMapper,
         IProcContrapartidasResponseParser responseParser,
-        ILogger<ContrapartidaDispatchJobService> logger)
+        ILogger<ContrapartidaDispatchJobService> logger,
+        IOptions<ProcContrapartidasDispatchOptions>? dispatchOptions = null)
     {
         _context = context;
         _soapClient = soapClient;
         _procContrapartidasRequestMapper = procContrapartidasRequestMapper;
         _responseParser = responseParser;
         _logger = logger;
+        _dispatchOptions = dispatchOptions?.Value ?? new ProcContrapartidasDispatchOptions();
     }
 
     public async Task<ContrapartidaCycleDispatchResult> ProcessCycleAsync(
@@ -156,8 +160,9 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                         cycle.ClearingHouseId);
                 }
 
-                responsePayload = await _soapClient.ProcContrapartidasAsync(requestPayload, ct);
-                parseResult = _responseParser.Parse(responsePayload);
+                var dispatchResult = await DispatchProcContrapartidasAsync(requestPayload, cycle.Id, cycle.ClearingHouseId, ct);
+                responsePayload = dispatchResult.ResponsePayload;
+                parseResult = dispatchResult.ParseResult;
             }
             catch (Exception ex)
             {
@@ -439,8 +444,9 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                         cycle.Id,
                         cycle.ClearingHouseId);
                 }
-                responsePayload = await _soapClient.ProcContrapartidasAsync(requestPayload, ct);
-                parseResult = _responseParser.Parse(responsePayload);
+                var dispatchResult = await DispatchProcContrapartidasAsync(requestPayload, cycle.Id, cycle.ClearingHouseId, ct);
+                responsePayload = dispatchResult.ResponsePayload;
+                parseResult = dispatchResult.ParseResult;
             }
             catch (Exception ex)
             {
@@ -552,6 +558,52 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             processingBatch.SummaryMessage);
     }
 
+    private async Task<ProcContrapartidasDispatchExecutionResult> DispatchProcContrapartidasAsync(
+        string requestPayload,
+        string cycleId,
+        int clearingHouseId,
+        CancellationToken ct)
+    {
+        if (_dispatchOptions.IsLive)
+        {
+            _logger.LogInformation(
+                "Proc_Contrapartidas live habilitado para ciclo {CycleId} camara {ClearingHouseId}.",
+                cycleId,
+                clearingHouseId);
+
+            var responsePayload = await _soapClient.ProcContrapartidasAsync(requestPayload, ct);
+            return new ProcContrapartidasDispatchExecutionResult(responsePayload, _responseParser.Parse(responsePayload));
+        }
+
+        var code = _dispatchOptions.IsDisabled
+            ? "PROC_DISABLED"
+            : "PROC_DRY_RUN";
+        var mode = _dispatchOptions.IsDisabled ? "disabled" : "dry-run";
+        var message = _dispatchOptions.IsDisabled
+            ? "Proc_Contrapartidas disabled: envelope generado, no transmitido."
+            : "Proc_Contrapartidas dry-run: envelope generado, no transmitido.";
+
+        _logger.LogInformation(
+            "{Message} Mode={Mode} CycleId={CycleId} ClearingHouseId={ClearingHouseId}",
+            message,
+            mode,
+            cycleId,
+            clearingHouseId);
+
+        var parseResult = new ProcContrapartidasParsedResponse(
+            IsSuccess: false,
+            IsSoapFault: false,
+            IsRetryable: false,
+            IsFunctionalRejection: false,
+            ErrorCode: code,
+            ErrorMessage: message,
+            RawResponse: message,
+            ResponseCode: code,
+            ItemResults: new Dictionary<int, ProcContrapartidasParsedItemResponse>());
+
+        return new ProcContrapartidasDispatchExecutionResult(message, parseResult);
+    }
+
     private static void ValidateCycleOperationalWindow(AchCycle cycle, DateTime nowLocal)
     {
         if (cycle.ClearingHouseCycleConfig is not null)
@@ -595,4 +647,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         return DateTime.UtcNow.Add(capped);
     }
 
+    private sealed record ProcContrapartidasDispatchExecutionResult(
+        string ResponsePayload,
+        ProcContrapartidasParsedResponse ParseResult);
 }

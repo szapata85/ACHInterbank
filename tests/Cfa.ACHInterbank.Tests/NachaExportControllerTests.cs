@@ -241,4 +241,100 @@ public class NachaExportControllerTests
         Assert.Contains("NACHA_VALIDATION_ERROR", payload);
         Assert.Contains("Error Fatal ID 22", payload);
     }
+
+    [Fact]
+    public async Task Export_WhenBuilderReturnsEmptyContent_ReturnsUnprocessableEntity()
+    {
+        const string cycleId = "cycle-empty-export";
+
+        var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
+        var crypto = new Mock<ICryptoServiceScoped>(MockBehavior.Strict);
+        var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
+        var clearingHouseService = new Mock<IClearingHouseService>(MockBehavior.Strict);
+        var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
+        var identifierMapService = new Mock<INachaFileIdentifierMapService>(MockBehavior.Strict);
+        var auditService = new Mock<IAchFileExportAuditService>(MockBehavior.Strict);
+        var externalFileNamePolicy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
+
+        cycleService
+            .Setup(c => c.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchCycleDto { Id = cycleId, ClearingHouseId = 1, CycleName = "CICLO-1", ProcessingDate = DateTime.UtcNow });
+        clearingHouseService
+            .Setup(c => c.GetByIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ClearingHouseDto { Id = 1, Code = "ACHCOL", OriginCode = "12345678", Name = "ACH Colombia" });
+        builder
+            .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(string.Empty);
+
+        var controller = new NachaExportController(
+            builder.Object,
+            crypto.Object,
+            cycleService.Object,
+            clearingHouseService.Object,
+            envelopePolicy.Object,
+            identifierMapService.Object,
+            auditService.Object,
+            externalFileNamePolicy.Object);
+
+        var result = await controller.Export(cycleId, CancellationToken.None);
+
+        var unprocessable = Assert.IsType<UnprocessableEntityObjectResult>(result);
+        var payload = unprocessable.Value?.ToString() ?? string.Empty;
+        Assert.Contains("NACHA_NO_EXPORTABLE_CONTENT", payload);
+        Assert.Contains("No se gener", payload);
+        auditService.Verify(
+            x => x.RecordGeneratedFileAsync(
+                It.IsAny<string>(),
+                It.IsAny<int>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Export_WhenBuilderThrowsPrenotificationPrerequisite_ReturnsUnprocessableEntity()
+    {
+        const string cycleId = "cycle-prenote";
+        const string message = "La transaccion 4 no tiene prenotificacion previa.";
+
+        var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
+        var crypto = new Mock<ICryptoServiceScoped>(MockBehavior.Strict);
+        var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
+        var clearingHouseService = new Mock<IClearingHouseService>(MockBehavior.Strict);
+        var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
+        var identifierMapService = new Mock<INachaFileIdentifierMapService>(MockBehavior.Strict);
+        var auditService = new Mock<IAchFileExportAuditService>(MockBehavior.Strict);
+        var externalFileNamePolicy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
+
+        cycleService
+            .Setup(c => c.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchCycleDto { Id = cycleId, ClearingHouseId = 1, CycleName = "CICLO-1", ProcessingDate = DateTime.UtcNow });
+        clearingHouseService
+            .Setup(c => c.GetByIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ClearingHouseDto { Id = 1, Code = "ACHCOL", OriginCode = "12345678", Name = "ACH Colombia" });
+        builder
+            .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException(message));
+
+        var controller = new NachaExportController(
+            builder.Object,
+            crypto.Object,
+            cycleService.Object,
+            clearingHouseService.Object,
+            envelopePolicy.Object,
+            identifierMapService.Object,
+            auditService.Object,
+            externalFileNamePolicy.Object);
+
+        var result = await controller.Export(cycleId, CancellationToken.None);
+
+        var unprocessable = Assert.IsType<UnprocessableEntityObjectResult>(result);
+        var payload = unprocessable.Value?.ToString() ?? string.Empty;
+        Assert.Contains("NACHA_EXPORT_PREREQUISITE_FAILED", payload);
+        Assert.Contains("prenotificacion", payload);
+    }
 }

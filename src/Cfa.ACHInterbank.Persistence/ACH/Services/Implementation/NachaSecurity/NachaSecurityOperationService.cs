@@ -262,6 +262,13 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
             var nacha = await _nachaBuilder.BuildNachaFileByCycleAsync(request.CycleId, cancellationToken);
             var legacyFileName = BuildNachaFileName(clearingHouse, cycle);
             var normalized = await NormalizeFileHeaderIdentifierForCenitAsync(nacha, clearingHouse, legacyFileName, cancellationToken);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                MarkAsFailed(operation, "NACHA_NO_EXPORTABLE_CONTENT", "No hay transacciones exportables para el ciclo. No se generó archivo NACHA-M.");
+                await _context.SaveChangesAsync(cancellationToken);
+                return ToDto(operation);
+            }
+
             var filePolicy = await GenerateAndEnforceExternalFileNamePolicyAsync(cycle, clearingHouse, legacyFileName, normalized, context.RequestedBy, cancellationToken);
             var outputFileName = encrypted ? $"{filePolicy.ExternalFileName}.ENV" : filePolicy.ExternalFileName;
 
@@ -300,9 +307,13 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
             await _context.SaveChangesAsync(cancellationToken);
             return ToDto(operation);
         }
-        catch (InvalidOperationException ex) when (ex.Message.Contains("Error Fatal ID", StringComparison.OrdinalIgnoreCase))
+        catch (InvalidOperationException ex)
         {
-            MarkAsFailed(operation, "NACHA_VALIDATION_ERROR", ex.Message);
+            var code = ResolveNachaGenerationErrorCode(ex.Message);
+            var message = code == "NACHA_EXPORT_PREREQUISITE_FAILED"
+                ? $"{ex.Message} No se generó archivo NACHA-M."
+                : ex.Message;
+            MarkAsFailed(operation, code, message);
             await _context.SaveChangesAsync(cancellationToken);
             return ToDto(operation);
         }
@@ -341,6 +352,29 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
         operation.DownloadAvailable = false;
         operation.FinishedAtUtc = DateTime.UtcNow;
         operation.RowVersion = NewRowVersion();
+    }
+
+    private static string ResolveNachaGenerationErrorCode(string message)
+    {
+        if (message.Contains("Error Fatal ID", StringComparison.OrdinalIgnoreCase))
+        {
+            return "NACHA_VALIDATION_ERROR";
+        }
+
+        if (message.Contains("prenotificaci", StringComparison.OrdinalIgnoreCase))
+        {
+            return "NACHA_EXPORT_PREREQUISITE_FAILED";
+        }
+
+        if (message.Contains("no tiene transacciones", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("no tiene lotes", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("no se encontraron lotes", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("no contiene transacciones exportables", StringComparison.OrdinalIgnoreCase))
+        {
+            return "NACHA_NO_EXPORTABLE_CONTENT";
+        }
+
+        return "NACHA_OPERATION_FAILED";
     }
 
     private static DigitalEnvelopeOperationDto ToDto(NachaSecurityOperation x)

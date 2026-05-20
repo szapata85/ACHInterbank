@@ -3,11 +3,13 @@ using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.External.Connections;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -39,7 +41,8 @@ public class ContrapartidaDispatchJobServiceTests
             soap.Object,
             mapper.Object,
             parser.Object,
-            NullLogger<ContrapartidaDispatchJobService>.Instance);
+            NullLogger<ContrapartidaDispatchJobService>.Instance,
+            LiveDispatchOptions());
 
         var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-soap-2b", 100, CancellationToken.None);
 
@@ -112,7 +115,8 @@ public class ContrapartidaDispatchJobServiceTests
             soap.Object,
             mapper.Object,
             parser.Object,
-            NullLogger<ContrapartidaDispatchJobService>.Instance);
+            NullLogger<ContrapartidaDispatchJobService>.Instance,
+            LiveDispatchOptions());
 
         var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-soap-2b", 100, CancellationToken.None);
 
@@ -190,7 +194,8 @@ public class ContrapartidaDispatchJobServiceTests
             soap.Object,
             mapper.Object,
             parser.Object,
-            NullLogger<ContrapartidaDispatchJobService>.Instance);
+            NullLogger<ContrapartidaDispatchJobService>.Instance,
+            LiveDispatchOptions());
 
         var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-soap-2b", 100, CancellationToken.None);
 
@@ -268,7 +273,8 @@ public class ContrapartidaDispatchJobServiceTests
             soap.Object,
             mapper.Object,
             parser.Object,
-            NullLogger<ContrapartidaDispatchJobService>.Instance);
+            NullLogger<ContrapartidaDispatchJobService>.Instance,
+            LiveDispatchOptions());
 
         var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-soap-2b", 100, CancellationToken.None);
 
@@ -290,6 +296,67 @@ public class ContrapartidaDispatchJobServiceTests
         Assert.Equal(1, batch.TotalSucceeded);
         Assert.Equal(1, batch.TotalFailed);
         Assert.Equal(1, batch.TotalPartial);
+    }
+
+    [Fact]
+    public async Task ProcessCycleAsync_DryRun_GeneraPayloadSinInvocarSoap()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var context = new AchDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+
+        var cycleId = await SembrarEstructuraBaseAsync(context);
+        await SembrarTransaccionYItemPendienteAsync(context, cycleId);
+
+        var mapper = new Mock<IProcContrapartidasRequestMapper>();
+        mapper
+            .Setup(x => x.ResolveAsync(It.IsAny<AchCycle>(), It.IsAny<IReadOnlyCollection<AchTransaction>>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcContrapartidasRequestResolution
+            {
+                Contract = ContratoValido(),
+                MappingSnapshotHash = "hash-dry-run",
+                UsedFallback = false
+            });
+        mapper
+            .Setup(x => x.BuildSoapBody(It.IsAny<ProcContrapartidasRequestContract>()))
+            .Returns("<request-dry-run/>");
+
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var parser = new Mock<IProcContrapartidasResponseParser>(MockBehavior.Strict);
+
+        var sut = new ContrapartidaDispatchJobService(
+            context,
+            soap.Object,
+            mapper.Object,
+            parser.Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance,
+            Options.Create(new ProcContrapartidasDispatchOptions { Mode = "DryRun" }));
+
+        var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-soap-dry-run", 100, CancellationToken.None);
+
+        Assert.Equal(1, result.Processed);
+        Assert.Equal(0, result.Succeeded);
+        Assert.Equal(1, result.Failed);
+
+        var item = await context.ContrapartidaDispatchItems.SingleAsync();
+        Assert.Equal(ContrapartidaDispatchItemStateEnum.ContrapartidaReportFailed, item.State);
+        Assert.Null(item.NextAttemptAtUtc);
+        Assert.Equal("PROC_DRY_RUN", item.LastErrorCode);
+
+        var attempt = await context.ContrapartidaDispatchAttempts.SingleAsync();
+        Assert.Equal(ContrapartidaDispatchAttemptResultEnum.Failed, attempt.Result);
+        Assert.False(attempt.RetryEligible);
+        Assert.Equal("<request-dry-run/>", attempt.RequestPayloadXml);
+        Assert.Contains("dry-run", attempt.ResponsePayloadXml, StringComparison.OrdinalIgnoreCase);
+
+        soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        parser.Verify(x => x.Parse(It.IsAny<string>()), Times.Never);
     }
 
     private static async Task<string> SembrarEstructuraBaseAsync(AchDbContext context)
@@ -452,4 +519,7 @@ public class ContrapartidaDispatchJobServiceTests
         ANSIDTX = "TX-CP-001",
         ANSIDREVER = 0
     };
+
+    private static IOptions<ProcContrapartidasDispatchOptions> LiveDispatchOptions()
+        => Options.Create(new ProcContrapartidasDispatchOptions { Mode = "Live" });
 }

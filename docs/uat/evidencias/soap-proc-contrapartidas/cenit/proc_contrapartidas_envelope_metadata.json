@@ -15,5 +15,5 @@
     "endpointSoapInvocadoManual":  false,
     "transmisionProductivaExitosa":  false,
     "fuente":  "ContrapartidaDispatchBatches.RequestPayloadXml generado por el sistema; envelope agregado con formato del cliente WscfaachSoapClient en modo evidencia dry-run.",
-    "observacion":  "No se realizó invocación manual. Se detectaron intentos automáticos del job hacia endpoint externo/no resoluble; sin transmisión exitosa."
+    "observacion":  "No se realizó invocación manual. Tras DEF-UAT-022, el runtime UAT/local validó guardrail PROC_DRY_RUN sin SOAP request ni transmisión externa; endpoint UAT/mock real sigue pendiente."
 }

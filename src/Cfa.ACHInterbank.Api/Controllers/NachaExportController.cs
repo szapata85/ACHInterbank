@@ -67,6 +67,11 @@ public class NachaExportController : ControllerBase
             string nachaContent = await _nachaBuilder.BuildNachaFileByCycleAsync(cycleId, ct);
             string legacyFileName = BuildNachaFileName(clearingHouse, cycle);
             string normalizedNachaContent = await NormalizeFileHeaderIdentifierForCenitAsync(nachaContent, clearingHouse, legacyFileName, ct);
+            if (IsEmptyExport(normalizedNachaContent))
+            {
+                return EmptyExport(cycleId);
+            }
+
             var fileNamePolicyResult = await GenerateAndEnforceExternalFileNamePolicyAsync(cycle, clearingHouse, legacyFileName, normalizedNachaContent, ct);
             string fileName = fileNamePolicyResult.ExternalFileName;
             await _fileExportAuditService.RecordGeneratedFileAsync(
@@ -81,14 +86,9 @@ public class NachaExportController : ControllerBase
 
             return File(Encoding.ASCII.GetBytes(normalizedNachaContent), "text/plain", fileName);
         }
-        catch (InvalidOperationException ex) when (ex.Message.Contains("Error Fatal ID", StringComparison.OrdinalIgnoreCase))
+        catch (InvalidOperationException ex)
         {
-            return UnprocessableEntity(new
-            {
-                codigo = "NACHA_VALIDATION_ERROR",
-                mensaje = ex.Message,
-                cicloId = cycleId
-            });
+            return ExportPreconditionFailed(cycleId, ex);
         }
     }
     [EndpointSummary("Exportar NACHA con sobre digital")]
@@ -114,6 +114,11 @@ public class NachaExportController : ControllerBase
 
             string legacyFileName = BuildNachaFileName(clearingHouse, cycle);
             string normalizedNachaContent = await NormalizeFileHeaderIdentifierForCenitAsync(nachaContent, clearingHouse, legacyFileName, ct);
+            if (IsEmptyExport(normalizedNachaContent))
+            {
+                return EmptyExport(cycleId);
+            }
+
             var fileNamePolicyResult = await GenerateAndEnforceExternalFileNamePolicyAsync(cycle, clearingHouse, legacyFileName, normalizedNachaContent, ct);
             string fileName = fileNamePolicyResult.ExternalFileName;
             await _fileExportAuditService.RecordGeneratedFileAsync(
@@ -136,15 +141,60 @@ public class NachaExportController : ControllerBase
 
             return File(digitalEnvelope, "application/xml", envelopeFileName);
         }
-        catch (InvalidOperationException ex) when (ex.Message.Contains("Error Fatal ID", StringComparison.OrdinalIgnoreCase))
+        catch (InvalidOperationException ex)
         {
-            return UnprocessableEntity(new
-            {
-                codigo = "NACHA_VALIDATION_ERROR",
-                mensaje = ex.Message,
-                cicloId = cycleId
-            });
+            return ExportPreconditionFailed(cycleId, ex);
         }
+    }
+
+    private static bool IsEmptyExport(string nachaContent)
+        => string.IsNullOrWhiteSpace(nachaContent);
+
+    private UnprocessableEntityObjectResult EmptyExport(string cycleId)
+        => UnprocessableEntity(new
+        {
+            codigo = "NACHA_NO_EXPORTABLE_CONTENT",
+            mensaje = "No hay transacciones exportables para el ciclo. No se generó archivo NACHA-M.",
+            cicloId = cycleId
+        });
+
+    private UnprocessableEntityObjectResult ExportPreconditionFailed(string cycleId, InvalidOperationException ex)
+    {
+        var message = ex.Message ?? "No fue posible generar el archivo NACHA-M.";
+        var code = ResolveNachaExportErrorCode(message);
+        var userMessage = code == "NACHA_EXPORT_PREREQUISITE_FAILED"
+            ? $"{message} No se generó archivo NACHA-M."
+            : message;
+
+        return UnprocessableEntity(new
+        {
+            codigo = code,
+            mensaje = userMessage,
+            cicloId = cycleId
+        });
+    }
+
+    private static string ResolveNachaExportErrorCode(string message)
+    {
+        if (message.Contains("Error Fatal ID", StringComparison.OrdinalIgnoreCase))
+        {
+            return "NACHA_VALIDATION_ERROR";
+        }
+
+        if (message.Contains("prenotificaci", StringComparison.OrdinalIgnoreCase))
+        {
+            return "NACHA_EXPORT_PREREQUISITE_FAILED";
+        }
+
+        if (message.Contains("no tiene transacciones", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("no tiene lotes", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("no se encontraron lotes", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("no contiene transacciones exportables", StringComparison.OrdinalIgnoreCase))
+        {
+            return "NACHA_NO_EXPORTABLE_CONTENT";
+        }
+
+        return "NACHA_EXPORT_ERROR";
     }
 
     private static string BuildNachaFileName(ClearingHouseDto clearingHouse, AchCycleDto cycle)

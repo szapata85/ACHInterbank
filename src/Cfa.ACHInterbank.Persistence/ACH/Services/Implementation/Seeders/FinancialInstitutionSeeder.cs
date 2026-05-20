@@ -600,30 +600,46 @@ public class FinancialInstitutionSeeder : IDbSeeder
 
             _context.FinancialInstitutions.AddRange(institutions);
             await _context.SaveChangesAsync();
+            await EnsureSingleDefaultSourceAsync();
             return;
         }
 
         // ✅ Garantizar que exista una entidad por defecto dentro de los registros actuales
-        bool hasDefault = await _context.FinancialInstitutions
-            .AnyAsync(fi => fi.IsDefaultSource && fi.Status == FinancialInstitutionStatus.Active);
+        await EnsureSingleDefaultSourceAsync();
+    }
 
-        if (!hasDefault)
+    private async Task EnsureSingleDefaultSourceAsync()
+    {
+        var activeInstitutions = await _context.FinancialInstitutions
+            .Where(fi => fi.Status == FinancialInstitutionStatus.Active)
+            .OrderBy(fi => fi.Id)
+            .ToListAsync();
+
+        if (activeInstitutions.Count == 0)
         {
-            var cooperativa = await _context.FinancialInstitutions
-                .FirstOrDefaultAsync(
-                    fi => fi.Status == FinancialInstitutionStatus.Active &&
-                          fi.Name == "Cooperativa Financiera de Antioquia");
+            return;
+        }
 
-            var fallback = cooperativa ?? await _context.FinancialInstitutions
-                .FirstOrDefaultAsync(fi => fi.Status == FinancialInstitutionStatus.Active);
+        var cfa = activeInstitutions.FirstOrDefault(fi =>
+            string.Equals(fi.Name, "Cooperativa Financiera de Antioquia", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fi.Name, "CFA Cooperativa Financiera", StringComparison.OrdinalIgnoreCase));
+        var target = cfa ?? activeInstitutions.FirstOrDefault(fi => fi.IsDefaultSource) ?? activeInstitutions[0];
+        var changed = false;
 
-            if (fallback is null)
+        foreach (var institution in activeInstitutions)
+        {
+            var shouldBeDefault = institution.Id == target.Id;
+            if (institution.IsDefaultSource == shouldBeDefault)
             {
-                return;
+                continue;
             }
 
-            fallback.IsDefaultSource = true;
-            _context.FinancialInstitutions.Update(fallback);
+            institution.IsDefaultSource = shouldBeDefault;
+            changed = true;
+        }
+
+        if (changed)
+        {
             await _context.SaveChangesAsync();
         }
     }

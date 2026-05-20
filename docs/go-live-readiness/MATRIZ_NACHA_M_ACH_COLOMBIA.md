@@ -6,7 +6,7 @@ Fecha: 2026-05-19 America/Bogota.
 
 Estado actual: **PARCIAL / BLOQUEADO**.
 
-Se creo la transaccion sintetica `UAT-ACHCOL-NACHA-SOAP-001` (TransactionId `3`) y se intento generar NACHA-M por el generador real. No se obtuvo archivo valido: `/NachaExport/{cycleId}` respondio 0 bytes y `nacha-security/operations/nacha/generate` confirmo falla por prenotificacion previa ausente.
+Se creo la transaccion sintetica `UAT-ACHCOL-NACHA-SOAP-001` (TransactionId `3`) y se intento generar NACHA-M por el generador real. No se obtuvo archivo valido: tras DEF-UAT-021, `/NachaExport/{cycleId}` responde `HTTP 422` JSON controlado por prenotificacion previa ausente. No se genera archivo 0 bytes como exito.
 
 ## Matriz
 
@@ -27,4 +27,4 @@ Se creo la transaccion sintetica `UAT-ACHCOL-NACHA-SOAP-001` (TransactionId `3`)
 
 ## Decision
 
-ACH Colombia NACHA-M no queda cerrado. Requiere archivo UAT no vacio, matriz campo-a-campo completa, homologacion o waiver. Productivo sigue **NO-GO**.
+ACH Colombia NACHA-M no queda cerrado. Requiere prenotificacion UAT valida, archivo UAT no vacio, matriz campo-a-campo completa, homologacion o waiver. Productivo sigue **NO-GO**.

@@ -8,6 +8,7 @@ Evidencias:
 - attempt_1_proxy_html_response.html: fallback Angular previo a correccion de proxy.
 - attempt_2_zero_byte_response.txt: respuesta de 0 bytes.
 - attempt_3_export_response.txt y headers: reintento final por proxy/API con 0 bytes.
+- attempt_4_controlled_422_response.txt: revalidacion post-fix DEF-UAT-021 con 422 JSON controlado por prenotificacion previa ausente.
 - metadata.json
 - validation_report.md
 - matriz_campo_a_campo.md

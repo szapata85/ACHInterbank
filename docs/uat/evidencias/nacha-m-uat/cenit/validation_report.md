@@ -6,8 +6,8 @@ CycleId: 7c0c26327f06a20d751ef72fc379ca6fe7166803
 
 | Control | Resultado | Evidencia |
 |---|---|---|
-| Archivo generado por sistema | FALLA | /NachaExport respondio 0 bytes; nacha-security fallo por prenotificacion previa ausente |
-| Archivo no vacio | FALLA | attempt_2/attempt_3 = 0 bytes |
+| Archivo generado por sistema | FALLA CONTROLADA | /NachaExport responde 422 por prenotificacion previa ausente; no genera archivo vacio como exito |
+| Archivo no vacio | FALLA | No hay archivo exportable hasta cumplir prenotificacion UAT valida |
 | No HTML/JSON error | PARCIAL | intento 1 fue HTML; intentos 2/3 no fueron HTML pero vacios |
 | Registros 1/5/6/8/9 | NO VALIDABLE | no hay archivo NACHA valido |
 | Registro 7 | NO VALIDABLE | no hay archivo NACHA valido |

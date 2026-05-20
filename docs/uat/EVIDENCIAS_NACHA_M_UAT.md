@@ -5,7 +5,7 @@ Ambiente: Docker Compose local, SPA `http://localhost:743`, API `http://localhos
 
 ## Resumen
 
-Se generaron evidencias de intento de exportacion NACHA-M para ACH Colombia y CENIT con transacciones sinteticas. No se obtuvo archivo NACHA-M valido: los archivos finales quedaron en 0 bytes y el modulo NACHA security registro falla por prenotificacion previa ausente.
+Se generaron evidencias de intento de exportacion NACHA-M para ACH Colombia y CENIT con transacciones sinteticas. No se obtuvo archivo NACHA-M valido porque las transacciones no cumplen prenotificacion previa. DEF-UAT-021 fue corregido: el endpoint `/NachaExport/{cycleId}` ya no devuelve `HTTP 200` con archivo 0 bytes; devuelve `HTTP 422` JSON controlado con causa funcional.
 
 ## Evidencias Por Camara
 
@@ -21,12 +21,14 @@ Se generaron evidencias de intento de exportacion NACHA-M para ACH Colombia y CE
 | ACH Colombia | `attempt_1_proxy_html_response.html` | Evidencia de fallback Angular previo a correccion de proxy. |
 | ACH Colombia | `attempt_2_zero_byte_response.txt` | Evidencia de respuesta vacia posterior. |
 | ACH Colombia | `attempt_3_export_response.txt` / `_headers.txt` | Reintento final, `HTTP 200` con `Content-Length: 0`. |
+| ACH Colombia | `attempt_4_controlled_422_response.txt` | Revalidacion post-fix DEF-UAT-021: `HTTP 422` JSON por prenotificacion previa ausente, sin archivo vacio. |
 | ACH Colombia | `metadata.json` | Metadata UAT, intentos, bloqueo y controles. |
 | ACH Colombia | `validation_report.md` | Reporte de validacion de archivo. |
 | ACH Colombia | `matriz_campo_a_campo.md` | Matriz por registro, marcada no validable/falla por ausencia de archivo. |
 | CENIT | `attempt_1_proxy_html_response.html` | Evidencia de fallback Angular previo a correccion de proxy. |
 | CENIT | `attempt_2_zero_byte_response.txt` | Evidencia de respuesta vacia posterior. |
 | CENIT | `attempt_3_export_response.txt` / `_headers.txt` | Reintento final, `HTTP 200` con `Content-Length: 0`. |
+| CENIT | `attempt_4_controlled_422_response.txt` | Revalidacion post-fix DEF-UAT-021: `HTTP 422` JSON por prenotificacion previa ausente, sin archivo vacio. |
 | CENIT | `metadata.json` | Metadata UAT, intentos, bloqueo y controles. |
 | CENIT | `validation_report.md` | Reporte de validacion de archivo. |
 | CENIT | `matriz_campo_a_campo.md` | Matriz por registro, marcada no validable/falla por ausencia de archivo. |
@@ -38,6 +40,7 @@ Se generaron evidencias de intento de exportacion NACHA-M para ACH Colombia y CE
 - No se transmitieron archivos a ACH Colombia ni CENIT.
 - No se generaron instrucciones productivas de pago.
 - No se modificaron reglas ACH/NACHA-M/CENIT/ROR.
+- Banco origen default runtime validado: `Cooperativa Financiera de Antioquia` ID 34 es la unica institucion activa con `IsDefaultSource=true`.
 
 ## Conclusion
 

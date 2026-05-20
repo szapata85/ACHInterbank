@@ -13,7 +13,7 @@ PROJECT = "ACH Interbank"
 PACKAGE_VERSION = "1.0 preliminar"
 GLOBAL_STATE = "UAT controlado / NO-GO productivo"
 RECOMMENDATION = "Continuar UAT controlado con observaciones"
-SCORECARD = "67.4 / 100"
+SCORECARD = "68.1 / 100"
 ENVIRONMENT = "Local Docker / UAT controlado"
 
 SOURCE_DOCS = [
@@ -428,8 +428,8 @@ def generate_excel() -> None:
         ("UAT-OP-028", "Seguridad", "Validar sobre digital/certificados", "Validar flujo sin certificados privados.", "Seguridad", "Alcance definido", "Certificados de prueba", "Ejecutar prueba segura.", "Evidencia o waiver.", "", "Bloqueada", "", "SOBRE-DIGITAL", "Alta", "No usar certificados productivos."),
         ("UAT-OP-029", "Operacion", "Validar backup/restore", "Ejecutar recuperacion controlada.", "SRE", "Ambiente controlado", "Backup de prueba", "Ejecutar restore/rollback.", "Recuperacion documentada.", "", "Bloqueada", "", "BKP-RESTORE", "Alta", "Pendiente."),
         ("UAT-OP-030", "Actas", "Validar acta y cierre de evidencias", "Cerrar paquete UAT.", "QA/PMO", "Evidencias completas", "N/A", "Revisar acta.", "Acta firmada o pendiente formal.", "", "Pendiente", "", "ACTAS", "Alta", ""),
-        ("UAT-OP-031", "NACHA-M", "Validar archivo NACHA-M no vacio por camara", "Confirmar que ACH Colombia y CENIT generan archivo real UAT por sistema.", "Admin/QA", "Transacciones exportables y prenotificacion previa cumplida", "Datos sinteticos", "Generar por /NachaExport o nacha-security y revisar size/hash/registros.", "Archivo > 0 bytes, no HTML/JSON error, registros 1/5/6/8/9.", "", "Bloqueada", "docs/uat/evidencias/nacha-m-uat/", "DEF-UAT-021", "Alta", ""),
-        ("UAT-OP-032", "SOAP", "Validar Proc_Contrapartidas dry-run/mock", "Confirmar que el job SOAP no usa endpoint externo no autorizado.", "Admin/Integracion", "Endpoint UAT/mock o dry-run configurado", "Payload sintetico", "Ejecutar dry-run autorizado y revisar request/response sanitizado.", "Sin transmision productiva; XML bien formado y auditado.", "", "Bloqueada", "docs/uat/evidencias/soap-proc-contrapartidas/", "DEF-UAT-022", "Alta", ""),
+        ("UAT-OP-031", "NACHA-M", "Validar archivo NACHA-M no vacio por camara", "Confirmar que ACH Colombia y CENIT generan archivo real UAT por sistema.", "Admin/QA", "Transacciones exportables y prenotificacion previa cumplida", "Datos sinteticos", "Generar por /NachaExport o nacha-security y revisar size/hash/registros.", "Archivo > 0 bytes, no HTML/JSON error, registros 1/5/6/8/9.", "Bloqueado por prenotificacion previa ausente; /NachaExport retorna 422 JSON controlado.", "Bloqueada", "docs/uat/evidencias/nacha-m-uat/", "DEF-UAT-020", "Alta", "DEF-UAT-021 cerrado tecnicamente; falta archivo no vacio con prenotificacion valida."),
+        ("UAT-OP-032", "SOAP", "Validar Proc_Contrapartidas dry-run/mock", "Confirmar que el job SOAP no usa endpoint externo no autorizado.", "Admin/Integracion", "Endpoint UAT/mock o dry-run configurado", "Payload sintetico", "Ejecutar dry-run autorizado y revisar request/response sanitizado.", "Sin transmision productiva; XML bien formado y auditado.", "DryRun runtime validado con PROC_DRY_RUN sin invocacion SOAP externa.", "Ejecutada OK", "docs/uat/evidencias/soap-proc-contrapartidas/runtime_dry_run_validation.md", "DEF-UAT-022", "Alta", "Cerrado tecnico UAT/local; endpoint UAT/mock real pendiente para homologacion."),
     ]
     ws_pruebas = add_sheet("Set_Pruebas_Operativas", pruebas_headers, prueba_specs)
 
@@ -446,8 +446,8 @@ def generate_excel() -> None:
     defectos_rows = [
         ("DEF-UAT-015", "UAT-OP-018", "Roles", "Alta", "ACH.Operator no asignado/no visible.", "EV-FUNC-039", "Seguridad/Backend", "Cerrado", "2026-05-18", "2026-05-19", "Opcion A: admin demo multirol para UAT controlado", "No debilita auth; evaluar operador separado para productivo."),
         ("DEF-UAT-020", "UAT-OP-019", "NACHA-M", "Bloqueante", "NACHA-M 1/5/6/7/8/9 pendiente campo-a-campo; UAT integrado no genero archivo valido.", "docs/uat/EVIDENCIAS_NACHA_M_UAT.md", "Arquitectura ACH/QA", "Abierto", "2026-05-19", "", "Pendiente", "Requiere archivo no vacio, matriz y homologacion/waiver."),
-        ("DEF-UAT-021", "UAT-OP-031", "NACHA-M", "Alta", "/NachaExport devuelve 200 con archivo vacio en escenario no exportable.", "docs/uat/evidencias/nacha-m-uat/", "Backend/QA", "Abierto", "2026-05-19", "", "Pendiente", "Debe retornar error controlado o archivo valido."),
-        ("DEF-UAT-022", "UAT-OP-032", "SOAP", "Alta", "Proc_Contrapartidas requiere UAT/mock o guardrail dry-run; job intento endpoint externo no resoluble.", "docs/uat/EVIDENCIAS_SOAP_PROC_CONTRAPARTIDAS.md", "Integracion/DevOps/Seguridad", "Abierto", "2026-05-19", "", "Pendiente", "No hubo transmision exitosa."),
+        ("DEF-UAT-021", "UAT-OP-031", "NACHA-M", "Alta", "/NachaExport ya no devuelve 200 con archivo vacio; responde 422 JSON controlado cuando faltan prerequisitos/exportables.", "docs/uat/evidencias/nacha-m-uat/*/attempt_4_controlled_422_response.txt", "Backend/QA", "Cerrado", "2026-05-19", "2026-05-19", "Cerrado tecnico", "Pendiente reintento con prenotificacion valida para cerrar DEF-UAT-020."),
+        ("DEF-UAT-022", "UAT-OP-032", "SOAP", "Alta", "Proc_Contrapartidas queda protegido por DryRun en UAT/local; no invoca endpoint externo sin modo Live explicito.", "docs/uat/evidencias/soap-proc-contrapartidas/runtime_dry_run_validation.md", "Integracion/DevOps/Seguridad", "Cerrado", "2026-05-19", "2026-05-19", "Cerrado tecnico UAT/local", "Endpoint UAT/mock real pendiente para homologacion; Productivo NO-GO."),
         ("CENIT-CUD", "UAT-OP-027", "CENIT", "Bloqueante", "CENIT/CUD pendiente.", "", "Integracion/Negocio", "Abierto", "", "", "Pendiente", ""),
         ("SOBRE-DIGITAL", "UAT-OP-028", "Seguridad", "Bloqueante", "Sobre digital/firma/certificados pendiente.", "", "Seguridad/Integracion", "Abierto", "", "", "Pendiente", ""),
         ("BKP-RESTORE", "UAT-OP-029", "Operacion", "Bloqueante", "Backup/restore/rollback pendiente.", "", "Operaciones/SRE", "Abierto", "", "", "Pendiente", ""),
@@ -461,7 +461,7 @@ def generate_excel() -> None:
         ("DAT-003", "Documento", "999999999", "Identificacion sintetica", "Baja", "Si", "No usar identificaciones reales."),
         ("DAT-004", "Cuenta origen", "0000000001", "Transaccion sintetica", "Baja", "Si", "No usar cuenta real."),
         ("DAT-005", "Cuenta destino", "0000000002", "Transaccion sintetica", "Baja", "Si", "No usar cuenta real."),
-        ("DAT-006", "Banco origen", "Banco UAT Origen", "Datos maestros sinteticos", "Baja", "Si", "No banco productivo real."),
+        ("DAT-006", "Banco origen default", "Cooperativa Financiera de Antioquia (CFA default source)", "Datos maestros UAT/default", "Baja", "Si", "Unica institucion IsDefaultSource=true; Banco UAT Origen no es default."),
         ("DAT-007", "Banco destino", "Banco UAT Destino", "Datos maestros sinteticos", "Baja", "Si", "No banco productivo real."),
         ("DAT-008", "Referencia", "UAT-SINT", "Pruebas sinteticas", "Baja", "Si", "Prefijo controlado."),
         ("DAT-009", "Monto", "1000", "Monto pequeno sintetico", "Baja", "Si", "Sin impacto real."),
@@ -476,8 +476,8 @@ def generate_excel() -> None:
         ("Runtime Docker", "OK", "Docker runtime", "No", "Mantener runtime estable", "DevOps/SRE", ""),
         ("UAT tecnico", "OK con observaciones", "Docs UAT tecnico", "No", "Sin regresiones", "QA", ""),
         ("UAT funcional", "PARCIALMENTE OK", "Docs UAT funcional", "Si", "UAT formal firmado", "QA/Negocio", ""),
-        ("NACHA-M campo-a-campo", "BLOQUEADO", "Matriz NACHA-M / evidencias 0 bytes", "Si", "Registros 1/5/6/7/8/9 validados con archivo no vacio", "Arquitectura ACH", "Resolver DEF-UAT-020/021."),
-        ("Proc_Contrapartidas dry-run/mock", "PARCIAL", "Envelopes XML sanitizados", "Si", "Endpoint UAT/mock o dry-run con no transmision", "Integracion/DevOps", "Resolver DEF-UAT-022."),
+        ("NACHA-M campo-a-campo", "BLOQUEADO", "422 JSON controlado por prenotificacion previa ausente; sin archivo no vacio", "Si", "Registros 1/5/6/7/8/9 validados con archivo no vacio", "Arquitectura ACH", "Resolver DEF-UAT-020 con prenotificacion UAT valida; DEF-UAT-021 cerrado tecnico."),
+        ("Proc_Contrapartidas dry-run/mock", "OK UAT/LOCAL", "runtime_dry_run_validation.md", "Si", "Endpoint UAT/mock homologado o Live aprobado formalmente", "Integracion/DevOps", "DEF-UAT-022 cerrado tecnico UAT/local; Productivo NO-GO."),
         ("CENIT/CUD", "PENDIENTE", "Brechas", "Si", "Validacion o waiver", "Integracion", ""),
         ("Sobre digital", "PENDIENTE", "Brechas", "Si", "Firma/certificados validados", "Seguridad", ""),
         ("Certificados", "PENDIENTE", "Revision seguridad", "Si", "Certificados de prueba y custodia aprobada", "Seguridad", ""),

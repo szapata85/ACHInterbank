@@ -11,7 +11,7 @@ Generar evidencia tecnica del envelope XML SOAP para `Proc_Contrapartidas` en mo
 
 Se obtuvo el body `Proc_Contrapartidas` generado por el sistema en `ContrapartidaDispatchBatches.RequestPayloadXml` para las transacciones sinteticas de ACH Colombia y CENIT. Se construyo el envelope SOAP con el formato del cliente real `WscfaachSoapClient`, se valido XML bien formado y se calcularon hashes SHA256.
 
-No se hizo invocacion manual SOAP. El runtime registro intentos automaticos del job `ContrapartidaDispatchJobService` hacia un endpoint externo/no resoluble, fallando por DNS. No hay evidencia de transmision exitosa, pero se registra brecha de configuracion UAT/mock.
+No se hizo invocacion manual SOAP. Tras DEF-UAT-022, el runtime UAT/local queda con guardrail `ProcContrapartidas:Mode=DryRun` por defecto. Se valido una prenotificacion sintetica `UAT-SOAP-DRYRUN-001` (TransactionId `245`): el job registro `PROC_DRY_RUN`, `RetryEligible=false` y el mensaje `Proc_Contrapartidas dry-run: envelope generado, no transmitido.` No se observo `SOAP request`, error DNS externo ni transmision a endpoint productivo en la ventana validada.
 
 ## Evidencia
 
@@ -30,9 +30,11 @@ No se hizo invocacion manual SOAP. El runtime registro intentos automaticos del 
 | Invocacion manual a endpoint SOAP | No |
 | Transmision productiva exitosa | No |
 | Endpoint UAT/mock autorizado | No disponible / no evidenciado |
+| Guardrail UAT/local `DryRun` | OK |
+| Runtime sin transmision externa en dry-run | OK |
 
 ## Brecha
 
-DEF-UAT-022 queda abierto: el job automatico de contrapartidas debe operar con endpoint UAT/mock autorizado o modo dry-run deshabilitado para transmision externa durante UAT controlado.
+DEF-UAT-022 queda cerrado tecnicamente para UAT/local: el job automatico de contrapartidas opera en modo dry-run salvo configuracion explicita `Live`. La integracion real con endpoint UAT/mock autorizado sigue pendiente para homologacion externa.
 
 Productivo permanece **NO-GO**.
