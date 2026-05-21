@@ -1,6 +1,8 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.External.Connections;
+using Cfa.ACHInterbank.Application.Integrations.Interfaces;
+using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -28,6 +30,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
     private readonly IProcContrapartidasResponseParser _responseParser;
     private readonly ILogger<ContrapartidaDispatchJobService> _logger;
     private readonly ProcContrapartidasDispatchOptions _dispatchOptions;
+    private readonly ITransactionIntegrationOperationResolver? _operationResolver;
+    private readonly IIntegrationMappingReadinessService? _mappingReadinessService;
 
     public ContrapartidaDispatchJobService(
         AchDbContext context,
@@ -35,7 +39,9 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         IProcContrapartidasRequestMapper procContrapartidasRequestMapper,
         IProcContrapartidasResponseParser responseParser,
         ILogger<ContrapartidaDispatchJobService> logger,
-        IOptions<ProcContrapartidasDispatchOptions>? dispatchOptions = null)
+        IOptions<ProcContrapartidasDispatchOptions>? dispatchOptions = null,
+        ITransactionIntegrationOperationResolver? operationResolver = null,
+        IIntegrationMappingReadinessService? mappingReadinessService = null)
     {
         _context = context;
         _soapClient = soapClient;
@@ -43,6 +49,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         _responseParser = responseParser;
         _logger = logger;
         _dispatchOptions = dispatchOptions?.Value ?? new ProcContrapartidasDispatchOptions();
+        _operationResolver = operationResolver;
+        _mappingReadinessService = mappingReadinessService;
     }
 
     public async Task<ContrapartidaCycleDispatchResult> ProcessCycleAsync(
@@ -145,6 +153,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
             try
             {
+                await EnsureContrapartidasReadinessAsync(transactions, ct);
                 var resolution = await _procContrapartidasRequestMapper.ResolveAsync(cycle, transactions, DateTime.Now, ct);
                 requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(resolution.Contract);
                 batch.MappingSetId = resolution.MappingSetId;
@@ -602,6 +611,40 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             ItemResults: new Dictionary<int, ProcContrapartidasParsedItemResponse>());
 
         return new ProcContrapartidasDispatchExecutionResult(message, parseResult);
+    }
+
+    private async Task EnsureContrapartidasReadinessAsync(IReadOnlyCollection<AchTransaction> transactions, CancellationToken ct)
+    {
+        if (_operationResolver is null || _mappingReadinessService is null)
+        {
+            return;
+        }
+
+        foreach (var transaction in transactions)
+        {
+            var operation = await _operationResolver.ResolveAsync(transaction, ct);
+            if (!operation.IsSupported
+                || operation.OperationKey != IntegrationGuaranteeConstants.ProcContrapartidas
+                || operation.MappingPurpose != IntegrationGuaranteeConstants.MonetaryDebitRequest)
+            {
+                throw new InvalidOperationException(
+                    $"INTEGRATION_OPERATION_MISMATCH: la transaccion {transaction.Id} no corresponde a Proc_Contrapartidas/MonetaryDebitRequest.");
+            }
+
+            var readiness = await _mappingReadinessService.EvaluateAsync(operation, ct);
+            if (readiness.Status == "Failed")
+            {
+                throw new InvalidOperationException(
+                    $"{readiness.Code}: no se puede construir envelope Proc_Contrapartidas para transaccion {transaction.Id}; faltan mappings requeridos.");
+            }
+
+            if (readiness.UsesFallback)
+            {
+                _logger.LogWarning(
+                    "Readiness parcial para Proc_Contrapartidas transactionId={TransactionId}: fallback transicional trazado antes de XML.",
+                    transaction.Id);
+            }
+        }
     }
 
     private static void ValidateCycleOperationalWindow(AchCycle cycle, DateTime nowLocal)

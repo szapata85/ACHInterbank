@@ -153,3 +153,14 @@ Observacion normativa:
 | Mapping trace formal por operacion | Parcial | `docs/uat/evidencias/soap-integrations/mapping-trace/` | Si | RegistrarRespuestaTransaccion aun no consume mappings |
 | DryRun Proc_Transacciones | Pendiente | Defecto `DEF-UAT-SOAP-MAP-002` | Si | Falta guardrail UAT/local |
 | Productivo | NO-GO | Readiness | Si | No hay autorizacion Live |
+
+## Actualizacion Transaction Integration Readiness - 2026-05-21
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| Transaccion resuelve operacion esperada | OK tecnico | `ITransactionIntegrationOperationResolver`, tests | No por si solo | Debito CFA, credito externo y respuesta diferencial cubiertos |
+| Readiness de mappings antes de XML/payload | OK tecnico parcial | `IIntegrationMappingReadinessService`, tests | Si si falla | Missing mapping falla controlado |
+| Fallback transicional no queda OK | OK tecnico | Tests de fallback `Partial` | Si para cierre pleno | Debe cerrarse por gobierno/mapping publicado |
+| Endpoint read-only de garantia | OK tecnico | `GET /Transactions/{id}/integration-readiness` | No por si solo | No invoca SOAP ni cambia estados |
+| RegistrarRespuestaTransaccion no monetario | OK tecnico | Tests negativos | Si si falla | No usa WSCFAACH; `movesMoney=false` |
+| Productivo | NO-GO | Readiness | Si | Sin autorizacion Live ni homologacion final |

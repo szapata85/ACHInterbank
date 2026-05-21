@@ -127,3 +127,22 @@ Clasificacion confirmada:
 - `RegistrarRespuestaTransaccion`: `DifferentialResponseNotification`, no mueve dinero ni afecta saldos.
 
 Productivo permanece **NO-GO**.
+
+## Actualizacion 2026-05-21 - garantia Transaction Integration Readiness
+
+Se implemento una garantia automatizada para evitar falsos OK en integraciones SOAP:
+
+- `GET /Transactions/{id}/integration-readiness` resuelve operacion esperada y readiness de mappings sin mutar estado ni invocar SOAP.
+- Debito CFA -> `WSCFAACH / Proc_Contrapartidas / MonetaryDebitRequest`.
+- Credito externo -> `WSCFAACH / Proc_Transacciones / MonetaryCreditRequest`.
+- Respuesta diferencial -> `WSAXON / RegistrarRespuestaTransaccion / DifferentialResponseNotification`, `movesMoney=false`.
+- Missing mapping queda `Failed`.
+- Fallback transicional queda `Partial`, no `Ok`.
+
+Brechas persistentes:
+
+- eliminar/gobernar fallback de `Proc_Contrapartidas`;
+- completar guardrail DryRun/Disabled especifico de `Proc_Transacciones`;
+- persistir trace campo-a-campo unificado para `RegistrarRespuestaTransaccion`.
+
+Productivo permanece **NO-GO**.

@@ -5,6 +5,8 @@ using Cfa.ACHInterbank.Application.ACH.Responses.Notification.Models;
 using Cfa.ACHInterbank.Application.ACH.Responses.Notification.Services;
 using Cfa.ACHInterbank.Application.ACH.Responses.Repositories;
 using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Application.Integrations.Interfaces;
+using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Moq;
@@ -104,6 +106,62 @@ public class NotificarRespuestaAchUseCaseTests
         Assert.Equal(AchResponseNotificationStatus.ErrorTecnico, attempt.EstadoNotificacion);
         Assert.Equal(AchResponseProcessingStatus.PendienteReintento, attempt.AchResponse!.EstadoProcesamiento);
         Assert.False(string.IsNullOrWhiteSpace(attempt.ErrorTecnico));
+        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RegistrarRespuestaTransaccion_ShouldFailControlled_WhenRequiredMappingMissing()
+    {
+        var attemptRepo = new Mock<IAchResponseNotificationAttemptRepository>();
+        var gateway = new Mock<IRespuestaTransaccionesAchGateway>();
+        var uow = new Mock<IUnitOfWork>();
+        var responseRepo = new Mock<IAchResponseRepository>();
+        var operationResolver = new Mock<ITransactionIntegrationOperationResolver>();
+        var readiness = new Mock<IIntegrationMappingReadinessService>();
+        var attempt = BuildAttempt(AchResponseNotificationStatus.Pendiente);
+
+        operationResolver.Setup(x => x.ResolveDifferentialResponse(It.IsAny<string?>(), It.IsAny<int?>()))
+            .Returns(new TransactionIntegrationOperationResult(
+                null,
+                "TX",
+                IntegrationGuaranteeConstants.WsAxon,
+                IntegrationGuaranteeConstants.RegistrarRespuestaTransaccion,
+                IntegrationGuaranteeConstants.DifferentialResponseNotification,
+                IntegrationGuaranteeConstants.InboundResponse,
+                "Respuesta diferencial / notificacion",
+                "Entidad/camara/proveedor externo",
+                false,
+                "Notificacion/respuesta diferencial no monetaria.",
+                true,
+                []));
+        readiness.Setup(x => x.EvaluateAsync(It.IsAny<TransactionIntegrationOperationResult>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IntegrationMappingReadinessResult(
+                false,
+                "Failed",
+                "INTEGRATION_MAPPING_REQUIRED",
+                IntegrationGuaranteeConstants.WsAxon,
+                IntegrationGuaranteeConstants.RegistrarRespuestaTransaccion,
+                IntegrationGuaranteeConstants.DifferentialResponseNotification,
+                IntegrationGuaranteeConstants.InboundResponse,
+                3,
+                0,
+                ["ANSIDTX"],
+                [],
+                false,
+                false,
+                ["Falta mapping requerido."],
+                []));
+
+        attemptRepo.Setup(x => x.FindByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(attempt);
+        var sut = new NotificarRespuestaAchUseCase(responseRepo.Object, attemptRepo.Object, new RegistrarRespuestaAchCommandMapper(), gateway.Object, uow.Object, operationResolver.Object, readiness.Object);
+
+        var result = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
+
+        Assert.True(result.ExisteError);
+        Assert.Equal("INTEGRATION_MAPPING_REQUIRED", result.CodigoError);
+        Assert.Equal(AchResponseNotificationStatus.ErrorFuncional, attempt.EstadoNotificacion);
+        Assert.Equal(AchResponseProcessingStatus.ErrorFuncional, attempt.AchResponse!.EstadoProcesamiento);
+        gateway.Verify(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()), Times.Never);
         uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 

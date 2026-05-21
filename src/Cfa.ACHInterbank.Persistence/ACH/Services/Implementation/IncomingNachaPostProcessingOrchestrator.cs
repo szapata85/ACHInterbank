@@ -4,6 +4,8 @@ using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.External.Connections;
+using Cfa.ACHInterbank.Application.Integrations.Interfaces;
+using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -20,19 +22,25 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
     private readonly IProcTransaccionesResponseParser _parser;
     private readonly IWscfaachSoapClient _soapClient;
     private readonly IncomingNachaDispatchResilienceOptions _resilienceOptions;
+    private readonly ITransactionIntegrationOperationResolver? _operationResolver;
+    private readonly IIntegrationMappingReadinessService? _mappingReadinessService;
 
     public IncomingNachaPostProcessingOrchestrator(
         AchDbContext context,
         IProcTransaccionesRequestMapper mapper,
         IProcTransaccionesResponseParser parser,
         IWscfaachSoapClient soapClient,
-        IOptions<IncomingNachaDispatchResilienceOptions>? resilienceOptions = null)
+        IOptions<IncomingNachaDispatchResilienceOptions>? resilienceOptions = null,
+        ITransactionIntegrationOperationResolver? operationResolver = null,
+        IIntegrationMappingReadinessService? mappingReadinessService = null)
     {
         _context = context;
         _mapper = mapper;
         _parser = parser;
         _soapClient = soapClient;
         _resilienceOptions = resilienceOptions?.Value ?? new IncomingNachaDispatchResilienceOptions();
+        _operationResolver = operationResolver;
+        _mappingReadinessService = mappingReadinessService;
     }
 
     public async Task<IncomingNachaPostProcessingRunResult> ExecuteAsync(
@@ -117,6 +125,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                     continue;
                 }
 
+                await EnsureProcTransaccionesReadinessAsync(queue.AchTransaction, ct);
                 var resolution = await _mapper.ResolveAsync(queue, ingestion, classification, queue.AchTransaction, queue.AchTransaction.AchCycle, DateTime.Now, ct);
                 var requestXml = _mapper.BuildSoapBody(resolution.Contract);
                 var responseXml = await _soapClient.ProcTransaccionesAsync(requestXml, ct);
@@ -297,5 +306,29 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
             OccurredAtUtc = DateTime.UtcNow,
             RaisedBy = "inbound.dispatch.orchestrator"
         });
+    }
+
+    private async Task EnsureProcTransaccionesReadinessAsync(AchTransaction transaction, CancellationToken ct)
+    {
+        if (_operationResolver is null || _mappingReadinessService is null)
+        {
+            return;
+        }
+
+        var operation = await _operationResolver.ResolveAsync(transaction, ct);
+        if (!operation.IsSupported
+            || operation.OperationKey != IntegrationGuaranteeConstants.ProcTransacciones
+            || operation.MappingPurpose != IntegrationGuaranteeConstants.MonetaryCreditRequest)
+        {
+            throw new InvalidOperationException(
+                $"INTEGRATION_OPERATION_MISMATCH: la transaccion {transaction.Id} no corresponde a Proc_Transacciones/MonetaryCreditRequest.");
+        }
+
+        var readiness = await _mappingReadinessService.EvaluateAsync(operation, ct);
+        if (!readiness.IsReady)
+        {
+            throw new InvalidOperationException(
+                $"{readiness.Code}: no se puede construir payload Proc_Transacciones para transaccion {transaction.Id}; faltan mappings requeridos.");
+        }
     }
 }

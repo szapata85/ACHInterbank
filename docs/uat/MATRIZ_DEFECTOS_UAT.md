@@ -55,6 +55,25 @@ Estado: matriz actualizada tras cierre controlado de DEF-UAT-015.
 | DEF-UAT-SOAP-MAP-003 | UAT-SOAP-MAP | Media | `RegistrarRespuestaTransaccion` procesa respuesta con mapper/parser fisico y no consume `IntegrationMappingSet` ni genera mapping trace parametrizado. | Integracion SOAP / respuestas | `docs/uat/evidencias/soap-integrations/mapping-trace/registrar_respuesta_transaccion/mapping_trace.md` | Arquitectura/Integracion | Abierto | 2026-05-21 | PENDIENTE | Integrar resolver de mappings para `DifferentialResponseNotification` sin conectar logica monetaria. |
 | OBS-UAT-001 | UAT-TECH-011 | Baja | Logs PostgreSQL muestran FATAL previos por usuarios inexistentes `root`/`sa`. | PostgreSQL/Operacion | `docker compose logs postgres --tail=120` | Operaciones/DevOps | Abierto | 2026-05-18 | PENDIENTE | Revisar origen de probes/conexiones; no bloqueo del UAT tecnico basico. |
 
+## Actualizacion 2026-05-21 - garantia readiness SOAP
+
+Se implemento garantia automatizada `Transaction -> ExpectedIntegrationOperation -> IntegrationMappingReadiness`:
+
+- Debito CFA resuelve `WSCFAACH / Proc_Contrapartidas / MonetaryDebitRequest`.
+- Credito externo resuelve `WSCFAACH / Proc_Transacciones / MonetaryCreditRequest`.
+- Respuesta diferencial resuelve `WSAXON / RegistrarRespuestaTransaccion / DifferentialResponseNotification` con `movesMoney=false`.
+- `GET /Transactions/{id}/integration-readiness` expone la garantia sin mutar estado ni invocar SOAP.
+- `Proc_Contrapartidas`, `Proc_Transacciones` y `RegistrarRespuestaTransaccion` validan readiness antes de XML/payload/gateway cuando los servicios estan registrados.
+- Missing mapping falla controlado; fallback queda `Partial` y no `Ok`.
+
+Impacto sobre defectos:
+
+- `DEF-UAT-SOAP-MAP-001`: mitigado por readiness `Partial` y guardrail previo a XML; sigue abierto hasta eliminar/gobernar fallback transicional.
+- `DEF-UAT-SOAP-MAP-002`: mitigado parcialmente por validacion de readiness previa al payload; sigue abierto hasta completar guardrail DryRun/Disabled especifico para `Proc_Transacciones`.
+- `DEF-UAT-SOAP-MAP-003`: mitigado por validacion de readiness antes del gateway WSAXON; sigue abierto hasta implementar trace parametrizado campo-a-campo.
+
+Evidencia: `docs/uat/EVIDENCIAS_TRANSACTION_INTEGRATION_READINESS.md`.
+
 ## Actualizacion DEF-UAT-020 - 2026-05-19
 
 Se implemento parametrizacion tecnica de reglas de prenotificacion por camara/naturaleza/tipo:

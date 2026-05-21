@@ -146,6 +146,16 @@ Impacto en scorecard: mejora capacidad UAT controlada, sin cambiar la decision p
 
 Productivo permanece **NO-GO**.
 
+## Actualizacion Transaction Integration Readiness - 2026-05-21
+
+Se agrega control tecnico verificable por pruebas para alinear transaccion, operacion esperada y readiness de mappings. Mejora trazabilidad y reduce riesgo de integracion SOAP sin mapping, pero no aumenta el score productivo por las brechas remanentes:
+
+- fallback transicional de `Proc_Contrapartidas` aun existe;
+- `Proc_Transacciones` requiere completar guardrail UAT/local no transmisivo;
+- trace campo-a-campo unificado de `RegistrarRespuestaTransaccion` sigue pendiente.
+
+Decision final sin cambios: **NO-GO**.
+
 ## Actualizacion 2026-05-20 - UX Configuracion SOAP
 
 Impacto en scorecard: mejora operabilidad frontend y reduce riesgo de error de usuario, sin elevar la decision productiva.

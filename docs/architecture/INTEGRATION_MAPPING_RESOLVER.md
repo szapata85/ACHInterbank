@@ -50,3 +50,24 @@ Trace minimo:
 ## Recomendacion
 
 Implementar `IIntegrationMappingResolver` en una fase acotada, manteniendo los mappers actuales como adaptadores y sin cambiar contratos SOAP.
+
+## Actualizacion 2026-05-21
+
+Se agrego `IIntegrationMappingReadinessService` como garantia previa al resolver/payload:
+
+- valida metodo activo;
+- valida `IntegrationMappingSet` publicado;
+- valida mappings requeridos activos;
+- devuelve `Ok`, `Failed` o `Partial`;
+- marca `usesFallback=true` cuando solo existe fallback transicional;
+- no invoca SOAP;
+- no cambia estados;
+- no mueve dinero.
+
+El resolver transaccional `ITransactionIntegrationOperationResolver` determina:
+
+- `Proc_Contrapartidas` para debitos originados por CFA;
+- `Proc_Transacciones` para creditos originados por entidad externa;
+- `RegistrarRespuestaTransaccion` para respuestas diferenciales no monetarias.
+
+El trace campo-a-campo unificado sigue pendiente como evolucion, pero ya no se permite declarar readiness `Ok` si faltan mappings requeridos o si se esta usando fallback.

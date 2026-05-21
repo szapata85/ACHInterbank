@@ -48,3 +48,30 @@ No se observaron llamadas a servicios monetarios desde este gateway/use case. No
 ## Estado productivo
 
 Productivo permanece **NO-GO**.
+
+## Actualizacion 2026-05-21 - Garantia Transaction Integration Readiness
+
+Se implemento una garantia tecnica verificable por pruebas para la cadena:
+
+`Transaction -> ExpectedIntegrationOperation -> IntegrationMappingReadiness -> XML/Payload/Response Trace`.
+
+Componentes:
+
+- `ITransactionIntegrationOperationResolver`: resuelve la operacion esperada por naturaleza/originador.
+- `IIntegrationMappingReadinessService`: valida mappings publicados requeridos y marca fallback como `Partial`.
+- `ITransactionIntegrationReadinessService`: expone consulta read-only por transaccion.
+- `GET /Transactions/{id}/integration-readiness`: endpoint sin mutacion, sin SOAP y sin movimiento monetario.
+
+Guardrails:
+
+- `Proc_Contrapartidas` valida readiness antes del XML; fallback transicional queda advertido y no se marca como OK pleno.
+- `Proc_Transacciones` valida readiness antes del payload/XML.
+- `RegistrarRespuestaTransaccion` valida readiness de `DifferentialResponseNotification` antes del gateway WSAXON; no usa WSCFAACH ni logica monetaria.
+
+Pruebas:
+
+- `TransactionIntegrationReadinessGuaranteeTests`.
+- `TransactionsControllerTests.GetTransactionIntegrationReadiness_ShouldReturnExpectedOperation`.
+- `NotificarRespuestaAchUseCaseTests.RegistrarRespuestaTransaccion_ShouldFailControlled_WhenRequiredMappingMissing`.
+
+Queda pendiente para cierre arquitectonico total eliminar o gobernar formalmente el fallback transicional de `Proc_Contrapartidas` y persistir trace campo-a-campo unificado para las tres operaciones.
