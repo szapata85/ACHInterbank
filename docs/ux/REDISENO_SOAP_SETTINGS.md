@@ -69,3 +69,25 @@ Validación agregada:
 - `npm test -- --watch=false --browsers=ChromeHeadless`: OK, 164 SUCCESS.
 
 Estado: OK técnico frontend / Productivo NO-GO.
+
+## Correccion visual definitiva - 2026-05-21
+
+Diagnostico: la pantalla seguia usando una tabla principal de 7 columnas para servicio, metodo, endpoint, modo, estado, ultima prueba y acciones. Con endpoints tecnicos largos esa estructura provocaba compresion, solapamiento visual y botones poco claros.
+
+Patron aplicado:
+
+- Se elimino la tabla principal problematica.
+- La vista principal ahora usa cards compactas por servicio SOAP.
+- Cada card muestra servicio, metodo, endpoint truncado, modo, estado, ultima prueba y acciones visibles.
+- Las acciones `Detalle`, `Editar` y `Probar` quedan dentro del card con `flex-wrap` y sin posicionamiento absoluto.
+- El endpoint completo queda disponible solo en el modal de detalle.
+- Se agregaron atributos `data-testid` y `data-ux-critical` para validacion DOM con Playwright.
+
+Validacion requerida:
+
+- Screenshot: `docs/ux/evidencias/soap-settings-after.png`.
+- Reporte DOM: `docs/ux/evidencias/ux-validation-integrations.json`.
+- No se modificaron contratos SOAP.
+- No se exponen secretos completos ni certificados privados.
+- No se cambia modo a `Live` por defecto.
+- Productivo permanece **NO-GO**.

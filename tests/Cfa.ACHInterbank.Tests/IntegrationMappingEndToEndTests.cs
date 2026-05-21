@@ -19,6 +19,10 @@ public class IntegrationMappingEndToEndTests
         await using var fixture = await IntegrationFixture.CreateAsync();
         var methods = await fixture.Catalog.GetMethodsAsync();
         Assert.Contains(methods, x => x.Code == "WSCFAACH.Proc_Contrapartidas");
+        Assert.Contains(methods, x =>
+            x.Code == "WSAXON.RegistrarRespuestaTransaccion"
+            && x.SoapClientCode == "WsAxonRespuestaTransaccionesSoapClient"
+            && x.IsActive);
     }
 
     [Fact]

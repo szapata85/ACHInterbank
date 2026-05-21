@@ -158,3 +158,7 @@ Impacto en scorecard: mejora operabilidad frontend y reduce riesgo de error de u
 | Readiness final | NO-GO | No sustituye homologacion externa ni UAT formal |
 
 No se ajusta el score de forma artificial. Productivo permanece **NO-GO**.
+
+## Actualizacion UX Integraciones - 2026-05-21
+
+Se mejora la categoria UAT/evidencias y documentacion/trazabilidad con validacion visual obligatoria para `/integraciones/soap-settings` y `/integraciones/mappings`. El scorecard no se incrementa automaticamente hasta contar con evidencia DOM/screenshot y cierre de validaciones completas. Productivo permanece **NO-GO**.

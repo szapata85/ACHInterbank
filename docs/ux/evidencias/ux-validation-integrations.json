@@ -1,0 +1,94 @@
+{
+  "generatedAt": "2026-05-21T15:59:17.375Z",
+  "baseUrl": "http://localhost:743",
+  "ok": true,
+  "screenshots": {
+    "soapSettings": "docs/ux/evidencias/soap-settings-after.png",
+    "integrationMappings": "docs/ux/evidencias/integration-mappings-after.png"
+  },
+  "checks": [
+    {
+      "name": "soap-settings no usa tabla principal problematica",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "soap-settings tiene cards",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "soap-settings botones visibles dentro de card",
+      "ok": true,
+      "detail": "[{\"text\":\"Detalle\",\"visible\":true,\"inside\":true},{\"text\":\"Editar\",\"visible\":true,\"inside\":true},{\"text\":\"Probar\",\"visible\":true,\"inside\":true},{\"text\":\"Detalle\",\"visible\":true,\"inside\":true},{\"text\":\"Editar\",\"visible\":true,\"inside\":true},{\"text\":\"Probar\",\"visible\":true,\"inside\":true},{\"text\":\"Detalle\",\"visible\":true,\"inside\":true},{\"text\":\"Editar\",\"visible\":true,\"inside\":true},{\"text\":\"Probar\",\"visible\":true,\"inside\":true}]"
+    },
+    {
+      "name": "soap-settings sin scroll horizontal",
+      "ok": true,
+      "detail": "1366px body / 1366px viewport"
+    },
+    {
+      "name": "soap-settings sin superposicion critica",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "soap-settings endpoint truncado en card",
+      "ok": true,
+      "detail": "{\"overflow\":\"hidden\",\"textOverflow\":\"ellipsis\",\"withinParent\":true}"
+    },
+    {
+      "name": "soap-settings endpoint completo solo en detalle",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "mappings dropdown carga opciones",
+      "ok": true,
+      "detail": "[\" Proc_Contrapartidas - WSCFAACH.Proc_Contrapartidas - WscfaachSoapClient \",\" Proc_Transacciones - WSCFAACH.Proc_Transacciones - WscfaachSoapClient \",\" RegistrarRespuestaTransaccion - WSAXON.RegistrarRespuestaTransaccion - WsAxonRespuestaTransaccionesSoapClient \"]"
+    },
+    {
+      "name": "mappings muestra WsAxonRespuestaTransaccionesSoapClient",
+      "ok": true,
+      "detail": "[\" Proc_Contrapartidas - WSCFAACH.Proc_Contrapartidas - WscfaachSoapClient \",\" Proc_Transacciones - WSCFAACH.Proc_Transacciones - WscfaachSoapClient \",\" RegistrarRespuestaTransaccion - WSAXON.RegistrarRespuestaTransaccion - WsAxonRespuestaTransaccionesSoapClient \"]"
+    },
+    {
+      "name": "mappings muestra cards o estado vacio claro",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "mappings sin scroll horizontal",
+      "ok": true,
+      "detail": "1366px body / 1366px viewport"
+    },
+    {
+      "name": "mappings sin superposicion critica",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "mappings botones visibles dentro de card",
+      "ok": true,
+      "detail": "[{\"text\":\"Detalle\",\"visible\":true,\"inside\":true},{\"text\":\"Editar\",\"visible\":true,\"inside\":true},{\"text\":\"Detalle\",\"visible\":true,\"inside\":true},{\"text\":\"Editar\",\"visible\":true,\"inside\":true},{\"text\":\"Detalle\",\"visible\":true,\"inside\":true},{\"text\":\"Editar\",\"visible\":true,\"inside\":true},{\"text\":\"Detalle\",\"visible\":true,\"inside\":true},{\"text\":\"Editar\",\"visible\":true,\"inside\":true}]"
+    },
+    {
+      "name": "mappings detalle abre modal read-only",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "console errors = 0",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "console warnings UX relevantes = 0",
+      "ok": true,
+      "detail": "[]"
+    }
+  ],
+  "errors": [],
+  "consoleErrors": [],
+  "consoleWarnings": []
+}

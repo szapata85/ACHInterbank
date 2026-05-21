@@ -61,7 +61,11 @@ describe('SoapIntegrationSettingsComponent', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Servicios configurados');
     expect(text).toContain('Proc_Contrapartidas');
-    expect(fixture.nativeElement.querySelector('.desktop-table')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.desktop-table')).toBeFalsy();
+    expect(fixture.nativeElement.querySelectorAll('[data-testid="soap-service-card"]').length).toBe(2);
+    expect(fixture.nativeElement.querySelector('[data-testid="soap-service-detail-button"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="soap-service-edit-button"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="soap-service-test-button"]')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('.modal-panel')).toBeFalsy();
     expect(fixture.nativeElement.querySelector('.edit-form')).toBeFalsy();
   });

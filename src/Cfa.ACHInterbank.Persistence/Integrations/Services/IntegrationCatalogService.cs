@@ -111,10 +111,18 @@ public class IntegrationCatalogService : IIntegrationCatalogService
             soapClientCode: "WscfaachSoapClient",
             ct);
 
+        var respuestasTransacciones = await EnsureMethodAsync(
+            code: "WSAXON.RegistrarRespuestaTransaccion",
+            displayName: "RegistrarRespuestaTransaccion",
+            soapClientCode: "WsAxonRespuestaTransaccionesSoapClient",
+            ct);
+
         await EnsureParametersAsync(contrapartidas.Id, BuildProcContrapartidasTechnicalCatalog(), ct);
         await EnsureParametersAsync(transacciones.Id, BuildProcTransaccionesTechnicalCatalog(), ct);
+        await EnsureParametersAsync(respuestasTransacciones.Id, BuildRegistrarRespuestaTransaccionTechnicalCatalog(), ct);
         await EnsureSourceCatalogAsync(contrapartidas.Id, BuildBusinessSourceCatalog(contrapartidas.Id), ct);
         await EnsureSourceCatalogAsync(transacciones.Id, BuildBusinessSourceCatalog(transacciones.Id), ct);
+        await EnsureSourceCatalogAsync(respuestasTransacciones.Id, BuildBusinessSourceCatalog(respuestasTransacciones.Id), ct);
 
         await _context.SaveChangesAsync(ct);
     }
@@ -285,6 +293,19 @@ public class IntegrationCatalogService : IIntegrationCatalogService
             Spec("LIBRE1", "Campo libre numérico", "Campo libre numérico.", "Entrada transacción", "1", "Campo complementario numérico.", "int", true, i++),
             Spec("RTAACH", "Respuesta ACH", "Campo contractual de respuesta ACH.", "Respuesta esperada", "", "Campo reservado por contrato legado.", "string", true, i++),
             Spec("RTALOC", "Respuesta local", "Campo contractual de respuesta local.", "Respuesta esperada", "", "Campo reservado por contrato legado.", "string", true, i++)
+        ];
+    }
+
+    private static IReadOnlyCollection<ParameterSeedSpec> BuildRegistrarRespuestaTransaccionTechnicalCatalog()
+    {
+        var i = 1;
+        return
+        [
+            Spec("ANSIDLOTE", "Id lote respuesta", "Identificador del lote informado por la respuesta ACH.", "Respuesta transacciÃ³n", "2001", "Mapee el id de lote de la respuesta recibida.", "int", true, i++),
+            Spec("ANSST", "Estado respuesta", "Estado funcional informado por la respuesta ACH.", "Respuesta transacciÃ³n", "APROBADA", "Use estado controlado de respuesta.", "string", true, i++),
+            Spec("ANCLC", "CÃ³digo local respuesta", "CÃ³digo local o causal informado por la respuesta.", "Respuesta transacciÃ³n", "00", "Mapee causal/cÃ³digo homologado cuando aplique.", "string", false, i++),
+            Spec("ANSIDTX", "Id transacciÃ³n respuesta", "Identificador de transacciÃ³n asociado a la respuesta.", "Respuesta transacciÃ³n", "TX-2026-0001", "Debe corresponder a una transacciÃ³n UAT existente.", "string", true, i++),
+            Spec("ANSIDREVER", "Id reverso respuesta", "Identificador de reverso si la respuesta corresponde a devoluciÃ³n/reverso.", "Respuesta transacciÃ³n", "0", "Use 0 si no aplica reverso.", "int", false, i++)
         ];
     }
 

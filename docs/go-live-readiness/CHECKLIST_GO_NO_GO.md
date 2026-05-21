@@ -133,3 +133,12 @@ Observacion normativa:
 | Prueba operativa en modal | OK tecnico | Spec Angular dedicado | No | Validacion local sanitizada, sin SOAP productivo |
 | Secretos completos ocultos | OK tecnico | UI/documentacion | Si si falla | No muestra credenciales ni certificados privados |
 | Productivo | NO-GO | Readiness | Si | Sin cambio en decision |
+
+## Actualizacion UX Integraciones - 2026-05-21
+
+| Control | Estado | Observacion |
+|---|---|---|
+| `/integraciones/soap-settings` usable sin solapamientos | EN VALIDACION VISUAL | Rediseño a cards compactas y modales; evidencia DOM/screenshot en `docs/ux/evidencias/`. |
+| `/integraciones/mappings` incluye WsAxon | OK TECNICO | Catalogo backend agrega `WSAXON.RegistrarRespuestaTransaccion` / `WsAxonRespuestaTransaccionesSoapClient`; dropdown debe mostrarlo aunque no tenga mappings. |
+| Contratos SOAP | SIN CAMBIO | No se modifico semantica funcional SOAP ni modo `Live` por defecto. |
+| Productivo | NO-GO | La mejora UX no constituye aprobacion productiva. |

@@ -1,4 +1,4 @@
-<section class="soap-settings-page">
+<section class="soap-settings-page" data-testid="soap-settings-page">
   <header class="page-header">
     <ui-migas-pan [items]="migas"></ui-migas-pan>
     <div class="header-row">
@@ -45,46 +45,59 @@
   </section>
 
   <form [formGroup]="form" class="services-panel" aria-label="Configuraciones SOAP">
-    <div class="desktop-table" role="table" aria-label="Servicios SOAP">
-      <div class="table-row table-header" role="row">
-        <span role="columnheader">Servicio</span>
-        <span role="columnheader">Metodo</span>
-        <span role="columnheader">Endpoint</span>
-        <span role="columnheader">Modo</span>
-        <span role="columnheader">Estado</span>
-        <span role="columnheader">Ultima prueba</span>
-        <span role="columnheader">Acciones</span>
-      </div>
-
-      <div class="table-row" role="row" *ngFor="let method of allMethods">
-        <span role="cell" class="client-name">{{ method.clientName }}</span>
-        <span role="cell" class="method-name">{{ methodNameFor(method.group) }}</span>
-        <span role="cell" class="truncate" [title]="endpointFor(method.group)">{{ endpointFor(method.group) }}</span>
-        <span role="cell"><span class="mode-pill">{{ modeFor(method.group) }}</span></span>
-        <span role="cell"><span class="status-pill" [class.off]="!method.group.get('enabled')?.value">{{ statusFor(method.group) }}</span></span>
-        <span role="cell">{{ lastTestResult?.methodName === methodNameFor(method.group) ? lastTestResult?.status : 'Sin prueba' }}</span>
-        <span role="cell" class="row-actions">
-          <button type="button" class="btn-ghost" (click)="openDetail(method)">Detalle</button>
-          <button type="button" class="btn-secondary" (click)="openEdit(method)">Editar</button>
-          <button type="button" class="btn-secondary" (click)="openTest(method)">Probar</button>
-        </span>
-      </div>
-    </div>
-
-    <div class="mobile-cards" aria-label="Servicios SOAP en tarjetas">
-      <article class="service-card" *ngFor="let method of allMethods">
-        <div class="card-topline">
-          <div>
-            <strong>{{ methodNameFor(method.group) }}</strong>
-            <span>{{ method.clientName }}</span>
+    <div class="service-card-grid" aria-label="Servicios SOAP">
+      <article class="service-card" data-testid="soap-service-card" *ngFor="let method of allMethods">
+        <div class="service-card-header">
+          <div class="service-title-block" data-ux-critical>
+            <span class="client-name" [title]="method.clientName">{{ method.clientName }}</span>
+            <h3 class="method-name" [title]="methodNameFor(method.group)">{{ methodNameFor(method.group) }}</h3>
           </div>
           <span class="status-pill" [class.off]="!method.group.get('enabled')?.value">{{ statusFor(method.group) }}</span>
         </div>
-        <p class="truncate" [title]="endpointFor(method.group)">{{ endpointFor(method.group) }}</p>
+
+        <div class="endpoint-block" data-ux-critical>
+          <span>Endpoint</span>
+          <code
+            class="endpoint-preview"
+            data-testid="soap-service-endpoint-preview"
+            [title]="endpointFor(method.group)"
+          >
+            {{ endpointFor(method.group) }}
+          </code>
+        </div>
+
+        <div class="service-meta">
+          <span class="mode-pill">{{ modeFor(method.group) }}</span>
+          <span class="last-test">
+            {{ lastTestResult?.methodName === methodNameFor(method.group) ? lastTestResult?.status : 'Sin prueba' }}
+          </span>
+        </div>
+
         <div class="card-actions">
-          <button type="button" class="btn-ghost" (click)="openDetail(method)">Detalle</button>
-          <button type="button" class="btn-secondary" (click)="openEdit(method)">Editar</button>
-          <button type="button" class="btn-secondary" (click)="openTest(method)">Probar</button>
+          <button
+            type="button"
+            class="btn-ghost"
+            data-testid="soap-service-detail-button"
+            (click)="openDetail(method)"
+          >
+            Detalle
+          </button>
+          <button
+            type="button"
+            class="btn-secondary"
+            data-testid="soap-service-edit-button"
+            (click)="openEdit(method)"
+          >
+            Editar
+          </button>
+          <button
+            type="button"
+            class="btn-secondary"
+            data-testid="soap-service-test-button"
+            (click)="openTest(method)"
+          >
+            Probar
+          </button>
         </div>
       </article>
     </div>

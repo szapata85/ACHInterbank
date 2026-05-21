@@ -151,3 +151,9 @@ Validaciones:
 - `npm test -- --watch=false --browsers=ChromeHeadless`: OK, 164 SUCCESS.
 - Secretos completos y certificados privados no se exponen.
 - Productivo sigue **NO-GO**.
+
+## Actualizacion UX Integraciones - 2026-05-21
+
+- `/integraciones/soap-settings`: se corrige rediseño visual reemplazando la tabla principal por cards compactas y modales de detalle/edicion/prueba. Se agrega validacion DOM/screenshot en `docs/ux/evidencias/`.
+- `/integraciones/mappings`: se corrige catalogo para que `WsAxonRespuestaTransaccionesSoapClient` aparezca como integracion activa. Si no tiene mappings, se muestra estado vacio claro; no se eliminan ni modifican mappings existentes.
+- Estado productivo: **NO-GO**.
