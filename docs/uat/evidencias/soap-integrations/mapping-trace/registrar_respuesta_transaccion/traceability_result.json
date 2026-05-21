@@ -1,0 +1,21 @@
+{
+  "date": "2026-05-21",
+  "integrationKey": "WSAXON",
+  "operationKey": "RegistrarRespuestaTransaccion",
+  "mappingPurpose": "DifferentialResponseNotification",
+  "mappingDirection": "InboundResponse",
+  "tracePersisted": true,
+  "traceTables": [
+    "IntegrationMappingTraces",
+    "IntegrationMappingTraceEntries"
+  ],
+  "monetaryMovementCreated": false,
+  "balancesAffected": false,
+  "wscfaachClientInvoked": false,
+  "externalTransmission": false,
+  "tests": [
+    "RegistrarRespuestaTransaccion_ShouldPersistFieldByFieldTrace_BeforeGateway",
+    "RegistrarRespuestaTransaccion_ShouldNotInvokeGateway_WhenTraceHasMissingRequiredField",
+    "IntegrationMappingTraceWriterTests.RegistrarRespuestaTransaccion_ShouldPersistFieldByFieldTrace"
+  ]
+}

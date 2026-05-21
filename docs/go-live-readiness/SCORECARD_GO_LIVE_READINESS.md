@@ -150,8 +150,8 @@ Productivo permanece **NO-GO**.
 
 Se agrega control tecnico verificable por pruebas para alinear transaccion, operacion esperada y readiness de mappings. El fallback requerido de `Proc_Contrapartidas` queda bloqueado antes de XML/DryRun/dispatch, pero no aumenta el score productivo por las brechas remanentes:
 
-- `Proc_Transacciones` requiere completar guardrail UAT/local no transmisivo;
-- trace campo-a-campo unificado de `RegistrarRespuestaTransaccion` sigue pendiente.
+- `Proc_Transacciones` ya cuenta con guardrail UAT/local no transmisivo;
+- `RegistrarRespuestaTransaccion` ya persiste trace campo-a-campo, pero requiere acta UAT firmada.
 
 Decision final sin cambios: **NO-GO**.
 
@@ -177,7 +177,7 @@ Se mejora la categoria UAT/evidencias y documentacion/trazabilidad con validacio
 La auditoria mejora trazabilidad y claridad de integraciones, pero no incrementa readiness productivo porque hay brechas abiertas:
 
 - trazabilidad parametrizada y sostenida de `Proc_Contrapartidas` debe mantenerse con mappings publicados requeridos.
-- guardrail DryRun pendiente para `Proc_Transacciones`.
-- mapping parametrizado pendiente para `RegistrarRespuestaTransaccion`.
+- acta UAT formal pendiente para los tres flujos.
+- homologacion externa formal pendiente.
 
 Productivo permanece **NO-GO**.

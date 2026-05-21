@@ -150,8 +150,8 @@ Observacion normativa:
 | Catalogo WSCFAACH / Proc_Contrapartidas | OK tecnico | API `api/integrations/methods` | No por si solo | Clasificado como `MonetaryDebitRequest` |
 | Catalogo WSCFAACH / Proc_Transacciones | OK tecnico | API `api/integrations/methods` | No por si solo | Clasificado como `MonetaryCreditRequest` |
 | Catalogo WSAXON / RegistrarRespuestaTransaccion | OK tecnico | API `api/integrations/methods` | No por si solo | Clasificado como no monetario |
-| Mapping trace formal por operacion | Parcial | `docs/uat/evidencias/soap-integrations/mapping-trace/` | Si | RegistrarRespuestaTransaccion aun no consume mappings |
-| DryRun Proc_Transacciones | Pendiente | Defecto `DEF-UAT-SOAP-MAP-002` | Si | Falta guardrail UAT/local |
+| Mapping trace formal por operacion | OK tecnico | `IntegrationMappingTraces`; docs/evidencias SOAP | Si | RegistrarRespuestaTransaccion persiste trace campo-a-campo |
+| DryRun Proc_Transacciones | OK tecnico | Defecto `DEF-UAT-SOAP-MAP-002` cerrado | Si | `ProcTransacciones:Mode=DryRun/Disabled` no transmite |
 | Productivo | NO-GO | Readiness | Si | No hay autorizacion Live |
 
 ## Actualizacion Transaction Integration Readiness - 2026-05-21

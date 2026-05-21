@@ -7,8 +7,8 @@ Fecha: 2026-05-21
 | Operacion | Naturaleza | Originador | Mueve dinero | Proposito | Usa settings | Usa mappings | Hardcoded/fallback | Evidencia | Riesgo |
 |---|---|---|---|---|---|---|---|---|---|
 | Proc_Contrapartidas | Debito monetario | CFA | Si | MonetaryDebitRequest | Si | Si, mapping publicado obligatorio | Fallback transicional bloqueado | DryRun en `ContrapartidaDispatchJobService` | Si falta mapping requerido, falla antes de XML |
-| Proc_Transacciones | Credito monetario | Otra entidad; CFA receptora | Si | MonetaryCreditRequest | Si | Si, mapping publicado obligatorio | Builder XML desde contrato resuelto | Ejecucion/hash en `IncomingNachaIntegrationExecution` | No tiene guardrail DryRun especifico como Contrapartidas |
-| RegistrarRespuestaTransaccion | Respuesta diferencial/notificacion | Entidad/camara/proveedor | No | DifferentialResponseNotification | Si | No | Mapper/parser fisico | Tests de gateway/use case | Falta mapping trace parametrizado |
+| Proc_Transacciones | Credito monetario | Otra entidad; CFA receptora | Si | MonetaryCreditRequest | Si | Si, mapping publicado obligatorio | Builder XML desde contrato resuelto | Ejecucion/hash/trace en `IncomingNachaIntegrationExecution` y `IntegrationMappingTraces` | DryRun/Disabled bloquea transmision externa |
+| RegistrarRespuestaTransaccion | Respuesta diferencial/notificacion | Entidad/camara/proveedor | No | DifferentialResponseNotification | Si | Si, para trace parametrizado | Mapper/parser fisico despues del trace | `IntegrationMappingTraces` y tests de use case | No monetario; no WSCFAACH |
 
 ## Proc_Contrapartidas
 
@@ -28,7 +28,8 @@ Flujo observado:
 1. `IncomingNachaPostProcessingOrchestrator` toma cola de entrada.
 2. `ProcTransaccionesRequestMapper` exige mapping publicado.
 3. `WscfaachSoapClient` resuelve endpoint/action desde `SoapIntegrationSettingsService`.
-4. Se invoca `Proc_Transacciones` y se parsea respuesta.
+4. `ProcTransacciones:Mode=DryRun/Disabled` bloquea transmision externa en UAT/local.
+5. Se invoca `Proc_Transacciones` solo en `Live` configurado formalmente y se parsea respuesta.
 
 Riesgo: no se observo modo DryRun/Disabled especifico para este orquestador. Debe agregarse guardrail antes de UAT externo real.
 
@@ -40,8 +41,9 @@ Flujo observado:
 2. `RegistrarRespuestaAchCommandMapper` arma comando de aplicacion.
 3. `RespuestaTransaccionesAchGateway` usa `RegistrarRespuestaAchSoapRequestMapper`.
 4. `WsAxonRespuestaTransaccionesSoapClient` resuelve endpoint/action desde settings.
-5. `RegistrarRespuestaAchSoapResponseParser` interpreta respuesta.
-6. Se actualiza estado de notificacion/respuesta.
+5. `IntegrationMappingTraceWriter` persiste trace campo-a-campo parametrizado.
+6. `RegistrarRespuestaAchSoapResponseParser` interpreta respuesta.
+7. Se actualiza estado de notificacion/respuesta.
 
 No se observaron llamadas a servicios monetarios desde este gateway/use case. No debe mover dinero ni afectar saldos.
 
@@ -65,8 +67,8 @@ Componentes:
 Guardrails:
 
 - `Proc_Contrapartidas` valida readiness antes del XML; fallback transicional queda bloqueado para campos requeridos y no construye envelope.
-- `Proc_Transacciones` valida readiness antes del payload/XML.
-- `RegistrarRespuestaTransaccion` valida readiness de `DifferentialResponseNotification` antes del gateway WSAXON; no usa WSCFAACH ni logica monetaria.
+- `Proc_Transacciones` valida readiness antes del payload/XML y en UAT/local no transmite con `ProcTransacciones:Mode=DryRun/Disabled`.
+- `RegistrarRespuestaTransaccion` valida readiness de `DifferentialResponseNotification`, persiste trace campo-a-campo y no usa WSCFAACH ni logica monetaria.
 
 Pruebas:
 
@@ -74,7 +76,7 @@ Pruebas:
 - `TransactionsControllerTests.GetTransactionIntegrationReadiness_ShouldReturnExpectedOperation`.
 - `NotificarRespuestaAchUseCaseTests.RegistrarRespuestaTransaccion_ShouldFailControlled_WhenRequiredMappingMissing`.
 
-Queda pendiente para cierre arquitectonico total persistir trace campo-a-campo unificado para las tres operaciones.
+Queda pendiente la ejecucion de acta UAT firmada con runtime representativo; el trace parametrizado queda implementado para respuesta diferencial y disponible como patron comun.
 
 ## Actualizacion 2026-05-21 - DEF-UAT-SOAP-MAP-001
 

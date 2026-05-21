@@ -168,6 +168,92 @@ public class NotificarRespuestaAchUseCaseTests
     }
 
     [Fact]
+    public async Task RegistrarRespuestaTransaccion_ShouldPersistFieldByFieldTrace_BeforeGateway()
+    {
+        var attemptRepo = new Mock<IAchResponseNotificationAttemptRepository>();
+        var gateway = new Mock<IRespuestaTransaccionesAchGateway>();
+        var uow = new Mock<IUnitOfWork>();
+        var responseRepo = new Mock<IAchResponseRepository>();
+        var operationResolver = new Mock<ITransactionIntegrationOperationResolver>();
+        var readiness = new Mock<IIntegrationMappingReadinessService>();
+        var traceWriter = new Mock<IIntegrationMappingTraceWriter>();
+        var attempt = BuildAttempt(AchResponseNotificationStatus.Pendiente);
+
+        operationResolver.Setup(x => x.ResolveDifferentialResponse(It.IsAny<string?>(), It.IsAny<int?>()))
+            .Returns(DifferentialOperation());
+        readiness.Setup(x => x.EvaluateAsync(It.IsAny<TransactionIntegrationOperationResult>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ReadyDifferentialResponse());
+        traceWriter.Setup(x => x.WriteAsync(
+                It.IsAny<TransactionIntegrationOperationResult>(),
+                It.IsAny<RegistrarRespuestaAchCommand>(),
+                It.IsAny<int?>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                true,
+                false,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IntegrationMappingTraceWriteResult(Guid.NewGuid(), 5, [], []));
+
+        attemptRepo.Setup(x => x.FindByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(attempt);
+        gateway.Setup(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoRegistroRespuestaAch(false, null, null));
+
+        var sut = new NotificarRespuestaAchUseCase(responseRepo.Object, attemptRepo.Object, new RegistrarRespuestaAchCommandMapper(), gateway.Object, uow.Object, operationResolver.Object, readiness.Object, traceWriter.Object);
+
+        var result = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, "corr-uat"));
+
+        Assert.True(result.Procesada);
+        traceWriter.Verify(x => x.WriteAsync(
+            It.Is<TransactionIntegrationOperationResult>(o => !o.MovesMoney && o.OperationKey == IntegrationGuaranteeConstants.RegistrarRespuestaTransaccion),
+            It.IsAny<RegistrarRespuestaAchCommand>(),
+            It.IsAny<int?>(),
+            "TX",
+            "corr-uat",
+            true,
+            false,
+            It.IsAny<CancellationToken>()), Times.Once);
+        gateway.Verify(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RegistrarRespuestaTransaccion_ShouldNotInvokeGateway_WhenTraceHasMissingRequiredField()
+    {
+        var attemptRepo = new Mock<IAchResponseNotificationAttemptRepository>();
+        var gateway = new Mock<IRespuestaTransaccionesAchGateway>();
+        var uow = new Mock<IUnitOfWork>();
+        var responseRepo = new Mock<IAchResponseRepository>();
+        var operationResolver = new Mock<ITransactionIntegrationOperationResolver>();
+        var readiness = new Mock<IIntegrationMappingReadinessService>();
+        var traceWriter = new Mock<IIntegrationMappingTraceWriter>();
+        var attempt = BuildAttempt(AchResponseNotificationStatus.Pendiente);
+
+        operationResolver.Setup(x => x.ResolveDifferentialResponse(It.IsAny<string?>(), It.IsAny<int?>()))
+            .Returns(DifferentialOperation());
+        readiness.Setup(x => x.EvaluateAsync(It.IsAny<TransactionIntegrationOperationResult>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ReadyDifferentialResponse());
+        traceWriter.Setup(x => x.WriteAsync(
+                It.IsAny<TransactionIntegrationOperationResult>(),
+                It.IsAny<RegistrarRespuestaAchCommand>(),
+                It.IsAny<int?>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                true,
+                false,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IntegrationMappingTraceWriteResult(Guid.NewGuid(), 5, ["ANSIDTX"], ["missing"]));
+
+        attemptRepo.Setup(x => x.FindByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(attempt);
+        var sut = new NotificarRespuestaAchUseCase(responseRepo.Object, attemptRepo.Object, new RegistrarRespuestaAchCommandMapper(), gateway.Object, uow.Object, operationResolver.Object, readiness.Object, traceWriter.Object);
+
+        var result = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
+
+        Assert.True(result.ExisteError);
+        Assert.Equal("DIFFERENTIAL_RESPONSE_REQUIRED_FIELD_MISSING", result.CodigoError);
+        Assert.Equal(AchResponseNotificationStatus.ErrorFuncional, attempt.EstadoNotificacion);
+        gateway.Verify(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public void ExecuteAsync_ShouldNotReferenceSoapOrProviderTerms()
     {
         var types = new[]
@@ -199,6 +285,41 @@ public class NotificarRespuestaAchUseCaseTests
             IdTransaccion = "TX",
             IdEstado = 2,
             IdTransaccionServicioExterno = 99,
-            AchResponse = new AchResponse { Id = Guid.NewGuid(), TipoRespuesta = TipoRespuestaAch.Transaccion, CodigoCamaraCompensacion = "ACH", EstadoProcesamiento = AchResponseProcessingStatus.Homologada }
+            AchResponse = new AchResponse { Id = Guid.NewGuid(), TipoRespuesta = TipoRespuestaAch.Transaccion, IdTransaccion = "TX", CodigoCamaraCompensacion = "ACH", EstadoProcesamiento = AchResponseProcessingStatus.Homologada }
         };
+
+    private static TransactionIntegrationOperationResult DifferentialOperation()
+        => new(
+            null,
+            "TX",
+            IntegrationGuaranteeConstants.WsAxon,
+            IntegrationGuaranteeConstants.RegistrarRespuestaTransaccion,
+            IntegrationGuaranteeConstants.DifferentialResponseNotification,
+            IntegrationGuaranteeConstants.InboundResponse,
+            "Respuesta diferencial / notificacion",
+            "Entidad/camara/proveedor externo",
+            false,
+            "Notificacion/respuesta diferencial no monetaria.",
+            true,
+            []);
+
+    private static IntegrationMappingReadinessResult ReadyDifferentialResponse()
+        => new(
+            true,
+            "Ok",
+            "OK",
+            IntegrationGuaranteeConstants.WsAxon,
+            IntegrationGuaranteeConstants.RegistrarRespuestaTransaccion,
+            IntegrationGuaranteeConstants.DifferentialResponseNotification,
+            IntegrationGuaranteeConstants.InboundResponse,
+            3,
+            3,
+            [],
+            [],
+            [],
+            [],
+            false,
+            true,
+            [],
+            []);
 }

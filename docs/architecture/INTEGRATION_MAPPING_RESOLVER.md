@@ -37,14 +37,14 @@ Trace minimo:
 | Operacion | Estado resolver |
 |---|---|
 | Proc_Contrapartidas | Usa `ProcContrapartidasFunctionalMappingResolver` con mapping publicado; falla controlado si no existe. |
-| Proc_Transacciones | Usa `ProcTransaccionesRequestMapper` y exige `IntegrationMappingSet` publicado. |
-| RegistrarRespuestaTransaccion | No usa `IntegrationMappingSet`; usa mapper/parser fisico del gateway. |
+| Proc_Transacciones | Usa `ProcTransaccionesRequestMapper`, exige `IntegrationMappingSet` publicado y queda protegido por `ProcTransacciones:Mode` DryRun/Disabled. |
+| RegistrarRespuestaTransaccion | Valida readiness y persiste trace campo-a-campo con `IntegrationMappingTraceWriter`; el gateway fisico se invoca solo si el trace no tiene requeridos faltantes. |
 
 ## Brechas
 
 - Falta resolver transversal unificado.
 - Falta trace formal persistido como evidencia para las tres operaciones.
-- `RegistrarRespuestaTransaccion` no consume mappings parametrizados.
+- `RegistrarRespuestaTransaccion` consume mapping publicado para trace parametrizado y bloquea gateway si faltan requeridos.
 - `Proc_Contrapartidas` ya no puede operar con fallback transicional para campos requeridos.
 
 ## Recomendacion
@@ -70,7 +70,7 @@ El resolver transaccional `ITransactionIntegrationOperationResolver` determina:
 - `Proc_Transacciones` para creditos originados por entidad externa;
 - `RegistrarRespuestaTransaccion` para respuestas diferenciales no monetarias.
 
-El trace campo-a-campo unificado sigue pendiente como evolucion, pero ya no se permite declarar readiness `Ok` si faltan mappings requeridos o si se esta usando fallback.
+El trace campo-a-campo unificado queda persistido en `IntegrationMappingTraces` / `IntegrationMappingTraceEntries` para respuestas diferenciales y queda disponible como patron comun para los flujos SOAP.
 
 ## Cierre fallback Proc_Contrapartidas
 

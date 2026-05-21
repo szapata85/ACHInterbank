@@ -1,0 +1,10 @@
+{
+  "date": "2026-05-21",
+  "operationKey": "Proc_Transacciones",
+  "mode": "DryRun",
+  "resultCode": "PROC_TRANSACCIONES_DRY_RUN",
+  "payloadGenerated": true,
+  "soapClientInvoked": false,
+  "externalTransmission": false,
+  "status": "OK tecnico UAT/local"
+}

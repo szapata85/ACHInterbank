@@ -403,7 +403,7 @@ public class IntegrationCatalogService : IIntegrationCatalogService
             "WSAXON.RegistrarRespuestaTransaccion" => new(
                 integrationKey,
                 operationKey,
-                "DifferentialResponseNotification",
+                "InboundResponse",
                 "DifferentialResponseNotification",
                 "Respuesta diferencial / notificacion",
                 "Entidad/camara/proveedor externo",

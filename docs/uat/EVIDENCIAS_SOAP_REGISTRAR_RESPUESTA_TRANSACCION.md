@@ -17,10 +17,13 @@ Fecha: 2026-05-21
 - `RespuestaTransaccionesAchGateway` depende de `IWsAxonRespuestaTransaccionesSoapClient`.
 - No depende de `IWscfaachSoapClient`.
 - No se observaron llamadas a `Proc_Contrapartidas` ni `Proc_Transacciones`.
-- No consume `IntegrationMappingSet`; usa mapper/parser fisico.
+- Valida readiness `WSAXON / RegistrarRespuestaTransaccion / DifferentialResponseNotification / InboundResponse`.
+- Persiste trace campo-a-campo mediante `IntegrationMappingTraceWriter`.
+- Si el trace detecta campo requerido faltante, no invoca gateway y deja error funcional controlado.
+- Mantiene `MonetaryMovementCreated=false`.
 
 ## Estado
 
-Funcionalmente separado de flujos monetarios. Pendiente parametrizar mappings y trace campo-a-campo para respuesta diferencial.
+`DEF-UAT-SOAP-MAP-003` queda **cerrado tecnicamente** en alcance UAT/local: consume mapping publicado para trace, persiste entradas campo-a-campo y conserva guardrail no monetario.
 
 Productivo: **NO-GO**.

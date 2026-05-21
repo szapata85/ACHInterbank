@@ -117,8 +117,8 @@ El cambio usa resumen/lista compacta y modales de detalle, edicion y prueba. No 
 | Brecha | Estado | Impacto | Accion requerida |
 |---|---|---|---|
 | Fallback requerido de `Proc_Contrapartidas` si no hay mapping publicado | Cerrada tecnicamente | Ya no puede generar XML ni DryRun exitoso sin mapping funcional completo | Mantener mappings publicados requeridos y pruebas de no regresion |
-| `Proc_Transacciones` no tiene guardrail DryRun especifico equivalente a Contrapartidas | Abierta | Riesgo de intento externo en UAT/local si el orquestador corre | Implementar modo DryRun/Disabled antes de UAT externo |
-| `RegistrarRespuestaTransaccion` no consume `IntegrationMappingSet` | Abierta | Falta trace parametrizado de respuesta diferencial | Integrar resolver de mappings sin conectar logica monetaria |
+| `Proc_Transacciones` no tiene guardrail DryRun especifico equivalente a Contrapartidas | Cerrada tecnicamente | UAT/local ya no transmite externamente con `ProcTransacciones:Mode=DryRun/Disabled` | Mantener modo no Live hasta autorizacion formal |
+| `RegistrarRespuestaTransaccion` no consume `IntegrationMappingSet` | Cerrada tecnicamente | Trace parametrizado persistido antes del gateway | Mantener pruebas de no regresion no monetaria |
 
 Clasificacion confirmada:
 
@@ -141,7 +141,7 @@ Se implemento una garantia automatizada para evitar falsos OK en integraciones S
 
 Brechas persistentes:
 
-- completar guardrail DryRun/Disabled especifico de `Proc_Transacciones`;
-- persistir trace campo-a-campo unificado para `RegistrarRespuestaTransaccion`.
+- ejecutar acta UAT firmada con evidencias runtime representativas;
+- sostener Productivo en NO-GO hasta homologacion externa formal.
 
 Productivo permanece **NO-GO**.

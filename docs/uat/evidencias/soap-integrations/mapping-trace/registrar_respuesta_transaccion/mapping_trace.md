@@ -6,7 +6,7 @@ Fecha: 2026-05-21
 
 - IntegrationKey: `WSAXON`
 - OperationKey: `RegistrarRespuestaTransaccion`
-- Direction: `DifferentialResponseNotification`
+- Direction: `InboundResponse`
 - Purpose: `DifferentialResponseNotification`
 - Mueve dinero: no.
 
@@ -14,14 +14,12 @@ Fecha: 2026-05-21
 
 | Campo SOAP/XML | Origen actual | Mapping parametrizado | Hardcoded/fallback | Observacion |
 |---|---|---|---|---|
-| idCanal | `RegistrarRespuestaAchCommand.IdCanal` | No | Mapper fisico | No monetario. |
-| nombreCanal | `RegistrarRespuestaAchCommand.NombreCanal` | No | Mapper fisico | No monetario. |
-| idTransaccion | `RegistrarRespuestaAchCommand.IdTransaccion` | No | Mapper fisico | Identifica respuesta relacionada. |
-| idEstado | `RegistrarRespuestaAchCommand.IdEstado` | No | Mapper fisico | Estado/causal. |
-| causal | `RegistrarRespuestaAchCommand.Causal` | No | Mapper fisico | Causal/respuesta. |
-| idTransaccionAxon | `RegistrarRespuestaAchCommand.IdTransaccionServicioExterno` | No | Mapper fisico | Nombre fisico aislado en External. |
-| descripcionCausal | `RegistrarRespuestaAchCommand.DescripcionCausal` | No | Mapper fisico | Mensaje funcional. |
+| ANSIDLOTE / id lote | `RegistrarRespuestaAchCommand.IdTransaccionServicioExterno` | Si, trace persistido | No | No monetario. |
+| ANSST / estado | `RegistrarRespuestaAchCommand.IdEstado` | Si, trace persistido | No | Estado interpretado. |
+| ANCLC / causal | `RegistrarRespuestaAchCommand.Causal` | Si, trace persistido | No | Causal/respuesta. |
+| ANSIDTX / id transaccion | `RegistrarRespuestaAchCommand.IdTransaccion` | Si, trace persistido | No | Identifica respuesta relacionada. |
+| ANSIDREVER / reverso | `RegistrarRespuestaAchCommand.IdTransaccionServicioExterno` | Si, trace persistido | No | Opcional segun mapping. |
 
 ## Resultado
 
-No hay mapping parametrizado por `IntegrationMappingSet`. Se documenta como defecto abierto `DEF-UAT-SOAP-MAP-003`. La operacion no debe mover dinero ni afectar saldos.
+Trace parametrizado por `IntegrationMappingSet` implementado. `DEF-UAT-SOAP-MAP-003` queda cerrado tecnicamente: si falta un campo requerido en el trace, no se invoca gateway y no se mueve dinero ni se afectan saldos.

@@ -171,6 +171,8 @@ public class AchDbContext : DbContext
     public DbSet<IntegrationMappingSet> IntegrationMappingSets => Set<IntegrationMappingSet>();
     public DbSet<IntegrationMappingRule> IntegrationMappingRules => Set<IntegrationMappingRule>();
     public DbSet<IntegrationMappingSetHistory> IntegrationMappingSetHistory => Set<IntegrationMappingSetHistory>();
+    public DbSet<IntegrationMappingTrace> IntegrationMappingTraces => Set<IntegrationMappingTrace>();
+    public DbSet<IntegrationMappingTraceEntry> IntegrationMappingTraceEntries => Set<IntegrationMappingTraceEntry>();
 
 
 

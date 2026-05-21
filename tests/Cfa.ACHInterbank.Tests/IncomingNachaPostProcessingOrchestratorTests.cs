@@ -1,6 +1,8 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.External.Connections;
+using Cfa.ACHInterbank.Application.Integrations.Interfaces;
+using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -28,7 +30,8 @@ public class IncomingNachaPostProcessingOrchestratorTests
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
-            soap.Object);
+            soap.Object,
+            dispatchOptions: LiveProcTransaccionesOptions());
 
         var result = await sut.ExecuteAsync(50, "tester");
 
@@ -55,7 +58,8 @@ public class IncomingNachaPostProcessingOrchestratorTests
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
-            soap.Object);
+            soap.Object,
+            dispatchOptions: LiveProcTransaccionesOptions());
 
         var result = await sut.ExecuteAsync(50, "tester");
 
@@ -103,6 +107,146 @@ public class IncomingNachaPostProcessingOrchestratorTests
     }
 
     [Fact]
+    public async Task ProcTransacciones_DryRun_ShouldGeneratePayloadAndNotTransmitExternally()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+
+        var mapper = BuildMapperSuccess();
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            dispatchOptions: Options.Create(new ProcTransaccionesDispatchOptions { Mode = "DryRun" }));
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.FailedFinal);
+        var execution = await context.IncomingNachaIntegrationExecution.FirstAsync();
+        Assert.False(string.IsNullOrWhiteSpace(execution.RequestPayloadXml));
+        Assert.Contains("PROC_TRANSACCIONES_DRY_RUN", execution.ResponsePayloadXml);
+        Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(x => x.EventType == "ProcTransaccionesDryRunGuardrail"));
+        soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ProcTransacciones_DisabledMode_ShouldBlockControlledAndNotInvokeSoap()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+
+        var mapper = BuildMapperSuccess();
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            dispatchOptions: Options.Create(new ProcTransaccionesDispatchOptions { Mode = "Disabled" }));
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.Blocked);
+        var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        Assert.Equal(IncomingNachaDispatchQueueStatus.Blocked, queue.QueueStatus);
+        Assert.Equal("PROC_TRANSACCIONES_DISABLED", queue.LastErrorCode);
+        var execution = await context.IncomingNachaIntegrationExecution.FirstAsync();
+        Assert.Equal("PROC_TRANSACCIONES_DISABLED", execution.ResponseCode);
+        soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ProcTransacciones_DryRun_ShouldValidateReadinessBeforePayload()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+
+        var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var operationResolver = new Mock<ITransactionIntegrationOperationResolver>();
+        var readiness = new Mock<IIntegrationMappingReadinessService>();
+        operationResolver.Setup(x => x.ResolveAsync(It.IsAny<AchTransaction>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProcTransaccionesOperation());
+        readiness.Setup(x => x.EvaluateAsync(It.IsAny<TransactionIntegrationOperationResult>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(FailedProcTransaccionesReadiness());
+
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            dispatchOptions: Options.Create(new ProcTransaccionesDispatchOptions { Mode = "DryRun" }),
+            operationResolver: operationResolver.Object,
+            mappingReadinessService: readiness.Object);
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.Blocked);
+        mapper.Verify(x => x.ResolveAsync(
+            It.IsAny<IncomingNachaDispatchQueue>(),
+            It.IsAny<IncomingNachaFileIngestion>(),
+            It.IsAny<IncomingNachaEntryClassification>(),
+            It.IsAny<AchTransaction>(),
+            It.IsAny<AchCycle>(),
+            It.IsAny<DateTime>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ProcTransacciones_DryRun_ShouldFail_WhenRequiredFieldUsesFallback()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+
+        var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var operationResolver = new Mock<ITransactionIntegrationOperationResolver>();
+        var readiness = new Mock<IIntegrationMappingReadinessService>();
+        operationResolver.Setup(x => x.ResolveAsync(It.IsAny<AchTransaction>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProcTransaccionesOperation());
+        readiness.Setup(x => x.EvaluateAsync(It.IsAny<TransactionIntegrationOperationResult>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IntegrationMappingReadinessResult(
+                true,
+                "Partial",
+                "PROC_TRANSACCIONES_REQUIRED_FIELD_USES_FALLBACK",
+                IntegrationGuaranteeConstants.Wscfaach,
+                IntegrationGuaranteeConstants.ProcTransacciones,
+                IntegrationGuaranteeConstants.MonetaryCreditRequest,
+                IntegrationGuaranteeConstants.OutboundRequest,
+                5,
+                5,
+                [],
+                [],
+                ["IDTRAN"],
+                ["IDTRAN"],
+                true,
+                true,
+                [],
+                ["Fallback requerido."]));
+
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            dispatchOptions: Options.Create(new ProcTransaccionesDispatchOptions { Mode = "DryRun" }),
+            operationResolver: operationResolver.Object,
+            mappingReadinessService: readiness.Object);
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.Blocked);
+        var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        Assert.Contains("PROC_TRANSACCIONES_REQUIRED_FIELD_USES_FALLBACK", queue.LastErrorMessage);
+        soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_SetsRetryPending_WhenTechnicalErrorOccurs()
     {
         await using var context = BuildContext();
@@ -132,7 +276,8 @@ public class IncomingNachaPostProcessingOrchestratorTests
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
-            soap.Object);
+            soap.Object,
+            dispatchOptions: LiveProcTransaccionesOptions());
 
         var result = await sut.ExecuteAsync(50, "tester");
 
@@ -157,7 +302,8 @@ public class IncomingNachaPostProcessingOrchestratorTests
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
-            soap.Object);
+            soap.Object,
+            dispatchOptions: LiveProcTransaccionesOptions());
 
         var result = await sut.ExecuteAsync(50, "tester");
 
@@ -192,7 +338,8 @@ public class IncomingNachaPostProcessingOrchestratorTests
                 MaxAttempts = 2,
                 InitialBackoffSeconds = 1,
                 MaxBackoffSeconds = 10
-            }));
+            }),
+            LiveProcTransaccionesOptions());
 
         var result = await sut.ExecuteAsync(50, "tester");
 
@@ -223,7 +370,8 @@ public class IncomingNachaPostProcessingOrchestratorTests
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
-            soap.Object);
+            soap.Object,
+            dispatchOptions: LiveProcTransaccionesOptions());
 
         var result = await sut.ExecuteAsync(50, "tester");
 
@@ -379,4 +527,42 @@ public class IncomingNachaPostProcessingOrchestratorTests
         mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcTransaccionesRequestContract>())).Returns("<request/>");
         return mapper;
     }
+
+    private static IOptions<ProcTransaccionesDispatchOptions> LiveProcTransaccionesOptions()
+        => Options.Create(new ProcTransaccionesDispatchOptions { Mode = "Live" });
+
+    private static TransactionIntegrationOperationResult ProcTransaccionesOperation()
+        => new(
+            100,
+            "R",
+            IntegrationGuaranteeConstants.Wscfaach,
+            IntegrationGuaranteeConstants.ProcTransacciones,
+            IntegrationGuaranteeConstants.MonetaryCreditRequest,
+            IntegrationGuaranteeConstants.OutboundRequest,
+            "Credito monetario",
+            "Entidad financiera externa; CFA receptora",
+            true,
+            "Credito monetario originado por otra entidad financiera.",
+            true,
+            []);
+
+    private static IntegrationMappingReadinessResult FailedProcTransaccionesReadiness()
+        => new(
+            false,
+            "Failed",
+            "PROC_TRANSACCIONES_REQUIRED_MAPPING_MISSING",
+            IntegrationGuaranteeConstants.Wscfaach,
+            IntegrationGuaranteeConstants.ProcTransacciones,
+            IntegrationGuaranteeConstants.MonetaryCreditRequest,
+            IntegrationGuaranteeConstants.OutboundRequest,
+            5,
+            0,
+            ["IDTRAN"],
+            [],
+            [],
+            [],
+            false,
+            false,
+            ["Falta mapping requerido."],
+            []);
 }

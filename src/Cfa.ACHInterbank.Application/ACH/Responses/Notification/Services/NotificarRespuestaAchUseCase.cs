@@ -18,6 +18,7 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
     private readonly IUnitOfWork _unitOfWork;
     private readonly ITransactionIntegrationOperationResolver? _operationResolver;
     private readonly IIntegrationMappingReadinessService? _mappingReadinessService;
+    private readonly IIntegrationMappingTraceWriter? _mappingTraceWriter;
 
     public NotificarRespuestaAchUseCase(
         IAchResponseRepository responseRepository,
@@ -26,7 +27,8 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
         IRespuestaTransaccionesAchGateway gateway,
         IUnitOfWork unitOfWork,
         ITransactionIntegrationOperationResolver? operationResolver = null,
-        IIntegrationMappingReadinessService? mappingReadinessService = null)
+        IIntegrationMappingReadinessService? mappingReadinessService = null,
+        IIntegrationMappingTraceWriter? mappingTraceWriter = null)
     {
         _responseRepository = responseRepository;
         _attemptRepository = attemptRepository;
@@ -35,6 +37,7 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
         _unitOfWork = unitOfWork;
         _operationResolver = operationResolver;
         _mappingReadinessService = mappingReadinessService;
+        _mappingTraceWriter = mappingTraceWriter;
     }
 
     public async Task<NotificarRespuestaAchResult> ExecuteAsync(NotificarRespuestaAchCommand command, CancellationToken cancellationToken = default)
@@ -74,6 +77,23 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
 
         try
         {
+            var traceError = await WriteDifferentialResponseTraceAsync(cmd, response.IdTransaccion, command.CorrelationId ?? response.CorrelationId, cancellationToken);
+            if (traceError is not null)
+            {
+                attempt.ExisteError = true;
+                attempt.CodigoError = traceError.Value.Code;
+                attempt.DescripcionError = traceError.Value.Message;
+                attempt.FechaEnvio = DateTime.UtcNow;
+                attempt.EstadoNotificacion = AchResponseNotificationStatus.ErrorFuncional;
+                response.EstadoProcesamiento = AchResponseProcessingStatus.ErrorFuncional;
+                response.FechaActualizacion = DateTime.UtcNow;
+                await _attemptRepository.UpdateAsync(attempt, cancellationToken);
+                await _responseRepository.UpdateAsync(response, cancellationToken);
+                await _unitOfWork.CommitAsync(cancellationToken);
+
+                return new(true, true, false, true, false, attempt.EstadoNotificacion, response.EstadoProcesamiento, traceError.Value.Code, traceError.Value.Message, null, null);
+            }
+
             var result = await _gateway.RegistrarRespuestaAsync(cmd, cancellationToken);
             attempt.ExisteError = result.ExisteError;
             attempt.CodigoError = result.CodigoError;
@@ -137,5 +157,41 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
             : string.Join("; ", readiness.Errors);
 
         return (readiness.Code, $"No se puede registrar respuesta diferencial sin mappings requeridos activos. {detail}".Trim());
+    }
+
+    private async Task<(string Code, string Message)?> WriteDifferentialResponseTraceAsync(
+        RegistrarRespuestaAchCommand cmd,
+        string reference,
+        string? correlationId,
+        CancellationToken cancellationToken)
+    {
+        if (_operationResolver is null || _mappingTraceWriter is null)
+        {
+            return null;
+        }
+
+        var operation = _operationResolver.ResolveDifferentialResponse(reference);
+        if (operation.MovesMoney)
+        {
+            return ("DIFFERENTIAL_RESPONSE_NON_MONETARY_GUARDRAIL_FAILED", "RegistrarRespuestaTransaccion fue clasificada erroneamente como monetaria.");
+        }
+
+        var trace = await _mappingTraceWriter.WriteAsync(
+            operation,
+            cmd,
+            transactionId: operation.TransactionId,
+            reference: reference,
+            correlationId: correlationId ?? string.Empty,
+            dryRun: true,
+            externalTransmission: false,
+            ct: cancellationToken);
+
+        if (trace.MissingRequiredFields.Count == 0)
+        {
+            return null;
+        }
+
+        return ("DIFFERENTIAL_RESPONSE_REQUIRED_FIELD_MISSING",
+            $"No se puede registrar respuesta diferencial: faltan campos requeridos en mapping trace: {string.Join(", ", trace.MissingRequiredFields)}.");
     }
 }

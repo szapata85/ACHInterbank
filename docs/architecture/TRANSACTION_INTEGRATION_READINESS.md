@@ -51,8 +51,8 @@ Codigos principales:
 ## Guardrails aplicados
 
 - `Proc_Contrapartidas`: valida operacion esperada y readiness antes de construir XML; fallback transicional requerido queda bloqueado con `Failed`.
-- `Proc_Transacciones`: valida operacion esperada y readiness antes de construir payload/XML.
-- `RegistrarRespuestaTransaccion`: valida readiness de `DifferentialResponseNotification` antes de invocar gateway WSAXON; si faltan mappings falla controladamente y no llama al gateway.
+- `Proc_Transacciones`: valida operacion esperada y readiness antes de construir payload/XML; en UAT/local `ProcTransacciones:Mode=DryRun/Disabled` no transmite externamente.
+- `RegistrarRespuestaTransaccion`: valida readiness de `DifferentialResponseNotification`, persiste trace campo-a-campo y solo invoca gateway WSAXON si no faltan mappings requeridos.
 
 ## Garantias negativas
 

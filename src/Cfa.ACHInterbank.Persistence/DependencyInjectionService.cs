@@ -37,6 +37,7 @@ public static class DependencyInjectionService
         services.Configure<IncomingNachaDispatchResilienceOptions>(configuration.GetSection(IncomingNachaDispatchResilienceOptions.SectionName));
         services.Configure<OperationArtifactOptions>(configuration.GetSection(OperationArtifactOptions.SectionName));
         services.Configure<ProcContrapartidasDispatchOptions>(configuration.GetSection(ProcContrapartidasDispatchOptions.SectionName));
+        services.Configure<ProcTransaccionesDispatchOptions>(configuration.GetSection(ProcTransaccionesDispatchOptions.SectionName));
         services.AddHttpClient();
         //services.AddDbContext<DataBaseService>(options => options.UseAseClient(configuration.GetConnectionString("SybaseConnection")));
 
