@@ -359,6 +359,58 @@ public class ContrapartidaDispatchJobServiceTests
         parser.Verify(x => x.Parse(It.IsAny<string>()), Times.Never);
     }
 
+    [Fact]
+    public async Task ProcessCycleAsync_ShouldFailBeforeXml_WhenMapperResolutionUsesFallback()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var context = new AchDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+
+        var cycleId = await SembrarEstructuraBaseAsync(context);
+        await SembrarTransaccionYItemPendienteAsync(context, cycleId);
+
+        var mapper = new Mock<IProcContrapartidasRequestMapper>();
+        mapper
+            .Setup(x => x.ResolveAsync(It.IsAny<AchCycle>(), It.IsAny<IReadOnlyCollection<AchTransaction>>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcContrapartidasRequestResolution
+            {
+                Contract = ContratoValido(),
+                MappingSnapshotHash = string.Empty,
+                UsedFallback = true
+            });
+
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var parser = new Mock<IProcContrapartidasResponseParser>(MockBehavior.Strict);
+
+        var sut = new ContrapartidaDispatchJobService(
+            context,
+            soap.Object,
+            mapper.Object,
+            parser.Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance,
+            Options.Create(new ProcContrapartidasDispatchOptions { Mode = "DryRun" }));
+
+        var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-no-fallback", 100, CancellationToken.None);
+
+        Assert.Equal(1, result.Processed);
+        Assert.Equal(1, result.Failed);
+
+        var attempt = await context.ContrapartidaDispatchAttempts.SingleAsync();
+        Assert.Equal(ContrapartidaDispatchAttemptResultEnum.Failed, attempt.Result);
+        Assert.Equal(string.Empty, attempt.RequestPayloadXml);
+        Assert.Contains("REQUIRED_MAPPING_USES_FALLBACK", attempt.ResponsePayloadXml);
+
+        mapper.Verify(x => x.BuildSoapBody(It.IsAny<ProcContrapartidasRequestContract>()), Times.Never);
+        soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        parser.Verify(x => x.Parse(It.IsAny<string>()), Times.Never);
+    }
+
     private static async Task<string> SembrarEstructuraBaseAsync(AchDbContext context)
     {
         context.ClearingHouseConfigs.Add(new ClearingHouseConfig

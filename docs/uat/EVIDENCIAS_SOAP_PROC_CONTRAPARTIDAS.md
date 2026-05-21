@@ -27,9 +27,9 @@ La evidencia SOAP queda **OK para dry-run documental y guardrail tecnico UAT/loc
 
 ## Auditoria settings vs mappings - 2026-05-21
 
-`Proc_Contrapartidas` queda clasificado como `MonetaryDebitRequest`: debito monetario originado por CFA. El flujo usa `soap-settings` para endpoint/SOAP Action y puede usar `IntegrationMappingSet` publicado mediante `ProcContrapartidasFunctionalMappingResolver`.
+`Proc_Contrapartidas` queda clasificado como `MonetaryDebitRequest`: debito monetario originado por CFA. El flujo usa `soap-settings` para endpoint/SOAP Action y exige `IntegrationMappingSet` publicado mediante `ProcContrapartidasFunctionalMappingResolver`.
 
-Hallazgo abierto: si no existe mapping publicado, `ProcContrapartidasRequestMapper` conserva fallback transicional. Esto permite generar payload sin parametrizacion funcional completa; queda documentado como brecha hasta eliminar o gobernar formalmente ese fallback.
+El hallazgo `DEF-UAT-SOAP-MAP-001` queda cerrado tecnicamente: si no existe mapping publicado activo para campos requeridos, `ProcContrapartidasRequestMapper` falla controladamente con `INTEGRATION_MAPPING_REQUIRED` y el dispatch bloquea cualquier resolucion `UsedFallback=true` con `REQUIRED_MAPPING_USES_FALLBACK` antes de construir XML, DryRun o dispatch.
 
 Evidencia agregada:
 

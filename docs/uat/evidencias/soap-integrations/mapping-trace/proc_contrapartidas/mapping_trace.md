@@ -14,15 +14,15 @@ Fecha: 2026-05-21
 
 | Campo SOAP/XML | Origen actual | Mapping parametrizado | Hardcoded/fallback | Observacion |
 |---|---|---|---|---|
-| OFNIT | `AchTransaction.CompanyIdentification` o regla publicada | Si, cuando hay mapping publicado | Si, fallback transicional | Debe eliminarse fallback para cierre normativo completo. |
-| OFEMP | `ClearingHouse.Code` o regla publicada | Si, cuando hay mapping publicado | Si, fallback transicional | Validar contra norma/camara. |
-| OFCTA | `AchTransaction.SourceAccountNumber` o regla publicada | Si, cuando hay mapping publicado | Si, fallback transicional | Sanitizar en evidencia. |
-| OFDD | Naturaleza transaccion | Si, cuando hay mapping publicado | Si, fallback transicional | Debe representar debito CFA. |
-| OFMONDEB | Monto debito | Si, cuando hay mapping publicado | Si, fallback transicional | Monetario. |
-| OFMONCRE | 0 para debito | Si, cuando hay mapping publicado | Si, fallback transicional | No usar para credito en este flujo. |
-| OFIDLOT | Lote/ciclo | Si, requerido | Si, fallback transicional | El resolver falla si mapping publicado no lo resuelve. |
-| OFIDTX | Identificador transaccion | Si, cuando hay mapping publicado | Si, fallback transicional | Debe ser trazable. |
+| OFNIT | `IntegrationMappingSet` publicado | Si, requerido | No permitido | Sin mapping activo falla antes de XML. |
+| OFEMP | `IntegrationMappingSet` publicado | Si, requerido | No permitido | Validar contra norma/camara. |
+| OFCTA | `IntegrationMappingSet` publicado | Si, requerido | No permitido | Sanitizar en evidencia. |
+| OFDD | `IntegrationMappingSet` publicado | Si, requerido | No permitido | Debe representar debito CFA. |
+| OFMONDEB | `IntegrationMappingSet` publicado | Si, requerido | No permitido | Monetario. |
+| OFMONCRE | `IntegrationMappingSet` publicado | Si, requerido | No permitido | No usar para credito en este flujo. |
+| OFIDLOT | `IntegrationMappingSet` publicado | Si, requerido | No permitido | El resolver falla si mapping publicado no lo resuelve. |
+| OFIDTX | `IntegrationMappingSet` publicado | Si, requerido | No permitido | Debe ser trazable. |
 
 ## Resultado
 
-Trace parcial. La operacion puede consumir mappings publicados, pero mantiene fallback transicional. Se registra defecto abierto para cierre posterior.
+Trace actualizado. La operacion exige mappings publicados activos para campos requeridos. Si falta mapping o el mapper reporta `UsedFallback=true`, el flujo queda bloqueado antes de XML, DryRun o dispatch.

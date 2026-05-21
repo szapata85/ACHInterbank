@@ -37,7 +37,7 @@ La consulta no transmite, no genera XML, no cambia estado y no crea movimientos 
 Estados:
 
 - `Ok`: mappings requeridos activos completos; `usesFallback=false`.
-- `Partial`: existe fallback transicional; `usesFallback=true`; no es OK pleno.
+- `Partial`: reservado para fallback opcional no requerido; `usesFallback=true`; no es OK pleno.
 - `Failed`: faltan mappings requeridos o el metodo no esta configurado.
 
 Codigos principales:
@@ -50,7 +50,7 @@ Codigos principales:
 
 ## Guardrails aplicados
 
-- `Proc_Contrapartidas`: valida operacion esperada y readiness antes de construir XML; fallback transicional queda trazado como `Partial`.
+- `Proc_Contrapartidas`: valida operacion esperada y readiness antes de construir XML; fallback transicional requerido queda bloqueado con `Failed`.
 - `Proc_Transacciones`: valida operacion esperada y readiness antes de construir payload/XML.
 - `RegistrarRespuestaTransaccion`: valida readiness de `DifferentialResponseNotification` antes de invocar gateway WSAXON; si faltan mappings falla controladamente y no llama al gateway.
 
@@ -61,6 +61,15 @@ Codigos principales:
 - Readiness no crea movimientos monetarios.
 - `RegistrarRespuestaTransaccion` no depende de `IWscfaachSoapClient`.
 - `RegistrarRespuestaTransaccion` no resuelve `MonetaryDebitRequest` ni `MonetaryCreditRequest`.
+
+## Actualizacion 2026-05-21 - cierre fallback Proc_Contrapartidas
+
+`Proc_Contrapartidas` ya no puede construir contrato/XML con fallback transicional:
+
+- `ProcContrapartidasRequestMapper.ResolveAsync` falla con `INTEGRATION_MAPPING_REQUIRED` si no existe mapping publicado.
+- `ContrapartidaDispatchJobService` rechaza cualquier `ProcContrapartidasRequestResolution` con `UsedFallback=true` antes de llamar `BuildSoapBody`.
+- Readiness para `Proc_Contrapartidas` sin mapping publicado devuelve `Failed`, `usesFallback=true`, `canBuildPayload=false` y `REQUIRED_MAPPING_USES_FALLBACK`.
+- Ningun campo requerido puede salir de fallback y marcar readiness `Ok`.
 
 ## Productivo
 

@@ -36,7 +36,7 @@ Trace minimo:
 
 | Operacion | Estado resolver |
 |---|---|
-| Proc_Contrapartidas | Usa `ProcContrapartidasFunctionalMappingResolver` si existe mapping publicado; cae a fallback transicional si no existe. |
+| Proc_Contrapartidas | Usa `ProcContrapartidasFunctionalMappingResolver` con mapping publicado; falla controlado si no existe. |
 | Proc_Transacciones | Usa `ProcTransaccionesRequestMapper` y exige `IntegrationMappingSet` publicado. |
 | RegistrarRespuestaTransaccion | No usa `IntegrationMappingSet`; usa mapper/parser fisico del gateway. |
 
@@ -45,7 +45,7 @@ Trace minimo:
 - Falta resolver transversal unificado.
 - Falta trace formal persistido como evidencia para las tres operaciones.
 - `RegistrarRespuestaTransaccion` no consume mappings parametrizados.
-- `Proc_Contrapartidas` puede operar con fallback transicional si no hay mapping publicado.
+- `Proc_Contrapartidas` ya no puede operar con fallback transicional para campos requeridos.
 
 ## Recomendacion
 
@@ -59,7 +59,7 @@ Se agrego `IIntegrationMappingReadinessService` como garantia previa al resolver
 - valida `IntegrationMappingSet` publicado;
 - valida mappings requeridos activos;
 - devuelve `Ok`, `Failed` o `Partial`;
-- marca `usesFallback=true` cuando solo existe fallback transicional;
+- marca `usesFallback=true` cuando detecta que el payload dependeria de fallback transicional;
 - no invoca SOAP;
 - no cambia estados;
 - no mueve dinero.
@@ -71,3 +71,14 @@ El resolver transaccional `ITransactionIntegrationOperationResolver` determina:
 - `RegistrarRespuestaTransaccion` para respuestas diferenciales no monetarias.
 
 El trace campo-a-campo unificado sigue pendiente como evolucion, pero ya no se permite declarar readiness `Ok` si faltan mappings requeridos o si se esta usando fallback.
+
+## Cierre fallback Proc_Contrapartidas
+
+Para `WSCFAACH / Proc_Contrapartidas / MonetaryDebitRequest`:
+
+- todos los campos requeridos deben tener `IntegrationMappingRule.Enabled=true`;
+- si no existe `IntegrationMappingSet` publicado, readiness queda `Failed`;
+- `FallbackFields` y `RequiredFallbackFields` se informan con los parametros requeridos afectados;
+- `CanBuildPayload=false`;
+- el mapper no crea contrato transicional;
+- el job no llama `BuildSoapBody` si `UsedFallback=true`.

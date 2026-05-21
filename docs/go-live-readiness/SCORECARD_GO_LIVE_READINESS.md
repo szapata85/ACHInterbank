@@ -148,9 +148,8 @@ Productivo permanece **NO-GO**.
 
 ## Actualizacion Transaction Integration Readiness - 2026-05-21
 
-Se agrega control tecnico verificable por pruebas para alinear transaccion, operacion esperada y readiness de mappings. Mejora trazabilidad y reduce riesgo de integracion SOAP sin mapping, pero no aumenta el score productivo por las brechas remanentes:
+Se agrega control tecnico verificable por pruebas para alinear transaccion, operacion esperada y readiness de mappings. El fallback requerido de `Proc_Contrapartidas` queda bloqueado antes de XML/DryRun/dispatch, pero no aumenta el score productivo por las brechas remanentes:
 
-- fallback transicional de `Proc_Contrapartidas` aun existe;
 - `Proc_Transacciones` requiere completar guardrail UAT/local no transmisivo;
 - trace campo-a-campo unificado de `RegistrarRespuestaTransaccion` sigue pendiente.
 
@@ -177,7 +176,7 @@ Se mejora la categoria UAT/evidencias y documentacion/trazabilidad con validacio
 
 La auditoria mejora trazabilidad y claridad de integraciones, pero no incrementa readiness productivo porque hay brechas abiertas:
 
-- fallback transicional en `Proc_Contrapartidas`.
+- trazabilidad parametrizada y sostenida de `Proc_Contrapartidas` debe mantenerse con mappings publicados requeridos.
 - guardrail DryRun pendiente para `Proc_Transacciones`.
 - mapping parametrizado pendiente para `RegistrarRespuestaTransaccion`.
 

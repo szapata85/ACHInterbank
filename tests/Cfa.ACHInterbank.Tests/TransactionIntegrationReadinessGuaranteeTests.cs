@@ -114,7 +114,7 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
     }
 
     [Fact]
-    public async Task Readiness_ShouldBeWarning_WhenFallbackIsUsed()
+    public async Task Readiness_ShouldFail_WhenProcContrapartidasWouldNeedFallback()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.DebitFromCfa);
@@ -122,13 +122,15 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
         var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
 
         Assert.False(readiness.IsReady);
-        Assert.Equal("Partial", readiness.Status);
+        Assert.Equal("Failed", readiness.Status);
+        Assert.Equal("REQUIRED_MAPPING_USES_FALLBACK", readiness.Code);
         Assert.True(readiness.UsesFallback);
-        Assert.True(readiness.CanBuildPayload);
+        Assert.False(readiness.CanBuildPayload);
+        Assert.NotEmpty(readiness.RequiredFallbackFields);
     }
 
     [Fact]
-    public async Task Readiness_ShouldNotBeOk_WhenFallbackIsUsed()
+    public async Task Readiness_ShouldNotBeOk_WhenProcContrapartidasWouldNeedFallback()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.DebitFromCfa);

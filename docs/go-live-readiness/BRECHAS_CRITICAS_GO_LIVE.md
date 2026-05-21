@@ -116,7 +116,7 @@ El cambio usa resumen/lista compacta y modales de detalle, edicion y prueba. No 
 
 | Brecha | Estado | Impacto | Accion requerida |
 |---|---|---|---|
-| `Proc_Contrapartidas` conserva fallback transicional si no hay mapping publicado | Abierta | Puede generar XML sin mapping funcional completo | Exigir mapping publicado o registrar fallback como excepcion auditada |
+| Fallback requerido de `Proc_Contrapartidas` si no hay mapping publicado | Cerrada tecnicamente | Ya no puede generar XML ni DryRun exitoso sin mapping funcional completo | Mantener mappings publicados requeridos y pruebas de no regresion |
 | `Proc_Transacciones` no tiene guardrail DryRun especifico equivalente a Contrapartidas | Abierta | Riesgo de intento externo en UAT/local si el orquestador corre | Implementar modo DryRun/Disabled antes de UAT externo |
 | `RegistrarRespuestaTransaccion` no consume `IntegrationMappingSet` | Abierta | Falta trace parametrizado de respuesta diferencial | Integrar resolver de mappings sin conectar logica monetaria |
 
@@ -137,11 +137,10 @@ Se implemento una garantia automatizada para evitar falsos OK en integraciones S
 - Credito externo -> `WSCFAACH / Proc_Transacciones / MonetaryCreditRequest`.
 - Respuesta diferencial -> `WSAXON / RegistrarRespuestaTransaccion / DifferentialResponseNotification`, `movesMoney=false`.
 - Missing mapping queda `Failed`.
-- Fallback transicional queda `Partial`, no `Ok`.
+- Fallback requerido en `Proc_Contrapartidas` queda `Failed`, no `Partial` ni `Ok`.
 
 Brechas persistentes:
 
-- eliminar/gobernar fallback de `Proc_Contrapartidas`;
 - completar guardrail DryRun/Disabled especifico de `Proc_Transacciones`;
 - persistir trace campo-a-campo unificado para `RegistrarRespuestaTransaccion`.
 

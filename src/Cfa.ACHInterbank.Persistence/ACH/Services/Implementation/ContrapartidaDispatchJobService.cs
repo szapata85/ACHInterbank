@@ -155,19 +155,11 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             {
                 await EnsureContrapartidasReadinessAsync(transactions, ct);
                 var resolution = await _procContrapartidasRequestMapper.ResolveAsync(cycle, transactions, DateTime.Now, ct);
+                EnsureNoFallbackResolution(resolution);
                 requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(resolution.Contract);
                 batch.MappingSetId = resolution.MappingSetId;
                 batch.MappingVersion = resolution.MappingVersion;
-                batch.MappingSnapshotHash = resolution.UsedFallback
-                    ? "FALLBACK_TRANSITIONAL"
-                    : resolution.MappingSnapshotHash;
-                if (resolution.UsedFallback)
-                {
-                    _logger.LogWarning(
-                        "Se ejecutó Proc_Contrapartidas con fallback transicional para ciclo {CycleId} cámara {ClearingHouseId}.",
-                        cycle.Id,
-                        cycle.ClearingHouseId);
-                }
+                batch.MappingSnapshotHash = resolution.MappingSnapshotHash;
 
                 var dispatchResult = await DispatchProcContrapartidasAsync(requestPayload, cycle.Id, cycle.ClearingHouseId, ct);
                 responsePayload = dispatchResult.ResponsePayload;
@@ -439,20 +431,13 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             ProcContrapartidasParsedResponse parseResult;
             try
             {
+                await EnsureContrapartidasReadinessAsync(txs, ct);
                 var resolution = await _procContrapartidasRequestMapper.ResolveAsync(cycle, txs, DateTime.Now, ct);
+                EnsureNoFallbackResolution(resolution);
                 requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(resolution.Contract);
                 processingBatch.MappingSetId = resolution.MappingSetId;
                 processingBatch.MappingVersion = resolution.MappingVersion;
-                processingBatch.MappingSnapshotHash = resolution.UsedFallback
-                    ? "FALLBACK_TRANSITIONAL"
-                    : resolution.MappingSnapshotHash;
-                if (resolution.UsedFallback)
-                {
-                    _logger.LogWarning(
-                        "Reintento manual ejecutó Proc_Contrapartidas con fallback transicional para ciclo {CycleId} cámara {ClearingHouseId}.",
-                        cycle.Id,
-                        cycle.ClearingHouseId);
-                }
+                processingBatch.MappingSnapshotHash = resolution.MappingSnapshotHash;
                 var dispatchResult = await DispatchProcContrapartidasAsync(requestPayload, cycle.Id, cycle.ClearingHouseId, ct);
                 responsePayload = dispatchResult.ResponsePayload;
                 parseResult = dispatchResult.ParseResult;
@@ -638,12 +623,27 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                     $"{readiness.Code}: no se puede construir envelope Proc_Contrapartidas para transaccion {transaction.Id}; faltan mappings requeridos.");
             }
 
+            if (!readiness.CanBuildPayload)
+            {
+                throw new InvalidOperationException(
+                    $"{readiness.Code}: readiness de Proc_Contrapartidas no permite construir payload para transaccion {transaction.Id}.");
+            }
+
             if (readiness.UsesFallback)
             {
                 _logger.LogWarning(
                     "Readiness parcial para Proc_Contrapartidas transactionId={TransactionId}: fallback transicional trazado antes de XML.",
                     transaction.Id);
             }
+        }
+    }
+
+    private static void EnsureNoFallbackResolution(ProcContrapartidasRequestResolution resolution)
+    {
+        if (resolution.UsedFallback)
+        {
+            throw new InvalidOperationException(
+                "REQUIRED_MAPPING_USES_FALLBACK: Proc_Contrapartidas no puede construir XML con fallback transicional. Configure mappings activos requeridos.");
         }
     }
 

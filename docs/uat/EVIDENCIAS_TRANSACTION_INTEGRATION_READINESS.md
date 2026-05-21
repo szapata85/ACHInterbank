@@ -47,6 +47,7 @@ Cobertura funcional:
 
 - Build backend Release: OK.
 - Pruebas focalizadas de garantia: OK, 36/36.
+- Pruebas focalizadas de cierre fallback `Proc_Contrapartidas`: OK, 29/29.
 
 La suite completa debe ejecutarse como validacion final del cambio.
 
@@ -57,3 +58,19 @@ La suite completa debe ejecutarse como validacion final del cambio.
 - No se expusieron secretos.
 - Crear/consultar readiness no ejecuta SOAP.
 - Productivo permanece **NO-GO**.
+
+## Cierre DEF-UAT-SOAP-MAP-001
+
+Pruebas agregadas:
+
+- `ProcContrapartidasFallbackClosureTests.ProcContrapartidasMapper_ShouldFailControlled_WhenNoPublishedMappingExists`.
+- `ProcContrapartidasFallbackClosureTests.MissingMapping_ShouldNotGenerateEnvelope`.
+- `ContrapartidaDispatchJobServiceTests.ProcessCycleAsync_ShouldFailBeforeXml_WhenMapperResolutionUsesFallback`.
+
+Resultado esperado validado:
+
+- falta de mapping publicado falla con `INTEGRATION_MAPPING_REQUIRED`;
+- fallback requerido queda como `REQUIRED_MAPPING_USES_FALLBACK`;
+- no se llama `BuildSoapBody`;
+- no se invoca `IWscfaachSoapClient`;
+- no se ejecuta DryRun exitoso con XML fallback.

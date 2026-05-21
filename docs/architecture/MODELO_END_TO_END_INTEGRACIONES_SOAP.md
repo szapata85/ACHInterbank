@@ -6,7 +6,7 @@ Fecha: 2026-05-21
 
 | Operacion | Naturaleza | Originador | Mueve dinero | Proposito | Usa settings | Usa mappings | Hardcoded/fallback | Evidencia | Riesgo |
 |---|---|---|---|---|---|---|---|---|---|
-| Proc_Contrapartidas | Debito monetario | CFA | Si | MonetaryDebitRequest | Si | Si, si hay mapping publicado | Fallback transicional si no hay mapping | DryRun en `ContrapartidaDispatchJobService` | XML puede salir sin mapping parametrizado si cae al fallback |
+| Proc_Contrapartidas | Debito monetario | CFA | Si | MonetaryDebitRequest | Si | Si, mapping publicado obligatorio | Fallback transicional bloqueado | DryRun en `ContrapartidaDispatchJobService` | Si falta mapping requerido, falla antes de XML |
 | Proc_Transacciones | Credito monetario | Otra entidad; CFA receptora | Si | MonetaryCreditRequest | Si | Si, mapping publicado obligatorio | Builder XML desde contrato resuelto | Ejecucion/hash en `IncomingNachaIntegrationExecution` | No tiene guardrail DryRun especifico como Contrapartidas |
 | RegistrarRespuestaTransaccion | Respuesta diferencial/notificacion | Entidad/camara/proveedor | No | DifferentialResponseNotification | Si | No | Mapper/parser fisico | Tests de gateway/use case | Falta mapping trace parametrizado |
 
@@ -17,7 +17,7 @@ Flujo observado:
 1. `ContrapartidaDispatchJobService` selecciona items elegibles.
 2. `ProcContrapartidasRequestMapper` intenta resolver mapping publicado.
 3. `ProcContrapartidasFunctionalMappingResolver` consume `IntegrationMappingSet`.
-4. Si no existe mapping publicado, usa fallback transicional.
+4. Si no existe mapping publicado, falla con `INTEGRATION_MAPPING_REQUIRED`.
 5. `WscfaachSoapClient` resuelve endpoint/action desde `SoapIntegrationSettingsService`.
 6. En `ProcContrapartidas:Mode=DryRun`, genera payload y no transmite.
 
@@ -58,13 +58,13 @@ Se implemento una garantia tecnica verificable por pruebas para la cadena:
 Componentes:
 
 - `ITransactionIntegrationOperationResolver`: resuelve la operacion esperada por naturaleza/originador.
-- `IIntegrationMappingReadinessService`: valida mappings publicados requeridos y marca fallback como `Partial`.
+- `IIntegrationMappingReadinessService`: valida mappings publicados requeridos y marca fallback requerido como `Failed`.
 - `ITransactionIntegrationReadinessService`: expone consulta read-only por transaccion.
 - `GET /Transactions/{id}/integration-readiness`: endpoint sin mutacion, sin SOAP y sin movimiento monetario.
 
 Guardrails:
 
-- `Proc_Contrapartidas` valida readiness antes del XML; fallback transicional queda advertido y no se marca como OK pleno.
+- `Proc_Contrapartidas` valida readiness antes del XML; fallback transicional queda bloqueado para campos requeridos y no construye envelope.
 - `Proc_Transacciones` valida readiness antes del payload/XML.
 - `RegistrarRespuestaTransaccion` valida readiness de `DifferentialResponseNotification` antes del gateway WSAXON; no usa WSCFAACH ni logica monetaria.
 
@@ -74,4 +74,13 @@ Pruebas:
 - `TransactionsControllerTests.GetTransactionIntegrationReadiness_ShouldReturnExpectedOperation`.
 - `NotificarRespuestaAchUseCaseTests.RegistrarRespuestaTransaccion_ShouldFailControlled_WhenRequiredMappingMissing`.
 
-Queda pendiente para cierre arquitectonico total eliminar o gobernar formalmente el fallback transicional de `Proc_Contrapartidas` y persistir trace campo-a-campo unificado para las tres operaciones.
+Queda pendiente para cierre arquitectonico total persistir trace campo-a-campo unificado para las tres operaciones.
+
+## Actualizacion 2026-05-21 - DEF-UAT-SOAP-MAP-001
+
+El fallback transicional de `Proc_Contrapartidas` queda cerrado tecnicamente:
+
+- sin mapping publicado, `ProcContrapartidasRequestMapper` falla antes de contrato/XML;
+- si una resolucion externa marca `UsedFallback=true`, `ContrapartidaDispatchJobService` falla antes de `BuildSoapBody`;
+- no se ejecuta DryRun exitoso ni dispatch con XML basado en fallback;
+- readiness no retorna `Ok` si `usesFallback=true`.

@@ -40,6 +40,8 @@ public sealed record IntegrationMappingReadinessResult(
     int ActiveMappings,
     IReadOnlyCollection<string> MissingRequiredMappings,
     IReadOnlyCollection<string> InactiveRequiredMappings,
+    IReadOnlyCollection<string> FallbackFields,
+    IReadOnlyCollection<string> RequiredFallbackFields,
     bool UsesFallback,
     bool CanBuildPayload,
     IReadOnlyCollection<string> Errors,
