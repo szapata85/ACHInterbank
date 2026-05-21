@@ -122,3 +122,14 @@ Observacion normativa:
 | Auto-import deshabilitado | OK | Metadata `autoImported=false` | Si si falla | No llama NachaUpload |
 | Procesamiento real NachaUpload | Pendiente | Fase posterior | Si | Requiere carga manual |
 | Productivo | NO-GO | Readiness | Si | Mantener decision NO-GO |
+
+## Actualizacion 2026-05-20 - Configuracion SOAP UX
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| Pantalla principal sin formulario gigante | OK tecnico | `/integraciones/soap-settings` | No por si solo | Vista compacta de resumen/lista |
+| Edicion en modal/drawer | OK tecnico | `soap-integration-settings.component.*` | No por si solo | Guardar usa el mismo servicio/endpoints |
+| Detalle read-only | OK tecnico | Spec Angular dedicado | No | Endpoint completo visible solo en detalle |
+| Prueba operativa en modal | OK tecnico | Spec Angular dedicado | No | Validacion local sanitizada, sin SOAP productivo |
+| Secretos completos ocultos | OK tecnico | UI/documentacion | Si si falla | No muestra credenciales ni certificados privados |
+| Productivo | NO-GO | Readiness | Si | Sin cambio en decision |

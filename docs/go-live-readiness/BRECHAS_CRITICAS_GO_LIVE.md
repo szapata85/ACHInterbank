@@ -101,3 +101,13 @@ Estado de brecha: **DEF-UAT-020 queda OK tecnico UAT para prenotificaciones CFA 
 | Validacion real de procesamiento inbound | Abierta | Bloquea GO productivo | Cargar manualmente archivos generados y validar estados/auditoria |
 
 El simulador queda deshabilitado por defecto fuera de Development/UAT, no transmite externamente y no importa automaticamente. Productivo continua **NO-GO**.
+
+## Actualizacion 2026-05-20 - UX Configuracion SOAP
+
+| Brecha | Estado | Impacto | Accion requerida |
+|---|---|---|---|
+| Saturacion visual en `/integraciones/soap-settings` | Cerrada tecnicamente frontend | Reduce riesgo operativo de edicion incorrecta de configuracion SOAP | Validacion visual UAT/manual en SPA Docker |
+| Exposicion de secretos en UI SOAP | Controlada | La pantalla no muestra secretos completos ni certificados privados | Mantener gestion segura externa |
+| Proc_Contrapartidas Live | NO habilitado por defecto | Conserva guardrail UAT/local | Live solo con autorizacion formal |
+
+El cambio usa resumen/lista compacta y modales de detalle, edicion y prueba. No modifica backend, endpoints ni semantica funcional SOAP. Productivo permanece **NO-GO**.

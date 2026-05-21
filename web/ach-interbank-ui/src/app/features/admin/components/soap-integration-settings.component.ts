@@ -10,6 +10,16 @@ import {
 } from '../../../core/services/soap-integration-settings.service';
 import { SharedModule } from '../../../shared/shared.module';
 
+type SoapClientKey = 'wscfaachMappings' | 'wsAxonRespuestaTransaccionesMappings';
+type ModalMode = 'detail' | 'edit' | 'test' | 'help' | null;
+
+interface SoapMethodView {
+  clientKey: SoapClientKey;
+  clientName: string;
+  index: number;
+  group: FormGroup;
+}
+
 @Component({
   selector: 'app-soap-integration-settings',
   standalone: true,
@@ -38,7 +48,9 @@ export class SoapIntegrationSettingsComponent {
   saving = false;
   testing = false;
   reloading = false;
-  lastTestResult: { status: 'OK' | 'ERROR'; message: string; checkedAt: Date } | null = null;
+  modalMode: ModalMode = null;
+  selectedMethod: SoapMethodView | null = null;
+  lastTestResult: { status: 'OK' | 'ERROR'; message: string; checkedAt: Date; methodName?: string } | null = null;
 
   get wscfaachMappings(): FormArray<FormGroup> {
     return this.form.get('wscfaachMappings') as FormArray<FormGroup>;
@@ -46,6 +58,31 @@ export class SoapIntegrationSettingsComponent {
 
   get wsAxonMappings(): FormArray<FormGroup> {
     return this.form.get('wsAxonRespuestaTransaccionesMappings') as FormArray<FormGroup>;
+  }
+
+  get allMethods(): SoapMethodView[] {
+    return [
+      ...this.wscfaachMappings.controls.map((group, index) => ({
+        clientKey: 'wscfaachMappings' as const,
+        clientName: 'WscfaachSoapClient',
+        index,
+        group
+      })),
+      ...this.wsAxonMappings.controls.map((group, index) => ({
+        clientKey: 'wsAxonRespuestaTransaccionesMappings' as const,
+        clientName: 'WsAxonRespuestaTransaccionesSoapClient',
+        index,
+        group
+      }))
+    ];
+  }
+
+  get enabledCount(): number {
+    return this.allMethods.filter((item) => item.group.get('enabled')?.value).length;
+  }
+
+  get safeModeCount(): number {
+    return this.allMethods.length;
   }
 
   constructor() {
@@ -56,10 +93,40 @@ export class SoapIntegrationSettingsComponent {
     });
   }
 
+  openDetail(method: SoapMethodView): void {
+    this.selectedMethod = method;
+    this.modalMode = 'detail';
+    this.cdr.markForCheck();
+  }
+
+  openEdit(method: SoapMethodView): void {
+    this.selectedMethod = method;
+    this.modalMode = 'edit';
+    this.cdr.markForCheck();
+  }
+
+  openTest(method: SoapMethodView): void {
+    this.selectedMethod = method;
+    this.modalMode = 'test';
+    this.cdr.markForCheck();
+  }
+
+  openHelp(): void {
+    this.selectedMethod = null;
+    this.modalMode = 'help';
+    this.cdr.markForCheck();
+  }
+
+  closeModal(): void {
+    this.modalMode = null;
+    this.selectedMethod = null;
+    this.cdr.markForCheck();
+  }
+
   save(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
-      this.notifications.error('Completa los valores requeridos de endpoint, SOAP Action y mapeos.');
+      this.notifications.error('Completa endpoint, SOAP Action y mapeos requeridos.');
       return;
     }
 
@@ -75,6 +142,7 @@ export class SoapIntegrationSettingsComponent {
       .subscribe(() => {
         this.form.markAsPristine();
         this.notifications.success('Configuracion SOAP guardada.');
+        this.closeModal();
         this.cdr.markForCheck();
       });
   }
@@ -97,17 +165,27 @@ export class SoapIntegrationSettingsComponent {
       });
   }
 
-  testConnection(): void {
+  runConnectionTest(): void {
+    if (!this.selectedMethod) {
+      return;
+    }
+
     this.testing = true;
-    const allMappings = [
-      ...(this.wscfaachMappings.getRawValue() as SoapEndpointMethodMapping[]),
-      ...(this.wsAxonMappings.getRawValue() as SoapEndpointMethodMapping[])
-    ];
-    const enabled = allMappings.filter((item) => item.enabled);
-    const invalid = enabled.find((item) => !item.endpoint?.trim() || !item.soapAction?.trim());
-    this.lastTestResult = invalid
-      ? { status: 'ERROR', message: 'Hay metodos habilitados sin endpoint o SOAP Action.', checkedAt: new Date() }
-      : { status: 'OK', message: 'Validacion local correcta. No se ejecuto llamada SOAP externa desde esta pantalla.', checkedAt: new Date() };
+    const method = this.selectedMethod.group.getRawValue() as SoapEndpointMethodMapping;
+    const missingRequired = method.enabled && (!method.endpoint?.trim() || !method.soapAction?.trim());
+    this.lastTestResult = missingRequired
+      ? {
+          status: 'ERROR',
+          methodName: method.methodName,
+          message: 'El metodo habilitado no tiene endpoint o SOAP Action configurado.',
+          checkedAt: new Date()
+        }
+      : {
+          status: 'OK',
+          methodName: method.methodName,
+          message: 'Validacion local correcta. No se ejecuto llamada SOAP externa desde esta pantalla.',
+          checkedAt: new Date()
+        };
     this.testing = false;
     this.cdr.markForCheck();
   }
@@ -122,6 +200,26 @@ export class SoapIntegrationSettingsComponent {
 
   removeInputMapping(mappingGroup: FormGroup, index: number): void {
     this.getInputMappings(mappingGroup).removeAt(index);
+  }
+
+  endpointFor(group: FormGroup): string {
+    return group.get('endpoint')?.value || 'Sin endpoint';
+  }
+
+  methodNameFor(group: FormGroup): string {
+    return group.get('methodName')?.value || 'Metodo SOAP';
+  }
+
+  statusFor(group: FormGroup): string {
+    return group.get('enabled')?.value ? 'Habilitado' : 'Deshabilitado';
+  }
+
+  modeFor(group: FormGroup): string {
+    const method = this.methodNameFor(group);
+    if (method === 'Proc_Contrapartidas') {
+      return 'DryRun/UAT-local';
+    }
+    return 'Configurado';
   }
 
   private setMappings(target: FormArray<FormGroup>, mappings: SoapEndpointMethodMapping[]): void {

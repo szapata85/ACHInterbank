@@ -37,3 +37,35 @@ Se reorganizo la pantalla sin cambiar endpoints ni semantica funcional:
 - `npm test -- --watch=false --browsers=ChromeHeadless`: OK.
 
 La pantalla queda preparada para validacion visual/runtime en SPA Docker.
+
+## Rediseño profundo controlado - 2026-05-20
+
+Motivo: el primer rediseño seguía mostrando demasiada información técnica en una sola vista. En resoluciones operativas la combinación de métodos, endpoints, SOAP Action, mapeos y acciones comprimía columnas y generaba riesgo de controles montados.
+
+Patrón aplicado:
+
+- Pantalla principal de resumen, sin formulario gigante inicial.
+- Lista compacta desktop y cards compactas responsive para servicios SOAP.
+- Endpoint en lista truncado con ellipsis; valor completo solo en detalle.
+- Modal/drawer de detalle read-only.
+- Modal/drawer de edición con secciones Servicio, Endpoint, Mapeo de parámetros y Seguridad.
+- Modal de prueba operativa con resultado sanitizado.
+- Ayuda operativa movida a modal para no saturar la vista.
+
+Restricciones conservadas:
+
+- No se modificó backend.
+- No se modificaron endpoints.
+- No se cambió la semántica de guardar configuración.
+- No se invoca SOAP productivo desde la SPA.
+- No se cambió modo a Live por defecto.
+- No se exponen secretos completos ni certificados privados.
+
+Validación agregada:
+
+- Spec dedicado `soap-integration-settings.component.spec.ts`.
+- Valida lista compacta, ausencia de formulario gigante inicial, detalle, edición, cancelación y prueba local.
+- `npm run build`: OK.
+- `npm test -- --watch=false --browsers=ChromeHeadless`: OK, 164 SUCCESS.
+
+Estado: OK técnico frontend / Productivo NO-GO.

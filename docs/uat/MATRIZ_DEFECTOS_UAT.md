@@ -136,3 +136,18 @@ Guardrails confirmados por diseno:
 - `uploadRequired=true`.
 - `externalTransmission=false`.
 - Productivo sigue **NO-GO**.
+
+## Actualizacion 2026-05-20 - UX Configuracion SOAP
+
+Se acota observacion UX sobre `/integraciones/soap-settings`:
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| OBS-UAT-002 Saturacion visual en Configuracion SOAP | Cerrado tecnico frontend | `web/ach-interbank-ui/src/app/features/admin/components/soap-integration-settings.component.*`, `docs/ux/REDISENO_SOAP_SETTINGS.md` | Se reemplaza formulario gigante inicial por resumen/lista compacta y modales de detalle, edicion y prueba. No se cambia backend ni semantica SOAP. |
+
+Validaciones:
+
+- `npm run build`: OK.
+- `npm test -- --watch=false --browsers=ChromeHeadless`: OK, 164 SUCCESS.
+- Secretos completos y certificados privados no se exponen.
+- Productivo sigue **NO-GO**.

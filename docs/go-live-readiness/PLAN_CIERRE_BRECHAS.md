@@ -119,3 +119,15 @@ Observacion normativa:
 | Documentar reglas de respuestas inbound | OK inicial | `MATRIZ_REGLAS_RESPUESTAS_ENTRADA.md` | Reglas visibles para UAT |
 | Ejecutar carga manual NachaUpload con archivos simulados | Pendiente | Evidencia UAT de procesamiento | Estados, auditoria y errores validados |
 | Homologar comportamiento inbound por camara | Pendiente | Acta/waiver | Reglas ACH Colombia/CENIT aprobadas |
+
+## Actualizacion 2026-05-20 - Configuracion SOAP UX
+
+| Accion | Estado | Entregable | Criterio de cierre |
+|---|---|---|---|
+| Reemplazar formulario gigante por resumen/lista compacta | OK tecnico frontend | `soap-integration-settings.component.html/scss/ts` | Pantalla inicial no renderiza formularios completos |
+| Mover edicion a modal/drawer | OK tecnico frontend | Modal de edicion con secciones | Guardar usa el mismo endpoint y evita doble submit |
+| Mover detalle a modal read-only | OK tecnico frontend | Modal de detalle | Endpoint/SOAP Action completos visibles solo al abrir detalle |
+| Mover prueba operativa a modal | OK tecnico frontend | Modal de prueba | Resultado sanitizado sin llamada SOAP productiva desde SPA |
+| Validacion visual UAT | Pendiente | Captura o acta UAT | Confirmar sin textos/botones montados en runtime |
+
+Productivo permanece **NO-GO**.

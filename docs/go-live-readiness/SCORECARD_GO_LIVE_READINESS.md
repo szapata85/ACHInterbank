@@ -145,3 +145,16 @@ Impacto en scorecard: mejora capacidad UAT controlada, sin cambiar la decision p
 | Operacion | Pendiente | Requiere ejecucion NachaUpload y acta de evidencias |
 
 Productivo permanece **NO-GO**.
+
+## Actualizacion 2026-05-20 - UX Configuracion SOAP
+
+Impacto en scorecard: mejora operabilidad frontend y reduce riesgo de error de usuario, sin elevar la decision productiva.
+
+| Categoria | Estado | Observacion |
+|---|---|---|
+| Operacion y soporte | Mejora tecnica | Pantalla SOAP pasa a resumen/lista compacta con modales |
+| Seguridad | Sin exposicion adicional | Secretos completos y certificados privados no se muestran |
+| UAT y evidencias | Pendiente visual formal | Build/test Angular OK; falta captura/acta si el comite la exige |
+| Readiness final | NO-GO | No sustituye homologacion externa ni UAT formal |
+
+No se ajusta el score de forma artificial. Productivo permanece **NO-GO**.
