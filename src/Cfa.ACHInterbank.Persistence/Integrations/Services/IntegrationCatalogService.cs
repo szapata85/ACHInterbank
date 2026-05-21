@@ -36,11 +36,30 @@ public class IntegrationCatalogService : IIntegrationCatalogService
     public async Task<IReadOnlyCollection<IntegrationMethodDto>> GetMethodsAsync(CancellationToken ct = default)
     {
         await EnsureSeedAsync(ct);
-        return await _context.Set<IntegrationMethod>()
+        var methods = await _context.Set<IntegrationMethod>()
             .AsNoTracking()
             .OrderBy(x => x.Id)
-            .Select(x => new IntegrationMethodDto(x.Id, x.Code, x.DisplayName, x.SoapClientCode, x.IsActive))
             .ToListAsync(ct);
+
+        return methods
+            .Select(x =>
+            {
+                var classification = ClassifyMethod(x.Code);
+                return new IntegrationMethodDto(
+                    x.Id,
+                    x.Code,
+                    x.DisplayName,
+                    x.SoapClientCode,
+                    x.IsActive,
+                    classification.IntegrationKey,
+                    classification.OperationKey,
+                    classification.MappingDirection,
+                    classification.MappingPurpose,
+                    classification.FunctionalNature,
+                    classification.FunctionalOriginator,
+                    classification.MovesMoney);
+            })
+            .ToList();
     }
 
     public async Task<IReadOnlyCollection<IntegrationMethodParameterDto>> GetMethodParametersAsync(int methodId, CancellationToken ct = default)
@@ -357,6 +376,49 @@ public class IntegrationCatalogService : IIntegrationCatalogService
         int sortOrder)
         => new(methodId, sourceKind, entityName, fieldPath, displayName, dataType, nullable, sortOrder);
 
+    private static IntegrationMethodClassification ClassifyMethod(string methodCode)
+    {
+        var parts = (methodCode ?? string.Empty).Split('.', 2, StringSplitOptions.TrimEntries);
+        var integrationKey = (parts.Length > 0 ? parts[0] : string.Empty) ?? string.Empty;
+        var operationKey = (parts.Length > 1 ? parts[1] : methodCode) ?? string.Empty;
+
+        return methodCode switch
+        {
+            "WSCFAACH.Proc_Contrapartidas" => new(
+                integrationKey,
+                operationKey,
+                "OutboundRequest",
+                "MonetaryDebitRequest",
+                "Debito monetario",
+                "CFA originadora",
+                true),
+            "WSCFAACH.Proc_Transacciones" => new(
+                integrationKey,
+                operationKey,
+                "OutboundRequest",
+                "MonetaryCreditRequest",
+                "Credito monetario",
+                "Entidad financiera externa; CFA receptora",
+                true),
+            "WSAXON.RegistrarRespuestaTransaccion" => new(
+                integrationKey,
+                operationKey,
+                "DifferentialResponseNotification",
+                "DifferentialResponseNotification",
+                "Respuesta diferencial / notificacion",
+                "Entidad/camara/proveedor externo",
+                false),
+            _ => new(
+                integrationKey,
+                operationKey,
+                "Unclassified",
+                "Unclassified",
+                "No clasificado",
+                "No definido",
+                false)
+        };
+    }
+
     private sealed record ParameterSeedSpec(
         string TechnicalName,
         string DisplayNameEs,
@@ -378,4 +440,13 @@ public class IntegrationCatalogService : IIntegrationCatalogService
         string DataType,
         bool Nullable,
         int SortOrder);
+
+    private sealed record IntegrationMethodClassification(
+        string IntegrationKey,
+        string OperationKey,
+        string MappingDirection,
+        string MappingPurpose,
+        string FunctionalNature,
+        string FunctionalOriginator,
+        bool MovesMoney);
 }

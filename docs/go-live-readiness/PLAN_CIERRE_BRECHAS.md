@@ -131,3 +131,15 @@ Observacion normativa:
 | Validacion visual UAT | Pendiente | Captura o acta UAT | Confirmar sin textos/botones montados en runtime |
 
 Productivo permanece **NO-GO**.
+
+## Actualizacion SOAP end-to-end - 2026-05-21
+
+| Accion | Estado | Entregable | Criterio de cierre |
+|---|---|---|---|
+| Clasificar operaciones SOAP en catalogo | OK tecnico | API de metodos con `mappingPurpose` y `movesMoney` | SPA y tests distinguen monetario/no monetario |
+| Formalizar mapping trace por operacion | Parcial | `docs/uat/evidencias/soap-integrations/mapping-trace/` | Trace generado desde resolver runtime, no solo diagnostico |
+| Cerrar fallback `Proc_Contrapartidas` | Pendiente | Cambio controlado backend | No generar payload monetario sin mapping publicado o waiver |
+| Agregar DryRun a `Proc_Transacciones` | Pendiente | Guardrail backend + tests | UAT/local no transmite externamente |
+| Parametrizar `RegistrarRespuestaTransaccion` | Pendiente | Resolver para `DifferentialResponseNotification` | No mover dinero y trace campo-a-campo |
+
+Productivo permanece **NO-GO**.

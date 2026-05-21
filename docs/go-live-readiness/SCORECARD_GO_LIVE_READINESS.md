@@ -162,3 +162,13 @@ No se ajusta el score de forma artificial. Productivo permanece **NO-GO**.
 ## Actualizacion UX Integraciones - 2026-05-21
 
 Se mejora la categoria UAT/evidencias y documentacion/trazabilidad con validacion visual obligatoria para `/integraciones/soap-settings` y `/integraciones/mappings`. El scorecard no se incrementa automaticamente hasta contar con evidencia DOM/screenshot y cierre de validaciones completas. Productivo permanece **NO-GO**.
+
+## Actualizacion SOAP end-to-end - 2026-05-21
+
+La auditoria mejora trazabilidad y claridad de integraciones, pero no incrementa readiness productivo porque hay brechas abiertas:
+
+- fallback transicional en `Proc_Contrapartidas`.
+- guardrail DryRun pendiente para `Proc_Transacciones`.
+- mapping parametrizado pendiente para `RegistrarRespuestaTransaccion`.
+
+Productivo permanece **NO-GO**.

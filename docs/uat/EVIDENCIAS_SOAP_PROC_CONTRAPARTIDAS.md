@@ -24,3 +24,15 @@ Fecha: 2026-05-19 America/Bogota.
 ## Decision
 
 La evidencia SOAP queda **OK para dry-run documental y guardrail tecnico UAT/local**. No cierra integracion externa ni homologacion con endpoint UAT/mock autorizado. Productivo permanece **NO-GO**.
+
+## Auditoria settings vs mappings - 2026-05-21
+
+`Proc_Contrapartidas` queda clasificado como `MonetaryDebitRequest`: debito monetario originado por CFA. El flujo usa `soap-settings` para endpoint/SOAP Action y puede usar `IntegrationMappingSet` publicado mediante `ProcContrapartidasFunctionalMappingResolver`.
+
+Hallazgo abierto: si no existe mapping publicado, `ProcContrapartidasRequestMapper` conserva fallback transicional. Esto permite generar payload sin parametrizacion funcional completa; queda documentado como brecha hasta eliminar o gobernar formalmente ese fallback.
+
+Evidencia agregada:
+
+- `docs/uat/evidencias/soap-integrations/mapping-trace/proc_contrapartidas/mapping_trace.md`
+- `docs/uat/evidencias/soap-integrations/mapping-trace/proc_contrapartidas/mapping_trace.json`
+- `docs/uat/evidencias/soap-integrations/mapping-trace/proc_contrapartidas/envelope_or_payload_sanitizado.xml`

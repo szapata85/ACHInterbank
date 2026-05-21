@@ -142,3 +142,14 @@ Observacion normativa:
 | `/integraciones/mappings` incluye WsAxon | OK TECNICO | Catalogo backend agrega `WSAXON.RegistrarRespuestaTransaccion` / `WsAxonRespuestaTransaccionesSoapClient`; dropdown debe mostrarlo aunque no tenga mappings. |
 | Contratos SOAP | SIN CAMBIO | No se modifico semantica funcional SOAP ni modo `Live` por defecto. |
 | Productivo | NO-GO | La mejora UX no constituye aprobacion productiva. |
+
+## Actualizacion SOAP end-to-end - 2026-05-21
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| Catalogo WSCFAACH / Proc_Contrapartidas | OK tecnico | API `api/integrations/methods` | No por si solo | Clasificado como `MonetaryDebitRequest` |
+| Catalogo WSCFAACH / Proc_Transacciones | OK tecnico | API `api/integrations/methods` | No por si solo | Clasificado como `MonetaryCreditRequest` |
+| Catalogo WSAXON / RegistrarRespuestaTransaccion | OK tecnico | API `api/integrations/methods` | No por si solo | Clasificado como no monetario |
+| Mapping trace formal por operacion | Parcial | `docs/uat/evidencias/soap-integrations/mapping-trace/` | Si | RegistrarRespuestaTransaccion aun no consume mappings |
+| DryRun Proc_Transacciones | Pendiente | Defecto `DEF-UAT-SOAP-MAP-002` | Si | Falta guardrail UAT/local |
+| Productivo | NO-GO | Readiness | Si | No hay autorizacion Live |

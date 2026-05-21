@@ -235,12 +235,17 @@ button,
 .btn-secondary,
 .btn-primary,
 .btn-ghost,
-.btn-danger {
+.btn-danger,
+.action-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 38px;
   border-radius: 6px;
   padding: 0.48rem 0.75rem;
   font-weight: 750;
   cursor: pointer;
+  text-decoration: none;
 }
 
 button:disabled {

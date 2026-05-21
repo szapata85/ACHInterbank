@@ -1,0 +1,13 @@
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <Proc_Contrapartidas xmlns="http://tempuri.org/">
+      <OFNIT>SANITIZED</OFNIT>
+      <OFEMP>SANITIZED</OFEMP>
+      <OFCTA>SANITIZED</OFCTA>
+      <OFDD>D</OFDD>
+      <OFMONDEB>1000</OFMONDEB>
+      <OFMONCRE>0</OFMONCRE>
+      <OFIDTX>UAT-SANITIZED</OFIDTX>
+    </Proc_Contrapartidas>
+  </soap:Body>
+</soap:Envelope>

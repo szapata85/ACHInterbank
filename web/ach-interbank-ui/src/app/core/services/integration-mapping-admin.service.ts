@@ -10,6 +10,13 @@ export interface IntegrationMethod {
   displayName: string;
   soapClientCode: string;
   isActive: boolean;
+  integrationKey: string;
+  operationKey: string;
+  mappingDirection: string;
+  mappingPurpose: string;
+  functionalNature: string;
+  functionalOriginator: string;
+  movesMoney: boolean;
 }
 
 export interface IntegrationMethodParameter {

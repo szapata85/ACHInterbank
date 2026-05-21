@@ -1,0 +1,13 @@
+{
+  "generatedAt": "2026-05-21",
+  "integrationKey": "WSCFAACH",
+  "operationKey": "Proc_Transacciones",
+  "direction": "OutboundRequest",
+  "mappingPurpose": "MonetaryCreditRequest",
+  "movesMoney": true,
+  "usesSoapSettings": true,
+  "usesIntegrationMappingSet": true,
+  "hasFallback": false,
+  "externalTransmission": "risk if orchestrator executes without UAT guardrail",
+  "notes": "Endpoint/action resolved from soap-settings; payload fields from published IntegrationMappingSet."
+}

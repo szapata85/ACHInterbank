@@ -98,6 +98,13 @@
           >
             Probar
           </button>
+          <a
+            class="btn-ghost action-link"
+            [routerLink]="['/integraciones/mappings']"
+            [queryParams]="{ method: methodCodeFor(method) }"
+          >
+            Ver mappings
+          </a>
         </div>
       </article>
     </div>
@@ -144,9 +151,24 @@
       <dt>Seguridad</dt>
       <dd>Secretos y certificados privados gestionados por configuracion segura.</dd>
     </div>
+    <div>
+      <dt>Mappings funcionales</dt>
+      <dd>
+        {{ mappingCountFor(selectedMethod.group) }} parametros tecnicos de contrato en settings.
+        La parametrizacion funcional se administra en /integraciones/mappings.
+      </dd>
+    </div>
   </dl>
 
   <footer class="modal-footer">
+    <a
+      class="btn-ghost action-link"
+      [routerLink]="['/integraciones/mappings']"
+      [queryParams]="{ method: methodCodeFor(selectedMethod) }"
+      (click)="closeModal()"
+    >
+      Ver mappings
+    </a>
     <button type="button" class="btn-secondary" (click)="closeModal()">Cerrar</button>
   </footer>
 </aside>
@@ -191,32 +213,19 @@
       </div>
     </section>
 
-    <section class="form-section">
-      <div class="section-heading">
-        <h3>Mapeo de parametros</h3>
-        <button type="button" class="btn-secondary" (click)="addInputMapping(selectedMethod.group)">Agregar parametro</button>
-      </div>
-      <div class="mapping-list" formArrayName="inputParameterMappings">
-        <div class="mapping-row" *ngFor="let inputMapping of getInputMappings(selectedMethod.group).controls; let j = index" [formGroupName]="j">
-          <label>
-            Entrada
-            <input type="text" formControlName="inputName" />
-          </label>
-          <label>
-            Parametro SOAP
-            <input type="text" formControlName="soapParameterName" />
-          </label>
-          <label>
-            Valor por defecto
-            <input type="text" formControlName="defaultValue" placeholder="Gestionado si aplica" />
-          </label>
-          <label class="inline-check">
-            <input type="checkbox" formControlName="required" />
-            Requerido
-          </label>
-          <button type="button" class="btn-danger" (click)="removeInputMapping(selectedMethod.group, j)">Eliminar</button>
-        </div>
-      </div>
+    <section class="form-section muted">
+      <h3>Mappings funcionales</h3>
+      <p>
+        Esta pantalla solo administra endpoint, SOAP Action y estado tecnico del metodo.
+        Los mappings campo-a-campo y su trazabilidad se gestionan en la pantalla de mapeos.
+      </p>
+      <a
+        class="btn-secondary action-link"
+        [routerLink]="['/integraciones/mappings']"
+        [queryParams]="{ method: methodCodeFor(selectedMethod) }"
+      >
+        Abrir mappings funcionales
+      </a>
     </section>
 
     <section class="form-section muted">

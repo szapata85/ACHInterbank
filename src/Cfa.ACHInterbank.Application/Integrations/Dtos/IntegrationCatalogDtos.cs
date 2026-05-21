@@ -7,7 +7,14 @@ public sealed record IntegrationMethodDto(
     string Code,
     string DisplayName,
     string SoapClientCode,
-    bool IsActive);
+    bool IsActive,
+    string IntegrationKey,
+    string OperationKey,
+    string MappingDirection,
+    string MappingPurpose,
+    string FunctionalNature,
+    string FunctionalOriginator,
+    bool MovesMoney);
 
 public sealed record IntegrationMethodParameterDto(
     long Id,

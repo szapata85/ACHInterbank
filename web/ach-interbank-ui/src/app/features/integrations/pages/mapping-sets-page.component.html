@@ -41,6 +41,22 @@
     </label>
 
     <label>
+      Proposito
+      <select [value]="purposeFilter" (change)="onPurposeFilterChange($any($event.target).value)">
+        <option value="all">Todos</option>
+        <option *ngFor="let purpose of mappingPurposes" [value]="purpose">{{ purpose }}</option>
+      </select>
+    </label>
+
+    <label>
+      Direccion
+      <select [value]="directionFilter" (change)="onDirectionFilterChange($any($event.target).value)">
+        <option value="all">Todas</option>
+        <option *ngFor="let direction of mappingDirections" [value]="direction">{{ direction }}</option>
+      </select>
+    </label>
+
+    <label>
       Buscar
       <input
         type="search"
@@ -63,6 +79,7 @@
   <section class="selected-integration" *ngIf="selectedMethod">
     <span>Integracion seleccionada</span>
     <strong>{{ getMethodLabel(selectedMethod) }}</strong>
+    <small>{{ getMethodSummary(selectedMethod) }}</small>
   </section>
 
   <section class="mapping-card-grid" *ngIf="filteredMappingSets.length > 0; else emptyMappings">
@@ -76,6 +93,22 @@
       </div>
 
       <dl class="mapping-meta">
+        <div>
+          <dt>Operacion</dt>
+          <dd>{{ getMethodById(mapping.methodId)?.operationKey || mapping.methodCode }}</dd>
+        </div>
+        <div>
+          <dt>Proposito</dt>
+          <dd>{{ getMethodById(mapping.methodId)?.mappingPurpose || 'Sin clasificar' }}</dd>
+        </div>
+        <div>
+          <dt>Direccion</dt>
+          <dd>{{ getMethodById(mapping.methodId)?.mappingDirection || 'Sin clasificar' }}</dd>
+        </div>
+        <div>
+          <dt>Naturaleza</dt>
+          <dd>{{ getMethodById(mapping.methodId)?.movesMoney ? 'Monetaria' : 'No monetaria' }}</dd>
+        </div>
         <div>
           <dt>Version</dt>
           <dd>{{ mapping.version || 'Borrador' }}</dd>
@@ -124,6 +157,18 @@
     <div>
       <dt>Integracion</dt>
       <dd>{{ selectedMapping.methodCode }}</dd>
+    </div>
+    <div>
+      <dt>Proposito</dt>
+      <dd>{{ getMethodById(selectedMapping.methodId)?.mappingPurpose || 'Sin clasificar' }}</dd>
+    </div>
+    <div>
+      <dt>Direccion</dt>
+      <dd>{{ getMethodById(selectedMapping.methodId)?.mappingDirection || 'Sin clasificar' }}</dd>
+    </div>
+    <div>
+      <dt>Naturaleza funcional</dt>
+      <dd>{{ getMethodSummary(getMethodById(selectedMapping.methodId)) }}</dd>
     </div>
     <div>
       <dt>Estado</dt>

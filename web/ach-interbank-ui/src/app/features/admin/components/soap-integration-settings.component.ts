@@ -222,6 +222,15 @@ export class SoapIntegrationSettingsComponent {
     return 'Configurado';
   }
 
+  methodCodeFor(method: SoapMethodView): string {
+    const integrationKey = method.clientKey === 'wscfaachMappings' ? 'WSCFAACH' : 'WSAXON';
+    return `${integrationKey}.${this.methodNameFor(method.group)}`;
+  }
+
+  mappingCountFor(group: FormGroup): number {
+    return this.getInputMappings(group).length;
+  }
+
   private setMappings(target: FormArray<FormGroup>, mappings: SoapEndpointMethodMapping[]): void {
     target.clear();
     mappings.forEach((mapping) => target.push(this.createMappingGroup(mapping)));

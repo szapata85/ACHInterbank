@@ -1,0 +1,13 @@
+{
+  "generatedAt": "2026-05-21",
+  "integrationKey": "WSAXON",
+  "operationKey": "RegistrarRespuestaTransaccion",
+  "direction": "DifferentialResponseNotification",
+  "mappingPurpose": "DifferentialResponseNotification",
+  "movesMoney": false,
+  "usesSoapSettings": true,
+  "usesIntegrationMappingSet": false,
+  "hasFallback": false,
+  "externalTransmission": "depends on gateway invocation; no monetary service dependency",
+  "notes": "Mapper/parser fisico; requires future mapping resolver integration."
+}

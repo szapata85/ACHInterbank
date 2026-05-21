@@ -21,14 +21,42 @@ describe('MappingSetsPageComponent', () => {
       code: 'WSCFAACH.Proc_Contrapartidas',
       displayName: 'Proc_Contrapartidas',
       soapClientCode: 'WscfaachSoapClient',
-      isActive: true
+      isActive: true,
+      integrationKey: 'WSCFAACH',
+      operationKey: 'Proc_Contrapartidas',
+      mappingDirection: 'OutboundRequest',
+      mappingPurpose: 'MonetaryDebitRequest',
+      functionalNature: 'Debito monetario',
+      functionalOriginator: 'CFA originadora',
+      movesMoney: true
+    },
+    {
+      id: 3,
+      code: 'WSCFAACH.Proc_Transacciones',
+      displayName: 'Proc_Transacciones',
+      soapClientCode: 'WscfaachSoapClient',
+      isActive: true,
+      integrationKey: 'WSCFAACH',
+      operationKey: 'Proc_Transacciones',
+      mappingDirection: 'OutboundRequest',
+      mappingPurpose: 'MonetaryCreditRequest',
+      functionalNature: 'Credito monetario',
+      functionalOriginator: 'Entidad financiera externa; CFA receptora',
+      movesMoney: true
     },
     {
       id: 2,
       code: 'WSAXON.RegistrarRespuestaTransaccion',
       displayName: 'RegistrarRespuestaTransaccion',
       soapClientCode: 'WsAxonRespuestaTransaccionesSoapClient',
-      isActive: true
+      isActive: true,
+      integrationKey: 'WSAXON',
+      operationKey: 'RegistrarRespuestaTransaccion',
+      mappingDirection: 'DifferentialResponseNotification',
+      mappingPurpose: 'DifferentialResponseNotification',
+      functionalNature: 'Respuesta diferencial / notificacion',
+      functionalOriginator: 'Entidad/camara/proveedor externo',
+      movesMoney: false
     }
   ];
 
@@ -65,7 +93,7 @@ describe('MappingSetsPageComponent', () => {
         { provide: IntegrationMappingAdminService, useValue: api },
         { provide: NotificationService, useValue: jasmine.createSpyObj('NotificationService', ['success', 'error']) },
         { provide: Router, useValue: router },
-        { provide: ActivatedRoute, useValue: {} }
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } }
       ]
     }).compileComponents();
 
@@ -77,6 +105,8 @@ describe('MappingSetsPageComponent', () => {
   it('carga opciones de integracion incluyendo WsAxonRespuestaTransaccionesSoapClient', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('WsAxonRespuestaTransaccionesSoapClient');
+    expect(text).toContain('Proc_Transacciones');
+    expect(text).toContain('DifferentialResponseNotification');
     expect(fixture.nativeElement.querySelector('[data-testid="integration-select"]')).toBeTruthy();
   });
 

@@ -1,0 +1,11 @@
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <Proc_Transacciones xmlns="http://tempuri.org/">
+      <TREG>6</TREG>
+      <TIPTRAN>SANITIZED</TIPTRAN>
+      <MONTO>1000</MONTO>
+      <IDTRAN>UAT-SANITIZED</IDTRAN>
+      <IDCAMCOMPE>SANITIZED</IDCAMCOMPE>
+    </Proc_Transacciones>
+  </soap:Body>
+</soap:Envelope>

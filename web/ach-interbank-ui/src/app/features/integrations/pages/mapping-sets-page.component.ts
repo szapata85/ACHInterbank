@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import {
   IntegrationMappingAdminService,
   IntegrationMappingSet,
@@ -24,6 +24,7 @@ export class MappingSetsPageComponent implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   loading = false;
   methods: IntegrationMethod[] = [];
@@ -33,6 +34,8 @@ export class MappingSetsPageComponent implements OnInit {
   selectedMapping: IntegrationMappingSet | null = null;
   searchTerm = '';
   statusFilter = 'all';
+  purposeFilter = 'all';
+  directionFilter = 'all';
 
   readonly migas = [
     { etiqueta: 'Inicio', ruta: '/' },
@@ -75,14 +78,40 @@ export class MappingSetsPageComponent implements OnInit {
         return false;
       }
 
+      const method = this.getMethodById(set.methodId);
+      if (this.purposeFilter !== 'all' && method?.mappingPurpose !== this.purposeFilter) {
+        return false;
+      }
+
+      if (this.directionFilter !== 'all' && method?.mappingDirection !== this.directionFilter) {
+        return false;
+      }
+
       if (!term) {
         return true;
       }
 
-      return [set.name, set.methodCode, set.notes, set.publishedBy, this.getStatusLabel(set.status)]
+      return [
+        set.name,
+        set.methodCode,
+        set.notes,
+        set.publishedBy,
+        this.getStatusLabel(set.status),
+        method?.mappingPurpose,
+        method?.mappingDirection,
+        method?.operationKey
+      ]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(term));
     });
+  }
+
+  get mappingPurposes(): string[] {
+    return [...new Set(this.methods.map((method) => method.mappingPurpose).filter(Boolean))].sort();
+  }
+
+  get mappingDirections(): string[] {
+    return [...new Set(this.methods.map((method) => method.mappingDirection).filter(Boolean))].sort();
   }
 
   loadMethods(): void {
@@ -90,7 +119,13 @@ export class MappingSetsPageComponent implements OnInit {
     this.api.getMethods().subscribe({
       next: (items) => {
         this.methods = items ?? [];
-        if (!this.selectedMethodId && this.methods.length > 0) {
+        const requestedMethodCode = this.route.snapshot.queryParamMap.get('method');
+        const requestedMethod = requestedMethodCode
+          ? this.methods.find((method) => method.code === requestedMethodCode)
+          : undefined;
+        if (requestedMethod) {
+          this.createDraftForm.patchValue({ methodId: requestedMethod.id });
+        } else if (!this.selectedMethodId && this.methods.length > 0) {
           this.createDraftForm.patchValue({ methodId: this.methods[0].id });
         }
         this.loadMappingSets();
@@ -118,6 +153,14 @@ export class MappingSetsPageComponent implements OnInit {
 
   onStatusFilterChange(value: string): void {
     this.statusFilter = value;
+  }
+
+  onPurposeFilterChange(value: string): void {
+    this.purposeFilter = value;
+  }
+
+  onDirectionFilterChange(value: string): void {
+    this.directionFilter = value;
   }
 
   openDraftModal(): void {
@@ -213,7 +256,16 @@ export class MappingSetsPageComponent implements OnInit {
       return 'Sin integracion seleccionada';
     }
 
-    return `${method.displayName} - ${method.code}`;
+    return `${method.integrationKey} / ${method.operationKey} - ${method.mappingPurpose}`;
+  }
+
+  getMethodSummary(method?: IntegrationMethod | null): string {
+    if (!method) {
+      return 'Seleccione una integracion para ver su clasificacion funcional.';
+    }
+
+    const money = method.movesMoney ? 'Mueve dinero' : 'No mueve dinero';
+    return `${method.functionalNature}. ${method.functionalOriginator}. ${money}. Direccion: ${method.mappingDirection}.`;
   }
 
   getMethodById(methodId: number): IntegrationMethod | undefined {

@@ -111,3 +111,19 @@ El simulador queda deshabilitado por defecto fuera de Development/UAT, no transm
 | Proc_Contrapartidas Live | NO habilitado por defecto | Conserva guardrail UAT/local | Live solo con autorizacion formal |
 
 El cambio usa resumen/lista compacta y modales de detalle, edicion y prueba. No modifica backend, endpoints ni semantica funcional SOAP. Productivo permanece **NO-GO**.
+
+## Actualizacion 2026-05-21 - Auditoria end-to-end SOAP
+
+| Brecha | Estado | Impacto | Accion requerida |
+|---|---|---|---|
+| `Proc_Contrapartidas` conserva fallback transicional si no hay mapping publicado | Abierta | Puede generar XML sin mapping funcional completo | Exigir mapping publicado o registrar fallback como excepcion auditada |
+| `Proc_Transacciones` no tiene guardrail DryRun especifico equivalente a Contrapartidas | Abierta | Riesgo de intento externo en UAT/local si el orquestador corre | Implementar modo DryRun/Disabled antes de UAT externo |
+| `RegistrarRespuestaTransaccion` no consume `IntegrationMappingSet` | Abierta | Falta trace parametrizado de respuesta diferencial | Integrar resolver de mappings sin conectar logica monetaria |
+
+Clasificacion confirmada:
+
+- `Proc_Contrapartidas`: `MonetaryDebitRequest`, mueve debitos originados por CFA.
+- `Proc_Transacciones`: `MonetaryCreditRequest`, mueve creditos originados por otra entidad, CFA receptora.
+- `RegistrarRespuestaTransaccion`: `DifferentialResponseNotification`, no mueve dinero ni afecta saldos.
+
+Productivo permanece **NO-GO**.

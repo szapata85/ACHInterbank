@@ -1,0 +1,13 @@
+{
+  "generatedAt": "2026-05-21",
+  "integrationKey": "WSCFAACH",
+  "operationKey": "Proc_Contrapartidas",
+  "direction": "OutboundRequest",
+  "mappingPurpose": "MonetaryDebitRequest",
+  "movesMoney": true,
+  "usesSoapSettings": true,
+  "usesIntegrationMappingSet": "when published mapping exists",
+  "hasFallback": true,
+  "externalTransmission": false,
+  "notes": "DryRun/Disabled blocks external send unless ProcContrapartidas:Mode=Live."
+}
