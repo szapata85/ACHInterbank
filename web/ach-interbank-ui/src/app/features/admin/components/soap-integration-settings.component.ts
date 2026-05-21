@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
 import { FormArray, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { take } from 'rxjs';
+import { finalize, take } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
 import {
   SoapEndpointMethodMapping,
@@ -27,13 +27,18 @@ export class SoapIntegrationSettingsComponent {
   readonly migas = [
     { etiqueta: 'Inicio', ruta: '/' },
     { etiqueta: 'Integraciones', ruta: '/integraciones' },
-    { etiqueta: 'Configuración técnica SOAP' }
+    { etiqueta: 'Configuracion SOAP' }
   ];
 
   readonly form = this.fb.group({
     wscfaachMappings: this.fb.array<FormGroup>([]),
     wsAxonRespuestaTransaccionesMappings: this.fb.array<FormGroup>([])
   });
+
+  saving = false;
+  testing = false;
+  reloading = false;
+  lastTestResult: { status: 'OK' | 'ERROR'; message: string; checkedAt: Date } | null = null;
 
   get wscfaachMappings(): FormArray<FormGroup> {
     return this.form.get('wscfaachMappings') as FormArray<FormGroup>;
@@ -58,16 +63,53 @@ export class SoapIntegrationSettingsComponent {
       return;
     }
 
-    this.service
-      .updateSettings({
-        wscfaachMappings: this.wscfaachMappings.getRawValue() as SoapEndpointMethodMapping[],
-        wsAxonRespuestaTransaccionesMappings: this.wsAxonMappings.getRawValue() as SoapEndpointMethodMapping[]
-      })
+    this.saving = true;
+    this.service.updateSettings({
+      wscfaachMappings: this.wscfaachMappings.getRawValue() as SoapEndpointMethodMapping[],
+      wsAxonRespuestaTransaccionesMappings: this.wsAxonMappings.getRawValue() as SoapEndpointMethodMapping[]
+    })
+      .pipe(finalize(() => {
+        this.saving = false;
+        this.cdr.markForCheck();
+      }))
       .subscribe(() => {
         this.form.markAsPristine();
-        this.notifications.success('Configuración SOAP guardada.');
+        this.notifications.success('Configuracion SOAP guardada.');
         this.cdr.markForCheck();
       });
+  }
+
+  reload(): void {
+    this.reloading = true;
+    this.service.refreshFromServer()
+      .pipe(finalize(() => {
+        this.reloading = false;
+        this.cdr.markForCheck();
+      }))
+      .subscribe({
+        next: (settings) => {
+          this.setMappings(this.wscfaachMappings, settings.wscfaachMappings);
+          this.setMappings(this.wsAxonMappings, settings.wsAxonRespuestaTransaccionesMappings);
+          this.form.markAsPristine();
+          this.notifications.success('Configuracion SOAP recargada.');
+        },
+        error: () => this.notifications.error('No fue posible recargar la configuracion SOAP.')
+      });
+  }
+
+  testConnection(): void {
+    this.testing = true;
+    const allMappings = [
+      ...(this.wscfaachMappings.getRawValue() as SoapEndpointMethodMapping[]),
+      ...(this.wsAxonMappings.getRawValue() as SoapEndpointMethodMapping[])
+    ];
+    const enabled = allMappings.filter((item) => item.enabled);
+    const invalid = enabled.find((item) => !item.endpoint?.trim() || !item.soapAction?.trim());
+    this.lastTestResult = invalid
+      ? { status: 'ERROR', message: 'Hay metodos habilitados sin endpoint o SOAP Action.', checkedAt: new Date() }
+      : { status: 'OK', message: 'Validacion local correcta. No se ejecuto llamada SOAP externa desde esta pantalla.', checkedAt: new Date() };
+    this.testing = false;
+    this.cdr.markForCheck();
   }
 
   getInputMappings(mappingGroup: FormGroup): FormArray<FormGroup> {

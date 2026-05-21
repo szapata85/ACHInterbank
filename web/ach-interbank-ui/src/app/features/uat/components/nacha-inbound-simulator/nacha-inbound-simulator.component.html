@@ -36,13 +36,23 @@
 
     <label>
       Entidad originadora externa
-      <input type="text" formControlName="originFinancialInstitutionCode" placeholder="Banco UAT Externo ACH/CENIT" />
+      <select formControlName="originFinancialInstitutionId">
+        <option [ngValue]="null">Seleccione una entidad externa</option>
+        <option *ngFor="let item of originFinancialInstitutions" [ngValue]="item.id">
+          {{ item.name }} · {{ item.routingNumber }}{{ item.transitCode }}
+        </option>
+      </select>
+      <small>Solo se listan entidades activas con IsDefaultSource=false.</small>
     </label>
 
-    <label>
-      Entidad destino
-      <input type="text" formControlName="destinationFinancialInstitutionCode" />
-    </label>
+    <div class="readonly-field">
+      <span class="field-label">Entidad destino/receptora</span>
+      <strong>{{ defaultDestination?.name || 'No configurada' }}</strong>
+      <small *ngIf="defaultDestination">
+        Resuelta automaticamente desde FinancialInstitution.IsDefaultSource=true · {{ defaultDestination.routingNumber }}{{ defaultDestination.transitCode }}
+      </small>
+      <small *ngIf="!defaultDestination" class="error-text">Debe existir una unica entidad default activa para generar.</small>
+    </div>
 
     <label>
       Cantidad registros
@@ -85,11 +95,11 @@
     </label>
 
     <div class="actions wide">
-      <button type="button" class="btn btn-outline" (click)="preview()" [disabled]="previewing || generating">
+      <button type="button" class="btn btn-outline" (click)="preview()" [disabled]="previewing || generating || !defaultDestination">
         <span class="material-symbols-outlined">rule</span>
         {{ previewing ? 'Validando...' : 'Validar' }}
       </button>
-      <button type="button" class="btn btn-primary" (click)="generate()" [disabled]="generating || previewing">
+      <button type="button" class="btn btn-primary" (click)="generate()" [disabled]="generating || previewing || !defaultDestination">
         <span class="material-symbols-outlined">description</span>
         {{ generating ? 'Generando...' : 'Generar archivo' }}
       </button>

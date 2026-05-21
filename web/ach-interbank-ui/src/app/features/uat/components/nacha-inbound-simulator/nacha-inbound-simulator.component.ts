@@ -4,6 +4,9 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs';
 import { SharedModule } from '../../../../shared/shared.module';
 import { NotificationService } from '../../../../core/services/notification.service';
+import { FinancialInstitutionsApiService } from '../../../transactions/services/financial-institutions-api.service';
+import { DestinationInstitution } from '../../../transactions/transactions.models';
+import { FinancialInstitutionStatusEnum } from '../../../transactions/transactions.types';
 import {
   GenerateNachaInboundSimulationRequest,
   InboundResponseMode,
@@ -24,6 +27,7 @@ import {
 export class NachaInboundSimulatorComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(NachaInboundSimulatorService);
+  private readonly financialInstitutionsApi = inject(FinancialInstitutionsApiService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
 
@@ -31,6 +35,8 @@ export class NachaInboundSimulatorComponent implements OnInit {
   generating = false;
   previewing = false;
   simulations: NachaInboundSimulationItem[] = [];
+  originFinancialInstitutions: DestinationInstitution[] = [];
+  defaultDestination: DestinationInstitution | null = null;
   result: NachaInboundSimulationResult | null = null;
   error: string | null = null;
 
@@ -62,8 +68,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
   readonly form = this.fb.group({
     clearingHouseCode: ['ACHCOL', Validators.required],
     scenarioType: ['IncomingCredit' as NachaInboundSimulationType, Validators.required],
-    originFinancialInstitutionCode: [''],
-    destinationFinancialInstitutionCode: ['CFA'],
+    originFinancialInstitutionId: [null as number | null, Validators.required],
     entriesCount: [1, [Validators.required, Validators.min(1), Validators.max(10)]],
     amount: [1000, [Validators.required, Validators.min(0)]],
     referencePrefix: ['UAT-IN-CRED', Validators.required],
@@ -77,7 +82,27 @@ export class NachaInboundSimulatorComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.loadFinancialInstitutions();
     this.load();
+  }
+
+  loadFinancialInstitutions(): void {
+    this.financialInstitutionsApi.getAll(false).subscribe({
+      next: (items) => {
+        const active = (items ?? []).filter((item) => item.status === FinancialInstitutionStatusEnum.Active);
+        this.originFinancialInstitutions = active.filter((item) => !item.isDefaultSource);
+        const defaults = active.filter((item) => item.isDefaultSource);
+        this.defaultDestination = defaults.length === 1 ? defaults[0] : null;
+        if (!this.defaultDestination) {
+          this.notifications.error('No se pudo resolver una unica entidad destino/receptora default CFA.');
+        }
+        this.cdr.markForCheck();
+      },
+      error: (error: HttpErrorResponse) => {
+        this.notifications.error(this.errorMessage(error));
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   load(): void {
@@ -112,8 +137,11 @@ export class NachaInboundSimulatorComponent implements OnInit {
   }
 
   generate(): void {
-    if (this.form.invalid || this.reasonRequiredMissing()) {
+    if (this.form.invalid || this.reasonRequiredMissing() || !this.defaultDestination) {
       this.form.markAllAsTouched();
+      if (!this.defaultDestination) {
+        this.notifications.error('La entidad destino/receptora default CFA no esta disponible. No se puede generar.');
+      }
       return;
     }
 
@@ -157,8 +185,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
     return {
       clearingHouseCode: this.form.controls.clearingHouseCode.value ?? 'ACHCOL',
       scenarioType: this.form.controls.scenarioType.value ?? 'IncomingCredit',
-      originFinancialInstitutionCode: this.form.controls.originFinancialInstitutionCode.value || undefined,
-      destinationFinancialInstitutionCode: this.form.controls.destinationFinancialInstitutionCode.value || 'CFA',
+      originFinancialInstitutionId: Number(this.form.controls.originFinancialInstitutionId.value),
       entriesCount: Number(this.form.controls.entriesCount.value ?? 1),
       amount: Number(this.form.controls.amount.value ?? 0),
       referencePrefix: this.form.controls.referencePrefix.value ?? 'UAT-IN',

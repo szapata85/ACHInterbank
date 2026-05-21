@@ -30,6 +30,7 @@ public class NachaInboundSimulatorTests
         {
             ClearingHouseCode = clearingHouseCode,
             ScenarioType = scenario,
+            OriginFinancialInstitutionId = clearingHouseCode == "CENIT" ? 3 : 2,
             EntriesCount = 2,
             Amount = 1000,
             ReferencePrefix = $"UAT-{clearingHouseCode}",
@@ -45,6 +46,11 @@ public class NachaInboundSimulatorTests
         Assert.True(File.Exists(Path.Combine(output, clearingHouseCode == "CENIT" ? "cenit" : "ach-colombia", response.FileName)));
         Assert.Equal(0, await context.IncomingNachaFileIngestions.CountAsync());
         Assert.Equal(1, await context.NachaInboundSimulations.CountAsync());
+        var evidence = await service.GetEvidenceAsync(response.Id);
+        Assert.NotNull(evidence);
+        Assert.False(evidence!.OriginIsDefaultSource);
+        Assert.True(evidence.DestinationIsDefaultSource);
+        Assert.Equal(1, evidence.DestinationFinancialInstitutionId);
     }
 
     [Fact]
@@ -84,6 +90,7 @@ public class NachaInboundSimulatorTests
         {
             ClearingHouseCode = "ACHCOL",
             ScenarioType = NachaInboundSimulationType.IncomingPrenotificationResponse,
+            OriginFinancialInstitutionId = 2,
             ResponseMode = InboundResponseMode.Approved,
             PendingPrenotificationReferences = ["UAT-PRE-001"],
             BusinessDate = new DateOnly(2026, 5, 20),
@@ -106,6 +113,7 @@ public class NachaInboundSimulatorTests
         {
             ClearingHouseCode = "ACHCOL",
             ScenarioType = NachaInboundSimulationType.IncomingDebitReturn,
+            OriginFinancialInstitutionId = 2,
             TransactionReferences = ["UAT-TX-001"],
             BusinessDate = new DateOnly(2026, 5, 20)
         });
@@ -124,6 +132,7 @@ public class NachaInboundSimulatorTests
         var preview = await service.PreviewAsync(new InboundSimulationEligibilityPreviewRequest
         {
             ClearingHouseCode = "ACHCOL",
+            OriginFinancialInstitutionId = 2,
             ScenarioType = NachaInboundSimulationType.IncomingCredit
         });
 
@@ -153,6 +162,71 @@ public class NachaInboundSimulatorTests
         var defaults = await context.FinancialInstitutions.Where(x => x.IsDefaultSource).ToListAsync();
         Assert.Single(defaults);
         Assert.Contains("Cooperativa Financiera de Antioquia", defaults[0].Name);
+    }
+
+    [Fact]
+    public async Task Generate_ShouldRejectMissingOriginFinancialInstitution()
+    {
+        await using var context = CreateContext();
+        Seed(context);
+        var service = CreateService(context, CreateTempOutput());
+
+        var preview = await service.PreviewAsync(new InboundSimulationEligibilityPreviewRequest
+        {
+            ClearingHouseCode = "ACHCOL",
+            ScenarioType = NachaInboundSimulationType.IncomingCredit
+        });
+
+        Assert.False(preview.Eligible);
+        Assert.Equal("ORIGIN_FINANCIAL_INSTITUTION_REQUIRED", preview.FunctionalCode);
+    }
+
+    [Fact]
+    public async Task Generate_ShouldRejectDefaultSourceAsOrigin()
+    {
+        await using var context = CreateContext();
+        Seed(context);
+        var service = CreateService(context, CreateTempOutput());
+
+        var preview = await service.PreviewAsync(new InboundSimulationEligibilityPreviewRequest
+        {
+            ClearingHouseCode = "ACHCOL",
+            OriginFinancialInstitutionId = 1,
+            ScenarioType = NachaInboundSimulationType.IncomingCredit
+        });
+
+        Assert.False(preview.Eligible);
+        Assert.Equal("ORIGIN_FINANCIAL_INSTITUTION_CANNOT_BE_DEFAULT_SOURCE", preview.FunctionalCode);
+    }
+
+    [Fact]
+    public async Task Generate_ShouldRejectMultipleDefaultDestinations()
+    {
+        await using var context = CreateContext();
+        Seed(context);
+        var duplicate = new FinancialInstitution
+        {
+            Id = 4,
+            Name = "CFA Duplicada UAT",
+            RoutingNumber = "00002",
+            TransitCode = "284",
+            IsDefaultSource = true,
+            Status = FinancialInstitutionStatus.Active
+        };
+        duplicate.CalculateCheckDigit();
+        context.FinancialInstitutions.Add(duplicate);
+        await context.SaveChangesAsync();
+        var service = CreateService(context, CreateTempOutput());
+
+        var preview = await service.PreviewAsync(new InboundSimulationEligibilityPreviewRequest
+        {
+            ClearingHouseCode = "ACHCOL",
+            OriginFinancialInstitutionId = 2,
+            ScenarioType = NachaInboundSimulationType.IncomingCredit
+        });
+
+        Assert.False(preview.Eligible);
+        Assert.Equal("MULTIPLE_DEFAULT_DESTINATION_FINANCIAL_INSTITUTIONS", preview.FunctionalCode);
     }
 
     private static NachaInboundSimulationService CreateService(AchDbContext context, string output)

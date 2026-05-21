@@ -37,6 +37,26 @@ textarea {
   padding: 0.5rem;
 }
 
+.readonly-field {
+  min-height: 40px;
+  border: 1px solid #dbe3ef;
+  border-radius: 6px;
+  background: #f8fafc;
+  padding: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.field-label {
+  color: #334155;
+  font-weight: 700;
+}
+
+.error-text {
+  color: #b91c1c;
+}
+
 .wide {
   grid-column: 1 / -1;
 }

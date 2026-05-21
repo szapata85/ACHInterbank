@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 
 namespace Cfa.ACHInterbank.Application.ACH.Models;
@@ -5,7 +6,10 @@ namespace Cfa.ACHInterbank.Application.ACH.Models;
 public class GenerateNachaInboundSimulationRequest
 {
     public string ClearingHouseCode { get; set; } = string.Empty;
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public NachaInboundSimulationType ScenarioType { get; set; }
+    public int? OriginFinancialInstitutionId { get; set; }
+    public int? DestinationFinancialInstitutionId { get; set; }
     public string? OriginFinancialInstitutionCode { get; set; }
     public string? DestinationFinancialInstitutionCode { get; set; }
     public int EntriesCount { get; set; } = 1;
@@ -15,6 +19,7 @@ public class GenerateNachaInboundSimulationRequest
     public string CycleCode { get; set; } = "Ciclo 3";
     public IReadOnlyList<string> PendingPrenotificationReferences { get; set; } = [];
     public IReadOnlyList<string> TransactionReferences { get; set; } = [];
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public InboundResponseMode? ResponseMode { get; set; }
     public string? ReasonCode { get; set; }
     public string? Notes { get; set; }
@@ -43,6 +48,8 @@ public sealed record NachaInboundSimulationDto(
     string? ReasonCode,
     string OriginFinancialInstitution,
     string DestinationFinancialInstitution,
+    int OriginFinancialInstitutionId,
+    int DestinationFinancialInstitutionId,
     int EntriesCount,
     decimal Amount,
     DateOnly BusinessDate,
@@ -79,6 +86,13 @@ public sealed record NachaInboundSimulationMetadataDto(
     string? ReasonCode,
     string OriginFinancialInstitution,
     string DestinationFinancialInstitution,
+    int OriginFinancialInstitutionId,
+    string OriginFinancialInstitutionCode,
+    bool OriginIsDefaultSource,
+    int DestinationFinancialInstitutionId,
+    string DestinationFinancialInstitutionCode,
+    bool DestinationIsDefaultSource,
+    string DestinationResolvedFrom,
     DateOnly BusinessDate,
     string CycleCode,
     string FileName,

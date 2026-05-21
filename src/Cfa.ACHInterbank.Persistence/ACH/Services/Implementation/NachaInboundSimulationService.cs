@@ -33,6 +33,8 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         {
             ClearingHouseCode = request.ClearingHouseCode,
             ScenarioType = request.ScenarioType,
+            OriginFinancialInstitutionId = request.OriginFinancialInstitutionId,
+            DestinationFinancialInstitutionId = request.DestinationFinancialInstitutionId,
             OriginFinancialInstitutionCode = request.OriginFinancialInstitutionCode,
             DestinationFinancialInstitutionCode = request.DestinationFinancialInstitutionCode,
             EntriesCount = request.EntriesCount,
@@ -53,8 +55,13 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         }
 
         var clearingHouse = await ResolveClearingHouseAsync(request.ClearingHouseCode, ct);
-        var destination = await ResolveDestinationAsync(request.DestinationFinancialInstitutionCode, ct);
-        var origin = await ResolveOriginAsync(request.OriginFinancialInstitutionCode, clearingHouse.Code, ct);
+        var destination = await ResolveDestinationAsync(request.DestinationFinancialInstitutionId, request.DestinationFinancialInstitutionCode, ct);
+        var origin = await ResolveOriginAsync(request.OriginFinancialInstitutionId, request.OriginFinancialInstitutionCode, ct);
+        if (origin.Id == destination.Id)
+        {
+            throw new InvalidOperationException("ORIGIN_AND_DESTINATION_FINANCIAL_INSTITUTION_CANNOT_BE_SAME: La entidad originadora externa no puede ser la misma entidad destino/receptora.");
+        }
+
         var existingReferences = await ResolveReferencesAsync(request, clearingHouse.Id, ct);
         var entriesCount = Math.Max(1, existingReferences.Count == 0 ? request.EntriesCount : existingReferences.Count);
         var sequence = await NextDailySequenceAsync(clearingHouse.Id, origin.Id, request.BusinessDate, ct);
@@ -179,7 +186,11 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
 
         return new NachaInboundSimulationMetadataDto(entity.SimulationId, entity.ClearingHouseName, entity.ScenarioType.ToString(),
             entity.ResponseMode?.ToString(), entity.ReasonCode, entity.OriginFinancialInstitution.Name,
-            entity.DestinationFinancialInstitution.Name, entity.BusinessDate, entity.CycleCode, entity.FileName, entity.Sha256,
+            entity.DestinationFinancialInstitution.Name, entity.OriginFinancialInstitutionId,
+            InstitutionCode(entity.OriginFinancialInstitution), entity.OriginFinancialInstitution.IsDefaultSource,
+            entity.DestinationFinancialInstitutionId, InstitutionCode(entity.DestinationFinancialInstitution),
+            entity.DestinationFinancialInstitution.IsDefaultSource, "FinancialInstitution.IsDefaultSource",
+            entity.BusinessDate, entity.CycleCode, entity.FileName, entity.Sha256,
             entity.FileSizeBytes, string.Empty, 0, 0, string.Empty, true, false, true, UploadFlow, false, _options.Mode);
     }
 
@@ -198,6 +209,12 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         if (string.IsNullOrWhiteSpace(request.ClearingHouseCode))
         {
             return Blocked("CLEARING_HOUSE_REQUIRED", "Debe seleccionar una camara.");
+        }
+
+        var originValidation = await ValidateOriginAndDestinationAsync(request.OriginFinancialInstitutionId, request.DestinationFinancialInstitutionId, request.DestinationFinancialInstitutionCode, ct);
+        if (originValidation is not null)
+        {
+            return originValidation;
         }
 
         if (request.EntriesCount < 1 || request.EntriesCount > Math.Max(1, _options.MaxEntriesPerSimulation))
@@ -243,44 +260,100 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         return clearingHouse ?? throw new InvalidOperationException("CLEARING_HOUSE_NOT_SUPPORTED: Camara no encontrada.");
     }
 
-    private async Task<FinancialInstitution> ResolveDestinationAsync(string? code, CancellationToken ct)
+    private async Task<InboundSimulationEligibilityPreviewResponse?> ValidateOriginAndDestinationAsync(
+        int? originFinancialInstitutionId,
+        int? destinationFinancialInstitutionId,
+        string? destinationFinancialInstitutionCode,
+        CancellationToken ct)
     {
-        if (!string.IsNullOrWhiteSpace(code))
+        try
         {
-            var requested = await FindInstitutionAsync(code, ct);
-            if (requested is not null)
+            var destination = await ResolveDestinationAsync(destinationFinancialInstitutionId, destinationFinancialInstitutionCode, ct);
+            var origin = await ResolveOriginAsync(originFinancialInstitutionId, null, ct);
+            if (origin.Id == destination.Id)
             {
-                return requested;
+                return Blocked("ORIGIN_AND_DESTINATION_FINANCIAL_INSTITUTION_CANNOT_BE_SAME", "La originadora externa no puede ser igual a la entidad destino/receptora.");
             }
-        }
 
-        return await _context.FinancialInstitutions.FirstAsync(x => x.IsDefaultSource, ct);
+            return null;
+        }
+        catch (InvalidOperationException ex)
+        {
+            var split = ex.Message.Split(':', 2);
+            return Blocked(split[0], split.Length == 2 ? split[1].Trim() : ex.Message);
+        }
     }
 
-    private async Task<FinancialInstitution> ResolveOriginAsync(string? code, string clearingHouseCode, CancellationToken ct)
+    private async Task<FinancialInstitution> ResolveDestinationAsync(int? requestedDestinationId, string? requestedDestinationCode, CancellationToken ct)
     {
-        if (!string.IsNullOrWhiteSpace(code))
+        var defaults = await _context.FinancialInstitutions
+            .Where(x => x.IsDefaultSource && x.Status == FinancialInstitutionStatus.Active)
+            .ToListAsync(ct);
+        if (defaults.Count == 0)
         {
-            var requested = await FindInstitutionAsync(code, ct);
-            if (requested is not null && !requested.IsDefaultSource)
+            throw new InvalidOperationException("DEFAULT_DESTINATION_FINANCIAL_INSTITUTION_NOT_CONFIGURED: No existe una entidad destino/receptora default activa.");
+        }
+        if (defaults.Count > 1)
+        {
+            throw new InvalidOperationException("MULTIPLE_DEFAULT_DESTINATION_FINANCIAL_INSTITUTIONS: Existe mas de una entidad destino/receptora default activa.");
+        }
+
+        var destination = defaults[0];
+        if (!destination.Name.Contains("Cooperativa Financiera de Antioquia", StringComparison.OrdinalIgnoreCase)
+            && !destination.Name.Contains("CFA", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("DEFAULT_DESTINATION_FINANCIAL_INSTITUTION_INVALID: La entidad default debe corresponder a CFA / Cooperativa Financiera de Antioquia.");
+        }
+
+        if (requestedDestinationId.HasValue && requestedDestinationId.Value != destination.Id)
+        {
+            throw new InvalidOperationException("DESTINATION_FINANCIAL_INSTITUTION_MUST_BE_DEFAULT_SOURCE: La entidad destino enviada debe coincidir con FinancialInstitution.IsDefaultSource=true.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(requestedDestinationCode))
+        {
+            var requested = await FindInstitutionAsync(requestedDestinationCode, ct);
+            if (requested is not null && requested.Id != destination.Id)
             {
-                return requested;
+                throw new InvalidOperationException("DESTINATION_FINANCIAL_INSTITUTION_MUST_BE_DEFAULT_SOURCE: La entidad destino enviada debe coincidir con FinancialInstitution.IsDefaultSource=true.");
             }
         }
 
-        var fallbackNames = clearingHouseCode.Contains("CENIT", StringComparison.OrdinalIgnoreCase)
-            ? new[] { "Banco UAT Externo CENIT", "Banco UAT Destino CENIT", "Banco UAT Destino" }
-            : new[] { "Banco UAT Externo ACH", "Banco UAT Origen" };
-        foreach (var fallbackName in fallbackNames)
+        return destination;
+    }
+
+    private async Task<FinancialInstitution> ResolveOriginAsync(int? id, string? legacyCode, CancellationToken ct)
+    {
+        FinancialInstitution? origin = null;
+        if (id.HasValue)
         {
-            var institution = await _context.FinancialInstitutions.FirstOrDefaultAsync(x => x.Name == fallbackName, ct);
-            if (institution is not null)
-            {
-                return institution;
-            }
+            origin = await _context.FinancialInstitutions.FirstOrDefaultAsync(x => x.Id == id.Value, ct);
+        }
+        else if (!string.IsNullOrWhiteSpace(legacyCode))
+        {
+            origin = await FindInstitutionAsync(legacyCode, ct);
+        }
+        else
+        {
+            throw new InvalidOperationException("ORIGIN_FINANCIAL_INSTITUTION_REQUIRED: Debe seleccionar una entidad originadora externa.");
         }
 
-        throw new InvalidOperationException("SYNTHETIC_DATA_REQUIRED: No existe entidad originadora externa sintetica para la camara.");
+        if (origin is null)
+        {
+            throw new InvalidOperationException("ORIGIN_FINANCIAL_INSTITUTION_NOT_FOUND: Entidad originadora externa no encontrada.");
+        }
+
+        if (origin.Status != FinancialInstitutionStatus.Active)
+        {
+            throw new InvalidOperationException("ORIGIN_FINANCIAL_INSTITUTION_INACTIVE: La entidad originadora externa no esta activa.");
+        }
+
+        if (origin.IsDefaultSource)
+        {
+            throw new InvalidOperationException("ORIGIN_FINANCIAL_INSTITUTION_CANNOT_BE_DEFAULT_SOURCE: CFA/default no puede usarse como entidad originadora externa.");
+        }
+
+        return origin;
     }
 
     private async Task<FinancialInstitution?> FindInstitutionAsync(string code, CancellationToken ct)
@@ -491,7 +564,9 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
     private static NachaInboundSimulationMetadataDto CreateMetadata(NachaInboundSimulation simulation, FinancialInstitution origin,
         FinancialInstitution destination, FileBuildResult build, string sha, string fileName, long size)
         => new(simulation.SimulationId, simulation.ClearingHouseName, simulation.ScenarioType.ToString(), simulation.ResponseMode?.ToString(),
-            simulation.ReasonCode, origin.Name, destination.Name, simulation.BusinessDate, simulation.CycleCode, fileName, sha, size,
+            simulation.ReasonCode, origin.Name, destination.Name, origin.Id, InstitutionCode(origin), origin.IsDefaultSource,
+            destination.Id, InstitutionCode(destination), destination.IsDefaultSource, "FinancialInstitution.IsDefaultSource",
+            simulation.BusinessDate, simulation.CycleCode, fileName, sha, size,
             build.RecordsDetected, build.BlockCount, build.EntryAddendaCount, build.EntryHash, true, false, true, UploadFlow, false, "UAT");
 
     private static async Task WriteEvidenceAsync(string directory, NachaInboundSimulation simulation, NachaInboundSimulationMetadataDto metadata, string content, CancellationToken ct)
@@ -507,7 +582,8 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
 
     private static NachaInboundSimulationDto Map(NachaInboundSimulation x)
         => new(x.Id, x.SimulationId, x.ClearingHouseName, x.ScenarioType, x.ResponseMode, x.ReasonCode,
-            x.OriginFinancialInstitution.Name, x.DestinationFinancialInstitution.Name, x.EntriesCount, x.Amount, x.BusinessDate,
+            x.OriginFinancialInstitution.Name, x.DestinationFinancialInstitution.Name, x.OriginFinancialInstitutionId,
+            x.DestinationFinancialInstitutionId, x.EntriesCount, x.Amount, x.BusinessDate,
             x.CycleCode, x.FileName, x.Sha256, x.FileSizeBytes, x.Status.ToString(), x.GeneratedOnly, x.AutoImported,
             x.UploadRequired, x.ExternalTransmission, x.CreatedAt, x.Entries.Select(e => new NachaInboundSimulationEntryDto(e.Id,
                 e.Reference, e.TransactionId, e.PrenotificationReference, e.AccountNumberMasked, e.Amount, e.Nature,
@@ -515,6 +591,7 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
 
     private static bool MatchesCode(ClearingHouse clearingHouse, string code)
         => Normalize(clearingHouse.Code) == Normalize(code) || Normalize(clearingHouse.Name) == Normalize(code);
+    private static string InstitutionCode(FinancialInstitution institution) => $"{institution.RoutingNumber}{institution.TransitCode}";
     private static string Normalize(string value) => value.Trim().ToUpperInvariant().Replace(" ", "_").Replace("-", "_");
     private static InboundSimulationEligibilityPreviewResponse Blocked(string code, string message)
         => new(false, "BLOCKED", message, code, true, false, true, false);

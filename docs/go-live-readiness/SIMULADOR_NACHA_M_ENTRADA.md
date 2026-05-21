@@ -36,6 +36,17 @@ El simulador se implementa como capacidad separada del procesamiento real:
 | Homologacion normativa | Pendiente | Requiere validacion con carga real por NachaUpload |
 | Procesamiento real | Pendiente | Fase posterior |
 
+## Ajuste origen/destino 2026-05-20
+
+| Regla | Estado | Evidencia |
+|---|---|---|
+| Originadora externa desde `FinancialInstitution` | OK | Request usa `originFinancialInstitutionId` |
+| Originadora no puede ser default source | OK | Backend bloquea `IsDefaultSource=true` como origen |
+| Destino/receptora automatico | OK | Backend resuelve `FinancialInstitution.IsDefaultSource=true` |
+| Destino/receptora CFA | OK | Validacion exige CFA / Cooperativa Financiera de Antioquia como default activo unico |
+| Metadata origen/destino | OK | Metadata incluye ids, codigos, flags default y origen de resolucion |
+| Sin auto-import | OK | Sin llamada a NachaUpload, sin transacciones nuevas, sin cambios de estado |
+
 ## Estado Readiness
 
 La funcionalidad permite continuar UAT controlado. No habilita productivo.

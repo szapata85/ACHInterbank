@@ -68,6 +68,16 @@ La simulacion queda en estado `Generated`, con:
 - `uploadRequired=true`
 - `externalTransmission=false`
 
+## Ajuste origen/destino 2026-05-20
+
+- La entidad originadora externa se selecciona desde `FinancialInstitution` filtrando `IsDefaultSource != true`.
+- La entidad destino/receptora no es editable por el usuario.
+- La entidad destino/receptora se resuelve automaticamente desde `FinancialInstitution.IsDefaultSource = true`.
+- Para ACH Interbank, el destino/receptor default esperado es CFA / Cooperativa Financiera de Antioquia.
+- El request del simulador envia `originFinancialInstitutionId`.
+- El backend persiste y expone en metadata `originFinancialInstitutionId`, `originIsDefaultSource=false`, `destinationFinancialInstitutionId`, `destinationIsDefaultSource=true` y `destinationResolvedFrom=FinancialInstitution.IsDefaultSource`.
+- Se mantiene el guardrail: el simulador solo genera archivos, no llama NachaUpload, no autoimporta, no crea transacciones y no cambia estados.
+
 ## Limitaciones
 
 La validacion de procesamiento real se realiza en una fase posterior cargando manualmente el archivo por NachaUpload. Esta fase no cierra homologacion normativa ni salida productiva.

@@ -1,141 +1,201 @@
-<div class="soap-settings-card">
+<section class="soap-settings-page">
   <header class="page-header">
     <ui-migas-pan [items]="migas"></ui-migas-pan>
     <ui-encabezado-pagina
-      titulo="Integraciones SOAP ACH"
-      descripcion="Configuración técnica avanzada para endpoint, SOAP Action y parámetros de entrada por método."
+      titulo="Configuracion SOAP"
+      descripcion="Administra parametros tecnicos de integracion SOAP para ambientes UAT/local. No expone secretos completos."
     ></ui-encabezado-pagina>
-    <ui-alerta tipo="info" mensaje="Si necesitas ajustar reglas funcionales, utiliza la sección de configuración funcional de integraciones."></ui-alerta>
+    <ui-alerta
+      tipo="info"
+      mensaje="Proc_Contrapartidas debe permanecer en DryRun/UAT-local salvo autorizacion formal. Esta pantalla no muestra credenciales ni certificados privados."
+    ></ui-alerta>
   </header>
 
-  <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
-    <div class="methods-stack">
-      <div formArrayName="wscfaachMappings" class="method-list">
-        <article class="method-block" *ngFor="let mapping of wscfaachMappings.controls; let i = index" [formGroupName]="i">
-          <header class="method-block-header">
-            <h3>WscfaachSoapClient</h3>
-            <span class="method-name">{{ mapping.get('methodName')?.value }}</span>
-          </header>
+  <form [formGroup]="form" (ngSubmit)="save()" class="soap-layout">
+    <section class="soap-card service-card">
+      <div class="card-heading">
+        <span class="material-symbols-outlined">lan</span>
+        <div>
+          <h3>Servicio</h3>
+          <p>Endpoint, SOAP Action y estado operativo por metodo.</p>
+        </div>
+      </div>
 
-          <section class="sub-block technical-block">
-            <h4>Configuración técnica</h4>
-            <div class="technical-fields">
-              <label>
-                Método técnico
-                <input type="text" formControlName="methodName" readonly />
-              </label>
-              <label class="field-wide">
-                Endpoint
-                <input type="text" formControlName="endpoint" placeholder="https://..." />
-                <app-error-message [control]="mapping.get('endpoint')"></app-error-message>
-              </label>
-              <label class="field-wide">
-                SOAP Action
-                <input type="text" formControlName="soapAction" />
-                <app-error-message [control]="mapping.get('soapAction')"></app-error-message>
-              </label>
-              <label class="check">
+      <div class="method-columns">
+        <div formArrayName="wscfaachMappings" class="method-list">
+          <h4>WscfaachSoapClient</h4>
+          <article class="method-block" *ngFor="let mapping of wscfaachMappings.controls; let i = index" [formGroupName]="i">
+            <div class="method-title">
+              <strong>{{ mapping.get('methodName')?.value }}</strong>
+              <label class="switch">
                 <input type="checkbox" formControlName="enabled" />
                 Habilitado
               </label>
             </div>
-          </section>
-
-          <section class="sub-block input-mappings" formArrayName="inputParameterMappings">
-            <div class="mapping-header">
-              <h4>Mapeo de parámetros de entrada</h4>
-              <button type="button" class="btn btn-sm" (click)="addInputMapping(mapping)">+ Agregar parámetro</button>
+            <div class="fields-grid">
+              <label>
+                Metodo tecnico
+                <input type="text" formControlName="methodName" readonly />
+              </label>
+              <label>
+                Endpoint / base URL
+                <input type="text" formControlName="endpoint" placeholder="https://..." />
+                <app-error-message [control]="mapping.get('endpoint')"></app-error-message>
+              </label>
+              <label class="wide">
+                SOAP Action
+                <input type="text" formControlName="soapAction" />
+                <app-error-message [control]="mapping.get('soapAction')"></app-error-message>
+              </label>
             </div>
 
-            <div class="mapping-list">
+            <div class="mapping-panel" formArrayName="inputParameterMappings">
+              <div class="mapping-header">
+                <h5>Mapeo de parametros</h5>
+                <button type="button" class="btn-secondary" (click)="addInputMapping(mapping)">Agregar parametro</button>
+              </div>
               <div class="mapping-row" *ngFor="let inputMapping of getInputMappings(mapping).controls; let j = index" [formGroupName]="j">
                 <label>
-                  Parámetro de entrada
-                  <input type="text" formControlName="inputName" placeholder="ej: usuario" />
+                  Entrada
+                  <input type="text" formControlName="inputName" placeholder="usuario" />
                 </label>
                 <label>
-                  Parámetro SOAP destino (técnico)
-                  <input type="text" formControlName="soapParameterName" placeholder="ej: Usuario" />
+                  Parametro SOAP
+                  <input type="text" formControlName="soapParameterName" placeholder="Usuario" />
                 </label>
                 <label>
                   Valor por defecto
                   <input type="text" formControlName="defaultValue" placeholder="opcional" />
                 </label>
-                <label class="check-inline">
-                  <input type="checkbox" formControlName="required" /> Requerido
+                <label class="switch">
+                  <input type="checkbox" formControlName="required" />
+                  Requerido
                 </label>
-                <button type="button" class="btn btn-danger" (click)="removeInputMapping(mapping, j)">Eliminar</button>
+                <button type="button" class="btn-danger" (click)="removeInputMapping(mapping, j)">Eliminar</button>
               </div>
             </div>
-          </section>
-        </article>
-      </div>
+          </article>
+        </div>
 
-      <div formArrayName="wsAxonRespuestaTransaccionesMappings" class="method-list">
-        <article class="method-block" *ngFor="let mapping of wsAxonMappings.controls; let i = index" [formGroupName]="i">
-          <header class="method-block-header">
-            <h3>WsAxonRespuestaTransaccionesSoapClient</h3>
-            <span class="method-name">{{ mapping.get('methodName')?.value }}</span>
-          </header>
-
-          <section class="sub-block technical-block">
-            <h4>Configuración técnica</h4>
-            <div class="technical-fields">
-              <label>
-                Método técnico
-                <input type="text" formControlName="methodName" readonly />
-              </label>
-              <label class="field-wide">
-                Endpoint
-                <input type="text" formControlName="endpoint" placeholder="https://..." />
-                <app-error-message [control]="mapping.get('endpoint')"></app-error-message>
-              </label>
-              <label class="field-wide">
-                SOAP Action
-                <input type="text" formControlName="soapAction" />
-                <app-error-message [control]="mapping.get('soapAction')"></app-error-message>
-              </label>
-              <label class="check">
+        <div formArrayName="wsAxonRespuestaTransaccionesMappings" class="method-list">
+          <h4>WsAxonRespuestaTransaccionesSoapClient</h4>
+          <article class="method-block" *ngFor="let mapping of wsAxonMappings.controls; let i = index" [formGroupName]="i">
+            <div class="method-title">
+              <strong>{{ mapping.get('methodName')?.value }}</strong>
+              <label class="switch">
                 <input type="checkbox" formControlName="enabled" />
                 Habilitado
               </label>
             </div>
-          </section>
-
-          <section class="sub-block input-mappings" formArrayName="inputParameterMappings">
-            <div class="mapping-header">
-              <h4>Mapeo de parámetros de entrada</h4>
-              <button type="button" class="btn btn-sm" (click)="addInputMapping(mapping)">+ Agregar parámetro</button>
+            <div class="fields-grid">
+              <label>
+                Metodo tecnico
+                <input type="text" formControlName="methodName" readonly />
+              </label>
+              <label>
+                Endpoint / base URL
+                <input type="text" formControlName="endpoint" placeholder="https://..." />
+                <app-error-message [control]="mapping.get('endpoint')"></app-error-message>
+              </label>
+              <label class="wide">
+                SOAP Action
+                <input type="text" formControlName="soapAction" />
+                <app-error-message [control]="mapping.get('soapAction')"></app-error-message>
+              </label>
             </div>
 
-            <div class="mapping-list">
+            <div class="mapping-panel" formArrayName="inputParameterMappings">
+              <div class="mapping-header">
+                <h5>Mapeo de parametros</h5>
+                <button type="button" class="btn-secondary" (click)="addInputMapping(mapping)">Agregar parametro</button>
+              </div>
               <div class="mapping-row" *ngFor="let inputMapping of getInputMappings(mapping).controls; let j = index" [formGroupName]="j">
                 <label>
-                  Parámetro de entrada
-                  <input type="text" formControlName="inputName" placeholder="ej: respuesta" />
+                  Entrada
+                  <input type="text" formControlName="inputName" placeholder="respuesta" />
                 </label>
                 <label>
-                  Parámetro SOAP destino (técnico)
-                  <input type="text" formControlName="soapParameterName" placeholder="ej: Respuesta" />
+                  Parametro SOAP
+                  <input type="text" formControlName="soapParameterName" placeholder="Respuesta" />
                 </label>
                 <label>
                   Valor por defecto
                   <input type="text" formControlName="defaultValue" placeholder="opcional" />
                 </label>
-                <label class="check-inline">
-                  <input type="checkbox" formControlName="required" /> Requerido
+                <label class="switch">
+                  <input type="checkbox" formControlName="required" />
+                  Requerido
                 </label>
-                <button type="button" class="btn btn-danger" (click)="removeInputMapping(mapping, j)">Eliminar</button>
+                <button type="button" class="btn-danger" (click)="removeInputMapping(mapping, j)">Eliminar</button>
               </div>
             </div>
-          </section>
-        </article>
+          </article>
+        </div>
       </div>
-    </div>
+    </section>
 
-    <div class="actions">
-      <button type="button" routerLink="/integraciones">Cancelar</button>
-      <button type="submit" class="btn btn-primary">Guardar</button>
-    </div>
+    <aside class="side-stack">
+      <section class="soap-card">
+        <div class="card-heading">
+          <span class="material-symbols-outlined">encrypted</span>
+          <div>
+            <h3>Seguridad y certificados</h3>
+            <p>Los secretos completos y certificados privados no se muestran en esta pantalla.</p>
+          </div>
+        </div>
+        <ul class="status-list">
+          <li>Alias/certificado: gestionado por configuracion segura.</li>
+          <li>Credenciales SOAP: enmascaradas o externas al formulario.</li>
+          <li>Modo recomendado UAT/local: DryRun, Disabled o Mock.</li>
+        </ul>
+      </section>
+
+      <section class="soap-card">
+        <div class="card-heading">
+          <span class="material-symbols-outlined">task_alt</span>
+          <div>
+            <h3>Operacion</h3>
+            <p>Acciones disponibles sobre la configuracion visible.</p>
+          </div>
+        </div>
+        <div class="operation-actions">
+          <button type="submit" class="btn-primary" [disabled]="saving || testing || reloading || form.invalid">
+            {{ saving ? 'Guardando...' : 'Guardar cambios' }}
+          </button>
+          <button type="button" class="btn-secondary" (click)="testConnection()" [disabled]="saving || testing || reloading">
+            {{ testing ? 'Probando...' : 'Probar conexion' }}
+          </button>
+          <button type="button" class="btn-secondary" (click)="reload()" [disabled]="saving || testing || reloading">
+            {{ reloading ? 'Recargando...' : 'Recargar configuracion' }}
+          </button>
+          <a routerLink="/integraciones" class="btn-link">Cancelar</a>
+        </div>
+      </section>
+
+      <section class="soap-card">
+        <div class="card-heading">
+          <span class="material-symbols-outlined">monitoring</span>
+          <div>
+            <h3>Estado / ultima prueba</h3>
+            <p>Resultado sanitizado de la validacion operativa.</p>
+          </div>
+        </div>
+        <div class="test-result" [class.ok]="lastTestResult?.status === 'OK'" [class.error]="lastTestResult?.status === 'ERROR'">
+          <strong>{{ lastTestResult?.status || 'Sin prueba ejecutada' }}</strong>
+          <span>{{ lastTestResult?.message || 'Ejecuta Probar conexion para validar campos obligatorios sin llamar servicios externos.' }}</span>
+          <small *ngIf="lastTestResult">Fecha: {{ lastTestResult.checkedAt | date: 'short' }}</small>
+        </div>
+      </section>
+
+      <section class="soap-card help-card">
+        <div class="card-heading">
+          <span class="material-symbols-outlined">help</span>
+          <div>
+            <h3>Ayuda operativa</h3>
+            <p>Guardar persiste la configuracion tecnica. Probar conexion realiza una validacion local sin enviar credenciales ni invocar SOAP productivo.</p>
+          </div>
+        </div>
+      </section>
+    </aside>
   </form>
-</div>
+</section>

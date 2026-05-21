@@ -17,8 +17,8 @@ export type InboundResponseMode = 'Approved' | 'Rejected' | 'Confirmed' | 'Retur
 export interface GenerateNachaInboundSimulationRequest {
   clearingHouseCode: string;
   scenarioType: NachaInboundSimulationType;
+  originFinancialInstitutionId: number;
   originFinancialInstitutionCode?: string;
-  destinationFinancialInstitutionCode?: string;
   entriesCount: number;
   amount: number;
   referencePrefix: string;
@@ -55,6 +55,8 @@ export interface NachaInboundSimulationItem {
   reasonCode?: string | null;
   originFinancialInstitution: string;
   destinationFinancialInstitution: string;
+  originFinancialInstitutionId: number;
+  destinationFinancialInstitutionId: number;
   fileName: string;
   sha256: string;
   fileSizeBytes: number;

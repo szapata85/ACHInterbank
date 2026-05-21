@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
-import { ColDef } from 'ag-grid-community';
+import { ColDef, RowSelectionOptions } from 'ag-grid-community';
 import { SharedModule } from '../../../../shared/shared.module';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { AchCyclesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
@@ -35,13 +35,6 @@ export class AchReturnsManagementComponent implements OnInit {
 
   selectedRows = new Set<number>();
   readonly columnDefs: ColDef<ReturnEligibleTransaction>[] = [
-    {
-      headerName: 'Sel.',
-      width: 90,
-      checkboxSelection: (params) => !!params.data?.isEligible,
-      headerCheckboxSelection: true,
-      headerCheckboxSelectionFilteredOnly: true
-    },
     { field: 'id', headerName: 'ID', width: 110 },
     { field: 'traceNumber', headerName: 'Trace', minWidth: 170 },
     { field: 'reference', headerName: 'Referencia', minWidth: 180 },
@@ -56,6 +49,14 @@ export class AchReturnsManagementComponent implements OnInit {
   readonly filtrosForm = this.fb.group({
     cycleId: [null as string | null, Validators.required]
   });
+  readonly rowSelection = {
+    mode: 'multiRow',
+    checkboxes: (params) => !!params.data?.isEligible,
+    hideDisabledCheckboxes: false,
+    headerCheckbox: true,
+    selectAll: 'filtered',
+    isRowSelectable: (rowNode) => !!rowNode.data?.isEligible
+  } satisfies RowSelectionOptions<ReturnEligibleTransaction>;
   readonly devolucionForm = this.fb.group({
     reasonCode: ['', Validators.required]
   });
