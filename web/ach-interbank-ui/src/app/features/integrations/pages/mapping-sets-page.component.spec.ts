@@ -75,6 +75,7 @@ describe('MappingSetsPageComponent', () => {
   ];
 
   const targetFields: IntegrationMethodParameter[] = [
+    { id: 9, methodId: 1, parameterPath: 'Proc_Contrapartidas.CuentaOrigen', displayName: 'CuentaOrigen', descriptionEs: 'Cuenta origen debito', category: 'SOAP', exampleValue: '0000003101', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true },
     { id: 10, methodId: 3, parameterPath: 'Proc_Transacciones.TraceNumber', displayName: 'TraceNumber', descriptionEs: 'Trace destino', category: 'SOAP', exampleValue: '123', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true },
     { id: 11, methodId: 2, parameterPath: 'RegistrarRespuestaTransaccion.CodigoRespuesta', displayName: 'CodigoRespuesta', descriptionEs: 'Codigo respuesta', category: 'SOAP', exampleValue: '00', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true }
   ];
@@ -130,8 +131,10 @@ describe('MappingSetsPageComponent', () => {
     expect(text).toContain('WSCFAACH');
     expect(text).toContain('WSAXON');
     expect(text).toContain('WsAxonRespuestaTransaccionesSoapClient');
+    expect(text).toContain('Proc_Contrapartidas');
     expect(text).toContain('Proc_Transacciones');
     expect(text).toContain('RegistrarRespuestaTransaccion');
+    expect(text).toContain('MonetaryDebitRequest');
     expect(text).toContain('MonetaryCreditRequest');
     expect(text).toContain('DifferentialResponseNotification');
     expect(text).toContain('OutboundRequest');
@@ -152,6 +155,24 @@ describe('MappingSetsPageComponent', () => {
     expect(text).toContain('No hay SQL libre ni seleccion arbitraria de tablas');
   });
 
+  it('muestra Proc_Contrapartidas con MonetaryDebitRequest, fuentes controladas y campos destino', () => {
+    component.createDraftForm.patchValue({ methodId: 1 });
+    component.onMethodChange();
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+
+    expect(text).toContain('WSCFAACH');
+    expect(text).toContain('Proc_Contrapartidas');
+    expect(text).toContain('MonetaryDebitRequest');
+    expect(text).toContain('OutboundRequest');
+    expect(text).toContain('AchTransaction');
+    expect(text).toContain('NachaHeaders');
+    expect(text).toContain('EntryDetails');
+    expect(text).toContain('Proc_Contrapartidas.CuentaOrigen');
+    expect(text).toContain('No hay SQL libre ni seleccion arbitraria de tablas');
+  });
+
   it('permite seleccionar WsAxon y muestra estado vacio claro cuando no hay mappings', () => {
     component.createDraftForm.patchValue({ methodId: 2 });
     component.onMethodChange();
@@ -159,7 +180,7 @@ describe('MappingSetsPageComponent', () => {
 
     expect(api.getMappingSets).toHaveBeenCalledWith(2);
     expect(fixture.nativeElement.querySelector('[data-testid="empty-mappings-state"]')).toBeTruthy();
-    expect(fixture.nativeElement.textContent).toContain('No hay mappings para la integracion seleccionada.');
+    expect(fixture.nativeElement.textContent).toContain('No hay mappings configurados para RegistrarRespuestaTransaccion.');
   });
 
   it('abre detalle read-only y modal de edicion guiada', () => {

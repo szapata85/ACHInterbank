@@ -188,7 +188,7 @@
 
   <ng-template #emptyMappings>
     <section class="empty-state" data-testid="empty-mappings-state">
-      <strong>No hay mappings para la integracion seleccionada.</strong>
+      <strong>No hay mappings configurados para {{ selectedMethod?.operationKey || 'la operacion seleccionada' }}.</strong>
       <span>La integracion sigue disponible. Cree un borrador si requiere parametrizar reglas funcionales.</span>
     </section>
   </ng-template>
