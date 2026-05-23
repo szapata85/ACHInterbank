@@ -27,7 +27,20 @@ describe('MappingEditorPageComponent', () => {
       })
     ),
     getMethodParameters: jasmine.createSpy().and.returnValue(of([{ id: 1, methodId: 1, parameterPath: 'CycleId', displayName: 'Cycle', dataType: 'string', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true }])),
-    getSourceCatalog: jasmine.createSpy().and.returnValue(of([])),
+    getSourceCatalog: jasmine.createSpy().and.returnValue(of([
+      {
+        id: 100,
+        sourceKind: 'EntryDetail',
+        entityName: 'EntryDetails',
+        fieldPath: 'EntryDetails.TraceNumber',
+        displayName: 'TraceNumber',
+        dataType: 'string',
+        cardinality: 'Scalar',
+        nullable: false,
+        sortOrder: 1,
+        isActive: true
+      }
+    ])),
     getTransformations: jasmine.createSpy().and.returnValue(of([])),
     getHistory: jasmine.createSpy().and.returnValue(of([])),
     upsertRules: jasmine.createSpy().and.returnValue(of({ id: 'set-1', methodId: 1, methodCode: 'WSCFAACH.Proc_Contrapartidas', name: 'Draft', version: 0, status: 'Draft', isActive: true, notes: '', publishedBy: '', rules: [] })),
@@ -81,5 +94,30 @@ describe('MappingEditorPageComponent', () => {
     component.publish();
 
     expect(apiMock.publish).not.toHaveBeenCalled();
+  });
+
+  it('should expose controlled NACHA source fields without free SQL path editing', () => {
+    component.ruleForm.patchValue({ sourceKind: 'EntryDetail' });
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+    const pathInput = fixture.nativeElement.querySelector('[data-testid="source-field-path-readonly"]') as HTMLInputElement;
+
+    expect(text).toContain('EntryDetails');
+    expect(text).toContain('No se permite SQL libre');
+    expect(pathInput.readOnly).toBeTrue();
+  });
+
+  it('should save rule using source path derived from controlled catalog', () => {
+    component.ruleForm.patchValue({
+      sourceKind: 'EntryDetail',
+      sourceCatalogFieldId: 100,
+      sourceFieldPath: 'malicious.sql.free.path'
+    });
+
+    component.saveRule();
+
+    const payload = apiMock.upsertRules.calls.mostRecent().args[2][0];
+    expect(payload.sourceFieldPath).toBe('EntryDetails.TraceNumber');
   });
 });

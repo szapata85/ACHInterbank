@@ -82,6 +82,58 @@
     <small>{{ getMethodSummary(selectedMethod) }}</small>
   </section>
 
+  <section class="catalog-panel" data-testid="mapping-catalog-panel" *ngIf="selectedMethod">
+    <header>
+      <div>
+        <span class="eyebrow">Catalogo controlado</span>
+        <h3>Fuentes origen y campos destino</h3>
+      </div>
+      <span class="catalog-status" [class.error]="catalogLoadState === 'error'">
+        {{ catalogLoadState === 'loading' ? 'Cargando catalogo' : catalogLoadState === 'error' ? 'Error de catalogo' : 'Catalogo disponible' }}
+      </span>
+    </header>
+
+    <div class="catalog-error" *ngIf="catalogLoadState === 'error'" data-testid="catalog-error-state">
+      No se pudo cargar catalogo de fuentes o campos destino. Reintente o valide API de integraciones.
+    </div>
+
+    <div class="catalog-grid" *ngIf="catalogLoadState !== 'error'">
+      <article class="catalog-section" data-testid="source-catalog-section">
+        <h4>Fuentes origen</h4>
+        <p class="helper">Solo se listan fuentes controladas del catalogo. No hay SQL libre ni seleccion arbitraria de tablas.</p>
+        <div class="source-chip-grid" *ngIf="sourceGroups.length > 0; else noSources">
+          <div
+            class="source-chip"
+            data-testid="source-catalog-chip"
+            [class.nacha]="isNachaSource(group.sourceKind)"
+            *ngFor="let group of sourceGroups"
+          >
+            <strong>{{ getSourceKindLabel(group.sourceKind) }}</strong>
+            <small>{{ group.fields.length }} campo(s)</small>
+            <span [title]="group.fields[0].fieldPath">{{ group.fields[0].fieldPath }}</span>
+          </div>
+        </div>
+        <ng-template #noSources>
+          <div class="empty-inline">No hay fuentes disponibles para esta operacion.</div>
+        </ng-template>
+      </article>
+
+      <article class="catalog-section" data-testid="target-field-section">
+        <h4>Campos destino SOAP/XML</h4>
+        <p class="helper">Destino por operacion y proposito seleccionados.</p>
+        <div class="target-list" *ngIf="visibleTargetFields.length > 0; else noTargets">
+          <span data-testid="target-field-chip" *ngFor="let target of visibleTargetFields" [title]="target.parameterPath">
+            {{ target.parameterPath }}
+            <small>{{ target.required ? 'Requerido' : 'Opcional' }}</small>
+          </span>
+        </div>
+        <ng-template #noTargets>
+          <div class="empty-inline">No hay campos destino disponibles para esta operacion.</div>
+        </ng-template>
+      </article>
+    </div>
+  </section>
+
   <section class="mapping-card-grid" *ngIf="filteredMappingSets.length > 0; else emptyMappings">
     <article class="mapping-card" data-testid="mapping-card" *ngFor="let mapping of filteredMappingSets">
       <div class="mapping-card-header">

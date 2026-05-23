@@ -5,7 +5,9 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import {
   IntegrationMappingAdminService,
   IntegrationMappingSet,
-  IntegrationMethod
+  IntegrationMethod,
+  IntegrationMethodParameter,
+  IntegrationSourceCatalogField
 } from '../../../core/services/integration-mapping-admin.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
@@ -29,6 +31,9 @@ export class MappingSetsPageComponent implements OnInit {
   loading = false;
   methods: IntegrationMethod[] = [];
   mappingSets: IntegrationMappingSet[] = [];
+  sourceCatalog: IntegrationSourceCatalogField[] = [];
+  targetFields: IntegrationMethodParameter[] = [];
+  catalogLoadState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
   creatingDraft = false;
   modalMode: MappingModalMode = null;
   selectedMapping: IntegrationMappingSet | null = null;
@@ -114,6 +119,25 @@ export class MappingSetsPageComponent implements OnInit {
     return [...new Set(this.methods.map((method) => method.mappingDirection).filter(Boolean))].sort();
   }
 
+  get sourceGroups(): Array<{ entityName: string; sourceKind: string; fields: IntegrationSourceCatalogField[] }> {
+    const groups = new Map<string, { entityName: string; sourceKind: string; fields: IntegrationSourceCatalogField[] }>();
+    for (const field of this.sourceCatalog) {
+      const sourceKind = this.normalizeSourceKind(field.sourceKind as any);
+      const key = `${field.entityName}|${sourceKind}`;
+      const existing = groups.get(key) ?? { entityName: field.entityName, sourceKind, fields: [] };
+      existing.fields.push(field);
+      groups.set(key, existing);
+    }
+
+    return Array.from(groups.values())
+      .map((group) => ({ ...group, fields: group.fields.sort((a, b) => a.sortOrder - b.sortOrder) }))
+      .sort((a, b) => a.entityName.localeCompare(b.entityName));
+  }
+
+  get visibleTargetFields(): IntegrationMethodParameter[] {
+    return [...this.targetFields].sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+
   loadMethods(): void {
     this.loading = true;
     this.api.getMethods().subscribe({
@@ -128,6 +152,7 @@ export class MappingSetsPageComponent implements OnInit {
         } else if (!this.selectedMethodId && this.methods.length > 0) {
           this.createDraftForm.patchValue({ methodId: this.methods[0].id });
         }
+        this.loadCatalogForSelectedMethod();
         this.loadMappingSets();
       },
       error: () => this.notifications.error('No fue posible cargar metodos de integracion.'),
@@ -144,6 +169,7 @@ export class MappingSetsPageComponent implements OnInit {
   }
 
   onMethodChange(): void {
+    this.loadCatalogForSelectedMethod();
     this.loadMappingSets();
   }
 
@@ -270,6 +296,90 @@ export class MappingSetsPageComponent implements OnInit {
 
   getMethodById(methodId: number): IntegrationMethod | undefined {
     return this.methods.find((x) => x.id === methodId);
+  }
+
+  getSourceKindLabel(kind: string | null | undefined): string {
+    switch (this.normalizeSourceKind(kind as any).toLowerCase()) {
+      case 'nachaheader': return 'NachaHeaders';
+      case 'batchheader': return 'BatchHeaders';
+      case 'entrydetail': return 'EntryDetails';
+      case 'addendarecord': return 'AddendaRecords';
+      case 'batchcontrol': return 'BatchControls';
+      case 'filecontrol': return 'FileControls';
+      case 'transaction': return 'AchTransaction';
+      case 'prenotification': return 'Prenotification';
+      case 'differentialresponse': return 'DifferentialResponse';
+      case 'financialinstitution': return 'FinancialInstitution';
+      case 'clearinghouse': return 'ClearingHouse';
+      case 'cycle': return 'AchCycle';
+      default: return kind || 'Fuente';
+    }
+  }
+
+  isNachaSource(kind: string | null | undefined): boolean {
+    return ['nachaheader', 'batchheader', 'entrydetail', 'addendarecord', 'batchcontrol', 'filecontrol']
+      .includes(this.normalizeSourceKind(kind as any).toLowerCase());
+  }
+
+  private normalizeSourceKind(kind: string | number | null | undefined): string {
+    if (kind === null || kind === undefined) return '';
+    if (typeof kind === 'number') {
+      if (kind === 1) return 'Transaction';
+      if (kind === 2) return 'Addenda';
+      if (kind === 3) return 'Batch';
+      if (kind === 4) return 'Cycle';
+      if (kind === 5) return 'ClearingHouse';
+      if (kind === 6) return 'Constant';
+      if (kind === 7) return 'Expression';
+      if (kind === 8) return 'NachaHeader';
+      if (kind === 9) return 'BatchHeader';
+      if (kind === 10) return 'EntryDetail';
+      if (kind === 11) return 'AddendaRecord';
+      if (kind === 12) return 'BatchControl';
+      if (kind === 13) return 'FileControl';
+      if (kind === 14) return 'Prenotification';
+      if (kind === 15) return 'DifferentialResponse';
+      return String(kind);
+    }
+
+    const raw = String(kind).trim();
+    if (!raw) return '';
+    if (/^\d+$/.test(raw)) return this.normalizeSourceKind(Number(raw));
+    const lowered = raw.toLowerCase();
+    if (lowered === 'nachaheaders') return 'NachaHeader';
+    if (lowered === 'batchheaders') return 'BatchHeader';
+    if (lowered === 'entrydetails') return 'EntryDetail';
+    if (lowered === 'addendarecords') return 'AddendaRecord';
+    if (lowered === 'batchcontrols') return 'BatchControl';
+    if (lowered === 'filecontrols') return 'FileControl';
+    return raw;
+  }
+
+  private loadCatalogForSelectedMethod(): void {
+    const methodId = this.selectedMethodId;
+    this.sourceCatalog = [];
+    this.targetFields = [];
+    if (!methodId) {
+      this.catalogLoadState = 'idle';
+      return;
+    }
+
+    this.catalogLoadState = 'loading';
+    this.api.getSourceCatalog(methodId).subscribe({
+      next: (items) => {
+        this.sourceCatalog = items ?? [];
+        this.catalogLoadState = 'ready';
+      },
+      error: () => {
+        this.catalogLoadState = 'error';
+        this.notifications.error('No fue posible cargar el catalogo de campos origen.');
+      }
+    });
+
+    this.api.getMethodParameters(methodId).subscribe({
+      next: (items) => (this.targetFields = items ?? []),
+      error: () => this.notifications.error('No fue posible cargar campos destino SOAP/XML.')
+    });
   }
 
   private normalizeStatus(status: IntegrationMappingSet['status'] | number | string | null | undefined): string {

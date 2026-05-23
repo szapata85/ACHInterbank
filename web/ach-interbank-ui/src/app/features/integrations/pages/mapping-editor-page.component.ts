@@ -52,6 +52,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   mappingSet?: IntegrationMappingSet;
   parameters: IntegrationMethodParameter[] = [];
   sourceCatalog: IntegrationSourceCatalogField[] = [];
+  sourceKindOptions: Array<{ value: string; label: string }> = [{ value: 'Constant', label: 'Valor fijo' }];
   transformations: IntegrationTransformationCatalog[] = [];
 
   selectedParameterId?: number;
@@ -208,6 +209,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
           this.mappingSet = set;
           this.parameters = parameters ?? [];
           this.sourceCatalog = sourceCatalog ?? [];
+          this.refreshSourceKindOptions();
           this.transformations = transformations ?? [];
           this.historyItems = historyItems ?? [];
 
@@ -221,6 +223,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
           this.mappingSet = undefined;
           this.parameters = [];
           this.sourceCatalog = [];
+          this.refreshSourceKindOptions();
           this.transformations = [];
           this.historyItems = [];
           this.viewState = 'error';
@@ -271,6 +274,13 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
     });
   }
 
+  onSourceCatalogFieldChange(fieldId: number | null): void {
+    const field = this.sourceCatalog.find((item) => item.id === fieldId);
+    this.ruleForm.patchValue({
+      sourceFieldPath: field?.fieldPath ?? ''
+    });
+  }
+
   saveRule(): void {
     if (!this.mappingSet || !this.selectedParameterId || this.savingRule) return;
 
@@ -280,7 +290,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
       parameterId: this.selectedParameterId,
       sourceKind: this.ruleForm.value.sourceKind,
       sourceCatalogFieldId: this.ruleForm.value.sourceCatalogFieldId,
-      sourceFieldPath: this.ruleForm.value.sourceFieldPath,
+      sourceFieldPath: this.resolveControlledSourceFieldPath(),
       fixedValue: this.ruleForm.value.fixedValue,
       defaultValue: this.ruleForm.value.defaultValue,
       transformationCode: this.ruleForm.value.transformationCode,
@@ -462,6 +472,25 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
     return this.sourceCatalog.filter((x) => this.normalizeSourceKind(x.sourceKind as any) === normalizedKind);
   }
 
+  getSelectedSourceField(): IntegrationSourceCatalogField | undefined {
+    const fieldId = this.ruleForm.controls.sourceCatalogFieldId.value;
+    return this.sourceCatalog.find((field) => field.id === fieldId);
+  }
+
+  private resolveControlledSourceFieldPath(): string {
+    const kind = this.normalizeSourceKind(this.ruleForm.value.sourceKind);
+    if (kind === 'Constant') return '';
+    return this.getSelectedSourceField()?.fieldPath ?? '';
+  }
+
+  private refreshSourceKindOptions(): void {
+    const kinds = new Set(this.sourceCatalog.map((field) => this.normalizeSourceKind(field.sourceKind as any)).filter(Boolean));
+    kinds.add('Constant');
+    this.sourceKindOptions = Array.from(kinds)
+      .map((value) => ({ value, label: this.getSourceKindLabel(value) }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es'));
+  }
+
   getSourceKindLabel(kind: string | null | undefined): string {
     switch (this.normalizeSourceKind(kind)) {
       case 'Transaction': return 'Dato de transacción';
@@ -470,6 +499,15 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
       case 'ClearingHouse': return 'Dato de cámara';
       case 'Constant': return 'Valor fijo';
       case 'Addenda': return 'Dato complementario';
+      case 'NachaHeader': return 'NachaHeaders';
+      case 'BatchHeader': return 'BatchHeaders';
+      case 'EntryDetail': return 'EntryDetails';
+      case 'AddendaRecord': return 'AddendaRecords';
+      case 'BatchControl': return 'BatchControls';
+      case 'FileControl': return 'FileControls';
+      case 'FinancialInstitution': return 'FinancialInstitution';
+      case 'Prenotification': return 'Prenotification';
+      case 'DifferentialResponse': return 'DifferentialResponse';
       default: return 'No definido';
     }
   }
@@ -484,11 +522,20 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
       if (kind === 5) return 'ClearingHouse';
       if (kind === 6) return 'Constant';
       if (kind === 7) return 'Expression';
+      if (kind === 8) return 'NachaHeader';
+      if (kind === 9) return 'BatchHeader';
+      if (kind === 10) return 'EntryDetail';
+      if (kind === 11) return 'AddendaRecord';
+      if (kind === 12) return 'BatchControl';
+      if (kind === 13) return 'FileControl';
+      if (kind === 14) return 'Prenotification';
+      if (kind === 15) return 'DifferentialResponse';
       return String(kind);
     }
 
     const raw = String(kind).trim();
     if (!raw) return '';
+    if (/^\d+$/.test(raw)) return this.normalizeSourceKind(Number(raw));
     const lowered = raw.toLowerCase();
     if (lowered === 'transaction') return 'Transaction';
     if (lowered === 'addenda') return 'Addenda';
@@ -497,6 +544,15 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
     if (lowered === 'clearinghouse') return 'ClearingHouse';
     if (lowered === 'constant') return 'Constant';
     if (lowered === 'expression') return 'Expression';
+    if (lowered === 'nachaheader' || lowered === 'nachaheaders') return 'NachaHeader';
+    if (lowered === 'batchheader' || lowered === 'batchheaders') return 'BatchHeader';
+    if (lowered === 'entrydetail' || lowered === 'entrydetails') return 'EntryDetail';
+    if (lowered === 'addendarecord' || lowered === 'addendarecords') return 'AddendaRecord';
+    if (lowered === 'batchcontrol' || lowered === 'batchcontrols') return 'BatchControl';
+    if (lowered === 'filecontrol' || lowered === 'filecontrols') return 'FileControl';
+    if (lowered === 'financialinstitution') return 'FinancialInstitution';
+    if (lowered === 'prenotification') return 'Prenotification';
+    if (lowered === 'differentialresponse') return 'DifferentialResponse';
     return raw;
   }
 

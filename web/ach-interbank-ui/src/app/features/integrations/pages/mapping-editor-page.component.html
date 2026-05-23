@@ -77,18 +77,21 @@
               <h5>Origen</h5>
               <label>
                 Origen funcional
-                <select formControlName="sourceKind">
-                  <option value="Transaction">Dato de transacción</option>
-                  <option value="Addenda">Dato complementario</option>
-                  <option value="Batch">Dato de lote</option>
-                  <option value="Cycle">Dato de ciclo</option>
-                  <option value="ClearingHouse">Dato de cámara</option>
-                  <option value="Constant">Valor fijo</option>
+                <select
+                  formControlName="sourceKind"
+                  data-testid="source-kind-select"
+                  (change)="ruleForm.patchValue({ sourceCatalogFieldId: null, sourceFieldPath: '' })"
+                >
+                  <option *ngFor="let option of sourceKindOptions" [value]="option.value">{{ option.label }}</option>
                 </select>
               </label>
               <label>
-                Campo de origen sugerido
-                <select formControlName="sourceCatalogFieldId">
+                Campo de origen controlado
+                <select
+                  formControlName="sourceCatalogFieldId"
+                  data-testid="source-catalog-select"
+                  (change)="onSourceCatalogFieldChange(ruleForm.controls.sourceCatalogFieldId.value)"
+                >
                   <option [ngValue]="null">-- seleccionar --</option>
                   <option *ngFor="let field of getSourceOptionsByKind(ruleForm.value.sourceKind)" [ngValue]="field.id">
                     {{ field.displayName }} ({{ field.fieldPath }})
@@ -96,8 +99,15 @@
                 </select>
               </label>
               <label>
-                Ruta técnica (opcional)
-                <input formControlName="sourceFieldPath" type="text" placeholder="transaction.reference" />
+                Ruta técnica controlada
+                <input
+                  formControlName="sourceFieldPath"
+                  type="text"
+                  readonly
+                  data-testid="source-field-path-readonly"
+                  placeholder="Seleccione un campo del catálogo"
+                />
+                <small>Derivada del catálogo controlado. No se permite SQL libre ni tabla física arbitraria.</small>
               </label>
             </section>
 

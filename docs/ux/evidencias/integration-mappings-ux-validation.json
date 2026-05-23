@@ -1,0 +1,123 @@
+{
+  "generatedAt": "2026-05-23T23:14:44.756Z",
+  "baseUrl": "http://localhost:743",
+  "ok": true,
+  "screenshots": {
+    "nachaSources": "docs/ux/evidencias/integration-mappings-nacha-sources.png",
+    "wsaxonResponse": "docs/ux/evidencias/integration-mappings-wsaxon-response.png"
+  },
+  "checks": [
+    {
+      "name": "muestra fuente NachaHeaders",
+      "ok": true,
+      "detail": "[\"Batch\",\"AchCycle\",\"DifferentialResponse\",\"AchTransaction\",\"Prenotification\",\"AddendaRecords\",\"BatchControls\",\"BatchHeaders\",\"ClearingHouse\",\"Constant\",\"EntryDetails\",\"AchCycle\",\"FileControls\",\"NachaHeaders\"]"
+    },
+    {
+      "name": "muestra fuente BatchHeaders",
+      "ok": true,
+      "detail": "[\"Batch\",\"AchCycle\",\"DifferentialResponse\",\"AchTransaction\",\"Prenotification\",\"AddendaRecords\",\"BatchControls\",\"BatchHeaders\",\"ClearingHouse\",\"Constant\",\"EntryDetails\",\"AchCycle\",\"FileControls\",\"NachaHeaders\"]"
+    },
+    {
+      "name": "muestra fuente EntryDetails",
+      "ok": true,
+      "detail": "[\"Batch\",\"AchCycle\",\"DifferentialResponse\",\"AchTransaction\",\"Prenotification\",\"AddendaRecords\",\"BatchControls\",\"BatchHeaders\",\"ClearingHouse\",\"Constant\",\"EntryDetails\",\"AchCycle\",\"FileControls\",\"NachaHeaders\"]"
+    },
+    {
+      "name": "muestra fuente AddendaRecords",
+      "ok": true,
+      "detail": "[\"Batch\",\"AchCycle\",\"DifferentialResponse\",\"AchTransaction\",\"Prenotification\",\"AddendaRecords\",\"BatchControls\",\"BatchHeaders\",\"ClearingHouse\",\"Constant\",\"EntryDetails\",\"AchCycle\",\"FileControls\",\"NachaHeaders\"]"
+    },
+    {
+      "name": "muestra fuente BatchControls",
+      "ok": true,
+      "detail": "[\"Batch\",\"AchCycle\",\"DifferentialResponse\",\"AchTransaction\",\"Prenotification\",\"AddendaRecords\",\"BatchControls\",\"BatchHeaders\",\"ClearingHouse\",\"Constant\",\"EntryDetails\",\"AchCycle\",\"FileControls\",\"NachaHeaders\"]"
+    },
+    {
+      "name": "muestra fuente FileControls",
+      "ok": true,
+      "detail": "[\"Batch\",\"AchCycle\",\"DifferentialResponse\",\"AchTransaction\",\"Prenotification\",\"AddendaRecords\",\"BatchControls\",\"BatchHeaders\",\"ClearingHouse\",\"Constant\",\"EntryDetails\",\"AchCycle\",\"FileControls\",\"NachaHeaders\"]"
+    },
+    {
+      "name": "muestra WSCFAACH",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "muestra Proc_Transacciones",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "muestra MonetaryCreditRequest",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "muestra OutboundRequest",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no habilita SQL libre",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Proc_Transacciones sin scroll horizontal",
+      "ok": true,
+      "detail": "{\"bodyScrollWidth\":1366,\"viewportWidth\":1366}"
+    },
+    {
+      "name": "botones de mapping visibles dentro de card",
+      "ok": true,
+      "detail": "[{\"text\":\"Detalle\",\"visible\":true,\"inside\":true},{\"text\":\"Editar\",\"visible\":true,\"inside\":true}]"
+    },
+    {
+      "name": "pagina integration mappings carga",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "muestra WSAXON",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "muestra RegistrarRespuestaTransaccion",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "muestra DifferentialResponseNotification",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "muestra InboundResponse",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "muestra sources de respuesta diferencial o estado vacio claro",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "muestra mappings o estado vacio claro",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "WSAXON sin scroll horizontal",
+      "ok": true,
+      "detail": "{\"bodyScrollWidth\":1366,\"viewportWidth\":1366}"
+    },
+    {
+      "name": "console errors = 0",
+      "ok": true,
+      "detail": "[]"
+    }
+  ],
+  "errors": [],
+  "consoleErrors": []
+}

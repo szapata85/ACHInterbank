@@ -74,6 +74,15 @@ Impacto sobre defectos:
 
 Evidencia: `docs/uat/EVIDENCIAS_TRANSACTION_INTEGRATION_READINESS.md`.
 
+## Actualizacion SPA mappings - 2026-05-23
+
+- `/integraciones/mappings` queda alineada contra catalogo backend de `IntegrationMappingSet`, parametros destino y fuentes controladas.
+- `WSCFAACH / Proc_Transacciones / MonetaryCreditRequest / OutboundRequest` visible y seleccionable en SPA.
+- `WSAXON / RegistrarRespuestaTransaccion / DifferentialResponseNotification / InboundResponse` visible y seleccionable en SPA.
+- Fuentes NACHA-M desagregadas visibles: `NachaHeaders`, `BatchHeaders`, `EntryDetails`, `AddendaRecords`, `BatchControls`, `FileControls`.
+- El editor deriva `sourceFieldPath` desde catalogo controlado; no se habilita SQL libre ni seleccion arbitraria de tablas.
+- Evidencia visual/DOM: `docs/ux/evidencias/integration-mappings-ux-validation.json`.
+
 ## Actualizacion DEF-UAT-020 - 2026-05-19
 
 Se implemento parametrizacion tecnica de reglas de prenotificacion por camara/naturaleza/tipo:

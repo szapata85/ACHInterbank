@@ -4,7 +4,9 @@ import { of } from 'rxjs';
 import {
   IntegrationMappingAdminService,
   IntegrationMappingSet,
-  IntegrationMethod
+  IntegrationMethod,
+  IntegrationMethodParameter,
+  IntegrationSourceCatalogField
 } from '../../../core/services/integration-mapping-admin.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { MappingSetsPageComponent } from './mapping-sets-page.component';
@@ -52,12 +54,29 @@ describe('MappingSetsPageComponent', () => {
       isActive: true,
       integrationKey: 'WSAXON',
       operationKey: 'RegistrarRespuestaTransaccion',
-      mappingDirection: 'DifferentialResponseNotification',
+      mappingDirection: 'InboundResponse',
       mappingPurpose: 'DifferentialResponseNotification',
       functionalNature: 'Respuesta diferencial / notificacion',
       functionalOriginator: 'Entidad/camara/proveedor externo',
       movesMoney: false
     }
+  ];
+
+  const sourceCatalog: IntegrationSourceCatalogField[] = [
+    { id: 1, sourceKind: 'NachaHeader', entityName: 'NachaHeaders', fieldPath: 'NachaHeaders.FileIdModifier', displayName: 'FileIdModifier', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 1, isActive: true },
+    { id: 2, sourceKind: 'BatchHeader', entityName: 'BatchHeaders', fieldPath: 'BatchHeaders.CompanyIdentification', displayName: 'CompanyIdentification', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 2, isActive: true },
+    { id: 3, sourceKind: 'EntryDetail', entityName: 'EntryDetails', fieldPath: 'EntryDetails.TraceNumber', displayName: 'TraceNumber', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 3, isActive: true },
+    { id: 4, sourceKind: 'AddendaRecord', entityName: 'AddendaRecords', fieldPath: 'AddendaRecords.PaymentRelatedInformation', displayName: 'PaymentRelatedInformation', dataType: 'string', cardinality: 'Scalar', nullable: true, sortOrder: 4, isActive: true },
+    { id: 5, sourceKind: 'BatchControl', entityName: 'BatchControls', fieldPath: 'BatchControls.EntryHash', displayName: 'EntryHash', dataType: 'number', cardinality: 'Scalar', nullable: false, sortOrder: 5, isActive: true },
+    { id: 6, sourceKind: 'FileControl', entityName: 'FileControls', fieldPath: 'FileControls.BlockCount', displayName: 'BlockCount', dataType: 'number', cardinality: 'Scalar', nullable: false, sortOrder: 6, isActive: true },
+    { id: 7, sourceKind: 'Transaction', entityName: 'AchTransaction', fieldPath: 'AchTransaction.Reference', displayName: 'Reference', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 7, isActive: true },
+    { id: 8, sourceKind: 'Prenotification', entityName: 'Prenotification', fieldPath: 'Prenotification.Reference', displayName: 'Prenotification Reference', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 8, isActive: true },
+    { id: 9, sourceKind: 'DifferentialResponse', entityName: 'DifferentialResponse', fieldPath: 'DifferentialResponse.ReasonCode', displayName: 'ReasonCode', dataType: 'string', cardinality: 'Scalar', nullable: true, sortOrder: 9, isActive: true }
+  ];
+
+  const targetFields: IntegrationMethodParameter[] = [
+    { id: 10, methodId: 3, parameterPath: 'Proc_Transacciones.TraceNumber', displayName: 'TraceNumber', descriptionEs: 'Trace destino', category: 'SOAP', exampleValue: '123', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true },
+    { id: 11, methodId: 2, parameterPath: 'RegistrarRespuestaTransaccion.CodigoRespuesta', displayName: 'CodigoRespuesta', descriptionEs: 'Codigo respuesta', category: 'SOAP', exampleValue: '00', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true }
   ];
 
   const mappingSets: IntegrationMappingSet[] = [
@@ -80,11 +99,15 @@ describe('MappingSetsPageComponent', () => {
     api = jasmine.createSpyObj<IntegrationMappingAdminService>('IntegrationMappingAdminService', [
       'getMethods',
       'getMappingSets',
-      'createDraft'
+      'createDraft',
+      'getSourceCatalog',
+      'getMethodParameters'
     ]);
     router = jasmine.createSpyObj<Router>('Router', ['navigate']);
     api.getMethods.and.returnValue(of(methods));
     api.getMappingSets.and.callFake((methodId?: number) => of(methodId === 2 ? [] : mappingSets));
+    api.getSourceCatalog.and.returnValue(of(sourceCatalog));
+    api.getMethodParameters.and.callFake((methodId: number) => of(targetFields.filter((field) => field.methodId === methodId)));
     api.createDraft.and.returnValue(of(mappingSets[0]));
 
     await TestBed.configureTestingModule({
@@ -104,10 +127,29 @@ describe('MappingSetsPageComponent', () => {
 
   it('carga opciones de integracion incluyendo WsAxonRespuestaTransaccionesSoapClient', () => {
     const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('WSCFAACH');
+    expect(text).toContain('WSAXON');
     expect(text).toContain('WsAxonRespuestaTransaccionesSoapClient');
     expect(text).toContain('Proc_Transacciones');
+    expect(text).toContain('RegistrarRespuestaTransaccion');
+    expect(text).toContain('MonetaryCreditRequest');
     expect(text).toContain('DifferentialResponseNotification');
+    expect(text).toContain('OutboundRequest');
+    expect(text).toContain('InboundResponse');
     expect(fixture.nativeElement.querySelector('[data-testid="integration-select"]')).toBeTruthy();
+  });
+
+  it('muestra fuentes NACHA-M desagregadas desde catalogo controlado', () => {
+    const text = fixture.nativeElement.textContent as string;
+
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-catalog-panel"]')).toBeTruthy();
+    expect(text).toContain('NachaHeaders');
+    expect(text).toContain('BatchHeaders');
+    expect(text).toContain('EntryDetails');
+    expect(text).toContain('AddendaRecords');
+    expect(text).toContain('BatchControls');
+    expect(text).toContain('FileControls');
+    expect(text).toContain('No hay SQL libre ni seleccion arbitraria de tablas');
   });
 
   it('permite seleccionar WsAxon y muestra estado vacio claro cuando no hay mappings', () => {

@@ -3,6 +3,23 @@ import { Observable } from 'rxjs';
 import { ApiService } from './api.service';
 
 export type MappingSetStatus = 'Draft' | 'Published' | 'Archived';
+export type IntegrationSourceKind =
+  | 'Transaction'
+  | 'Addenda'
+  | 'Batch'
+  | 'Cycle'
+  | 'ClearingHouse'
+  | 'Constant'
+  | 'Expression'
+  | 'NachaHeader'
+  | 'BatchHeader'
+  | 'EntryDetail'
+  | 'AddendaRecord'
+  | 'BatchControl'
+  | 'FileControl'
+  | 'FinancialInstitution'
+  | 'Prenotification'
+  | 'DifferentialResponse';
 
 export interface IntegrationMethod {
   id: number;
@@ -39,7 +56,7 @@ export interface IntegrationMethodParameter {
 export interface IntegrationSourceCatalogField {
   id: number;
   methodId?: number | null;
-  sourceKind: 'Transaction' | 'Addenda' | 'Batch' | 'Cycle' | 'ClearingHouse' | 'Constant' | 'Expression';
+  sourceKind: IntegrationSourceKind;
   entityName: string;
   fieldPath: string;
   displayName: string;
@@ -63,7 +80,7 @@ export interface IntegrationMappingRule {
   mappingSetId: string;
   methodId: number;
   parameterId: number;
-  sourceKind: 'Transaction' | 'Addenda' | 'Batch' | 'Cycle' | 'ClearingHouse' | 'Constant' | 'Expression';
+  sourceKind: IntegrationSourceKind;
   sourceCatalogFieldId?: number | null;
   sourceFieldPath: string;
   fixedValue?: string | null;
