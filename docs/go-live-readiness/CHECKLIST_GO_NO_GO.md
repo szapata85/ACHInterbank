@@ -164,3 +164,11 @@ Observacion normativa:
 | Endpoint read-only de garantia | OK tecnico | `GET /Transactions/{id}/integration-readiness` | No por si solo | No invoca SOAP ni cambia estados |
 | RegistrarRespuestaTransaccion no monetario | OK tecnico | Tests negativos | Si si falla | No usa WSCFAACH; `movesMoney=false` |
 | Productivo | NO-GO | Readiness | Si | Sin autorizacion Live ni homologacion final |
+## Actualizacion 2026-05-23
+
+- [x] Catalogo controlado incluye fuentes NACHA-M desagregadas para mappings SOAP.
+- [x] `Proc_Transacciones` resuelve campos desde `EntryDetails`, `BatchHeaders`, `NachaHeaders`, `AddendaRecords`, `BatchControls` y `FileControls`.
+- [x] Trace campo-a-campo conserva valores fuente sanitizados.
+- [ ] Respuestas diferenciales de prenotificaciones CFA aplican estado final con caso de uso homologado.
+
+Decision productiva: **NO-GO**.

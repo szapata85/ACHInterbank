@@ -36,3 +36,24 @@ Fecha: 2026-05-21
 - trace generado cuando readiness permite payload.
 
 Productivo: **NO-GO**.
+
+## Actualizacion 2026-05-23 - fuente NACHA-M desagregada
+
+Se cerro la brecha de fuente de datos para creditos entrantes originados por entidad financiera externa.
+
+Cambios validados:
+
+- El catalogo controlado de mappings publica `NachaHeaders`, `BatchHeaders`, `EntryDetails`, `AddendaRecords`, `BatchControls` y `FileControls`.
+- `ProcTransaccionesRequestMapper` carga el contexto NACHA-M desde `IncomingNachaEntryClassification.EntryDetailId` y `NachaID`.
+- Los campos SOAP pueden resolverse desde `EntryDetails`, `BatchHeaders`, `NachaHeaders`, `AddendaRecords`, `BatchControls` y `FileControls`.
+- `IntegrationMappingTraceWriter` conserva valores fuente sanitizados mediante `SourceValues`.
+- No se habilito SQL libre ni seleccion arbitraria de tablas fisicas.
+- No hubo transmision externa.
+
+Pruebas agregadas:
+
+- `MappingSourceCatalog_ShouldExpose_NachaDesagregadoSources`.
+- `ProcTransacciones_ShouldMapFields_FromNachaDesagregado`.
+- `ProcTransacciones_ShouldPersistTrace_WithNachaSourceValues`.
+
+Estado: **OK tecnico UAT para fuente NACHA-M desagregada en Proc_Transacciones**.

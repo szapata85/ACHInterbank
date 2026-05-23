@@ -82,3 +82,25 @@ Para `WSCFAACH / Proc_Contrapartidas / MonetaryDebitRequest`:
 - `CanBuildPayload=false`;
 - el mapper no crea contrato transicional;
 - el job no llama `BuildSoapBody` si `UsedFallback=true`.
+
+## Actualizacion 2026-05-23 - soporte NACHA-M desagregado
+
+El catalogo de fuentes mapeables se amplio con fuentes funcionales controladas para el archivo NACHA-M de entrada:
+
+- `nachaHeaders.*`
+- `batchHeaders.*`
+- `entryDetails.*`
+- `addendaRecords.*`
+- `batchControls.*`
+- `fileControls.*`
+
+`ProcTransaccionesRequestMapper` actua como adaptador del resolver para `Proc_Transacciones`:
+
+- carga `EntryDetail` desde `IncomingNachaEntryClassification.EntryDetailId`;
+- resuelve `NachaHeader` por `NachaID` o ingesta;
+- resuelve `BatchHeader`, `BatchControl` y `FileControl` por `NachaID`;
+- resuelve `AddendaRecord` por `AddendaRecordId` o por trace asociado;
+- bloquea si un parametro requerido queda sin valor;
+- conserva `SourceValues` para evidencia campo-a-campo.
+
+No se habilita SQL libre ni seleccion de tablas fisicas arbitrarias desde UI/API.

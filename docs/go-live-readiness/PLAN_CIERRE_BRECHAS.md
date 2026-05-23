@@ -143,3 +143,16 @@ Productivo permanece **NO-GO**.
 | Parametrizar `RegistrarRespuestaTransaccion` | Cerrado tecnico | Resolver para `DifferentialResponseNotification` + trace persistido | No mover dinero y trace campo-a-campo |
 
 Productivo permanece **NO-GO**.
+## Actualizacion 2026-05-23 - DEF-UAT-SOAP-MAP-004
+
+Brecha: respuestas diferenciales sobre prenotificaciones CFA pendientes.
+
+Plan de cierre:
+
+1. Definir, con catalogos homologados, que codigos externos aprueban o rechazan una prenotificacion.
+2. Implementar caso de uso no monetario que cruce payload diferencial, NACHA-M desagregado y `AchTransaction.IsPrenotification=true`.
+3. Persistir `IntegrationMappingTrace` y `AchTransactionStateEvent`.
+4. Garantizar `MonetaryMovementCreated=false` y sin afectacion de saldos.
+5. Agregar pruebas positivas, negativas, duplicado y no conciliado.
+
+Productivo: **NO-GO**.

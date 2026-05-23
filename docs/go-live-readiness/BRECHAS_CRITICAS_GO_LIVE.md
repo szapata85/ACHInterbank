@@ -145,3 +145,8 @@ Brechas persistentes:
 - sostener Productivo en NO-GO hasta homologacion externa formal.
 
 Productivo permanece **NO-GO**.
+## Actualizacion 2026-05-23 - SOAP/NACHA-M desagregado
+
+- Cerrado tecnico UAT: `Proc_Transacciones` puede alimentarse desde NACHA-M desagregado (`NachaHeaders`, `BatchHeaders`, `EntryDetails`, `AddendaRecords`, `BatchControls`, `FileControls`) mediante catalogo controlado, mapping set y trace campo-a-campo.
+- Abierto: `DEF-UAT-SOAP-MAP-004`, falta caso de uso end-to-end para aprobar/rechazar prenotificaciones CFA pendientes desde respuesta diferencial homologada sin introducir reglas nuevas.
+- Productivo: **NO-GO**.

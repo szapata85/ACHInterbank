@@ -180,6 +180,18 @@ public sealed class IntegrationMappingTraceWriter : IIntegrationMappingTraceWrit
             return null;
         }
 
+        var sourceValuesProperty = sourcePayload.GetType().GetProperty("SourceValues", BindingFlags.Instance | BindingFlags.Public);
+        if (sourceValuesProperty?.GetValue(sourcePayload) is IEnumerable<KeyValuePair<string, string>> sourceValues)
+        {
+            foreach (var item in sourceValues)
+            {
+                if (string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase))
+                {
+                    return item.Value;
+                }
+            }
+        }
+
         if (key.Contains('.', StringComparison.Ordinal))
         {
             key = key.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).LastOrDefault() ?? key;

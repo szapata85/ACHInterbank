@@ -179,3 +179,12 @@ Validaciones:
 - `/integraciones/soap-settings`: se corrige rediseño visual reemplazando la tabla principal por cards compactas y modales de detalle/edicion/prueba. Se agrega validacion DOM/screenshot en `docs/ux/evidencias/`.
 - `/integraciones/mappings`: se corrige catalogo para que `WsAxonRespuestaTransaccionesSoapClient` aparezca como integracion activa. Si no tiene mappings, se muestra estado vacio claro; no se eliminan ni modifican mappings existentes.
 - Estado productivo: **NO-GO**.
+
+## Actualizacion 2026-05-23 - NACHA-M desagregado en mappings SOAP
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-SOAP-MAP-005 `Proc_Transacciones` no demostraba fuente NACHA-M desagregada | Cerrado tecnico UAT | `NachaDesagregadoIntegrationMappingTests`, `docs/architecture/NACHA_M_DESAGREGADO_MAPPING_CATALOG.md` | El mapper resuelve desde `NachaHeaders`, `BatchHeaders`, `EntryDetails`, `AddendaRecords`, `BatchControls`, `FileControls` y persiste trace con valor fuente. |
+| DEF-UAT-SOAP-MAP-004 respuesta diferencial sobre prenotificacion pendiente CFA | Abierto | `docs/uat/EVIDENCIAS_RESPUESTAS_PRENOTIFICACIONES.md` | Falta use case que apruebe/rechace `AchTransaction.IsPrenotification=true` cruzando payload, NACHA-M desagregado y catalogos homologados. No se simulo exito. |
+
+Productivo: **NO-GO**.

@@ -17,7 +17,15 @@ public enum IntegrationSourceKindEnum
     Cycle = 4,
     ClearingHouse = 5,
     Constant = 6,
-    Expression = 7
+    Expression = 7,
+    NachaHeader = 8,
+    BatchHeader = 9,
+    EntryDetail = 10,
+    AddendaRecord = 11,
+    BatchControl = 12,
+    FileControl = 13,
+    Prenotification = 14,
+    DifferentialResponse = 15
 }
 
 public enum IntegrationParameterCardinalityEnum

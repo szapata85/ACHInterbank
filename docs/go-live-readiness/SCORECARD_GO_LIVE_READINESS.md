@@ -181,3 +181,11 @@ La auditoria mejora trazabilidad y claridad de integraciones, pero no incrementa
 - homologacion externa formal pendiente.
 
 Productivo permanece **NO-GO**.
+## Actualizacion 2026-05-23
+
+| Dimension | Estado | Observacion |
+|---|---|---|
+| SOAP `Proc_Transacciones` con NACHA-M desagregado | OK tecnico UAT | Mappings pueden tomar fuentes controladas del archivo cargado. |
+| Trace campo-a-campo | OK tecnico UAT | Se conserva valor fuente sanitizado para evidencia. |
+| Respuestas diferenciales sobre prenotificaciones CFA | Parcial | Falta caso de uso de aplicacion de estado homologado. |
+| Productivo | NO-GO | No se autoriza salida productiva. |

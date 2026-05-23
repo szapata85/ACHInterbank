@@ -86,3 +86,27 @@ El fallback transicional de `Proc_Contrapartidas` queda cerrado tecnicamente:
 - si una resolucion externa marca `UsedFallback=true`, `ContrapartidaDispatchJobService` falla antes de `BuildSoapBody`;
 - no se ejecuta DryRun exitoso ni dispatch con XML basado en fallback;
 - readiness no retorna `Ok` si `usesFallback=true`.
+
+## Actualizacion 2026-05-23 - NACHA-M desagregado
+
+`Proc_Transacciones` queda alineado para creditos monetarios originados por entidad financiera externa con CFA como receptora/procesadora:
+
+1. La cola entrante identifica `IncomingNachaEntryClassification`.
+2. La clasificacion identifica `EntryDetails`.
+3. `EntryDetails.NachaID` cruza `NachaHeaders`.
+4. `NachaID` cruza `BatchHeaders`, `AddendaRecords`, `BatchControls` y `FileControls`.
+5. `ProcTransaccionesRequestMapper` resuelve `fieldPath` controlados desde esas fuentes.
+6. `IntegrationMappingTraceWriter` persiste el valor fuente sanitizado usando `SourceValues`.
+
+Fuentes NACHA-M publicadas en catalogo:
+
+- `NachaHeaders`
+- `BatchHeaders`
+- `EntryDetails`
+- `AddendaRecords`
+- `BatchControls`
+- `FileControls`
+
+`RegistrarRespuestaTransaccion` conserva el guardrail no monetario y el trace campo-a-campo. La aplicacion funcional de respuestas sobre prenotificaciones pendientes originadas por CFA queda abierta como `DEF-UAT-SOAP-MAP-004` porque no existe aun un caso de uso que traduzca estados externos homologados a state events de `AchTransaction.IsPrenotification=true` sin introducir reglas nuevas.
+
+Productivo permanece **NO-GO**.
