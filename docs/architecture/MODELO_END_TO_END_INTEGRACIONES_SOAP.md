@@ -107,6 +107,23 @@ Fuentes NACHA-M publicadas en catalogo:
 - `BatchControls`
 - `FileControls`
 
-`RegistrarRespuestaTransaccion` conserva el guardrail no monetario y el trace campo-a-campo. La aplicacion funcional de respuestas sobre prenotificaciones pendientes originadas por CFA queda abierta como `DEF-UAT-SOAP-MAP-004` porque no existe aun un caso de uso que traduzca estados externos homologados a state events de `AchTransaction.IsPrenotification=true` sin introducir reglas nuevas.
+`RegistrarRespuestaTransaccion` conserva el guardrail no monetario y el trace campo-a-campo.
+
+## Actualizacion 2026-05-23 - DEF-UAT-SOAP-MAP-004
+
+Se implemento el flujo end-to-end para respuestas diferenciales de prenotificaciones CFA pendientes:
+
+1. `ProcesarRespuestaAchUseCase` delega `TipoRespuesta=Prenota` a `IDifferentialPrenotificationResponseProcessor` cuando el procesador esta registrado.
+2. El procesador resuelve `WSAXON / RegistrarRespuestaTransaccion / DifferentialResponseNotification / InboundResponse`.
+3. Se valida `IntegrationMappingReadiness`.
+4. Se consume `IntegrationMappingSet` publicado.
+5. Se cruza payload + NACHA-M desagregado + `AchTransaction.IsPrenotification=true`.
+6. Una respuesta aprobada/exitosa cambia `Pending -> Certified`.
+7. Una respuesta rechazada cambia `Pending -> ReturnedByEpr` cuando la causal inicia en `R`.
+8. Se crea `AchTransactionStateEvent`.
+9. Se persisten `IntegrationMappingTrace` y `IntegrationMappingTraceEntries`.
+10. Se confirma `movesMoney=false`, `monetaryMovementCreated=false` y `balancesAffected=false`.
+
+No se agregaron estados nuevos. Se usan estados reales del dominio: `Pending`, `Certified`, `ReturnedByEpr` y `ReturnedByOperator`.
 
 Productivo permanece **NO-GO**.

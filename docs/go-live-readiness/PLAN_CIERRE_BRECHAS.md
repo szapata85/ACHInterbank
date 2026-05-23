@@ -147,12 +147,15 @@ Productivo permanece **NO-GO**.
 
 Brecha: respuestas diferenciales sobre prenotificaciones CFA pendientes.
 
-Plan de cierre:
+Estado: **cerrado tecnico UAT**.
 
-1. Definir, con catalogos homologados, que codigos externos aprueban o rechazan una prenotificacion.
-2. Implementar caso de uso no monetario que cruce payload diferencial, NACHA-M desagregado y `AchTransaction.IsPrenotification=true`.
-3. Persistir `IntegrationMappingTrace` y `AchTransactionStateEvent`.
-4. Garantizar `MonetaryMovementCreated=false` y sin afectacion de saldos.
-5. Agregar pruebas positivas, negativas, duplicado y no conciliado.
+Cierre aplicado:
+
+1. Se implemento caso de uso no monetario que cruza payload diferencial, NACHA-M desagregado y `AchTransaction.IsPrenotification=true`.
+2. Se persisten `IntegrationMappingTrace`, `IntegrationMappingTraceEntries` y `AchTransactionStateEvent`.
+3. Respuesta exitosa aprueba la prenotificacion con `Pending -> Certified`.
+4. Respuesta rechazada por causal `R03` usa `Pending -> ReturnedByEpr`.
+5. Se garantiza `monetaryMovementCreated=false` y `balancesAffected=false`.
+6. Se agregaron pruebas positivas, negativas, duplicado, missing mapping y guardrails de no invocacion monetaria.
 
 Productivo: **NO-GO**.

@@ -148,5 +148,15 @@ Productivo permanece **NO-GO**.
 ## Actualizacion 2026-05-23 - SOAP/NACHA-M desagregado
 
 - Cerrado tecnico UAT: `Proc_Transacciones` puede alimentarse desde NACHA-M desagregado (`NachaHeaders`, `BatchHeaders`, `EntryDetails`, `AddendaRecords`, `BatchControls`, `FileControls`) mediante catalogo controlado, mapping set y trace campo-a-campo.
-- Abierto: `DEF-UAT-SOAP-MAP-004`, falta caso de uso end-to-end para aprobar/rechazar prenotificaciones CFA pendientes desde respuesta diferencial homologada sin introducir reglas nuevas.
+- Cerrado tecnico UAT: `DEF-UAT-SOAP-MAP-004`, `RegistrarRespuestaTransaccion` aprueba/rechaza prenotificaciones CFA pendientes desde respuesta diferencial homologada, cruza NACHA-M desagregado y persiste trace/evento sin movimiento monetario.
+
+## Actualizacion 2026-05-23 - DEF-UAT-SOAP-MAP-004
+
+| Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| Respuesta diferencial aprueba prenotificacion CFA pendiente | Cerrado tecnico UAT | `docs/uat/evidencias/soap-integrations/prenotification-responses/approved/` | Estado `Pending -> Certified`, sin movimiento monetario |
+| Respuesta diferencial rechaza prenotificacion CFA pendiente | Cerrado tecnico UAT | `docs/uat/evidencias/soap-integrations/prenotification-responses/rejected/` | Estado `Pending -> ReturnedByEpr`, causal `R03` |
+| Envelope formal Proc_Transacciones DryRun | Cerrado tecnico UAT | `docs/uat/evidencias/soap-integrations/mapping-trace/proc_transacciones/proc_transacciones_envelope_sanitizado.xml` | No transmision externa |
+
+Productivo permanece **NO-GO** por homologacion externa y acta formal pendiente.
 - Productivo: **NO-GO**.

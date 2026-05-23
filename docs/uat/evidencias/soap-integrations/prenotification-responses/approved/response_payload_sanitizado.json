@@ -1,0 +1,12 @@
+{
+  "tipoRespuesta": "Prenota",
+  "idTransaccion": "000128300012345",
+  "codigoCamaraCompensacion": "ACH",
+  "codigoEntidadOrigen": "0001283",
+  "codigoEntidadDestino": "9999000",
+  "codigoEstadoExterno": "00",
+  "codigoCausalExterna": null,
+  "descripcionCausalExterna": null,
+  "correlationId": "corr-prenote-approved",
+  "sanitized": true
+}

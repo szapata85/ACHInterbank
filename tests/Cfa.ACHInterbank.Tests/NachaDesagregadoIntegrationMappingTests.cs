@@ -103,6 +103,31 @@ public sealed class NachaDesagregadoIntegrationMappingTests
         Assert.Contains(trace.Entries, x => x.TargetField == "INFPAG" && x.SourceField == "addendaRecords.infofromOriginator" && x.SourceValueSanitized == "PAGO UAT DESAGREGADO");
     }
 
+    [Fact]
+    public async Task ProcTransacciones_DryRun_ShouldGenerateNonEmptySanitizedEnvelope()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishProcTransaccionesMappingAsync();
+
+        var mapper = new ProcTransaccionesRequestMapper(fixture.Context);
+        var resolution = await mapper.ResolveAsync(
+            fixture.Queue,
+            fixture.Ingestion,
+            fixture.Classification,
+            fixture.Transaction,
+            fixture.Cycle,
+            new DateTime(2026, 5, 23, 10, 0, 0, DateTimeKind.Utc));
+
+        var envelope = mapper.BuildSoapBody(resolution.Contract);
+
+        Assert.False(string.IsNullOrWhiteSpace(envelope));
+        Assert.Contains("Proc_Transacciones", envelope);
+        Assert.Contains("999900001234567", envelope);
+        Assert.Contains("PAGO UAT DESAGREGADO", envelope);
+        Assert.DoesNotContain("password", envelope, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Bearer", envelope, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class Fixture : IAsyncDisposable
     {
         private readonly SqliteConnection _connection;

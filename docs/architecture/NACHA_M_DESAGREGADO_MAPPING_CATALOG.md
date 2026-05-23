@@ -44,10 +44,16 @@ Fuentes publicadas:
 4. `IncomingNachaEntryClassification.AddendaRecordId` identifica `AddendaRecords` cuando existe; si no, se cruza por trace.
 5. El mapper conserva `SourceValues` para que `IntegrationMappingTraceWriter` persista valor fuente sanitizado por `fieldPath`.
 
-## Limitacion abierta
+## Actualizacion 2026-05-23 - respuestas de prenotificaciones
 
-`RegistrarRespuestaTransaccion` ya valida readiness, consume mapping set y persiste trace campo-a-campo sobre el payload homologado. Sin embargo, no existe todavia un use case end-to-end que apruebe o rechace una prenotificacion pendiente originada por CFA cruzando simultaneamente payload diferencial, NACHA-M desagregado y `AchTransaction.IsPrenotification`.
+`RegistrarRespuestaTransaccion` ahora usa el catalogo y los `fieldPath` controlados para cruzar respuestas diferenciales de prenotificaciones CFA pendientes:
 
-Defecto abierto: `DEF-UAT-SOAP-MAP-004`.
+- `batchHeaders.batchNumber` -> `ANSIDLOTE`
+- `entryDetails.sequenceNumber` -> `ANSIDTX`
+- `differentialResponse.codigoEstadoExterno` -> `ANSST`
+- `differentialResponse.codigoCausalExterna` -> `ANCLC`
+- `addendaRecords.originalTraceNumber` -> `ANSIDREVER`
 
-No se simulo exito para esa brecha.
+El cruce usa NACHA-M desagregado y `AchTransaction.IsPrenotification=true`. Si no existe prenotificacion pendiente o falta mapping requerido, el flujo falla controladamente y no cambia estado.
+
+Defecto `DEF-UAT-SOAP-MAP-004`: **cerrado tecnico UAT**.

@@ -44,6 +44,27 @@ Avance aplicado:
 - El catalogo controlado ahora expone fuentes `DifferentialResponse` y `Prenotification`.
 - El catalogo tambien expone las seis fuentes NACHA-M desagregadas para que los mappings puedan cruzar respuesta, archivo y transaccion/prenotificacion.
 
-Brecha abierta:
+## Actualizacion 2026-05-23 - cierre DEF-UAT-SOAP-MAP-004
 
-- No existe aun un caso de uso end-to-end que aplique una respuesta diferencial sobre `AchTransaction.IsPrenotification=true` para aprobar/rechazar la prenotificacion con state event usando catalogos homologados. Queda documentado como `DEF-UAT-SOAP-MAP-004`; no se simulo exito.
+Se implemento el caso de uso end-to-end que aplica respuesta diferencial sobre `AchTransaction.IsPrenotification=true`:
+
+- Respuesta aprobada: `Pending -> Certified`.
+- Respuesta rechazada con causal `R03`: `Pending -> ReturnedByEpr`.
+- Se crea `AchTransactionStateEvent`.
+- Se persisten `IntegrationMappingTrace` y `IntegrationMappingTraceEntries`.
+- Se cruza payload, NACHA-M desagregado y prenotificacion interna.
+- Missing mapping falla controladamente.
+- Prenotificacion no encontrada falla controladamente.
+- Duplicado queda controlado.
+- No se mueve dinero.
+- No se afectan saldos.
+- No se invoca `IWscfaachSoapClient`.
+- No se invoca `Proc_Contrapartidas`.
+- No se invoca `Proc_Transacciones`.
+
+Evidencia:
+
+- `docs/uat/evidencias/soap-integrations/prenotification-responses/approved/`
+- `docs/uat/evidencias/soap-integrations/prenotification-responses/rejected/`
+
+`DEF-UAT-SOAP-MAP-004`: **cerrado tecnico UAT**.

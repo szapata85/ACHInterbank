@@ -169,6 +169,17 @@ Observacion normativa:
 - [x] Catalogo controlado incluye fuentes NACHA-M desagregadas para mappings SOAP.
 - [x] `Proc_Transacciones` resuelve campos desde `EntryDetails`, `BatchHeaders`, `NachaHeaders`, `AddendaRecords`, `BatchControls` y `FileControls`.
 - [x] Trace campo-a-campo conserva valores fuente sanitizados.
-- [ ] Respuestas diferenciales de prenotificaciones CFA aplican estado final con caso de uso homologado.
+- [x] Respuestas diferenciales de prenotificaciones CFA aplican estado final con caso de uso homologado en UAT/local.
+
+## Actualizacion 2026-05-23 - DEF-UAT-SOAP-MAP-004
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| Prenotificacion CFA aprobada por respuesta diferencial | OK tecnico UAT | `prenotification-responses/approved/` | No por si solo | `Pending -> Certified` |
+| Prenotificacion CFA rechazada por respuesta diferencial | OK tecnico UAT | `prenotification-responses/rejected/` | No por si solo | `Pending -> ReturnedByEpr`, causal `R03` |
+| Trace campo-a-campo persistido | OK tecnico UAT | `mapping_trace.json` por escenario | Si si falla | Usa `IntegrationMappingTraceEntries` |
+| No movimiento monetario | OK tecnico UAT | `monetary_guardrail_report.md` | Si si falla | `movesMoney=false`, saldos no afectados |
+| Envelope Proc_Transacciones DryRun | OK tecnico UAT | `proc_transacciones_envelope_sanitizado.xml` | Si si falta | No transmision externa |
+| Productivo | NO-GO | Este checklist | Si | Sin autorizacion Live ni homologacion final |
 
 Decision productiva: **NO-GO**.

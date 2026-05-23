@@ -57,3 +57,23 @@ Pruebas agregadas:
 - `ProcTransacciones_ShouldPersistTrace_WithNachaSourceValues`.
 
 Estado: **OK tecnico UAT para fuente NACHA-M desagregada en Proc_Transacciones**.
+
+## Actualizacion 2026-05-23 - SOAP Envelope DryRun formal
+
+Se completo la evidencia formal de SOAP Envelope para `Proc_Transacciones` en DryRun:
+
+- `docs/uat/evidencias/soap-integrations/mapping-trace/proc_transacciones/proc_transacciones_envelope_sanitizado.xml`
+- `docs/uat/evidencias/soap-integrations/mapping-trace/proc_transacciones/dryrun_result.json`
+- `docs/uat/evidencias/soap-integrations/mapping-trace/proc_transacciones/no_external_transmission_report.md`
+- `docs/uat/evidencias/soap-integrations/mapping-trace/proc_transacciones/validation_report.md`
+
+Validaciones:
+
+- XML no vacio.
+- Contiene operacion `Proc_Transacciones`.
+- Se mantiene modo `DryRun/Disabled/Mock` para UAT/local.
+- `IWscfaachSoapClient` no se invoca en DryRun.
+- No hay transmision externa.
+- No contiene secretos ni certificados privados.
+
+Estado: **OK tecnico UAT para evidencia formal de envelope DryRun**.

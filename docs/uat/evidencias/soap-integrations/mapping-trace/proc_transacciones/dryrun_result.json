@@ -1,10 +1,16 @@
 {
-  "date": "2026-05-21",
+  "date": "2026-05-23",
   "operationKey": "Proc_Transacciones",
+  "integrationKey": "WSCFAACH",
+  "mappingPurpose": "MonetaryCreditRequest",
+  "mappingDirection": "OutboundRequest",
   "mode": "DryRun",
   "resultCode": "PROC_TRANSACCIONES_DRY_RUN",
   "payloadGenerated": true,
+  "soapEnvelopeGenerated": true,
+  "soapEnvelopeFile": "proc_transacciones_envelope_sanitizado.xml",
   "soapClientInvoked": false,
   "externalTransmission": false,
-  "status": "OK tecnico UAT/local"
+  "status": "OK tecnico UAT/local",
+  "productivo": "NO-GO"
 }

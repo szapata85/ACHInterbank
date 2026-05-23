@@ -1,0 +1,9 @@
+{
+  "reference": "000128300012345",
+  "previousState": "Pending",
+  "finalState": "ReturnedByEpr",
+  "statusDescription": "Rechazada por EPR",
+  "returnReasonCode": "R03",
+  "monetaryMovementCreated": false,
+  "balancesAffected": false
+}

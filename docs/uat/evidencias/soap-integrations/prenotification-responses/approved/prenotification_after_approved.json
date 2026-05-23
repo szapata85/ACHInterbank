@@ -1,0 +1,9 @@
+{
+  "reference": "000128300012345",
+  "previousState": "Pending",
+  "finalState": "Certified",
+  "statusDescription": "Aprobada/exitosa",
+  "returnReasonCode": null,
+  "monetaryMovementCreated": false,
+  "balancesAffected": false
+}

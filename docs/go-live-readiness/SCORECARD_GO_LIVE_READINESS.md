@@ -187,5 +187,6 @@ Productivo permanece **NO-GO**.
 |---|---|---|
 | SOAP `Proc_Transacciones` con NACHA-M desagregado | OK tecnico UAT | Mappings pueden tomar fuentes controladas del archivo cargado. |
 | Trace campo-a-campo | OK tecnico UAT | Se conserva valor fuente sanitizado para evidencia. |
-| Respuestas diferenciales sobre prenotificaciones CFA | Parcial | Falta caso de uso de aplicacion de estado homologado. |
+| Respuestas diferenciales sobre prenotificaciones CFA | OK tecnico UAT | Caso de uso aprueba/rechaza prenotificaciones pendientes, persiste trace/evento y no mueve dinero. |
+| Envelope Proc_Transacciones DryRun | OK tecnico UAT | Evidencia formal `proc_transacciones_envelope_sanitizado.xml`, sin transmision externa. |
 | Productivo | NO-GO | No se autoriza salida productiva. |

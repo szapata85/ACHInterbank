@@ -1,0 +1,12 @@
+{
+  "tipoRespuesta": "Prenota",
+  "idTransaccion": "000128300012345",
+  "codigoCamaraCompensacion": "ACH",
+  "codigoEntidadOrigen": "0001283",
+  "codigoEntidadDestino": "9999000",
+  "codigoEstadoExterno": "RJ",
+  "codigoCausalExterna": "R03",
+  "descripcionCausalExterna": "Cuenta no localizada",
+  "correlationId": "corr-prenote-rejected",
+  "sanitized": true
+}

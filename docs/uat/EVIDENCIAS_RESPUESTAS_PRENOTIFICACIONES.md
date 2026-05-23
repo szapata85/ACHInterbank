@@ -2,13 +2,15 @@
 
 Fecha: 2026-05-23  
 Ambiente: UAT/local  
-Productivo: NO-GO
+Productivo: **NO-GO**
 
 ## Resultado
 
-Estado: PARCIAL / brecha abierta.
+Estado: `OK TECNICO UAT`.
 
-Se verifico que `RegistrarRespuestaTransaccion` permanece clasificado como respuesta diferencial no monetaria:
+`DEF-UAT-SOAP-MAP-004` queda cerrado tecnicamente: `RegistrarRespuestaTransaccion` procesa respuestas diferenciales de prenotificaciones CFA pendientes, cruza contra NACHA-M desagregado y la prenotificacion interna, crea evento de estado y persiste trace campo-a-campo sin movimiento monetario.
+
+## Clasificacion
 
 - IntegrationKey: `WSAXON`
 - OperationKey: `RegistrarRespuestaTransaccion`
@@ -16,25 +18,41 @@ Se verifico que `RegistrarRespuestaTransaccion` permanece clasificado como respu
 - MappingDirection: `InboundResponse`
 - MovesMoney: `false`
 
-Tambien se verifico que el use case de notificacion no inyecta `IWscfaachSoapClient`, no invoca `Proc_Contrapartidas` y no invoca `Proc_Transacciones`.
+## Escenario aprobado
 
-## Brecha encontrada
+- Entrada: respuesta diferencial `TipoRespuesta=Prenota`, estado externo `00`.
+- Cruce principal: `EntryDetails.SequenceNumber = 000128300012345`.
+- Estado inicial: `Pending`.
+- Estado final: `Certified`.
+- Evento de estado: creado.
+- Trace: `IntegrationMappingTrace` + `IntegrationMappingTraceEntries`.
+- Movimiento monetario: false.
+- Saldos afectados: false.
 
-No existe todavia un flujo de aplicacion que tome una respuesta diferencial de prenotificacion, cruce contra NACHA-M desagregado y cambie el estado de una `AchTransaction` con `IsPrenotification=true` usando estados reales del dominio.
+Evidencia: `docs/uat/evidencias/soap-integrations/prenotification-responses/approved/`.
 
-La prenotificacion interna se modela como `AchTransaction.IsPrenotification=true`; los estados reales disponibles son:
+## Escenario rechazado
 
-- `Pending`
-- `ReturnedByOperator`
-- `ReturnedByEpr`
-- `AppliedTacitly`
-- `Certified`
+- Entrada: respuesta diferencial `TipoRespuesta=Prenota`, estado externo `RJ`, causal `R03`.
+- Cruce principal: `EntryDetails.SequenceNumber = 000128300012345`.
+- Estado inicial: `Pending`.
+- Estado final: `ReturnedByEpr`.
+- Evento de estado: creado.
+- Causal: `R03`.
+- Trace: `IntegrationMappingTrace` + `IntegrationMappingTraceEntries`.
+- Movimiento monetario: false.
+- Saldos afectados: false.
 
-No se implemento una regla nueva para traducir codigos externos a esos estados porque la homologacion debe venir de catalogos existentes y evidencia funcional. No se simulo aprobacion/rechazo.
+Evidencia: `docs/uat/evidencias/soap-integrations/prenotification-responses/rejected/`.
 
-## Defecto abierto
+## Negativos cubiertos
 
-`DEF-UAT-SOAP-MAP-004`: falta caso de uso controlado para aplicar respuesta diferencial sobre prenotificacion pendiente originada por CFA, cruzando payload/NACHA-M desagregado/`AchTransaction`, persistiendo trace y state event, sin movimiento monetario.
+- Prenotificacion pendiente no encontrada: falla controlada.
+- Prenotificacion ya procesada: duplicado controlado.
+- Mapping requerido faltante: falla controlada antes de cambiar estado.
+- No dependencia de `IWscfaachSoapClient`.
+- No dependencia de `Proc_Contrapartidas`.
+- No dependencia de `Proc_Transacciones`.
 
 ## Confirmaciones
 
@@ -42,4 +60,5 @@ No se implemento una regla nueva para traducir codigos externos a esos estados p
 - No se movio dinero.
 - No se afectaron saldos.
 - No se expusieron secretos.
-- Productivo permanece NO-GO.
+- Runtime UAT/local expone homologaciones activas `Prenota`: `ACH:00` y `ACH:RJ/R03`.
+- Productivo permanece **NO-GO**.

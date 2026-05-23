@@ -185,6 +185,6 @@ Validaciones:
 | Defecto/Brecha | Estado | Evidencia | Observacion |
 |---|---|---|---|
 | DEF-UAT-SOAP-MAP-005 `Proc_Transacciones` no demostraba fuente NACHA-M desagregada | Cerrado tecnico UAT | `NachaDesagregadoIntegrationMappingTests`, `docs/architecture/NACHA_M_DESAGREGADO_MAPPING_CATALOG.md` | El mapper resuelve desde `NachaHeaders`, `BatchHeaders`, `EntryDetails`, `AddendaRecords`, `BatchControls`, `FileControls` y persiste trace con valor fuente. |
-| DEF-UAT-SOAP-MAP-004 respuesta diferencial sobre prenotificacion pendiente CFA | Abierto | `docs/uat/EVIDENCIAS_RESPUESTAS_PRENOTIFICACIONES.md` | Falta use case que apruebe/rechace `AchTransaction.IsPrenotification=true` cruzando payload, NACHA-M desagregado y catalogos homologados. No se simulo exito. |
+| DEF-UAT-SOAP-MAP-004 respuesta diferencial sobre prenotificacion pendiente CFA | Cerrado tecnico UAT | `DifferentialPrenotificationResponseProcessorTests`, `docs/uat/EVIDENCIAS_RESPUESTAS_PRENOTIFICACIONES.md` | El procesador aprueba/rechaza `AchTransaction.IsPrenotification=true` cruzando payload, NACHA-M desagregado y mapping publicado; persiste trace y evento; no mueve dinero. |
 
 Productivo: **NO-GO**.
