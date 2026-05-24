@@ -27,6 +27,14 @@ internal static class NachaFixedWidthAssertions
         records.Should().OnlyContain(x => x.All(IsAllowedCharacter), "NACHA-M funcional solo admite caracteres imprimibles ASCII en fixtures anonimizados");
     }
 
+    public static void FileShouldHaveValidFixedWidthStructure(string path)
+    {
+        File.Exists(path).Should().BeTrue($"el snapshot NACHA-M requerido no existe: {path}");
+        var content = File.ReadAllText(path);
+        content.Should().NotBeEmpty($"el snapshot NACHA-M requerido esta vacio: {path}");
+        ShouldHaveValidFixedWidthStructure(content);
+    }
+
     public static void ShouldHaveValidPadding(string content, int blockingFactor = BlockingFactor)
     {
         var records = SplitRecords(content);
@@ -40,6 +48,16 @@ internal static class NachaFixedWidthAssertions
 
         records.Skip(firstPaddingIndex).Should().OnlyContain(record => IsPaddingRecord(record), "los registros de padding deben estar al final");
         records.Take(firstPaddingIndex).Should().NotContain(record => IsPaddingRecord(record), "no debe existir padding intermedio");
+        records.Take(firstPaddingIndex).Should().Contain(record => record[0] == '9', "debe existir FileControl antes del padding");
+    }
+
+    public static void ShouldEndWithValidFileControlBeforePadding(string content)
+    {
+        var records = SplitRecords(content);
+        var firstPaddingIndex = records.ToList().FindIndex(IsPaddingRecord);
+        var lastBusinessRecord = firstPaddingIndex < 0 ? records[^1] : records[firstPaddingIndex - 1];
+        lastBusinessRecord[0].Should().Be('9', "el ultimo registro de negocio antes del padding debe ser FileControl");
+        lastBusinessRecord.Should().NotBe(new string('9', RecordLength), "FileControl no debe confundirse con padding");
     }
 
     public static void ShouldRejectInvalidRecordLength(string content)

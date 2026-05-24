@@ -19,6 +19,40 @@ internal sealed record NachaGoldenFileComparisonResult(
 
 internal static class NachaGoldenFileComparer
 {
+    public static NachaGoldenFileComparisonResult CompareFile(
+        string expectedPath,
+        string actual,
+        NachaGoldenFileComparisonOptions? options = null,
+        IReadOnlyList<NachaFieldSpan>? fieldSpans = null)
+    {
+        if (!File.Exists(expectedPath))
+        {
+            return new NachaGoldenFileComparisonResult(false, $"Golden file NACHA-M no existe: {expectedPath}");
+        }
+
+        var expected = File.ReadAllText(expectedPath);
+        var result = Compare(expected, actual, options, fieldSpans);
+        if (result.Matches)
+        {
+            return result;
+        }
+
+        return result with
+        {
+            Message = $"{result.Message} Archivo esperado={expectedPath}. Longitud esperada={expected.Length}, Longitud generada={actual.Length}. Actualice el snapshot solo si el cambio funcional es intencional."
+        };
+    }
+
+    public static void ShouldMatchPhysicalGoldenFile(
+        string expectedPath,
+        string actual,
+        NachaGoldenFileComparisonOptions? options = null,
+        IReadOnlyList<NachaFieldSpan>? fieldSpans = null)
+    {
+        var result = CompareFile(expectedPath, actual, options, fieldSpans);
+        result.Matches.Should().BeTrue(result.Message);
+    }
+
     public static NachaGoldenFileComparisonResult Compare(
         string expected,
         string actual,
@@ -79,7 +113,10 @@ internal static class NachaGoldenFileComparer
         var message = new StringBuilder()
             .Append("Golden file NACHA-M no coincide. ")
             .Append(CultureSafe($"Linea={lineNumber}, Posicion={position}, RecordType={recordType ?? '?'}, Campo={fieldName ?? "desconocido"}, "))
-            .Append(CultureSafe($"Esperado='{Printable(expectedChar)}', Generado='{Printable(actualChar)}'."))
+            .Append(CultureSafe($"Esperado='{Printable(expectedChar)}', Generado='{Printable(actualChar)}'. "))
+            .Append(Context(expected, index, "Esperado"))
+            .Append(' ')
+            .Append(Context(actual, index, "Generado"))
             .ToString();
 
         return new NachaGoldenFileComparisonResult(false, message, lineNumber, position, expectedChar, actualChar, recordType, fieldName);
@@ -90,6 +127,18 @@ internal static class NachaGoldenFileComparer
 
     private static string Printable(char value)
         => value == '\0' ? "<EOF>" : value.ToString();
+
+    private static string Context(string value, int index, string label)
+    {
+        if (value.Length == 0)
+        {
+            return $"{label}Context='<empty>'.";
+        }
+
+        var start = Math.Max(0, index - 8);
+        var length = Math.Min(value.Length - start, 17);
+        return $"{label}Context='{value.Substring(start, length)}'.";
+    }
 
     private static string CultureSafe(FormattableString value)
         => FormattableString.Invariant(value);

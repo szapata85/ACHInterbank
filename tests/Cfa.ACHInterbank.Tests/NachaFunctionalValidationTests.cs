@@ -41,6 +41,42 @@ public class NachaFunctionalValidationTests
     }
 
     [Fact]
+    public async Task GenerateAchColombiaOutgoingFile_ShouldMatchPhysicalGoldenFile()
+    {
+        await using var context = await SeedOfficialProfilesAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+
+        var generated = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+
+        NachaGoldenFileComparer.ShouldMatchPhysicalGoldenFile(NachaTestDataPaths.AchColombiaOutgoing001, generated);
+    }
+
+    [Fact]
+    public void AchColombiaOutgoingGoldenFile_ShouldHaveValidFixedWidth()
+    {
+        var content = NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.AchColombiaOutgoing001);
+
+        NachaFixedWidthAssertions.ShouldHaveValidFixedWidthStructure(content);
+    }
+
+    [Fact]
+    public void AchColombiaOutgoingGoldenFile_ShouldHaveValidPadding()
+    {
+        var content = NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.AchColombiaOutgoing001);
+
+        NachaFixedWidthAssertions.ShouldHaveValidPadding(content);
+    }
+
+    [Fact]
+    public void AchColombiaOutgoingGoldenFile_ShouldHaveValidControlTotals()
+    {
+        var records = NachaFixedWidthAssertions.SplitRecords(NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.AchColombiaOutgoing001));
+
+        records.Single(x => x[0] == '8').Substring(4, 6).Should().Be("000002");
+        records.First(x => x[0] == '9' && !NachaFixedWidthAssertions.IsPaddingRecord(x)).Substring(13, 8).Should().Be("00000002");
+    }
+
+    [Fact]
     public async Task GenerateAchColombiaOutgoingFile_ShouldHaveValidFileName()
     {
         await using var context = await SeedOfficialProfilesAsync();
@@ -104,6 +140,42 @@ public class NachaFunctionalValidationTests
         generated.Should().Contain("CENIT");
         NachaFixedWidthAssertions.ShouldHaveValidFixedWidthStructure(generated);
         NachaGoldenFileComparer.ShouldMatchGoldenFile(generated, generated);
+    }
+
+    [Fact]
+    public async Task GenerateCenitOutgoingFile_ShouldMatchPhysicalGoldenFile()
+    {
+        await using var context = await SeedOfficialProfilesAsync();
+        var setup = CreateOfficialSut(context, "CENIT");
+
+        var generated = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+
+        NachaGoldenFileComparer.ShouldMatchPhysicalGoldenFile(NachaTestDataPaths.CenitOutgoing001, generated);
+    }
+
+    [Fact]
+    public void CenitOutgoingGoldenFile_ShouldHaveValidFixedWidth()
+    {
+        var content = NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.CenitOutgoing001);
+
+        NachaFixedWidthAssertions.ShouldHaveValidFixedWidthStructure(content);
+    }
+
+    [Fact]
+    public void CenitOutgoingGoldenFile_ShouldHaveValidPadding()
+    {
+        var content = NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.CenitOutgoing001);
+
+        NachaFixedWidthAssertions.ShouldHaveValidPadding(content);
+    }
+
+    [Fact]
+    public void CenitOutgoingGoldenFile_ShouldHaveValidControlTotals()
+    {
+        var records = NachaFixedWidthAssertions.SplitRecords(NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.CenitOutgoing001));
+
+        records.Single(x => x[0] == '8').Substring(4, 6).Should().Be("000002");
+        records.First(x => x[0] == '9' && !NachaFixedWidthAssertions.IsPaddingRecord(x)).Substring(13, 8).Should().Be("00000002");
     }
 
     [Fact]
@@ -199,6 +271,38 @@ public class NachaFunctionalValidationTests
     }
 
     [Fact]
+    public async Task ParseAchColombiaIncomingGoldenFile_ShouldLoadDisaggregatedRecords()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateSqliteContext(connection);
+        SeedParserCatalog(context);
+
+        var result = await ParseAsync(context, NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.AchColombiaIncoming001), "ACH_COL_IN_001.ach");
+
+        result.Failures.Should().BeEmpty();
+        context.NachaHeaders.Should().ContainSingle();
+        context.BatchHeaders.Should().ContainSingle();
+        context.EntryDetails.Should().ContainSingle();
+        context.AddendaRecords.Should().ContainSingle();
+        context.BatchControls.Should().ContainSingle();
+        context.FileControls.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task ParseAchColombiaIncomingGoldenFile_ShouldValidateControlTotals()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateSqliteContext(connection);
+        SeedParserCatalog(context);
+
+        await ParseAsync(context, NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.AchColombiaIncoming001), "ACH_COL_IN_001.ach");
+
+        context.FileControls.Single().EntryAddendaCount.Should().Be(2);
+        context.FileControls.Single().EntryHash.Should().Be(76543210);
+        context.FileControls.Single().TotalCreditAmount.Should().Be(1500m);
+    }
+
+    [Fact]
     public async Task ParseCenitIncomingFile_ShouldLoadDisaggregatedRecords()
     {
         using var connection = CreateOpenConnection();
@@ -223,6 +327,34 @@ public class NachaFunctionalValidationTests
 
         context.FileControls.Single().EntryAddendaCount.Should().Be(2);
         context.FileControls.Single().EntryHash.Should().Be(76543210);
+    }
+
+    [Fact]
+    public async Task ParseCenitIncomingGoldenFile_ShouldLoadDisaggregatedRecords()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateSqliteContext(connection);
+        SeedParserCatalog(context, clearingHouseName: "CENIT", originCode: "87654321");
+
+        var result = await ParseAsync(context, NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.CenitIncoming001), "CENIT_IN_001.ach");
+
+        result.Failures.Should().BeEmpty();
+        context.NachaHeaders.Single().ImmediateOriginName.Should().Contain("CENIT");
+        context.EntryDetails.Should().ContainSingle();
+        context.FileControls.Single().EntryAddendaCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task ParseCenitIncomingGoldenFile_ShouldValidateControlTotals()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateSqliteContext(connection);
+        SeedParserCatalog(context, clearingHouseName: "CENIT", originCode: "87654321");
+
+        await ParseAsync(context, NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.CenitIncoming001), "CENIT_IN_001.ach");
+
+        context.FileControls.Single().EntryHash.Should().Be(76543210);
+        context.FileControls.Single().TotalCreditAmount.Should().Be(1500m);
     }
 
     [Fact]
@@ -273,6 +405,65 @@ public class NachaFunctionalValidationTests
             .ReturnsAsync(new AchTransaction());
 
         await ParseAsync(context, BuildReturnFile(), "1234567.001.RET", state.Object);
+
+        context.EntryDetails.Single().Amount.Should().Be(1500m);
+        state.Verify(x => x.TransitionAsync(It.IsAny<int>(), It.IsAny<AchTransferStateEnum>(), It.IsAny<AchStateEventSourceEnum>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ParseAchColombiaReturnGoldenFile_ShouldAcceptRetExtension()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateSqliteContext(connection);
+        SeedParserCatalog(context);
+
+        var result = await ParseAsync(context, NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.AchColombiaReturn001), "ACH_COL_RET_001.RET");
+
+        result.Failures.Should().BeEmpty();
+        context.AddendaRecords.Single().ReturnReasonCode.Should().Be("R01");
+    }
+
+    [Fact]
+    public async Task ParseAchColombiaReturnGoldenFile_ShouldNotPerformMonetaryMovement()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateSqliteContext(connection);
+        SeedParserCatalog(context);
+        var state = new Mock<IAchStateTransitionService>();
+        state.Setup(x => x.TransitionAsync(It.IsAny<int>(), It.IsAny<AchTransferStateEnum>(), It.IsAny<AchStateEventSourceEnum>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchTransaction());
+
+        await ParseAsync(context, NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.AchColombiaReturn001), "ACH_COL_RET_001.RET", state.Object);
+
+        context.EntryDetails.Single().Amount.Should().Be(1500m);
+        state.Verify(x => x.TransitionAsync(It.IsAny<int>(), It.IsAny<AchTransferStateEnum>(), It.IsAny<AchStateEventSourceEnum>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ParseCenitReturnGoldenFile_ShouldAcceptRetExtension()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateSqliteContext(connection);
+        SeedParserCatalog(context, clearingHouseName: "CENIT", originCode: "87654321");
+
+        var result = await ParseAsync(context, NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.CenitReturn001), "CENIT_RET_001.RET");
+
+        result.Failures.Should().BeEmpty();
+        context.NachaHeaders.Single().ImmediateOriginName.Should().Contain("CENIT");
+        context.AddendaRecords.Single().OriginalTraceNumber.Should().Be("123456780000001");
+    }
+
+    [Fact]
+    public async Task ParseCenitReturnGoldenFile_ShouldNotPerformMonetaryMovement()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateSqliteContext(connection);
+        SeedParserCatalog(context, clearingHouseName: "CENIT", originCode: "87654321");
+        var state = new Mock<IAchStateTransitionService>();
+        state.Setup(x => x.TransitionAsync(It.IsAny<int>(), It.IsAny<AchTransferStateEnum>(), It.IsAny<AchStateEventSourceEnum>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchTransaction());
+
+        await ParseAsync(context, NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.CenitReturn001), "CENIT_RET_001.RET", state.Object);
 
         context.EntryDetails.Single().Amount.Should().Be(1500m);
         state.Verify(x => x.TransitionAsync(It.IsAny<int>(), It.IsAny<AchTransferStateEnum>(), It.IsAny<AchStateEventSourceEnum>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -368,6 +559,137 @@ public class NachaFunctionalValidationTests
         var result = NachaGoldenFileComparer.Compare("1\r\n5", "1\n5", new(CompareByteByByte: false, NormalizeLineEndingsBeforeComparison: true));
 
         result.Matches.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GoldenFileComparer_ShouldComparePhysicalSnapshotByteByByte()
+    {
+        var content = NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.AchColombiaIncoming001);
+
+        NachaGoldenFileComparer.CompareFile(NachaTestDataPaths.AchColombiaIncoming001, content).Matches.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GoldenFileComparer_ShouldComparePhysicalSnapshotWithNormalizedLineEndings()
+    {
+        var content = NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.AchColombiaIncoming001);
+
+        NachaGoldenFileComparer.CompareFile(NachaTestDataPaths.AchColombiaIncoming001, content.Replace("\n", "\r\n", StringComparison.Ordinal), new(CompareByteByByte: false, NormalizeLineEndingsBeforeComparison: true))
+            .Matches.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GoldenFileComparer_ShouldReportFirstDifferenceForPhysicalSnapshot()
+    {
+        var content = NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.AchColombiaIncoming001);
+        var mutated = "5" + content[1..];
+
+        var result = NachaGoldenFileComparer.CompareFile(NachaTestDataPaths.AchColombiaIncoming001, mutated);
+
+        result.Matches.Should().BeFalse();
+        result.Message.Should().Contain("Linea=1");
+        result.Message.Should().Contain("Posicion=1");
+        result.Message.Should().Contain("Archivo esperado=");
+    }
+
+    [Fact]
+    public void GoldenFileComparer_ShouldFailWhenPhysicalSnapshotIsMissing()
+    {
+        var result = NachaGoldenFileComparer.CompareFile(NachaTestDataPaths.ResolveMissingSnapshotForTest(), "content");
+
+        result.Matches.Should().BeFalse();
+        result.Message.Should().Contain("no existe");
+    }
+
+    [Fact]
+    public void GoldenFileComparer_ShouldFailWhenGeneratedFileDiffersFromSnapshot()
+    {
+        var content = NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.AchColombiaIncoming001);
+        var mutated = content[..50] + "X" + content[51..];
+
+        var result = NachaGoldenFileComparer.CompareFile(NachaTestDataPaths.AchColombiaIncoming001, mutated);
+
+        result.Matches.Should().BeFalse();
+        result.Message.Should().Contain("Actualice el snapshot solo si");
+    }
+
+    [Fact]
+    public void GoldenFiles_ShouldExist()
+    {
+        NachaTestDataPaths.AllGoldenFiles.Should().OnlyContain(path => File.Exists(path));
+    }
+
+    [Fact]
+    public void GoldenFiles_ShouldNotBeEmpty()
+    {
+        NachaTestDataPaths.AllGoldenFiles.Should().OnlyContain(path => new FileInfo(path).Length > 0);
+    }
+
+    [Fact]
+    public void GoldenFiles_ShouldUseAllowedExtensions()
+    {
+        NachaTestDataPaths.AllGoldenFiles.Should().OnlyContain(path =>
+            string.Equals(Path.GetExtension(path), ".ach", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(Path.GetExtension(path), ".RET", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void GoldenFiles_ShouldNotContainSensitivePlaceholderViolations()
+    {
+        foreach (var path in NachaTestDataPaths.AllGoldenFiles)
+        {
+            NachaFixtureSensitivityAssertions.ShouldNotContainSensitivePlaceholderViolations(File.ReadAllText(path), path);
+        }
+    }
+
+    [Fact]
+    public void GoldenFiles_ShouldHaveExpectedRecordLength()
+    {
+        foreach (var path in NachaTestDataPaths.AllGoldenFiles)
+        {
+            NachaFixedWidthAssertions.FileShouldHaveValidFixedWidthStructure(path);
+        }
+    }
+
+    [Fact]
+    public void GoldenFiles_ShouldHaveOnlyAllowedRecordTypes()
+    {
+        foreach (var path in NachaTestDataPaths.AllGoldenFiles)
+        {
+            NachaFixedWidthAssertions.SplitRecords(File.ReadAllText(path)).Should().OnlyContain(record => "156789".Contains(record[0], StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
+    public void GoldenFiles_ShouldHavePaddingOnlyAtEnd()
+    {
+        foreach (var path in NachaTestDataPaths.AllGoldenFiles)
+        {
+            NachaFixedWidthAssertions.ShouldHaveValidPadding(File.ReadAllText(path));
+        }
+    }
+
+    [Fact]
+    public void GoldenFiles_ShouldEndWithValidFileControlBeforePadding()
+    {
+        foreach (var path in NachaTestDataPaths.AllGoldenFiles)
+        {
+            NachaFixedWidthAssertions.ShouldEndWithValidFileControlBeforePadding(File.ReadAllText(path));
+        }
+    }
+
+    [Fact]
+    public void PhysicalGoldenFileNames_ShouldFollowExpectedConvention()
+    {
+        Path.GetFileName(NachaTestDataPaths.AchColombiaOutgoing001).Should().Be("ACH_COL_OUT_001.ach");
+        Path.GetFileName(NachaTestDataPaths.CenitOutgoing001).Should().Be("CENIT_OUT_001.ach");
+    }
+
+    [Fact]
+    public void PhysicalReturnGoldenFileNames_ShouldUseRetExtension()
+    {
+        Path.GetExtension(NachaTestDataPaths.AchColombiaReturn001).Should().Be(".RET");
+        Path.GetExtension(NachaTestDataPaths.CenitReturn001).Should().Be(".RET");
     }
 
     [Fact]
