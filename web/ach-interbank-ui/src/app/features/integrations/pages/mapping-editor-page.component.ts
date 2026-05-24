@@ -1,10 +1,10 @@
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { Router } from '@angular/router';
 import { ReactiveFormsModule } from '@angular/forms';
-import { Subject, forkJoin, of } from 'rxjs';
+import { Observable, Subject, forkJoin, of, throwError } from 'rxjs';
 import { catchError, distinctUntilChanged, finalize, map, switchMap, takeUntil, timeout } from 'rxjs/operators';
 import {
   IntegrationMappingAdminService,
@@ -34,6 +34,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroy$ = new Subject<void>();
 
   mappingSetId = '';
@@ -103,6 +104,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
         this.methodCode = methodCode;
 
         if (!this.mappingSetId || !this.methodCode) {
+          this.loading = false;
           this.viewState = 'error';
           this.errorMessage = 'No se recibieron los datos requeridos para abrir el editor.';
           return;
@@ -167,7 +169,12 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   }
 
   loadAll(): void {
-    if (!this.mappingSetId) return;
+    if (!this.mappingSetId || !this.methodCode) {
+      this.loading = false;
+      this.viewState = 'error';
+      this.errorMessage = 'No se recibieron los datos requeridos para abrir el editor.';
+      return;
+    }
 
     console.debug('[mapping-editor] loadAll:start', { mappingSetId: this.mappingSetId, methodCode: this.methodCode });
     this.loading = true;
@@ -175,16 +182,34 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
     this.errorMessage = '';
     this.previewResult = undefined;
     this.validationResult = undefined;
+    this.cdr.detectChanges();
 
     this.api
       .getMappingSetById(this.mappingSetId)
       .pipe(
         timeout(15000),
-        switchMap((set) =>
-          forkJoin({
-            parameters: this.api.getMethodParameters(set.methodId).pipe(timeout(15000)),
-            sourceCatalog: this.api.getSourceCatalog(set.methodId).pipe(timeout(15000)),
-            transformations: this.api.getTransformations().pipe(timeout(15000)),
+        catchError((error) => this.failEditorLoad<IntegrationMappingSet>('No existe o no se pudo cargar el mapping set solicitado.', error)),
+        switchMap((set) => {
+          const routeMethodCode = decodeURIComponent(this.methodCode).trim();
+          if (routeMethodCode && set.methodCode !== routeMethodCode) {
+            return this.failEditorLoad(
+              `El mapping set cargado pertenece a ${set.methodCode}, pero la ruta solicita ${routeMethodCode}.`
+            );
+          }
+
+          return forkJoin({
+            parameters: this.api.getMethodParameters(set.methodId).pipe(
+              timeout(15000),
+              catchError((error) => this.failEditorLoad('No fue posible cargar los campos destino SOAP/XML.', error))
+            ),
+            sourceCatalog: this.api.getSourceCatalog(set.methodId).pipe(
+              timeout(15000),
+              catchError((error) => this.failEditorLoad('No fue posible cargar el catálogo controlado de campos origen.', error))
+            ),
+            transformations: this.api.getTransformations().pipe(
+              timeout(15000),
+              catchError((error) => this.failEditorLoad('No fue posible cargar el catálogo de transformaciones.', error))
+            ),
             historyItems: this.api.getHistory(set.id).pipe(
               timeout(10000),
               catchError((historyError) => {
@@ -192,10 +217,10 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
                 return of([] as MappingSetHistoryItem[]);
               })
             )
-          }).pipe(map((catalogs) => ({ set, ...catalogs })))
-        ),
-        finalize(() => (this.loading = false)),
-        takeUntil(this.destroy$)
+          }).pipe(map((catalogs) => ({ set, ...catalogs })));
+        }),
+        takeUntil(this.destroy$),
+        finalize(() => (this.loading = false))
       )
       .subscribe({
         next: ({ set, parameters, sourceCatalog, transformations, historyItems }) => {
@@ -206,29 +231,25 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
             transformations: transformations?.length ?? 0,
             historyItems: historyItems?.length ?? 0
           });
-          this.mappingSet = set;
-          this.parameters = parameters ?? [];
-          this.sourceCatalog = sourceCatalog ?? [];
-          this.refreshSourceKindOptions();
-          this.transformations = transformations ?? [];
-          this.historyItems = historyItems ?? [];
+          try {
+            this.mappingSet = set;
+            this.parameters = parameters ?? [];
+            this.sourceCatalog = sourceCatalog ?? [];
+            this.refreshSourceKindOptions();
+            this.transformations = transformations ?? [];
+            this.historyItems = historyItems ?? [];
 
-          const parameterStillExists = this.parameters.some((x) => x.id === this.selectedParameterId);
-          this.selectedParameterId = parameterStillExists ? this.selectedParameterId : this.parameters[0]?.id;
-          this.populateFormFromSelectedRule();
-          this.viewState = 'ready';
+            const parameterStillExists = this.parameters.some((x) => x.id === this.selectedParameterId);
+            this.selectedParameterId = parameterStillExists ? this.selectedParameterId : this.parameters[0]?.id;
+            this.populateFormFromSelectedRule();
+            this.viewState = 'ready';
+            this.cdr.detectChanges();
+          } catch (renderError) {
+            this.handleEditorLoadFailure(renderError);
+          }
         },
-        error: () => {
-          console.error('[mapping-editor] loadAll:error', { mappingSetId: this.mappingSetId, methodCode: this.methodCode });
-          this.mappingSet = undefined;
-          this.parameters = [];
-          this.sourceCatalog = [];
-          this.refreshSourceKindOptions();
-          this.transformations = [];
-          this.historyItems = [];
-          this.viewState = 'error';
-          this.errorMessage = 'No fue posible cargar el editor de configuración. Intenta nuevamente.';
-          this.notifications.error(this.errorMessage);
+        error: (error) => {
+          this.handleEditorLoadFailure(error);
         }
       });
   }
@@ -554,6 +575,72 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
     if (lowered === 'prenotification') return 'Prenotification';
     if (lowered === 'differentialresponse') return 'DifferentialResponse';
     return raw;
+  }
+
+  private failEditorLoad<T>(message: string, error?: unknown): Observable<T> {
+    return throwError(() => new Error(this.buildEditorLoadErrorMessage(message, error)));
+  }
+
+  private buildEditorLoadErrorMessage(message: string, error?: unknown): string {
+    const status = this.extractHttpStatus(error);
+
+    if (status === 401 || status === 403) {
+      return `${message} La sesión no tiene permisos suficientes o expiró.`;
+    }
+
+    if (status === 404) {
+      return `${message} Verifica que el identificador exista y que pertenezca a la operación solicitada.`;
+    }
+
+    if (status && status >= 500) {
+      return `${message} El API respondió con error ${status}.`;
+    }
+
+    if (this.isTimeoutError(error)) {
+      return `${message} Se agotó el tiempo de espera del API.`;
+    }
+
+    return message;
+  }
+
+  private getEditorLoadErrorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) {
+      return error.message;
+    }
+
+    return 'No fue posible cargar el editor de configuración. Intenta nuevamente.';
+  }
+
+  private handleEditorLoadFailure(error: unknown): void {
+    const message = this.getEditorLoadErrorMessage(error);
+    console.error('[mapping-editor] loadAll:error', {
+      mappingSetId: this.mappingSetId,
+      methodCode: this.methodCode,
+      message
+    });
+    this.loading = false;
+    this.mappingSet = undefined;
+    this.parameters = [];
+    this.sourceCatalog = [];
+    this.refreshSourceKindOptions();
+    this.transformations = [];
+    this.historyItems = [];
+    this.viewState = 'error';
+    this.errorMessage = message;
+    this.notifications.error(this.errorMessage);
+    this.cdr.detectChanges();
+  }
+
+  private extractHttpStatus(error: unknown): number | undefined {
+    if (!error || typeof error !== 'object') return undefined;
+    const candidate = error as { status?: unknown };
+    return typeof candidate.status === 'number' ? candidate.status : undefined;
+  }
+
+  private isTimeoutError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const candidate = error as { name?: unknown };
+    return candidate.name === 'TimeoutError';
   }
 
 

@@ -210,3 +210,13 @@ Productivo: **NO-GO**.
 - Acta firmable: `docs/uat/ACTA_UAT_SOAP_END_TO_END_FORMAL.md`.
 - Matriz final: `docs/uat/MATRIZ_ESCENARIOS_UAT_SOAP_END_TO_END_FINAL.md`.
 - Conclusión: continuar UAT controlado. Productivo **NO-GO**.
+
+## Actualizacion 2026-05-23 - editor SPA mappings Proc_Transacciones
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-UX-MAP-006 Editor funcional de mappings queda en loading indefinido | Cerrado tecnico frontend | `docs/ux/evidencias/mapping-editor-proc-transacciones-validation.json`, `docs/ux/evidencias/mapping-editor-proc-transacciones-loaded.png` | La ruta `WSCFAACH.Proc_Transacciones/dc1b034b-4de3-4043-93cc-79072bf8a5e9` sale de loading y muestra formulario o error funcional. No se modifico backend. |
+
+El error `message channel closed before a response was received` no se reprodujo en Chromium limpio; queda documentado como ruido probable de extension si aparece en navegador local.
+
+Productivo: **NO-GO**.

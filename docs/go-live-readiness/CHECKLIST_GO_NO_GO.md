@@ -184,3 +184,14 @@ Observacion normativa:
 | Productivo | NO-GO | Este checklist | Si | Sin autorizacion Live ni homologacion final |
 
 Decision productiva: **NO-GO**.
+
+## Actualizacion 2026-05-23 - editor SPA mappings Proc_Transacciones
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| Editor `/integraciones/mappings/WSCFAACH.Proc_Transacciones/{id}` sin spinner infinito | OK tecnico frontend | `docs/ux/evidencias/mapping-editor-proc-transacciones-validation.json` | No por si solo | Loading cierra y muestra formulario o error funcional claro. |
+| Error `message channel closed` | No reproducido en Chromium limpio | Playwright validation JSON | No | Se considera ruido probable de extension si aparece en navegador local. |
+| Backend/reglas ACH/NACHA-M | Sin cambio | Git diff | Si si cambia sin autorizacion | No se tocaron contratos SOAP ni reglas ACH/NACHA-M/CENIT/ROR. |
+| Productivo | NO-GO | Este checklist | Si | Sin autorizacion Live ni homologacion final. |
+
+Decision productiva: **NO-GO**.

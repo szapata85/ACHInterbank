@@ -1,0 +1,84 @@
+{
+  "generatedAt": "2026-05-24T01:06:41.493Z",
+  "ok": true,
+  "baseUrl": "http://localhost:743",
+  "path": "/integraciones/mappings/WSCFAACH.Proc_Transacciones/dc1b034b-4de3-4043-93cc-79072bf8a5e9",
+  "loadingCleared": true,
+  "formVisible": true,
+  "errorVisible": false,
+  "failedRequests": [],
+  "ignoredFailedRequests": [
+    {
+      "method": "GET",
+      "url": "http://localhost:743/api/users/branding",
+      "failure": "net::ERR_ABORTED",
+      "durationMs": 143
+    },
+    {
+      "method": "GET",
+      "url": "https://fonts.gstatic.com/s/materialsymbolsoutlined/v339/kJF1BvYX7BgnkSrUwT8OhrdQw4oELdPIeeII9v6oDMzByHX9rA6RzaxHMPdY43zj-jCxv3fzvRNU22ZXGJpEpjC_1v-p_4MrImHCIJIZrDCvHOej.woff2",
+      "failure": "net::ERR_ABORTED",
+      "durationMs": 0
+    }
+  ],
+  "apiCalls": [
+    {
+      "method": "GET",
+      "url": "http://localhost:743/api/users/branding",
+      "status": 200,
+      "durationMs": 130
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:743/auth/refresh",
+      "status": 200,
+      "durationMs": 139
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:743/navigation/menu",
+      "status": 200,
+      "durationMs": 109
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:743/api/integrations/mappingsets/dc1b034b-4de3-4043-93cc-79072bf8a5e9",
+      "status": 200,
+      "durationMs": 113
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:743/api/navigation-logs",
+      "status": 200,
+      "durationMs": 332
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:743/api/integrations/transformations",
+      "status": 200,
+      "durationMs": 167
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:743/api/integrations/mappingsets/dc1b034b-4de3-4043-93cc-79072bf8a5e9/history",
+      "status": 200,
+      "durationMs": 169
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:743/api/integrations/methods/2/parameters",
+      "status": 200,
+      "durationMs": 173
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:743/api/integrations/source-catalog?methodId=2",
+      "status": 200,
+      "durationMs": 174
+    }
+  ],
+  "consoleErrors": [],
+  "messageChannelErrorIgnoredAsExtensionNoise": false,
+  "screenshotPath": "docs/ux/evidencias/mapping-editor-proc-transacciones-loaded.png",
+  "errors": []
+}

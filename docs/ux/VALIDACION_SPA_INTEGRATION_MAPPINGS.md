@@ -49,3 +49,38 @@ Estado: validada para UAT/local.
 La SPA consume los endpoints existentes de integraciones, parametros destino y catalogo de fuentes. No se modifico backend ni reglas ACH/NACHA-M/CENIT/ROR.
 
 Productivo: NO-GO.
+
+## Validacion editor Proc_Transacciones - 2026-05-23
+
+Ruta validada:
+
+- `/integraciones/mappings/WSCFAACH.Proc_Transacciones/dc1b034b-4de3-4043-93cc-79072bf8a5e9`
+
+Diagnostico:
+
+- El mapping set existe y el API responde 200.
+- `WSCFAACH.Proc_Transacciones` se parsea correctamente como `methodCode`.
+- Endpoints criticos validados: mapping set, parametros destino, source catalog, transformations e history.
+- El error de navegador `A listener indicated an asynchronous response... message channel closed...` no aparecio en Playwright/Chromium limpio; se considera ruido probable de extension cuando aparezca en Brave/Chrome.
+- Causa raiz del bloqueo: el editor completaba `loadAll` pero la vista podia permanecer en estado visual de loading sin forzar deteccion de cambios ni exponer error funcional por endpoint.
+
+Correccion:
+
+- `mapping-editor-page.component.ts` ahora valida mismatch entre ruta y mapping set.
+- Cada endpoint critico convierte fallas/timeout en error funcional visible.
+- `loading` se cierra con `finalize` y se fuerza `ChangeDetectorRef.detectChanges()` al cambiar a `ready` o `error`.
+- Si falla el render posterior a la carga, se muestra error visible con `Reintentar` y `Volver al listado`.
+
+Evidencia:
+
+- `docs/ux/evidencias/mapping-editor-proc-transacciones-loaded.png`
+- `docs/ux/evidencias/mapping-editor-proc-transacciones-validation.json`
+
+Resultado Playwright:
+
+- `loadingCleared=true`.
+- `formVisible=true`.
+- `failedRequests=[]` para requests criticos.
+- `consoleErrors=[]`.
+
+Productivo: NO-GO.
