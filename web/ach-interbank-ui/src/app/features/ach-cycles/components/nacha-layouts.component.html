@@ -1,23 +1,57 @@
-<app-page-header title="NACHA Layouts" subtitle="Administra campos y posiciones del archivo NACHA-M"></app-page-header>
+<section class="page-shell" data-testid="nacha-layouts-page">
+  <app-page-header
+    title="Layouts NACHA-M"
+    subtitle="Administra la estructura de campos, posiciones y longitudes de los registros NACHA-M."
+  ></app-page-header>
 
-<div class="actions">
-  <button type="button" (click)="startCreate()">Nuevo layout</button>
-  <button type="button" class="btn btn-outline" (click)="load()" [disabled]="loading">Refrescar</button>
-</div>
+  <div class="summary-grid" aria-label="Resumen de layouts NACHA-M">
+    <article class="summary-card">
+      <span>Total layouts</span>
+      <strong>{{ totalLayouts }}</strong>
+    </article>
+    <article class="summary-card">
+      <span>Campos configurados</span>
+      <strong>{{ totalFields }}</strong>
+    </article>
+    <article class="summary-card">
+      <span>Definiciones relacionadas</span>
+      <strong>{{ configuredDefinitions }}</strong>
+    </article>
+  </div>
 
-<app-table
-  [columns]="columns"
-  [data]="layouts"
-  [loading]="loading"
-  [pageSize]="layouts.length || 10"
-  [total]="layouts.length"
-  [rowActions]="rowActions"
-></app-table>
+  <div class="toolbar">
+    <button type="button" class="btn btn-primary" (click)="startCreate()">Nuevo layout</button>
+    <button type="button" class="btn btn-outline" (click)="load()" [disabled]="loading">Refrescar</button>
+  </div>
+
+  <ui-estado-error
+    *ngIf="loadError"
+    titulo="No fue posible cargar layouts NACHA-M"
+    [mensaje]="loadError"
+    (reintentar)="load()"
+  ></ui-estado-error>
+
+  <app-table
+    *ngIf="!loadError"
+    [columns]="columns"
+    [data]="layouts"
+    [loading]="loading"
+    [pageSize]="layouts.length || 10"
+    [total]="layouts.length"
+    [rowActions]="rowActions"
+  ></app-table>
+
+  <ui-estado-vacio
+    *ngIf="!loading && !loadError && layouts.length === 0"
+    titulo="No hay layouts configurados"
+    mensaje="Cree un layout para definir campos, posiciones y longitudes NACHA-M."
+  ></ui-estado-vacio>
+</section>
 
 <ng-template #rowActions let-layout>
   <div class="row-actions">
-    <button type="button" class="link" (click)="startEdit(layout)">Editar</button>
-    <button type="button" class="link btn-danger" (click)="remove(layout)">Eliminar</button>
+    <button type="button" class="btn btn-outline btn-sm" (click)="startEdit(layout)">Editar</button>
+    <button type="button" class="btn btn-danger btn-sm" (click)="remove(layout)">Eliminar</button>
   </div>
 </ng-template>
 

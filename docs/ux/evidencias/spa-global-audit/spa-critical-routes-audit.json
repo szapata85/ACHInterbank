@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-24T02:47:23.896Z",
+  "generatedAt": "2026-05-24T03:55:43.249Z",
   "baseUrl": "http://localhost:743",
   "auditedRoutes": [
     "/ach-cycles/nacha/export",
@@ -579,8 +579,8 @@
       "visual": {
         "title": "ACH Interbank - Gestión de Transacciones",
         "url": "http://localhost:743/ach-cycles/nacha/layouts",
-        "bodyTextLength": 2592,
-        "mainTextSample": "ADMINISTRA CAMPOS Y POSICIONES DEL ARCHIVO NACHA-M\n\nNACHA Layouts\nNuevo layout\nRefrescar\nsearch\nCódigo\nTipo\nLongitud\nCampos\nAcciones\n1\nFILE_HEADER\n106\n12\nEditar\nEliminar\n5\nBATCH_HEADER\n106\n12\nEditar\nEliminar\n6\nENTRY_DETAIL\n106\n10\nEditar\nEliminar\n7\nADDENDA\n106\n4\nEditar\nEliminar\n8\nBATCH_CONTROL\n106\n9\nEditar\nEliminar\n9\nFILE_CONTROL\n106\n6\nEditar\nEliminar",
+        "bodyTextLength": 3023,
+        "mainTextSample": "ADMINISTRA LA ESTRUCTURA DE CAMPOS, POSICIONES Y LONGITUDES DE LOS REGISTROS NACHA-M.\n\nLayouts NACHA-M\nTotal layouts\n6\nCampos configurados\n53\nDefiniciones relacionadas\n6\nNuevo layout\nRefrescar\nsearch\nCódigo\nTipo de registro\nLongitud\nCampos\nDescripción\nAcciones\n1\nFILE_HEADER\n106\n12\nRegistro encabezado de archivo NACHA-M (ACH Colombia)\nEditar\nEliminar\n5\nBATCH_HEADER\n106\n12\nRegistro encabezado de lote NACHA-M\nEditar\nEliminar\n6\nENTRY_DETAIL\n106\n10\nRegistro detalle de transacción NACHA-M\nEditar\nElimi",
         "hasVisibleLoadingText": false,
         "hasSpinner": false,
         "blankScreen": false,
@@ -631,8 +631,8 @@
       "visual": {
         "title": "ACH Interbank - Gestión de Transacciones",
         "url": "http://localhost:743/ach-cycles/nacha/definitions",
-        "bodyTextLength": 2852,
-        "mainTextSample": "Definiciones de registros NACHA\n\nConfigura el orden y la fuente de datos para cada registro, con resumen del layout asociado.\n\nNuevo\nsearch\nCódigo\nOrden\nFuente\nOrigen\nFiltro\nLayout (campos)\nActivo\nAcciones\n1\n10\nCustom\nCalculado (Custom)\nFILE_HEADER (12)\nEditar\nEliminar\n5\n20\nCustom\nCalculado (Custom)\nBATCH_HEADER (12)\nEditar\nEliminar\n6\n30\nCustom\nCalculado (Custom)\nBatchId\nENTRY_DETAIL (10)\nEditar\nEliminar\n7\n40\nCustom\nCalculado (Custom)\nBatchId\nADDENDA (4)\nEditar\nEliminar\n8\n50\nCustom\nCalculado (Cu",
+        "bodyTextLength": 2937,
+        "mainTextSample": "Definiciones NACHA-M\n\nConfigura el orden y la fuente de datos de cada registro sin perder el contexto de la lista.\n\nNueva definición\nTotal definiciones\n6\nActivas\n6\nInactivas\n0\nsearch\nCódigo\nOrden\nFuente\nOrigen\nFiltro\nLayout (campos)\nEstado\nAcciones\n1\n10\nCustom\nCalculado (Custom)\nFILE_HEADER (12)\nActivo\nEditar\nEliminar\n5\n20\nCustom\nCalculado (Custom)\nBATCH_HEADER (12)\nActivo\nEditar\nEliminar\n6\n30\nCustom\nCalculado (Custom)\nBatchId\nENTRY_DETAIL (10)\nActivo\nEditar\nEliminar\n7\n40\nCustom\nCalculado (Custo",
         "hasVisibleLoadingText": false,
         "hasSpinner": false,
         "blankScreen": false,

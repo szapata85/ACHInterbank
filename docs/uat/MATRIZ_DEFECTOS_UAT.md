@@ -251,4 +251,15 @@ Validacion: `npm run build` OK, `npm test -- --watch=false --browsers=ChromeHead
 
 Productivo: **NO-GO**.
 
+## Actualizacion 2026-05-24 - Fase 4 NACHA-M layouts y definitions
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-UX-NACHA-001 UX pobre en `/ach-cycles/nacha/layouts` | Cerrado tecnico frontend | `docs/ux/evidencias/nacha-layouts-definitions/screenshots/nacha-layouts.png` | Se agrego resumen operativo, estados de error/vacio y botones consistentes. No se cambiaron reglas NACHA-M ni API. |
+| DEF-UAT-UX-NACHA-002 Edicion inline pesada en `/ach-cycles/nacha/definitions` | Cerrado tecnico frontend | `docs/ux/evidencias/nacha-layouts-definitions/screenshots/nacha-definitions-edit-modal.png` | Crear/editar definicion usa modal/drawer lateral, conserva contexto de lista y reutiliza el mismo servicio/payload. |
+
+Validacion: `npm run build` OK, `npm test -- --watch=false --browsers=ChromeHeadless` OK con 214 SUCCESS, `node web/ach-interbank-ui/scripts/ux-validate-nacha-layouts-definitions.mjs` OK y auditoria global SPA P0=0/P1=0/P2=0.
+
+Productivo: **NO-GO**.
+
 Productivo: **NO-GO**.

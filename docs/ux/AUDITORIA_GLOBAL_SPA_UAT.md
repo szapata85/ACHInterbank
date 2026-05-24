@@ -55,6 +55,44 @@ Validaciones:
 - `node web/ach-interbank-ui/scripts/ux-validate-catalogs-aggrid.mjs`: OK.
 - `node web/ach-interbank-ui/scripts/ux-audit-spa-critical-routes.mjs`: OK, P0=0/P1=0/P2=0.
 
+## Fase 4 - NACHA-M layouts y definitions
+
+Se valido y corrigio el alcance acotado de:
+
+- `/ach-cycles/nacha/layouts`
+- `/ach-cycles/nacha/definitions`
+
+Diagnostico:
+
+- Ambas rutas cargaban con endpoints `200` y sin errores criticos de consola.
+- `/ach-cycles/nacha/layouts` tenia una experiencia funcional pero poco operativa: header basico, sin resumen y acciones pequenas.
+- `/ach-cycles/nacha/definitions` usaba editor inline bajo la grilla; la edicion perdia contexto y saturaba la vista.
+- No se detecto bug backend ni necesidad de cambiar contratos API.
+
+Cambios aplicados:
+
+- Header/resumen operativo para layouts y definitions.
+- Estados de error/vacio explicitos.
+- Botones de accion con el patron visual vigente.
+- Definitions usa modal/drawer lateral para crear/editar, con contexto del registro, cancelar/cerrar, loading de guardado y refresco de lista tras guardar.
+
+No se tocaron reportes, PDFs, catalogos, mappings, SOAP, export NACHA-M, backend ni reglas ACH/NACHA-M/CENIT/ROR.
+
+Evidencias:
+
+- `docs/ux/evidencias/nacha-layouts-definitions/nacha-layouts-definitions-validation.json`
+- `docs/ux/evidencias/nacha-layouts-definitions/nacha-layouts-definitions-validation.md`
+- `docs/ux/evidencias/nacha-layouts-definitions/screenshots/nacha-layouts.png`
+- `docs/ux/evidencias/nacha-layouts-definitions/screenshots/nacha-definitions.png`
+- `docs/ux/evidencias/nacha-layouts-definitions/screenshots/nacha-definitions-edit-modal.png`
+
+Validaciones:
+
+- `npm run build`: OK.
+- `npm test -- --watch=false --browsers=ChromeHeadless`: OK.
+- `node web/ach-interbank-ui/scripts/ux-validate-nacha-layouts-definitions.mjs`: OK.
+- `node web/ach-interbank-ui/scripts/ux-audit-spa-critical-routes.mjs`: OK, P0=0/P1=0/P2=0.
+
 ## Validacion funcional PDF reportes
 
 Se valido funcionalmente la exportacion PDF en las rutas priorizadas:

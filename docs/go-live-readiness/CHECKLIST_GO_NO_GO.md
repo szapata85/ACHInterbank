@@ -231,3 +231,15 @@ Decision productiva: **NO-GO**.
 | Productivo | NO-GO | Este checklist | Si | La correccion de catálogos/AG Grid no sustituye UAT formal ni aprobacion productiva. |
 
 Decision productiva: **NO-GO**.
+
+## Actualizacion 2026-05-24 - Fase 4 NACHA-M layouts y definitions
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| `/ach-cycles/nacha/layouts` carga y queda legible | OK tecnico frontend | `docs/ux/evidencias/nacha-layouts-definitions/screenshots/nacha-layouts.png` | No por si solo | Resumen, grilla, acciones y estados controlados. |
+| `/ach-cycles/nacha/definitions` carga y queda legible | OK tecnico frontend | `docs/ux/evidencias/nacha-layouts-definitions/screenshots/nacha-definitions.png` | No por si solo | Lista operativa, resumen y estados controlados. |
+| Edicion definitions con modal/drawer | OK tecnico frontend | `docs/ux/evidencias/nacha-layouts-definitions/screenshots/nacha-definitions-edit-modal.png` | No por si solo | Cancelar/cerrar conserva contexto; guardar usa el mismo endpoint existente. |
+| Auditoria global SPA posterior | OK tecnico frontend | `docs/ux/evidencias/spa-global-audit/spa-critical-routes-audit.json` | No por si solo | P0=0, P1=0, P2=0. |
+| Productivo | NO-GO | Este checklist | Si | La mejora UX NACHA-M no sustituye homologacion ni aprobacion productiva. |
+
+Decision productiva: **NO-GO**.

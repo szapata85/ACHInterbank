@@ -1,7 +1,6 @@
 .page {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+  display: grid;
+  gap: 1rem;
 }
 
 .header {
@@ -11,21 +10,132 @@
   gap: 1rem;
 }
 
+.header h2 {
+  margin: 0;
+}
+
 .header p {
   margin: 0.25rem 0 0;
   color: var(--color-text-soft);
 }
 
-.card {
-  background: var(--color-surface);
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.summary-card {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.9rem 1rem;
   border: 1px solid var(--color-border);
-  padding: 1.5rem;
-  border-radius: var(--radius-lg);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.summary-card span {
+  color: var(--color-text-soft);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.summary-card strong {
+  color: var(--color-text);
+  font-size: 1.45rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 180px;
+}
+
+.btn-sm {
+  min-height: 32px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.modal-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 81;
+  display: flex;
+  flex-direction: column;
+  width: min(680px, 94vw);
+  background: var(--color-surface);
+  box-shadow: -16px 0 35px rgba(15, 23, 42, 0.18);
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-header h3 {
+  margin: 0;
+}
+
+.modal-header small {
+  color: var(--color-text-soft);
+}
+
+.eyebrow {
+  margin: 0 0 0.15rem;
+  color: var(--color-primary);
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.icon-button {
+  min-width: 36px;
+  min-height: 36px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.modal-form {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.form-section {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.form-section h4 {
+  margin: 0;
 }
 
 .form-grid {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1rem;
 }
 
@@ -33,59 +143,86 @@ label {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  min-width: 0;
   font-weight: 600;
 }
 
 input,
 select {
+  width: 100%;
+  min-width: 0;
   padding: 0.5rem;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
 }
 
 .source-help {
-  font-size: 0.8rem;
+  margin-top: 0.15rem;
   color: var(--color-text-soft);
-  margin-top: 0.25rem;
+  font-size: 0.8rem;
 }
 
 .checkbox {
   flex-direction: row;
   align-items: center;
+  align-self: end;
   gap: 0.5rem;
   font-weight: 500;
 }
 
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
+.checkbox input {
+  width: auto;
 }
 
 .layout-hint {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0.75rem;
+  gap: 0.75rem;
+  margin: 1rem 1.25rem;
+  padding: 0.85rem;
   border: 1px dashed var(--color-border-strong);
   border-radius: var(--radius-md);
   background: var(--color-surface-muted);
 }
 
-button.primary {
-  background: var(--button-color, var(--color-primary));
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: var(--radius-md);
+.layout-hint div {
+  display: grid;
+  gap: 0.15rem;
 }
 
-button.danger {
-  color: var(--color-danger-hover);
+.layout-hint small {
+  color: var(--color-text-soft);
 }
 
-.actions {
+.modal-footer {
+  position: sticky;
+  bottom: 0;
   display: flex;
-  gap: 0.5rem;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+:host ::ng-deep .ag-cell-value,
+:host ::ng-deep .ag-cell {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 720px) {
+  .header,
+  .layout-hint,
+  .modal-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .modal-panel {
+    width: 100vw;
+  }
 }
