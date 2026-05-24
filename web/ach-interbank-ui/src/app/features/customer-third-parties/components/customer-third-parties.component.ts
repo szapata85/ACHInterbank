@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
 import { Subject } from 'rxjs';
 import { finalize, takeUntil } from 'rxjs/operators';
@@ -19,7 +19,7 @@ interface CustomerThirdPartyTableRow extends CustomerThirdPartyRow {
   styleUrls: ['./customer-third-parties.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class CustomerThirdPartiesComponent implements OnDestroy {
+export class CustomerThirdPartiesComponent implements OnInit, OnDestroy {
   private readonly service = inject(CustomerThirdPartiesService);
   private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -54,10 +54,15 @@ export class CustomerThirdPartiesComponent implements OnDestroy {
 
   rows: CustomerThirdPartyTableRow[] = [];
   loading = false;
+  loadError = false;
   hasSearched = false;
   page = 1;
   pageSize = 20;
   total = 0;
+
+  ngOnInit(): void {
+    this.search();
+  }
 
   ngOnDestroy(): void {
     this.destroy$.next();
@@ -77,6 +82,7 @@ export class CustomerThirdPartiesComponent implements OnDestroy {
     };
 
     this.loading = true;
+    this.loadError = false;
     this.hasSearched = true;
     this.cdr.markForCheck();
 
@@ -99,6 +105,9 @@ export class CustomerThirdPartiesComponent implements OnDestroy {
           this.page = response.page;
         },
         error: () => {
+          this.rows = [];
+          this.total = 0;
+          this.loadError = true;
           this.notifications.error('No fue posible consultar terceros de prenotificación.');
         }
       });

@@ -195,3 +195,76 @@ Decision productiva: **NO-GO**.
 | Productivo | NO-GO | Este checklist | Si | Sin autorizacion Live ni homologacion final. |
 
 Decision productiva: **NO-GO**.
+
+## Actualizacion 2026-05-23 - botones reportes SPA
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| Botones de accion en reportes `/reports/*` | OK tecnico frontend | `docs/ux/evidencias/spa-global-audit/spa-critical-routes-audit.json` | No por si solo | Buscar queda primario, Limpiar secundario y Exportar PDF como accion documental. |
+| Auditoria visual rutas criticas SPA | OK tecnico frontend | `docs/ux/evidencias/spa-global-audit/spa-critical-routes-audit.md` | No por si solo | 23 rutas auditadas; P0=0, P1=0, P2=0. |
+| Design system minimo de botones | OK documental | `docs/ux/DESIGN_SYSTEM_BOTONES_SPA.md` | No por si solo | Regla explicita: ningun boton de accion principal debe quedar blanco/ilegible o sin contraste suficiente. |
+| Productivo | NO-GO | Este checklist | Si | La correccion visual no cambia autorizacion productiva ni homologa operacion externa. |
+
+Decision productiva: **NO-GO**.
+
+## Actualizacion 2026-05-23 - funcionalidad PDF reportes
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| `/reports/reconciliation` no descarga PDF vacio | OK tecnico frontend | `docs/ux/evidencias/reports-pdf/reconciliation-pdf-result.json` | No por si solo | Si no hay datos, muestra mensaje claro y no descarga archivo vacio. |
+| `/reports/traceability` no descarga PDF vacio | OK tecnico frontend | `docs/ux/evidencias/reports-pdf/traceability-pdf-result.json` | No por si solo | Si no hay datos, muestra mensaje claro y no descarga archivo vacio. |
+| Seleccion multiple en traceability | OK tecnico frontend | `docs/ux/evidencias/reports-pdf/reports-pdf-validation.json` | No por si solo | Ciclos seleccionados se deduplican antes de llamar al endpoint PDF. |
+| Auditoria global SPA | OK tecnico frontend | `docs/ux/evidencias/spa-global-audit/spa-critical-routes-audit.json` | No por si solo | 23 rutas auditadas; P0=0, P1=0, P2=0. |
+| Productivo | NO-GO | Este checklist | Si | La validacion PDF UAT no reemplaza UAT formal, homologacion ni aprobacion productiva. |
+
+Decision productiva: **NO-GO**.
+
+## Actualizacion 2026-05-24 - Fase 3 catalogos, terceros y AG Grid
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| `/catalogs/financial-institutions` AG Grid legible | OK tecnico frontend | `docs/ux/evidencias/catalogs-aggrid/screenshots/catalogs_financial_institutions.png` | No por si solo | Columnas y acciones visibles; no se cambio `IsDefaultSource` ni reglas del simulador. |
+| `/catalogs/bank-holidays` carga o informa estado claro | OK tecnico frontend | `docs/ux/evidencias/catalogs-aggrid/screenshots/catalogs_bank_holidays.png` | No por si solo | Proxy SPA corregido para `/bank-holidays`; sin backend ni seed. |
+| Catalogos tipologicos cargan o muestran vacio claro | OK tecnico frontend | `docs/ux/evidencias/catalogs-aggrid/catalogs-aggrid-validation.json` | No por si solo | `document-types`, `person-types`, `phone-types`, `email-types`, `address-types`, `transaction-codes` validados. |
+| `/customer-third-parties` carga o informa estado claro | OK tecnico frontend | `docs/ux/evidencias/catalogs-aggrid/screenshots/customer_third_parties.png` | No por si solo | Carga inicial y error/vacio controlado. No se crearon terceros reales. |
+| Auditoria global SPA posterior | OK tecnico frontend | `docs/ux/evidencias/spa-global-audit/spa-critical-routes-audit.json` | No por si solo | P0=0, P1=0, P2=0. |
+| Productivo | NO-GO | Este checklist | Si | La correccion de catálogos/AG Grid no sustituye UAT formal ni aprobacion productiva. |
+
+Decision productiva: **NO-GO**.
+
+## Actualizacion 2026-05-24 - Fase 4 NACHA-M layouts y definitions
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| `/ach-cycles/nacha/layouts` carga y queda legible | OK tecnico frontend | `docs/ux/evidencias/nacha-layouts-definitions/screenshots/nacha-layouts.png` | No por si solo | Resumen, grilla, acciones y estados controlados. |
+| `/ach-cycles/nacha/definitions` carga y queda legible | OK tecnico frontend | `docs/ux/evidencias/nacha-layouts-definitions/screenshots/nacha-definitions.png` | No por si solo | Lista operativa, resumen y estados controlados. |
+| Edicion definitions con modal/drawer | OK tecnico frontend | `docs/ux/evidencias/nacha-layouts-definitions/screenshots/nacha-definitions-edit-modal.png` | No por si solo | Cancelar/cerrar conserva contexto; guardar usa el mismo endpoint existente. |
+| Auditoria global SPA posterior | OK tecnico frontend | `docs/ux/evidencias/spa-global-audit/spa-critical-routes-audit.json` | No por si solo | P0=0, P1=0, P2=0. |
+| Productivo | NO-GO | Este checklist | Si | La mejora UX NACHA-M no sustituye homologacion ni aprobacion productiva. |
+
+Decision productiva: **NO-GO**.
+
+## Actualizacion 2026-05-24 - Fase 5 regresion final SPA Angular
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| SPA Angular regresion final | OK tecnico UAT | `docs/ux/evidencias/spa-regression-final/spa-final-regression.md` | No por si solo | 31 rutas auditadas; P0=0, P1=0, P2=0. Incluye `/transactions/returns`. |
+| Auditoria global historica | OK tecnico UAT | `docs/ux/evidencias/spa-global-audit/spa-critical-routes-audit.md` | No por si solo | 23 rutas auditadas; P0=0, P1=0, P2=0. |
+| Build/test Angular | OK tecnico | `npm run build`, `npm test -- --watch=false --browsers=ChromeHeadless` | No por si solo | 224 specs SUCCESS; warnings de Browserslist no bloqueantes. |
+| Reportes PDF UAT frontend | OK tecnico | `docs/ux/evidencias/reports-pdf/reports-pdf-validation.json` | No por si solo | Reconciliation/traceability no descargan PDF vacio; si no hay datos muestran mensaje claro. |
+| Productivo | NO-GO | Este checklist | Si | La validacion SPA no reemplaza homologacion externa, actas, certificados, CENIT/CUD, backup/restore ni aprobaciones formales. |
+
+Decision productiva: **NO-GO**.
+
+## Actualizacion 2026-05-24 - /transactions/returns
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| Ruta `/transactions/returns` carga correctamente | OK tecnico frontend | `docs/ux/evidencias/transactions-returns/transactions-returns-validation.json` | No por si solo | La pantalla finaliza loading y muestra grilla/estado vacio/error funcional segun respuesta API. |
+| Estado vacio de devoluciones | OK tecnico frontend | `docs/ux/evidencias/transactions-returns/transactions-returns.png` | No por si solo | API runtime retorna `200` con `[]`; la UI muestra `No hay devoluciones registradas`. |
+| Proxy SPA para devoluciones | OK tecnico frontend | `web/ach-interbank-ui/nginx.conf` | No por si solo | `/return-reasons` y `/ach-returns/` pasan a API y ya no devuelven `index.html`. |
+| Build/test Angular | OK tecnico | `npm run build`, `npm test -- --watch=false --browsers=ChromeHeadless` | No por si solo | 224 specs SUCCESS. |
+| Regresion SPA posterior | OK tecnico UAT | `docs/ux/evidencias/spa-regression-final/spa-final-regression.md` | No por si solo | 31 rutas auditadas; P0=0, P1=0, P2=0. |
+| Productivo | NO-GO | Este checklist | Si | La correccion UAT frontend no cambia readiness productivo. |
+
+Decision productiva: **NO-GO**.

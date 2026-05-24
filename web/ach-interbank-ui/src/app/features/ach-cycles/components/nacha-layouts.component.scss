@@ -1,14 +1,53 @@
-.actions {
+.page-shell {
+  display: grid;
+  gap: 1rem;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.summary-card {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.summary-card span {
+  color: var(--color-text-soft);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.summary-card strong {
+  color: var(--color-text);
+  font-size: 1.45rem;
+}
+
+.toolbar {
   display: flex;
   gap: 0.75rem;
-  margin: 1rem 0;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .row-actions {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+  align-items: center;
+  min-width: 180px;
+}
+
+.btn-sm {
+  min-height: 32px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
 }
 
 .editor {
@@ -82,4 +121,11 @@
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
+}
+
+:host ::ng-deep .ag-cell-value,
+:host ::ng-deep .ag-cell {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

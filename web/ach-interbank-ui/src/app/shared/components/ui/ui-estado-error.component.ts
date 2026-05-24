@@ -1,8 +1,10 @@
+import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 
 @Component({
   selector: 'ui-estado-error',
   standalone: true,
+  imports: [CommonModule],
   template: `
     <div class="estado">
       <p class="titulo">{{ titulo }}</p>

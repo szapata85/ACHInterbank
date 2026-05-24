@@ -1,5 +1,5 @@
 import { NgIf } from '@angular/common';
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, NgZone, OnDestroy, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, NgZone, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { ColDef, GridApi } from 'ag-grid-community';
 import { Subject } from 'rxjs';
@@ -16,7 +16,7 @@ import { BankHolidaysAdminService } from '../services/bank-holidays-admin.servic
   imports: [SharedModule, NgIf],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class BankHolidaysComponent implements OnDestroy {
+export class BankHolidaysComponent implements OnInit, OnDestroy {
   private readonly service = inject(BankHolidaysAdminService);
   private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -24,26 +24,34 @@ export class BankHolidaysComponent implements OnDestroy {
 
   holidays: BankHoliday[] = [];
   loading = false;
+  loadError = false;
   saving = false;
   showForm = false;
   hasSearched = false;
   editing: BankHoliday | null = null;
   gridApi?: GridApi<BankHoliday>;
+  readonly pageSizeOptions = [10, 25, 50];
+  readonly pageSize = this.pageSizeOptions[0];
   private readonly destroy$ = new Subject<void>();
 
   readonly columnDefs: ColDef<BankHoliday>[] = [
     {
       field: 'date',
       headerName: 'Fecha',
+      minWidth: 140,
       maxWidth: 160,
       valueFormatter: (params) => this.formatDate(params.value)
     },
-    { field: 'description', headerName: 'Descripción', flex: 1, filter: 'agTextColumnFilter' },
-    { field: 'countryCode', headerName: 'País', maxWidth: 120 },
+    { field: 'description', headerName: 'Descripción', flex: 1, minWidth: 260, filter: 'agTextColumnFilter' },
+    { field: 'countryCode', headerName: 'País', minWidth: 100, maxWidth: 120 },
     {
       headerName: 'Acciones',
       colId: 'actions',
-      maxWidth: 200,
+      minWidth: 180,
+      maxWidth: 220,
+      sortable: false,
+      filter: false,
+      floatingFilter: false,
       cellRenderer: (params) => {
         const container = document.createElement('div');
         container.classList.add('row-actions');
@@ -54,7 +62,9 @@ export class BankHolidaysComponent implements OnDestroy {
         edit.innerText = 'Editar';
         edit.addEventListener('click', () => {
           this.zone.run(() => {
-            params.context?.componentParent?.startEdit(params.data);
+            if (params.data) {
+              this.startEdit(params.data);
+            }
           });
         });
 
@@ -65,7 +75,9 @@ export class BankHolidaysComponent implements OnDestroy {
         remove.innerText = 'Eliminar';
         remove.addEventListener('click', () => {
           this.zone.run(() => {
-            params.context?.componentParent?.remove(params.data);
+            if (params.data) {
+              this.remove(params.data);
+            }
           });
         });
 
@@ -95,6 +107,10 @@ export class BankHolidaysComponent implements OnDestroy {
     countryCode: ['CO', [Validators.required, Validators.maxLength(5)]]
   });
 
+  ngOnInit(): void {
+    this.search();
+  }
+
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
@@ -107,6 +123,7 @@ export class BankHolidaysComponent implements OnDestroy {
 
   load(year?: number): void {
     this.loading = true;
+    this.loadError = false;
     this.hasSearched = true;
     this.updateGridOverlays();
     this.service
@@ -117,9 +134,17 @@ export class BankHolidaysComponent implements OnDestroy {
           this.cdr.markForCheck();
         })
       )
-      .subscribe((data) => {
-        this.holidays = data;
-        this.updateGridOverlays();
+      .subscribe({
+        next: (data) => {
+          this.holidays = data;
+          this.updateGridOverlays();
+        },
+        error: () => {
+          this.holidays = [];
+          this.loadError = true;
+          this.updateGridOverlays();
+          this.cdr.markForCheck();
+        }
       });
   }
 

@@ -42,9 +42,9 @@
     </ng-container>
 
     <div class="actions">
-      <button type="submit">Buscar</button>
-      <button type="button" (click)="clear()">Limpiar</button>
-      <button type="button" class="btn btn-primary" (click)="exportPdf()">Exportar PDF</button>
+      <button type="submit" class="report-action report-action-primary" data-testid="report-search-button">Buscar</button>
+      <button type="button" class="report-action report-action-secondary" data-testid="report-clear-button" (click)="clear()">Limpiar</button>
+      <button type="button" class="report-action report-action-export" data-testid="report-export-pdf-button" (click)="exportPdf()">Exportar PDF</button>
     </div>
   </form>
 

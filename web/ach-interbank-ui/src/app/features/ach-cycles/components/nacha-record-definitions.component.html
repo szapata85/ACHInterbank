@@ -1,91 +1,158 @@
-<div class="page">
+<section class="page" data-testid="nacha-definitions-page">
   <div class="header">
     <div>
-      <h2>Definiciones de registros NACHA</h2>
-      <p>Configura el orden y la fuente de datos para cada registro, con resumen del layout asociado.</p>
+      <h2>Definiciones NACHA-M</h2>
+      <p>Configura el orden y la fuente de datos de cada registro sin perder el contexto de la lista.</p>
     </div>
-    <button type="button" class="btn btn-primary" (click)="startCreate()">Nuevo</button>
+    <button type="button" class="btn btn-primary" (click)="startCreate()">Nueva definición</button>
   </div>
 
-  <app-table [columns]="columns" [data]="definitions" [loading]="loading" [rowActions]="rowActions">
+  <div class="summary-grid" aria-label="Resumen de definiciones NACHA-M">
+    <article class="summary-card">
+      <span>Total definiciones</span>
+      <strong>{{ totalDefinitions }}</strong>
+    </article>
+    <article class="summary-card">
+      <span>Activas</span>
+      <strong>{{ enabledDefinitions }}</strong>
+    </article>
+    <article class="summary-card">
+      <span>Inactivas</span>
+      <strong>{{ disabledDefinitions }}</strong>
+    </article>
+  </div>
+
+  <ui-estado-error
+    *ngIf="loadError"
+    titulo="No fue posible cargar definiciones NACHA-M"
+    [mensaje]="loadError"
+    (reintentar)="load()"
+  ></ui-estado-error>
+
+  <app-table
+    *ngIf="!loadError"
+    [columns]="columns"
+    [data]="definitions"
+    [loading]="loading"
+    [pageSize]="definitions.length || 10"
+    [total]="definitions.length"
+    [rowActions]="rowActions"
+  >
     <ng-template #rowActions let-item>
       <div class="actions">
-        <button type="button" (click)="startEdit(item)">Editar</button>
-        <button type="button" class="btn btn-danger" (click)="remove(item)">Eliminar</button>
+        <button type="button" class="btn btn-outline btn-sm" (click)="startEdit(item)">Editar</button>
+        <button type="button" class="btn btn-danger btn-sm" (click)="remove(item)">Eliminar</button>
       </div>
     </ng-template>
   </app-table>
 
-  <div class="card" *ngIf="editing !== null || form.get('recordCode')?.value">
-    <h3>{{ editing ? 'Editar definición' : 'Nueva definición' }}</h3>
+  <ui-estado-vacio
+    *ngIf="!loading && !loadError && definitions.length === 0"
+    titulo="No hay definiciones configuradas"
+    mensaje="Cree una definición para relacionar cada registro NACHA-M con su fuente funcional."
+  ></ui-estado-vacio>
+</section>
 
-    <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
-      <label>
-        Código de registro
-        <input type="text" formControlName="recordCode" maxlength="5" />
-        <app-error-message [control]="form.get('recordCode')"></app-error-message>
-      </label>
+<div class="modal-backdrop" *ngIf="editorOpen" (click)="cancel()"></div>
 
-      <label>
-        Orden
-        <input type="number" formControlName="sequence" min="1" />
-        <app-error-message [control]="form.get('sequence')"></app-error-message>
-      </label>
+<aside
+  class="modal-panel"
+  *ngIf="editorOpen"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Editar definición NACHA-M"
+  data-testid="nacha-definition-edit-modal"
+>
+  <header class="modal-header">
+    <div>
+      <p class="eyebrow">{{ editing ? 'Edición' : 'Nueva definición' }}</p>
+      <h3>Editar definición NACHA-M</h3>
+      <small *ngIf="form.get('recordCode')?.value">
+        Registro {{ form.get('recordCode')?.value }} · {{ sourceTypeLabel }}
+      </small>
+    </div>
+    <button type="button" class="icon-button" (click)="cancel()" aria-label="Cerrar">X</button>
+  </header>
 
-      <label>
-        Tipo de fuente
-        <select formControlName="sourceType">
-          <option *ngFor="let option of sourceTypes" [value]="option.value">{{ option.label }}</option>
-        </select>
-        <app-error-message [control]="form.get('sourceType')"></app-error-message>
-      </label>
+  <form [formGroup]="form" (ngSubmit)="save()" class="modal-form">
+    <section class="form-section">
+      <h4>Identificación</h4>
+      <div class="form-grid">
+        <label>
+          Código de registro
+          <input type="text" formControlName="recordCode" maxlength="5" />
+          <app-error-message [control]="form.get('recordCode')"></app-error-message>
+        </label>
 
-      <label>
-        Origen (tabla/vista/SP)
-        <ng-container *ngIf="showSourceNameSelect; else sourceNameTextInput">
-          <select formControlName="sourceName">
-            <option value="">Seleccione origen</option>
-            <option *ngFor="let option of sourceNameOptions" [value]="option.value">{{ option.label }}</option>
+        <label>
+          Orden
+          <input type="number" formControlName="sequence" min="1" />
+          <app-error-message [control]="form.get('sequence')"></app-error-message>
+        </label>
+
+        <label class="checkbox">
+          <input type="checkbox" formControlName="isEnabled" />
+          Activo
+        </label>
+      </div>
+    </section>
+
+    <section class="form-section">
+      <h4>Fuente de datos</h4>
+      <div class="form-grid">
+        <label>
+          Tipo de fuente
+          <select formControlName="sourceType">
+            <option *ngFor="let option of sourceTypes" [ngValue]="option.value">{{ option.label }}</option>
           </select>
-        </ng-container>
-        <ng-template #sourceNameTextInput>
-          <input
-            type="text"
-            formControlName="sourceName"
-            [readonly]="form.get('sourceType')?.value === 0"
-            [placeholder]="form.get('sourceType')?.value === 0 ? 'No aplica para Custom' : 'Nombre de vista o procedimiento'"
-          />
-        </ng-template>
-        <small class="source-help" *ngIf="sourceNameOptions.length > 0">
-          Orígenes disponibles para tipo {{ sourceTypeLabel }}.
-        </small>
-        <small class="source-help" *ngIf="form.get('sourceType')?.value === 0">
-          Origen: Calculado (Custom).
-        </small>
-      </label>
+          <app-error-message [control]="form.get('sourceType')"></app-error-message>
+        </label>
 
-      <label>
-        Filtro
-        <input type="text" formControlName="filterKey" />
-      </label>
+        <label>
+          Origen
+          <ng-container *ngIf="showSourceNameSelect; else sourceNameTextInput">
+            <select formControlName="sourceName">
+              <option value="">Seleccione origen</option>
+              <option *ngFor="let option of sourceNameOptions" [value]="option.value">{{ option.label }}</option>
+            </select>
+          </ng-container>
+          <ng-template #sourceNameTextInput>
+            <input
+              type="text"
+              formControlName="sourceName"
+              [readonly]="form.get('sourceType')?.value === 0"
+              [placeholder]="form.get('sourceType')?.value === 0 ? 'No aplica para Custom' : 'Nombre de vista o procedimiento'"
+            />
+          </ng-template>
+          <small class="source-help" *ngIf="sourceNameOptions.length > 0">
+            Orígenes disponibles para tipo {{ sourceTypeLabel }}.
+          </small>
+          <small class="source-help" *ngIf="form.get('sourceType')?.value === 0">
+            Origen: Calculado (Custom).
+          </small>
+        </label>
 
-      <div class="layout-hint" *ngIf="form.get('recordCode')?.value as code">
-        <strong>Layout asociado:</strong> {{ layoutsByCode[code]?.recordType || 'No configurado' }}
-        <span *ngIf="layoutsByCode[code]">({{ layoutsByCode[code].fields?.length || 0 }} campos)</span>
-        <button type="button" class="btn btn-outline" (click)="manageLayout()">Administrar campos del layout</button>
+        <label>
+          Filtro
+          <input type="text" formControlName="filterKey" />
+        </label>
       </div>
+    </section>
 
-      <label class="checkbox">
-        <input type="checkbox" formControlName="isEnabled" />
-        Activo
-      </label>
-
-      <div class="form-actions">
-        <button type="button" (click)="cancel()">Cancelar</button>
-        <button type="submit" class="btn btn-primary" [disabled]="saving">
-          {{ saving ? 'Guardando...' : 'Guardar' }}
-        </button>
+    <section class="layout-hint" *ngIf="form.get('recordCode')?.value as code">
+      <div>
+        <strong>Layout asociado</strong>
+        <span>{{ layoutsByCode[code]?.recordType || 'No configurado' }}</span>
+        <small *ngIf="layoutsByCode[code]">{{ layoutsByCode[code].fields?.length || 0 }} campos configurados</small>
       </div>
-    </form>
-  </div>
-</div>
+      <button type="button" class="btn btn-outline" (click)="manageLayout()">Administrar campos del layout</button>
+    </section>
+
+    <footer class="modal-footer">
+      <button type="button" class="btn btn-outline" (click)="cancel()" [disabled]="saving">Cancelar</button>
+      <button type="submit" class="btn btn-primary" [disabled]="saving">
+        {{ saving ? 'Guardando...' : 'Guardar' }}
+      </button>
+    </footer>
+  </form>
+</aside>

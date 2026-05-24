@@ -24,19 +24,33 @@
   <ng-container *ngIf="hasSearched; else initial">
     <div class="grid" *ngIf="holidays.length; else empty">
       <ui-grilla-empresarial
-        [datos]="rows"
+        [datos]="holidays"
         [columnas]="columnDefs"
         [cargando]="loading"
-        [error]="false"
+        [error]="loadError"
+        [mensajeError]="'No fue posible cargar los festivos bancarios.'"
         [tamanoPagina]="pageSize"
         [mensajeVacio]="'No hay festivos registrados.'"
         [mensajeCargando]="'Cargando información...'"
         (grillaLista)="onGridReady($event)"
+        (reintentar)="search()"
       ></ui-grilla-empresarial>
     </div>
 
     <ng-template #empty>
-      <div class="empty">
+      <ui-grilla-empresarial
+        *ngIf="loading || loadError"
+        [datos]="holidays"
+        [columnas]="columnDefs"
+        [cargando]="loading"
+        [error]="loadError"
+        [mensajeError]="'No fue posible cargar los festivos bancarios.'"
+        [tamanoPagina]="pageSize"
+        [mensajeVacio]="'No hay festivos registrados.'"
+        [mensajeCargando]="'Cargando información...'"
+        (reintentar)="search()"
+      ></ui-grilla-empresarial>
+      <div class="empty" *ngIf="!loading && !loadError">
         <p>No hay festivos registrados.</p>
         <button type="button" class="btn btn-primary" (click)="startCreate()" [disabled]="saving">Agregar festivo</button>
       </div>

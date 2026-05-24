@@ -1,0 +1,5192 @@
+{
+  "generatedAt": "2026-05-24T05:01:08.639Z",
+  "baseUrl": "http://localhost:743",
+  "runtime": {
+    "liveStatus": 200,
+    "readyStatus": 200,
+    "loginOk": true,
+    "roles": [
+      "Admin",
+      "ACH.Operator"
+    ]
+  },
+  "summary": {
+    "totalRoutes": 31,
+    "ok": 31,
+    "p0": 0,
+    "p1": 0,
+    "p2": 0
+  },
+  "auditedRoutes": [
+    "/ach-cycles/nacha/export",
+    "/catalogs/financial-institutions",
+    "/catalogs/bank-holidays",
+    "/catalogs/document-types",
+    "/catalogs/person-types",
+    "/catalogs/phone-types",
+    "/catalogs/email-types",
+    "/catalogs/address-types",
+    "/catalogs/transaction-codes",
+    "/customer-third-parties",
+    "/ach-cycles/nacha/layouts",
+    "/ach-cycles/nacha/definitions",
+    "/reports",
+    "/reports/sent",
+    "/reports/received",
+    "/reports/returns",
+    "/reports/rejections",
+    "/reports/files",
+    "/reports/cycles",
+    "/reports/reconciliation",
+    "/reports/audit",
+    "/reports/history",
+    "/reports/traceability",
+    "/integraciones/soap-settings",
+    "/integraciones/mappings",
+    "/uat/nacha-inbound-simulator",
+    "/transactions/returns",
+    "/transactions/clearing-house-rules",
+    "/integraciones/mappings/WSCFAACH.Proc_Contrapartidas/1d6f8bce-d768-4ebd-80d0-c5331971e130",
+    "/integraciones/mappings/WSCFAACH.Proc_Transacciones/dc1b034b-4de3-4043-93cc-79072bf8a5e9",
+    "/integraciones/mappings/WSAXON.RegistrarRespuestaTransaccion/66830bda-7d12-43b2-a2d5-efbfc69e2144"
+  ],
+  "notApplicable": [],
+  "routes": [
+    {
+      "route": "/ach-cycles/nacha/export",
+      "label": "/ach-cycles/nacha/export",
+      "finalUrl": "http://localhost:743/ach-cycles/nacha/export",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/ach_cycles_nacha_export.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/ach-cycles/nacha/export",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/clearing-houses",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/ach-cycles/exportable",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        },
+        {
+          "method": "GET",
+          "url": "https://fonts.gstatic.com/s/materialsymbolsoutlined/v339/kJF1BvYX7BgnkSrUwT8OhrdQw4oELdPIeeII9v6oDMzByHX9rA6RzaxHMPdY43zj-jCxv3fzvRNU22ZXGJpEpjC_1v-p_4MrImHCIJIZrDCvHOej.woff2",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/ach-cycles/nacha/export",
+        "title": "Descarga los archivos planos por ciclo ejecutadoExportar archivos NACHA-MVolver a ciclos",
+        "textLength": 1069,
+        "textSample": "DESCARGA LOS ARCHIVOS PLANOS POR CICLO EJECUTADO\n\nExportar archivos NACHA-M\nVolver a ciclos\nTodas las cámaras\nACH Colombia\nCENIT\nDesde\nHasta\nFiltrar\nsearch\n1 a 10 de 11. Página 1 de 2\nCiclo\nCámara\nFecha efectiva\nTransacciones\nAcciones\nCiclo 5\nACH Colombia\n20/05/2026\n1\nGenerar archivo NACHA\nGenerar con sobre digital\nCiclo 4\nACH Colombia\n20/05/2026\n1\nGenerar archivo NACHA\nGenerar con sobre digital\nCiclo 4\nCENIT\n20/05/2026\n2\nGenerar archivo NACHA\nGenerar con sobre digital\nCiclo 5\nCENIT\n20/05/2026\n1\nGenerar archivo NACHA\nGenerar con sobre digital\nCiclo 2\nACH Colombia\n19/05/2026\n240\nGenerar archivo NACHA\nGenerar con sobre digital\nCiclo 3\nACH Colombia\n19/05/2026\n1\nGenerar archivo NACHA\nGenerar con sobre digital\nCiclo 5\nACH Colombia\n19/05/2026\n2\nGenerar archivo NACHA\nGenerar con sobre digital\nCiclo 5\nCENIT\n19/05/2026\n1\nGenerar archivo NACHA\nGenerar con sobre digital\nCiclo 1\nACH Colombia\n19/05/2",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1058,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Ciclo",
+                "width": 200
+              },
+              {
+                "text": "Cámara",
+                "width": 200
+              },
+              {
+                "text": "Fecha efectiva",
+                "width": 200
+              },
+              {
+                "text": "Transacciones",
+                "width": 140
+              },
+              {
+                "text": "Acciones",
+                "width": 280
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 140
+              },
+              {
+                "text": "",
+                "width": 280
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1054,
+            "height": 268,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Ciclo",
+                "width": 200
+              },
+              {
+                "text": "Cámara",
+                "width": 200
+              },
+              {
+                "text": "Fecha efectiva",
+                "width": 200
+              },
+              {
+                "text": "Transacciones",
+                "width": 140
+              },
+              {
+                "text": "Acciones",
+                "width": 280
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 140
+              },
+              {
+                "text": "",
+                "width": 280
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/catalogs/financial-institutions",
+      "label": "/catalogs/financial-institutions",
+      "finalUrl": "http://localhost:743/catalogs/financial-institutions",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/catalogs_financial_institutions.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalogs/financial-institutions",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/financial-institutions?includeInactive=true",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/catalogs/financial-institutions",
+        "title": "Instituciones financieras",
+        "textLength": 870,
+        "textSample": "CATÁLOGOS\n\nInstituciones financieras\n\nAdministra las instituciones configuradas en ACH, incluyendo su estado y datos de enrutamiento.\n\nrefresh\nRecargar\nadd\nNueva institución\nsearch\n1 a 10 de 96. Página 1 de 10\nNombre\nRouting\nTransit\nDígito\nOrigen por defecto\nEstado\nAcciones\nBancolombia\n00001\n007\n4\nNo\nActiva\nEditarDesactivar\nBanco de Bogota\n00001\n001\n6\nNo\nActiva\nEditarDesactivar\nBanco Popular\n00001\n002\n9\nNo\nActiva\nEditarDesactivar\nBancafe - No Disponible\n00001\n005\n8\nNo\nInactiva\nEditarActivar\nBanco ITAU\n00001\n006\n1\nNo\nActiva\nEditarDesactivar\nScotiabank Colombia S.A\n00001\n008\n7\nNo\nInactiva\nEditarActivar\nCitibank Colombia\n00001\n009\n0\nNo\nActiva\nEditarDesactivar\nBanco GNB Colombia S.A\n00001\n010\n0\nNo\nInactiva\nEditarActivar\nBanco GNB Sudameris\n00001\n012\n6\nNo\nActiva\nEditarDesactivar\nBBVA\n00001\n013\n9\nNo\nActiva\nEditarDesactivar\nPage Size:\n10\n1 a 10 de 96\nPágina 1 de 10",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1008,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Nombre",
+                "width": 240
+              },
+              {
+                "text": "Routing",
+                "width": 150
+              },
+              {
+                "text": "Transit",
+                "width": 130
+              },
+              {
+                "text": "Dígito",
+                "width": 125
+              },
+              {
+                "text": "Origen por defecto",
+                "width": 180
+              },
+              {
+                "text": "Estado",
+                "width": 140
+              },
+              {
+                "text": "Acciones",
+                "width": 210
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 240
+              },
+              {
+                "text": "",
+                "width": 150
+              },
+              {
+                "text": "",
+                "width": 130
+              },
+              {
+                "text": "",
+                "width": 125
+              },
+              {
+                "text": "",
+                "width": 180
+              },
+              {
+                "text": "",
+                "width": 140
+              },
+              {
+                "text": "",
+                "width": 210
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1004,
+            "height": 268,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Nombre",
+                "width": 240
+              },
+              {
+                "text": "Routing",
+                "width": 150
+              },
+              {
+                "text": "Transit",
+                "width": 130
+              },
+              {
+                "text": "Dígito",
+                "width": 125
+              },
+              {
+                "text": "Origen por defecto",
+                "width": 180
+              },
+              {
+                "text": "Estado",
+                "width": 140
+              },
+              {
+                "text": "Acciones",
+                "width": 210
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 240
+              },
+              {
+                "text": "",
+                "width": 150
+              },
+              {
+                "text": "",
+                "width": 130
+              },
+              {
+                "text": "",
+                "width": 125
+              },
+              {
+                "text": "",
+                "width": 180
+              },
+              {
+                "text": "",
+                "width": 140
+              },
+              {
+                "text": "",
+                "width": 210
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/catalogs/bank-holidays",
+      "label": "/catalogs/bank-holidays",
+      "finalUrl": "http://localhost:743/catalogs/bank-holidays",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/catalogs_bank_holidays.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalogs/bank-holidays",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/bank-holidays?year=2026",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/catalogs/bank-holidays",
+        "title": "Festivos bancarios",
+        "textLength": 658,
+        "textSample": "CATÁLOGOS\n\nFestivos bancarios\n\nAdministra los días festivos que no deben ejecutarse ciclos.\n\nBuscar\nNuevo festivo\nAño\nsearch\n1 a 10 de 18. Página 1 de 2\nFecha\nDescripción\nPaís\nAcciones\n1/1/2026\nAño Nuevo\nCO\nEditarEliminar\n12/1/2026\nDía de los Reyes Magos\nCO\nEditarEliminar\n23/3/2026\nSan José\nCO\nEditarEliminar\n2/4/2026\nJueves Santo\nCO\nEditarEliminar\n3/4/2026\nViernes Santo\nCO\nEditarEliminar\n1/5/2026\nDía del Trabajo\nCO\nEditarEliminar\n18/5/2026\nAscensión del Señor\nCO\nEditarEliminar\n8/6/2026\nCorpus Christi\nCO\nEditarEliminar\n15/6/2026\nSagrado Corazón\nCO\nEditarEliminar\n29/6/2026\nSan Pedro y San Pablo\nCO\nEditarEliminar\nPage Size:\n10\n1 a 10 de 18\nPágina 1 de 2",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1006,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Fecha",
+                "width": 160
+              },
+              {
+                "text": "Descripción",
+                "width": 472
+              },
+              {
+                "text": "País",
+                "width": 120
+              },
+              {
+                "text": "Acciones",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 160
+              },
+              {
+                "text": "",
+                "width": 472
+              },
+              {
+                "text": "",
+                "width": 120
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1002,
+            "height": 268,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Fecha",
+                "width": 160
+              },
+              {
+                "text": "Descripción",
+                "width": 472
+              },
+              {
+                "text": "País",
+                "width": 120
+              },
+              {
+                "text": "Acciones",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 160
+              },
+              {
+                "text": "",
+                "width": 472
+              },
+              {
+                "text": "",
+                "width": 120
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/catalogs/document-types",
+      "label": "/catalogs/document-types",
+      "finalUrl": "http://localhost:743/catalogs/document-types",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/catalogs_document_types.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalogs/document-types",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalog-types/document-types",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/catalogs/document-types",
+        "title": "Administra el catálogo de tipos de documento.Tipos de documento",
+        "textLength": 471,
+        "textSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE DOCUMENTO.\n\nTipos de documento\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\n1 a 6 de 6. Página 1 de 1\nCódigo\nNombre\nDescripción\nAcciones\nCC\nCédula de Ciudadanía\n-\nEditarEliminar\nCE\nCédula de Extranjería\n-\nEditarEliminar\nNIT\nNúmero de Identificación Tributaria\n-\nEditarEliminar\nOTRO\nOtro\n-\nEditarEliminar\nPAS\nPasaporte\n-\nEditarEliminar\nTI\nTarjeta de Identidad\n-\nEditarEliminar\nPage Size:\n10\n1 a 6 de 6\nPágina 1 de 1",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1024,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Código",
+                "width": 160
+              },
+              {
+                "text": "Nombre",
+                "width": 200
+              },
+              {
+                "text": "Descripción",
+                "width": 430
+              },
+              {
+                "text": "Acciones",
+                "width": 180
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 160
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 430
+              },
+              {
+                "text": "",
+                "width": 180
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1020,
+            "height": 268,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Código",
+                "width": 160
+              },
+              {
+                "text": "Nombre",
+                "width": 200
+              },
+              {
+                "text": "Descripción",
+                "width": 430
+              },
+              {
+                "text": "Acciones",
+                "width": 180
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 160
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 430
+              },
+              {
+                "text": "",
+                "width": 180
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/catalogs/person-types",
+      "label": "/catalogs/person-types",
+      "finalUrl": "http://localhost:743/catalogs/person-types",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/catalogs_person_types.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalogs/person-types",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalog-types/person-types",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/catalogs/person-types",
+        "title": "Administra el catálogo de tipos de persona.Tipos de persona",
+        "textLength": 301,
+        "textSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE PERSONA.\n\nTipos de persona\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\n1 a 2 de 2. Página 1 de 1\nCódigo\nNombre\nDescripción\nAcciones\nPJ\nPersona jurídica\n-\nEditarEliminar\nPN\nPersona natural\n-\nEditarEliminar\nPage Size:\n10\n1 a 2 de 2\nPágina 1 de 1",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1024,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Código",
+                "width": 160
+              },
+              {
+                "text": "Nombre",
+                "width": 200
+              },
+              {
+                "text": "Descripción",
+                "width": 430
+              },
+              {
+                "text": "Acciones",
+                "width": 180
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 160
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 430
+              },
+              {
+                "text": "",
+                "width": 180
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1020,
+            "height": 268,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Código",
+                "width": 160
+              },
+              {
+                "text": "Nombre",
+                "width": 200
+              },
+              {
+                "text": "Descripción",
+                "width": 430
+              },
+              {
+                "text": "Acciones",
+                "width": 180
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 160
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 430
+              },
+              {
+                "text": "",
+                "width": 180
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/catalogs/phone-types",
+      "label": "/catalogs/phone-types",
+      "finalUrl": "http://localhost:743/catalogs/phone-types",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/catalogs_phone_types.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalogs/phone-types",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalog-types/phone-types",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/catalogs/phone-types",
+        "title": "Administra el catálogo de tipos de teléfono.Tipos de teléfono",
+        "textLength": 319,
+        "textSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE TELÉFONO.\n\nTipos de teléfono\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\n1 a 3 de 3. Página 1 de 1\nCódigo\nNombre\nDescripción\nAcciones\nFIJO\nFijo\n-\nEditarEliminar\nMOVIL\nMóvil\n-\nEditarEliminar\nTRABAJO\nTrabajo\n-\nEditarEliminar\nPage Size:\n10\n1 a 3 de 3\nPágina 1 de 1",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1024,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Código",
+                "width": 160
+              },
+              {
+                "text": "Nombre",
+                "width": 200
+              },
+              {
+                "text": "Descripción",
+                "width": 430
+              },
+              {
+                "text": "Acciones",
+                "width": 180
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 160
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 430
+              },
+              {
+                "text": "",
+                "width": 180
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1020,
+            "height": 268,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Código",
+                "width": 160
+              },
+              {
+                "text": "Nombre",
+                "width": 200
+              },
+              {
+                "text": "Descripción",
+                "width": 430
+              },
+              {
+                "text": "Acciones",
+                "width": 180
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 160
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 430
+              },
+              {
+                "text": "",
+                "width": 180
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/catalogs/email-types",
+      "label": "/catalogs/email-types",
+      "finalUrl": "http://localhost:743/catalogs/email-types",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/catalogs_email_types.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalogs/email-types",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalog-types/email-types",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/catalogs/email-types",
+        "title": "Administra el catálogo de tipos de correo.Tipos de correo",
+        "textLength": 321,
+        "textSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE CORREO.\n\nTipos de correo\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\n1 a 3 de 3. Página 1 de 1\nCódigo\nNombre\nDescripción\nAcciones\nOTRO\nOtro\n-\nEditarEliminar\nPERSONAL\nPersonal\n-\nEditarEliminar\nTRABAJO\nTrabajo\n-\nEditarEliminar\nPage Size:\n10\n1 a 3 de 3\nPágina 1 de 1",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1024,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Código",
+                "width": 160
+              },
+              {
+                "text": "Nombre",
+                "width": 200
+              },
+              {
+                "text": "Descripción",
+                "width": 430
+              },
+              {
+                "text": "Acciones",
+                "width": 180
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 160
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 430
+              },
+              {
+                "text": "",
+                "width": 180
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1020,
+            "height": 268,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Código",
+                "width": 160
+              },
+              {
+                "text": "Nombre",
+                "width": 200
+              },
+              {
+                "text": "Descripción",
+                "width": 430
+              },
+              {
+                "text": "Acciones",
+                "width": 180
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 160
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 430
+              },
+              {
+                "text": "",
+                "width": 180
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/catalogs/address-types",
+      "label": "/catalogs/address-types",
+      "finalUrl": "http://localhost:743/catalogs/address-types",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/catalogs_address_types.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalogs/address-types",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalog-types/address-types",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/catalogs/address-types",
+        "title": "Administra el catálogo de tipos de dirección.Tipos de dirección",
+        "textLength": 405,
+        "textSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE DIRECCIÓN.\n\nTipos de dirección\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\n1 a 5 de 5. Página 1 de 1\nCódigo\nNombre\nDescripción\nAcciones\nCASA\nCasa\n-\nEditarEliminar\nCORRESPONDENCIA\nCorrespondencia\n-\nEditarEliminar\nFINCA\nFinca\n-\nEditarEliminar\nPERSONAL\nPersonal\n-\nEditarEliminar\nTRABAJO\nTrabajo\n-\nEditarEliminar\nPage Size:\n10\n1 a 5 de 5\nPágina 1 de 1",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1024,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Código",
+                "width": 160
+              },
+              {
+                "text": "Nombre",
+                "width": 200
+              },
+              {
+                "text": "Descripción",
+                "width": 430
+              },
+              {
+                "text": "Acciones",
+                "width": 180
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 160
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 430
+              },
+              {
+                "text": "",
+                "width": 180
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1020,
+            "height": 268,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Código",
+                "width": 160
+              },
+              {
+                "text": "Nombre",
+                "width": 200
+              },
+              {
+                "text": "Descripción",
+                "width": 430
+              },
+              {
+                "text": "Acciones",
+                "width": 180
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 160
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 430
+              },
+              {
+                "text": "",
+                "width": 180
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/catalogs/transaction-codes",
+      "label": "/catalogs/transaction-codes",
+      "finalUrl": "http://localhost:743/catalogs/transaction-codes",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/catalogs_transaction_codes.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalogs/transaction-codes",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalog-types/transaction-codes",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/catalogs/transaction-codes",
+        "title": "Administra el catálogo de códigos de transacción ACH.Códigos de transacción ACH",
+        "textLength": 1146,
+        "textSample": "ADMINISTRA EL CATÁLOGO DE CÓDIGOS DE TRANSACCIÓN ACH.\n\nCódigos de transacción ACH\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\n1 a 10 de 19. Página 1 de 2\nCódigo\nNombre\nDescripción\nAcciones\n21\nDevolución crédito cuenta corriente\nDevolución de crédito a cuenta corriente.\nEditarEliminar\n22\nCrédito cuenta corriente\nCrédito a cuenta corriente.\nEditarEliminar\n23\nPrenotificación crédito cuenta corriente\nPrenotificación crédito a cuenta corriente.\nEditarEliminar\n26\nDevolución débito cuenta corriente\nDevolución de débito a cuenta corriente.\nEditarEliminar\n27\nDébito cuenta corriente\nDébito a cuenta corriente.\nEditarEliminar\n28\nPrenotificación débito cuenta corriente\nPrenotificación débito a cuenta corriente.\nEditarEliminar\n31\nDevolución crédito cuenta ahorros\nDevolución de crédito a cuenta de ahorros.\nEditarEliminar\n32\nCrédito cuenta ahorros\nCrédito a cuenta de ahorros.\nEdit",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1024,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Código",
+                "width": 160
+              },
+              {
+                "text": "Nombre",
+                "width": 200
+              },
+              {
+                "text": "Descripción",
+                "width": 430
+              },
+              {
+                "text": "Acciones",
+                "width": 180
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 160
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 430
+              },
+              {
+                "text": "",
+                "width": 180
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1020,
+            "height": 268,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Código",
+                "width": 160
+              },
+              {
+                "text": "Nombre",
+                "width": 200
+              },
+              {
+                "text": "Descripción",
+                "width": 430
+              },
+              {
+                "text": "Acciones",
+                "width": 180
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 160
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 430
+              },
+              {
+                "text": "",
+                "width": 180
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/customer-third-parties",
+      "label": "/customer-third-parties",
+      "finalUrl": "http://localhost:743/customer-third-parties",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/customer_third_parties.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/customer-third-parties",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/customer-third-parties?page=1&pageSize=20",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/customer-third-parties",
+        "title": "Gestión y consulta de prenotificaciones por terceroCustomer Third Parties",
+        "textLength": 589,
+        "textSample": "GESTIÓN Y CONSULTA DE PRENOTIFICACIONES POR TERCERO\n\nCustomer Third Parties\nBúsqueda general\nCuenta destino\nDocumento receptor\nEstado\nTodos\nPendiente\nAprobado\nRechazado\nBuscar\nLimpiar\nsearch\nCliente\nEntidad destino\nCuenta destino\nDocumento receptor\nEstado\nID prenotificación\nCiclo validación\nUAT SINT\nBanco UAT Destino CENIT\n0000003202\n900003201\n0\n257\nUAT SINT\nBanco UAT Destino\n0000003102\n900003101\n0\n256\nCLIENTE UAT ACH\nBanco UAT Destino CENIT\n0000002002\n900000002\n0\n247\nCLIENTE UAT ACH\nBanco UAT Destino\n0000001002\n900000001\n0\n246\nUAT DRYRUN\nBanco UAT Destino\n0000003002\n900000021\n0\n245",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1058,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Cliente",
+                "width": 200
+              },
+              {
+                "text": "Entidad destino",
+                "width": 200
+              },
+              {
+                "text": "Cuenta destino",
+                "width": 200
+              },
+              {
+                "text": "Documento receptor",
+                "width": 200
+              },
+              {
+                "text": "Estado",
+                "width": 200
+              },
+              {
+                "text": "ID prenotificación",
+                "width": 200
+              },
+              {
+                "text": "Ciclo validación",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1054,
+            "height": 316,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Cliente",
+                "width": 200
+              },
+              {
+                "text": "Entidad destino",
+                "width": 200
+              },
+              {
+                "text": "Cuenta destino",
+                "width": 200
+              },
+              {
+                "text": "Documento receptor",
+                "width": 200
+              },
+              {
+                "text": "Estado",
+                "width": 200
+              },
+              {
+                "text": "ID prenotificación",
+                "width": 200
+              },
+              {
+                "text": "Ciclo validación",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/ach-cycles/nacha/layouts",
+      "label": "/ach-cycles/nacha/layouts",
+      "finalUrl": "http://localhost:743/ach-cycles/nacha/layouts",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/ach_cycles_nacha_layouts.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/ach-cycles/nacha/layouts",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/nacha-record-definitions",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/nacha-layouts",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/ach-cycles/nacha/layouts",
+        "title": "Administra la estructura de campos, posiciones y longitudes de los registros NACHA-M.Layouts NACHA-M",
+        "textLength": 783,
+        "textSample": "ADMINISTRA LA ESTRUCTURA DE CAMPOS, POSICIONES Y LONGITUDES DE LOS REGISTROS NACHA-M.\n\nLayouts NACHA-M\nTotal layouts\n6\nCampos configurados\n53\nDefiniciones relacionadas\n6\nNuevo layout\nRefrescar\nsearch\nCódigo\nTipo de registro\nLongitud\nCampos\nDescripción\nAcciones\n1\nFILE_HEADER\n106\n12\nRegistro encabezado de archivo NACHA-M (ACH Colombia)\nEditar\nEliminar\n5\nBATCH_HEADER\n106\n12\nRegistro encabezado de lote NACHA-M\nEditar\nEliminar\n6\nENTRY_DETAIL\n106\n10\nRegistro detalle de transacción NACHA-M\nEditar\nEliminar\n7\nADDENDA\n106\n4\nRegistro Addenda NACHA-M (información adicional de AchTransactionAddenda)\nEditar\nEliminar\n8\nBATCH_CONTROL\n106\n9\nRegistro control de lote NACHA-M\nEditar\nEliminar\n9\nFILE_CONTROL\n106\n6\nRegistro control de archivo NACHA-M (resumen general del archivo)\nEditar\nEliminar",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1058,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Código",
+                "width": 110
+              },
+              {
+                "text": "Tipo de registro",
+                "width": 240
+              },
+              {
+                "text": "Longitud",
+                "width": 130
+              },
+              {
+                "text": "Campos",
+                "width": 130
+              },
+              {
+                "text": "Descripción",
+                "width": 320
+              },
+              {
+                "text": "Acciones",
+                "width": 260
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 110
+              },
+              {
+                "text": "",
+                "width": 240
+              },
+              {
+                "text": "",
+                "width": 130
+              },
+              {
+                "text": "",
+                "width": 130
+              },
+              {
+                "text": "",
+                "width": 320
+              },
+              {
+                "text": "",
+                "width": 260
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1054,
+            "height": 316,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Código",
+                "width": 110
+              },
+              {
+                "text": "Tipo de registro",
+                "width": 240
+              },
+              {
+                "text": "Longitud",
+                "width": 130
+              },
+              {
+                "text": "Campos",
+                "width": 130
+              },
+              {
+                "text": "Descripción",
+                "width": 320
+              },
+              {
+                "text": "Acciones",
+                "width": 260
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 110
+              },
+              {
+                "text": "",
+                "width": 240
+              },
+              {
+                "text": "",
+                "width": 130
+              },
+              {
+                "text": "",
+                "width": 130
+              },
+              {
+                "text": "",
+                "width": 320
+              },
+              {
+                "text": "",
+                "width": 260
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/ach-cycles/nacha/definitions",
+      "label": "/ach-cycles/nacha/definitions",
+      "finalUrl": "http://localhost:743/ach-cycles/nacha/definitions",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/ach_cycles_nacha_definitions.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/ach-cycles/nacha/definitions",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/nacha-record-definitions",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/nacha-layouts",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/ach-cycles/nacha/definitions",
+        "title": "Definiciones NACHA-M",
+        "textLength": 669,
+        "textSample": "Definiciones NACHA-M\n\nConfigura el orden y la fuente de datos de cada registro sin perder el contexto de la lista.\n\nNueva definición\nTotal definiciones\n6\nActivas\n6\nInactivas\n0\nsearch\nOrden\nFuente\nOrigen\nFiltro\nLayout (campos)\nEstado\nAcciones\n10\nCustom\nCalculado (Custom)\nFILE_HEADER (12)\nActivo\nEditar\nEliminar\n20\nCustom\nCalculado (Custom)\nBATCH_HEADER (12)\nActivo\nEditar\nEliminar\n30\nCustom\nCalculado (Custom)\nBatchId\nENTRY_DETAIL (10)\nActivo\nEditar\nEliminar\n40\nCustom\nCalculado (Custom)\nBatchId\nADDENDA (4)\nActivo\nEditar\nEliminar\n50\nCustom\nCalculado (Custom)\nBATCH_CONTROL (9)\nActivo\nEditar\nEliminar\n60\nCustom\nCalculado (Custom)\nFILE_CONTROL (6)\nActivo\nEditar\nEliminar",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1058,
+            "height": 320,
+            "headers": [
+              {
+                "text": "Orden",
+                "width": 90
+              },
+              {
+                "text": "Fuente",
+                "width": 150
+              },
+              {
+                "text": "Origen",
+                "width": 240
+              },
+              {
+                "text": "Filtro",
+                "width": 220
+              },
+              {
+                "text": "Layout (campos)",
+                "width": 220
+              },
+              {
+                "text": "Estado",
+                "width": 130
+              },
+              {
+                "text": "Acciones",
+                "width": 260
+              },
+              {
+                "text": "",
+                "width": 90
+              },
+              {
+                "text": "",
+                "width": 150
+              },
+              {
+                "text": "",
+                "width": 240
+              },
+              {
+                "text": "",
+                "width": 220
+              },
+              {
+                "text": "",
+                "width": 220
+              },
+              {
+                "text": "",
+                "width": 130
+              },
+              {
+                "text": "",
+                "width": 260
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1054,
+            "height": 316,
+            "headers": [
+              {
+                "text": "Orden",
+                "width": 90
+              },
+              {
+                "text": "Fuente",
+                "width": 150
+              },
+              {
+                "text": "Origen",
+                "width": 240
+              },
+              {
+                "text": "Filtro",
+                "width": 220
+              },
+              {
+                "text": "Layout (campos)",
+                "width": 220
+              },
+              {
+                "text": "Estado",
+                "width": 130
+              },
+              {
+                "text": "Acciones",
+                "width": 260
+              },
+              {
+                "text": "",
+                "width": 90
+              },
+              {
+                "text": "",
+                "width": 150
+              },
+              {
+                "text": "",
+                "width": 240
+              },
+              {
+                "text": "",
+                "width": 220
+              },
+              {
+                "text": "",
+                "width": 220
+              },
+              {
+                "text": "",
+                "width": 130
+              },
+              {
+                "text": "",
+                "width": 260
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/reports",
+      "label": "/reports",
+      "finalUrl": "http://localhost:743/reports",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/reports.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/reports",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/reports",
+        "title": "Módulo corporativo de reportes y trazabilidadReportes ACH",
+        "textLength": 1088,
+        "textSample": "MÓDULO CORPORATIVO DE REPORTES Y TRAZABILIDAD\n\nReportes ACH\nExportar reporte operativo de revisión\n\nEste reporte es operativo y de soporte de conciliación/revisión de terceros. NO contabiliza, no genera asientos y no reemplaza evidencia externa ni aprobación humana.\n\nLa evidencia CUD es operacional/manual. No representa API CUD bancaria ni saldo real CUD. Liquidez simulada no equivale a saldo real CUD.\n\nFormato \nPDF\nCSV\nExcel\nDesde \nHasta \nCámara \nCiclo \nArchivo \nHash archivo \nTransacción \nEstado \nCausal \n Outbound\n Incoming\n Devoluciones\n Return of Return\n Manual audit-only\n Neteo\n Liquidez\n Evidencia CUD operacional\nDescargar reporte\nEnviados\n\nTransacciones enviadas\n\nAbrir\nRecibidos\n\nTransacciones recibidas\n\nAbrir\nDevoluciones\n\nOperaciones devueltas\n\nAbrir\nRechazos\n\nOperaciones rechazadas\n\nAbrir\nArchivos\n\nArchivos NACHA exportados\n\nAbrir\nCiclos\n\nCiclos y estado operativo\n\nAbrir\nConcili",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/reports/sent",
+      "label": "/reports/sent",
+      "finalUrl": "http://localhost:743/reports/sent",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/reports_sent.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/reports/sent",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/reports/transactions/sent?page=1&pageSize=25",
+          "status": 200,
+          "contentType": ""
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/clearing-houses",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/reports/sent",
+        "title": "Reporte de transacciones enviadasEnviados",
+        "textLength": 456,
+        "textSample": "REPORTE DE TRANSACCIONES ENVIADAS\n\nEnviados\nSeleccione una cámara\nTodas las cámaras\nACH Colombia (ACHCOL)\nCENIT (CENIT)\nTodos los estados\nPending\nReturnedByOperator\nReturnedByEpr\nAppliedTacitly\nCertified\nBuscar\nLimpiar\nExportar PDF\nNo hay datos para los filtros seleccionados.\nsearch\ninbox\n\nSin resultados\n\nNo hay registros para mostrar\nPuedes ajustar los filtros o crear un nuevo registro.\nID\nFecha\nID operación\nReferencia legado\nMonto\nEstado\nBanco origen",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": true,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1058,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "ID",
+                "width": 200
+              },
+              {
+                "text": "Fecha",
+                "width": 200
+              },
+              {
+                "text": "ID operación",
+                "width": 200
+              },
+              {
+                "text": "Referencia legado",
+                "width": 200
+              },
+              {
+                "text": "Monto",
+                "width": 200
+              },
+              {
+                "text": "Estado",
+                "width": 200
+              },
+              {
+                "text": "Banco origen",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1054,
+            "height": 316,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "ID",
+                "width": 200
+              },
+              {
+                "text": "Fecha",
+                "width": 200
+              },
+              {
+                "text": "ID operación",
+                "width": 200
+              },
+              {
+                "text": "Referencia legado",
+                "width": 200
+              },
+              {
+                "text": "Monto",
+                "width": 200
+              },
+              {
+                "text": "Estado",
+                "width": 200
+              },
+              {
+                "text": "Banco origen",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/reports/received",
+      "label": "/reports/received",
+      "finalUrl": "http://localhost:743/reports/received",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/reports_received.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/reports/received",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/reports/transactions/received?page=1&pageSize=25",
+          "status": 200,
+          "contentType": ""
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/clearing-houses",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/reports/received",
+        "title": "Reporte de transacciones recibidasRecibidos",
+        "textLength": 458,
+        "textSample": "REPORTE DE TRANSACCIONES RECIBIDAS\n\nRecibidos\nSeleccione una cámara\nTodas las cámaras\nACH Colombia (ACHCOL)\nCENIT (CENIT)\nTodos los estados\nPending\nReturnedByOperator\nReturnedByEpr\nAppliedTacitly\nCertified\nBuscar\nLimpiar\nExportar PDF\nNo hay datos para los filtros seleccionados.\nsearch\ninbox\n\nSin resultados\n\nNo hay registros para mostrar\nPuedes ajustar los filtros o crear un nuevo registro.\nID\nFecha\nID operación\nReferencia legado\nMonto\nEstado\nBanco origen",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": true,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1058,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "ID",
+                "width": 200
+              },
+              {
+                "text": "Fecha",
+                "width": 200
+              },
+              {
+                "text": "ID operación",
+                "width": 200
+              },
+              {
+                "text": "Referencia legado",
+                "width": 200
+              },
+              {
+                "text": "Monto",
+                "width": 200
+              },
+              {
+                "text": "Estado",
+                "width": 200
+              },
+              {
+                "text": "Banco origen",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1054,
+            "height": 316,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "ID",
+                "width": 200
+              },
+              {
+                "text": "Fecha",
+                "width": 200
+              },
+              {
+                "text": "ID operación",
+                "width": 200
+              },
+              {
+                "text": "Referencia legado",
+                "width": 200
+              },
+              {
+                "text": "Monto",
+                "width": 200
+              },
+              {
+                "text": "Estado",
+                "width": 200
+              },
+              {
+                "text": "Banco origen",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/reports/returns",
+      "label": "/reports/returns",
+      "finalUrl": "http://localhost:743/reports/returns",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/reports_returns.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/reports/returns",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/reports/returns?page=1&pageSize=25",
+          "status": 200,
+          "contentType": ""
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/clearing-houses",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/reports/returns",
+        "title": "Reporte de devoluciones ACHDevoluciones",
+        "textLength": 448,
+        "textSample": "REPORTE DE DEVOLUCIONES ACH\n\nDevoluciones\nSeleccione una cámara\nTodas las cámaras\nACH Colombia (ACHCOL)\nCENIT (CENIT)\nTodos los estados\nPending\nReturnedByOperator\nReturnedByEpr\nAppliedTacitly\nCertified\nBuscar\nLimpiar\nExportar PDF\nNo hay datos para los filtros seleccionados.\nsearch\ninbox\n\nSin resultados\n\nNo hay registros para mostrar\nPuedes ajustar los filtros o crear un nuevo registro.\nID\nFecha\nID operación\nReferencia legado\nCausal\nMonto\nEstado",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": true,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1058,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "ID",
+                "width": 200
+              },
+              {
+                "text": "Fecha",
+                "width": 200
+              },
+              {
+                "text": "ID operación",
+                "width": 200
+              },
+              {
+                "text": "Referencia legado",
+                "width": 200
+              },
+              {
+                "text": "Causal",
+                "width": 200
+              },
+              {
+                "text": "Monto",
+                "width": 200
+              },
+              {
+                "text": "Estado",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1054,
+            "height": 316,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "ID",
+                "width": 200
+              },
+              {
+                "text": "Fecha",
+                "width": 200
+              },
+              {
+                "text": "ID operación",
+                "width": 200
+              },
+              {
+                "text": "Referencia legado",
+                "width": 200
+              },
+              {
+                "text": "Causal",
+                "width": 200
+              },
+              {
+                "text": "Monto",
+                "width": 200
+              },
+              {
+                "text": "Estado",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/reports/rejections",
+      "label": "/reports/rejections",
+      "finalUrl": "http://localhost:743/reports/rejections",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/reports_rejections.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/reports/rejections",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/reports/rejections?page=1&pageSize=25",
+          "status": 200,
+          "contentType": ""
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/clearing-houses",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/reports/rejections",
+        "title": "Reporte de rechazos ACHRechazos",
+        "textLength": 440,
+        "textSample": "REPORTE DE RECHAZOS ACH\n\nRechazos\nSeleccione una cámara\nTodas las cámaras\nACH Colombia (ACHCOL)\nCENIT (CENIT)\nTodos los estados\nPending\nReturnedByOperator\nReturnedByEpr\nAppliedTacitly\nCertified\nBuscar\nLimpiar\nExportar PDF\nNo hay datos para los filtros seleccionados.\nsearch\ninbox\n\nSin resultados\n\nNo hay registros para mostrar\nPuedes ajustar los filtros o crear un nuevo registro.\nID\nFecha\nID operación\nReferencia legado\nCausal\nMonto\nEstado",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": true,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1058,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "ID",
+                "width": 200
+              },
+              {
+                "text": "Fecha",
+                "width": 200
+              },
+              {
+                "text": "ID operación",
+                "width": 200
+              },
+              {
+                "text": "Referencia legado",
+                "width": 200
+              },
+              {
+                "text": "Causal",
+                "width": 200
+              },
+              {
+                "text": "Monto",
+                "width": 200
+              },
+              {
+                "text": "Estado",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1054,
+            "height": 316,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "ID",
+                "width": 200
+              },
+              {
+                "text": "Fecha",
+                "width": 200
+              },
+              {
+                "text": "ID operación",
+                "width": 200
+              },
+              {
+                "text": "Referencia legado",
+                "width": 200
+              },
+              {
+                "text": "Causal",
+                "width": 200
+              },
+              {
+                "text": "Monto",
+                "width": 200
+              },
+              {
+                "text": "Estado",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/reports/files",
+      "label": "/reports/files",
+      "finalUrl": "http://localhost:743/reports/files",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/reports_files.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/reports/files",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/reports/nacha-files?page=1&pageSize=25",
+          "status": 200,
+          "contentType": ""
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/clearing-houses",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/reports/files",
+        "title": "Reporte de archivos NACHAArchivos",
+        "textLength": 343,
+        "textSample": "REPORTE DE ARCHIVOS NACHA\n\nArchivos\nSeleccione una cámara\nTodas las cámaras\nACH Colombia (ACHCOL)\nCENIT (CENIT)\nBuscar\nLimpiar\nExportar PDF\nNo hay datos para los filtros seleccionados.\nsearch\ninbox\n\nSin resultados\n\nNo hay registros para mostrar\nPuedes ajustar los filtros o crear un nuevo registro.\nArchivo\nFecha\nCámara\nRegistros\nTransacciones",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": true,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1058,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Archivo",
+                "width": 200
+              },
+              {
+                "text": "Fecha",
+                "width": 200
+              },
+              {
+                "text": "Cámara",
+                "width": 200
+              },
+              {
+                "text": "Registros",
+                "width": 200
+              },
+              {
+                "text": "Transacciones",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1054,
+            "height": 316,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Archivo",
+                "width": 200
+              },
+              {
+                "text": "Fecha",
+                "width": 200
+              },
+              {
+                "text": "Cámara",
+                "width": 200
+              },
+              {
+                "text": "Registros",
+                "width": 200
+              },
+              {
+                "text": "Transacciones",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/reports/cycles",
+      "label": "/reports/cycles",
+      "finalUrl": "http://localhost:743/reports/cycles",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/reports_cycles.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/reports/cycles",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/reports/cycles?page=1&pageSize=25",
+          "status": 200,
+          "contentType": ""
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/clearing-houses",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/reports/cycles",
+        "title": "Reporte de ciclos ACHCiclos",
+        "textLength": 329,
+        "textSample": "REPORTE DE CICLOS ACH\n\nCiclos\nSeleccione una cámara\nTodas las cámaras\nACH Colombia (ACHCOL)\nCENIT (CENIT)\nBuscar\nLimpiar\nExportar PDF\nNo hay datos para los filtros seleccionados.\nsearch\ninbox\n\nSin resultados\n\nNo hay registros para mostrar\nPuedes ajustar los filtros o crear un nuevo registro.\nNombre\nHorario\nFecha\nEstado\nTx\nMonto",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": true,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1058,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Nombre",
+                "width": 200
+              },
+              {
+                "text": "Horario",
+                "width": 200
+              },
+              {
+                "text": "Fecha",
+                "width": 200
+              },
+              {
+                "text": "Estado",
+                "width": 200
+              },
+              {
+                "text": "Tx",
+                "width": 200
+              },
+              {
+                "text": "Monto",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1054,
+            "height": 316,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Nombre",
+                "width": 200
+              },
+              {
+                "text": "Horario",
+                "width": 200
+              },
+              {
+                "text": "Fecha",
+                "width": 200
+              },
+              {
+                "text": "Estado",
+                "width": 200
+              },
+              {
+                "text": "Tx",
+                "width": 200
+              },
+              {
+                "text": "Monto",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/reports/reconciliation",
+      "label": "/reports/reconciliation",
+      "finalUrl": "http://localhost:743/reports/reconciliation",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/reports_reconciliation.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/reports/reconciliation",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/clearing-houses",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/reports/reconciliation",
+        "title": "Comparativo enviados, recibidos y devueltosConciliación",
+        "textLength": 156,
+        "textSample": "COMPARATIVO ENVIADOS, RECIBIDOS Y DEVUELTOS\n\nConciliación\nSeleccione una cámara\nTodas las cámaras\nACH Colombia (ACHCOL)\nCENIT (CENIT)\nConsultar\nExportar PDF",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [],
+        "modals": [],
+        "pdfState": {
+          "checked": true,
+          "noDataMessageVisible": false,
+          "misleadingDownload": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/reports/audit",
+      "label": "/reports/audit",
+      "finalUrl": "http://localhost:743/reports/audit",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/reports_audit.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/reports/audit",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/reports/audit?page=1&pageSize=25",
+          "status": 200,
+          "contentType": ""
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/reports/audit",
+        "title": "Traza operativa por usuario/acción/entidadAuditoría",
+        "textLength": 284,
+        "textSample": "TRAZA OPERATIVA POR USUARIO/ACCIÓN/ENTIDAD\n\nAuditoría\nBuscar\nLimpiar\nExportar PDF\nNo hay datos para los filtros seleccionados.\nsearch\ninbox\n\nSin resultados\n\nNo hay registros para mostrar\nPuedes ajustar los filtros o crear un nuevo registro.\nUsuario\nAcción\nEntidad\nID Entidad\nFecha UTC",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": true,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1058,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Usuario",
+                "width": 200
+              },
+              {
+                "text": "Acción",
+                "width": 200
+              },
+              {
+                "text": "Entidad",
+                "width": 200
+              },
+              {
+                "text": "ID Entidad",
+                "width": 200
+              },
+              {
+                "text": "Fecha UTC",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1054,
+            "height": 316,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Usuario",
+                "width": 200
+              },
+              {
+                "text": "Acción",
+                "width": 200
+              },
+              {
+                "text": "Entidad",
+                "width": 200
+              },
+              {
+                "text": "ID Entidad",
+                "width": 200
+              },
+              {
+                "text": "Fecha UTC",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/reports/history",
+      "label": "/reports/history",
+      "finalUrl": "http://localhost:743/reports/history",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/reports_history.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/reports/history",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/reports/history?page=1&pageSize=25",
+          "status": 200,
+          "contentType": ""
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/reports/history",
+        "title": "Histórico de cambios por rango de fechasHistórico",
+        "textLength": 414,
+        "textSample": "HISTÓRICO DE CAMBIOS POR RANGO DE FECHAS\n\nHistórico\nTodos los estados destino\nPending\nReturnedByOperator\nReturnedByEpr\nAppliedTacitly\nCertified\nTodas las fuentes\nOperator\nEpr\nSystem\nClaims\nBuscar\nLimpiar\nExportar PDF\nNo hay datos para los filtros seleccionados.\nsearch\ninbox\n\nSin resultados\n\nNo hay registros para mostrar\nPuedes ajustar los filtros o crear un nuevo registro.\nTx\nDesde\nHasta\nFuente\nCausal\nFecha UTC",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": true,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1058,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Tx",
+                "width": 200
+              },
+              {
+                "text": "Desde",
+                "width": 200
+              },
+              {
+                "text": "Hasta",
+                "width": 200
+              },
+              {
+                "text": "Fuente",
+                "width": 200
+              },
+              {
+                "text": "Causal",
+                "width": 200
+              },
+              {
+                "text": "Fecha UTC",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1054,
+            "height": 316,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Tx",
+                "width": 200
+              },
+              {
+                "text": "Desde",
+                "width": 200
+              },
+              {
+                "text": "Hasta",
+                "width": 200
+              },
+              {
+                "text": "Fuente",
+                "width": 200
+              },
+              {
+                "text": "Causal",
+                "width": 200
+              },
+              {
+                "text": "Fecha UTC",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/reports/traceability",
+      "label": "/reports/traceability",
+      "finalUrl": "http://localhost:743/reports/traceability",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/reports_traceability.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/reports/traceability",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/ach-cycles?page=1&pageSize=200",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/reports/traceability",
+        "title": "Genera el PDF por filtros de estado, ciclo y rango de fechasReporte de trazabilidad ACHVolver a reportes",
+        "textLength": 1041,
+        "textSample": "GENERA EL PDF POR FILTROS DE ESTADO, CICLO Y RANGO DE FECHAS\n\nReporte de trazabilidad ACH\nVolver a reportes\nDesde (UTC)\nHasta (UTC)\nEstado\nTodos los estados\nPendiente\nDevuelto por operador\nDevuelto por EPR\nAplicado tácitamente\nCertificado\nCiclo ACH (selección múltiple)\nACH Colombia · Ciclo 1\nACH Colombia · Ciclo 1\nACH Colombia · Ciclo 1\nACH Colombia · Ciclo 2\nACH Colombia · Ciclo 2\nACH Colombia · Ciclo 2\nACH Colombia · Ciclo 3\nACH Colombia · Ciclo 3\nACH Colombia · Ciclo 3\nACH Colombia · Ciclo 4\nACH Colombia · Ciclo 4\nACH Colombia · Ciclo 4\nACH Colombia · Ciclo 5\nACH Colombia · Ciclo 5\nACH Colombia · Ciclo 5\nACH Colombia · UAT-SINT-CICLO\nCENIT · Ciclo 1\nCENIT · Ciclo 1\nCENIT · Ciclo 1\nCENIT · Ciclo 2\nCENIT · Ciclo 2\nCENIT · Ciclo 2\nCENIT · Ciclo 3\nCENIT · Ciclo 3\nCENIT · Ciclo 3\nCENIT · Ciclo 4\nCENIT · Ciclo 4\nCENIT · Ciclo 4\nCENIT · Ciclo 5\nCENIT · Ciclo 5\nCENIT · Ciclo 5\nPuedes seleccio",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [],
+        "modals": [],
+        "pdfState": {
+          "checked": true,
+          "noDataMessageVisible": false,
+          "misleadingDownload": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/integraciones/soap-settings",
+      "label": "/integraciones/soap-settings",
+      "finalUrl": "http://localhost:743/integraciones/soap-settings",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/integraciones_soap_settings.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/integraciones/soap-settings",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/soap-integrations",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/integraciones/soap-settings",
+        "title": "Integraciones ACH",
+        "textLength": 1267,
+        "textSample": "Inicio\n/\nIntegraciones\nIntegraciones ACH\n\nConfigure de forma guiada las reglas funcionales y parámetros técnicos de intercambio con servicios ACH.\n\nUse configuración funcional para reglas operativas y configuración técnica SOAP para endpoint y contratos de consumo.\nConfiguración funcional\nConfiguración técnica SOAP\nInicio\n/\nIntegraciones\n/\nConfiguracion SOAP\nConfiguracion SOAP\n\nAdministra parametros tecnicos de integracion SOAP para UAT/local.\n\nModo seguro: sin secretos completos\nshield_lock\nProc_Contrapartidas: DryRun/UAT-local\nVer recomendaciones de seguridad\nTotal servicios\n3\nHabilitados\n3\nModo seguro\n3\nUltima prueba\nPendiente\nServicios configurados\n\nLista compacta. Usa detalle o edicion para ver valores completos.\n\nRecargar configuracion\nWscfaachSoapClient\nProc_Contrapartidas\nHabilitado\nENDPOINT\nhttp://esparta/WSCFAACH/WSCFAACH.svc\nDryRun/UAT-local\nSin prueba\nDetalle\nEditar\nProbar\nVe",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/integraciones/mappings",
+      "label": "/integraciones/mappings",
+      "finalUrl": "http://localhost:743/integraciones/mappings",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/integraciones_mappings.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/integraciones/mappings",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/methods",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/mappingsets?methodId=1",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/methods/1/parameters",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/source-catalog?methodId=1",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/integraciones/mappings",
+        "title": "Integraciones ACH",
+        "textLength": 3651,
+        "textSample": "Inicio\n/\nIntegraciones\nIntegraciones ACH\n\nConfigure de forma guiada las reglas funcionales y parámetros técnicos de intercambio con servicios ACH.\n\nUse configuración funcional para reglas operativas y configuración técnica SOAP para endpoint y contratos de consumo.\nConfiguración funcional\nConfiguración técnica SOAP\nInicio\n/\nIntegraciones\n/\nConfiguracion funcional\nMapeos de integracion\n\nAdministra versiones funcionales de mapeos SOAP para UAT/local.\n\nNuevo borrador\nLos cambios de mapping pueden afectar procesamiento SOAP. Valide en UAT antes de publicar.\nTotal mappings\n4\nBorrador\n0\nPublicado\n3\nIntegraciones\n3\nIntegracion\nProc_Contrapartidas - WSCFAACH.Proc_Contrapartidas - WscfaachSoapClient\nProc_Transacciones - WSCFAACH.Proc_Transacciones - WscfaachSoapClient\nRegistrarRespuestaTransaccion - WSAXON.RegistrarRespuestaTransaccion - WsAxonRespuestaTransaccionesSoapClient\nEstado\nTodos\nBorrado",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": true,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/uat/nacha-inbound-simulator",
+      "label": "/uat/nacha-inbound-simulator",
+      "finalUrl": "http://localhost:743/uat/nacha-inbound-simulator",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/uat_nacha_inbound_simulator.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/uat/nacha-inbound-simulator",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/financial-institutions?includeInactive=false",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/uat/nacha-inbound-simulator",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/uat/nacha-inbound-simulator",
+        "title": "UAT / SimuladoresSimulador NACHA-M Entrada",
+        "textLength": 3590,
+        "textSample": "UAT / SIMULADORES\n\nSimulador NACHA-M Entrada\nEste simulador solo genera archivos. Para procesarlos debe cargarlos posteriormente por NachaUpload.\nCamara\nACH Colombia\nCENIT\nEscenario\nCredito entrante\nDebito entrante\nRespuesta prenotificacion\nConfirmacion credito\nRechazo credito\nDevolucion credito\nConfirmacion debito\nRechazo debito\nDevolucion debito\nModo respuesta\nNo aplica\nAprobada\nRechazada\nConfirmada\nDevuelta\nFallida\nCausal\nEntidad originadora externa\nSeleccione una entidad externa\nBancolombia · 00001007\nBanco de Bogota · 00001001\nBanco Popular · 00001002\nBanco ITAU · 00001006\nCitibank Colombia · 00001009\nBanco GNB Sudameris · 00001012\nBBVA · 00001013\nScotiabank Colpatria · 00001019\nBCSC S.A · 00001032\nBanco Davivienda · 00001051\nBanco de Occidente · 00001023\nAV Villas · 00001052\nBanco Agrario de Colombia · 00001040\nBanco de la Republica · 00001000\nDireccion del Tesoro Nacional · 000016",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/transactions/returns",
+      "label": "/transactions/returns",
+      "finalUrl": "http://localhost:743/transactions/returns",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/transactions_returns.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/transactions/returns",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/ach-cycles?page=1&pageSize=100",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/return-reasons?onlyForReturn=true",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/transactions/returns",
+        "title": "Seleccione un ciclo, marque transacciones y genere el archivo .RETGestión de Devoluciones ACH",
+        "textLength": 1079,
+        "textSample": "SELECCIONE UN CICLO, MARQUE TRANSACCIONES Y GENERE EL ARCHIVO .RET\n\nGestión de Devoluciones ACH\nCiclo operativo\nLimpiar\nUAT-SINT-CICLO (2026-05-18)\nCiclo 1 (2026-05-19)\nCiclo 1 (2026-05-19)\nCiclo 2 (2026-05-19)\nCiclo 2 (2026-05-19)\nCiclo 3 (2026-05-19)\nCiclo 3 (2026-05-19)\nCiclo 4 (2026-05-19)\nCiclo 4 (2026-05-19)\nCiclo 5 (2026-05-19)\nCiclo 5 (2026-05-19)\nCiclo 1 (2026-05-20)\nCiclo 1 (2026-05-20)\nCiclo 2 (2026-05-20)\nCiclo 2 (2026-05-20)\nCiclo 3 (2026-05-20)\nCiclo 3 (2026-05-20)\nCiclo 4 (2026-05-20)\nCiclo 4 (2026-05-20)\nCiclo 5 (2026-05-20)\nCiclo 5 (2026-05-20)\nCiclo 1 (2026-05-21)\nCiclo 1 (2026-05-21)\nCiclo 2 (2026-05-21)\nCiclo 2 (2026-05-21)\nCiclo 3 (2026-05-21)\nCiclo 3 (2026-05-21)\nCiclo 4 (2026-05-21)\nCiclo 4 (2026-05-21)\nCiclo 5 (2026-05-21)\nCiclo 5 (2026-05-21)\nConsultar\nAsignar causal / Generar\nsearch\ninbox\n\nNo hay devoluciones registradas\n\nNo hay devoluciones registradas para el ",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1058,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "ID",
+                "width": 110
+              },
+              {
+                "text": "Trace",
+                "width": 200
+              },
+              {
+                "text": "Referencia",
+                "width": 200
+              },
+              {
+                "text": "Monto",
+                "width": 200
+              },
+              {
+                "text": "Cod. Tx",
+                "width": 130
+              },
+              {
+                "text": "Estado",
+                "width": 220
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 110
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 130
+              },
+              {
+                "text": "",
+                "width": 220
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1054,
+            "height": 268,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "ID",
+                "width": 110
+              },
+              {
+                "text": "Trace",
+                "width": 200
+              },
+              {
+                "text": "Referencia",
+                "width": 200
+              },
+              {
+                "text": "Monto",
+                "width": 200
+              },
+              {
+                "text": "Cod. Tx",
+                "width": 130
+              },
+              {
+                "text": "Estado",
+                "width": 220
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 110
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 130
+              },
+              {
+                "text": "",
+                "width": 220
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/transactions/clearing-house-rules",
+      "label": "/transactions/clearing-house-rules",
+      "finalUrl": "http://localhost:743/transactions/clearing-house-rules",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/transactions_clearing_house_rules.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/transactions/clearing-house-rules",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/clearing-houses",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/clearing-house-transaction-rules?includeInactive=false",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/transactions/clearing-house-rules",
+        "title": "Configuracion ACHReglas por camara",
+        "textLength": 623,
+        "textSample": "CONFIGURACION ACH\n\nReglas por camara\nFiltros\nCamara\nLimpiar\nACH Colombia\nCENIT\nNaturaleza\nLimpiar\nTodas\nCredito\nDebito\nIncluir inactivas\nsearch\nConsultar\nadd\nNueva regla\nReglas configuradas\n4 registros\nsearch\n1 a 4 de 4. Página 1 de 1\nCamara\nNaturaleza\nTipo\nPrenotificacion\nValidacion ID\nVigencia\nFuente\nEstado\nACH Colombia\nCredito\n2025-01-01 a abierta\nMAN-004 ACH Colombia V32\nActiva\nACH Colombia\nDebito\n2025-01-01 a abierta\nMAN-004 ACH Colombia V32\nActiva\nCENIT\nCredito\n2025-01-01 a abierta\nCENIT DSP-152 Anexo 2\nActiva\nCENIT\nDebito\n2025-01-01 a abierta\nCENIT DSP-152 Anexo 2\nActiva\nPage Size:\n15\n1 a 4 de 4\nPágina 1 de 1",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1016,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Camara",
+                "width": 200
+              },
+              {
+                "text": "Naturaleza",
+                "width": 130
+              },
+              {
+                "text": "Tipo",
+                "width": 110
+              },
+              {
+                "text": "Prenotificacion",
+                "width": 150
+              },
+              {
+                "text": "Validacion ID",
+                "width": 140
+              },
+              {
+                "text": "Vigencia",
+                "width": 210
+              },
+              {
+                "text": "Fuente",
+                "width": 200
+              },
+              {
+                "text": "Estado",
+                "width": 110
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 130
+              },
+              {
+                "text": "",
+                "width": 110
+              },
+              {
+                "text": "",
+                "width": 150
+              },
+              {
+                "text": "",
+                "width": 140
+              },
+              {
+                "text": "",
+                "width": 210
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 110
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1012,
+            "height": 268,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "Camara",
+                "width": 200
+              },
+              {
+                "text": "Naturaleza",
+                "width": 130
+              },
+              {
+                "text": "Tipo",
+                "width": 110
+              },
+              {
+                "text": "Prenotificacion",
+                "width": 150
+              },
+              {
+                "text": "Validacion ID",
+                "width": 140
+              },
+              {
+                "text": "Vigencia",
+                "width": 210
+              },
+              {
+                "text": "Fuente",
+                "width": 200
+              },
+              {
+                "text": "Estado",
+                "width": 110
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 130
+              },
+              {
+                "text": "",
+                "width": 110
+              },
+              {
+                "text": "",
+                "width": 150
+              },
+              {
+                "text": "",
+                "width": 140
+              },
+              {
+                "text": "",
+                "width": 210
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 110
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/integraciones/mappings/WSCFAACH.Proc_Contrapartidas/1d6f8bce-d768-4ebd-80d0-c5331971e130",
+      "label": "Editor WSCFAACH.Proc_Contrapartidas",
+      "finalUrl": "http://localhost:743/integraciones/mappings/WSCFAACH.Proc_Contrapartidas/1d6f8bce-d768-4ebd-80d0-c5331971e130",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/integraciones_mappings_WSCFAACH_Proc_Contrapartidas_1d6f8bce_d768_4ebd_80d0_c5331971e130.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/integraciones/mappings/WSCFAACH.Proc_Contrapartidas/1d6f8bce-d768-4ebd-80d0-c5331971e130",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/mappingsets/1d6f8bce-d768-4ebd-80d0-c5331971e130",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/transformations",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/mappingsets/1d6f8bce-d768-4ebd-80d0-c5331971e130/history",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/methods/1/parameters",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/source-catalog?methodId=1",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/integraciones/mappings/WSCFAACH.Proc_Contrapartidas/1d6f8bce-d768-4ebd-80d0-c5331971e130",
+        "title": "Integraciones ACH",
+        "textLength": 4377,
+        "textSample": "Inicio\n/\nIntegraciones\nIntegraciones ACH\n\nConfigure de forma guiada las reglas funcionales y parámetros técnicos de intercambio con servicios ACH.\n\nUse configuración funcional para reglas operativas y configuración técnica SOAP para endpoint y contratos de consumo.\nConfiguración funcional\nConfiguración técnica SOAP\nInicio\n/\nIntegraciones\n/\nConfiguración funcional\n/\nEditor de configuración\nProcContrapartidas Published\n\nDefina reglas de origen, transformación y valores de respaldo para publicar con control operativo.\n\nEstado actual: Publicado\nPrimero guarde y valide; después ejecute vista previa y finalmente publique si no existen bloqueos.\nTotal parámetros\n22\nVálidos\n0\nIncompletos\n22\nInválidos\n0\nAdvertencias\n0\nErrores\n0\nDestino configurable\n\nSeleccione un parámetro para editar su estrategia de resolución.\n\nNIT origen\nOFNIT\nIdentificador tributario de la entidad origen.\nRequerido\nSin valid",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": true,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1374,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/integraciones/mappings/WSCFAACH.Proc_Transacciones/dc1b034b-4de3-4043-93cc-79072bf8a5e9",
+      "label": "Editor WSCFAACH.Proc_Transacciones",
+      "finalUrl": "http://localhost:743/integraciones/mappings/WSCFAACH.Proc_Transacciones/dc1b034b-4de3-4043-93cc-79072bf8a5e9",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/integraciones_mappings_WSCFAACH_Proc_Transacciones_dc1b034b_4de3_4043_93cc_79072bf8a5e9.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/integraciones/mappings/WSCFAACH.Proc_Transacciones/dc1b034b-4de3-4043-93cc-79072bf8a5e9",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/mappingsets/dc1b034b-4de3-4043-93cc-79072bf8a5e9",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/transformations",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/mappingsets/dc1b034b-4de3-4043-93cc-79072bf8a5e9/history",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/methods/2/parameters",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/source-catalog?methodId=2",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/integraciones/mappings/WSCFAACH.Proc_Transacciones/dc1b034b-4de3-4043-93cc-79072bf8a5e9",
+        "title": "Integraciones ACH",
+        "textLength": 4102,
+        "textSample": "Inicio\n/\nIntegraciones\nIntegraciones ACH\n\nConfigure de forma guiada las reglas funcionales y parámetros técnicos de intercambio con servicios ACH.\n\nUse configuración funcional para reglas operativas y configuración técnica SOAP para endpoint y contratos de consumo.\nConfiguración funcional\nConfiguración técnica SOAP\nInicio\n/\nIntegraciones\n/\nConfiguración funcional\n/\nEditor de configuración\nProcTransacciones Published NACHA desagregado\n\nDefina reglas de origen, transformación y valores de respaldo para publicar con control operativo.\n\nEstado actual: Publicado\nPrimero guarde y valide; después ejecute vista previa y finalmente publique si no existen bloqueos.\nTotal parámetros\n27\nVálidos\n0\nIncompletos\n27\nInválidos\n0\nAdvertencias\n0\nErrores\n0\nDestino configurable\n\nSeleccione un parámetro para editar su estrategia de resolución.\n\nTipo de registro\nTREG\nTipo de registro ACH transacción.\nRequerido\n",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": true,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1374,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "route": "/integraciones/mappings/WSAXON.RegistrarRespuestaTransaccion/66830bda-7d12-43b2-a2d5-efbfc69e2144",
+      "label": "Editor WSAXON.RegistrarRespuestaTransaccion",
+      "finalUrl": "http://localhost:743/integraciones/mappings/WSAXON.RegistrarRespuestaTransaccion/66830bda-7d12-43b2-a2d5-efbfc69e2144",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/integraciones_mappings_WSAXON_RegistrarRespuestaTransaccion_66830bda_7d12_43b2_a2d5_efbfc69e2144.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/integraciones/mappings/WSAXON.RegistrarRespuestaTransaccion/66830bda-7d12-43b2-a2d5-efbfc69e2144",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/mappingsets/66830bda-7d12-43b2-a2d5-efbfc69e2144",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/transformations",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/mappingsets/66830bda-7d12-43b2-a2d5-efbfc69e2144/history",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/methods/3/parameters",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/source-catalog?methodId=3",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/integraciones/mappings/WSAXON.RegistrarRespuestaTransaccion/66830bda-7d12-43b2-a2d5-efbfc69e2144",
+        "title": "Integraciones ACH",
+        "textLength": 3249,
+        "textSample": "Inicio\n/\nIntegraciones\nIntegraciones ACH\n\nConfigure de forma guiada las reglas funcionales y parámetros técnicos de intercambio con servicios ACH.\n\nUse configuración funcional para reglas operativas y configuración técnica SOAP para endpoint y contratos de consumo.\nConfiguración funcional\nConfiguración técnica SOAP\nInicio\n/\nIntegraciones\n/\nConfiguración funcional\n/\nEditor de configuración\nRegistrarRespuestaTransaccion Published respuesta diferencial\n\nDefina reglas de origen, transformación y valores de respaldo para publicar con control operativo.\n\nEstado actual: Publicado\nPrimero guarde y valide; después ejecute vista previa y finalmente publique si no existen bloqueos.\nTotal parámetros\n5\nVálidos\n0\nIncompletos\n5\nInválidos\n0\nAdvertencias\n0\nErrores\n0\nDestino configurable\n\nSeleccione un parámetro para editar su estrategia de resolución.\n\nId lote respuesta\nANSIDLOTE\nIdentificador del lote i",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": true,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1374,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    }
+  ],
+  "phaseSummary": {
+    "fase1ReportButtons": true,
+    "fase2ReportsPdf": true,
+    "fase3CatalogsAgGrid": true,
+    "fase4NachaLayoutsDefinitions": true,
+    "integrationsMappings": true
+  },
+  "notes": []
+}

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { ColDef, RowSelectionOptions } from 'ag-grid-community';
+import { finalize } from 'rxjs';
 import { SharedModule } from '../../../../shared/shared.module';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { AchCyclesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
@@ -29,6 +30,7 @@ export class AchReturnsManagementComponent implements OnInit {
   cycles: AchCycleSummary[] = [];
   reasons: ReturnReason[] = [];
   rows: ReturnEligibleTransaction[] = [];
+  loadError = '';
 
   showReasonModal = false;
   loading = false;
@@ -63,7 +65,7 @@ export class AchReturnsManagementComponent implements OnInit {
   get cycleOptions(): OpcionSelectorBuscable[] {
     return this.cycles.map((cycle) => ({
       valor: cycle.id,
-      etiqueta: `${cycle.cycleName} (${this.toDate(cycle.date)})`
+      etiqueta: `${cycle.cycleName} (${this.toDate(cycle.date ?? cycle.processingDate)})`
     }));
   }
   get reasonOptions(): OpcionSelectorBuscable[] {
@@ -119,19 +121,23 @@ export class AchReturnsManagementComponent implements OnInit {
     }
 
     this.loading = true;
+    this.loadError = '';
     this.rows = [];
     this.selectedRows.clear();
 
-    this.returnsApi.getTransactionsByCycle(selectedCycleId).subscribe({
-      next: (items) => {
-        this.rows = items;
+    this.returnsApi.getTransactionsByCycle(selectedCycleId).pipe(
+      finalize(() => {
         this.loading = false;
         this.cdr.markForCheck();
+      })
+    ).subscribe({
+      next: (items) => {
+        this.rows = Array.isArray(items) ? items : [];
       },
       error: () => {
-        this.loading = false;
+        this.rows = [];
+        this.loadError = 'No fue posible cargar las devoluciones del ciclo seleccionado.';
         this.notifications.error('No fue posible cargar las transacciones del ciclo.');
-        this.cdr.markForCheck();
       }
     });
   }
@@ -162,7 +168,12 @@ export class AchReturnsManagementComponent implements OnInit {
     }
 
     this.loading = true;
-    this.returnsApi.generateFile({ cycleId: selectedCycleId, items: selectedItems }).subscribe({
+    this.returnsApi.generateFile({ cycleId: selectedCycleId, items: selectedItems }).pipe(
+      finalize(() => {
+        this.loading = false;
+        this.cdr.markForCheck();
+      })
+    ).subscribe({
       next: (blob) => {
         const fileName = `devoluciones_${selectedCycleId}.RET`;
         const link = document.createElement('a');
@@ -171,15 +182,11 @@ export class AchReturnsManagementComponent implements OnInit {
         link.click();
         URL.revokeObjectURL(link.href);
 
-        this.loading = false;
         this.showReasonModal = false;
         this.notifications.success('Archivo NACHA-M de devoluciones generado correctamente.');
-        this.cdr.markForCheck();
       },
       error: (err) => {
-        this.loading = false;
         this.notifications.error(err?.error?.message ?? 'No fue posible generar el archivo de devoluciones.');
-        this.cdr.markForCheck();
       }
     });
   }
@@ -199,7 +206,12 @@ export class AchReturnsManagementComponent implements OnInit {
         }
         this.cdr.markForCheck();
       },
-      error: () => this.notifications.error('No fue posible cargar los ciclos operativos.')
+      error: () => {
+        this.cycles = [];
+        this.loadError = 'No fue posible cargar los ciclos operativos.';
+        this.notifications.error('No fue posible cargar los ciclos operativos.');
+        this.cdr.markForCheck();
+      }
     });
   }
 
@@ -209,11 +221,24 @@ export class AchReturnsManagementComponent implements OnInit {
         this.reasons = items ?? [];
         this.cdr.markForCheck();
       },
-      error: () => this.notifications.error('No fue posible cargar el catálogo de causales de devolución.')
+      error: () => {
+        this.reasons = [];
+        this.notifications.error('No fue posible cargar el catálogo de causales de devolución.');
+        this.cdr.markForCheck();
+      }
     });
   }
 
-  private toDate(value: string | Date): string {
-    return new Date(value).toISOString().slice(0, 10);
+  private toDate(value: string | Date | null | undefined): string {
+    if (!value) {
+      return 'Sin fecha';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return 'Sin fecha';
+    }
+
+    return date.toISOString().slice(0, 10);
   }
 }

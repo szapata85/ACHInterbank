@@ -15,9 +15,42 @@
   border-radius: var(--radius-sm);
   padding: 0 0.6rem;
 }
-.actions { display: flex; gap: 0.5rem; align-items: center; }
-.actions button { height: 2.4rem; padding: 0 0.9rem; border-radius: var(--radius-sm); border: 1px solid var(--color-border-strong); background: #fff; }
-.actions button.primary { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+.actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.report-action {
+  height: 2.4rem;
+  padding: 0 0.95rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.report-action:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.28);
+  outline-offset: 2px;
+}
+.report-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+.report-action-primary {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+.report-action-primary:hover:not(:disabled) { background: #1d4ed8; border-color: #1d4ed8; }
+.report-action-secondary {
+  background: #fff;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+.report-action-secondary:hover:not(:disabled) { background: #f8fafc; border-color: #64748b; }
+.report-action-export {
+  background: #14532d;
+  color: #fff;
+  border-color: #14532d;
+}
+.report-action-export:hover:not(:disabled) { background: #166534; border-color: #166534; }
 .state { padding: 0.75rem; border-radius: var(--radius-sm); }
 .state.error { background: #fee2e2; color: #991b1b; }
 .state.empty { background: #f8fafc; color: #475569; }

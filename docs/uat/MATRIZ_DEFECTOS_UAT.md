@@ -219,4 +219,73 @@ Productivo: **NO-GO**.
 
 El error `message channel closed before a response was received` no se reprodujo en Chromium limpio; queda documentado como ruido probable de extension si aparece en navegador local.
 
+## Actualizacion 2026-05-24 - /transactions/returns
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-UX-RETURNS-001 `/transactions/returns` no cargaba informacion de devoluciones | Cerrado tecnico frontend | `docs/ux/evidencias/transactions-returns/transactions-returns-validation.json`, `docs/ux/evidencias/transactions-returns/transactions-returns.png` | Causa raiz: mismatch DTO `date`/`processingDate` en ciclos y proxies SPA faltantes para `/return-reasons` y `/ach-returns/`. Se corrigio manejo de loading/error/vacio y proxy SPA. Runtime valido: `ach-returns` responde `200` con `[]` y la pantalla muestra `No hay devoluciones registradas`. |
+
+Validaciones:
+
+- `npm run build`: OK.
+- `npm test -- --watch=false --browsers=ChromeHeadless`: OK, 224 SUCCESS.
+- `node web/ach-interbank-ui/scripts/ux-validate-transactions-returns.mjs`: OK.
+- `node web/ach-interbank-ui/scripts/ux-audit-spa-final-regression.mjs`: OK, 31 rutas, P0=0/P1=0/P2=0.
+- `node web/ach-interbank-ui/scripts/ux-audit-spa-critical-routes.mjs`: OK, 23 rutas, P0=0/P1=0/P2=0.
+
+Productivo: **NO-GO**.
+
+## Actualizacion 2026-05-23 - P1 botones reportes SPA
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-UX-REPORTS-001 Botones Buscar/Limpiar/Exportar PDF con bajo contraste en rutas `/reports/*` | Cerrado tecnico frontend | `docs/ux/evidencias/spa-global-audit/spa-critical-routes-audit.json`, `docs/ux/evidencias/spa-global-audit/spa-critical-routes-audit.md`, `docs/ux/DESIGN_SYSTEM_BOTONES_SPA.md` | Se corrigio el patron comun en `ReportListPageComponent`; auditoria Playwright queda P0=0, P1=0, P2=0 para 23 rutas auditadas. No se tocaron backend, SOAP, reglas ACH/NACHA-M/CENIT/ROR ni PDFs. |
+
+Productivo: **NO-GO**.
+
+## Actualizacion 2026-05-23 - PDF reportes reconciliation/traceability
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-UX-REPORTS-002 Descarga de PDF vacio en `/reports/reconciliation` | Cerrado tecnico frontend | `docs/ux/evidencias/reports-pdf/reconciliation-pdf-result.json` | Runtime/API devuelve `Content-Length=0` para escenario sin datos; la SPA bloquea descarga y muestra `No hay informacion para exportar`. |
+| DEF-UAT-UX-REPORTS-003 Descarga de PDF vacio y seleccion multiple confusa en `/reports/traceability` | Cerrado tecnico frontend | `docs/ux/evidencias/reports-pdf/traceability-pdf-result.json` | Runtime/API devuelve `Content-Length=0` para escenario sin datos; la SPA bloquea descarga, muestra mensaje claro y deduplica ciclos seleccionados antes de consultar PDF. |
+
+Validacion: `npm run build` OK, `npm test -- --watch=false --browsers=ChromeHeadless` OK con 192 SUCCESS, `node web/ach-interbank-ui/scripts/ux-validate-reports-pdf.mjs` OK y auditoria global SPA P0=0/P1=0/P2=0.
+
+Productivo: **NO-GO**.
+
+## Actualizacion 2026-05-24 - Fase 3 catalogos, terceros y AG Grid
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-UX-CATALOGS-001 AG Grid ilegible en `/catalogs/financial-institutions` | Cerrado tecnico frontend | `docs/ux/evidencias/catalogs-aggrid/catalogs-aggrid-validation.json` | Se ajustaron columnas, tooltips/ellipsis y acciones visibles. No se altero el uso de `IsDefaultSource`. |
+| DEF-UAT-UX-CATALOGS-002 `/catalogs/bank-holidays` no cargaba en SPA Docker | Cerrado tecnico frontend | `docs/ux/evidencias/catalogs-aggrid/screenshots/catalogs_bank_holidays.png` | El API directo respondia 200; faltaba proxy SPA para `/bank-holidays`. Se corrigio Nginx y estados de error/vacio. |
+| DEF-UAT-UX-CATALOGS-003 Catalogos tipologicos aparentaban falta de seed | Cerrado tecnico frontend | `docs/ux/evidencias/catalogs-aggrid/catalogs-aggrid-validation.md` | El API directo tenia datos; faltaba proxy SPA para `/catalog-types/`. No se agregaron seeds. |
+| DEF-UAT-UX-CATALOGS-004 `/customer-third-parties` parecia no cargar datos | Cerrado tecnico frontend | `docs/ux/evidencias/catalogs-aggrid/screenshots/customer_third_parties.png` | Se ejecuta carga inicial y se muestra error/vacio claro. No se inventaron terceros UAT. |
+
+Validacion: `npm run build` OK, `npm test -- --watch=false --browsers=ChromeHeadless` OK con 201 SUCCESS, `node web/ach-interbank-ui/scripts/ux-validate-catalogs-aggrid.mjs` OK y auditoria global SPA P0=0/P1=0/P2=0.
+
+Productivo: **NO-GO**.
+
+## Actualizacion 2026-05-24 - Fase 4 NACHA-M layouts y definitions
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-UX-NACHA-001 UX pobre en `/ach-cycles/nacha/layouts` | Cerrado tecnico frontend | `docs/ux/evidencias/nacha-layouts-definitions/screenshots/nacha-layouts.png` | Se agrego resumen operativo, estados de error/vacio y botones consistentes. No se cambiaron reglas NACHA-M ni API. |
+| DEF-UAT-UX-NACHA-002 Edicion inline pesada en `/ach-cycles/nacha/definitions` | Cerrado tecnico frontend | `docs/ux/evidencias/nacha-layouts-definitions/screenshots/nacha-definitions-edit-modal.png` | Crear/editar definicion usa modal/drawer lateral, conserva contexto de lista y reutiliza el mismo servicio/payload. |
+
+Validacion: `npm run build` OK, `npm test -- --watch=false --browsers=ChromeHeadless` OK con 214 SUCCESS, `node web/ach-interbank-ui/scripts/ux-validate-nacha-layouts-definitions.mjs` OK y auditoria global SPA P0=0/P1=0/P2=0.
+
+Productivo: **NO-GO**.
+
+Productivo: **NO-GO**.
+
+## Actualizacion 2026-05-24 - Fase 5 regresion final SPA Angular
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-UX-SPA-REG-001 Regresion final SPA Angular | Cerrado tecnico frontend | `docs/ux/evidencias/spa-regression-final/spa-final-regression.json`, `docs/ux/REGRESION_FINAL_SPA_UAT.md` | Se auditaron 30 rutas con Playwright limpio: P0=0, P1=0, P2=0. Se mantiene auditoria global historica 23 rutas en P0=0/P1=0/P2=0. |
+
+Validacion: `npm run build` OK, `npm test -- --watch=false --browsers=ChromeHeadless` OK con 214 SUCCESS, `ux-audit-spa-critical-routes.mjs` OK, `ux-audit-spa-final-regression.mjs` OK y `ux-validate-reports-pdf.mjs` OK.
+
 Productivo: **NO-GO**.

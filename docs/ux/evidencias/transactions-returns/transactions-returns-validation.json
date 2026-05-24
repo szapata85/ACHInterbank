@@ -1,0 +1,59 @@
+{
+  "generatedAt": "2026-05-24T05:08:05.459Z",
+  "baseUrl": "http://localhost:743",
+  "ok": true,
+  "route": "/transactions/returns",
+  "loadingCleared": true,
+  "gridVisible": true,
+  "emptyVisible": true,
+  "errorVisible": false,
+  "blankPage": false,
+  "horizontalScroll": false,
+  "whiteCriticalButtons": [],
+  "responses": [
+    {
+      "method": "GET",
+      "url": "http://localhost:743/transactions/returns",
+      "status": 200,
+      "contentType": "text/html",
+      "body": "<!doctype html>\r\n<html lang=\"es\" data-beasties-container>\r\n  <head>\r\n    <meta charset=\"utf-8\">\r\n    <title>ACH Interbank - Gestión de Transacciones</title>\r\n    <base href=\"/\">\r\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\r\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">\r\n    <link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0\">\r\n    <link rel=\"icon\" type=\"image/x-icon\" href=\"favicon.ico\">\r\n  <style>:root{--font-sans:\"Inter\", \"Segoe UI\", Tahoma, Geneva, Verdana, sans-serif;--color-bg:#f3f6fb;--color-surface:#ffffff;--color-surface-muted:#f8fafc;--color-border:#dbe3ee;--color-border-strong:#c8d3e1;--color-text:#0f172a;--color-text-muted:#475569;--color-text-soft:#64748b;--color-"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:743/return-reasons?onlyForReturn=true",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": "[\n  {\n    \"id\": 56,\n    \"code\": \"DEV14\",\n    \"description\": \"No consentimiento / revocación expresa del usuario receptor.\",\n    \"category\": \"R\",\n    \"isForReturn\": true\n  },\n  {\n    \"id\": 1,\n    \"code\": \"R01\",\n    \"description\": \"Fondos Insuficientes.\",\n    \"category\": \"R\",\n    \"isForReturn\": true\n  },\n  {\n    \"id\": 2,\n    \"code\": \"R02\",\n    \"description\": \"Cuenta o Depósito Electrónico Cerrado (Saldado o Cancelado).\",\n    \"category\": \"R\",\n    \"isForReturn\": true\n  },\n  {\n    \"id\": 3,\n    \"code\": \"R03\",\n    \"description\": \"Cuenta o Depósito Electrónico No Abierto.\",\n    \"category\": \"R\",\n    \"isForReturn\": true\n  },\n  {\n    \"id\": 4,\n    \"code\": \"R04\",\n    \"description\": \"Número Cuenta o Depósito Electrónico Inválido.\",\n    \"category\": \"R\",\n    \"isForReturn\": true\n  },\n  {\n    \"id\": 5,\n    \""
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:743/ach-cycles?page=1&pageSize=100",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": "[\n  {\n    \"id\": \"f18a9a845f1ce6dd6d0bf8b848ca4569ee18203d\",\n    \"cycleName\": \"UAT-SINT-CICLO\",\n    \"processingDate\": \"2026-05-18T00:00:00Z\",\n    \"startTime\": \"21:30:09\",\n    \"endTime\": \"00:00:09\",\n    \"cutoffTime\": \"00:00:09\",\n    \"rescheduleOnHoliday\": false,\n    \"clearingHouseId\": 1,\n    \"clearingHouseName\": \"ACH Colombia\",\n    \"operationalStatus\": \"Closed\",\n    \"acceptsTransactions\": false,\n    \"isContingencyCycle\": false,\n    \"windowLabel\": \"2026-05-17 21:30 - 2026-05-18 00:00\"\n  },\n  {\n    \"id\": \"6675dceef40b82d8e190c824a8d636a01e564b9b\",\n    \"cycleName\": \"Ciclo 1\",\n    \"processingDate\": \"2026-05-19T00:00:00Z\",\n    \"startTime\": \"19:00:00\",\n    \"endTime\": \"08:00:00\",\n    \"cutoffTime\": \"08:00:00\",\n    \"rescheduleOnHoliday\": true,\n    \"clearingHouseId\": 2,\n    \"clearingHouseCycleConfigId"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:743/ach-returns/cycles/f18a9a845f1ce6dd6d0bf8b848ca4569ee18203d/transactions",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": "[]"
+    }
+  ],
+  "failedRequests": [
+    {
+      "method": "GET",
+      "url": "http://localhost:743/api/users/branding",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "method": "GET",
+      "url": "https://fonts.gstatic.com/s/materialsymbolsoutlined/v339/kJF1BvYX7BgnkSrUwT8OhrdQw4oELdPIeeII9v6oDMzByHX9rA6RzaxHMPdY43zj-jCxv3fzvRNU22ZXGJpEpjC_1v-p_4MrImHCIJIZrDCvHOej.woff2",
+      "failure": "net::ERR_ABORTED"
+    }
+  ],
+  "consoleErrors": [],
+  "screenshotPath": "docs/ux/evidencias/transactions-returns/transactions-returns.png",
+  "errors": [],
+  "textSample": "SELECCIONE UN CICLO, MARQUE TRANSACCIONES Y GENERE EL ARCHIVO .RET Gestión de Devoluciones ACH Ciclo operativo Limpiar UAT-SINT-CICLO (2026-05-18) Ciclo 1 (2026-05-19) Ciclo 1 (2026-05-19) Ciclo 2 (2026-05-19) Ciclo 2 (2026-05-19) Ciclo 3 (2026-05-19) Ciclo 3 (2026-05-19) Ciclo 4 (2026-05-19) Ciclo 4 (2026-05-19) Ciclo 5 (2026-05-19) Ciclo 5 (2026-05-19) Ciclo 1 (2026-05-20) Ciclo 1 (2026-05-20) Ciclo 2 (2026-05-20) Ciclo 2 (2026-05-20) Ciclo 3 (2026-05-20) Ciclo 3 (2026-05-20) Ciclo 4 (2026-05-20) Ciclo 4 (2026-05-20) Ciclo 5 (2026-05-20) Ciclo 5 (2026-05-20) Ciclo 1 (2026-05-21) Ciclo 1 (2026-05-21) Ciclo 2 (2026-05-21) Ciclo 2 (2026-05-21) Ciclo 3 (2026-05-21) Ciclo 3 (2026-05-21) Ciclo 4 (2026-05-21) Ciclo 4 (2026-05-21) Ciclo 5 (2026-05-21) Ciclo 5 (2026-05-21) Consultar Asignar causal / Generar search inbox No hay devoluciones registradas No hay devoluciones registradas para el ciclo seleccionado. Puedes ajustar los filtros o crear un nuevo registro. 0 a 0 de 0. Página 0 de 0 ID "
+}

@@ -1,0 +1,564 @@
+{
+  "generatedAt": "2026-05-24T03:58:09.399Z",
+  "baseUrl": "http://localhost:743",
+  "runtime": {
+    "loginOk": true,
+    "roles": [
+      "Admin",
+      "ACH.Operator"
+    ]
+  },
+  "summary": {
+    "total": 2,
+    "ok": 2,
+    "withFindings": 0
+  },
+  "routes": [
+    {
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/ach-cycles/nacha/layouts",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/nacha-record-definitions",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/nacha-layouts",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "consoleErrors": [],
+      "route": "/ach-cycles/nacha/layouts",
+      "screenshotPath": "docs/ux/evidencias/nacha-layouts-definitions/screenshots/nacha-layouts.png",
+      "visual": {
+        "headerVisible": true,
+        "contentVisible": true,
+        "loadingVisible": false,
+        "emptyVisible": false,
+        "errorVisible": false,
+        "horizontalScroll": false,
+        "criticalButtons": [
+          {
+            "text": "Nuevo layout",
+            "width": 118,
+            "height": 40,
+            "background": "rgb(37, 99, 235)",
+            "color": "rgb(255, 255, 255)",
+            "className": "btn btn-primary"
+          },
+          {
+            "text": "Refrescar",
+            "width": 92,
+            "height": 40,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline"
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40,
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(24, 29, 31)",
+            "className": "ag-button ag-floating-filter-button-button"
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40,
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(24, 29, 31)",
+            "className": "ag-button ag-floating-filter-button-button"
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40,
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(24, 29, 31)",
+            "className": "ag-button ag-floating-filter-button-button"
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40,
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(24, 29, 31)",
+            "className": "ag-button ag-floating-filter-button-button"
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40,
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(24, 29, 31)",
+            "className": "ag-button ag-floating-filter-button-button"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Eliminar",
+            "width": 75,
+            "height": 32,
+            "background": "rgb(220, 38, 38)",
+            "color": "rgb(255, 255, 255)",
+            "className": "btn btn-danger btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Eliminar",
+            "width": 75,
+            "height": 32,
+            "background": "rgb(220, 38, 38)",
+            "color": "rgb(255, 255, 255)",
+            "className": "btn btn-danger btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Eliminar",
+            "width": 75,
+            "height": 32,
+            "background": "rgb(220, 38, 38)",
+            "color": "rgb(255, 255, 255)",
+            "className": "btn btn-danger btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Eliminar",
+            "width": 75,
+            "height": 32,
+            "background": "rgb(220, 38, 38)",
+            "color": "rgb(255, 255, 255)",
+            "className": "btn btn-danger btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Eliminar",
+            "width": 75,
+            "height": 32,
+            "background": "rgb(220, 38, 38)",
+            "color": "rgb(255, 255, 255)",
+            "className": "btn btn-danger btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Eliminar",
+            "width": 75,
+            "height": 32,
+            "background": "rgb(220, 38, 38)",
+            "color": "rgb(255, 255, 255)",
+            "className": "btn btn-danger btn-sm"
+          }
+        ],
+        "whiteButtons": [],
+        "editButtons": [
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          }
+        ],
+        "bodyTextSample": "Administra la estructura de campos, posiciones y longitudes de los registros NACHA-M.Layouts NACHA-MTotal layouts6Campos configurados53Definiciones relacionadas6Nuevo layoutRefrescarsearch\n                \n                \n                    \n        \n        \n            \n                \n                \n                    \n                \n            \n            \n        \n        \n        \n            \n            \n            \n        \n        \n        \n        \n        \n    \n        \n    \n        \n            \n                \n                \n                    \n                \n            \n            \n        \n        \n        \n            Código\n            \n            \n        \n        \n        \n        \n        \n    \n        \n    \n        \n            \n                \n  "
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/ach-cycles/nacha/definitions",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/nacha-record-definitions",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/nacha-layouts",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "consoleErrors": [],
+      "route": "/ach-cycles/nacha/definitions",
+      "screenshotPath": "docs/ux/evidencias/nacha-layouts-definitions/screenshots/nacha-definitions.png",
+      "visual": {
+        "headerVisible": true,
+        "contentVisible": true,
+        "loadingVisible": false,
+        "emptyVisible": false,
+        "errorVisible": false,
+        "horizontalScroll": false,
+        "criticalButtons": [
+          {
+            "text": "Nueva definición",
+            "width": 141,
+            "height": 40,
+            "background": "rgb(37, 99, 235)",
+            "color": "rgb(255, 255, 255)",
+            "className": "btn btn-primary"
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40,
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(24, 29, 31)",
+            "className": "ag-button ag-floating-filter-button-button"
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40,
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(24, 29, 31)",
+            "className": "ag-button ag-floating-filter-button-button"
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40,
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(24, 29, 31)",
+            "className": "ag-button ag-floating-filter-button-button"
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40,
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(24, 29, 31)",
+            "className": "ag-button ag-floating-filter-button-button"
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40,
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(24, 29, 31)",
+            "className": "ag-button ag-floating-filter-button-button"
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40,
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(24, 29, 31)",
+            "className": "ag-button ag-floating-filter-button-button"
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40,
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(24, 29, 31)",
+            "className": "ag-button ag-floating-filter-button-button"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Eliminar",
+            "width": 75,
+            "height": 32,
+            "background": "rgb(220, 38, 38)",
+            "color": "rgb(255, 255, 255)",
+            "className": "btn btn-danger btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Eliminar",
+            "width": 75,
+            "height": 32,
+            "background": "rgb(220, 38, 38)",
+            "color": "rgb(255, 255, 255)",
+            "className": "btn btn-danger btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Eliminar",
+            "width": 75,
+            "height": 32,
+            "background": "rgb(220, 38, 38)",
+            "color": "rgb(255, 255, 255)",
+            "className": "btn btn-danger btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Eliminar",
+            "width": 75,
+            "height": 32,
+            "background": "rgb(220, 38, 38)",
+            "color": "rgb(255, 255, 255)",
+            "className": "btn btn-danger btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Eliminar",
+            "width": 75,
+            "height": 32,
+            "background": "rgb(220, 38, 38)",
+            "color": "rgb(255, 255, 255)",
+            "className": "btn btn-danger btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Eliminar",
+            "width": 75,
+            "height": 32,
+            "background": "rgb(220, 38, 38)",
+            "color": "rgb(255, 255, 255)",
+            "className": "btn btn-danger btn-sm"
+          }
+        ],
+        "whiteButtons": [],
+        "editButtons": [
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          },
+          {
+            "text": "Editar",
+            "width": 60,
+            "height": 32,
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(37, 99, 235)",
+            "className": "btn btn-outline btn-sm"
+          }
+        ],
+        "bodyTextSample": "Definiciones NACHA-MConfigura el orden y la fuente de datos de cada registro sin perder el contexto de la lista.Nueva definiciónTotal definiciones6Activas6Inactivas0search\n                \n                \n                    \n        \n        \n            \n                \n                \n                    \n                \n            \n            \n        \n        \n        \n            \n            \n            \n        \n        \n        \n        \n        \n    \n        \n    \n        \n            \n                \n                \n                    \n                \n            \n            \n        \n        \n        \n            Código\n            \n            \n        \n        \n        \n        \n        \n    \n        \n    \n        \n            \n                \n                \n  "
+      },
+      "editFlow": {
+        "editButtonVisible": true,
+        "modalOpened": true,
+        "modalClosed": true
+      },
+      "modalScreenshotPath": "docs/ux/evidencias/nacha-layouts-definitions/screenshots/nacha-definitions-edit-modal.png",
+      "findings": [],
+      "ok": true
+    }
+  ]
+}

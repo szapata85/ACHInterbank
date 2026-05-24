@@ -17,6 +17,7 @@
 
   <div *ngIf="loading" class="state">Cargando...</div>
   <div *ngIf="error" class="state error">{{ error }}</div>
+  <div *ngIf="exportMessage" class="state warning" data-testid="reconciliation-export-message">{{ exportMessage }}</div>
 
   <div *ngIf="data" class="cards">
     <article class="card"><h4>Enviados</h4><p>{{ data.totals.sentCount }} / {{ data.totals.sentAmount | number:'1.2-2' }}</p></article>
@@ -29,5 +30,9 @@
     <p>Enviados vs Recibidos: {{ data.differences.sentVsReceivedCountDiff }} / {{ data.differences.sentVsReceivedAmountDiff | number:'1.2-2' }}</p>
     <p>Enviados vs Devueltos: {{ data.differences.sentVsReturnedCountDiff }} / {{ data.differences.sentVsReturnedAmountDiff | number:'1.2-2' }}</p>
     <p>Recibidos vs Devueltos: {{ data.differences.receivedVsReturnedCountDiff }} / {{ data.differences.receivedVsReturnedAmountDiff | number:'1.2-2' }}</p>
+  </div>
+
+  <div *ngIf="data && !hasExportableData()" class="state empty" data-testid="reconciliation-empty-state">
+    No hay informacion para exportar.
   </div>
 </section>

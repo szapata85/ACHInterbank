@@ -40,19 +40,21 @@ export class FinancialInstitutionsComponent implements OnInit, OnDestroy {
 
   institutions: DestinationInstitution[] = [];
   loading = false;
+  loadError = false;
   saving = false;
   showForm = false;
   editing: DestinationInstitution | null = null;
   private readonly destroy$ = new Subject<void>();
 
   readonly columnDefs: ColDef<DestinationInstitution>[] = [
-    { field: 'name', headerName: 'Nombre', flex: 1, filter: 'agTextColumnFilter' },
-    { field: 'routingNumber', headerName: 'Routing', maxWidth: 140 },
-    { field: 'transitCode', headerName: 'Transit', maxWidth: 120 },
-    { field: 'checkDigit', headerName: 'Dígito', maxWidth: 120 },
+    { field: 'name', headerName: 'Nombre', flex: 1, minWidth: 240, filter: 'agTextColumnFilter' },
+    { field: 'routingNumber', headerName: 'Routing', minWidth: 120, maxWidth: 150 },
+    { field: 'transitCode', headerName: 'Transit', minWidth: 110, maxWidth: 130 },
+    { field: 'checkDigit', headerName: 'Dígito', minWidth: 105, maxWidth: 125 },
     {
       field: 'isDefaultSource',
       headerName: 'Origen por defecto',
+      minWidth: 170,
       maxWidth: 180,
       cellRenderer: (params) => {
         const pill = document.createElement('span');
@@ -70,6 +72,7 @@ export class FinancialInstitutionsComponent implements OnInit, OnDestroy {
     {
       field: 'status',
       headerName: 'Estado',
+      minWidth: 130,
       maxWidth: 140,
       cellRenderer: (params) => {
         const pill = document.createElement('span');
@@ -87,7 +90,11 @@ export class FinancialInstitutionsComponent implements OnInit, OnDestroy {
     {
       headerName: 'Acciones',
       colId: 'actions',
-      maxWidth: 200,
+      minWidth: 210,
+      maxWidth: 230,
+      sortable: false,
+      filter: false,
+      floatingFilter: false,
       cellRenderer: (params) => {
         const container = document.createElement('div');
         container.classList.add('row-actions');
@@ -98,7 +105,9 @@ export class FinancialInstitutionsComponent implements OnInit, OnDestroy {
         edit.innerText = 'Editar';
         edit.addEventListener('click', () => {
           this.zone.run(() => {
-            params.context?.componentParent?.startEdit(params.data);
+            if (params.data) {
+              this.startEdit(params.data);
+            }
           });
         });
 
@@ -110,7 +119,9 @@ export class FinancialInstitutionsComponent implements OnInit, OnDestroy {
           params.data.status === FinancialInstitutionStatusEnum.Active ? 'Desactivar' : 'Activar';
         toggle.addEventListener('click', () => {
           this.zone.run(() => {
-            params.context?.componentParent?.toggleStatus(params.data);
+            if (params.data) {
+              this.toggleStatus(params.data);
+            }
           });
         });
 
@@ -148,6 +159,7 @@ export class FinancialInstitutionsComponent implements OnInit, OnDestroy {
 
   loadInstitutions(): void {
     this.loading = true;
+    this.loadError = false;
     this.service
       .list(true)
       .pipe(
@@ -156,9 +168,16 @@ export class FinancialInstitutionsComponent implements OnInit, OnDestroy {
           this.cdr.markForCheck();
         })
       )
-      .subscribe((data) => {
-        this.institutions = data;
-          });
+      .subscribe({
+        next: (data) => {
+          this.institutions = data;
+        },
+        error: () => {
+          this.institutions = [];
+          this.loadError = true;
+          this.cdr.markForCheck();
+        }
+      });
   }
 
   startCreate(): void {

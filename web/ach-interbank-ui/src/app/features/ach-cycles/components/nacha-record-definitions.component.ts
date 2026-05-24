@@ -14,6 +14,7 @@ import { NachaRecordLayoutDto } from '../models/nacha-layout.model';
 interface NachaDefinitionRow extends NachaRecordDefinitionDto {
   sourceTypeLabel: string;
   sourceDisplay: string;
+  isEnabledLabel: string;
   layoutSummary?: string;
 }
 
@@ -38,16 +39,18 @@ export class NachaRecordDefinitionsComponent implements OnInit {
   layoutsByCode: Record<string, NachaRecordLayoutDto> = {};
   loading = false;
   saving = false;
+  loadError = '';
+  editorOpen = false;
   editing: NachaRecordDefinitionDto | null = null;
 
   readonly columns = [
-    { key: 'recordCode', label: 'Código', width: '90px' },
+    { key: 'recordCode', label: 'Código', width: '110px' },
     { key: 'sequence', label: 'Orden', width: '90px' },
-    { key: 'sourceTypeLabel', label: 'Fuente' },
-    { key: 'sourceDisplay', label: 'Origen' },
-    { key: 'filterKey', label: 'Filtro' },
-    { key: 'layoutSummary', label: 'Layout (campos)' },
-    { key: 'isEnabled', label: 'Activo' }
+    { key: 'sourceTypeLabel', label: 'Fuente', width: '150px' },
+    { key: 'sourceDisplay', label: 'Origen', width: '240px' },
+    { key: 'filterKey', label: 'Filtro', width: '220px' },
+    { key: 'layoutSummary', label: 'Layout (campos)', width: '220px' },
+    { key: 'isEnabledLabel', label: 'Estado', width: '130px' }
   ];
 
   readonly sourceTypes = [
@@ -91,6 +94,18 @@ export class NachaRecordDefinitionsComponent implements OnInit {
     this.load();
   }
 
+  get totalDefinitions(): number {
+    return this.definitions.length;
+  }
+
+  get enabledDefinitions(): number {
+    return this.definitions.filter((item) => item.isEnabled).length;
+  }
+
+  get disabledDefinitions(): number {
+    return this.totalDefinitions - this.enabledDefinitions;
+  }
+
   get sourceNameOptions(): Array<{ value: string; label: string }> {
     return this.sourceOptionsByType[this.form.getRawValue().sourceType] ?? [];
   }
@@ -106,6 +121,7 @@ export class NachaRecordDefinitionsComponent implements OnInit {
 
   load(): void {
     this.loading = true;
+    this.loadError = '';
     forkJoin({
       definitions: this.service.getAll(),
       layouts: this.layoutsService.getAll()
@@ -125,18 +141,24 @@ export class NachaRecordDefinitionsComponent implements OnInit {
             ...item,
             sourceTypeLabel: this.resolveSourceType(item.sourceType),
             sourceDisplay: this.resolveSourceDisplay(item),
+            isEnabledLabel: item.isEnabled ? 'Activo' : 'Inactivo',
             layoutSummary: this.resolveLayoutSummary(item.recordCode)
           }));
           this.cdr.markForCheck();
         },
         error: () => {
+          this.definitions = [];
+          this.layoutsByCode = {};
+          this.loadError = 'No fue posible cargar las definiciones NACHA-M. Intente nuevamente.';
           this.notifications.error('No fue posible cargar las definiciones NACHA');
+          this.cdr.markForCheck();
         }
       });
   }
 
   startCreate(): void {
     this.editing = null;
+    this.editorOpen = true;
     this.form.reset({
       id: 0,
       recordCode: '',
@@ -151,6 +173,7 @@ export class NachaRecordDefinitionsComponent implements OnInit {
 
   startEdit(definition: NachaRecordDefinitionDto): void {
     this.editing = definition;
+    this.editorOpen = true;
     this.form.reset({
       id: definition.id,
       recordCode: definition.recordCode,
@@ -164,6 +187,7 @@ export class NachaRecordDefinitionsComponent implements OnInit {
   }
 
   cancel(): void {
+    this.editorOpen = false;
     this.editing = null;
     this.form.reset();
     this.cdr.markForCheck();

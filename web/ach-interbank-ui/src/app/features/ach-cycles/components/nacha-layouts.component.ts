@@ -34,6 +34,7 @@ export class NachaLayoutsComponent implements OnInit {
   definitionsByRecordCode: Record<string, NachaRecordDefinitionDto> = {};
   loading = false;
   saving = false;
+  loadError = '';
   editing: NachaRecordLayoutDto | null = null;
 
   readonly sourceColumnsBySourceName: Record<string, string[]> = {
@@ -75,10 +76,11 @@ export class NachaLayoutsComponent implements OnInit {
   };
 
   readonly columns = [
-    { key: 'recordCode', label: 'Código', width: '90px' },
-    { key: 'recordType', label: 'Tipo' },
-    { key: 'totalLength', label: 'Longitud' },
-    { key: 'fieldsCount', label: 'Campos' }
+    { key: 'recordCode', label: 'Código', width: '110px' },
+    { key: 'recordType', label: 'Tipo de registro', width: '240px' },
+    { key: 'totalLength', label: 'Longitud', width: '130px' },
+    { key: 'fieldsCount', label: 'Campos', width: '130px' },
+    { key: 'description', label: 'Descripción', width: '320px' }
   ];
 
   form = this.fb.nonNullable.group({
@@ -98,9 +100,22 @@ export class NachaLayoutsComponent implements OnInit {
     this.load();
   }
 
+  get totalLayouts(): number {
+    return this.layouts.length;
+  }
+
+  get totalFields(): number {
+    return this.layouts.reduce((total, layout) => total + layout.fieldsCount, 0);
+  }
+
+  get configuredDefinitions(): number {
+    return Object.keys(this.definitionsByRecordCode).length;
+  }
+
   load(): void {
     const targetRecordCode = this.route.snapshot.queryParamMap.get('recordCode')?.trim();
     this.loading = true;
+    this.loadError = '';
     forkJoin({
       layouts: this.service.getAll(),
       definitions: this.definitionsService.getAll()
@@ -131,7 +146,11 @@ export class NachaLayoutsComponent implements OnInit {
           this.cdr.markForCheck();
         },
         error: () => {
+          this.layouts = [];
+          this.definitionsByRecordCode = {};
+          this.loadError = 'No fue posible cargar los layouts NACHA-M. Intente nuevamente.';
           this.notifications.error('No fue posible cargar los layouts NACHA');
+          this.cdr.markForCheck();
         }
       });
   }
