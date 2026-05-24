@@ -51,6 +51,18 @@ Estado: plan de trabajo actualizado tras cierre controlado de DEF-UAT-015; inclu
 Estado especifico UAT tecnico autenticado: G-22 deja de estar bloqueada por variables y el rol `ACH.Operator` queda visible/asignado para `admin` tras cierre DEF-UAT-015. Persiste evidencia visual pendiente si el acta formal la exige, sin declarar GO productivo.
 Estado especifico UAT funcional sintetico: G-24 queda parcialmente cubierto por API directa y reintento HTTP desde SPA Docker. G-25 queda corregida tecnicamente. G-26 queda cerrada funcionalmente para nuevas transacciones tras revalidacion con `UAT-SINT-TRACE-001`. G-27 queda cerrada documentalmente para el contrato actual; la decision tecnica/arquitectonica pendiente aplica solo a evolucion 409/`Idempotency-Key`/replay. G-28 queda abierto/bloqueado para cierre formal NACHA-M por falta de prenotificacion previa valida. G-30 queda cerrado tecnicamente con 422 controlado; G-31 queda cerrado tecnicamente para UAT/local con `DryRun`. G-32 queda pendiente antes de reintentar NACHA-M real UAT no vacio. G-29 queda cerrado para UAT controlado.
 
+## Actualizacion 2026-05-23 - paquete UAT SOAP end-to-end
+
+| Accion | Estado | Entregable | Criterio de cierre |
+|---|---|---|---|
+| Consolidar acta UAT SOAP end-to-end firmable | OK documental | `docs/uat/ACTA_UAT_SOAP_END_TO_END_FORMAL.md` | Lista para firmas de Tecnologia, Operaciones, Seguridad, Auditoria y Negocio |
+| Consolidar matriz de escenarios SOAP | OK documental | `docs/uat/MATRIZ_ESCENARIOS_UAT_SOAP_END_TO_END_FINAL.md` | Escenarios positivos/negativos y evidencias referenciadas |
+| Consolidar inventario y hashes | OK documental | `docs/uat/evidencias/soap-end-to-end-final/` | Inventario JSON/MD y SHA256 generados |
+| Validar no transmision externa | OK UAT/local | `docs/uat/evidencias/soap-end-to-end-final/no_external_transmission_report.md` | DryRun/evidencia local; sin gateway externo |
+| Validar sanitizacion | OK documental | `docs/uat/evidencias/soap-end-to-end-final/security_sanitization_report.md` | Sin tokens/passwords/private keys reales |
+
+Siguiente paso: someter el paquete a revision humana y continuar UAT controlado. Productivo permanece **NO-GO** hasta cerrar homologacion externa, certificados/sobre digital, CENIT/CUD, backup/restore/rollback y aprobaciones formales.
+
 ## Restriccion De Esta Fase
 
 Esta actualizacion aplico solo cambios acotados de seguridad/configuracion/documentacion y pruebas de caracterizacion. No se tocaron reglas NACHA-M, CENIT, ROR, devoluciones, contabilidad ni conciliacion.

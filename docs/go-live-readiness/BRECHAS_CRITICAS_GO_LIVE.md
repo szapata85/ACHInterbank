@@ -45,6 +45,18 @@ Estado: registro actualizado tras cierre controlado de DEF-UAT-015; requiere tri
 
 Con cualquier brecha CRITICA abierta, el estado permanece **NO-GO productivo**. UAT controlado puede avanzar si el ambiente esta disponible, los datos estan anonimizados y las brechas se comunican como restricciones. Backend CI/local y Angular CI de rama/local estan OK; Docker compose config/build/runtime estan OK para API, PostgreSQL, health checks, SPA estatica y proxy SPA->API/Auth/Navigation/funcional/NACHA. El UAT tecnico autenticado basico queda **OK con observaciones** y DEF-UAT-015 queda cerrado para el usuario demo `admin` multirol. El UAT funcional sintetico queda **PARCIALMENTE OK**. El UAT integrado NACHA/SOAP deja evidencia de transacciones por camara, export NACHA con 422 controlado por falta de prenotificacion y guardrail SOAP `DryRun` sin transmision externa. NACHA-M real UAT sigue bloqueado hasta prenotificacion valida y archivo no vacio. Productivo sigue **NO-GO**.
 
+## Actualizacion 2026-05-23 - paquete final UAT SOAP end-to-end
+
+Se consolida paquete firmable UAT SOAP end-to-end en `docs/uat/evidencias/soap-end-to-end-final/` con acta, matriz de escenarios, inventario, hashes, sanitizacion y reporte de no transmision externa.
+
+Estado SOAP UAT/local:
+
+- `Proc_Contrapartidas`: cerrado tecnico, sin fallback requerido, DryRun/no transmision.
+- `Proc_Transacciones`: cerrado tecnico, usa NACHA-M desagregado, SOAP Envelope DryRun sanitizado, no transmision.
+- `RegistrarRespuestaTransaccion`: cerrado tecnico UAT, no monetario, aprueba/rechaza prenotificaciones CFA pendientes, no invoca WSCFAACH.
+
+Esta actualizacion habilita continuar UAT controlado, pero no reduce las brechas productivas criticas: homologacion externa, certificados/sobre digital, CENIT/CUD, backup/restore/rollback, UAT bancario formal y aprobaciones humanas siguen abiertas. Productivo permanece **NO-GO**.
+
 ## Actualizacion 2026-05-19 - Parametrizacion reglas por camara
 
 Se implemento configuracion administrable de reglas de prenotificacion por camara/naturaleza/tipo para reducir hard-code normativo y preparar el cierre de DEF-UAT-020. Nuevas evidencias:

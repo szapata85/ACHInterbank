@@ -1,0 +1,1418 @@
+﻿[
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\precheck_runtime.md",
+        "line":  30,
+        "excerpt":  "- Login: validado sin imprimir token ni password",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md",
+        "line":  7,
+        "excerpt":  "- tokenPrinted=false",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md",
+        "line":  8,
+        "excerpt":  "- passwordPrinted=false",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md",
+        "line":  9,
+        "excerpt":  "- authorizationHeaderIncluded=false",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md",
+        "line":  17,
+        "excerpt":  "Patrones revisados: `password/token/Authorization/Bearer/private key/BEGIN PRIVATE/connection string/User ID=/Host=/certificado privado/secret`.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md",
+        "line":  20,
+        "excerpt":  "- Coincidencias con forma de secreto real: 13",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md",
+        "line":  26,
+        "excerpt":  "/ $(@{path=docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md; line=17; excerpt=Patrones revisados: `password/token/Authorization/Bearer/private key/BEGIN PRIVATE/connection string/User ID=/Host=/certificado privado/secret`.; unsafe=True}.path) / 17 / Patrones revisados: `password/token/Authorization/Bearer/private key/BEGIN PRIVATE/connection string/User ID=/Host=/certificado privado/secret`. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md",
+        "line":  27,
+        "excerpt":  "/ $(@{path=docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md; line=26; excerpt=/ $(@{path=docs\\uat\\evidencias\\soap-integrations\\security_sanitization_report.md; line=9; excerpt=`password/token/Authorization/Bearer/private key/BEGIN PRIVATE/connection string`; classifiedSafe=False}.path) / 9 / `password/token/Authorization/Bearer/private key/BEGIN PRIVATE/connection string` /; unsafe=True}.path) / 26 / / $(@{path=docs\\uat\\evidencias\\soap-integrations\\security_sanitization_report.md; line=9; excerpt=`password/token/Authorization/Bearer/private key/BEGIN PRIVATE/connection string`; classifiedSafe=False}.path) / 9 / `password/token/Authorization/Bearer/private key/BEGIN PRIVATE/connection string` / /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md",
+        "line":  28,
+        "excerpt":  "/ $(@{path=docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md; line=53; excerpt=/ $(@{path=docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md; line=15; excerpt=Password: no documentada; tomada desde `ACH_UAT_DEMO_PASSWORD`.; classifiedSafe=False}.path) / 15 / Password: no documentada; tomada desde `ACH_UAT_DEMO_PASSWORD`. /; unsafe=True}.path) / 53 / / $(@{path=docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md; line=15; excerpt=Password: no documentada; tomada desde `ACH_UAT_DEMO_PASSWORD`.; classifiedSafe=False}.path) / 15 / Password: no documentada; tomada desde `ACH_UAT_DEMO_PASSWORD`. / /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md",
+        "line":  29,
+        "excerpt":  "/ $(@{path=docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md; line=117; excerpt=/ $(@{path=docs\\uat\\UAT_FUNCIONAL_SINTETICO.md; line=15; excerpt=Password: no documentada; tomada desde variable de entorno.; classifiedSafe=False}.path) / 15 / Password: no documentada; tomada desde variable de entorno. /; unsafe=True}.path) / 117 / / $(@{path=docs\\uat\\UAT_FUNCIONAL_SINTETICO.md; line=15; excerpt=Password: no documentada; tomada desde variable de entorno.; classifiedSafe=False}.path) / 15 / Password: no documentada; tomada desde variable de entorno. / /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md",
+        "line":  30,
+        "excerpt":  "/ $(@{path=docs\\uat\\evidencias\\soap-end-to-end-final\\security\\sanitization_matches.json; line=29; excerpt=\"excerpt\":  \"Patrones revisados: `password/token/Authorization/Bearer/private key/BEGIN PRIVATE/connection string/User ID=/Host=/certificado privado/secret`.\",; unsafe=True}.path) / 29 / \"excerpt\":  \"Patrones revisados: `password/token/Authorization/Bearer/private key/BEGIN PRIVATE/connection string/User ID=/Host=/certificado privado/secret`.\", /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md",
+        "line":  31,
+        "excerpt":  "/ $(@{path=docs\\uat\\evidencias\\soap-end-to-end-final\\security\\sanitization_matches.json; line=35; excerpt=\"excerpt\":  \"`password/token/Authorization/Bearer/private key/BEGIN PRIVATE/connection string`\",; unsafe=True}.path) / 35 / \"excerpt\":  \"`password/token/Authorization/Bearer/private key/BEGIN PRIVATE/connection string`\", /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md",
+        "line":  32,
+        "excerpt":  "/ $(@{path=docs\\uat\\evidencias\\soap-end-to-end-final\\security\\sanitization_matches.json; line=53; excerpt=\"excerpt\":  \"- `contienePassword: false`\",; unsafe=True}.path) / 53 / \"excerpt\":  \"- `contienePassword: false`\", /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md",
+        "line":  33,
+        "excerpt":  "/ $(@{path=docs\\uat\\evidencias\\soap-end-to-end-final\\security\\sanitization_matches.json; line=347; excerpt=\"excerpt\":  \"Password: no documentada; tomada desde `ACH_UAT_DEMO_PASSWORD`.\",; unsafe=True}.path) / 347 / \"excerpt\":  \"Password: no documentada; tomada desde `ACH_UAT_DEMO_PASSWORD`.\", /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md",
+        "line":  34,
+        "excerpt":  "/ $(@{path=docs\\uat\\evidencias\\soap-end-to-end-final\\security\\sanitization_matches.json; line=1247; excerpt=\"excerpt\":  \"Password: no documentada; tomada desde variable de entorno.\",; unsafe=True}.path) / 1247 / \"excerpt\":  \"Password: no documentada; tomada desde variable de entorno.\", /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md",
+        "line":  35,
+        "excerpt":  "/ $(@{path=docs\\uat\\evidencias\\soap-integrations\\security_sanitization_report.md; line=9; excerpt=`password/token/Authorization/Bearer/private key/BEGIN PRIVATE/connection string`; unsafe=True}.path) / 9 / `password/token/Authorization/Bearer/private key/BEGIN PRIVATE/connection string` /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md",
+        "line":  36,
+        "excerpt":  "/ $(@{path=docs\\uat\\evidencias\\soap-integrations\\security_sanitization_report.md; line=18; excerpt=- `contienePassword: false`; unsafe=True}.path) / 18 / - `contienePassword: false` /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md",
+        "line":  37,
+        "excerpt":  "/ $(@{path=docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md; line=15; excerpt=Password: no documentada; tomada desde `ACH_UAT_DEMO_PASSWORD`.; unsafe=True}.path) / 15 / Password: no documentada; tomada desde `ACH_UAT_DEMO_PASSWORD`. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\security_sanitization_report.md",
+        "line":  38,
+        "excerpt":  "/ $(@{path=docs\\uat\\UAT_FUNCIONAL_SINTETICO.md; line=15; excerpt=Password: no documentada; tomada desde variable de entorno.; unsafe=True}.path) / 15 / Password: no documentada; tomada desde variable de entorno. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-integrations\\security_sanitization_report.md",
+        "line":  9,
+        "excerpt":  "`password/token/Authorization/Bearer/private key/BEGIN PRIVATE/connection string`",
+        "unsafe":  true
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-integrations\\security_sanitization_report.md",
+        "line":  13,
+        "excerpt":  "No se encontraron secretos expuestos.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-integrations\\security_sanitization_report.md",
+        "line":  17,
+        "excerpt":  "- `tokenPrinted: false`",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-integrations\\security_sanitization_report.md",
+        "line":  18,
+        "excerpt":  "- `contienePassword: false`",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-integrations\\security_sanitization_report.md",
+        "line":  19,
+        "excerpt":  "- `contieneToken: false`",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-integrations\\security_sanitization_report.md",
+        "line":  20,
+        "excerpt":  "- frases de README indicando que no contiene credenciales, tokens o certificados privados.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-integrations\\security_sanitization_report.md",
+        "line":  24,
+        "excerpt":  "- No se guardaron passwords.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-integrations\\security_sanitization_report.md",
+        "line":  25,
+        "excerpt":  "- No se guardaron tokens completos.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-integrations\\security_sanitization_report.md",
+        "line":  27,
+        "excerpt":  "- No se guardaron connection strings.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-integrations\\security_sanitization_report.md",
+        "line":  41,
+        "excerpt":  "- tokenPrinted=false",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-integrations\\security_sanitization_report.md",
+        "line":  42,
+        "excerpt":  "- passwordPrinted=false",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-integrations\\security_sanitization_report.md",
+        "line":  45,
+        "excerpt":  "- authorizationHeaderIncluded=false",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-integrations\\mapping-trace\\proc_transacciones\\nacha_desagregado_mapping_trace.md",
+        "line":  29,
+        "excerpt":  "- No se exponen secretos.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-integrations\\mapping-trace\\proc_transacciones\\no_external_transmission_report.md",
+        "line":  22,
+        "excerpt":  "- El envelope sanitizado no contiene password, token, Authorization/Bearer ni certificados privados.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-integrations\\mapping-trace\\proc_transacciones\\validation_report.md",
+        "line":  31,
+        "excerpt":  "- No contiene password.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-integrations\\mapping-trace\\proc_transacciones\\validation_report.md",
+        "line":  32,
+        "excerpt":  "- No contiene token.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\evidencias\\soap-integrations\\mapping-trace\\proc_transacciones\\validation_report.md",
+        "line":  33,
+        "excerpt":  "- No contiene Authorization/Bearer.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\accounting-review-ai-assisted-uat-execution-report.md",
+        "line":  36,
+        "excerpt":  "/ UAT-10-009 / Evidencia auditoría/trazabilidad / CSV / `audit-AchTransaction-*`, usuario/acción, sin secretos / Aprobado /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ACTA_TECNICA_PRELIMINAR.md",
+        "line":  62,
+        "excerpt":  "/ UAT tecnico autenticado / OK con observaciones / Login demo, token, menu, roles/permisos y endpoints read-only validados. `ACH.Operator` no esta asignado al usuario demo. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ACTA_TECNICA_PRELIMINAR.md",
+        "line":  74,
+        "excerpt":  "/ DEF-UAT-005 / Alta / Abierto / `.env` versionado requiere revision/rotacion si contiene secretos reutilizables. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ACTA_TECNICA_PRELIMINAR.md",
+        "line":  102,
+        "excerpt":  "5. Cerrar CENIT/CUD, sobre digital, certificados, backup/restore y secretos.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ACTA_UAT_TECNICO_TEMPLATE.md",
+        "line":  7,
+        "excerpt":  "Clasificacion: no registrar passwords, tokens completos, datos reales, datos personales ni secretos.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ACTA_UAT_TECNICO_TEMPLATE.md",
+        "line":  21,
+        "excerpt":  "/ Password / NO DOCUMENTAR /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ACTA_UAT_TECNICO_TEMPLATE.md",
+        "line":  22,
+        "excerpt":  "/ Token / NO DOCUMENTAR COMPLETO /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ACTA_UAT_TECNICO_TEMPLATE.md",
+        "line":  23,
+        "excerpt":  "/ Token recibido / Si, evidencia enmascarada `eyJ...6_k` /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ACTA_UAT_TECNICO_TEMPLATE.md",
+        "line":  45,
+        "excerpt":  "/ UAT-TECH-004 / Menu sin token / OK / EV-TECH-004 / HTTP 401 desde API. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ACTA_UAT_TECNICO_TEMPLATE.md",
+        "line":  46,
+        "excerpt":  "/ UAT-TECH-005 / Login real usuario demo / OK / EV-TECH-006 / No se documento password ni token completo. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ACTA_UAT_TECNICO_TEMPLATE.md",
+        "line":  47,
+        "excerpt":  "/ UAT-TECH-006 / Token/JWT claims / OK con observacion / EV-TECH-007 / `ACH.Operator` no visible. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ACTA_UAT_TECNICO_TEMPLATE.md",
+        "line":  48,
+        "excerpt":  "/ UAT-TECH-007 / Menu con token / OK / EV-TECH-008 / JSON esperado recibido. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ACTA_UAT_TECNICO_TEMPLATE.md",
+        "line":  51,
+        "excerpt":  "/ UAT-TECH-010 / Logs sin secretos / OK con observacion / EV-TECH-018 / Sin tokens/passwords completos; EF debug muestra nombre de columna `PasswordHash`. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ACTA_UAT_TECNICO_TEMPLATE.md",
+        "line":  64,
+        "excerpt":  "- Mantener DEF-UAT-014 como limitacion de browser integrado, no como bloqueo funcional mientras HTTP/token/logs sigan OK.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  51,
+        "excerpt":  "- certificado sin private key;",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  55,
+        "excerpt":  "- no secretos en logs;",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  91,
+        "excerpt":  "- certificado privado firma.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  92,
+        "excerpt":  "- certificado privado descifra.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  96,
+        "excerpt":  "- OpenBao/SecretRef no participa en flujo de certificados.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  99,
+        "excerpt":  "/ Operación / Requiere private key / Resultado esperado / Evidencia / Estado /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  108,
+        "excerpt":  "No exponer password/PFX/private key en logs.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  167,
+        "excerpt":  "- OpenBao/SecretRef no aplica para certificados.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  168,
+        "excerpt":  "- no private key.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  169,
+        "excerpt":  "- no password PFX.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  182,
+        "excerpt":  "- BD no contiene PFX/password/private key.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  189,
+        "excerpt":  "- acceso a private key validado.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  191,
+        "excerpt":  "- no secretos en appsettings.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  192,
+        "excerpt":  "- validar que OpenBao/SecretRef no participa en certificados.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  212,
+        "excerpt":  "- certificado sin private key rechazado.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  218,
+        "excerpt":  "- evidencia de no secretos.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  227,
+        "excerpt":  "5. Private key requerida para firmar.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  228,
+        "excerpt":  "6. Private key requerida para descifrar.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  239,
+        "excerpt":  "17. No secretos en logs.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
+        "line":  252,
+        "excerpt":  "- permisos de private key no validados en ambiente real.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  8,
+        "excerpt":  "Clasificacion: no incluir password, token completo, datos personales, datos reales ni certificados privados.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  15,
+        "excerpt":  "Password: no documentada; tomada desde `ACH_UAT_DEMO_PASSWORD`.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  16,
+        "excerpt":  "Token: recibido y no documentado completo; evidencia enmascarada `eyJ...6_k`.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  26,
+        "excerpt":  "/ Variables demo / OK / `ACH_UAT_DEMO_USERNAME` y `ACH_UAT_DEMO_PASSWORD` presentes; valores no impresos. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  31,
+        "excerpt":  "/ Navigation sin token / OK tecnico / `GET /navigation/menu` sin token responde 401 desde API, no `index.html`. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  32,
+        "excerpt":  "/ Login real demo / OK / `POST /auth/login` con usuario `admin` responde 200 JSON y token presente. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  34,
+        "excerpt":  "/ Menu con token / OK / `GET /navigation/menu` HTTP 200 JSON; no `index.html`. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  35,
+        "excerpt":  "/ Endpoints protegidos read-only / OK / `/navigation/menu`, `/api/roles`, `/api/users`, `/api/ach/responses` responden 200 JSON con Bearer. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  39,
+        "excerpt":  "/ Logs / OK con observaciones / Sin 500 criticos ni tokens/passwords completos; EF debug muestra nombre de columna `PasswordHash` sin valores. PostgreSQL tiene FATAL previos por usuarios `root`/`sa`. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  40,
+        "excerpt":  "/ UAT tecnico autenticado basico / OK con observaciones / Criterios tecnicos de autenticacion, token, menu, endpoints y logs cumplidos. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  50,
+        "excerpt":  "/ Variables / `ACH_UAT_DEMO_USERNAME` presente, `ACH_UAT_DEMO_PASSWORD` presente; valores no impresos. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  66,
+        "excerpt":  "/ UAT-TECH-004 / Navigation sin token / OK / HTTP 401 desde API; confirma `[Authorize]` y proxy. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  67,
+        "excerpt":  "/ UAT-TECH-005 / Login real demo por variable de entorno / OK / HTTP 200 JSON; password no impresa. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  68,
+        "excerpt":  "/ UAT-TECH-006 / Token/JWT claims / OK con observacion / Token recibido; rol visible `Admin`; `ACH.Operator` no visible. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  69,
+        "excerpt":  "/ UAT-TECH-007 / Menu con token / OK / HTTP 200 JSON, menu visible para rol autorizado. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  73,
+        "excerpt":  "/ UAT-TECH-011 / Logs y secretos / OK con observaciones / No se observan tokens/passwords completos; sin 500 en endpoints validados. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  77,
+        "excerpt":  "/ Endpoint / Metodo / Token / Resultado / Observacion /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  81,
+        "excerpt":  "/ `/auth/login` / POST / No / 401 JSON con dummy / Login negativo controlado; no expone token. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  83,
+        "excerpt":  "/ `/auth/login` / POST / Credenciales demo / 200 JSON / Token recibido; password no impresa. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  105,
+        "excerpt":  "- No se imprimio password.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  106,
+        "excerpt":  "- No se documento token completo.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  110,
+        "excerpt":  "- Logs API muestran `POST /auth/login` 200 y autenticacion Bearer exitosa en endpoints protegidos.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  112,
+        "excerpt":  "- Logs API no muestran token completo ni password; se observa nombre de columna `PasswordHash` por debug EF, sin valores.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  113,
+        "excerpt":  "- Logs PostgreSQL muestran errores previos por usuarios inexistentes `root` y `sa`; revisar origen operativo si persisten. No se imprimieron passwords.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  121,
+        "excerpt":  "/ DEF-UAT-015 / Media / Rol esperado `ACH.Operator` ya aparece junto con `Admin` en respuesta de login/JWT para `admin`; menu y endpoints read-only responden 200 con Bearer. / Cerrado para UAT controlado /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EJECUCION_UAT_TECNICO_BASICO.md",
+        "line":  128,
+        "excerpt":  "Se cerro el bloqueo por variables, se ejecuto login real con usuario seed sintetico `admin`, se recibio token, se valido menu con Bearer y endpoints protegidos read-only sin `index.html` ni 500. La observacion principal es que `ACH.Operator` no se confirma en respuesta/JWT, aunque la autorizacion basica opera con `Admin`.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ESCENARIOS_UAT_DATOS_REALES.md",
+        "line":  7,
+        "excerpt":  "Politica: no registrar datos sensibles reales, secretos, tokens, llaves privadas, PFX ni cuentas reales en Git.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ESCENARIOS_UAT_DATOS_REALES.md",
+        "line":  31,
+        "excerpt":  "- Pasos: abrir SPA, iniciar sesion, validar menu y token; cerrar sesion.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ESCENARIOS_UAT_DATOS_REALES.md",
+        "line":  34,
+        "excerpt":  "- Validaciones: frontend requerido usuario/password; backend credenciales, lockout y token.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ESCENARIOS_UAT_DATOS_REALES.md",
+        "line":  311,
+        "excerpt":  "- Evidencia/criterios/responsable: audit log, estado version, secretRef enmascarado; responsable Seguridad; estado PENDIENTE.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ESCENARIOS_UAT_DATOS_REALES.md",
+        "line":  314,
+        "excerpt":  "### UAT-REAL-025 - OpenBao / secretos",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ESCENARIOS_UAT_DATOS_REALES.md",
+        "line":  316,
+        "excerpt":  "- Objetivo: validar proveedor de secretos si aplica.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ESCENARIOS_UAT_DATOS_REALES.md",
+        "line":  319,
+        "excerpt":  "- Pasos: validar configuracion, lectura de secretRef enmascarado y operacion sin exponer token.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ESCENARIOS_UAT_DATOS_REALES.md",
+        "line":  320,
+        "excerpt":  "- Resultado esperado: secretos resueltos sin datos sensibles en logs/Git.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\ESCENARIOS_UAT_DATOS_REALES.md",
+        "line":  321,
+        "excerpt":  "- SPA/backend: no aplica SPA; backend `OpenBaoCertificateSecretProvider`, scripts `scripts/openbao`; compose principal no incluye OpenBao; endpoints directos `NO ENCONTRADO`.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_CONSULTA_PRENOTIFICACIONES_CFA.md",
+        "line":  21,
+        "excerpt":  "No contiene secretos, tokens completos, certificados ni datos reales.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_NACHA_M_UAT.md",
+        "line":  39,
+        "excerpt":  "- No se incluyeron passwords, tokens ni certificados privados.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_PRENOTIFICACIONES_CFA_NACHA_M.md",
+        "line":  25,
+        "excerpt":  "- No se documento password ni token completo.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_RESPUESTAS_PRENOTIFICACIONES.md",
+        "line":  62,
+        "excerpt":  "- No se expusieron secretos.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_SIMULADOR_NACHA_M_ENTRADA.md",
+        "line":  41,
+        "excerpt":  "- No se incluyen passwords.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_SIMULADOR_NACHA_M_ENTRADA.md",
+        "line":  42,
+        "excerpt":  "- No se incluyen tokens completos.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_SOAP_PROC_CONTRAPARTIDAS.md",
+        "line":  19,
+        "excerpt":  "- Los XML se generaron desde payloads del sistema y se sanitizaron por construccion: no contienen passwords, tokens ni certificados privados.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_SOAP_PROC_TRANSACCIONES.md",
+        "line":  77,
+        "excerpt":  "- No contiene secretos ni certificados privados.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_TRANSACTION_INTEGRATION_READINESS.md",
+        "line":  58,
+        "excerpt":  "- No se expusieron secretos.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  7,
+        "excerpt":  "Clasificacion: no incluir password, token completo, datos reales, cuentas reales, certificados reales ni secretos.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  16,
+        "excerpt":  "/ EV-FUNC-004 / Login demo / HTTP / `POST http://localhost:743/auth/login` HTTP 200 JSON con token presente. / Token enmascarado `eyJ...Iso`; password no impresa. / OK /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  17,
+        "excerpt":  "/ EV-FUNC-005 / Menu autenticado / HTTP / `GET http://localhost:743/navigation/menu` HTTP 200 JSON con Bearer. / Consola Codex. / OK /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  18,
+        "excerpt":  "/ EV-FUNC-006 / Endpoints protegidos / HTTP / `/api/roles`, `/api/users`, `/api/ach/responses` HTTP 200 JSON con Bearer. / Consola Codex. / OK /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  30,
+        "excerpt":  "/ EV-FUNC-018 / Logs API / Logs / Muestra revisada sin errores 500 criticos ni tokens/passwords completos. / `docker compose logs achinterbank-api --tail=900`. / OK /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  34,
+        "excerpt":  "/ EV-FUNC-022 / Proxy funcional sin token / HTTP / `/financial-institutions`, `/ach-cycles`, `/clearing-houses`, `/transactions/company-entry-descriptions` devuelven 401 desde API, no HTML. / `curl.exe` por `http://localhost:743`. / OK /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  35,
+        "excerpt":  "/ EV-FUNC-023 / Proxy funcional con token / HTTP / Las 4 rutas funcionales devuelven 200 JSON con Bearer demo, sin `index.html`. / Token no documentado completo. / OK /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  42,
+        "excerpt":  "/ EV-FUNC-030 / Revalidacion DEF-UAT-017 / HTTP/API / `POST http://localhost:743/transactions` crea `UAT-SINT-TRACE-001`, transaction ID `2`, estado `Pending`. / Token no documentado completo; datos sinteticos. / OK /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  50,
+        "excerpt":  "/ EV-FUNC-038 / NACHA layouts proxy / HTTP/Docker / `docker compose build achinterbank-spa` y `up -d`; `/nacha-layouts`, `/nacha-record-definitions` y `/nacha-config/catalogos-filtro` por `:743` devuelven 401 sin token y JSON con Bearer. / Token no documentado completo. / OK tecnico /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  51,
+        "excerpt":  "/ EV-FUNC-039 / Rol `ACH.Operator` / Auth/Seed / `admin` queda asignado a `Admin` y `ACH.Operator` por seed/migracion controlada; login y JWT sanitizados muestran ambos roles. / `UserRoleConfiguration`, migracion `AddAdminOperatorRoleSeed`, `UserRoleSeedTests`; runtime `:743` login 200, token enmascarado, roles `Admin,ACH.Operator`. / OK /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  59,
+        "excerpt":  "/ `POST http://localhost:743/auth/login` con demo / 200, JSON, token recibido; password no impresa. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  60,
+        "excerpt":  "/ `GET http://localhost:743/navigation/menu` con Bearer / 200, JSON. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  61,
+        "excerpt":  "/ `GET http://localhost:743/api/roles` con Bearer / 200, JSON. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  62,
+        "excerpt":  "/ `GET http://localhost:743/api/users` con Bearer / 200, JSON. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  63,
+        "excerpt":  "/ `GET http://localhost:743/api/ach/responses` con Bearer / 200, JSON. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  64,
+        "excerpt":  "/ `POST http://localhost:743/auth/login` tras cierre DEF-UAT-015 / 200, JSON, roles respuesta/JWT `Admin,ACH.Operator`; token enmascarado, password no impresa. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  65,
+        "excerpt":  "/ `GET http://localhost:743/navigation/menu` tras cierre DEF-UAT-015 / 200, JSON con Bearer. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  66,
+        "excerpt":  "/ `GET http://localhost:743/api/roles`, `/api/users`, `/api/ach/responses` tras cierre DEF-UAT-015 / 200, JSON con Bearer. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  67,
+        "excerpt":  "/ `GET http://localhost:743/financial-institutions` sin token / 401 desde API, no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  68,
+        "excerpt":  "/ `GET http://localhost:743/ach-cycles` sin token / 401 desde API, no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  69,
+        "excerpt":  "/ `GET http://localhost:743/clearing-houses` sin token / 401 desde API, no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  70,
+        "excerpt":  "/ `GET http://localhost:743/transactions/company-entry-descriptions` sin token / 401 desde API, no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  71,
+        "excerpt":  "/ `GET http://localhost:743/financial-institutions` con Bearer / 200, `application/json`, no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  72,
+        "excerpt":  "/ `GET http://localhost:743/ach-cycles` con Bearer / 200, `application/json`, no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  73,
+        "excerpt":  "/ `GET http://localhost:743/clearing-houses` con Bearer / 200, `application/json`, no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  74,
+        "excerpt":  "/ `GET http://localhost:743/transactions/company-entry-descriptions` con Bearer / 200, `application/json`, no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  75,
+        "excerpt":  "/ `GET http://localhost:743/transactions` con Bearer / 200, `application/json`, no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  76,
+        "excerpt":  "/ `GET http://localhost:743/transactions/1` con Bearer / 200, `application/json`, no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  77,
+        "excerpt":  "/ `GET http://localhost:743/transactions/policies/preview` con Bearer / 200, `application/json`, no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  78,
+        "excerpt":  "/ `POST http://localhost:743/transactions` duplicado con Bearer / 400, `application/json`, rechazo controlado por duplicado, no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  91,
+        "excerpt":  "/ `GET http://localhost:743/nacha-layouts` sin token / 401 controlado desde API, no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  92,
+        "excerpt":  "/ `GET http://localhost:743/nacha-record-definitions` sin token / 401 controlado desde API, no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  93,
+        "excerpt":  "/ `GET http://localhost:743/nacha-config/catalogos-filtro` sin token / 401 controlado desde API, no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  94,
+        "excerpt":  "/ `GET http://localhost:743/nacha-layouts` con Bearer / 200, `application/json`, 6 registros, no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  95,
+        "excerpt":  "/ `GET http://localhost:743/nacha-record-definitions` con Bearer / 200, `application/json`, 6 registros, no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_FUNCIONAL.md",
+        "line":  96,
+        "excerpt":  "/ `GET http://localhost:743/nacha-config/catalogos-filtro` con Bearer / 200, `application/json`, no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  7,
+        "excerpt":  "Clasificacion: no incluir password, token completo, datos reales, datos personales ni secretos.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  16,
+        "excerpt":  "/ EV-TECH-004 / UAT-TECH-004 / HTTP / `GET /navigation/menu` sin token devuelve 401 desde API. / Consola Codex, salida sanitizada. / QA/DevOps / 2026-05-18 / OK / Confirma proxy Navigation y auth. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  18,
+        "excerpt":  "/ EV-TECH-006 / UAT-TECH-005 / HTTP / `POST /auth/login` con usuario demo `admin` devuelve 200 JSON y token presente. / Consola Codex, salida sanitizada. / QA/DevOps / 2026-05-18 / OK / Password no documentada. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  19,
+        "excerpt":  "/ EV-TECH-007 / UAT-TECH-006 / JWT / Token decodificado localmente: HS256, `sub/name/unique_name` presentes, expiracion presente. / Consola Codex, salida sanitizada. / QA/Seguridad / 2026-05-18 / OK con observacion / Token completo no impreso; rol visible `Admin`, no `ACH.Operator`. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  20,
+        "excerpt":  "/ EV-TECH-008 / UAT-TECH-007 / HTTP / `GET /navigation/menu` con Bearer devuelve HTTP 200 JSON. / Consola Codex, salida sanitizada. / QA/DevOps / 2026-05-18 / OK / Menu contiene opciones de administracion y ACH. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  21,
+        "excerpt":  "/ EV-TECH-009 / UAT-TECH-008 / HTTP / `GET /api/roles` con Bearer devuelve HTTP 200 JSON. / Consola Codex, salida sanitizada. / QA/DevOps / 2026-05-18 / OK / Read-only. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  22,
+        "excerpt":  "/ EV-TECH-010 / UAT-TECH-008 / HTTP / `GET /api/users` con Bearer devuelve HTTP 200 JSON. / Consola Codex, salida sanitizada. / QA/DevOps / 2026-05-18 / OK / No se modificaron usuarios. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  23,
+        "excerpt":  "/ EV-TECH-011 / UAT-TECH-008 / HTTP / `GET /api/ach/responses` con Bearer devuelve HTTP 200 JSON. / Consola Codex, salida sanitizada. / QA/DevOps / 2026-05-18 / OK / Read-only. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  25,
+        "excerpt":  "/ EV-TECH-013 / UAT-TECH-009 / Log SPA / Logs muestran `POST /auth/login` 200, `POST /auth/refresh` 200, `GET /navigation/menu` 200. / `docker compose logs achinterbank-spa --tail=120`. / QA/DevOps / 2026-05-18 / OK / No se imprimen tokens. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  29,
+        "excerpt":  "/ EV-TECH-017 / UAT-TECH-010 / PostgreSQL / `docker exec achinterbank-postgres pg_isready -h localhost -p 5432` OK. / Consola Codex. / QA/DevOps / 2026-05-18 / OK / Sin imprimir connection strings. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  30,
+        "excerpt":  "/ EV-TECH-018 / UAT-TECH-011 / Seguridad / Busqueda en logs no encuentra tokens/passwords completos; no hay 500 en endpoints validados. / `docker compose logs ... / Select-String`. / QA/Seguridad / 2026-05-18 / OK con observacion / EF debug muestra nombre de columna `PasswordHash` sin valores. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  32,
+        "excerpt":  "/ EV-TECH-020 / UAT-TECH-009 / Browser / Browser integrado no se pudo controlar desde esta sesion con herramienta ejecutable. / Limitacion de herramienta Codex. / QA/DevOps / 2026-05-18 / PARCIAL / No bloquea UAT tecnico HTTP con token. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  41,
+        "excerpt":  "/ `GET http://localhost:743/navigation/menu` sin token / HTTP 401; no HTML SPA. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  42,
+        "excerpt":  "/ `POST http://localhost:743/auth/login` con demo / HTTP 200, `application/json`; token presente; token enmascarado `eyJ...6_k`. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  43,
+        "excerpt":  "/ `GET http://localhost:743/navigation/menu` con Bearer / HTTP 200, `application/json`; menu JSON. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  44,
+        "excerpt":  "/ `GET http://localhost:743/api/roles` con Bearer / HTTP 200, `application/json`; no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  45,
+        "excerpt":  "/ `GET http://localhost:743/api/users` con Bearer / HTTP 200, `application/json`; no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  46,
+        "excerpt":  "/ `GET http://localhost:743/api/ach/responses` con Bearer / HTTP 200, `application/json`; no HTML. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  52,
+        "excerpt":  "/ API / Login demo 200, Bearer validado correctamente, endpoints protegidos sin 500. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIAS_UAT_TECNICO_BASICO.md",
+        "line":  54,
+        "excerpt":  "/ PostgreSQL / Servicio listo; existen errores previos por roles inexistentes `root`/`sa`, sin passwords impresos. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIA_TECNICA_UAT_RUNTIME.md",
+        "line":  10,
+        "excerpt":  "Clasificacion: no incluir secretos, tokens, certificados privados, datos personales ni datos reales en Git.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIA_TECNICA_UAT_RUNTIME.md",
+        "line":  29,
+        "excerpt":  "/ SPA hacia Navigation same-origin / OK tecnico / `GET http://localhost:743/navigation/menu` sin token respondio 401 desde API, no `index.html`; con token valido debe devolver JSON del menu. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIA_TECNICA_UAT_RUNTIME.md",
+        "line":  32,
+        "excerpt":  "/ OpenBao/secrets / PENDIENTE / NO APLICA compose actual / OpenBao no esta en `docker-compose.yml`; hay scripts y docs historicas. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIA_TECNICA_UAT_RUNTIME.md",
+        "line":  92,
+        "excerpt":  "/ `Invoke-WebRequest http://localhost:743/navigation/menu` / OK tecnico / HTTP 401 desde API sin token; no retorna `index.html`. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIA_TECNICA_UAT_RUNTIME.md",
+        "line":  109,
+        "excerpt":  "- `/navigation/menu` via `http://localhost:743` respondio 401 sin token, confirmando que ya llega al backend y no cae al fallback Angular; con token valido debe devolver JSON del menu.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIA_TECNICA_UAT_RUNTIME.md",
+        "line":  132,
+        "excerpt":  "/ Navigation relativa desde SPA / OK tecnico / `http://localhost:743/navigation/menu` respondio 401 desde API sin token, no HTML SPA. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIA_TECNICA_UAT_RUNTIME.md",
+        "line":  143,
+        "excerpt":  "## OpenBao / secretos",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIA_TECNICA_UAT_RUNTIME.md",
+        "line":  150,
+        "excerpt":  "/ Runtime actual requiere OpenBao / NO / `DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable=false`; OpenBao no se activo. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIA_TECNICA_UAT_RUNTIME.md",
+        "line":  151,
+        "excerpt":  "/ UAT con secretos externos / PENDIENTE / Requiere decision seguridad/operacion. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\EVIDENCIA_TECNICA_UAT_RUNTIME.md",
+        "line":  160,
+        "excerpt":  "/ RUNTIME-04 / `.env` esta versionado. / Riesgo de secretos si contiene valores reales. / Revision segura, rotacion si aplica y destrackeo controlado. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\INDICE_EVIDENCIAS_UAT.md",
+        "line":  10,
+        "excerpt":  "Las evidencias con datos sensibles deben almacenarse fuera de Git en un repositorio documental seguro. En este archivo solo deben registrarse referencias, hashes SHA256, responsables y estado. No incluir PII, cuentas reales, tokens, passwords, llaves privadas, PFX ni certificados privados.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\INDICE_EVIDENCIAS_UAT.md",
+        "line":  17,
+        "excerpt":  "/ EV-UAT-002 / UAT-REAL-002 / Request/response / Validacion de permisos / PENDIENTE / PENDIENTE / Tecnologia / PENDIENTE / PENDIENTE / Redactar token /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\INDICE_EVIDENCIAS_UAT.md",
+        "line":  28,
+        "excerpt":  "/ EV-UAT-013 / UAT-REAL-024 / Evidencia certificado/firma / Validacion certificado/firma / PENDIENTE / PENDIENTE / Seguridad / PENDIENTE / PENDIENTE / Certificado privado fuera de Git /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\INDICE_EVIDENCIAS_UAT.md",
+        "line":  29,
+        "excerpt":  "/ EV-UAT-014 / UAT-REAL-025 / Evidencia OpenBao/secreto / SecretRef enmascarado y resolucion / PENDIENTE / PENDIENTE / Seguridad / PENDIENTE / PENDIENTE / No incluir token /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\INDICE_EVIDENCIAS_UAT.md",
+        "line":  51,
+        "excerpt":  "- Evidencia OpenBao/secreto.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\MATRIZ_DATOS_UAT.md",
+        "line":  14,
+        "excerpt":  "- Certificados privados, PFX, llaves privadas, tokens y passwords deben mantenerse fuera del repositorio.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\MATRIZ_DATOS_UAT.md",
+        "line":  31,
+        "excerpt":  "/ DAT-UAT-012 / UAT-REAL-024 / Certificados privados / Referencia externa / Seguridad / Critica / Nunca en Git; usar `secretRef` enmascarado / OpenBao/repositorio seguro externo / Seguridad / PENDIENTE / No registrar PFX /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\MATRIZ_DATOS_UAT.md",
+        "line":  38,
+        "excerpt":  "/ DAT-UAT-019 / UAT-REAL-001 / Usuarios de prueba / Sintetico / Seguridad/Tecnologia / Media / Usuarios UAT no personales o controlados / `Users`, `UserRoles` / Seguridad / PENDIENTE / Evitar passwords en documentos /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\MATRIZ_DATOS_UAT.md",
+        "line":  43,
+        "excerpt":  "/ DAT-UAT-024 / UAT-REAL-025 / SecretRef OpenBao / Referencia enmascarada / Seguridad / Critica / Registrar solo alias/mascara, no valor / OpenBao/config UAT / Seguridad / PENDIENTE / OpenBao compose principal no encontrado /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\MATRIZ_DEFECTOS_UAT.md",
+        "line":  35,
+        "excerpt":  "/ DEF-UAT-005 / UAT-REAL-030 / Alta / Existe `.env` versionado; requiere revision para asegurar que no contenga secretos reales. / Configuracion / `.env` / Seguridad/Operaciones / Abierto / 2026-05-18 / PENDIENTE / Revisar y sanear si aplica. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\MATRIZ_DEFECTOS_UAT.md",
+        "line":  37,
+        "excerpt":  "/ DEF-UAT-007 / UAT-REAL-025 / Media / OpenBao no esta incluido en `docker-compose.yml` principal aunque existen scripts/configuracion. / Secretos/OpenBao / `docker-compose.yml`, `scripts/openbao` / Seguridad/Operaciones / Abierto / 2026-05-18 / PENDIENTE / Definir compose UAT o excepcion formal. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\MATRIZ_DEFECTOS_UAT.md",
+        "line":  43,
+        "excerpt":  "/ DEF-UAT-013 / UAT-TECH-005 / Alta / Variables `ACH_UAT_DEMO_USERNAME` y `ACH_UAT_DEMO_PASSWORD` no estaban disponibles en ejecuciones previas; bloqueaban login real controlado. / Ambiente/UAT tecnico / `docs/uat/EJECUCION_UAT_TECNICO_BASICO.md` / Operaciones/QA/DevOps / Cerrado / 2026-05-18 / 2026-05-18 / Variables presentes en este reintento; login demo 200 ejecutado sin imprimir secretos. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\MATRIZ_DEFECTOS_UAT.md",
+        "line":  44,
+        "excerpt":  "/ DEF-UAT-014 / UAT-TECH-009 / Media / Browser integrado no pudo aportar evidencia visual automatizada confiable en esta sesion. / Browser/SPA / `docs/uat/EVIDENCIAS_UAT_TECNICO_BASICO.md` / QA/DevOps / Abierto / 2026-05-18 / PENDIENTE / Mantener como limitacion de herramienta; validacion HTTP con token y logs pasa. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\MATRIZ_DEFECTOS_UAT.md",
+        "line":  45,
+        "excerpt":  "/ DEF-UAT-015 / UAT-TECH-006 / Media / Rol esperado `ACH.Operator` no aparecia en respuesta de login ni JWT para el usuario demo `admin`. / Identidad/Autorizacion / `UserRoleConfiguration` ahora asigna `admin` a `Admin` y `ACH.Operator`; migracion `AddAdminOperatorRoleSeed`; login sanitizado por `http://localhost:743/auth/login` devuelve roles respuesta/JWT = `Admin, ACH.Operator`; `/navigation/menu`, `/api/roles`, `/api/users`, `/api/ach/responses` responden 200 con Bearer. / Seguridad/Tecnologia / Cerrado / 2026-05-18 / 2026-05-19 / Opcion A aprobada para UAT controlado: `admin` queda como usuario demo multirol. No se debilito autenticacion/autorizacion ni se tocaron reglas ACH/NACHA-M/CENIT/ROR. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\MATRIZ_DEFECTOS_UAT.md",
+        "line":  46,
+        "excerpt":  "/ DEF-UAT-016 / UAT-FUNC-001 / UAT-FUNC-004 / Bloqueante / La SPA Docker en `http://localhost:743` devolvia `index.html` para rutas funcionales raiz requeridas por pantallas ACH, incluyendo `/financial-institutions`, `/ach-cycles`, `/clearing-houses` y `/transactions/company-entry-descriptions`. / SPA/Nginx/proxy runtime / `web/ach-interbank-ui/nginx.conf`, `docs/uat/UAT_FUNCIONAL_SINTETICO.md`, `docs/uat/EVIDENCIAS_UAT_FUNCIONAL.md`; reintento `:743` sin token 401 no HTML y con token 200 JSON / Tecnologia/DevOps / Cerrado / 2026-05-18 / 2026-05-18 / Locations Nginx agregados y validados; `/transactions`, `/transactions/1`, `/transactions/policies/preview` y duplicado `POST /transactions` tambien responden desde API sin `index.html`. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\MATRIZ_DEFECTOS_UAT.md",
+        "line":  49,
+        "excerpt":  "/ DEF-UAT-019 / UAT-FUNC-002 / Media / Catalogo/configuracion NACHA-M no quedaba validado por endpoint esperado incorrecto y proxy SPA sin rutas NACHA. / Backend catalogos NACHA-M / SPA Nginx / `docs/go-live-readiness/MATRIZ_NACHA_M_LAYOUTS.md`; `/nacha-layouts` y `/nacha-record-definitions` responden 200 JSON con token por `:843` y `:743`; sin token 401 no HTML / Tecnologia/Compliance / Cerrado / 2026-05-18 / 2026-05-19 / Ruta real confirmada: `/nacha-layouts`; `/nacha-record-layouts` devuelve 404 controlado y no aplica como endpoint real. Proxy Nginx corregido. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\MATRIZ_DEFECTOS_UAT.md",
+        "line":  184,
+        "excerpt":  "- Secretos completos y certificados privados no se exponen.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\MATRIZ_ESCENARIOS_UAT_SOAP_END_TO_END_FINAL.md",
+        "line":  10,
+        "excerpt":  "/ SOAP-UAT-002 / Proc_Contrapartidas / Mapping trace / Debito monetario CFA / true / Sintetico UAT / OK / OK / Payload sanitizado / false / Trace campo-a-campo disponible / Cumplido / OK / `docs/uat/evidencias/soap-integrations/mapping-trace/proc_contrapartidas/mapping_trace.md` / DEF-UAT-SOAP-MAP-001 / Sin secretos /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\MATRIZ_ESCENARIOS_UAT_SOAP_END_TO_END_FINAL.md",
+        "line":  16,
+        "excerpt":  "/ SOAP-UAT-008 / Proc_Transacciones / Mapping trace / Credito monetario externo / true / NACHA-M sintético / OK / OK / Referenciado / false / Trace campo-a-campo disponible / Cumplido / OK / `docs/uat/evidencias/soap-integrations/mapping-trace/proc_transacciones/mapping_trace.json` / DEF-UAT-SOAP-MAP-002/005 / Sin secretos /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\MATRIZ_ESCENARIOS_UAT_SOAP_END_TO_END_FINAL.md",
+        "line":  29,
+        "excerpt":  "/ SOAP-UAT-021 / Seguridad / Sanitización / Seguridad UAT / N/A / Evidencias / N/A / N/A / Reporte / false / Sin tokens/passwords/private keys/datos reales / Cumplido / OK / `docs/uat/evidencias/soap-end-to-end-final/security_sanitization_report.md` / N/A / Ver reporte /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\nacha-security-uat-plan-2026-04-22.md",
+        "line":  42,
+        "excerpt":  "- Secret manager UAT para referencias de secretos/PFX (no en repositorio).",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\nacha-security-uat-plan-2026-04-22.md",
+        "line":  52,
+        "excerpt":  "- `SecretRef` de prueba en gestor seguro.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\nacha-security-uat-plan-2026-04-22.md",
+        "line":  62,
+        "excerpt":  "/ 1 / P1 / Listar certificados / AdminCertificados / CanReadAch/CanManageCertificates / Pendiente / N/A / N/A / N/A / N/A / N/A / Sin secretos visibles / Pendiente /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\nacha-security-uat-plan-2026-04-22.md",
+        "line":  64,
+        "excerpt":  "/ 3 / P0 / Registrar PFX vía backend / AdminCertificados / CanManageCertificates / Pendiente / N/A / N/A / N/A / N/A / N/A / Sin exposición password/PFX / Pendiente /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\nacha-security-uat-plan-2026-04-22.md",
+        "line":  68,
+        "excerpt":  "/ 7 / P1 / Auditoría certificados / Auditor / CanViewNachaSecurityAudit / Pendiente / N/A / N/A / N/A / N/A / N/A / Sin secretos / Pendiente /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\nacha-security-uat-plan-2026-04-22.md",
+        "line":  69,
+        "excerpt":  "/ 8 / P0 / Confirmar no SecretRef completo / Auditor / CanReadAch / Pendiente / N/A / N/A / N/A / N/A / N/A / Solo SecretRefMasked / Pendiente /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\nacha-security-uat-plan-2026-04-22.md",
+        "line":  78,
+        "excerpt":  "/ 17 / P1 / Certificados masked / Auditor / CanReadAch / Pendiente / N/A / N/A / N/A / N/A / N/A / Thumbprint/secret masked / Pendiente /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\nacha-security-uat-plan-2026-04-22.md",
+        "line":  90,
+        "excerpt":  "/ 29 / P1 / Auditor consulta trazabilidad / Auditor / CanViewNachaSecurityAudit / Pendiente / N/A / N/A / N/A / N/A / N/A / sin secretos / Pendiente /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\nacha-security-uat-plan-2026-04-22.md",
+        "line":  108,
+        "excerpt":  "- No exposición de secretos validada.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\nacha-security-uat-plan-2026-04-22.md",
+        "line":  116,
+        "excerpt":  "- Se expone secreto.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\nacha-security-uat-plan-2026-04-22.md",
+        "line":  164,
+        "excerpt":  "- Cada prueba de secretos debe registrar confirmación de no exposición.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\PLAN_UAT_DATOS_REALES.md",
+        "line":  34,
+        "excerpt":  "- Guardar certificados privados, PFX, llaves privadas, tokens o passwords en Git.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\PLAN_UAT_DATOS_REALES.md",
+        "line":  36,
+        "excerpt":  "- Ejecutar migraciones, borrar volumenes o cambiar secretos como parte de este plan documental.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\PLAN_UAT_DATOS_REALES.md",
+        "line":  48,
+        "excerpt":  "/ OpenBao UAT / Gestion de secretos/certificados si aplica / estado, politica, referencias enmascaradas / PENDIENTE VALIDAR /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\PLAN_UAT_DATOS_REALES.md",
+        "line":  82,
+        "excerpt":  "- No expongan PII, cuentas reales, saldos reales, certificados privados, llaves privadas, tokens ni passwords.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\PLAN_UAT_DATOS_REALES.md",
+        "line":  93,
+        "excerpt":  "- Tokens, passwords, client secrets, API keys o secretos OpenBao.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\PLAN_UAT_DATOS_REALES.md",
+        "line":  115,
+        "excerpt":  "/ Certificados / Publicos permitidos si estan aprobados; privados fuera de Git / Referenciar `secretRef` enmascarado /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\PLAN_UAT_DATOS_REALES.md",
+        "line":  124,
+        "excerpt":  "/ Seguridad / Certificados, firma, sobre digital, secretos y acceso / Si /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\PLAN_UAT_DATOS_REALES.md",
+        "line":  151,
+        "excerpt":  "- Exposicion de datos sensibles o secretos.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\real-data-uat-execution-protocol.md",
+        "line":  33,
+        "excerpt":  "- No subir al repositorio PII, cuentas, saldos reales, llaves privadas, PFX, passwords, certificados privados ni soportes sensibles.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\UAT_FUNCIONAL_SINTETICO.md",
+        "line":  8,
+        "excerpt":  "Clasificacion: no incluir password, token completo, datos reales, cuentas reales, certificados reales ni archivos externos productivos.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\UAT_FUNCIONAL_SINTETICO.md",
+        "line":  15,
+        "excerpt":  "Password: no documentada; tomada desde variable de entorno.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\UAT_FUNCIONAL_SINTETICO.md",
+        "line":  16,
+        "excerpt":  "Token: recibido y no documentado completo; evidencia enmascarada `eyJ...Iso`.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\UAT_FUNCIONAL_SINTETICO.md",
+        "line":  26,
+        "excerpt":  "/ Login real demo / OK / `POST /auth/login` por `:743` devuelve 200 JSON y token usable. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\UAT_FUNCIONAL_SINTETICO.md",
+        "line":  27,
+        "excerpt":  "/ Menu autenticado / OK / `GET /navigation/menu` por `:743` devuelve 200 JSON con Bearer. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\UAT_FUNCIONAL_SINTETICO.md",
+        "line":  28,
+        "excerpt":  "/ Endpoints protegidos tecnicos / OK / `/api/roles`, `/api/users`, `/api/ach/responses` devuelven 200 JSON con Bearer. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\UAT_FUNCIONAL_SINTETICO.md",
+        "line":  29,
+        "excerpt":  "/ Rutas funcionales SPA Docker / OK tecnico / Reintento tras ajuste Nginx: sin token responden 401 no HTML; con token responden 200 JSON para `/financial-institutions`, `/ach-cycles`, `/clearing-houses`, `/transactions/company-entry-descriptions`. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\UAT_FUNCIONAL_SINTETICO.md",
+        "line":  37,
+        "excerpt":  "/ Logs / OK con observaciones / Sin patrones criticos de 500/secreto en muestra API; SPA levanta estable tras ajuste Nginx. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\UAT_FUNCIONAL_SINTETICO.md",
+        "line":  66,
+        "excerpt":  "/ Login demo / OK: HTTP 200 JSON; password no impresa. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\UAT_FUNCIONAL_SINTETICO.md",
+        "line":  67,
+        "excerpt":  "/ Token / OK: recibido y usado; token completo no documentado. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\UAT_FUNCIONAL_SINTETICO.md",
+        "line":  69,
+        "excerpt":  "/ Endpoints protegidos / OK: `/navigation/menu`, `/api/roles`, `/api/users`, `/api/ach/responses` con Bearer. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\UAT_FUNCIONAL_SINTETICO.md",
+        "line":  166,
+        "excerpt":  "/ NACHA layouts por `:743` / OK: sin token devuelve 401 controlado; con token devuelve JSON para `/nacha-layouts`, `/nacha-record-definitions` y `/nacha-config/catalogos-filtro`. /",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\UAT_FUNCIONAL_SINTETICO.md",
+        "line":  199,
+        "excerpt":  "Validacion sin token por `http://localhost:743`:",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\UAT_FUNCIONAL_SINTETICO.md",
+        "line":  208,
+        "excerpt":  "Validacion con token demo por `http://localhost:743`:",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\UAT_SIMULADOR_NACHA_M_ENTRADA.md",
+        "line":  90,
+        "excerpt":  "- Login demo: OK, token recibido y no documentado.",
+        "unsafe":  false
+    },
+    {
+        "path":  "docs\\uat\\UAT_SOAP_PROC_CONTRAPARTIDAS.md",
+        "line":  29,
+        "excerpt":  "/ Credenciales/tokens/certificados privados / No presentes /",
+        "unsafe":  false
+    }
+]

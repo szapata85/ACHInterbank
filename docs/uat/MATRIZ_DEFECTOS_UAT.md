@@ -198,3 +198,15 @@ Validaciones:
 | DEF-UAT-SOAP-MAP-004 respuesta diferencial sobre prenotificacion pendiente CFA | Cerrado tecnico UAT | `DifferentialPrenotificationResponseProcessorTests`, `docs/uat/EVIDENCIAS_RESPUESTAS_PRENOTIFICACIONES.md` | El procesador aprueba/rechaza `AchTransaction.IsPrenotification=true` cruzando payload, NACHA-M desagregado y mapping publicado; persiste trace y evento; no mueve dinero. |
 
 Productivo: **NO-GO**.
+
+## Actualizacion 2026-05-23 - paquete final UAT SOAP end-to-end
+
+- `DEF-UAT-SOAP-MAP-001`: Cerrado tecnico; `Proc_Contrapartidas` no acepta fallback requerido y conserva no transmision externa en UAT/local.
+- `DEF-UAT-SOAP-MAP-002`: Cerrado tecnico; `Proc_Transacciones` valida readiness, tiene guardrail DryRun/Disabled y no transmite externamente.
+- `DEF-UAT-SOAP-MAP-003`: Cerrado tecnico; `RegistrarRespuestaTransaccion` persiste trace y se mantiene no monetario.
+- `DEF-UAT-SOAP-MAP-004`: Cerrado tecnico UAT; respuesta diferencial aprueba/rechaza prenotificaciones CFA pendientes sin movimiento monetario.
+- `DEF-UAT-SOAP-MAP-005`: Cerrado tecnico; `Proc_Transacciones` usa NACHA-M desagregado cuando aplica.
+- Paquete final: `docs/uat/evidencias/soap-end-to-end-final/`.
+- Acta firmable: `docs/uat/ACTA_UAT_SOAP_END_TO_END_FORMAL.md`.
+- Matriz final: `docs/uat/MATRIZ_ESCENARIOS_UAT_SOAP_END_TO_END_FINAL.md`.
+- Conclusión: continuar UAT controlado. Productivo **NO-GO**.

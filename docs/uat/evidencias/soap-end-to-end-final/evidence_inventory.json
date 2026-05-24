@@ -1,0 +1,362 @@
+﻿[
+    {
+        "name":  "Proc_Contrapartidas mapping trace",
+        "path":  "docs/uat/evidencias/soap-integrations/mapping-trace/proc_contrapartidas/mapping_trace.json",
+        "operation":  "Proc_Contrapartidas",
+        "scenario":  "Mapping trace",
+        "evidenceType":  "json",
+        "sha256":  "0145a3ba45a4b2321306d0eaf0fddd73a8fa678f6686f31f0393ada3dafabae4",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Proc_Contrapartidas trace markdown",
+        "path":  "docs/uat/evidencias/soap-integrations/mapping-trace/proc_contrapartidas/mapping_trace.md",
+        "operation":  "Proc_Contrapartidas",
+        "scenario":  "Mapping trace",
+        "evidenceType":  "markdown",
+        "sha256":  "8c22661f013ca3d78610098c4fb23eeadf173b54ee594a1e2e00826cb39b7de6",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Proc_Contrapartidas envelope/payload sanitizado",
+        "path":  "docs/uat/evidencias/soap-integrations/mapping-trace/proc_contrapartidas/envelope_or_payload_sanitizado.xml",
+        "operation":  "Proc_Contrapartidas",
+        "scenario":  "DryRun payload",
+        "evidenceType":  "xml",
+        "sha256":  "4603d25c454feb8649cfb28672cdcaf14d397c2ee5f139dd421cfb18a521fbe7",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Proc_Contrapartidas validation report",
+        "path":  "docs/uat/evidencias/soap-integrations/mapping-trace/proc_contrapartidas/validation_report.md",
+        "operation":  "Proc_Contrapartidas",
+        "scenario":  "Validacion",
+        "evidenceType":  "markdown",
+        "sha256":  "bcfdf9fc6cb98797d19f8b16cf60b382f267e5bd4fa9acb371dc6b75f98250e3",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Proc_Contrapartidas runtime dryrun",
+        "path":  "docs/uat/evidencias/soap-proc-contrapartidas/runtime_dry_run_validation.md",
+        "operation":  "Proc_Contrapartidas",
+        "scenario":  "No transmision",
+        "evidenceType":  "markdown",
+        "sha256":  "f672f479b84eac03acb3b0e1e27c8d01110811464a84e3bab8825a6397abb7c0",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Proc_Transacciones readiness",
+        "path":  "docs/uat/evidencias/soap-integrations/mapping-trace/proc_transacciones/readiness.json",
+        "operation":  "Proc_Transacciones",
+        "scenario":  "Readiness",
+        "evidenceType":  "json",
+        "sha256":  "55fc831b076679652806a597a3716f2a3e33b0931ce91371657f517f75b34522",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Proc_Transacciones NACHA readiness",
+        "path":  "docs/uat/evidencias/soap-integrations/mapping-trace/proc_transacciones/nacha_desagregado_readiness.json",
+        "operation":  "Proc_Transacciones",
+        "scenario":  "NACHA desagregado",
+        "evidenceType":  "json",
+        "sha256":  "662c5d2c1e10551216a3a7cb21dd0f578f9dda7ca1a8b11f46a1537345bfe52d",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Proc_Transacciones mapping trace",
+        "path":  "docs/uat/evidencias/soap-integrations/mapping-trace/proc_transacciones/mapping_trace.json",
+        "operation":  "Proc_Transacciones",
+        "scenario":  "Mapping trace",
+        "evidenceType":  "json",
+        "sha256":  "94662e155e34044261e03c342b6bc5c51bc02660362723f7fad0dfc77c1dbaa7",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Proc_Transacciones SOAP envelope DryRun",
+        "path":  "docs/uat/evidencias/soap-integrations/mapping-trace/proc_transacciones/proc_transacciones_envelope_sanitizado.xml",
+        "operation":  "Proc_Transacciones",
+        "scenario":  "SOAP Envelope DryRun",
+        "evidenceType":  "xml",
+        "sha256":  "63b75ebdc7b1a002dcb767c840e4b7f9eb888a489434105614e990b7b3e26be9",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Proc_Transacciones dryrun result",
+        "path":  "docs/uat/evidencias/soap-integrations/mapping-trace/proc_transacciones/dryrun_result.json",
+        "operation":  "Proc_Transacciones",
+        "scenario":  "DryRun",
+        "evidenceType":  "json",
+        "sha256":  "b9555b483d49bee7a19d44cff8e8cd7fc6cfc8c75bca92183d31fbeab2239c35",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Proc_Transacciones no external transmission",
+        "path":  "docs/uat/evidencias/soap-integrations/mapping-trace/proc_transacciones/no_external_transmission_report.md",
+        "operation":  "Proc_Transacciones",
+        "scenario":  "No transmision",
+        "evidenceType":  "markdown",
+        "sha256":  "216b4c12a3146046265105627c0ffeb61bd6470e35b57dec28324858aeb0e989",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Proc_Transacciones validation report",
+        "path":  "docs/uat/evidencias/soap-integrations/mapping-trace/proc_transacciones/validation_report.md",
+        "operation":  "Proc_Transacciones",
+        "scenario":  "Validacion",
+        "evidenceType":  "markdown",
+        "sha256":  "25ac920687150c66d68266cce0a8dd72002c8a0a48d152beb8e47f7a6312cf8a",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "RegistrarRespuesta mapping trace",
+        "path":  "docs/uat/evidencias/soap-integrations/mapping-trace/registrar_respuesta_transaccion/mapping_trace.json",
+        "operation":  "RegistrarRespuestaTransaccion",
+        "scenario":  "Mapping trace",
+        "evidenceType":  "json",
+        "sha256":  "f021c1a08d8195e2e34585ca12f5b5ac632fb393f2a6fffdbf2920f19e2797c7",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "RegistrarRespuesta payload recibido",
+        "path":  "docs/uat/evidencias/soap-integrations/mapping-trace/registrar_respuesta_transaccion/payload_recibido_sanitizado.json",
+        "operation":  "RegistrarRespuestaTransaccion",
+        "scenario":  "Payload recibido",
+        "evidenceType":  "json",
+        "sha256":  "d613fb428b0f5cab0a4b74169914b257ff74e5924dd37c013e20fc1248765517",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "RegistrarRespuesta traceability",
+        "path":  "docs/uat/evidencias/soap-integrations/mapping-trace/registrar_respuesta_transaccion/traceability_result.json",
+        "operation":  "RegistrarRespuestaTransaccion",
+        "scenario":  "Trazabilidad",
+        "evidenceType":  "json",
+        "sha256":  "07aa4572c6aba411e947d6af74aa8eaafe4f718bb38efdfd29303088c3feeb2f",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "RegistrarRespuesta monetary guardrail",
+        "path":  "docs/uat/evidencias/soap-integrations/mapping-trace/registrar_respuesta_transaccion/monetary_guardrail_report.md",
+        "operation":  "RegistrarRespuestaTransaccion",
+        "scenario":  "No monetario",
+        "evidenceType":  "markdown",
+        "sha256":  "560c480ef9fc82918fffe86bb780d19e0f3eaa8c35e85aa70ed902c58d991347",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Prenotificacion aprobada before",
+        "path":  "docs/uat/evidencias/soap-integrations/prenotification-responses/approved/pending_prenotification_before.json",
+        "operation":  "RegistrarRespuestaTransaccion",
+        "scenario":  "Prenotificacion aprobada",
+        "evidenceType":  "json",
+        "sha256":  "6232688c19031697d3e782375fbcb618af6f72146df7e7805de36ad9dcc58c59",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Prenotificacion aprobada trace",
+        "path":  "docs/uat/evidencias/soap-integrations/prenotification-responses/approved/mapping_trace.json",
+        "operation":  "RegistrarRespuestaTransaccion",
+        "scenario":  "Prenotificacion aprobada",
+        "evidenceType":  "json",
+        "sha256":  "34b51af649521dd7170603e96fccf3b4a7787ac97290f3834428745208d76617",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Prenotificacion aprobada after",
+        "path":  "docs/uat/evidencias/soap-integrations/prenotification-responses/approved/prenotification_after_approved.json",
+        "operation":  "RegistrarRespuestaTransaccion",
+        "scenario":  "Prenotificacion aprobada",
+        "evidenceType":  "json",
+        "sha256":  "41684967abe8ce45e8d83fb0076ef0b9d562d75d929cbf4ee238c8b3689665cc",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Prenotificacion aprobada state event",
+        "path":  "docs/uat/evidencias/soap-integrations/prenotification-responses/approved/state_event.json",
+        "operation":  "RegistrarRespuestaTransaccion",
+        "scenario":  "Prenotificacion aprobada",
+        "evidenceType":  "json",
+        "sha256":  "6b76e70de794054e5f72c29fa9f7d4578943e5a8b015da8fbaea99291cd1abb6",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Prenotificacion rechazada before",
+        "path":  "docs/uat/evidencias/soap-integrations/prenotification-responses/rejected/pending_prenotification_before.json",
+        "operation":  "RegistrarRespuestaTransaccion",
+        "scenario":  "Prenotificacion rechazada",
+        "evidenceType":  "json",
+        "sha256":  "6232688c19031697d3e782375fbcb618af6f72146df7e7805de36ad9dcc58c59",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Prenotificacion rechazada trace",
+        "path":  "docs/uat/evidencias/soap-integrations/prenotification-responses/rejected/mapping_trace.json",
+        "operation":  "RegistrarRespuestaTransaccion",
+        "scenario":  "Prenotificacion rechazada",
+        "evidenceType":  "json",
+        "sha256":  "5fd4f1ddf33140a83889d68542ff78ec94648288464bfe9e58ced10015182e32",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Prenotificacion rechazada after",
+        "path":  "docs/uat/evidencias/soap-integrations/prenotification-responses/rejected/prenotification_after_rejected.json",
+        "operation":  "RegistrarRespuestaTransaccion",
+        "scenario":  "Prenotificacion rechazada",
+        "evidenceType":  "json",
+        "sha256":  "985b0b9b8c5495e193c9ab5f2d204c0387bb46afd012e236023969624342e9e8",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Prenotificacion rechazada state event",
+        "path":  "docs/uat/evidencias/soap-integrations/prenotification-responses/rejected/state_event.json",
+        "operation":  "RegistrarRespuestaTransaccion",
+        "scenario":  "Prenotificacion rechazada",
+        "evidenceType":  "json",
+        "sha256":  "c97d9033a036b87e827026d7c7ef1a3b1752ea7ca5e8ecb13cb7dc820e1f68ba",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "SPA mappings general",
+        "path":  "docs/ux/evidencias/integration-mappings-ux-validation.json",
+        "operation":  "SPA mappings",
+        "scenario":  "Proc_Transacciones y WSAXON",
+        "evidenceType":  "json",
+        "sha256":  "eb8459a269625752c2935a3c7e89afd2c792a8dc12819ba95b0d051f2eda93b1",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "SPA mappings Proc_Contrapartidas",
+        "path":  "docs/ux/evidencias/integration-mappings-proc-contrapartidas-validation.json",
+        "operation":  "SPA mappings",
+        "scenario":  "Proc_Contrapartidas",
+        "evidenceType":  "json",
+        "sha256":  "28fc2f8bb215f3055be335d7b1ec0fcaf15769f36c7b9bf01e07450b83787412",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "SPA screenshot Proc_Contrapartidas",
+        "path":  "docs/ux/evidencias/integration-mappings-proc-contrapartidas.png",
+        "operation":  "SPA mappings",
+        "scenario":  "Proc_Contrapartidas",
+        "evidenceType":  "png",
+        "sha256":  "d45ffd3ae06b4751d480ac30b40aeae8293e8bfc0f2007c87655fe858e611d33",
+        "status":  "encontrada",
+        "observation":  "Referenciada en paquete final"
+    },
+    {
+        "name":  "Acta UAT SOAP end-to-end formal",
+        "path":  "docs/uat/ACTA_UAT_SOAP_END_TO_END_FORMAL.md",
+        "operation":  "Paquete final",
+        "scenario":  "Acta firmable",
+        "evidenceType":  "markdown",
+        "sha256":  "5f023429584251fdbc3300efc0fbd7230b4542b069a905faba71764be7292e7b",
+        "status":  "generada",
+        "observation":  "Generada en paquete final"
+    },
+    {
+        "name":  "Resumen ejecutivo UAT SOAP end-to-end",
+        "path":  "docs/uat/RESUMEN_EJECUTIVO_UAT_SOAP_END_TO_END.md",
+        "operation":  "Paquete final",
+        "scenario":  "Resumen ejecutivo",
+        "evidenceType":  "markdown",
+        "sha256":  "f5a21190b39091e7f7991aee5db59424dc50de0edf2d8ac17440621309821b00",
+        "status":  "generada",
+        "observation":  "Generada en paquete final"
+    },
+    {
+        "name":  "Matriz escenarios UAT SOAP final",
+        "path":  "docs/uat/MATRIZ_ESCENARIOS_UAT_SOAP_END_TO_END_FINAL.md",
+        "operation":  "Paquete final",
+        "scenario":  "Matriz escenarios",
+        "evidenceType":  "markdown",
+        "sha256":  "2a39da8962a36ec777b8cc4d567f55bb55a47f14bedce8769918dcf101f3450b",
+        "status":  "generada",
+        "observation":  "Generada en paquete final"
+    },
+    {
+        "name":  "Inventario evidencias markdown",
+        "path":  "docs/uat/evidencias/soap-end-to-end-final/EVIDENCE_INVENTORY.md",
+        "operation":  "Paquete final",
+        "scenario":  "Inventario",
+        "evidenceType":  "markdown",
+        "sha256":  "bb194737dbe39a1f6d0bc4edff3c8ed14190aeb7ca2ecdd69f9a59096225d65f",
+        "status":  "generada",
+        "observation":  "Generada en paquete final"
+    },
+    {
+        "name":  "Inventario evidencias json",
+        "path":  "docs/uat/evidencias/soap-end-to-end-final/evidence_inventory.json",
+        "operation":  "Paquete final",
+        "scenario":  "Inventario",
+        "evidenceType":  "json",
+        "sha256":  "d1256c5c717c128f9d56964a740ed0fab113374db8369646d26c244c1fea20e5",
+        "status":  "generada",
+        "observation":  "Generada en paquete final"
+    },
+    {
+        "name":  "Reporte no transmision externa final",
+        "path":  "docs/uat/evidencias/soap-end-to-end-final/no_external_transmission_report.md",
+        "operation":  "Paquete final",
+        "scenario":  "No transmision externa",
+        "evidenceType":  "markdown",
+        "sha256":  "05fcfd74f84d5bca04cfc6d0d1a6030e101d532f59e743806a1991abc114bbde",
+        "status":  "generada",
+        "observation":  "Generada en paquete final"
+    },
+    {
+        "name":  "Reporte sanitizacion final",
+        "path":  "docs/uat/evidencias/soap-end-to-end-final/security_sanitization_report.md",
+        "operation":  "Paquete final",
+        "scenario":  "Sanitizacion",
+        "evidenceType":  "markdown",
+        "sha256":  "2f29de0d448343f6a39b290d900834246ee91c85bab13d66993baef2df09d52c",
+        "status":  "generada",
+        "observation":  "Generada en paquete final"
+    },
+    {
+        "name":  "Precheck runtime final",
+        "path":  "docs/uat/evidencias/soap-end-to-end-final/precheck_runtime.md",
+        "operation":  "Paquete final",
+        "scenario":  "Precheck runtime",
+        "evidenceType":  "markdown",
+        "sha256":  "cdf866884c1873dd7b757546776edc5608304f19448f4922f80fa03abf9ea83f",
+        "status":  "generada",
+        "observation":  "Generada en paquete final"
+    },
+    {
+        "name":  "Logs sanitizados runtime",
+        "path":  "docs/uat/evidencias/soap-end-to-end-final/runtime/logs_sanitizados.md",
+        "operation":  "Paquete final",
+        "scenario":  "Runtime logs",
+        "evidenceType":  "markdown",
+        "sha256":  "98c5cde0dee6d633acf0df0603d5bb5190f28b69682673f2dbfe69447ae09efe",
+        "status":  "generada",
+        "observation":  "Generada en paquete final"
+    }
+]

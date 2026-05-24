@@ -93,6 +93,19 @@ El avance mejora la evidencia tecnica de interoperabilidad NACHA-M, pero no camb
 | E2E CENIT/CUD | Subir funcionalidad/interoperabilidad |
 | Backup/restore/rollback ensayado | Subir operacion |
 
+## Actualizacion 2026-05-23 - UAT SOAP end-to-end final
+
+Se agrega paquete formal UAT SOAP end-to-end:
+
+- Acta: `docs/uat/ACTA_UAT_SOAP_END_TO_END_FORMAL.md`.
+- Resumen ejecutivo: `docs/uat/RESUMEN_EJECUTIVO_UAT_SOAP_END_TO_END.md`.
+- Matriz: `docs/uat/MATRIZ_ESCENARIOS_UAT_SOAP_END_TO_END_FINAL.md`.
+- Inventario/hashes/sanitizacion/no transmision: `docs/uat/evidencias/soap-end-to-end-final/`.
+
+Impacto sobre score: mejora evidencia UAT e interoperabilidad SOAP para continuar UAT controlado. No se incrementa score productivo automáticamente porque persisten brechas no tecnicas y externas: homologacion, certificados/sobre digital, CENIT/CUD, backup/restore/rollback, UAT bancario formal y aprobaciones.
+
+Estado: **NO-GO productivo**.
+
 ## Actualizacion 2026-05-19
 
 La parametrizacion de reglas por camara mejora readiness tecnico de NACHA-M, pero no eleva a GO productivo. El score no debe subir artificialmente hasta revalidar runtime con migracion/seed, crear prenotificaciones UAT validas y generar archivo NACHA-M no vacio por camara.
