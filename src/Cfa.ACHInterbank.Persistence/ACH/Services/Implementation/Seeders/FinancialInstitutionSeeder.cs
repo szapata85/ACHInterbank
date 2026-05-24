@@ -600,30 +600,88 @@ public class FinancialInstitutionSeeder : IDbSeeder
 
             _context.FinancialInstitutions.AddRange(institutions);
             await _context.SaveChangesAsync();
+            await EnsureSyntheticExternalInstitutionsAsync();
+            await EnsureSingleDefaultSourceAsync();
             return;
         }
 
         // ✅ Garantizar que exista una entidad por defecto dentro de los registros actuales
-        bool hasDefault = await _context.FinancialInstitutions
-            .AnyAsync(fi => fi.IsDefaultSource && fi.Status == FinancialInstitutionStatus.Active);
+        await EnsureSyntheticExternalInstitutionsAsync();
+        await EnsureSingleDefaultSourceAsync();
+    }
 
-        if (!hasDefault)
+    private async Task EnsureSyntheticExternalInstitutionsAsync()
+    {
+        if (!_environment.IsDevelopment() && !_environment.IsEnvironment("Testing"))
         {
-            var cooperativa = await _context.FinancialInstitutions
-                .FirstOrDefaultAsync(
-                    fi => fi.Status == FinancialInstitutionStatus.Active &&
-                          fi.Name == "Cooperativa Financiera de Antioquia");
+            return;
+        }
 
-            var fallback = cooperativa ?? await _context.FinancialInstitutions
-                .FirstOrDefaultAsync(fi => fi.Status == FinancialInstitutionStatus.Active);
+        var definitions = new[]
+        {
+            new { Name = "Banco UAT Externo ACH", Routing = "99999", Transit = "900" },
+            new { Name = "Banco UAT Externo CENIT", Routing = "99998", Transit = "900" }
+        };
 
-            if (fallback is null)
+        var changed = false;
+        foreach (var definition in definitions)
+        {
+            if (await _context.FinancialInstitutions.AnyAsync(x => x.Name == definition.Name))
             {
-                return;
+                continue;
             }
 
-            fallback.IsDefaultSource = true;
-            _context.FinancialInstitutions.Update(fallback);
+            var institution = new FinancialInstitution
+            {
+                Name = definition.Name,
+                RoutingNumber = definition.Routing,
+                TransitCode = definition.Transit,
+                IsDefaultSource = false,
+                Status = FinancialInstitutionStatus.Active
+            };
+            institution.CalculateCheckDigit();
+            _context.FinancialInstitutions.Add(institution);
+            changed = true;
+        }
+
+        if (changed)
+        {
+            await _context.SaveChangesAsync();
+        }
+    }
+
+    private async Task EnsureSingleDefaultSourceAsync()
+    {
+        var activeInstitutions = await _context.FinancialInstitutions
+            .Where(fi => fi.Status == FinancialInstitutionStatus.Active)
+            .OrderBy(fi => fi.Id)
+            .ToListAsync();
+
+        if (activeInstitutions.Count == 0)
+        {
+            return;
+        }
+
+        var cfa = activeInstitutions.FirstOrDefault(fi =>
+            string.Equals(fi.Name, "Cooperativa Financiera de Antioquia", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fi.Name, "CFA Cooperativa Financiera", StringComparison.OrdinalIgnoreCase));
+        var target = cfa ?? activeInstitutions.FirstOrDefault(fi => fi.IsDefaultSource) ?? activeInstitutions[0];
+        var changed = false;
+
+        foreach (var institution in activeInstitutions)
+        {
+            var shouldBeDefault = institution.Id == target.Id;
+            if (institution.IsDefaultSource == shouldBeDefault)
+            {
+                continue;
+            }
+
+            institution.IsDefaultSource = shouldBeDefault;
+            changed = true;
+        }
+
+        if (changed)
+        {
             await _context.SaveChangesAsync();
         }
     }

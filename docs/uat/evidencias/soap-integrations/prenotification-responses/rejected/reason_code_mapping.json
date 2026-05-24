@@ -1,0 +1,8 @@
+{
+  "externalStatus": "RJ",
+  "externalReasonCode": "R03",
+  "externalReasonDescription": "Cuenta no localizada",
+  "targetState": "ReturnedByEpr",
+  "stateEventSource": "Epr",
+  "monetaryMovementCreated": false
+}

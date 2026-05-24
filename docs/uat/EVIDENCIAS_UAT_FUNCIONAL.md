@@ -18,7 +18,7 @@ Clasificacion: no incluir password, token completo, datos reales, cuentas reales
 | EV-FUNC-006 | Endpoints protegidos | HTTP | `/api/roles`, `/api/users`, `/api/ach/responses` HTTP 200 JSON con Bearer. | Consola Codex. | OK |
 | EV-FUNC-007 | Proxy funcional SPA | HTTP/Log SPA | Evidencia historica: rutas raiz funcionales por `:743` devolvian `text/html`/`index.html` con 200 antes del ajuste Nginx. | Logs Nginx SPA y respuestas HTTP sanitizadas. | Cerrado por reintento |
 | EV-FUNC-008 | Datos maestros API directa | HTTP | Catalogos y configuraciones consultados por `:843` responden JSON. | Consola Codex. | OK con observaciones |
-| EV-FUNC-009 | Datos sinteticos | HTTP/API | Creacion de `Banco UAT Origen` ID `92`, `Banco UAT Destino` ID `93` y preferencias sinteticas. | API directa, sin datos reales. | OK |
+| EV-FUNC-009 | Datos sinteticos | HTTP/API | `Cooperativa Financiera de Antioquia` ID `34` validada como unico default source; `Banco UAT Destino` ID `93` y CENIT ID `94` quedan como destinos sinteticos. | API/BD, sin datos reales. | OK |
 | EV-FUNC-010 | Preview transaccion | HTTP/API | Preview de `UAT-SINT-001` permite envio, sin duplicado inicial. | API directa. | OK |
 | EV-FUNC-011 | Creacion transaccion | HTTP/API | `POST /transactions` HTTP 201, transaccion ID `1`, estado `Pending`. | API directa. | OK |
 | EV-FUNC-012 | Persistencia DB | PostgreSQL | `AchTransactions` contiene referencia `UAT-SINT-001`, monto `1000`, estado `Pending`, timestamps presentes. | `docker exec` + `psql`, salida sanitizada. | OK |
@@ -140,3 +140,18 @@ DEF-UAT-017 queda cerrado funcionalmente para nuevas transacciones: `UAT-SINT-TR
 
 UAT funcional sintetico: **PARCIALMENTE OK** por evidencia visual y actas formales pendientes.
 Productivo: **NO-GO**.
+
+## Evidencia Integrada NACHA-M / SOAP 2026-05-19
+
+| Evidencia | Tipo | Resultado | Ruta |
+|---|---|---|---|
+| Transaccion ACH Colombia | HTTP/API/DB | `UAT-ACHCOL-NACHA-SOAP-001`, TransactionId `3`, estado `Pending`, datos sinteticos. | `docs/uat/UAT_NACHA_M_CAMPO_A_CAMPO.md` |
+| Transaccion CENIT | HTTP/API/DB | `UAT-CENIT-NACHA-SOAP-001`, TransactionId `4`, estado `Pending`, datos sinteticos. | `docs/uat/UAT_NACHA_M_CAMPO_A_CAMPO.md` |
+| NACHA-M ACH Colombia | Archivo/API | FALLA/BLOQUEADO: ahora 422 controlado por prenotificacion previa ausente; no retorna 200 con archivo 0 bytes. | `docs/uat/evidencias/nacha-m-uat/ach-colombia/` |
+| NACHA-M CENIT | Archivo/API | FALLA/BLOQUEADO: ahora 422 controlado por prenotificacion previa ausente; no retorna 200 con archivo 0 bytes. | `docs/uat/evidencias/nacha-m-uat/cenit/` |
+| SOAP Proc_Contrapartidas ACH Colombia | XML dry-run | Envelope sanitizado XML bien formado; no invocado manualmente. | `docs/uat/evidencias/soap-proc-contrapartidas/ach-colombia/` |
+| SOAP Proc_Contrapartidas CENIT | XML dry-run | Envelope sanitizado XML bien formado; no invocado manualmente. | `docs/uat/evidencias/soap-proc-contrapartidas/cenit/` |
+
+Observacion critica actualizada: antes del guardrail se detectaron intentos automaticos del job `Proc_Contrapartidas` hacia endpoint externo/no resoluble, sin transmision exitosa. DEF-UAT-022 agrego modo `DryRun` por defecto y evidencia runtime `PROC_DRY_RUN` sin transmision externa. Endpoint UAT/mock real sigue pendiente para homologacion.
+
+DEF-UAT-020 permanece abierto/parcial; DEF-UAT-021 y DEF-UAT-022 quedan cerrados tecnicamente para UAT/local. Productivo sigue **NO-GO**.

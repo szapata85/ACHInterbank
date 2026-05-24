@@ -1,0 +1,12 @@
+{
+  "reference": "000128300012345",
+  "transactionExternalId": "000128300012345",
+  "traceNumber": "000128300012345",
+  "type": "Prenotification",
+  "transactionCode": "28",
+  "sourceFinancialInstitution": "CFA",
+  "sourceIsDefault": true,
+  "amount": 0,
+  "state": "Pending",
+  "syntheticUatData": true
+}

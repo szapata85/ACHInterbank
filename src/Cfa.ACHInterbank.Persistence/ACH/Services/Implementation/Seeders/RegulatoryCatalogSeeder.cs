@@ -1,5 +1,7 @@
 using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +29,7 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         await UpsertReturnPoliciesAsync(clearingHouseIds);
         await UpsertReturnOfReturnPoliciesAsync(clearingHouseIds);
         await UpsertPrenotificationPoliciesAsync();
+        await UpsertClearingHouseTransactionRulesAsync(clearingHouseIds);
 
         await _context.SaveChangesAsync();
     }
@@ -253,6 +256,43 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         }
     }
 
+    private async Task UpsertClearingHouseTransactionRulesAsync((int CenitId, int AchColombiaId) clearingHouseIds)
+    {
+        var desired = BuildClearingHouseTransactionRules(clearingHouseIds)
+            .ToDictionary(x => $"{x.ClearingHouseId}|{x.TransactionNature}|{x.TransactionType}|{x.EffectiveFrom:yyyyMMdd}", StringComparer.OrdinalIgnoreCase);
+        var existing = await _context.ClearingHouseTransactionRules.ToListAsync();
+
+        foreach (var row in existing)
+        {
+            var key = $"{row.ClearingHouseId}|{row.TransactionNature}|{row.TransactionType}|{row.EffectiveFrom:yyyyMMdd}";
+            if (!desired.TryGetValue(key, out var model))
+            {
+                continue;
+            }
+
+            row.RequiresPrenotification = model.RequiresPrenotification;
+            row.PrenotificationMode = model.PrenotificationMode;
+            row.RequiresReceiverIdentificationValidation = model.RequiresReceiverIdentificationValidation;
+            row.ReceiverIdentificationValidationMode = model.ReceiverIdentificationValidationMode;
+            row.AppliesToNachaExport = model.AppliesToNachaExport;
+            row.AppliesToMonetaryTransactions = model.AppliesToMonetaryTransactions;
+            row.EffectiveTo = model.EffectiveTo;
+            row.IsActive = model.IsActive;
+            row.NormativeSource = model.NormativeSource;
+            row.NormativeReference = model.NormativeReference;
+            row.Notes = model.Notes;
+        }
+
+        foreach (var model in desired.Values.Where(x => existing.All(e =>
+                     e.ClearingHouseId != x.ClearingHouseId
+                     || e.TransactionNature != x.TransactionNature
+                     || e.TransactionType != x.TransactionType
+                     || e.EffectiveFrom.Date != x.EffectiveFrom.Date)))
+        {
+            _context.ClearingHouseTransactionRules.Add(model);
+        }
+    }
+
     private static IEnumerable<AchReturnCode> BuildReturnCodes((int CenitId, int AchColombiaId) clearingHouseIds)
     {
         var rows = new[]
@@ -417,6 +457,83 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             new AchPrenotificationPolicy { TransactionType = "Prenotification", IsRequired = false, RequiresAddenda = true, BlocksMonetaryTransactionIfMissing = false, IsActive = true },
             new AchPrenotificationPolicy { TransactionType = "Return", IsRequired = false, RequiresAddenda = true, BlocksMonetaryTransactionIfMissing = false, IsActive = true },
             new AchPrenotificationPolicy { TransactionType = "ReturnOfReturn", IsRequired = false, RequiresAddenda = true, BlocksMonetaryTransactionIfMissing = false, IsActive = true }
+        };
+    }
+
+    private static IEnumerable<ClearingHouseTransactionRule> BuildClearingHouseTransactionRules((int CenitId, int AchColombiaId) clearingHouseIds)
+    {
+        var effectiveFrom = new DateTime(2025, 1, 1);
+
+        return new[]
+        {
+            new ClearingHouseTransactionRule
+            {
+                ClearingHouseId = clearingHouseIds.AchColombiaId,
+                TransactionNature = TransactionNature.Debit,
+                TransactionType = TransactionTypeEnum.Debit,
+                RequiresPrenotification = true,
+                PrenotificationMode = PrenotificationRequirementMode.Mandatory,
+                RequiresReceiverIdentificationValidation = true,
+                ReceiverIdentificationValidationMode = ValidationRequirementMode.Mandatory,
+                AppliesToNachaExport = true,
+                AppliesToMonetaryTransactions = true,
+                EffectiveFrom = effectiveFrom,
+                IsActive = true,
+                NormativeSource = "MAN-004 ACH Colombia V32",
+                NormativeReference = "2.11.4, 2.11.4.1, 2.11.4.2, 2.11.6",
+                Notes = "Debito ACH Colombia: prenotificacion tecnica obligatoria previa al proceso de debito; receptor valida cuenta e identificacion segun norma."
+            },
+            new ClearingHouseTransactionRule
+            {
+                ClearingHouseId = clearingHouseIds.AchColombiaId,
+                TransactionNature = TransactionNature.Credit,
+                TransactionType = TransactionTypeEnum.Credit,
+                RequiresPrenotification = false,
+                PrenotificationMode = PrenotificationRequirementMode.Optional,
+                RequiresReceiverIdentificationValidation = false,
+                ReceiverIdentificationValidationMode = ValidationRequirementMode.Optional,
+                AppliesToNachaExport = true,
+                AppliesToMonetaryTransactions = true,
+                EffectiveFrom = effectiveFrom,
+                IsActive = true,
+                NormativeSource = "MAN-004 ACH Colombia V32",
+                NormativeReference = "2.10.2, 2.10.3, 2.10.3.1, 2.10.3.2",
+                Notes = "Credito ACH Colombia: prenotificacion discrecional/opcional; no bloquea exportacion monetaria si no fue enviada."
+            },
+            new ClearingHouseTransactionRule
+            {
+                ClearingHouseId = clearingHouseIds.CenitId,
+                TransactionNature = TransactionNature.Debit,
+                TransactionType = TransactionTypeEnum.Debit,
+                RequiresPrenotification = true,
+                PrenotificationMode = PrenotificationRequirementMode.Mandatory,
+                RequiresReceiverIdentificationValidation = true,
+                ReceiverIdentificationValidationMode = ValidationRequirementMode.Mandatory,
+                AppliesToNachaExport = true,
+                AppliesToMonetaryTransactions = true,
+                EffectiveFrom = effectiveFrom,
+                IsActive = true,
+                NormativeSource = "CENIT DSP-152 Anexo 2",
+                NormativeReference = "4.7 Prenotificaciones",
+                Notes = "Debito CENIT: antes de una entrada debito el originador debe enviar notificacion previa/prenotificacion con addenda."
+            },
+            new ClearingHouseTransactionRule
+            {
+                ClearingHouseId = clearingHouseIds.CenitId,
+                TransactionNature = TransactionNature.Credit,
+                TransactionType = TransactionTypeEnum.Credit,
+                RequiresPrenotification = false,
+                PrenotificationMode = PrenotificationRequirementMode.Optional,
+                RequiresReceiverIdentificationValidation = false,
+                ReceiverIdentificationValidationMode = ValidationRequirementMode.Optional,
+                AppliesToNachaExport = true,
+                AppliesToMonetaryTransactions = true,
+                EffectiveFrom = effectiveFrom,
+                IsActive = true,
+                NormativeSource = "CENIT DSP-152 Anexo 2",
+                NormativeReference = "4.7 Prenotificaciones",
+                Notes = "Credito CENIT: la prenotificacion credito no es obligatoria segun documento fuente."
+            }
         };
     }
 }

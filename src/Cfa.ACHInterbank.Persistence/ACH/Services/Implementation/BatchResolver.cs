@@ -105,7 +105,7 @@ public class BatchResolver : IBatchResolver
             EnsureCycleIsOpenForTransactions(cycle, now);
         }
 
-        if (request.Type == TransactionTypeEnum.Debit && IsCycleFive(cycle.CycleName))
+        if (request.Type == TransactionTypeEnum.Debit && !request.IsPrenotification && IsCycleFive(cycle.CycleName))
         {
             throw new InvalidOperationException("No se aceptan transacciones débito en el Ciclo 5.");
         }

@@ -1,13 +1,18 @@
-import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
-import { ReactiveFormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
-import { IntegrationMappingAdminService, IntegrationMappingSet, IntegrationMethod } from '../../../core/services/integration-mapping-admin.service';
+import { Component, OnInit, inject } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import {
+  IntegrationMappingAdminService,
+  IntegrationMappingSet,
+  IntegrationMethod,
+  IntegrationMethodParameter,
+  IntegrationSourceCatalogField
+} from '../../../core/services/integration-mapping-admin.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
-import { ColDef } from 'ag-grid-community';
+
+type MappingModalMode = 'detail' | 'edit' | 'draft' | null;
 
 @Component({
   selector: 'app-mapping-sets-page',
@@ -21,52 +26,27 @@ export class MappingSetsPageComponent implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   loading = false;
   methods: IntegrationMethod[] = [];
   mappingSets: IntegrationMappingSet[] = [];
+  sourceCatalog: IntegrationSourceCatalogField[] = [];
+  targetFields: IntegrationMethodParameter[] = [];
+  catalogLoadState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
   creatingDraft = false;
+  modalMode: MappingModalMode = null;
+  selectedMapping: IntegrationMappingSet | null = null;
+  searchTerm = '';
+  statusFilter = 'all';
+  purposeFilter = 'all';
+  directionFilter = 'all';
 
   readonly migas = [
     { etiqueta: 'Inicio', ruta: '/' },
     { etiqueta: 'Integraciones', ruta: '/integraciones' },
-    { etiqueta: 'Configuración funcional' }
+    { etiqueta: 'Configuracion funcional' }
   ];
-
-  readonly columnas: ColDef[] = [
-    { field: 'nombre', headerName: 'Nombre', sortable: true, filter: 'agTextColumnFilter' },
-    { field: 'integracion', headerName: 'Integración', sortable: true, filter: 'agTextColumnFilter' },
-    { field: 'version', headerName: 'Versión', sortable: true, filter: 'agTextColumnFilter' },
-    { field: 'estado', headerName: 'Estado', sortable: true, filter: 'agTextColumnFilter' },
-    { field: 'publicadoPor', headerName: 'Publicado por', sortable: true, filter: 'agTextColumnFilter' },
-    {
-      field: 'acciones',
-      headerName: 'Acciones',
-      sortable: false,
-      filter: false,
-      maxWidth: 150,
-      cellRenderer: (params: any) => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.innerText = 'Abrir editor';
-        button.classList.add('link');
-        button.addEventListener('click', () => this.openEditor(params.data._original));
-        return button;
-      }
-    }
-  ];
-
-  get filasGrilla(): any[] {
-    return this.mappingSets.map((set) => ({
-      nombre: set.name,
-      integracion: set.methodCode.replace('WSCFAACH.', ''),
-      version: set.version || 'Borrador',
-      estado: this.getStatusLabel(set.status),
-      publicadoPor: set.publishedBy || '—',
-      acciones: 'Abrir editor',
-      _original: set
-    }));
-  }
 
   readonly createDraftForm = this.fb.group({
     methodId: [null as number | null, Validators.required],
@@ -82,12 +62,80 @@ export class MappingSetsPageComponent implements OnInit {
     return this.createDraftForm.controls.methodId.value;
   }
 
+  get selectedMethod(): IntegrationMethod | undefined {
+    return this.methods.find((x) => x.id === this.selectedMethodId);
+  }
+
   get stats() {
     const total = this.mappingSets.length;
     const draft = this.mappingSets.filter((x) => this.normalizeStatus(x.status) === 'Draft').length;
     const published = this.mappingSets.filter((x) => this.normalizeStatus(x.status) === 'Published').length;
     const archived = this.mappingSets.filter((x) => this.normalizeStatus(x.status) === 'Archived').length;
-    return { total, draft, published, archived };
+    return { total, draft, published, archived, integrations: this.methods.length };
+  }
+
+  get filteredMappingSets(): IntegrationMappingSet[] {
+    const term = this.searchTerm.trim().toLowerCase();
+    return this.mappingSets.filter((set) => {
+      const normalizedStatus = this.normalizeStatus(set.status);
+      const statusMatches = this.statusFilter === 'all' || normalizedStatus === this.statusFilter;
+      if (!statusMatches) {
+        return false;
+      }
+
+      const method = this.getMethodById(set.methodId);
+      if (this.purposeFilter !== 'all' && method?.mappingPurpose !== this.purposeFilter) {
+        return false;
+      }
+
+      if (this.directionFilter !== 'all' && method?.mappingDirection !== this.directionFilter) {
+        return false;
+      }
+
+      if (!term) {
+        return true;
+      }
+
+      return [
+        set.name,
+        set.methodCode,
+        set.notes,
+        set.publishedBy,
+        this.getStatusLabel(set.status),
+        method?.mappingPurpose,
+        method?.mappingDirection,
+        method?.operationKey
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(term));
+    });
+  }
+
+  get mappingPurposes(): string[] {
+    return [...new Set(this.methods.map((method) => method.mappingPurpose).filter(Boolean))].sort();
+  }
+
+  get mappingDirections(): string[] {
+    return [...new Set(this.methods.map((method) => method.mappingDirection).filter(Boolean))].sort();
+  }
+
+  get sourceGroups(): Array<{ entityName: string; sourceKind: string; fields: IntegrationSourceCatalogField[] }> {
+    const groups = new Map<string, { entityName: string; sourceKind: string; fields: IntegrationSourceCatalogField[] }>();
+    for (const field of this.sourceCatalog) {
+      const sourceKind = this.normalizeSourceKind(field.sourceKind as any);
+      const key = `${field.entityName}|${sourceKind}`;
+      const existing = groups.get(key) ?? { entityName: field.entityName, sourceKind, fields: [] };
+      existing.fields.push(field);
+      groups.set(key, existing);
+    }
+
+    return Array.from(groups.values())
+      .map((group) => ({ ...group, fields: group.fields.sort((a, b) => a.sortOrder - b.sortOrder) }))
+      .sort((a, b) => a.entityName.localeCompare(b.entityName));
+  }
+
+  get visibleTargetFields(): IntegrationMethodParameter[] {
+    return [...this.targetFields].sort((a, b) => a.sortOrder - b.sortOrder);
   }
 
   loadMethods(): void {
@@ -95,12 +143,19 @@ export class MappingSetsPageComponent implements OnInit {
     this.api.getMethods().subscribe({
       next: (items) => {
         this.methods = items ?? [];
-        if (!this.selectedMethodId && this.methods.length > 0) {
+        const requestedMethodCode = this.route.snapshot.queryParamMap.get('method');
+        const requestedMethod = requestedMethodCode
+          ? this.methods.find((method) => method.code === requestedMethodCode)
+          : undefined;
+        if (requestedMethod) {
+          this.createDraftForm.patchValue({ methodId: requestedMethod.id });
+        } else if (!this.selectedMethodId && this.methods.length > 0) {
           this.createDraftForm.patchValue({ methodId: this.methods[0].id });
         }
+        this.loadCatalogForSelectedMethod();
         this.loadMappingSets();
       },
-      error: () => this.notifications.error('No fue posible cargar métodos de integración.'),
+      error: () => this.notifications.error('No fue posible cargar metodos de integracion.'),
       complete: () => (this.loading = false)
     });
   }
@@ -114,14 +169,50 @@ export class MappingSetsPageComponent implements OnInit {
   }
 
   onMethodChange(): void {
+    this.loadCatalogForSelectedMethod();
     this.loadMappingSets();
   }
 
+  onSearchChange(value: string): void {
+    this.searchTerm = value;
+  }
+
+  onStatusFilterChange(value: string): void {
+    this.statusFilter = value;
+  }
+
+  onPurposeFilterChange(value: string): void {
+    this.purposeFilter = value;
+  }
+
+  onDirectionFilterChange(value: string): void {
+    this.directionFilter = value;
+  }
+
+  openDraftModal(): void {
+    this.selectedMapping = null;
+    this.modalMode = 'draft';
+  }
+
+  openDetail(mapping: IntegrationMappingSet): void {
+    this.selectedMapping = mapping;
+    this.modalMode = 'detail';
+  }
+
+  openEdit(mapping: IntegrationMappingSet): void {
+    this.selectedMapping = mapping;
+    this.modalMode = 'edit';
+  }
+
+  closeModal(): void {
+    this.modalMode = null;
+    this.selectedMapping = null;
+  }
+
   openCompare(): void {
-    const methodId = this.selectedMethodId;
-    const method = (this.methods ?? []).find((x) => x.id === methodId);
+    const method = this.selectedMethod;
     if (!method) {
-      this.notifications.error('Selecciona un método para comparar versiones.');
+      this.notifications.error('Selecciona un metodo para comparar versiones.');
       return;
     }
     if (this.mappingSets.length < 2) {
@@ -134,6 +225,12 @@ export class MappingSetsPageComponent implements OnInit {
 
   openEditor(mapping: IntegrationMappingSet): void {
     this.router.navigate(['/integraciones/mappings', mapping.methodCode, mapping.id]);
+  }
+
+  goToSelectedEditor(): void {
+    if (this.selectedMapping) {
+      this.openEditor(this.selectedMapping);
+    }
   }
 
   createDraft(): void {
@@ -153,10 +250,11 @@ export class MappingSetsPageComponent implements OnInit {
     this.creatingDraft = true;
     this.api.createDraft(methodId, name, notes, 'ui-admin').subscribe({
       next: (created) => {
-        this.notifications.success('Borrador de configuración creado.');
+        this.notifications.success('Borrador de configuracion creado.');
+        this.closeModal();
         this.openEditor(created);
       },
-      error: () => this.notifications.error('No fue posible crear el borrador de configuración.'),
+      error: () => this.notifications.error('No fue posible crear el borrador de configuracion.'),
       complete: () => (this.creatingDraft = false)
     });
   }
@@ -179,6 +277,111 @@ export class MappingSetsPageComponent implements OnInit {
     return this.normalizeStatus(status).toLowerCase();
   }
 
+  getMethodLabel(method?: IntegrationMethod | null): string {
+    if (!method) {
+      return 'Sin integracion seleccionada';
+    }
+
+    return `${method.integrationKey} / ${method.operationKey} - ${method.mappingPurpose}`;
+  }
+
+  getMethodSummary(method?: IntegrationMethod | null): string {
+    if (!method) {
+      return 'Seleccione una integracion para ver su clasificacion funcional.';
+    }
+
+    const money = method.movesMoney ? 'Mueve dinero' : 'No mueve dinero';
+    return `${method.functionalNature}. ${method.functionalOriginator}. ${money}. Direccion: ${method.mappingDirection}.`;
+  }
+
+  getMethodById(methodId: number): IntegrationMethod | undefined {
+    return this.methods.find((x) => x.id === methodId);
+  }
+
+  getSourceKindLabel(kind: string | null | undefined): string {
+    switch (this.normalizeSourceKind(kind as any).toLowerCase()) {
+      case 'nachaheader': return 'NachaHeaders';
+      case 'batchheader': return 'BatchHeaders';
+      case 'entrydetail': return 'EntryDetails';
+      case 'addendarecord': return 'AddendaRecords';
+      case 'batchcontrol': return 'BatchControls';
+      case 'filecontrol': return 'FileControls';
+      case 'transaction': return 'AchTransaction';
+      case 'prenotification': return 'Prenotification';
+      case 'differentialresponse': return 'DifferentialResponse';
+      case 'financialinstitution': return 'FinancialInstitution';
+      case 'clearinghouse': return 'ClearingHouse';
+      case 'cycle': return 'AchCycle';
+      default: return kind || 'Fuente';
+    }
+  }
+
+  isNachaSource(kind: string | null | undefined): boolean {
+    return ['nachaheader', 'batchheader', 'entrydetail', 'addendarecord', 'batchcontrol', 'filecontrol']
+      .includes(this.normalizeSourceKind(kind as any).toLowerCase());
+  }
+
+  private normalizeSourceKind(kind: string | number | null | undefined): string {
+    if (kind === null || kind === undefined) return '';
+    if (typeof kind === 'number') {
+      if (kind === 1) return 'Transaction';
+      if (kind === 2) return 'Addenda';
+      if (kind === 3) return 'Batch';
+      if (kind === 4) return 'Cycle';
+      if (kind === 5) return 'ClearingHouse';
+      if (kind === 6) return 'Constant';
+      if (kind === 7) return 'Expression';
+      if (kind === 8) return 'NachaHeader';
+      if (kind === 9) return 'BatchHeader';
+      if (kind === 10) return 'EntryDetail';
+      if (kind === 11) return 'AddendaRecord';
+      if (kind === 12) return 'BatchControl';
+      if (kind === 13) return 'FileControl';
+      if (kind === 14) return 'Prenotification';
+      if (kind === 15) return 'DifferentialResponse';
+      return String(kind);
+    }
+
+    const raw = String(kind).trim();
+    if (!raw) return '';
+    if (/^\d+$/.test(raw)) return this.normalizeSourceKind(Number(raw));
+    const lowered = raw.toLowerCase();
+    if (lowered === 'nachaheaders') return 'NachaHeader';
+    if (lowered === 'batchheaders') return 'BatchHeader';
+    if (lowered === 'entrydetails') return 'EntryDetail';
+    if (lowered === 'addendarecords') return 'AddendaRecord';
+    if (lowered === 'batchcontrols') return 'BatchControl';
+    if (lowered === 'filecontrols') return 'FileControl';
+    return raw;
+  }
+
+  private loadCatalogForSelectedMethod(): void {
+    const methodId = this.selectedMethodId;
+    this.sourceCatalog = [];
+    this.targetFields = [];
+    if (!methodId) {
+      this.catalogLoadState = 'idle';
+      return;
+    }
+
+    this.catalogLoadState = 'loading';
+    this.api.getSourceCatalog(methodId).subscribe({
+      next: (items) => {
+        this.sourceCatalog = items ?? [];
+        this.catalogLoadState = 'ready';
+      },
+      error: () => {
+        this.catalogLoadState = 'error';
+        this.notifications.error('No fue posible cargar el catalogo de campos origen.');
+      }
+    });
+
+    this.api.getMethodParameters(methodId).subscribe({
+      next: (items) => (this.targetFields = items ?? []),
+      error: () => this.notifications.error('No fue posible cargar campos destino SOAP/XML.')
+    });
+  }
+
   private normalizeStatus(status: IntegrationMappingSet['status'] | number | string | null | undefined): string {
     if (status === null || status === undefined) return '';
     if (typeof status === 'number') {
@@ -196,5 +399,4 @@ export class MappingSetsPageComponent implements OnInit {
     if (lowered === 'archived') return 'Archived';
     return raw;
   }
-
 }

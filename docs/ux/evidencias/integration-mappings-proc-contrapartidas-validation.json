@@ -1,0 +1,90 @@
+{
+  "generatedAt": "2026-05-23T23:43:42.103Z",
+  "baseUrl": "http://localhost:743",
+  "ok": true,
+  "screenshot": "docs/ux/evidencias/integration-mappings-proc-contrapartidas.png",
+  "checks": [
+    {
+      "name": "muestra WSCFAACH",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "muestra Proc_Contrapartidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "muestra MonetaryDebitRequest",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "muestra OutboundRequest",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "muestra fuentes origen",
+      "ok": true,
+      "detail": "[\"AchTransaction\",\"ClearingHouse\",\"AchCycle\"]"
+    },
+    {
+      "name": "muestra fuentes internas o NACHA-M controladas",
+      "ok": true,
+      "detail": "[\"AchTransaction\",\"ClearingHouse\",\"AchCycle\"]"
+    },
+    {
+      "name": "muestra campos destino SOAP/XML",
+      "ok": true,
+      "detail": "[\"OFNIT\",\"OFEMP\",\"OFCTA\",\"OFDD\",\"OFFECHEFEC\",\"OFMONDEB\",\"OFMONCRE\"]"
+    },
+    {
+      "name": "no habilita SQL libre",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no habilita tablas arbitrarias",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "sin scroll horizontal",
+      "ok": true,
+      "detail": "{\"bodyScrollWidth\":1366,\"viewportWidth\":1366}"
+    },
+    {
+      "name": "mappings o resumen cargado para Proc_Contrapartidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "console errors = 0",
+      "ok": true,
+      "detail": "[]"
+    }
+  ],
+  "errors": [],
+  "consoleErrors": [],
+  "apiResponses": [
+    {
+      "url": "http://localhost:743/api/integrations/methods",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:743/api/integrations/source-catalog?methodId=1",
+      "status": 200,
+      "bodySample": "[\n  {\n    \"id\": 1,\n    \"methodId\": 1,\n    \"sourceKind\": 1,\n    \"entityName\": \"AchTransaction\",\n    \"fieldPath\": \"transaction.id\",\n    \"displayName\": \"Id transacción\",\n    \"dataType\": \"int\",\n    \"cardinality\": 1,\n    \"nullable\": false,\n    \"sortOrder\": 1,\n    \"isActive\": true\n  },\n  {\n    \"id\": 2,\n    \"methodId\": 1,\n    \"sourceKind\": 1,\n    \"entityName\": \"AchTransaction\",\n    \"fieldPath\": \"transaction.transactionExternalId\",\n    \"displayName\": \"Id operación cliente\",\n    \"dataType\": \"string\",\n   "
+    },
+    {
+      "url": "http://localhost:743/api/integrations/methods/1/parameters",
+      "status": 200,
+      "bodySample": "[\n  {\n    \"id\": 1,\n    \"methodId\": 1,\n    \"parameterPath\": \"OFNIT\",\n    \"displayName\": \"NIT origen\",\n    \"descriptionEs\": \"Identificador tributario de la entidad origen.\",\n    \"category\": \"Identificación\",\n    \"exampleValue\": \"900123456\",\n    \"uiHelpText\": \"Seleccione el NIT institucional a enviar.\",\n    \"dataType\": \"string\",\n    \"direction\": 1,\n    \"cardinality\": 1,\n    \"required\": true,\n    \"sortOrder\": 1,\n    \"isActive\": true\n  },\n  {\n    \"id\": 2,\n    \"methodId\": 1,\n    \"parameterPath\": \"OFEM"
+    },
+    {
+      "url": "http://localhost:743/api/integrations/mappingsets?methodId=1",
+      "status": 200
+    }
+  ]
+}

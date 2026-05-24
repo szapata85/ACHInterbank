@@ -36,11 +36,30 @@ public class IntegrationCatalogService : IIntegrationCatalogService
     public async Task<IReadOnlyCollection<IntegrationMethodDto>> GetMethodsAsync(CancellationToken ct = default)
     {
         await EnsureSeedAsync(ct);
-        return await _context.Set<IntegrationMethod>()
+        var methods = await _context.Set<IntegrationMethod>()
             .AsNoTracking()
             .OrderBy(x => x.Id)
-            .Select(x => new IntegrationMethodDto(x.Id, x.Code, x.DisplayName, x.SoapClientCode, x.IsActive))
             .ToListAsync(ct);
+
+        return methods
+            .Select(x =>
+            {
+                var classification = ClassifyMethod(x.Code);
+                return new IntegrationMethodDto(
+                    x.Id,
+                    x.Code,
+                    x.DisplayName,
+                    x.SoapClientCode,
+                    x.IsActive,
+                    classification.IntegrationKey,
+                    classification.OperationKey,
+                    classification.MappingDirection,
+                    classification.MappingPurpose,
+                    classification.FunctionalNature,
+                    classification.FunctionalOriginator,
+                    classification.MovesMoney);
+            })
+            .ToList();
     }
 
     public async Task<IReadOnlyCollection<IntegrationMethodParameterDto>> GetMethodParametersAsync(int methodId, CancellationToken ct = default)
@@ -111,10 +130,21 @@ public class IntegrationCatalogService : IIntegrationCatalogService
             soapClientCode: "WscfaachSoapClient",
             ct);
 
+        var respuestasTransacciones = await EnsureMethodAsync(
+            code: "WSAXON.RegistrarRespuestaTransaccion",
+            displayName: "RegistrarRespuestaTransaccion",
+            soapClientCode: "WsAxonRespuestaTransaccionesSoapClient",
+            ct);
+
         await EnsureParametersAsync(contrapartidas.Id, BuildProcContrapartidasTechnicalCatalog(), ct);
         await EnsureParametersAsync(transacciones.Id, BuildProcTransaccionesTechnicalCatalog(), ct);
+        await EnsureParametersAsync(respuestasTransacciones.Id, BuildRegistrarRespuestaTransaccionTechnicalCatalog(), ct);
         await EnsureSourceCatalogAsync(contrapartidas.Id, BuildBusinessSourceCatalog(contrapartidas.Id), ct);
         await EnsureSourceCatalogAsync(transacciones.Id, BuildBusinessSourceCatalog(transacciones.Id), ct);
+        await EnsureSourceCatalogAsync(respuestasTransacciones.Id, BuildBusinessSourceCatalog(respuestasTransacciones.Id), ct);
+        await EnsureAdditionalSourceCatalogAsync(contrapartidas.Id, BuildNachaSourceCatalog(contrapartidas.Id), ct);
+        await EnsureAdditionalSourceCatalogAsync(transacciones.Id, BuildNachaSourceCatalog(transacciones.Id), ct);
+        await EnsureAdditionalSourceCatalogAsync(respuestasTransacciones.Id, BuildNachaSourceCatalog(respuestasTransacciones.Id), ct);
 
         await _context.SaveChangesAsync(ct);
     }
@@ -223,6 +253,37 @@ public class IntegrationCatalogService : IIntegrationCatalogService
         }
     }
 
+    private async Task EnsureAdditionalSourceCatalogAsync(int methodId, IReadOnlyCollection<SourceSeedSpec> specs, CancellationToken ct)
+    {
+        var existing = await _context.Set<IntegrationSourceCatalogField>()
+            .Where(x => x.MethodId == methodId)
+            .ToListAsync(ct);
+
+        var byPath = existing.ToDictionary(x => x.FieldPath, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var spec in specs)
+        {
+            if (!byPath.TryGetValue(spec.FieldPath, out var field))
+            {
+                field = new IntegrationSourceCatalogField
+                {
+                    MethodId = methodId,
+                    FieldPath = spec.FieldPath
+                };
+                _context.Set<IntegrationSourceCatalogField>().Add(field);
+            }
+
+            field.SourceKind = spec.SourceKind;
+            field.EntityName = spec.EntityName;
+            field.DisplayName = spec.DisplayName;
+            field.DataType = spec.DataType;
+            field.Cardinality = IntegrationParameterCardinalityEnum.Scalar;
+            field.Nullable = spec.Nullable;
+            field.SortOrder = spec.SortOrder;
+            field.IsActive = true;
+        }
+    }
+
     private static IReadOnlyCollection<ParameterSeedSpec> BuildProcContrapartidasTechnicalCatalog()
     {
         var i = 1;
@@ -288,6 +349,19 @@ public class IntegrationCatalogService : IIntegrationCatalogService
         ];
     }
 
+    private static IReadOnlyCollection<ParameterSeedSpec> BuildRegistrarRespuestaTransaccionTechnicalCatalog()
+    {
+        var i = 1;
+        return
+        [
+            Spec("ANSIDLOTE", "Id lote respuesta", "Identificador del lote informado por la respuesta ACH.", "Respuesta transacciÃ³n", "2001", "Mapee el id de lote de la respuesta recibida.", "int", true, i++),
+            Spec("ANSST", "Estado respuesta", "Estado funcional informado por la respuesta ACH.", "Respuesta transacciÃ³n", "APROBADA", "Use estado controlado de respuesta.", "string", true, i++),
+            Spec("ANCLC", "CÃ³digo local respuesta", "CÃ³digo local o causal informado por la respuesta.", "Respuesta transacciÃ³n", "00", "Mapee causal/cÃ³digo homologado cuando aplique.", "string", false, i++),
+            Spec("ANSIDTX", "Id transacciÃ³n respuesta", "Identificador de transacciÃ³n asociado a la respuesta.", "Respuesta transacciÃ³n", "TX-2026-0001", "Debe corresponder a una transacciÃ³n UAT existente.", "string", true, i++),
+            Spec("ANSIDREVER", "Id reverso respuesta", "Identificador de reverso si la respuesta corresponde a devoluciÃ³n/reverso.", "Respuesta transacciÃ³n", "0", "Use 0 si no aplica reverso.", "int", false, i++)
+        ];
+    }
+
     private static IReadOnlyCollection<SourceSeedSpec> BuildBusinessSourceCatalog(int methodId)
     {
         var order = 1;
@@ -309,6 +383,52 @@ public class IntegrationCatalogService : IIntegrationCatalogService
             Source(methodId, IntegrationSourceKindEnum.Cycle, "ExecutionContext", "execution.datetimeUtc", "Fecha/hora ejecución UTC", "datetime", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Cycle, "ExecutionContext", "execution.dateYyyyMMdd", "Fecha ejecución yyyymmdd", "string", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Constant, "Constant", "constant.value", "Valor fijo", "string", true, order++)
+        ];
+    }
+
+    private static IReadOnlyCollection<SourceSeedSpec> BuildNachaSourceCatalog(int methodId)
+    {
+        var order = 1000;
+        return
+        [
+            Source(methodId, IntegrationSourceKindEnum.NachaHeader, nameof(NachaHeader), "nachaHeaders.nachaId", "Archivo NACHA-M > Encabezado > Id interno", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.NachaHeader, nameof(NachaHeader), "nachaHeaders.immediateOrigin", "Archivo NACHA-M > Encabezado > Originador inmediato", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.NachaHeader, nameof(NachaHeader), "nachaHeaders.immediateDestination", "Archivo NACHA-M > Encabezado > Destino inmediato", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.NachaHeader, nameof(NachaHeader), "nachaHeaders.fileIdModifier", "Archivo NACHA-M > Encabezado > Modificador archivo", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.NachaHeader, nameof(NachaHeader), "nachaHeaders.referenceCode", "Archivo NACHA-M > Encabezado > Referencia", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.BatchHeader, nameof(BatchHeader), "batchHeaders.companyId", "Archivo NACHA-M > Lote > Id empresa", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.BatchHeader, nameof(BatchHeader), "batchHeaders.companyName", "Archivo NACHA-M > Lote > Empresa", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.BatchHeader, nameof(BatchHeader), "batchHeaders.standardEntryClassCode", "Archivo NACHA-M > Lote > SEC", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.BatchHeader, nameof(BatchHeader), "batchHeaders.companyEntryDescription", "Archivo NACHA-M > Lote > Descripcion", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.BatchHeader, nameof(BatchHeader), "batchHeaders.effectiveEntryDate", "Archivo NACHA-M > Lote > Fecha efectiva", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.BatchHeader, nameof(BatchHeader), "batchHeaders.originParticipantEntityCode", "Archivo NACHA-M > Lote > Entidad originadora", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.BatchHeader, nameof(BatchHeader), "batchHeaders.batchNumber", "Archivo NACHA-M > Lote > Numero lote", "int", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.transactionCode", "Archivo NACHA-M > Detalle > Codigo transaccion", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.receivingParticipantEntityCode", "Archivo NACHA-M > Detalle > Entidad receptora", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.accountNumber", "Archivo NACHA-M > Detalle > Cuenta", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.amount", "Archivo NACHA-M > Detalle > Monto", "decimal", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.recipIdNumber", "Archivo NACHA-M > Detalle > Identificacion receptor", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.recipUserName", "Archivo NACHA-M > Detalle > Nombre receptor", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.sequenceNumber", "Archivo NACHA-M > Detalle > Trace number", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.AddendaRecord, nameof(AddendaRecord), "addendaRecords.infofromOriginator", "Archivo NACHA-M > Addenda > Informacion originador", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.AddendaRecord, nameof(AddendaRecord), "addendaRecords.invoiceOrAccountNumber", "Archivo NACHA-M > Addenda > Factura/cuenta", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.AddendaRecord, nameof(AddendaRecord), "addendaRecords.returnReasonCode", "Archivo NACHA-M > Addenda > Causal retorno", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.AddendaRecord, nameof(AddendaRecord), "addendaRecords.originalTraceNumber", "Archivo NACHA-M > Addenda > Trace original", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.BatchControl, nameof(BatchControl), "batchControls.entryAddendaCount", "Archivo NACHA-M > Control lote > Conteo entradas/addenda", "int", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.BatchControl, nameof(BatchControl), "batchControls.entryHash", "Archivo NACHA-M > Control lote > Hash entradas", "long", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.BatchControl, nameof(BatchControl), "batchControls.totalDebitAmount", "Archivo NACHA-M > Control lote > Total debitos", "decimal", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.BatchControl, nameof(BatchControl), "batchControls.totalCreditAmount", "Archivo NACHA-M > Control lote > Total creditos", "decimal", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.FileControl, nameof(FileControl), "fileControls.batchCount", "Archivo NACHA-M > Control archivo > Conteo lotes", "int", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.FileControl, nameof(FileControl), "fileControls.blockCount", "Archivo NACHA-M > Control archivo > Block count", "int", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.FileControl, nameof(FileControl), "fileControls.entryAddendaCount", "Archivo NACHA-M > Control archivo > Conteo entradas/addenda", "int", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.FileControl, nameof(FileControl), "fileControls.entryHash", "Archivo NACHA-M > Control archivo > Hash entradas", "long", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.FileControl, nameof(FileControl), "fileControls.totalDebitAmount", "Archivo NACHA-M > Control archivo > Total debitos", "decimal", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.FileControl, nameof(FileControl), "fileControls.totalCreditAmount", "Archivo NACHA-M > Control archivo > Total creditos", "decimal", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.Prenotification, nameof(AchTransaction), "prenotification.reference", "Prenotificacion > Referencia", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.Prenotification, nameof(AchTransaction), "prenotification.state", "Prenotificacion > Estado", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.idTransaccion", "Respuesta diferencial > Id transaccion", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.codigoEstadoExterno", "Respuesta diferencial > Estado externo", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.codigoCausalExterna", "Respuesta diferencial > Causal externa", "string", true, order++)
         ];
     }
 
@@ -336,6 +456,49 @@ public class IntegrationCatalogService : IIntegrationCatalogService
         int sortOrder)
         => new(methodId, sourceKind, entityName, fieldPath, displayName, dataType, nullable, sortOrder);
 
+    private static IntegrationMethodClassification ClassifyMethod(string methodCode)
+    {
+        var parts = (methodCode ?? string.Empty).Split('.', 2, StringSplitOptions.TrimEntries);
+        var integrationKey = (parts.Length > 0 ? parts[0] : string.Empty) ?? string.Empty;
+        var operationKey = (parts.Length > 1 ? parts[1] : methodCode) ?? string.Empty;
+
+        return methodCode switch
+        {
+            "WSCFAACH.Proc_Contrapartidas" => new(
+                integrationKey,
+                operationKey,
+                "OutboundRequest",
+                "MonetaryDebitRequest",
+                "Debito monetario",
+                "CFA originadora",
+                true),
+            "WSCFAACH.Proc_Transacciones" => new(
+                integrationKey,
+                operationKey,
+                "OutboundRequest",
+                "MonetaryCreditRequest",
+                "Credito monetario",
+                "Entidad financiera externa; CFA receptora",
+                true),
+            "WSAXON.RegistrarRespuestaTransaccion" => new(
+                integrationKey,
+                operationKey,
+                "InboundResponse",
+                "DifferentialResponseNotification",
+                "Respuesta diferencial / notificacion",
+                "Entidad/camara/proveedor externo",
+                false),
+            _ => new(
+                integrationKey,
+                operationKey,
+                "Unclassified",
+                "Unclassified",
+                "No clasificado",
+                "No definido",
+                false)
+        };
+    }
+
     private sealed record ParameterSeedSpec(
         string TechnicalName,
         string DisplayNameEs,
@@ -357,4 +520,13 @@ public class IntegrationCatalogService : IIntegrationCatalogService
         string DataType,
         bool Nullable,
         int SortOrder);
+
+    private sealed record IntegrationMethodClassification(
+        string IntegrationKey,
+        string OperationKey,
+        string MappingDirection,
+        string MappingPurpose,
+        string FunctionalNature,
+        string FunctionalOriginator,
+        bool MovesMoney);
 }

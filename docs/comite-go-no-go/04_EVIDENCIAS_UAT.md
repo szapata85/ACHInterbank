@@ -11,6 +11,8 @@ Alcance: UAT tecnico y funcional sintetico con datos no reales.
 | Transaccion sintetica UAT-SINT-TRACE-001 | OK | docs/uat/EVIDENCIAS_UAT_FUNCIONAL.md | DEF-UAT-017 | Nueva transaccion genero evento inicial esperado. |
 | Idempotencia/deduplicacion actual | Cerrado documentalmente | docs/go-live-readiness/CONTRATO_IDEMPOTENCIA_TRANSACCIONES.md | DEF-UAT-018 | Duplicado devuelve 400 JSON controlado y no duplica evento. |
 | NACHA-M endpoints/proxy | OK tecnico | docs/go-live-readiness/MATRIZ_NACHA_M_LAYOUTS.md | DEF-UAT-019 | Endpoint/proxy cerrado tecnicamente. |
-| NACHA-M campo-a-campo registros 1/5/6/7/8/9 | PENDIENTE | docs/go-live-readiness/MATRIZ_NACHA_M_LAYOUTS.md | DEF-UAT-020 | Requiere validacion formal. |
+| NACHA-M export sin falso exito vacio | OK tecnico | docs/uat/EVIDENCIAS_NACHA_M_UAT.md | DEF-UAT-021 | `/NachaExport` responde 422 JSON controlado si falta prenotificacion; no devuelve 200 con 0 bytes. |
+| SOAP Proc_Contrapartidas dry-run | OK tecnico UAT/local | docs/uat/EVIDENCIAS_SOAP_PROC_CONTRAPARTIDAS.md | DEF-UAT-022 | Guardrail `DryRun` por defecto validado con `PROC_DRY_RUN`, sin transmision externa. |
+| NACHA-M campo-a-campo registros 1/5/6/7/8/9 | PENDIENTE | docs/go-live-readiness/MATRIZ_NACHA_M_LAYOUTS.md | DEF-UAT-020 | Requiere prenotificacion valida, archivo no vacio y validacion formal. |
 | Evidencia visual/operativa | PENDIENTE | docs/uat/EVIDENCIAS_UAT_FUNCIONAL.md | Pendiente | Requerida para actas y comite final. |
 | UAT bancario formal | PENDIENTE | docs/uat/ACTA_TECNICA_PRELIMINAR.md | Pendiente | Requiere aprobaciones y actas formales. |

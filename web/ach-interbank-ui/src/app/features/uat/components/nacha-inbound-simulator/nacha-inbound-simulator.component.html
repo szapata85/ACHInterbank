@@ -1,0 +1,160 @@
+<app-page-header title="Simulador NACHA-M Entrada" subtitle="UAT / Simuladores"></app-page-header>
+
+<section class="notice">
+  Este simulador solo genera archivos. Para procesarlos debe cargarlos posteriormente por NachaUpload.
+</section>
+
+<section class="panel">
+  <form [formGroup]="form" class="form-grid">
+    <label>
+      Camara
+      <select formControlName="clearingHouseCode">
+        <option *ngFor="let item of clearingHouses" [value]="item.value">{{ item.label }}</option>
+      </select>
+    </label>
+
+    <label>
+      Escenario
+      <select formControlName="scenarioType">
+        <option *ngFor="let item of scenarios" [value]="item.value">{{ item.label }}</option>
+      </select>
+    </label>
+
+    <label>
+      Modo respuesta
+      <select formControlName="responseMode">
+        <option [ngValue]="null">No aplica</option>
+        <option *ngFor="let item of responseModes" [value]="item.value">{{ item.label }}</option>
+      </select>
+    </label>
+
+    <label>
+      Causal
+      <input type="text" formControlName="reasonCode" placeholder="R01" />
+      <small *ngIf="reasonRequiredMissing()">Requerida para rechazo o devolucion.</small>
+    </label>
+
+    <label>
+      Entidad originadora externa
+      <select formControlName="originFinancialInstitutionId">
+        <option [ngValue]="null">Seleccione una entidad externa</option>
+        <option *ngFor="let item of originFinancialInstitutions" [ngValue]="item.id">
+          {{ item.name }} · {{ item.routingNumber }}{{ item.transitCode }}
+        </option>
+      </select>
+      <small>Solo se listan entidades activas con IsDefaultSource=false.</small>
+    </label>
+
+    <div class="readonly-field">
+      <span class="field-label">Entidad destino/receptora</span>
+      <strong>{{ defaultDestination?.name || 'No configurada' }}</strong>
+      <small *ngIf="defaultDestination">
+        Resuelta automaticamente desde FinancialInstitution.IsDefaultSource=true · {{ defaultDestination.routingNumber }}{{ defaultDestination.transitCode }}
+      </small>
+      <small *ngIf="!defaultDestination" class="error-text">Debe existir una unica entidad default activa para generar.</small>
+    </div>
+
+    <label>
+      Cantidad registros
+      <input type="number" formControlName="entriesCount" min="1" max="10" />
+    </label>
+
+    <label>
+      Monto
+      <input type="number" formControlName="amount" min="0" />
+    </label>
+
+    <label>
+      Fecha negocio
+      <input type="date" formControlName="businessDate" />
+    </label>
+
+    <label>
+      Ciclo
+      <input type="text" formControlName="cycleCode" />
+    </label>
+
+    <label>
+      Prefijo referencia
+      <input type="text" formControlName="referencePrefix" />
+    </label>
+
+    <label class="wide" *ngIf="requiresPrenotificationReferences()">
+      Referencias de prenotificaciones pendientes
+      <textarea formControlName="pendingPrenotificationReferencesText" rows="3"></textarea>
+    </label>
+
+    <label class="wide" *ngIf="requiresReferences() && !requiresPrenotificationReferences()">
+      Referencias de transacciones UAT
+      <textarea formControlName="transactionReferencesText" rows="3"></textarea>
+    </label>
+
+    <label class="wide">
+      Notas
+      <textarea formControlName="notes" rows="2"></textarea>
+    </label>
+
+    <div class="actions wide">
+      <button type="button" class="btn btn-outline" (click)="preview()" [disabled]="previewing || generating || !defaultDestination">
+        <span class="material-symbols-outlined">rule</span>
+        {{ previewing ? 'Validando...' : 'Validar' }}
+      </button>
+      <button type="button" class="btn btn-primary" (click)="generate()" [disabled]="generating || previewing || !defaultDestination">
+        <span class="material-symbols-outlined">description</span>
+        {{ generating ? 'Generando...' : 'Generar archivo' }}
+      </button>
+    </div>
+  </form>
+</section>
+
+<section class="panel result" *ngIf="result">
+  <h3>Archivo generado</h3>
+  <p>{{ result.message }}</p>
+  <dl>
+    <dt>Archivo</dt><dd>{{ result.fileName }}</dd>
+    <dt>SHA256</dt><dd>{{ result.sha256 }}</dd>
+    <dt>generatedOnly</dt><dd>{{ result.generatedOnly }}</dd>
+    <dt>autoImported</dt><dd>{{ result.autoImported }}</dd>
+    <dt>uploadRequired</dt><dd>{{ result.uploadRequired }}</dd>
+  </dl>
+  <button type="button" class="btn btn-primary" (click)="download(result.id)">
+    <span class="material-symbols-outlined">download</span>
+    Descargar
+  </button>
+</section>
+
+<section class="panel">
+  <div class="section-title">
+    <h3>Simulaciones recientes</h3>
+    <button type="button" class="btn btn-outline" (click)="load()" [disabled]="loading">
+      <span class="material-symbols-outlined">refresh</span>
+      Actualizar
+    </button>
+  </div>
+
+  <table class="sim-table" *ngIf="simulations.length; else empty">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Camara</th>
+        <th>Escenario</th>
+        <th>Archivo</th>
+        <th>Hash</th>
+        <th>Descarga</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let item of simulations">
+        <td>{{ item.id }}</td>
+        <td>{{ item.clearingHouseName }}</td>
+        <td>{{ item.scenarioType }}</td>
+        <td>{{ item.fileName }}</td>
+        <td class="hash">{{ item.sha256 }}</td>
+        <td><button type="button" class="btn btn-outline" (click)="download(item.id)">Descargar</button></td>
+      </tr>
+    </tbody>
+  </table>
+  <ng-template #empty>
+    <p class="muted">Sin simulaciones recientes.</p>
+  </ng-template>
+</section>

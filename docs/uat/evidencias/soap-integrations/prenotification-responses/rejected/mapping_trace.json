@@ -1,0 +1,64 @@
+{
+  "integrationKey": "WSAXON",
+  "operationKey": "RegistrarRespuestaTransaccion",
+  "mappingPurpose": "DifferentialResponseNotification",
+  "mappingDirection": "InboundResponse",
+  "movesMoney": false,
+  "monetaryMovementCreated": false,
+  "balancesAffected": false,
+  "externalTransmission": false,
+  "correlationId": "corr-prenote-rejected",
+  "resultStatus": "Processed",
+  "entries": [
+    {
+      "sourceEntity": "BatchHeaders",
+      "sourceFieldPath": "batchHeaders.batchNumber",
+      "targetField": "ANSIDLOTE",
+      "sourceValueSanitized": "1",
+      "mappedValueSanitized": "1",
+      "required": true,
+      "missing": false,
+      "usedFallback": false
+    },
+    {
+      "sourceEntity": "EntryDetails",
+      "sourceFieldPath": "entryDetails.sequenceNumber",
+      "targetField": "ANSIDTX",
+      "sourceValueSanitized": "000128300012345",
+      "mappedValueSanitized": "000128300012345",
+      "required": true,
+      "missing": false,
+      "usedFallback": false
+    },
+    {
+      "sourceEntity": "DifferentialResponse",
+      "sourceFieldPath": "differentialResponse.codigoEstadoExterno",
+      "targetField": "ANSST",
+      "sourceValueSanitized": "RJ",
+      "mappedValueSanitized": "RJ",
+      "required": true,
+      "missing": false,
+      "usedFallback": false
+    },
+    {
+      "sourceEntity": "DifferentialResponse",
+      "sourceFieldPath": "differentialResponse.codigoCausalExterna",
+      "targetField": "ANCLC",
+      "sourceValueSanitized": "R03",
+      "mappedValueSanitized": "R03",
+      "required": true,
+      "missing": false,
+      "usedFallback": false
+    },
+    {
+      "sourceEntity": "AddendaRecords",
+      "sourceFieldPath": "addendaRecords.originalTraceNumber",
+      "targetField": "ANSIDREVER",
+      "sourceValueSanitized": "000128300012345",
+      "mappedValueSanitized": "000128300012345",
+      "required": true,
+      "missing": false,
+      "usedFallback": false
+    }
+  ]
+}

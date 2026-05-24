@@ -1,12 +1,15 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.External.Connections;
+using Cfa.ACHInterbank.Application.Integrations.Interfaces;
+using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -26,19 +29,28 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
     private readonly IProcContrapartidasRequestMapper _procContrapartidasRequestMapper;
     private readonly IProcContrapartidasResponseParser _responseParser;
     private readonly ILogger<ContrapartidaDispatchJobService> _logger;
+    private readonly ProcContrapartidasDispatchOptions _dispatchOptions;
+    private readonly ITransactionIntegrationOperationResolver? _operationResolver;
+    private readonly IIntegrationMappingReadinessService? _mappingReadinessService;
 
     public ContrapartidaDispatchJobService(
         AchDbContext context,
         IWscfaachSoapClient soapClient,
         IProcContrapartidasRequestMapper procContrapartidasRequestMapper,
         IProcContrapartidasResponseParser responseParser,
-        ILogger<ContrapartidaDispatchJobService> logger)
+        ILogger<ContrapartidaDispatchJobService> logger,
+        IOptions<ProcContrapartidasDispatchOptions>? dispatchOptions = null,
+        ITransactionIntegrationOperationResolver? operationResolver = null,
+        IIntegrationMappingReadinessService? mappingReadinessService = null)
     {
         _context = context;
         _soapClient = soapClient;
         _procContrapartidasRequestMapper = procContrapartidasRequestMapper;
         _responseParser = responseParser;
         _logger = logger;
+        _dispatchOptions = dispatchOptions?.Value ?? new ProcContrapartidasDispatchOptions();
+        _operationResolver = operationResolver;
+        _mappingReadinessService = mappingReadinessService;
     }
 
     public async Task<ContrapartidaCycleDispatchResult> ProcessCycleAsync(
@@ -141,23 +153,17 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
             try
             {
+                await EnsureContrapartidasReadinessAsync(transactions, ct);
                 var resolution = await _procContrapartidasRequestMapper.ResolveAsync(cycle, transactions, DateTime.Now, ct);
+                EnsureNoFallbackResolution(resolution);
                 requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(resolution.Contract);
                 batch.MappingSetId = resolution.MappingSetId;
                 batch.MappingVersion = resolution.MappingVersion;
-                batch.MappingSnapshotHash = resolution.UsedFallback
-                    ? "FALLBACK_TRANSITIONAL"
-                    : resolution.MappingSnapshotHash;
-                if (resolution.UsedFallback)
-                {
-                    _logger.LogWarning(
-                        "Se ejecutó Proc_Contrapartidas con fallback transicional para ciclo {CycleId} cámara {ClearingHouseId}.",
-                        cycle.Id,
-                        cycle.ClearingHouseId);
-                }
+                batch.MappingSnapshotHash = resolution.MappingSnapshotHash;
 
-                responsePayload = await _soapClient.ProcContrapartidasAsync(requestPayload, ct);
-                parseResult = _responseParser.Parse(responsePayload);
+                var dispatchResult = await DispatchProcContrapartidasAsync(requestPayload, cycle.Id, cycle.ClearingHouseId, ct);
+                responsePayload = dispatchResult.ResponsePayload;
+                parseResult = dispatchResult.ParseResult;
             }
             catch (Exception ex)
             {
@@ -425,22 +431,16 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             ProcContrapartidasParsedResponse parseResult;
             try
             {
+                await EnsureContrapartidasReadinessAsync(txs, ct);
                 var resolution = await _procContrapartidasRequestMapper.ResolveAsync(cycle, txs, DateTime.Now, ct);
+                EnsureNoFallbackResolution(resolution);
                 requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(resolution.Contract);
                 processingBatch.MappingSetId = resolution.MappingSetId;
                 processingBatch.MappingVersion = resolution.MappingVersion;
-                processingBatch.MappingSnapshotHash = resolution.UsedFallback
-                    ? "FALLBACK_TRANSITIONAL"
-                    : resolution.MappingSnapshotHash;
-                if (resolution.UsedFallback)
-                {
-                    _logger.LogWarning(
-                        "Reintento manual ejecutó Proc_Contrapartidas con fallback transicional para ciclo {CycleId} cámara {ClearingHouseId}.",
-                        cycle.Id,
-                        cycle.ClearingHouseId);
-                }
-                responsePayload = await _soapClient.ProcContrapartidasAsync(requestPayload, ct);
-                parseResult = _responseParser.Parse(responsePayload);
+                processingBatch.MappingSnapshotHash = resolution.MappingSnapshotHash;
+                var dispatchResult = await DispatchProcContrapartidasAsync(requestPayload, cycle.Id, cycle.ClearingHouseId, ct);
+                responsePayload = dispatchResult.ResponsePayload;
+                parseResult = dispatchResult.ParseResult;
             }
             catch (Exception ex)
             {
@@ -552,6 +552,101 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             processingBatch.SummaryMessage);
     }
 
+    private async Task<ProcContrapartidasDispatchExecutionResult> DispatchProcContrapartidasAsync(
+        string requestPayload,
+        string cycleId,
+        int clearingHouseId,
+        CancellationToken ct)
+    {
+        if (_dispatchOptions.IsLive)
+        {
+            _logger.LogInformation(
+                "Proc_Contrapartidas live habilitado para ciclo {CycleId} camara {ClearingHouseId}.",
+                cycleId,
+                clearingHouseId);
+
+            var responsePayload = await _soapClient.ProcContrapartidasAsync(requestPayload, ct);
+            return new ProcContrapartidasDispatchExecutionResult(responsePayload, _responseParser.Parse(responsePayload));
+        }
+
+        var code = _dispatchOptions.IsDisabled
+            ? "PROC_DISABLED"
+            : "PROC_DRY_RUN";
+        var mode = _dispatchOptions.IsDisabled ? "disabled" : "dry-run";
+        var message = _dispatchOptions.IsDisabled
+            ? "Proc_Contrapartidas disabled: envelope generado, no transmitido."
+            : "Proc_Contrapartidas dry-run: envelope generado, no transmitido.";
+
+        _logger.LogInformation(
+            "{Message} Mode={Mode} CycleId={CycleId} ClearingHouseId={ClearingHouseId}",
+            message,
+            mode,
+            cycleId,
+            clearingHouseId);
+
+        var parseResult = new ProcContrapartidasParsedResponse(
+            IsSuccess: false,
+            IsSoapFault: false,
+            IsRetryable: false,
+            IsFunctionalRejection: false,
+            ErrorCode: code,
+            ErrorMessage: message,
+            RawResponse: message,
+            ResponseCode: code,
+            ItemResults: new Dictionary<int, ProcContrapartidasParsedItemResponse>());
+
+        return new ProcContrapartidasDispatchExecutionResult(message, parseResult);
+    }
+
+    private async Task EnsureContrapartidasReadinessAsync(IReadOnlyCollection<AchTransaction> transactions, CancellationToken ct)
+    {
+        if (_operationResolver is null || _mappingReadinessService is null)
+        {
+            return;
+        }
+
+        foreach (var transaction in transactions)
+        {
+            var operation = await _operationResolver.ResolveAsync(transaction, ct);
+            if (!operation.IsSupported
+                || operation.OperationKey != IntegrationGuaranteeConstants.ProcContrapartidas
+                || operation.MappingPurpose != IntegrationGuaranteeConstants.MonetaryDebitRequest)
+            {
+                throw new InvalidOperationException(
+                    $"INTEGRATION_OPERATION_MISMATCH: la transaccion {transaction.Id} no corresponde a Proc_Contrapartidas/MonetaryDebitRequest.");
+            }
+
+            var readiness = await _mappingReadinessService.EvaluateAsync(operation, ct);
+            if (readiness.Status == "Failed")
+            {
+                throw new InvalidOperationException(
+                    $"{readiness.Code}: no se puede construir envelope Proc_Contrapartidas para transaccion {transaction.Id}; faltan mappings requeridos.");
+            }
+
+            if (!readiness.CanBuildPayload)
+            {
+                throw new InvalidOperationException(
+                    $"{readiness.Code}: readiness de Proc_Contrapartidas no permite construir payload para transaccion {transaction.Id}.");
+            }
+
+            if (readiness.UsesFallback)
+            {
+                _logger.LogWarning(
+                    "Readiness parcial para Proc_Contrapartidas transactionId={TransactionId}: fallback transicional trazado antes de XML.",
+                    transaction.Id);
+            }
+        }
+    }
+
+    private static void EnsureNoFallbackResolution(ProcContrapartidasRequestResolution resolution)
+    {
+        if (resolution.UsedFallback)
+        {
+            throw new InvalidOperationException(
+                "REQUIRED_MAPPING_USES_FALLBACK: Proc_Contrapartidas no puede construir XML con fallback transicional. Configure mappings activos requeridos.");
+        }
+    }
+
     private static void ValidateCycleOperationalWindow(AchCycle cycle, DateTime nowLocal)
     {
         if (cycle.ClearingHouseCycleConfig is not null)
@@ -595,4 +690,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         return DateTime.UtcNow.Add(capped);
     }
 
+    private sealed record ProcContrapartidasDispatchExecutionResult(
+        string ResponsePayload,
+        ProcContrapartidasParsedResponse ParseResult);
 }

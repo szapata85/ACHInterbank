@@ -19,7 +19,8 @@ public sealed record IncomingNachaPostProcessingRunResult(
     string Summary);
 
 public sealed record ProcTransaccionesRequestContract(
-    IReadOnlyDictionary<string, string> Parameters);
+    IReadOnlyDictionary<string, string> Parameters,
+    IReadOnlyDictionary<string, string>? SourceValues = null);
 
 public sealed record ProcTransaccionesRequestResolution(
     ProcTransaccionesRequestContract Contract,

@@ -1,0 +1,52 @@
+﻿{
+    "fecha":  "2026-05-20T11:01:32-05:00",
+    "rama":  "feature/parametrizacion-reglas-camara-prenotificacion",
+    "commit":  "ffe311cf",
+    "camara":  "ACH Colombia",
+    "originador":  "Cooperativa Financiera de Antioquia",
+    "codigoRuta":  "0001",
+    "codigoTransito":  "283",
+    "prefijoArchivo":  "0001283",
+    "zzz":  "002",
+    "identificadorInternoRegistro1Campo7":  "B",
+    "nombreArchivo":  "0001283.002.1",
+    "rutaArchivo":  "docs\\uat\\evidencias\\nacha-m-uat\\ach-colombia\\0001283.002.1",
+    "tamanoBytes":  1060,
+    "sha256":  "E4DAEEE551596D067357953C552CD521871F635F6703D27700171EBC10A0026E",
+    "registrosDetectados":  {
+                                "tipo1":  1,
+                                "tipo5":  1,
+                                "tipo6":  1,
+                                "tipo7":  1,
+                                "tipo8":  1,
+                                "tipo9":  5
+                            },
+    "conteoRegistrosFisicos":  10,
+    "conteoEntradaAddenda":  "00000002",
+    "batchCount":  "000001",
+    "blockCount":  "000001",
+    "entryHash":  "0099999002",
+    "totalDebitoRaw":  "000000000000100000",
+    "transaccionesIncluidas":  [
+                                   {
+                                       "transactionId":  254,
+                                       "estado":  "Pending",
+                                       "naturaleza":  "Debit",
+                                       "monto":  1000,
+                                       "referencia":  "UAT-ACH-DEB-MATURED-001"
+                                   }
+                               ],
+    "prenotificacionRelacionada":  {
+                                       "transactionId":  252,
+                                       "fechaEfectiva":  "2026-05-13",
+                                       "estado":  "AppliedTacitly",
+                                       "control":  "PRENOTE_UAT_PRECONDITION_CREATED",
+                                       "referencia":  "UAT-ACH-PRE-MATURED-001"
+                                   },
+    "validacionNomenclatura":  "OK",
+    "validacionNormativa":  "OK tecnico UAT",
+    "documentoNormativoUsado":  "MAN-004 Servicio ACH Transferencias Interbancarias Para Entidades Participantes V32",
+    "enviadoExterno":  false,
+    "procContrapartidas":  "DryRun/No transmitido",
+    "observaciones":  "Archivo generado por endpoint real /NachaExport/{cycleId}; datos sinteticos UAT; no apto para produccion."
+}

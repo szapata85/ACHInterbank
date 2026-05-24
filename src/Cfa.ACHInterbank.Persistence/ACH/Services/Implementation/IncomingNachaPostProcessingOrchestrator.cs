@@ -4,6 +4,8 @@ using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.External.Connections;
+using Cfa.ACHInterbank.Application.Integrations.Interfaces;
+using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -20,19 +22,31 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
     private readonly IProcTransaccionesResponseParser _parser;
     private readonly IWscfaachSoapClient _soapClient;
     private readonly IncomingNachaDispatchResilienceOptions _resilienceOptions;
+    private readonly ProcTransaccionesDispatchOptions _dispatchOptions;
+    private readonly ITransactionIntegrationOperationResolver? _operationResolver;
+    private readonly IIntegrationMappingReadinessService? _mappingReadinessService;
+    private readonly IIntegrationMappingTraceWriter? _mappingTraceWriter;
 
     public IncomingNachaPostProcessingOrchestrator(
         AchDbContext context,
         IProcTransaccionesRequestMapper mapper,
         IProcTransaccionesResponseParser parser,
         IWscfaachSoapClient soapClient,
-        IOptions<IncomingNachaDispatchResilienceOptions>? resilienceOptions = null)
+        IOptions<IncomingNachaDispatchResilienceOptions>? resilienceOptions = null,
+        IOptions<ProcTransaccionesDispatchOptions>? dispatchOptions = null,
+        ITransactionIntegrationOperationResolver? operationResolver = null,
+        IIntegrationMappingReadinessService? mappingReadinessService = null,
+        IIntegrationMappingTraceWriter? mappingTraceWriter = null)
     {
         _context = context;
         _mapper = mapper;
         _parser = parser;
         _soapClient = soapClient;
         _resilienceOptions = resilienceOptions?.Value ?? new IncomingNachaDispatchResilienceOptions();
+        _dispatchOptions = dispatchOptions?.Value ?? new ProcTransaccionesDispatchOptions();
+        _operationResolver = operationResolver;
+        _mappingReadinessService = mappingReadinessService;
+        _mappingTraceWriter = mappingTraceWriter;
     }
 
     public async Task<IncomingNachaPostProcessingRunResult> ExecuteAsync(
@@ -117,9 +131,12 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                     continue;
                 }
 
+                var operation = await EnsureProcTransaccionesReadinessAsync(queue.AchTransaction, ct);
                 var resolution = await _mapper.ResolveAsync(queue, ingestion, classification, queue.AchTransaction, queue.AchTransaction.AchCycle, DateTime.Now, ct);
                 var requestXml = _mapper.BuildSoapBody(resolution.Contract);
-                var responseXml = await _soapClient.ProcTransaccionesAsync(requestXml, ct);
+                await WriteMappingTraceAsync(operation, resolution, queue, correlationId, ct);
+
+                var responseXml = await DispatchProcTransaccionesAsync(requestXml, queue, ct);
                 var parsed = _parser.Parse(responseXml);
 
                 execution.MappingSetId = resolution.MappingSetId;
@@ -180,9 +197,11 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
             catch (InvalidOperationException ex)
             {
                 queue.QueueStatus = IncomingNachaDispatchQueueStatus.Blocked;
-                queue.LastErrorCode = "MAPPING_INVALID";
+                queue.LastErrorCode = ex.Message.StartsWith("PROC_TRANSACCIONES_DISABLED:", StringComparison.OrdinalIgnoreCase)
+                    ? "PROC_TRANSACCIONES_DISABLED"
+                    : "MAPPING_INVALID";
                 queue.LastErrorMessage = ex.Message;
-                execution.ResponseCode = "MAPPING_INVALID";
+                execution.ResponseCode = queue.LastErrorCode;
                 execution.ResponseMessage = ex.Message;
                 execution.RequestHash = execution.RequestHash == string.Empty ? Hash(ex.Message) : execution.RequestHash;
                 execution.FinishedAtUtc = DateTime.UtcNow;
@@ -297,5 +316,95 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
             OccurredAtUtc = DateTime.UtcNow,
             RaisedBy = "inbound.dispatch.orchestrator"
         });
+    }
+
+    private async Task<TransactionIntegrationOperationResult?> EnsureProcTransaccionesReadinessAsync(AchTransaction transaction, CancellationToken ct)
+    {
+        if (_operationResolver is null || _mappingReadinessService is null)
+        {
+            return null;
+        }
+
+        var operation = await _operationResolver.ResolveAsync(transaction, ct);
+        if (!operation.IsSupported
+            || operation.OperationKey != IntegrationGuaranteeConstants.ProcTransacciones
+            || operation.MappingPurpose != IntegrationGuaranteeConstants.MonetaryCreditRequest)
+        {
+            throw new InvalidOperationException(
+                $"INTEGRATION_OPERATION_MISMATCH: la transaccion {transaction.Id} no corresponde a Proc_Transacciones/MonetaryCreditRequest.");
+        }
+
+        var readiness = await _mappingReadinessService.EvaluateAsync(operation, ct);
+        if (readiness.Status == "Failed" || !readiness.IsReady)
+        {
+            throw new InvalidOperationException(
+                $"{readiness.Code}: no se puede construir payload Proc_Transacciones para transaccion {transaction.Id}; faltan mappings requeridos.");
+        }
+
+        if (!readiness.CanBuildPayload)
+        {
+            throw new InvalidOperationException(
+                $"{readiness.Code}: readiness de Proc_Transacciones no permite construir payload para transaccion {transaction.Id}.");
+        }
+
+        if (readiness.UsesFallback)
+        {
+            throw new InvalidOperationException(
+                "PROC_TRANSACCIONES_REQUIRED_FIELD_USES_FALLBACK: Proc_Transacciones no puede marcar readiness Ok ni construir payload con fallback requerido.");
+        }
+
+        return operation;
+    }
+
+    private async Task<string> DispatchProcTransaccionesAsync(string requestXml, IncomingNachaDispatchQueue queue, CancellationToken ct)
+    {
+        if (_dispatchOptions.IsLive)
+        {
+            return await _soapClient.ProcTransaccionesAsync(requestXml, ct);
+        }
+
+        if (_dispatchOptions.IsDisabled)
+        {
+            throw new InvalidOperationException("PROC_TRANSACCIONES_DISABLED: Proc_Transacciones disabled; no se transmite externamente.");
+        }
+
+        const string code = "PROC_TRANSACCIONES_DRY_RUN";
+        const string message = "Proc_Transacciones dry-run: payload generado, no transmitido.";
+
+        AddAutomaticEvent(queue, "ProcTransaccionesDryRunGuardrail", "Blocked", message, code);
+
+        return $"""
+            <Envelope>
+              <Body>
+                <Proc_TransaccionesResponse>
+                  <RTAACH>{code}</RTAACH>
+                  <RTALOC>{message}</RTALOC>
+                </Proc_TransaccionesResponse>
+              </Body>
+            </Envelope>
+            """;
+    }
+
+    private async Task WriteMappingTraceAsync(
+        TransactionIntegrationOperationResult? operation,
+        ProcTransaccionesRequestResolution resolution,
+        IncomingNachaDispatchQueue queue,
+        string correlationId,
+        CancellationToken ct)
+    {
+        if (_mappingTraceWriter is null || operation is null)
+        {
+            return;
+        }
+
+        await _mappingTraceWriter.WriteAsync(
+            operation,
+            resolution.Contract,
+            queue.AchTransactionId,
+            queue.AchTransaction.Reference,
+            correlationId,
+            dryRun: !_dispatchOptions.IsLive,
+            externalTransmission: false,
+            ct);
     }
 }

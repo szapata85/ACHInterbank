@@ -1,0 +1,22 @@
+{
+  "date": "2026-05-21",
+  "integrationKey": "WSCFAACH",
+  "operationKey": "Proc_Transacciones",
+  "mappingPurpose": "MonetaryCreditRequest",
+  "mappingDirection": "OutboundRequest",
+  "movesMoney": true,
+  "readiness": "validated-before-payload",
+  "guardrail": {
+    "modeConfiguration": "ProcTransacciones:Mode",
+    "dryRun": "payload generado, no transmitido",
+    "disabled": "bloqueo controlado, no invoca IWscfaachSoapClient",
+    "live": "no habilitado por defecto"
+  },
+  "externalTransmission": false,
+  "tests": [
+    "ProcTransacciones_DryRun_ShouldValidateReadinessBeforePayload",
+    "ProcTransacciones_DryRun_ShouldFail_WhenRequiredFieldUsesFallback",
+    "ProcTransacciones_DryRun_ShouldGeneratePayloadAndNotTransmitExternally",
+    "ProcTransacciones_DisabledMode_ShouldBlockControlledAndNotInvokeSoap"
+  ]
+}

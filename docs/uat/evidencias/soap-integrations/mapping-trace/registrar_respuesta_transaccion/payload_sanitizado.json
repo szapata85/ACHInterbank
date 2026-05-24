@@ -1,0 +1,9 @@
+{
+  "idCanal": 10,
+  "nombreCanal": "ACH",
+  "idTransaccion": "UAT-SANITIZED",
+  "idEstado": 2,
+  "causal": "SANITIZED",
+  "idTransaccionAxon": 555,
+  "descripcionCausal": "SANITIZED"
+}

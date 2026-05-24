@@ -33,7 +33,6 @@ public sealed class ProcContrapartidasRequestMapper : IProcContrapartidasRequest
             throw new InvalidOperationException("Proc_Contrapartidas requiere al menos una transacción.");
         }
 
-        // Transición controlada: solo cae a fallback si no existe mapping publicado.
         var configured = await _functionalResolver.TryResolveAsync(cycle, transactions, executionDateTime, ct);
 
         if (configured is not null)
@@ -41,14 +40,8 @@ public sealed class ProcContrapartidasRequestMapper : IProcContrapartidasRequest
             return configured;
         }
 
-        return new ProcContrapartidasRequestResolution
-        {
-            Contract = BuildTransitionalFallback(cycle, transactions.OrderBy(t => t.Id).First(), executionDateTime),
-            MappingSetId = null,
-            MappingVersion = null,
-            MappingSnapshotHash = string.Empty,
-            UsedFallback = true
-        };
+        throw new InvalidOperationException(
+            "INTEGRATION_MAPPING_REQUIRED: Proc_Contrapartidas requiere IntegrationMappingSet publicado con mappings requeridos activos. No se permite fallback transicional para construir XML.");
     }
 
     public string BuildSoapBody(ProcContrapartidasRequestContract request)
@@ -81,42 +74,6 @@ public sealed class ProcContrapartidasRequestMapper : IProcContrapartidasRequest
             new XElement(ActionNamespace + "ANSIDREVER", request.ANSIDREVER));
 
         return body.ToString(SaveOptions.DisableFormatting);
-    }
-
-    private static ProcContrapartidasRequestContract BuildTransitionalFallback(
-        AchCycle cycle,
-        AchTransaction tx,
-        DateTime executionDateTime)
-    {
-        var isDebit = tx.Type.ToString().Equals("Debit", StringComparison.OrdinalIgnoreCase);
-
-        return new ProcContrapartidasRequestContract
-        {
-            OFNIT = tx.CompanyIdentification ?? string.Empty,
-            OFEMP = (cycle.ClearingHouse?.Code ?? "ACH").Trim(),
-            OFCTA = tx.SourceAccountNumber ?? string.Empty,
-            OFDD = isDebit ? "D" : "C",
-            OFFECHEFEC = tx.EffectiveEntryDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture),
-            OFMONDEB = isDebit ? tx.Amount : 0m,
-            OFMONCRE = isDebit ? 0m : tx.Amount,
-            OFIDARCH = tx.AchBatchId,
-            OFIDLOT = tx.AchBatchId,
-            OFST = "PENDIENTE",
-            OFIDTX = !string.IsNullOrWhiteSpace(tx.TransactionExternalId)
-                ? tx.TransactionExternalId
-                : tx.Reference ?? tx.Id.ToString(CultureInfo.InvariantCulture),
-            OFIDREVER = 0,
-            OFIDEBAPLI = tx.Id,
-            OFIDCAMCOMPE = cycle.ClearingHouseId,
-            OFDIRECCIONIP = "0.0.0.0",
-            OFLIBRE = executionDateTime.ToString("O", CultureInfo.InvariantCulture),
-            OFLIBRE1 = 0,
-            ANSIDLOTE = 0,
-            ANSST = string.Empty,
-            ANCLC = string.Empty,
-            ANSIDTX = string.Empty,
-            ANSIDREVER = 0
-        };
     }
 
     private static void ValidateRequestContract(ProcContrapartidasRequestContract request)

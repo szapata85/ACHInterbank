@@ -2,7 +2,7 @@
 
 Fecha: 2026-05-19
 Estado recomendado: Continuar UAT controlado / NO-GO productivo
-Scorecard vigente: 67.8 / 100
+Scorecard vigente: 68.1 / 100
 
 ## Estado General
 
@@ -35,6 +35,8 @@ ACH Interbank se encuentra tecnicamente estabilizado para continuar pruebas cont
 - UAT funcional formal con actas.
 - Evidencia visual y operativa completa.
 - DEF-UAT-020: NACHA-M 1/5/6/7/8/9 pendiente de validacion campo-a-campo y homologacion/waiver.
+- UAT integrado NACHA-M ACH Colombia/CENIT bloqueado por prenotificacion previa ausente; DEF-UAT-021 ya evita archivo 0 bytes como falso exito.
+- Proc_Contrapartidas cuenta con guardrail `DryRun` UAT/local validado; endpoint UAT/mock real sigue pendiente para homologacion.
 - CENIT/CUD.
 - Sobre digital, firma y certificados.
 - OpenBao/secrets segun alcance.

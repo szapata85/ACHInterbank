@@ -101,11 +101,7 @@ public class AchTransactionService : IAchTransactionService
         _transactionValidator.ValidateRequest(request);
         if (_catalogService is not null)
         {
-            var prenoteRequired = await _catalogService.IsPrenotificationRequiredAsync(request.Type, ct);
-            if (prenoteRequired && !request.IsPrenotification)
-            {
-                throw new InvalidOperationException($"La política regulatoria exige prenotificación para tipo {request.Type}.");
-            }
+            await _catalogService.IsPrenotificationRequiredAsync(request.Type, ct);
         }
         if (_transactionPolicyService is not null)
         {

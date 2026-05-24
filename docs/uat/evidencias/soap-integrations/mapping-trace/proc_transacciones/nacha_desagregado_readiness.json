@@ -1,0 +1,27 @@
+{
+  "fecha": "2026-05-23",
+  "operation": "Proc_Transacciones",
+  "integrationKey": "WSCFAACH",
+  "mappingPurpose": "MonetaryCreditRequest",
+  "mappingDirection": "OutboundRequest",
+  "movesMoney": true,
+  "sourceModel": "NACHA-M desagregado",
+  "sourceTables": [
+    "NachaHeaders",
+    "BatchHeaders",
+    "EntryDetails",
+    "AddendaRecords",
+    "BatchControls",
+    "FileControls"
+  ],
+  "readinessBeforePayload": true,
+  "externalTransmission": false,
+  "freeSqlAllowed": false,
+  "arbitraryPhysicalTableSelection": false,
+  "tests": [
+    "MappingSourceCatalog_ShouldExpose_NachaDesagregadoSources",
+    "ProcTransacciones_ShouldMapFields_FromNachaDesagregado",
+    "ProcTransacciones_ShouldPersistTrace_WithNachaSourceValues"
+  ],
+  "result": "OK tecnico UAT"
+}

@@ -232,7 +232,11 @@ public class CenitCycleCalendarCharacterizationTests
     public void CudIntegration_RuntimeClientTypes_ShouldNotExist_CurrentBehavior()
     {
         var names = new[] { "ICudClient", "CudSettlementService", "CudApiClient" };
-        var allTypes = AppDomain.CurrentDomain.GetAssemblies().SelectMany(a => a.GetTypes()).Select(t => t.Name).ToHashSet();
+        var allTypes = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => !a.IsDynamic && (a.GetName().Name?.StartsWith("Cfa.ACHInterbank", StringComparison.Ordinal) ?? false))
+            .SelectMany(a => a.GetTypes())
+            .Select(t => t.Name)
+            .ToHashSet();
         Assert.DoesNotContain(names[0], allTypes);
         Assert.DoesNotContain(names[1], allTypes);
         Assert.DoesNotContain(names[2], allTypes);

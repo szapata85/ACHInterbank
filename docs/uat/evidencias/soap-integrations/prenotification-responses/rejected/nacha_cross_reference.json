@@ -1,0 +1,33 @@
+{
+  "nachaHeader": {
+    "nachaId": "NACHA-PRENOTE",
+    "immediateOrigin": "0001283",
+    "immediateDestination": "9999000",
+    "fileIdModifier": "A"
+  },
+  "batchHeader": {
+    "batchNumber": 1,
+    "companyIdentification": "900003101",
+    "standardEntryClassCode": "PPD"
+  },
+  "entryDetail": {
+    "transactionCode": "28",
+    "sequenceNumber": "000128300012345",
+    "amount": 0,
+    "dfiAccountNumber": "****3102",
+    "individualIdentification": "900003101"
+  },
+  "addendaRecord": {
+    "originalTraceNumber": "000128300012345",
+    "paymentRelatedInformation": "PRENOTE UAT"
+  },
+  "batchControl": {
+    "entryAddendaCount": 2,
+    "entryHash": 1283
+  },
+  "fileControl": {
+    "batchCount": 1,
+    "blockCount": 1,
+    "entryAddendaCount": 2
+  }
+}

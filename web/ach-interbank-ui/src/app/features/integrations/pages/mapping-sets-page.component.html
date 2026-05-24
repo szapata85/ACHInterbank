@@ -1,56 +1,311 @@
-<section class="mapping-list-page">
+<section class="mapping-list-page" data-testid="integration-mappings-page">
   <ui-migas-pan [items]="migas"></ui-migas-pan>
-  <ui-encabezado-pagina
-    titulo="Configuraciones funcionales por integración"
-    descripcion="Gestione borradores, validación y publicación de configuraciones de mapeo por método."
-  ></ui-encabezado-pagina>
 
-  <section class="cards">
-    <article class="card metric"><span>Total</span><strong>{{ stats.total }}</strong></article>
+  <header class="page-header">
+    <ui-encabezado-pagina
+      titulo="Mapeos de integracion"
+      descripcion="Administra versiones funcionales de mapeos SOAP para UAT/local."
+    ></ui-encabezado-pagina>
+    <button type="button" class="btn btn-primary" (click)="openDraftModal()">Nuevo borrador</button>
+  </header>
+
+  <div class="compact-alert">
+    Los cambios de mapping pueden afectar procesamiento SOAP. Valide en UAT antes de publicar.
+  </div>
+
+  <section class="cards" aria-label="Resumen de mapeos">
+    <article class="card metric"><span>Total mappings</span><strong>{{ stats.total }}</strong></article>
     <article class="card metric"><span>Borrador</span><strong>{{ stats.draft }}</strong></article>
     <article class="card metric"><span>Publicado</span><strong>{{ stats.published }}</strong></article>
-    <article class="card metric"><span>Archivado</span><strong>{{ stats.archived }}</strong></article>
+    <article class="card metric"><span>Integraciones</span><strong>{{ stats.integrations }}</strong></article>
   </section>
 
-  <ng-template #borradorTpl>
-    <form [formGroup]="createDraftForm" class="draft-form" (ngSubmit)="createDraft()">
-      <label>
-        Integración
-        <select formControlName="methodId" (change)="onMethodChange()">
-          <option *ngFor="let method of methods" [ngValue]="method.id">
-            {{ method.displayName }} — {{ method.code }}
-          </option>
-        </select>
-      </label>
-      <label>
-        Nombre de versión de trabajo
-        <input type="text" formControlName="name" placeholder="Ej: Contrapartidas - Ajuste operativo abril" />
-      </label>
-      <label>
-        Comentario del borrador
-        <input type="text" formControlName="notes" placeholder="Qué se está ajustando en esta versión" />
-      </label>
-      <button type="submit" class="btn btn-primary" [disabled]="createDraftForm.invalid || creatingDraft">
-        {{ creatingDraft ? 'Creando…' : 'Crear borrador' }}
-      </button>
-    </form>
-  </ng-template>
-  <ui-tarjeta titulo="Nuevo borrador" subtitulo="Crear una versión de trabajo para ajustar reglas funcionales." [contenido]="borradorTpl"></ui-tarjeta>
+  <section class="filters-card" aria-label="Filtros de mapeos">
+    <label>
+      Integracion
+      <select data-testid="integration-select" [formControl]="createDraftForm.controls.methodId" (change)="onMethodChange()">
+        <option data-testid="integration-option" *ngFor="let method of methods" [ngValue]="method.id">
+          {{ method.displayName }} - {{ method.code }} - {{ method.soapClientCode }}
+        </option>
+      </select>
+    </label>
 
-  <ng-template #versionesTpl>
-    <div class="table-header">
-      <ui-boton texto="Comparar versiones" icono="compare_arrows" [deshabilitado]="mappingSets.length < 2" (accion)="openCompare()"></ui-boton>
+    <label>
+      Estado
+      <select [value]="statusFilter" (change)="onStatusFilterChange($any($event.target).value)">
+        <option value="all">Todos</option>
+        <option value="Draft">Borrador</option>
+        <option value="Published">Publicado</option>
+        <option value="Archived">Archivado</option>
+      </select>
+    </label>
+
+    <label>
+      Proposito
+      <select [value]="purposeFilter" (change)="onPurposeFilterChange($any($event.target).value)">
+        <option value="all">Todos</option>
+        <option *ngFor="let purpose of mappingPurposes" [value]="purpose">{{ purpose }}</option>
+      </select>
+    </label>
+
+    <label>
+      Direccion
+      <select [value]="directionFilter" (change)="onDirectionFilterChange($any($event.target).value)">
+        <option value="all">Todas</option>
+        <option *ngFor="let direction of mappingDirections" [value]="direction">{{ direction }}</option>
+      </select>
+    </label>
+
+    <label>
+      Buscar
+      <input
+        type="search"
+        [value]="searchTerm"
+        (input)="onSearchChange($any($event.target).value)"
+        placeholder="Nombre, codigo, responsable"
+      />
+    </label>
+
+    <div class="filter-actions">
+      <button type="button" class="btn btn-secondary" (click)="loadMethods()" [disabled]="loading">
+        {{ loading ? 'Recargando...' : 'Recargar' }}
+      </button>
+      <button type="button" class="btn btn-secondary" (click)="openCompare()" [disabled]="mappingSets.length < 2">
+        Comparar
+      </button>
     </div>
-    <ui-grilla-empresarial
-      [columnas]="columnas"
-      [datos]="filasGrilla"
-      [cargando]="loading"
-      [error]="false"
-      [tamanoPagina]="10"
-      [mensajeVacio]="'No hay versiones para la integración seleccionada.'"
-      [mensajeCargando]="'Cargando configuraciones...'"
-    ></ui-grilla-empresarial>
-    <p class="helper" *ngIf="mappingSets.length < 2">Necesitas al menos dos versiones para habilitar la comparación.</p>
+  </section>
+
+  <section class="selected-integration" *ngIf="selectedMethod">
+    <span>Integracion seleccionada</span>
+    <strong>{{ getMethodLabel(selectedMethod) }}</strong>
+    <small>{{ getMethodSummary(selectedMethod) }}</small>
+  </section>
+
+  <section class="catalog-panel" data-testid="mapping-catalog-panel" *ngIf="selectedMethod">
+    <header>
+      <div>
+        <span class="eyebrow">Catalogo controlado</span>
+        <h3>Fuentes origen y campos destino</h3>
+      </div>
+      <span class="catalog-status" [class.error]="catalogLoadState === 'error'">
+        {{ catalogLoadState === 'loading' ? 'Cargando catalogo' : catalogLoadState === 'error' ? 'Error de catalogo' : 'Catalogo disponible' }}
+      </span>
+    </header>
+
+    <div class="catalog-error" *ngIf="catalogLoadState === 'error'" data-testid="catalog-error-state">
+      No se pudo cargar catalogo de fuentes o campos destino. Reintente o valide API de integraciones.
+    </div>
+
+    <div class="catalog-grid" *ngIf="catalogLoadState !== 'error'">
+      <article class="catalog-section" data-testid="source-catalog-section">
+        <h4>Fuentes origen</h4>
+        <p class="helper">Solo se listan fuentes controladas del catalogo. No hay SQL libre ni seleccion arbitraria de tablas.</p>
+        <div class="source-chip-grid" *ngIf="sourceGroups.length > 0; else noSources">
+          <div
+            class="source-chip"
+            data-testid="source-catalog-chip"
+            [class.nacha]="isNachaSource(group.sourceKind)"
+            *ngFor="let group of sourceGroups"
+          >
+            <strong>{{ getSourceKindLabel(group.sourceKind) }}</strong>
+            <small>{{ group.fields.length }} campo(s)</small>
+            <span [title]="group.fields[0].fieldPath">{{ group.fields[0].fieldPath }}</span>
+          </div>
+        </div>
+        <ng-template #noSources>
+          <div class="empty-inline">No hay fuentes disponibles para esta operacion.</div>
+        </ng-template>
+      </article>
+
+      <article class="catalog-section" data-testid="target-field-section">
+        <h4>Campos destino SOAP/XML</h4>
+        <p class="helper">Destino por operacion y proposito seleccionados.</p>
+        <div class="target-list" *ngIf="visibleTargetFields.length > 0; else noTargets">
+          <span data-testid="target-field-chip" *ngFor="let target of visibleTargetFields" [title]="target.parameterPath">
+            {{ target.parameterPath }}
+            <small>{{ target.required ? 'Requerido' : 'Opcional' }}</small>
+          </span>
+        </div>
+        <ng-template #noTargets>
+          <div class="empty-inline">No hay campos destino disponibles para esta operacion.</div>
+        </ng-template>
+      </article>
+    </div>
+  </section>
+
+  <section class="mapping-card-grid" *ngIf="filteredMappingSets.length > 0; else emptyMappings">
+    <article class="mapping-card" data-testid="mapping-card" *ngFor="let mapping of filteredMappingSets">
+      <div class="mapping-card-header">
+        <div class="mapping-title-block" data-ux-critical>
+          <span class="integration-code" [title]="mapping.methodCode">{{ mapping.methodCode }}</span>
+          <h3 [title]="mapping.name">{{ mapping.name }}</h3>
+        </div>
+        <span class="status-pill" [ngClass]="getStatusClass(mapping.status)">{{ getStatusLabel(mapping.status) }}</span>
+      </div>
+
+      <dl class="mapping-meta">
+        <div>
+          <dt>Operacion</dt>
+          <dd>{{ getMethodById(mapping.methodId)?.operationKey || mapping.methodCode }}</dd>
+        </div>
+        <div>
+          <dt>Proposito</dt>
+          <dd>{{ getMethodById(mapping.methodId)?.mappingPurpose || 'Sin clasificar' }}</dd>
+        </div>
+        <div>
+          <dt>Direccion</dt>
+          <dd>{{ getMethodById(mapping.methodId)?.mappingDirection || 'Sin clasificar' }}</dd>
+        </div>
+        <div>
+          <dt>Naturaleza</dt>
+          <dd>{{ getMethodById(mapping.methodId)?.movesMoney ? 'Monetaria' : 'No monetaria' }}</dd>
+        </div>
+        <div>
+          <dt>Version</dt>
+          <dd>{{ mapping.version || 'Borrador' }}</dd>
+        </div>
+        <div>
+          <dt>Publicado por</dt>
+          <dd>{{ mapping.publishedBy || 'Sin publicar' }}</dd>
+        </div>
+        <div>
+          <dt>Notas</dt>
+          <dd class="truncate" [title]="mapping.notes || 'Sin notas'">{{ mapping.notes || 'Sin notas' }}</dd>
+        </div>
+      </dl>
+
+      <div class="mapping-actions">
+        <button type="button" class="btn btn-ghost" data-testid="mapping-detail-button" (click)="openDetail(mapping)">
+          Detalle
+        </button>
+        <button type="button" class="btn btn-secondary" data-testid="mapping-edit-button" (click)="openEdit(mapping)">
+          Editar
+        </button>
+      </div>
+    </article>
+  </section>
+
+  <ng-template #emptyMappings>
+    <section class="empty-state" data-testid="empty-mappings-state">
+      <strong>No hay mappings configurados para {{ selectedMethod?.operationKey || 'la operacion seleccionada' }}.</strong>
+      <span>La integracion sigue disponible. Cree un borrador si requiere parametrizar reglas funcionales.</span>
+    </section>
   </ng-template>
-  <ui-tarjeta titulo="Versiones y estados" subtitulo="Consulta y comparación de versiones por método." [contenido]="versionesTpl"></ui-tarjeta>
 </section>
+
+<div class="modal-backdrop" *ngIf="modalMode" (click)="closeModal()"></div>
+
+<aside class="modal-panel" *ngIf="modalMode === 'detail' && selectedMapping" role="dialog" aria-modal="true" aria-label="Detalle mapping">
+  <header class="modal-header">
+    <div>
+      <span class="eyebrow">Detalle read-only</span>
+      <h2>{{ selectedMapping.name }}</h2>
+    </div>
+    <button type="button" class="icon-button" (click)="closeModal()" aria-label="Cerrar">X</button>
+  </header>
+
+  <dl class="detail-list">
+    <div>
+      <dt>Integracion</dt>
+      <dd>{{ selectedMapping.methodCode }}</dd>
+    </div>
+    <div>
+      <dt>Proposito</dt>
+      <dd>{{ getMethodById(selectedMapping.methodId)?.mappingPurpose || 'Sin clasificar' }}</dd>
+    </div>
+    <div>
+      <dt>Direccion</dt>
+      <dd>{{ getMethodById(selectedMapping.methodId)?.mappingDirection || 'Sin clasificar' }}</dd>
+    </div>
+    <div>
+      <dt>Naturaleza funcional</dt>
+      <dd>{{ getMethodSummary(getMethodById(selectedMapping.methodId)) }}</dd>
+    </div>
+    <div>
+      <dt>Estado</dt>
+      <dd>{{ getStatusLabel(selectedMapping.status) }}</dd>
+    </div>
+    <div>
+      <dt>Version</dt>
+      <dd>{{ selectedMapping.version || 'Borrador' }}</dd>
+    </div>
+    <div>
+      <dt>Publicado por</dt>
+      <dd>{{ selectedMapping.publishedBy || 'Sin publicar' }}</dd>
+    </div>
+    <div>
+      <dt>Observaciones</dt>
+      <dd class="breakable">{{ selectedMapping.notes || 'Sin observaciones' }}</dd>
+    </div>
+  </dl>
+
+  <footer class="modal-footer">
+    <button type="button" class="btn btn-secondary" (click)="closeModal()">Cerrar</button>
+  </footer>
+</aside>
+
+<aside class="modal-panel" *ngIf="modalMode === 'edit' && selectedMapping" role="dialog" aria-modal="true" aria-label="Editar mapping">
+  <header class="modal-header">
+    <div>
+      <span class="eyebrow">Editor guiado</span>
+      <h2>{{ selectedMapping.name }}</h2>
+    </div>
+    <button type="button" class="icon-button" (click)="closeModal()" aria-label="Cerrar">X</button>
+  </header>
+
+  <div class="editor-summary">
+    <p>El editor completo se abre en el flujo funcional existente. Esta vista evita saturar la pantalla principal.</p>
+    <dl class="detail-list compact">
+      <div>
+        <dt>Integracion</dt>
+        <dd>{{ selectedMapping.methodCode }}</dd>
+      </div>
+      <div>
+        <dt>Estado actual</dt>
+        <dd>{{ getStatusLabel(selectedMapping.status) }}</dd>
+      </div>
+    </dl>
+  </div>
+
+  <footer class="modal-footer">
+    <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancelar</button>
+    <button type="button" class="btn btn-primary" (click)="goToSelectedEditor()">Abrir editor</button>
+  </footer>
+</aside>
+
+<aside class="modal-panel" *ngIf="modalMode === 'draft'" role="dialog" aria-modal="true" aria-label="Crear borrador mapping">
+  <header class="modal-header">
+    <div>
+      <span class="eyebrow">Nuevo borrador</span>
+      <h2>Crear version de trabajo</h2>
+    </div>
+    <button type="button" class="icon-button" (click)="closeModal()" aria-label="Cerrar">X</button>
+  </header>
+
+  <form [formGroup]="createDraftForm" class="draft-form" (ngSubmit)="createDraft()">
+    <label>
+      Integracion
+      <select formControlName="methodId">
+        <option *ngFor="let method of methods" [ngValue]="method.id">
+          {{ method.displayName }} - {{ method.code }}
+        </option>
+      </select>
+    </label>
+    <label>
+      Nombre de version de trabajo
+      <input type="text" formControlName="name" placeholder="Ej: Respuestas Axon - parametrizacion UAT" />
+    </label>
+    <label>
+      Comentario
+      <input type="text" formControlName="notes" placeholder="Que se esta ajustando en esta version" />
+    </label>
+
+    <footer class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeModal()" [disabled]="creatingDraft">Cancelar</button>
+      <button type="submit" class="btn btn-primary" [disabled]="createDraftForm.invalid || creatingDraft">
+        {{ creatingDraft ? 'Creando...' : 'Crear borrador' }}
+      </button>
+    </footer>
+  </form>
+</aside>

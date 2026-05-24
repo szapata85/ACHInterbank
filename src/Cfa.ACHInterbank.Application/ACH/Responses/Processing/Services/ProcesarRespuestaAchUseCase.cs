@@ -18,8 +18,16 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
     private readonly IAchResponseNotificationAttemptRepository _attemptRepository;
     private readonly IRespuestaAchStatusMappingService _mappingService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IDifferentialPrenotificationResponseProcessor? _prenotificationResponseProcessor;
 
-    public ProcesarRespuestaAchUseCase(ProcesarRespuestaAchCommandValidator validator, IAchResponseIdempotencyHashService hashService, IAchResponseRepository responseRepository, IAchResponseNotificationAttemptRepository attemptRepository, IRespuestaAchStatusMappingService mappingService, IUnitOfWork unitOfWork)
+    public ProcesarRespuestaAchUseCase(
+        ProcesarRespuestaAchCommandValidator validator,
+        IAchResponseIdempotencyHashService hashService,
+        IAchResponseRepository responseRepository,
+        IAchResponseNotificationAttemptRepository attemptRepository,
+        IRespuestaAchStatusMappingService mappingService,
+        IUnitOfWork unitOfWork,
+        IDifferentialPrenotificationResponseProcessor? prenotificationResponseProcessor = null)
     {
         _validator = validator;
         _hashService = hashService;
@@ -27,6 +35,7 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
         _attemptRepository = attemptRepository;
         _mappingService = mappingService;
         _unitOfWork = unitOfWork;
+        _prenotificationResponseProcessor = prenotificationResponseProcessor;
     }
 
     public async Task<ProcesarRespuestaAchResult> ExecuteAsync(ProcesarRespuestaAchCommand command, CancellationToken cancellationToken = default)
@@ -65,6 +74,31 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
         };
 
         AchResponseNotificationAttempt? attempt = null;
+        DifferentialPrenotificationResponseProcessResult? prenotificationProcessing = null;
+
+        if (command.TipoRespuesta == TipoRespuestaAch.Prenota
+            && hom.ExisteHomologacion
+            && _prenotificationResponseProcessor is not null)
+        {
+            prenotificationProcessing = await _prenotificationResponseProcessor.ProcessAsync(command, response, hom, cancellationToken);
+            response.PermiteNotificacion = false;
+
+            if (!prenotificationProcessing.Success)
+            {
+                response.EstadoProcesamiento = prenotificationProcessing.Duplicate
+                    ? AchResponseProcessingStatus.Duplicada
+                    : IsManualReview(prenotificationProcessing.ErrorCode)
+                        ? AchResponseProcessingStatus.RequiereRevisionManual
+                        : AchResponseProcessingStatus.ErrorFuncional;
+                response.MotivoNoHomologacion = $"{prenotificationProcessing.ErrorCode}: {prenotificationProcessing.Message}".Trim();
+
+                await _responseRepository.AddAsync(response, cancellationToken);
+                await _unitOfWork.CommitAsync(cancellationToken);
+
+                return new ProcesarRespuestaAchResult(response.Id, true, prenotificationProcessing.Duplicate, true, false, false, response.EstadoProcesamiento, response.MotivoNoHomologacion, hash);
+            }
+        }
+
         if (!hom.ExisteHomologacion)
         {
             response.EstadoProcesamiento = AchResponseProcessingStatus.NoHomologada;
@@ -73,6 +107,11 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
         else if (!hom.PermiteNotificacion)
         {
             response.EstadoProcesamiento = AchResponseProcessingStatus.RequiereRevisionManual;
+            response.PermiteNotificacion = false;
+        }
+        else if (prenotificationProcessing?.Success == true)
+        {
+            response.EstadoProcesamiento = AchResponseProcessingStatus.Notificada;
             response.PermiteNotificacion = false;
         }
         else
@@ -94,4 +133,9 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
 
         return new ProcesarRespuestaAchResult(response.Id, true, false, hom.ExisteHomologacion, hom.PermiteNotificacion, attempt is not null, response.EstadoProcesamiento, hom.MotivoNoHomologacion, hash);
     }
+
+    private static bool IsManualReview(string? code)
+        => code is "DIFFERENTIAL_RESPONSE_PRENOTIFICATION_NOT_FOUND"
+            or "DIFFERENTIAL_RESPONSE_UNMATCHED"
+            or "DIFFERENTIAL_RESPONSE_ALREADY_PROCESSED";
 }

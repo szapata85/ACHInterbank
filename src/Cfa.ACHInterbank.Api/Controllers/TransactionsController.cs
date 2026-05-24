@@ -1,6 +1,8 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.Integrations.Interfaces;
+using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -19,19 +21,22 @@ public class TransactionsController : ControllerBase
     private readonly ITransactionPolicyService _transactionPolicyService;
     private readonly IAchBulkTransactionService _bulkTransactionService;
     private readonly IAchBulkIngestionService _bulkIngestionService;
+    private readonly ITransactionIntegrationReadinessService? _integrationReadinessService;
 
     public TransactionsController(
         IAchTransactionService transactionService,
         ITransactionPolicyService transactionPolicyService,
         IAchBulkTransactionService bulkTransactionService,
         IAchBulkIngestionService bulkIngestionService,
-        ILogger<TransactionsController> logger)
+        ILogger<TransactionsController> logger,
+        ITransactionIntegrationReadinessService? integrationReadinessService = null)
     {
         _transactionService = transactionService;
         _logger = logger;
         _transactionPolicyService = transactionPolicyService;
         _bulkTransactionService = bulkTransactionService;
         _bulkIngestionService = bulkIngestionService;
+        _integrationReadinessService = integrationReadinessService;
     }
     [EndpointSummary("Listado operativo de transacciones ACH con filtros de ciclo y cámara")]
     [EndpointDescription("Qué consulta: retorna transacciones ACH por filtros de ciclo, fecha efectiva y cámara para monitoreo operativo. Quién lo usa: operación, soporte y auditoría funcional para seguimiento diario. Permiso requerido: CanReadAch con autorización explícita en la acción. Tipo: consulta sin mutación. Impacto operacional: habilita visibilidad de volumen y estado para conciliación y priorización de incidentes. Auditoría/trazabilidad: la consulta debe quedar trazada con filtros aplicados y usuario consumidor en infraestructura de observabilidad. Riesgos: filtros incompletos pueden omitir transacciones críticas o sesgar diagnósticos. Errores esperados: 400 por parámetros inválidos cuando aplique; 401/403 según capa de seguridad global; 500 no controlado. Relación ACH/NACHA-M: permite trazar transacciones originadas desde flujos individuales o masivos; a diferencia de BulkIngestionController, aquí se consulta entidad transacción y no estado de lote de archivo.")]
@@ -256,6 +261,32 @@ public class TransactionsController : ControllerBase
             return NotFound(new { message = $"No se encontró la transacción con ID {id}" });
 
         return Ok(tx);
+    }
+
+    [EndpointSummary("Garantía de readiness de integración SOAP para una transacción")]
+    [EndpointDescription("Qué consulta: resuelve la operación SOAP esperada para una transacción y valida si sus mappings activos son suficientes antes de XML, DryRun o dispatch. Quién lo usa: QA UAT, operación, soporte e integraciones para evidenciar alineación Transaction -> Operation -> MappingReadiness. Permiso requerido: CanReadAch. Tipo: consulta read-only. Impacto operacional: no transmite, no genera XML, no cambia estados y no crea movimiento monetario. Errores esperados: 404 transacción inexistente; 503 si el servicio de garantía no está registrado; 401/403 por seguridad global.")]
+    [HttpGet("{id:int}/integration-readiness")]
+    [Authorize(Policy = P0Policies.TransactionsRead)]
+    [ProducesResponseType(typeof(TransactionIntegrationReadinessResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetIntegrationReadiness(int id, CancellationToken ct)
+    {
+        if (_integrationReadinessService is null)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Servicio de readiness de integración no disponible." });
+        }
+
+        var readiness = await _integrationReadinessService.GetTransactionReadinessAsync(id, ct);
+        if (readiness is null)
+        {
+            return NotFound(new { message = $"No se encontró la transacción con ID {id}" });
+        }
+
+        return Ok(readiness);
     }
 }
 

@@ -1,0 +1,29 @@
+{
+  "fecha": "2026-05-20",
+  "ambiente": "Docker Compose local/UAT",
+  "camara": "CENIT",
+  "cycleId": "52933d1ba0406af3e64800e809c5e73bab36dddd",
+  "prenotificationTransactionId": 247,
+  "creditTransactionId": 249,
+  "referencias": [
+    "UAT-CEN-PRE-001",
+    "UAT-CEN-CRED-001"
+  ],
+  "archivo": "docs/uat/evidencias/nacha-m-uat/cenit/nacha-m-uat-cenit-20260520.ach",
+  "tamanoBytes": 1060,
+  "sha256": "248205FCE69769B8047FEED94346E2E9910918B386D553BC46D6F1218B3D125C",
+  "registrosDetectados": {
+    "1": 1,
+    "5": 1,
+    "6": 2,
+    "7": 2,
+    "8": 1,
+    "9": 3
+  },
+  "httpStatus": 200,
+  "generadoPorSistema": true,
+  "transmisionExterna": false,
+  "validacionTecnica": "PARCIAL_OK",
+  "validacionNormativa": "PENDIENTE_HOMOLOGACION_CAMPO_A_CAMPO",
+  "observaciones": "Archivo no vacio generado con prenotificacion UAT debito y transaccion credito opcional. Transaccion debito monetaria post-prenotificacion queda pendiente por ventana normativa de 3 dias habiles, sin backdating."
+}

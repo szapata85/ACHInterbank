@@ -1,0 +1,52 @@
+﻿{
+    "fecha":  "2026-05-20T11:01:32-05:00",
+    "rama":  "feature/parametrizacion-reglas-camara-prenotificacion",
+    "commit":  "ffe311cf",
+    "camara":  "CENIT",
+    "originador":  "Cooperativa Financiera de Antioquia",
+    "codigoRuta":  "0001",
+    "codigoTransito":  "283",
+    "prefijoArchivo":  "0001283",
+    "zzz":  "001",
+    "identificadorInternoRegistro1Campo7":  "A",
+    "nombreArchivo":  "0001283.001.1",
+    "rutaArchivo":  "docs\\uat\\evidencias\\nacha-m-uat\\cenit\\0001283.001.1",
+    "tamanoBytes":  1060,
+    "sha256":  "FD52F7834ADEC53C720E4A877B1D48A8AC15B149BEB7FAFB91EC57CF1B88FCD4",
+    "registrosDetectados":  {
+                                "tipo1":  1,
+                                "tipo5":  1,
+                                "tipo6":  1,
+                                "tipo7":  1,
+                                "tipo8":  1,
+                                "tipo9":  5
+                            },
+    "conteoRegistrosFisicos":  10,
+    "conteoEntradaAddenda":  "00000002",
+    "batchCount":  "000001",
+    "blockCount":  "000001",
+    "entryHash":  "0099998002",
+    "totalDebitoRaw":  "000000000000100000",
+    "transaccionesIncluidas":  [
+                                   {
+                                       "transactionId":  255,
+                                       "estado":  "Pending",
+                                       "naturaleza":  "Debit",
+                                       "monto":  1000,
+                                       "referencia":  "UAT-CEN-DEB-MATURED-001"
+                                   }
+                               ],
+    "prenotificacionRelacionada":  {
+                                       "transactionId":  253,
+                                       "fechaEfectiva":  "2026-05-13",
+                                       "estado":  "AppliedTacitly",
+                                       "control":  "PRENOTE_UAT_PRECONDITION_CREATED",
+                                       "referencia":  "UAT-CEN-PRE-MATURED-001"
+                                   },
+    "validacionNomenclatura":  "OK",
+    "validacionNormativa":  "PARCIAL - pendiente homologacion formal CENIT",
+    "documentoNormativoUsado":  "Ejemplos CENIT disponibles en el proyecto / pendiente homologacion normativa formal",
+    "enviadoExterno":  false,
+    "procContrapartidas":  "DryRun/No transmitido",
+    "observaciones":  "Archivo generado por endpoint real /NachaExport/{cycleId}; datos sinteticos UAT; no apto para produccion."
+}

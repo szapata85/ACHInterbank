@@ -296,6 +296,26 @@ public class AchTransactionNachaTests
                 addendas: BuildCreditAddendas("MULTICREDIT", "PAGO 002"),
                 ct: CancellationToken.None);
 
+            var returned = await transactionService.RegisterTransactionAsync(
+                amount: 999m,
+                reference: "PAGO-RETURNED-OMIT",
+                type: TransactionTypeEnum.Credit,
+                accountType: AccountTypeEnum.Checking,
+                isPrenotification: false,
+                destinationInstitutionId: 2,
+                sourceAccountNumber: "111122223333",
+                destinationAccountNumber: "999988887777",
+                companyName: "Empresa Demo",
+                companyIdentification: "123456780",
+                companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "MULTICREDIT"),
+                recipientIdNumber: null,
+                requiresIdentityValidation: false,
+                addendas: BuildCreditAddendas("MULTICREDIT", "PAGO OMIT"),
+                ct: CancellationToken.None);
+
+            returned.State = AchTransferStateEnum.ReturnedByOperator;
+            arrangeContext.AchTransactions.Update(returned);
+
             var prenote = await arrangeContext.AchTransactions
                 .SingleAsync(t => t.Reference == "PAGOPRE-002");
             prenote.EffectiveEntryDate = DateTime.Today.AddDays(-5);
@@ -618,8 +638,8 @@ public class AchTransactionNachaTests
 
             var prenote = await arrangeContext.AchTransactions
                 .SingleAsync(t => t.Reference == "PRE-RECAUDO-SERVICIO");
+            Assert.Equal("28", prenote.TransactionCode);
             prenote.EffectiveEntryDate = DateTime.Today.AddDays(-5);
-            prenote.TransactionCode = "28";
             arrangeContext.AchTransactions.Update(prenote);
             await arrangeContext.SaveChangesAsync();
         }

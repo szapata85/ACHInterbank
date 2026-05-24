@@ -1,0 +1,16 @@
+﻿[
+    {
+        "reference":  "UAT-ACH-PRE-CFA-001",
+        "status":  "OK",
+        "id":  5,
+        "fileName":  "99999001.003.1",
+        "sha256":  "AA4B5FA47F89C0ADFE5B12DFA3D91043F6094110FB134E3C4000A37AA74F9FD5"
+    },
+    {
+        "reference":  "UAT-CEN-PRE-CFA-001",
+        "status":  "OK",
+        "id":  6,
+        "fileName":  "99998002.002.1",
+        "sha256":  "219AE7F11050FE7C60C292A1946F051BD52023B92511DC1708A69A1753176D07"
+    }
+]

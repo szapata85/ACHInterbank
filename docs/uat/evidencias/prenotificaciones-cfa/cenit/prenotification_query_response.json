@@ -1,0 +1,16 @@
+﻿{
+    "id":  257,
+    "reference":  "UAT-CEN-PRE-CFA-001",
+    "clearingHouse":  "CENIT",
+    "sourceFinancialInstitution":  "Cooperativa Financiera de Antioquia",
+    "sourceIsDefault":  true,
+    "transactionId":  257,
+    "nachaCode":  "28",
+    "status":  "Pending",
+    "statusDescription":  "Pendiente",
+    "effectiveDate":  "2026-05-20T00:00:00Z",
+    "maturityDate":  "2026-05-25T00:00:00Z",
+    "isMatured":  false,
+    "canBeUsedForDebit":  false,
+    "message":  "La prenotificacion esta pendiente. Puede exportarse como prenotificacion, pero aun no habilita debito monetario posterior."
+}

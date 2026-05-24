@@ -3,7 +3,7 @@
 Fecha: 2026-05-19
 Version: 1.0 preliminar
 Estado general: Continuar UAT controlado / NO-GO productivo
-Scorecard vigente: 67.8 / 100
+Scorecard vigente: 68.1 / 100
 
 ## Proposito
 

@@ -36,9 +36,139 @@ Estado: registro actualizado tras cierre controlado de DEF-UAT-015; requiere tri
 | G-25 | ALTO | SPA Docker no proxya rutas funcionales raiz y devolvia `index.html`; corregido en Nginx para `/financial-institutions`, `/ach-cycles`, `/clearing-houses`, `/company-entry-descriptions` y endpoints transaccionales confirmados. | DEF-UAT-016, `web/ach-interbank-ui/nginx.conf`, `docs/uat/EVIDENCIAS_UAT_FUNCIONAL.md` | Ya no bloquea el reintento HTTP del UAT funcional desde `http://localhost:743`; queda pendiente evidencia visual/acta formal. | Medio | Mantener inventario de endpoints SPA/API y revalidar en CI/runtime cuando se agreguen nuevos servicios raiz. | Tecnologia/DevOps | Si/config aplicada | Si | Cerrado tecnicamente |
 | G-26 | MEDIO | Trazabilidad de nuevas transacciones revalidada: `UAT-SINT-TRACE-001` genero evento inicial `Pending -> Pending`, `Source=System`, `ReasonCode=CREATED`; `UAT-SINT-001` historica queda sin backfill. | DEF-UAT-017, `TransactionPersister.cs`, `AchTransactionNachaTests.cs`, `docs/uat/EVIDENCIAS_UAT_FUNCIONAL.md`; transaction ID `2`, `event_count=1` | Riesgo residual bajo acotado a registros historicos sin backfill; no bloquea nuevas transacciones sinteticas. | Bajo/Medio | Mantener evidencia y decidir si se requiere backfill historico formal; no necesario para cerrar DEF-UAT-017 en nuevas transacciones. | Tecnologia/QA/Auditoria | Si, aplicado bajo riesgo | Si | Cerrada funcionalmente para nuevas transacciones |
 | G-27 | MEDIO | Idempotencia/deduplicacion transaccional queda formalizada documentalmente como contrato actual: duplicado responde 400 controlado; no hay `Idempotency-Key`, hash de payload ni replay. | DEF-UAT-018, `docs/go-live-readiness/CONTRATO_IDEMPOTENCIA_TRANSACCIONES.md`, `TransactionPolicyServiceTests.cs`, `TransactionsControllerTests.cs` | Riesgo residual acotado: clientes deben tratar 400 de duplicado como rechazo controlado no reintentable; evolucion a 409/key/replay requiere decision. | Bajo/Medio | Mantener 400 documentado para UAT actual; decidir en arquitectura si se migra a 409 Conflict o se introduce idempotency key/replay antes de preproductivo/productivo. | Arquitectura/Tecnologia | No en esta fase | Si | Cerrada documentalmente; decision evolutiva pendiente |
-| G-28 | ALTO | NACHA-M layouts tecnicos existen y el proxy SPA Docker ya expone catalogos, pero la validacion campo-a-campo y homologacion externa de registros 1/5/6/7/8/9 sigue parcial. | `docs/go-live-readiness/MATRIZ_NACHA_M_LAYOUTS.md`, `/nacha-layouts`, `/nacha-record-definitions`, tests mapping/builder | Riesgo de rechazo externo o incumplimiento si un campo/totales/hash/block count diverge. | Alto | Ejecutar comparativo normativo, generar archivo controlado sin datos reales, validar hash/totales/block count y obtener firma/waiver. | Compliance/Operaciones/Tecnologia | No inicialmente | Si | Abierto |
+| G-28 | ALTO | NACHA-M layouts tecnicos existen y el proxy SPA Docker expone catalogos, pero el UAT integrado ACH Colombia/CENIT no genero archivo NACHA-M valido por prenotificacion previa ausente. DEF-UAT-021 ya evita falso exito 0 bytes con 422 controlado. | `docs/uat/UAT_NACHA_M_CAMPO_A_CAMPO.md`, `docs/uat/EVIDENCIAS_NACHA_M_UAT.md`, `docs/go-live-readiness/MATRIZ_NACHA_M_ACH_COLOMBIA.md`, `docs/go-live-readiness/MATRIZ_NACHA_M_CENIT.md` | Riesgo de rechazo externo o incumplimiento si no hay archivo no vacio validado campo-a-campo. | Alto | Crear prenotificaciones UAT validas sin bypass/backdating, generar archivo UAT no vacio y validar hash/totales/block count con firma/waiver. | Compliance/Operaciones/Tecnologia | PENDIENTE VALIDAR | Si | Abierto |
 | G-29 | MEDIO | Rol `ACH.Operator` esperado para usuario demo `admin` fue asignado por seed/migracion controlada, manteniendo tambien `Admin`. | `RoleConfiguration`, `UserRoleConfiguration`, migracion `AddAdminOperatorRoleSeed`, login sanitizado/JWT con roles `Admin,ACH.Operator`, `/navigation/menu` y endpoints read-only 200 con Bearer | Cierra cobertura basica de roles UAT; persiste necesidad de matriz endpoint-rol formal para productivo. | Bajo | Mantener `admin` como usuario demo multirol solo para UAT controlado; evaluar usuario operador separado antes de preproductivo si seguridad lo exige. | Seguridad/Tecnologia/QA | Si | Si | Cerrado |
+| G-30 | ALTO | Exportacion NACHA por `/NachaExport/{cycleId}` fue corregida para no responder 200 con archivo vacio cuando no se cumplen prerequisitos; ahora retorna 422 JSON controlado. | DEF-UAT-021; `docs/uat/evidencias/nacha-m-uat/*/attempt_4_controlled_422_response.txt` | Riesgo de falsa evidencia operativa reducido; sigue pendiente archivo valido exportable. | Alto | Reintentar cuando existan transacciones exportables con prenotificacion valida y confirmar archivo > 0 bytes. | Tecnologia/QA | Si | Si | Cerrado tecnico |
+| G-31 | ALTO | `Proc_Contrapartidas` tiene guardrail `DryRun` por defecto en UAT/local; runtime valido `PROC_DRY_RUN` sin `SOAP request` ni transmision externa. | DEF-UAT-022; `docs/uat/EVIDENCIAS_SOAP_PROC_CONTRAPARTIDAS.md`, `docs/uat/evidencias/soap-proc-contrapartidas/runtime_dry_run_validation.md` | Riesgo de intento de conexion externa no autorizada mitigado para UAT/local; endpoint UAT/mock real sigue pendiente. | Alto | Mantener `DryRun/Disabled` en UAT; habilitar `Live` solo con endpoint UAT/mock aprobado y evidencia de homologacion. | Integracion/DevOps/Seguridad | EVIDENCIA OK UAT/LOCAL | Si | Cerrado tecnico |
 
 ## Decision Inicial
 
-Con cualquier brecha CRITICA abierta, el estado permanece **NO-GO productivo**. UAT controlado puede avanzar si el ambiente esta disponible, los datos estan anonimizados y las brechas se comunican como restricciones. Backend CI/local y Angular CI de rama/local estan OK; Docker compose config/build/runtime estan OK para API, PostgreSQL, health checks, SPA estatica y proxy SPA->API/Auth/Navigation/funcional/NACHA. El UAT tecnico autenticado basico queda **OK con observaciones** y DEF-UAT-015 queda cerrado para el usuario demo `admin` multirol. El UAT funcional sintetico queda **PARCIALMENTE OK**: core API y reintento HTTP desde SPA Docker pasan, DEF-UAT-017 queda cerrado funcionalmente para nuevas transacciones, DEF-UAT-018 queda cerrado documentalmente para el contrato actual y DEF-UAT-019 queda cerrado tecnicamente. Siguen pendientes evidencia visual, actas, NACHA-M formal y validaciones externas. Productivo sigue **NO-GO**.
+Con cualquier brecha CRITICA abierta, el estado permanece **NO-GO productivo**. UAT controlado puede avanzar si el ambiente esta disponible, los datos estan anonimizados y las brechas se comunican como restricciones. Backend CI/local y Angular CI de rama/local estan OK; Docker compose config/build/runtime estan OK para API, PostgreSQL, health checks, SPA estatica y proxy SPA->API/Auth/Navigation/funcional/NACHA. El UAT tecnico autenticado basico queda **OK con observaciones** y DEF-UAT-015 queda cerrado para el usuario demo `admin` multirol. El UAT funcional sintetico queda **PARCIALMENTE OK**. El UAT integrado NACHA/SOAP deja evidencia de transacciones por camara, export NACHA con 422 controlado por falta de prenotificacion y guardrail SOAP `DryRun` sin transmision externa. NACHA-M real UAT sigue bloqueado hasta prenotificacion valida y archivo no vacio. Productivo sigue **NO-GO**.
+
+## Actualizacion 2026-05-23 - paquete final UAT SOAP end-to-end
+
+Se consolida paquete firmable UAT SOAP end-to-end en `docs/uat/evidencias/soap-end-to-end-final/` con acta, matriz de escenarios, inventario, hashes, sanitizacion y reporte de no transmision externa.
+
+Estado SOAP UAT/local:
+
+- `Proc_Contrapartidas`: cerrado tecnico, sin fallback requerido, DryRun/no transmision.
+- `Proc_Transacciones`: cerrado tecnico, usa NACHA-M desagregado, SOAP Envelope DryRun sanitizado, no transmision.
+- `RegistrarRespuestaTransaccion`: cerrado tecnico UAT, no monetario, aprueba/rechaza prenotificaciones CFA pendientes, no invoca WSCFAACH.
+
+Esta actualizacion habilita continuar UAT controlado, pero no reduce las brechas productivas criticas: homologacion externa, certificados/sobre digital, CENIT/CUD, backup/restore/rollback, UAT bancario formal y aprobaciones humanas siguen abiertas. Productivo permanece **NO-GO**.
+
+## Actualizacion 2026-05-19 - Parametrizacion reglas por camara
+
+Se implemento configuracion administrable de reglas de prenotificacion por camara/naturaleza/tipo para reducir hard-code normativo y preparar el cierre de DEF-UAT-020. Nuevas evidencias:
+
+- `docs/auditoria-parametrizacion/`
+- `docs/go-live-readiness/CONFIGURACION_REGLAS_CAMARA_PRENOTIFICACION.md`
+- `docs/go-live-readiness/MATRIZ_REGLAS_PRENOTIFICACION_POR_CAMARA.md`
+
+La brecha G-28/DEF-UAT-020 sigue abierta hasta generar archivo NACHA-M UAT no vacio con prenotificacion valida por camara. Productivo permanece **NO-GO**.
+## Actualizacion 2026-05-20 - NACHA-M UAT no vacio
+
+DEF-UAT-020 mejora de abierto bloqueado a **parcial tecnico**: se generaron archivos NACHA-M UAT no vacios por ACH Colombia y CENIT desde el sistema. Persisten brechas bloqueantes para productivo: transaccion debito monetaria post-prenotificacion madura por 3 dias habiles, validacion normativa campo-a-campo, homologacion/waiver y UAT formal con actas.
+
+## Actualizacion 2026-05-20 - DEF-UAT-020 nomenclatura y NACHA-M UAT
+
+Estado productivo: NO-GO.
+
+Resultado del ciclo controlado:
+
+| Camara | Archivo generado | SHA256 | ZZZ | Campo 7 registro 1 | Registros | Resultado |
+|---|---|---|---:|---|---|---|
+| ACH Colombia | docs/uat/evidencias/nacha-m-uat/ach-colombia/0001283.002.1 | E4DAEEE551596D067357953C552CD521871F635F6703D27700171EBC10A0026E | 002 | B | 1/5/6/7/8/9 | OK tecnico UAT |
+| CENIT | docs/uat/evidencias/nacha-m-uat/cenit/0001283.001.1 | FD52F7834ADEC53C720E4A877B1D48A8AC15B149BEB7FAFB91EC57CF1B88FCD4 | 001 | A | 1/5/6/7/8/9 | OK tecnico UAT; homologacion normativa formal pendiente |
+
+Evidencia comun:
+
+- Patron aplicado: RRRRTTT.ZZZ.1.
+- Originador: Cooperativa Financiera de Antioquia, unico FinancialInstitution.IsDefaultSource=true.
+- RRRR=0001 y TTT=283 derivados de la configuracion de CFA.
+- Mapeo validado: 001 -> A y 002 -> B en registro tipo 1 campo 7.
+- Archivos generados por /NachaExport/{cycleId}; no fueron creados manualmente.
+- Sin transmision externa a ACH Colombia o CENIT.
+- Proc_Contrapartidas permanece en DryRun para UAT/local.
+
+Observacion normativa:
+
+- ACH Colombia se valida contra MAN-004 V32.
+- CENIT se valida tecnicamente con ejemplos disponibles en el proyecto y queda pendiente homologacion normativa formal.
+
+## Actualizacion 2026-05-20 - DEF-UAT-020 prenotificaciones CFA
+
+Se genero evidencia UAT de prenotificaciones CFA por ACH Colombia y CENIT:
+
+- ACH Colombia: `UAT-ACH-PRE-CFA-001`, TransactionId 256, archivo `0001283.004.1`, codigo NACHA `28`, SHA256 `E4695D004A35087B20485339E844F7C722E059C1DA58E732219370FAC0F9155A`.
+- CENIT: `UAT-CEN-PRE-CFA-001`, TransactionId 257, archivo `0001283.002.1`, codigo NACHA `28`, SHA256 `B36BE4DB8A9EC2E3384A69A06CC0866BF24E05A2E6886B056498E361236A024C`.
+
+Estado de brecha: **DEF-UAT-020 queda OK tecnico UAT para prenotificaciones CFA y permanece parcial normativo por homologacion formal CENIT/campo-a-campo externo**. Productivo sigue **NO-GO**.
+
+## Actualizacion 2026-05-20 - Simulador NACHA-M de Entrada
+
+| Brecha | Estado | Impacto | Accion requerida |
+|---|---|---|---|
+| Falta de archivos inbound sinteticos para ejecutar NachaUpload UAT | Cerrada tecnicamente para UAT/local | Permite preparar insumos de carga manual | Ejecutar carga real por NachaUpload y registrar resultados |
+| Validacion real de procesamiento inbound | Abierta | Bloquea GO productivo | Cargar manualmente archivos generados y validar estados/auditoria |
+
+El simulador queda deshabilitado por defecto fuera de Development/UAT, no transmite externamente y no importa automaticamente. Productivo continua **NO-GO**.
+
+## Actualizacion 2026-05-20 - UX Configuracion SOAP
+
+| Brecha | Estado | Impacto | Accion requerida |
+|---|---|---|---|
+| Saturacion visual en `/integraciones/soap-settings` | Cerrada tecnicamente frontend | Reduce riesgo operativo de edicion incorrecta de configuracion SOAP | Validacion visual UAT/manual en SPA Docker |
+| Exposicion de secretos en UI SOAP | Controlada | La pantalla no muestra secretos completos ni certificados privados | Mantener gestion segura externa |
+| Proc_Contrapartidas Live | NO habilitado por defecto | Conserva guardrail UAT/local | Live solo con autorizacion formal |
+
+El cambio usa resumen/lista compacta y modales de detalle, edicion y prueba. No modifica backend, endpoints ni semantica funcional SOAP. Productivo permanece **NO-GO**.
+
+## Actualizacion 2026-05-21 - Auditoria end-to-end SOAP
+
+| Brecha | Estado | Impacto | Accion requerida |
+|---|---|---|---|
+| Fallback requerido de `Proc_Contrapartidas` si no hay mapping publicado | Cerrada tecnicamente | Ya no puede generar XML ni DryRun exitoso sin mapping funcional completo | Mantener mappings publicados requeridos y pruebas de no regresion |
+| `Proc_Transacciones` no tiene guardrail DryRun especifico equivalente a Contrapartidas | Cerrada tecnicamente | UAT/local ya no transmite externamente con `ProcTransacciones:Mode=DryRun/Disabled` | Mantener modo no Live hasta autorizacion formal |
+| `RegistrarRespuestaTransaccion` no consume `IntegrationMappingSet` | Cerrada tecnicamente | Trace parametrizado persistido antes del gateway | Mantener pruebas de no regresion no monetaria |
+
+Clasificacion confirmada:
+
+- `Proc_Contrapartidas`: `MonetaryDebitRequest`, mueve debitos originados por CFA.
+- `Proc_Transacciones`: `MonetaryCreditRequest`, mueve creditos originados por otra entidad, CFA receptora.
+- `RegistrarRespuestaTransaccion`: `DifferentialResponseNotification`, no mueve dinero ni afecta saldos.
+
+Productivo permanece **NO-GO**.
+
+## Actualizacion 2026-05-21 - garantia Transaction Integration Readiness
+
+Se implemento una garantia automatizada para evitar falsos OK en integraciones SOAP:
+
+- `GET /Transactions/{id}/integration-readiness` resuelve operacion esperada y readiness de mappings sin mutar estado ni invocar SOAP.
+- Debito CFA -> `WSCFAACH / Proc_Contrapartidas / MonetaryDebitRequest`.
+- Credito externo -> `WSCFAACH / Proc_Transacciones / MonetaryCreditRequest`.
+- Respuesta diferencial -> `WSAXON / RegistrarRespuestaTransaccion / DifferentialResponseNotification`, `movesMoney=false`.
+- Missing mapping queda `Failed`.
+- Fallback requerido en `Proc_Contrapartidas` queda `Failed`, no `Partial` ni `Ok`.
+
+Brechas persistentes:
+
+- ejecutar acta UAT firmada con evidencias runtime representativas;
+- sostener Productivo en NO-GO hasta homologacion externa formal.
+
+Productivo permanece **NO-GO**.
+## Actualizacion 2026-05-23 - SOAP/NACHA-M desagregado
+
+- Cerrado tecnico UAT: `Proc_Transacciones` puede alimentarse desde NACHA-M desagregado (`NachaHeaders`, `BatchHeaders`, `EntryDetails`, `AddendaRecords`, `BatchControls`, `FileControls`) mediante catalogo controlado, mapping set y trace campo-a-campo.
+- Cerrado tecnico UAT: `DEF-UAT-SOAP-MAP-004`, `RegistrarRespuestaTransaccion` aprueba/rechaza prenotificaciones CFA pendientes desde respuesta diferencial homologada, cruza NACHA-M desagregado y persiste trace/evento sin movimiento monetario.
+
+## Actualizacion 2026-05-23 - DEF-UAT-SOAP-MAP-004
+
+| Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| Respuesta diferencial aprueba prenotificacion CFA pendiente | Cerrado tecnico UAT | `docs/uat/evidencias/soap-integrations/prenotification-responses/approved/` | Estado `Pending -> Certified`, sin movimiento monetario |
+| Respuesta diferencial rechaza prenotificacion CFA pendiente | Cerrado tecnico UAT | `docs/uat/evidencias/soap-integrations/prenotification-responses/rejected/` | Estado `Pending -> ReturnedByEpr`, causal `R03` |
+| Envelope formal Proc_Transacciones DryRun | Cerrado tecnico UAT | `docs/uat/evidencias/soap-integrations/mapping-trace/proc_transacciones/proc_transacciones_envelope_sanitizado.xml` | No transmision externa |
+
+Productivo permanece **NO-GO** por homologacion externa y acta formal pendiente.
+- Productivo: **NO-GO**.

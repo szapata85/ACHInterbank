@@ -30,8 +30,9 @@ public class ExternalFileNamePolicy : IExternalFileNamePolicy
     public async Task<ExternalFileNamePolicyResult> GenerateExternalNameAsync(ExternalFileNameContext context, CancellationToken ct = default)
     {
         var components = await _builder.BuildAsync(context, ct);
-        var validation = await _validator.ValidateAsync(context, components, ct);
-        var correlation = await _correlation.CorrelateAsync(context, components, ct);
+        var validationContext = NormalizeRecord1FileIdForValidation(context, components);
+        var validation = await _validator.ValidateAsync(validationContext, components, ct);
+        var correlation = await _correlation.CorrelateAsync(validationContext, components, ct);
         var result = new ExternalFileNamePolicyResult
         {
             ExternalFileName = components.FullName,
@@ -40,7 +41,7 @@ public class ExternalFileNamePolicy : IExternalFileNamePolicy
             CorrelationEvidence = correlation
         };
 
-        await _audit.RegisterAsync(context, result, ct);
+        await _audit.RegisterAsync(validationContext, result, ct);
         return result;
     }
 
@@ -70,5 +71,35 @@ public class ExternalFileNamePolicy : IExternalFileNamePolicy
     public async Task<ExternalFileNameComponents> PreviewExternalNameAsync(ExternalFileNameContext context, CancellationToken ct = default)
     {
         return await _builder.BuildAsync(context, ct);
+    }
+
+    private static ExternalFileNameContext NormalizeRecord1FileIdForValidation(ExternalFileNameContext context, ExternalFileNameComponents components)
+    {
+        if (!components.FileIdModifier.HasValue || string.IsNullOrWhiteSpace(context.NachaContent))
+        {
+            return context;
+        }
+
+        return new ExternalFileNameContext
+        {
+            ClearingHouseId = context.ClearingHouseId,
+            ClearingHouseCode = context.ClearingHouseCode,
+            ClearingHouseOriginCode = components.Prefix ?? context.ClearingHouseOriginCode,
+            CycleId = context.CycleId,
+            CycleName = context.CycleName,
+            ProcessingDate = context.ProcessingDate,
+            ExternalFileType = context.ExternalFileType,
+            Flow = context.Flow,
+            Direction = context.Direction,
+            IsPse = context.IsPse,
+            ProvidedExternalFileName = context.ProvidedExternalFileName,
+            InternalFileName = context.InternalFileName,
+            NachaContent = ExternalFileNameSupport.ReplaceRecord1FileIdModifier(context.NachaContent, components.FileIdModifier.Value),
+            DeclaredDetailCount = context.DeclaredDetailCount,
+            ActualDetailCount = context.ActualDetailCount,
+            FileHash = context.FileHash,
+            FileSize = context.FileSize,
+            RequestedBy = context.RequestedBy
+        };
     }
 }

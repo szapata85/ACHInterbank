@@ -166,6 +166,19 @@ public class RespuestaTransaccionesAchGatewayTests
             .Should().NotContain(x => x.Contains("RegistrarRespuestaTransaccion", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void RespuestaTransaccionesAchGateway_ShouldNotDependOnMonetarySoapClient()
+    {
+        var constructorParameters = typeof(RespuestaTransaccionesAchGateway)
+            .GetConstructors()
+            .SelectMany(x => x.GetParameters())
+            .Select(x => x.ParameterType)
+            .ToArray();
+
+        constructorParameters.Should().Contain(typeof(IWsAxonRespuestaTransaccionesSoapClient));
+        constructorParameters.Should().NotContain(typeof(IWscfaachSoapClient));
+    }
+
     private static RespuestaTransaccionesAchGateway BuildGatewayReturning(string xml)
     {
         var soapClient = new Mock<IWsAxonRespuestaTransaccionesSoapClient>();

@@ -32,6 +32,51 @@ public class ExternalFileNamePolicyPhase1Tests
     }
 
     [Fact]
+    public async Task NachaOutBuilder_Uses_Last7Digits_From_DefaultOrigin_For_Cenit()
+    {
+        await using var harness = await CreateHarnessAsync();
+        var sequence = CreateSequenceService(harness.Context);
+        var map = new FakeIdentifierMapService();
+        var builder = new ExternalFileNameBuilder(sequence, map);
+
+        var name = await builder.BuildAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 2,
+            ClearingHouseCode = "CENIT",
+            ClearingHouseOriginCode = "00001283",
+            ProcessingDate = new DateTime(2026, 05, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        });
+
+        Assert.Equal("0001283.001.1", name.FullName);
+        Assert.Equal('A', name.FileIdModifier);
+    }
+
+    [Theory]
+    [InlineData("1234567.026.1", 'Z')]
+    [InlineData("1234567.027.1", '0')]
+    [InlineData("1234567.036.1", '9')]
+    public async Task NachaOutValidator_Accepts_Zzz_To_Record1_Field7_Mapping(string fileName, char fileId)
+    {
+        var validator = CreateValidator();
+
+        var result = await validator.ValidateAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACHCOL",
+            ProcessingDate = new DateTime(2026, 05, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound,
+            NachaContent = BuildNachaHeader(fileId)
+        }, new ExternalFileNameComponents { FullName = fileName });
+
+        Assert.False(result.IsHardBlocked);
+    }
+
+    [Fact]
     public async Task AchValidator_HardBlocks_When_ZZZ_DoesNotMatch_Record1_Field7()
     {
         var validator = CreateValidator();

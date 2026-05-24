@@ -45,4 +45,31 @@ No se cierra aun la validacion normativa campo-a-campo ni homologacion bancaria.
 
 DEF-UAT-019 queda cerrado como defecto tecnico de endpoint/proxy: la ruta real es `/nacha-layouts`, no `/nacha-record-layouts`, y el proxy SPA Docker fue corregido.
 
-La brecha normativa NACHA-M permanece **PARCIAL** hasta ejecutar validacion campo-a-campo, generacion/carga de archivo controlado, firma de matriz regulatoria y homologacion externa o waiver formal.
+## Revalidacion Integrada 2026-05-19
+
+Se ejecuto UAT integrado con transacciones sinteticas por camara:
+
+- ACH Colombia: `UAT-ACHCOL-NACHA-SOAP-001`, TransactionId `3`.
+- CENIT: `UAT-CENIT-NACHA-SOAP-001`, TransactionId `4`.
+
+Resultado: la generacion NACHA-M real UAT no produjo archivo valido. El primer intento por `http://localhost:743/NachaExport/{cycleId}` evidencio fallback Angular y se corrigio `web/ach-interbank-ui/nginx.conf` agregando `location /NachaExport/`. Los reintentos posteriores inicialmente respondieron `HTTP 200` con `Content-Length: 0`; DEF-UAT-021 corrigio ese falso exito y ahora el endpoint responde `HTTP 422` JSON controlado por prenotificacion previa ausente. El modulo `nacha-security/operations/nacha/generate` tambien queda protegido contra exito con artefacto vacio.
+
+Evidencias:
+
+- `docs/uat/UAT_NACHA_M_CAMPO_A_CAMPO.md`
+- `docs/uat/EVIDENCIAS_NACHA_M_UAT.md`
+- `docs/go-live-readiness/MATRIZ_NACHA_M_ACH_COLOMBIA.md`
+- `docs/go-live-readiness/MATRIZ_NACHA_M_CENIT.md`
+
+La brecha normativa NACHA-M permanece **PARCIAL/BLOQUEADA** hasta crear prenotificaciones UAT validas sin bypass/backdating, generar archivo controlado no vacio, validar campo-a-campo, firmar matriz regulatoria y obtener homologacion externa o waiver formal.
+
+## Actualizacion 2026-05-19 - Reglas por camara
+
+Se agrego parametrizacion tecnica y pantalla administrativa para reglas de prenotificacion:
+
+- `docs/go-live-readiness/MATRIZ_REGLAS_PRENOTIFICACION_POR_CAMARA.md`
+- `docs/go-live-readiness/CONFIGURACION_REGLAS_CAMARA_PRENOTIFICACION.md`
+- API `/api/clearing-house-transaction-rules`
+- SPA `/transactions/clearing-house-rules`
+
+Esto reduce hard-code normativo, pero no cierra DEF-UAT-020 sin archivo NACHA-M UAT no vacio y validacion campo-a-campo.

@@ -1,0 +1,19 @@
+﻿{
+    "fecha":  "2026-05-19T11:46:07.2358812-05:00",
+    "camara":  "CENIT",
+    "transactionId":  4,
+    "referenciaUat":  "UAT-CENIT-NACHA-SOAP-001",
+    "achCycleId":  "7c0c26327f06a20d751ef72fc379ca6fe7166803",
+    "archivo":  "proc_contrapartidas_envelope_sanitizado.xml",
+    "hashSha256":  "F6AF7AD69B45563D6ECF41D1142EC5682986DB87C30BED7E9F5381A58F9D1C16",
+    "xmlBienFormado":  true,
+    "operacion":  "Proc_Contrapartidas",
+    "credencialesSanitizadas":  true,
+    "contienePassword":  false,
+    "contieneToken":  false,
+    "contieneCertificadoPrivado":  false,
+    "endpointSoapInvocadoManual":  false,
+    "transmisionProductivaExitosa":  false,
+    "fuente":  "ContrapartidaDispatchBatches.RequestPayloadXml generado por el sistema; envelope agregado con formato del cliente WscfaachSoapClient en modo evidencia dry-run.",
+    "observacion":  "No se realizó invocación manual. Tras DEF-UAT-022, el runtime UAT/local validó guardrail PROC_DRY_RUN sin SOAP request ni transmisión externa; endpoint UAT/mock real sigue pendiente."
+}

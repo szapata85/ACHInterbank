@@ -1,0 +1,19 @@
+﻿{
+    "fecha":  "2026-05-19T11:46:06.9910771-05:00",
+    "camara":  "ACH Colombia",
+    "transactionId":  3,
+    "referenciaUat":  "UAT-ACHCOL-NACHA-SOAP-001",
+    "achCycleId":  "2ada513804193e8aa8771252660182fdc7a55862",
+    "archivo":  "proc_contrapartidas_envelope_sanitizado.xml",
+    "hashSha256":  "03C81BE5F2CD5C95491950FB0C9B64322E78268F9A1097A21B0B6D6A9A591881",
+    "xmlBienFormado":  true,
+    "operacion":  "Proc_Contrapartidas",
+    "credencialesSanitizadas":  true,
+    "contienePassword":  false,
+    "contieneToken":  false,
+    "contieneCertificadoPrivado":  false,
+    "endpointSoapInvocadoManual":  false,
+    "transmisionProductivaExitosa":  false,
+    "fuente":  "ContrapartidaDispatchBatches.RequestPayloadXml generado por el sistema; envelope agregado con formato del cliente WscfaachSoapClient en modo evidencia dry-run.",
+    "observacion":  "No se realizó invocación manual. Tras DEF-UAT-022, el runtime UAT/local validó guardrail PROC_DRY_RUN sin SOAP request ni transmisión externa; endpoint UAT/mock real sigue pendiente."
+}

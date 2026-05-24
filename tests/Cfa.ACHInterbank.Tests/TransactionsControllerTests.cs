@@ -1,6 +1,8 @@
 using Cfa.ACHInterbank.Api.Controllers;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.Integrations.Interfaces;
+using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -197,5 +199,56 @@ public class TransactionsControllerTests
             It.IsAny<bool>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
             It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(),
             It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<List<AddendaDto>?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetTransactionIntegrationReadiness_ShouldReturnExpectedOperation()
+    {
+        var txService = new Mock<IAchTransactionService>();
+        var policy = new Mock<ITransactionPolicyService>();
+        var bulk = new Mock<IAchBulkTransactionService>();
+        var ingestion = new Mock<IAchBulkIngestionService>();
+        var logger = new Mock<ILogger<TransactionsController>>();
+        var readiness = new Mock<ITransactionIntegrationReadinessService>();
+        readiness.Setup(x => x.GetTransactionReadinessAsync(254, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TransactionIntegrationReadinessResult(
+                254,
+                "UAT-ACH-DEB-MATURED-001",
+                IntegrationGuaranteeConstants.Wscfaach,
+                IntegrationGuaranteeConstants.ProcContrapartidas,
+                IntegrationGuaranteeConstants.MonetaryDebitRequest,
+                IntegrationGuaranteeConstants.OutboundRequest,
+                "Debito monetario",
+                "CFA originadora",
+                true,
+                "Debito monetario originado por CFA.",
+                true,
+                new IntegrationMappingReadinessResult(
+                    true,
+                    "Ok",
+                    "OK",
+                    IntegrationGuaranteeConstants.Wscfaach,
+                    IntegrationGuaranteeConstants.ProcContrapartidas,
+                    IntegrationGuaranteeConstants.MonetaryDebitRequest,
+                    IntegrationGuaranteeConstants.OutboundRequest,
+                    10,
+                    10,
+                    [],
+                    [],
+                    [],
+                    [],
+                    false,
+                    true,
+                    [],
+                    [])));
+
+        var controller = new TransactionsController(txService.Object, policy.Object, bulk.Object, ingestion.Object, logger.Object, readiness.Object);
+
+        var response = await controller.GetIntegrationReadiness(254, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(response);
+        var payload = Assert.IsType<TransactionIntegrationReadinessResult>(ok.Value);
+        Assert.Equal(IntegrationGuaranteeConstants.ProcContrapartidas, payload.OperationKey);
+        Assert.True(payload.Readiness.IsReady);
     }
 }

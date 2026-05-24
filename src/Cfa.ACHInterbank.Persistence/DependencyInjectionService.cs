@@ -31,10 +31,13 @@ public static class DependencyInjectionService
     {
         services.Configure<TransactionPolicyOptions>(configuration.GetSection("TransactionPolicies"));
         services.Configure<NachaGenerationOptions>(configuration.GetSection(NachaGenerationOptions.SectionName));
+        services.Configure<NachaInboundSimulatorOptions>(configuration.GetSection(NachaInboundSimulatorOptions.SectionName));
         services.Configure<CertificateSecretResolverOptions>(configuration.GetSection("DigitalEnvelope:CertificateSecretResolver"));
         services.Configure<OpenBaoOptions>(configuration.GetSection(OpenBaoOptions.SectionName));
         services.Configure<IncomingNachaDispatchResilienceOptions>(configuration.GetSection(IncomingNachaDispatchResilienceOptions.SectionName));
         services.Configure<OperationArtifactOptions>(configuration.GetSection(OperationArtifactOptions.SectionName));
+        services.Configure<ProcContrapartidasDispatchOptions>(configuration.GetSection(ProcContrapartidasDispatchOptions.SectionName));
+        services.Configure<ProcTransaccionesDispatchOptions>(configuration.GetSection(ProcTransaccionesDispatchOptions.SectionName));
         services.AddHttpClient();
         //services.AddDbContext<DataBaseService>(options => options.UseAseClient(configuration.GetConnectionString("SybaseConnection")));
 

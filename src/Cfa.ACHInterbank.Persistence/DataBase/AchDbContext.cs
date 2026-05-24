@@ -111,6 +111,10 @@ public class AchDbContext : DbContext
     public DbSet<AchReturnPolicy> AchReturnPolicies => Set<AchReturnPolicy>();
     public DbSet<AchReturnOfReturnPolicy> AchReturnOfReturnPolicies => Set<AchReturnOfReturnPolicy>();
     public DbSet<AchPrenotificationPolicy> AchPrenotificationPolicies => Set<AchPrenotificationPolicy>();
+    public DbSet<ClearingHouseTransactionRule> ClearingHouseTransactionRules => Set<ClearingHouseTransactionRule>();
+    public DbSet<NachaFileNamingRule> NachaFileNamingRules => Set<NachaFileNamingRule>();
+    public DbSet<NachaInboundSimulation> NachaInboundSimulations => Set<NachaInboundSimulation>();
+    public DbSet<NachaInboundSimulationEntry> NachaInboundSimulationEntries => Set<NachaInboundSimulationEntry>();
     public DbSet<AchResponseStatusMapping> AchResponseStatusMappings => Set<AchResponseStatusMapping>();
     public DbSet<AchResponse> AchResponses => Set<AchResponse>();
     public DbSet<AchResponseNotificationAttempt> AchResponseNotificationAttempts => Set<AchResponseNotificationAttempt>();
@@ -167,6 +171,8 @@ public class AchDbContext : DbContext
     public DbSet<IntegrationMappingSet> IntegrationMappingSets => Set<IntegrationMappingSet>();
     public DbSet<IntegrationMappingRule> IntegrationMappingRules => Set<IntegrationMappingRule>();
     public DbSet<IntegrationMappingSetHistory> IntegrationMappingSetHistory => Set<IntegrationMappingSetHistory>();
+    public DbSet<IntegrationMappingTrace> IntegrationMappingTraces => Set<IntegrationMappingTrace>();
+    public DbSet<IntegrationMappingTraceEntry> IntegrationMappingTraceEntries => Set<IntegrationMappingTraceEntry>();
 
 
 

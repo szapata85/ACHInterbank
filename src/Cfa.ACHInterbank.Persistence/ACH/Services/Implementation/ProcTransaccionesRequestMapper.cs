@@ -59,7 +59,9 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             throw new InvalidOperationException($"El mapping set {mappingSet.Id} publicado no tiene reglas habilitadas.");
         }
 
+        var nachaSource = await LoadNachaSourceContextAsync(classification, ingestion, ct);
         var resolved = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var sourceValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var parameter in parameters)
         {
             var rule = rules.FirstOrDefault(x => x.ParameterId == parameter.Id);
@@ -68,13 +70,17 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
                 continue;
             }
 
-            var value = ResolveValue(rule, queueItem, ingestion, classification, transaction, cycle, executionDateTime);
+            var value = ResolveValue(rule, queueItem, ingestion, classification, transaction, cycle, executionDateTime, nachaSource);
             if (string.IsNullOrWhiteSpace(value) && parameter.Required)
             {
                 throw new InvalidOperationException($"El parámetro requerido {parameter.ParameterPath} no pudo resolverse.");
             }
 
             resolved[parameter.ParameterPath] = value ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(rule.SourceFieldPath))
+            {
+                sourceValues[rule.SourceFieldPath] = value ?? string.Empty;
+            }
         }
 
         var requiredKeys = new[] { "TREG", "TIPTRAN", "MONTO", "IDTRAN", "IDCAMCOMPE" };
@@ -94,7 +100,7 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             .FirstOrDefaultAsync(ct) ?? string.Empty;
 
         return new ProcTransaccionesRequestResolution(
-            Contract: new ProcTransaccionesRequestContract(resolved),
+            Contract: new ProcTransaccionesRequestContract(resolved, sourceValues),
             MappingSetId: mappingSet.Id,
             MappingVersion: mappingSet.Version,
             MappingSnapshotHash: snapshotHash);
@@ -119,7 +125,8 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
         IncomingNachaEntryClassification classification,
         AchTransaction transaction,
         AchCycle cycle,
-        DateTime executionDateTime)
+        DateTime executionDateTime,
+        NachaSourceContext nachaSource)
     {
         if (!string.IsNullOrWhiteSpace(rule.FixedValue))
         {
@@ -152,7 +159,94 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             "queue.idempotencykey" => queue.IdempotencyDispatchKey,
             "execution.datetimeutc" => executionDateTime.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
             "execution.dateyyyymmdd" => executionDateTime.ToString("yyyyMMdd", CultureInfo.InvariantCulture),
+            "nachaheaders.nachaid" => nachaSource.Header?.NachaID,
+            "nachaheaders.immediateorigin" => nachaSource.Header?.ImmediateOrigin,
+            "nachaheaders.immediatedestination" => nachaSource.Header?.ImmediateDestination,
+            "nachaheaders.fileidmodifier" => nachaSource.Header?.FileIdModifier,
+            "nachaheaders.referencecode" => nachaSource.Header?.ReferenceCode,
+            "batchheaders.companyid" => nachaSource.BatchHeader?.CompanyId,
+            "batchheaders.companyname" => nachaSource.BatchHeader?.CompanyName,
+            "batchheaders.standardentryclasscode" => nachaSource.BatchHeader?.StandardEntryClassCode,
+            "batchheaders.companyentrydescription" => nachaSource.BatchHeader?.CompanyEntryDescription,
+            "batchheaders.effectiveentrydate" => nachaSource.BatchHeader?.EffectiveEntryDate,
+            "batchheaders.originparticipantentitycode" => nachaSource.BatchHeader?.OriginParticipantEntityCode,
+            "batchheaders.batchnumber" => nachaSource.BatchHeader?.BatchNumber.ToString(CultureInfo.InvariantCulture),
+            "entrydetails.transactioncode" => nachaSource.EntryDetail?.TransactionCode,
+            "entrydetails.receivingparticipantentitycode" => nachaSource.EntryDetail?.ReceivingParticipantEntityCode,
+            "entrydetails.accountnumber" => nachaSource.EntryDetail?.AccountNumber,
+            "entrydetails.amount" => nachaSource.EntryDetail?.Amount?.ToString(CultureInfo.InvariantCulture),
+            "entrydetails.recipidnumber" => nachaSource.EntryDetail?.RecipIdNumber,
+            "entrydetails.recipusername" => nachaSource.EntryDetail?.RecipUserName,
+            "entrydetails.sequencenumber" => nachaSource.EntryDetail?.SequenceNumber,
+            "addendarecords.infofromoriginator" => nachaSource.AddendaRecord?.InfofromOriginator,
+            "addendarecords.invoiceoraccountnumber" => nachaSource.AddendaRecord?.InvoiceOrAccountNumber,
+            "addendarecords.returnreasoncode" => nachaSource.AddendaRecord?.ReturnReasonCode,
+            "addendarecords.originaltracenumber" => nachaSource.AddendaRecord?.OriginalTraceNumber,
+            "batchcontrols.entryaddendacount" => nachaSource.BatchControl?.EntryAddendaCount?.ToString(CultureInfo.InvariantCulture),
+            "batchcontrols.entryhash" => nachaSource.BatchControl?.EntryHash?.ToString(CultureInfo.InvariantCulture),
+            "batchcontrols.totaldebitamount" => nachaSource.BatchControl?.TotalDebitAmount.ToString(CultureInfo.InvariantCulture),
+            "batchcontrols.totalcreditamount" => nachaSource.BatchControl?.TotalCreditAmount.ToString(CultureInfo.InvariantCulture),
+            "filecontrols.batchcount" => nachaSource.FileControl?.BatchCount.ToString(CultureInfo.InvariantCulture),
+            "filecontrols.blockcount" => nachaSource.FileControl?.BlockCount.ToString(CultureInfo.InvariantCulture),
+            "filecontrols.entryaddendacount" => nachaSource.FileControl?.EntryAddendaCount.ToString(CultureInfo.InvariantCulture),
+            "filecontrols.entryhash" => nachaSource.FileControl?.EntryHash.ToString(CultureInfo.InvariantCulture),
+            "filecontrols.totaldebitamount" => nachaSource.FileControl?.TotalDebitAmount.ToString(CultureInfo.InvariantCulture),
+            "filecontrols.totalcreditamount" => nachaSource.FileControl?.TotalCreditAmount.ToString(CultureInfo.InvariantCulture),
             _ => rule.DefaultValue
         };
     }
+
+    private async Task<NachaSourceContext> LoadNachaSourceContextAsync(
+        IncomingNachaEntryClassification classification,
+        IncomingNachaFileIngestion ingestion,
+        CancellationToken ct)
+    {
+        var entryDetail = await _context.EntryDetails
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.EntryDetailID == classification.EntryDetailId, ct);
+
+        var nachaId = entryDetail?.NachaID;
+        var header = !string.IsNullOrWhiteSpace(nachaId)
+            ? await _context.NachaHeaders.AsNoTracking().FirstOrDefaultAsync(x => x.NachaID == nachaId, ct)
+            : await _context.NachaHeaders.AsNoTracking().FirstOrDefaultAsync(x => x.IncomingNachaFileIngestionId == ingestion.Id, ct);
+
+        nachaId ??= header?.NachaID;
+
+        var batchHeader = string.IsNullOrWhiteSpace(nachaId)
+            ? null
+            : await _context.BatchHeaders.AsNoTracking().OrderBy(x => x.BatchID).FirstOrDefaultAsync(x => x.NachaID == nachaId, ct);
+
+        var addendaRecord = classification.AddendaRecordId.HasValue
+            ? await _context.AddendaRecords.AsNoTracking().FirstOrDefaultAsync(x => x.AddendaID == classification.AddendaRecordId.Value, ct)
+            : null;
+
+        if (addendaRecord is null && !string.IsNullOrWhiteSpace(nachaId))
+        {
+            addendaRecord = await _context.AddendaRecords
+                .AsNoTracking()
+                .OrderBy(x => x.AddendaID)
+                .FirstOrDefaultAsync(x => x.NachaID == nachaId
+                    && (entryDetail == null
+                        || x.EntryDetailSequenceNumber == entryDetail.SequenceNumber
+                        || x.OriginalTraceNumber == entryDetail.SequenceNumber), ct);
+        }
+
+        var batchControl = string.IsNullOrWhiteSpace(nachaId)
+            ? null
+            : await _context.BatchControls.AsNoTracking().OrderBy(x => x.BatchControlID).FirstOrDefaultAsync(x => x.NachaID == nachaId, ct);
+
+        var fileControl = string.IsNullOrWhiteSpace(nachaId)
+            ? null
+            : await _context.FileControls.AsNoTracking().OrderBy(x => x.FileControlID).FirstOrDefaultAsync(x => x.NachaID == nachaId, ct);
+
+        return new NachaSourceContext(header, batchHeader, entryDetail, addendaRecord, batchControl, fileControl);
+    }
+
+    private sealed record NachaSourceContext(
+        NachaHeader? Header,
+        BatchHeader? BatchHeader,
+        EntryDetail? EntryDetail,
+        AddendaRecord? AddendaRecord,
+        BatchControl? BatchControl,
+        FileControl? FileControl);
 }

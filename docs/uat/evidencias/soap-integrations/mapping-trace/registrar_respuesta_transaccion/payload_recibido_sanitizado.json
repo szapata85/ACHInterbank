@@ -1,0 +1,13 @@
+{
+  "date": "2026-05-21",
+  "operationKey": "RegistrarRespuestaTransaccion",
+  "payloadType": "RegistrarRespuestaAchCommand",
+  "sanitized": true,
+  "fields": {
+    "idTransaccion": "TX-TRACE-001",
+    "idEstado": "2",
+    "causal": "00",
+    "idTransaccionServicioExterno": "2001",
+    "descripcionCausal": "Aprobada"
+  }
+}

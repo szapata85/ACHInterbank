@@ -146,7 +146,7 @@ Reportar/confirmar contrapartidas por ciclo ACH hacia servicio externo, con cont
 1. `AchContrapartidasByCycleHandler.ExecuteAsync(...)` detecta ciclos activos en ventana.
 2. Por ciclo llama `ContrapartidaDispatchJobService.ProcessCycleAsync(...)`.
 3. El service reclama items elegibles (`Pending/QueuedForContrapartida/RetryPending`).
-4. `ProcContrapartidasRequestMapper.ResolveAsync(...)` produce contrato (mapping publicado o fallback transicional).
+4. `ProcContrapartidasRequestMapper.ResolveAsync(...)` produce contrato solo con mapping publicado activo; fallback transicional requerido queda bloqueado antes de XML/DryRun/dispatch.
 5. `IWscfaachSoapClient.ProcContrapartidasAsync(...)` envía SOAP.
 6. `ProcContrapartidasResponseParser` interpreta respuesta global y por transacción.
 7. Registra `ContrapartidaDispatchAttempt` por item y actualiza estado final.

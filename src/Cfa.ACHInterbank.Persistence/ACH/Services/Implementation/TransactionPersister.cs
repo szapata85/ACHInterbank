@@ -31,7 +31,10 @@ public class TransactionPersister : ITransactionPersister
             ? TransactionTypeEnum.Prenotification
             : request.Type;
 
-        var transactionCode = _validator.ResolveTransactionCode(effectiveType, request.AccountType, request.IsPrenotification || effectiveType == TransactionTypeEnum.Prenotification);
+        var codeType = effectiveType == TransactionTypeEnum.Prenotification && request.Type != TransactionTypeEnum.Prenotification
+            ? request.Type
+            : effectiveType;
+        var transactionCode = _validator.ResolveTransactionCode(codeType, request.AccountType, request.IsPrenotification || effectiveType == TransactionTypeEnum.Prenotification);
 
         string traceOriginatingDfi = context.OriginatingDfi.Length >= 8
             ? context.OriginatingDfi[..8]

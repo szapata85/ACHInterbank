@@ -46,7 +46,7 @@ Roles observados tras cierre DEF-UAT-015: `Admin`, `ACH.Operator`. Diagnostico/c
 | Documento | `999999999` |
 | Cuenta origen | `0000000001` |
 | Cuenta destino | `0000000002` |
-| Banco origen | `Banco UAT Origen` |
+| Banco origen | `Cooperativa Financiera de Antioquia` / CFA default source |
 | Banco destino | `Banco UAT Destino` |
 | Monto | `1000` |
 | Referencia | `UAT-SINT-001` |
@@ -123,7 +123,7 @@ Resultado:
 | ID transaccion | `1`. |
 | Estado inicial | `Pending` (`1`). |
 | Ciclo usado | `bd379e941269bb868bc2fb391b2fcc9d0feac357`, `Ciclo 1`. |
-| Banco origen sintetico | `92`, `Banco UAT Origen`. |
+| Banco origen default | `34`, `Cooperativa Financiera de Antioquia` (`IsDefaultSource=true`). |
 | Banco destino sintetico | `93`, `Banco UAT Destino`. |
 | Trace | Presente, formato sintetico `999990010000001`. |
 | Timestamps | `CreatedAt` y `StateChangedAtUtc` presentes en DB. |
@@ -178,7 +178,7 @@ Se reconstruyo y reinicio solo `achinterbank-api` para asegurar que el runtime D
 | HTTP creacion | `POST http://localhost:743/transactions` -> 201 JSON |
 | TransactionId | `2` |
 | Estado inicial | `Pending` (`1`) |
-| Banco origen sintetico | `92`, `Banco UAT Origen`; usado como default temporal y restaurado al finalizar |
+| Banco origen default | `34`, `Cooperativa Financiera de Antioquia`; `Banco UAT Origen` ID 92 queda activo pero no default |
 | Banco destino sintetico | `93`, `Banco UAT Destino` |
 | Evento inicial DB | 1 evento en `AchTransactionStateEvents` |
 | FromState / ToState | `Pending` -> `Pending` |
@@ -263,3 +263,37 @@ No se generaron devoluciones reales, archivos reales ni conexiones externas.
 UAT tecnico autenticado basico: **OK con observaciones**.  
 UAT funcional sintetico: **PARCIALMENTE OK** por API directa, reintento HTTP desde SPA Docker, cierre funcional de DEF-UAT-017 y cierre documental de DEF-UAT-018; siguen pendientes evidencia visual/acta formal y UAT bancario.
 Productivo: **NO-GO**.
+
+## UAT Integrado NACHA-M / SOAP 2026-05-19
+
+Se extendio el UAT funcional sintetico con dos transacciones de salida por camara:
+
+| Camara | Referencia | TransactionId | Resultado |
+|---|---|---:|---|
+| ACH Colombia | `UAT-ACHCOL-NACHA-SOAP-001` | 3 | Creada y persistida con datos sinteticos |
+| CENIT | `UAT-CENIT-NACHA-SOAP-001` | 4 | Creada y persistida con datos sinteticos |
+
+La generacion NACHA-M real UAT quedo bloqueada. El primer intento evidencio fallback `index.html` en `/NachaExport`, corregido por Nginx. Los intentos posteriores inicialmente respondieron 0 bytes; DEF-UAT-021 corrigio el falso exito y ahora `/NachaExport` devuelve 422 JSON controlado por prenotificacion previa ausente. No se aplico bypass, backdating ni cambio de reglas ACH/NACHA-M/CENIT/ROR.
+
+Se genero evidencia SOAP `Proc_Contrapartidas` en modo dry-run documental usando payloads generados por el sistema y envelopes sanitizados. No se hizo invocacion manual SOAP. DEF-UAT-022 agrego guardrail `DryRun` por defecto y se valido runtime con `PROC_DRY_RUN` sin transmision externa. Endpoint UAT/mock real sigue pendiente de homologacion.
+
+Documentos:
+
+- `docs/uat/UAT_NACHA_M_CAMPO_A_CAMPO.md`
+- `docs/uat/EVIDENCIAS_NACHA_M_UAT.md`
+- `docs/uat/UAT_SOAP_PROC_CONTRAPARTIDAS.md`
+- `docs/uat/EVIDENCIAS_SOAP_PROC_CONTRAPARTIDAS.md`
+
+Estado: UAT integrado NACHA/SOAP **PARCIAL/BLOQUEADO**. Productivo **NO-GO**.
+
+## Actualizacion 2026-05-19 - Reglas de prenotificacion por camara
+
+Se implemento parametrizacion backend/frontend para preparar el reintento controlado de NACHA-M:
+
+- `ClearingHouseTransactionRule` como entidad EF Code First.
+- Seeds ACH Colombia/CENIT por naturaleza `Debit`/`Credit`.
+- API protegida `/api/clearing-house-transaction-rules`.
+- Preview protegido `/api/transaction-prerequisite-policy/preview`.
+- Pantalla SPA `/transactions/clearing-house-rules`.
+
+El UAT funcional sintetico sigue **PARCIALMENTE OK**. El siguiente cierre requiere aplicar migracion en runtime, crear prenotificaciones UAT validas y generar NACHA-M no vacio por camara.

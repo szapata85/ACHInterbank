@@ -1,0 +1,14 @@
+{
+  "fromState": "Pending",
+  "toState": "Certified",
+  "source": "System",
+  "reasonCode": "00",
+  "payload": {
+    "operationKey": "RegistrarRespuestaTransaccion",
+    "mappingPurpose": "DifferentialResponseNotification",
+    "monetaryMovementCreated": false,
+    "balancesAffected": false,
+    "nachaHeaderId": "NACHA-PRENOTE",
+    "entryDetailSequenceNumber": "000128300012345"
+  }
+}

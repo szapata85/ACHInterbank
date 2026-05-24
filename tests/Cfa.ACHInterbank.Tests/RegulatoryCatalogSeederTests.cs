@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.Data.Sqlite;
@@ -19,6 +20,16 @@ public class RegulatoryCatalogSeederTests
         Assert.True(await context.AchReturnCodes.AnyAsync(x => x.Code == "DEV14" && x.IsActive));
         Assert.True(await context.AchReturnPolicies.AnyAsync(x => x.TransactionType == "Debit" && x.IsActive));
         Assert.True(await context.AchPrenotificationPolicies.AnyAsync(x => x.TransactionType == "Debit" && x.IsRequired));
+        Assert.True(await context.ClearingHouseTransactionRules.AnyAsync(x =>
+            x.TransactionNature == TransactionNature.Debit
+            && x.RequiresPrenotification
+            && x.PrenotificationMode == PrenotificationRequirementMode.Mandatory
+            && x.NormativeSource.Contains("MAN-004")));
+        Assert.True(await context.ClearingHouseTransactionRules.AnyAsync(x =>
+            x.TransactionNature == TransactionNature.Credit
+            && !x.RequiresPrenotification
+            && x.PrenotificationMode == PrenotificationRequirementMode.Optional
+            && x.NormativeSource.Contains("CENIT")));
         Assert.True(await context.AchFileRejectionCodes.AnyAsync(x => x.Code == "ITIMEOUT" && x.IsRetryable));
         Assert.True(await context.AchFileRejectionCodes.AnyAsync(x => x.Code == "IFUNC" && !x.IsRetryable));
     }

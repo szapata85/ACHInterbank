@@ -1,10 +1,10 @@
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { Router } from '@angular/router';
 import { ReactiveFormsModule } from '@angular/forms';
-import { Subject, forkJoin, of } from 'rxjs';
+import { Observable, Subject, forkJoin, of, throwError } from 'rxjs';
 import { catchError, distinctUntilChanged, finalize, map, switchMap, takeUntil, timeout } from 'rxjs/operators';
 import {
   IntegrationMappingAdminService,
@@ -34,6 +34,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroy$ = new Subject<void>();
 
   mappingSetId = '';
@@ -52,6 +53,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   mappingSet?: IntegrationMappingSet;
   parameters: IntegrationMethodParameter[] = [];
   sourceCatalog: IntegrationSourceCatalogField[] = [];
+  sourceKindOptions: Array<{ value: string; label: string }> = [{ value: 'Constant', label: 'Valor fijo' }];
   transformations: IntegrationTransformationCatalog[] = [];
 
   selectedParameterId?: number;
@@ -102,6 +104,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
         this.methodCode = methodCode;
 
         if (!this.mappingSetId || !this.methodCode) {
+          this.loading = false;
           this.viewState = 'error';
           this.errorMessage = 'No se recibieron los datos requeridos para abrir el editor.';
           return;
@@ -166,7 +169,12 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   }
 
   loadAll(): void {
-    if (!this.mappingSetId) return;
+    if (!this.mappingSetId || !this.methodCode) {
+      this.loading = false;
+      this.viewState = 'error';
+      this.errorMessage = 'No se recibieron los datos requeridos para abrir el editor.';
+      return;
+    }
 
     console.debug('[mapping-editor] loadAll:start', { mappingSetId: this.mappingSetId, methodCode: this.methodCode });
     this.loading = true;
@@ -174,16 +182,34 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
     this.errorMessage = '';
     this.previewResult = undefined;
     this.validationResult = undefined;
+    this.cdr.detectChanges();
 
     this.api
       .getMappingSetById(this.mappingSetId)
       .pipe(
         timeout(15000),
-        switchMap((set) =>
-          forkJoin({
-            parameters: this.api.getMethodParameters(set.methodId).pipe(timeout(15000)),
-            sourceCatalog: this.api.getSourceCatalog(set.methodId).pipe(timeout(15000)),
-            transformations: this.api.getTransformations().pipe(timeout(15000)),
+        catchError((error) => this.failEditorLoad<IntegrationMappingSet>('No existe o no se pudo cargar el mapping set solicitado.', error)),
+        switchMap((set) => {
+          const routeMethodCode = decodeURIComponent(this.methodCode).trim();
+          if (routeMethodCode && set.methodCode !== routeMethodCode) {
+            return this.failEditorLoad(
+              `El mapping set cargado pertenece a ${set.methodCode}, pero la ruta solicita ${routeMethodCode}.`
+            );
+          }
+
+          return forkJoin({
+            parameters: this.api.getMethodParameters(set.methodId).pipe(
+              timeout(15000),
+              catchError((error) => this.failEditorLoad('No fue posible cargar los campos destino SOAP/XML.', error))
+            ),
+            sourceCatalog: this.api.getSourceCatalog(set.methodId).pipe(
+              timeout(15000),
+              catchError((error) => this.failEditorLoad('No fue posible cargar el catálogo controlado de campos origen.', error))
+            ),
+            transformations: this.api.getTransformations().pipe(
+              timeout(15000),
+              catchError((error) => this.failEditorLoad('No fue posible cargar el catálogo de transformaciones.', error))
+            ),
             historyItems: this.api.getHistory(set.id).pipe(
               timeout(10000),
               catchError((historyError) => {
@@ -191,10 +217,10 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
                 return of([] as MappingSetHistoryItem[]);
               })
             )
-          }).pipe(map((catalogs) => ({ set, ...catalogs })))
-        ),
-        finalize(() => (this.loading = false)),
-        takeUntil(this.destroy$)
+          }).pipe(map((catalogs) => ({ set, ...catalogs })));
+        }),
+        takeUntil(this.destroy$),
+        finalize(() => (this.loading = false))
       )
       .subscribe({
         next: ({ set, parameters, sourceCatalog, transformations, historyItems }) => {
@@ -205,27 +231,25 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
             transformations: transformations?.length ?? 0,
             historyItems: historyItems?.length ?? 0
           });
-          this.mappingSet = set;
-          this.parameters = parameters ?? [];
-          this.sourceCatalog = sourceCatalog ?? [];
-          this.transformations = transformations ?? [];
-          this.historyItems = historyItems ?? [];
+          try {
+            this.mappingSet = set;
+            this.parameters = parameters ?? [];
+            this.sourceCatalog = sourceCatalog ?? [];
+            this.refreshSourceKindOptions();
+            this.transformations = transformations ?? [];
+            this.historyItems = historyItems ?? [];
 
-          const parameterStillExists = this.parameters.some((x) => x.id === this.selectedParameterId);
-          this.selectedParameterId = parameterStillExists ? this.selectedParameterId : this.parameters[0]?.id;
-          this.populateFormFromSelectedRule();
-          this.viewState = 'ready';
+            const parameterStillExists = this.parameters.some((x) => x.id === this.selectedParameterId);
+            this.selectedParameterId = parameterStillExists ? this.selectedParameterId : this.parameters[0]?.id;
+            this.populateFormFromSelectedRule();
+            this.viewState = 'ready';
+            this.cdr.detectChanges();
+          } catch (renderError) {
+            this.handleEditorLoadFailure(renderError);
+          }
         },
-        error: () => {
-          console.error('[mapping-editor] loadAll:error', { mappingSetId: this.mappingSetId, methodCode: this.methodCode });
-          this.mappingSet = undefined;
-          this.parameters = [];
-          this.sourceCatalog = [];
-          this.transformations = [];
-          this.historyItems = [];
-          this.viewState = 'error';
-          this.errorMessage = 'No fue posible cargar el editor de configuración. Intenta nuevamente.';
-          this.notifications.error(this.errorMessage);
+        error: (error) => {
+          this.handleEditorLoadFailure(error);
         }
       });
   }
@@ -271,6 +295,13 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
     });
   }
 
+  onSourceCatalogFieldChange(fieldId: number | null): void {
+    const field = this.sourceCatalog.find((item) => item.id === fieldId);
+    this.ruleForm.patchValue({
+      sourceFieldPath: field?.fieldPath ?? ''
+    });
+  }
+
   saveRule(): void {
     if (!this.mappingSet || !this.selectedParameterId || this.savingRule) return;
 
@@ -280,7 +311,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
       parameterId: this.selectedParameterId,
       sourceKind: this.ruleForm.value.sourceKind,
       sourceCatalogFieldId: this.ruleForm.value.sourceCatalogFieldId,
-      sourceFieldPath: this.ruleForm.value.sourceFieldPath,
+      sourceFieldPath: this.resolveControlledSourceFieldPath(),
       fixedValue: this.ruleForm.value.fixedValue,
       defaultValue: this.ruleForm.value.defaultValue,
       transformationCode: this.ruleForm.value.transformationCode,
@@ -462,6 +493,25 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
     return this.sourceCatalog.filter((x) => this.normalizeSourceKind(x.sourceKind as any) === normalizedKind);
   }
 
+  getSelectedSourceField(): IntegrationSourceCatalogField | undefined {
+    const fieldId = this.ruleForm.controls.sourceCatalogFieldId.value;
+    return this.sourceCatalog.find((field) => field.id === fieldId);
+  }
+
+  private resolveControlledSourceFieldPath(): string {
+    const kind = this.normalizeSourceKind(this.ruleForm.value.sourceKind);
+    if (kind === 'Constant') return '';
+    return this.getSelectedSourceField()?.fieldPath ?? '';
+  }
+
+  private refreshSourceKindOptions(): void {
+    const kinds = new Set(this.sourceCatalog.map((field) => this.normalizeSourceKind(field.sourceKind as any)).filter(Boolean));
+    kinds.add('Constant');
+    this.sourceKindOptions = Array.from(kinds)
+      .map((value) => ({ value, label: this.getSourceKindLabel(value) }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es'));
+  }
+
   getSourceKindLabel(kind: string | null | undefined): string {
     switch (this.normalizeSourceKind(kind)) {
       case 'Transaction': return 'Dato de transacción';
@@ -470,6 +520,15 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
       case 'ClearingHouse': return 'Dato de cámara';
       case 'Constant': return 'Valor fijo';
       case 'Addenda': return 'Dato complementario';
+      case 'NachaHeader': return 'NachaHeaders';
+      case 'BatchHeader': return 'BatchHeaders';
+      case 'EntryDetail': return 'EntryDetails';
+      case 'AddendaRecord': return 'AddendaRecords';
+      case 'BatchControl': return 'BatchControls';
+      case 'FileControl': return 'FileControls';
+      case 'FinancialInstitution': return 'FinancialInstitution';
+      case 'Prenotification': return 'Prenotification';
+      case 'DifferentialResponse': return 'DifferentialResponse';
       default: return 'No definido';
     }
   }
@@ -484,11 +543,20 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
       if (kind === 5) return 'ClearingHouse';
       if (kind === 6) return 'Constant';
       if (kind === 7) return 'Expression';
+      if (kind === 8) return 'NachaHeader';
+      if (kind === 9) return 'BatchHeader';
+      if (kind === 10) return 'EntryDetail';
+      if (kind === 11) return 'AddendaRecord';
+      if (kind === 12) return 'BatchControl';
+      if (kind === 13) return 'FileControl';
+      if (kind === 14) return 'Prenotification';
+      if (kind === 15) return 'DifferentialResponse';
       return String(kind);
     }
 
     const raw = String(kind).trim();
     if (!raw) return '';
+    if (/^\d+$/.test(raw)) return this.normalizeSourceKind(Number(raw));
     const lowered = raw.toLowerCase();
     if (lowered === 'transaction') return 'Transaction';
     if (lowered === 'addenda') return 'Addenda';
@@ -497,7 +565,82 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
     if (lowered === 'clearinghouse') return 'ClearingHouse';
     if (lowered === 'constant') return 'Constant';
     if (lowered === 'expression') return 'Expression';
+    if (lowered === 'nachaheader' || lowered === 'nachaheaders') return 'NachaHeader';
+    if (lowered === 'batchheader' || lowered === 'batchheaders') return 'BatchHeader';
+    if (lowered === 'entrydetail' || lowered === 'entrydetails') return 'EntryDetail';
+    if (lowered === 'addendarecord' || lowered === 'addendarecords') return 'AddendaRecord';
+    if (lowered === 'batchcontrol' || lowered === 'batchcontrols') return 'BatchControl';
+    if (lowered === 'filecontrol' || lowered === 'filecontrols') return 'FileControl';
+    if (lowered === 'financialinstitution') return 'FinancialInstitution';
+    if (lowered === 'prenotification') return 'Prenotification';
+    if (lowered === 'differentialresponse') return 'DifferentialResponse';
     return raw;
+  }
+
+  private failEditorLoad<T>(message: string, error?: unknown): Observable<T> {
+    return throwError(() => new Error(this.buildEditorLoadErrorMessage(message, error)));
+  }
+
+  private buildEditorLoadErrorMessage(message: string, error?: unknown): string {
+    const status = this.extractHttpStatus(error);
+
+    if (status === 401 || status === 403) {
+      return `${message} La sesión no tiene permisos suficientes o expiró.`;
+    }
+
+    if (status === 404) {
+      return `${message} Verifica que el identificador exista y que pertenezca a la operación solicitada.`;
+    }
+
+    if (status && status >= 500) {
+      return `${message} El API respondió con error ${status}.`;
+    }
+
+    if (this.isTimeoutError(error)) {
+      return `${message} Se agotó el tiempo de espera del API.`;
+    }
+
+    return message;
+  }
+
+  private getEditorLoadErrorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) {
+      return error.message;
+    }
+
+    return 'No fue posible cargar el editor de configuración. Intenta nuevamente.';
+  }
+
+  private handleEditorLoadFailure(error: unknown): void {
+    const message = this.getEditorLoadErrorMessage(error);
+    console.error('[mapping-editor] loadAll:error', {
+      mappingSetId: this.mappingSetId,
+      methodCode: this.methodCode,
+      message
+    });
+    this.loading = false;
+    this.mappingSet = undefined;
+    this.parameters = [];
+    this.sourceCatalog = [];
+    this.refreshSourceKindOptions();
+    this.transformations = [];
+    this.historyItems = [];
+    this.viewState = 'error';
+    this.errorMessage = message;
+    this.notifications.error(this.errorMessage);
+    this.cdr.detectChanges();
+  }
+
+  private extractHttpStatus(error: unknown): number | undefined {
+    if (!error || typeof error !== 'object') return undefined;
+    const candidate = error as { status?: unknown };
+    return typeof candidate.status === 'number' ? candidate.status : undefined;
+  }
+
+  private isTimeoutError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const candidate = error as { name?: unknown };
+    return candidate.name === 'TimeoutError';
   }
 
 
