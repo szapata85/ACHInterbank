@@ -172,3 +172,15 @@ Productivo permanece **NO-GO**.
 
 Productivo permanece **NO-GO** por homologacion externa y acta formal pendiente.
 - Productivo: **NO-GO**.
+
+## Actualizacion 2026-05-24 - Opcion C NACHA Config
+
+| Brecha | Estado | Impacto | Accion requerida |
+|---|---|---|---|
+| Generacion NACHA-M sigue legacy-first | Abierta | Bloquea adopcion oficial de perfiles por camara | Ejecutar Fase 6B para modo table-driven estricto |
+| Perfiles ACH/CENIT oficiales completos | Abierta | No se puede demostrar aislamiento normativo por camara | Crear perfiles publicados/vigentes por camara con registros 1/5/6/7/8/9 |
+| Errores controlados Opcion C | Abierta | Riesgo de fallback o fallo generico | Implementar taxonomia `NACHA_*` |
+| Trace campo-a-campo NACHA | Abierta | Evidencia UAT insuficiente FieldDefinition -> valor | Crear `NachaGenerationTrace` y entries |
+| Ambiguedad SPA legacy/oficial | Abierta | Riesgo operativo de administrar parametrizacion equivocada | Declarar `/nacha-config-admin/perfiles` oficial y deprecar legacy |
+
+La auditoria Fase 6A recomienda Opcion C, pero no habilita productivo. Productivo permanece **NO-GO**.

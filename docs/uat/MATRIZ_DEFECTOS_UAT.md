@@ -289,3 +289,17 @@ Productivo: **NO-GO**.
 Validacion: `npm run build` OK, `npm test -- --watch=false --browsers=ChromeHeadless` OK con 214 SUCCESS, `ux-audit-spa-critical-routes.mjs` OK, `ux-audit-spa-final-regression.mjs` OK y `ux-validate-reports-pdf.mjs` OK.
 
 Productivo: **NO-GO**.
+
+## Actualizacion 2026-05-24 - Fase 6A auditoria Opcion C NACHA-M
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-NACHA-OPTION-C-001 Dependencia funcional legacy en generacion NACHA-M | Abierto / Fase 6B | `docs/uat/evidencias/nacha-config-option-c-audit/legacy-dependency-map.md` | `NachaFileBuilder` sigue usando `NachaRecordDefinition`, `NachaRecordLayout` y `NachaRecordField`; modo default `LEGACY`. |
+| DEF-UAT-NACHA-OPTION-C-002 Perfil CENIT publicado completo no evidenciado | Abierto / Fase 6B | `docs/uat/evidencias/nacha-config-option-c-audit/clearing-house-separation-assessment.md` | `CatClearingHouse` existe para CENIT, pero no se evidencio perfil publicado completo para registros 1/5/6/7/8/9. |
+| DEF-UAT-NACHA-OPTION-C-003 Errores controlados Opcion C insuficientes | Abierto / Fase 6B | `docs/uat/evidencias/nacha-config-option-c-audit/controlled-errors-gap-analysis.md` | Missing profile/layout/field puede quedar como warning/fallback o excepcion generica. |
+| DEF-UAT-NACHA-OPTION-C-004 Trazabilidad FieldDefinition -> valor generado no normalizada | Abierto / Fase 6B | `docs/uat/evidencias/nacha-config-option-c-audit/traceability-gap-analysis.md` | No existe `NachaGenerationTraceEntry` persistido por campo para todos los registros. |
+| DEF-UAT-NACHA-OPTION-C-005 Ambiguedad SPA entre legacy y modulo oficial | Abierto / Fase 6B | `docs/uat/evidencias/nacha-config-option-c-audit/spa-route-assessment.md` | Legacy `/layouts` y `/definitions` siguen operativas; modulo oficial candidato es `/nacha-config-admin/perfiles`. |
+
+Fase 6A fue solo auditoria documental y estatica. No se modifico codigo, no se cambiaron reglas NACHA-M, no se crearon migraciones y no se cambio la generacion.
+
+Productivo: **NO-GO**.

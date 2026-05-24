@@ -1,0 +1,28 @@
+{
+  "phase": "6A",
+  "date": "2026-05-24",
+  "optionCReadiness": "PARTIAL_NOT_READY_FOR_CUTOVER",
+  "overallScore": 43,
+  "dimensions": {
+    "officialProfileModelExists": { "score": 80, "status": "partial" },
+    "builderProfileConsumption": { "score": 45, "status": "partial" },
+    "legacyRemovalReadiness": { "score": 20, "status": "blocked" },
+    "clearingHouseSeparation": { "score": 35, "status": "blocked" },
+    "controlledErrors": { "score": 20, "status": "blocked" },
+    "traceability": { "score": 35, "status": "partial" },
+    "spaOfficialModel": { "score": 55, "status": "partial" },
+    "tests": { "score": 45, "status": "partial" }
+  },
+  "blockingGaps": [
+    "NachaGenerationOptions.Mode default LEGACY",
+    "NachaFileBuilder still loads NachaRecordDefinitions, NachaRecordLayouts and NachaRecordFields",
+    "No complete published CENIT profile evidenced",
+    "Missing profiles and layouts can resolve as fallback warnings",
+    "Fixed-width renderer can truncate values or leave missing fields without official NACHA error codes",
+    "No normalized NachaGenerationTraceEntry persisted for every generated field",
+    "Legacy SPA routes remain visible and operational as NACHA-M configuration"
+  ],
+  "recommendedDecision": "Execute Phase 6B before adopting Option C officially",
+  "productionDecision": "NO-GO"
+}
+

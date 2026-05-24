@@ -268,3 +268,16 @@ Decision productiva: **NO-GO**.
 | Productivo | NO-GO | Este checklist | Si | La correccion UAT frontend no cambia readiness productivo. |
 
 Decision productiva: **NO-GO**.
+
+## Actualizacion 2026-05-24 - Fase 6A Opcion C NACHA-M
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| Auditoria Opcion C ejecutada | OK documental | `docs/uat/evidencias/nacha-config-option-c-audit/executive-summary.md` | No por si solo | Auditoria sin cambios de codigo. |
+| `nacha-config profiles` listos como fuente oficial | Parcial / No listo | `docs/uat/evidencias/nacha-config-option-c-audit/option-c-readiness-score.json` | Si | Estado actual legacy-first; requiere Fase 6B. |
+| Separacion ACH Colombia/CENIT garantizada | Parcial / No listo | `docs/uat/evidencias/nacha-config-option-c-audit/clearing-house-separation-assessment.md` | Si | CENIT no tiene perfil completo evidenciado. |
+| Legacy layouts/definitions retirados del flujo oficial | No | `docs/uat/evidencias/nacha-config-option-c-audit/legacy-dependency-map.md` | Si | Builder sigue usando legacy. |
+| Trace FieldDefinition -> valor generado | Parcial | `docs/uat/evidencias/nacha-config-option-c-audit/traceability-gap-analysis.md` | Si | Falta trace normalizado por campo. |
+| Productivo | NO-GO | Este checklist | Si | No hay autorizacion de salida productiva. |
+
+Decision productiva: **NO-GO**.
