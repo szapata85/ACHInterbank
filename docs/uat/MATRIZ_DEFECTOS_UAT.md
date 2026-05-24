@@ -303,3 +303,15 @@ Productivo: **NO-GO**.
 Fase 6A fue solo auditoria documental y estatica. No se modifico codigo, no se cambiaron reglas NACHA-M, no se crearon migraciones y no se cambio la generacion.
 
 Productivo: **NO-GO**.
+
+## Actualizacion 2026-05-24 - Fase 6B.1 perfiles oficiales NACHA-M
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-NACHA-OPTION-C-002 Perfil CENIT publicado completo no evidenciado | Cerrado tecnico UAT para prerequisito 6B.1 | `docs/uat/evidencias/nacha-config-table-driven/phase-6b1-profiles/cenit_profile_summary.json` | Se crea `OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0`, publicado, vigente, con records 1/5/6/7/8/9. |
+| DEF-UAT-NACHA-OPTION-C-006 Perfil ACH Colombia oficial publicado completo | Cerrado tecnico UAT para prerequisito 6B.1 | `docs/uat/evidencias/nacha-config-table-driven/phase-6b1-profiles/ach_colombia_profile_summary.json` | Se crea `OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0`, publicado, vigente, con records 1/5/6/7/8/9. |
+| DEF-UAT-NACHA-OPTION-C-007 Independencia de perfiles ACH/CENIT | Cerrado tecnico UAT para prerequisito 6B.1 | `docs/uat/evidencias/nacha-config-table-driven/phase-6b1-profiles/profile_independence_report.md` | Perfiles, variants y fields son instancias separadas. |
+
+Brechas abiertas para Fase 6B.2: builder oficial table-driven, fail-fast, trace FieldDefinition -> valor generado, deprecacion legacy y SPA oficial.
+
+Productivo: **NO-GO**.

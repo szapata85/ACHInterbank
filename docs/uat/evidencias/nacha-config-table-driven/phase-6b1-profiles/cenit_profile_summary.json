@@ -1,0 +1,17 @@
+{
+  "profileCode": "OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0",
+  "name": "Perfil oficial CENIT salida original",
+  "clearingHouse": "CENIT",
+  "status": "PUBLICADO",
+  "effectiveFrom": "2026-01-01T00:00:00Z",
+  "effectiveTo": null,
+  "version": "1.0",
+  "contextPriority": 10,
+  "serviceClass": "ALL",
+  "normativeSource": "CENIT/DSP-152 placeholder UAT",
+  "records": ["1", "5", "6", "7", "8", "9"],
+  "totalLengthPerRecord": 106,
+  "generationChangedInThisPhase": false,
+  "productionDecision": "NO-GO"
+}
+

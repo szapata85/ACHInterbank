@@ -269,6 +269,18 @@ Decision productiva: **NO-GO**.
 
 Decision productiva: **NO-GO**.
 
+## Actualizacion 2026-05-24 - Fase 6B.1 perfiles oficiales NACHA-M
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| Perfil oficial ACH Colombia publicado/vigente | OK tecnico UAT | `docs/uat/evidencias/nacha-config-table-driven/phase-6b1-profiles/ach_colombia_profile_summary.json` | No por si solo | Prerequisito Opcion C cerrado para ACH. |
+| Perfil oficial CENIT publicado/vigente | OK tecnico UAT | `docs/uat/evidencias/nacha-config-table-driven/phase-6b1-profiles/cenit_profile_summary.json` | No por si solo | Prerequisito Opcion C cerrado para CENIT con fuente normativa placeholder UAT. |
+| Resolver ACH/CENIT | OK tecnico UAT | `docs/uat/evidencias/nacha-config-table-driven/phase-6b1-profiles/profile_resolution_report.md` | No por si solo | `NachaConfigResolver` resuelve ambos sin fallback. |
+| Generacion oficial table-driven | Pendiente Fase 6B.2 | Este checklist | Si | `NachaFileBuilder` no se cambio en 6B.1. |
+| Productivo | NO-GO | Este checklist | Si | No hay autorizacion productiva. |
+
+Decision productiva: **NO-GO**.
+
 ## Actualizacion 2026-05-24 - Fase 6A Opcion C NACHA-M
 
 | Criterio | Estado | Evidencia | Bloquea productivo | Observacion |

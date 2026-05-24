@@ -197,3 +197,16 @@ Siguiente paso: continuar UAT controlado y mantener Productivo **NO-GO** hasta c
 Base documental: `docs/uat/evidencias/nacha-config-option-c-audit/phase-6b-implementation-plan.md`.
 
 Productivo permanece **NO-GO**.
+
+## Actualizacion 2026-05-24 - Cierre Fase 6B.1
+
+| Accion | Estado | Entregable | Criterio de cierre |
+|---|---|---|---|
+| Crear perfil oficial ACH Colombia | Cerrado tecnico UAT | `OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0` | Publicado, vigente y con records 1/5/6/7/8/9 |
+| Crear perfil oficial CENIT | Cerrado tecnico UAT | `OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0` | Publicado, vigente y con records 1/5/6/7/8/9 |
+| Validar independencia ACH/CENIT | Cerrado tecnico UAT | Tests backend + reporte independencia | No comparten profile/variants/fields |
+| Validar resolucion por `NachaConfigResolver` | Cerrado tecnico UAT | Tests backend + reporte resolucion | ACH y CENIT resuelven sin fallback |
+| Cambiar builder a oficial table-driven | Pendiente Fase 6B.2 | Cambio backend futuro | No usar legacy en modo oficial |
+| Implementar fail-fast y trace FieldDefinition -> valor | Pendiente Fase 6B.2 | Cambio backend futuro | Error controlado y evidencia por campo |
+
+Productivo permanece **NO-GO**.
