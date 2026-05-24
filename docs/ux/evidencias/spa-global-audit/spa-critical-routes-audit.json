@@ -1,0 +1,1462 @@
+{
+  "generatedAt": "2026-05-24T01:40:05.835Z",
+  "baseUrl": "http://localhost:743",
+  "auditedRoutes": [
+    "/ach-cycles/nacha/export",
+    "/catalogs/financial-institutions",
+    "/catalogs/bank-holidays",
+    "/catalogs/document-types",
+    "/catalogs/person-types",
+    "/catalogs/phone-types",
+    "/catalogs/email-types",
+    "/catalogs/address-types",
+    "/catalogs/transaction-codes",
+    "/customer-third-parties",
+    "/ach-cycles/nacha/layouts",
+    "/ach-cycles/nacha/definitions",
+    "/reports",
+    "/reports/sent",
+    "/reports/received",
+    "/reports/returns",
+    "/reports/rejections",
+    "/reports/files",
+    "/reports/cycles",
+    "/reports/reconciliation",
+    "/reports/audit",
+    "/reports/history",
+    "/reports/traceability"
+  ],
+  "summary": {
+    "totalRoutes": 23,
+    "p0": 0,
+    "p1": 8,
+    "p2": 0,
+    "ok": 15
+  },
+  "runtime": {
+    "liveStatus": 200,
+    "readyStatus": 200,
+    "loginOk": true
+  },
+  "routes": [
+    {
+      "route": "/ach-cycles/nacha/export",
+      "finalUrl": "http://localhost:743/ach-cycles/nacha/export",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/ach_cycles_nacha_export.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        },
+        {
+          "method": "GET",
+          "url": "https://fonts.gstatic.com/s/materialsymbolsoutlined/v339/kJF1BvYX7BgnkSrUwT8OhrdQw4oELdPIeeII9v6oDMzByHX9rA6RzaxHMPdY43zj-jCxv3fzvRNU22ZXGJpEpjC_1v-p_4MrImHCIJIZrDCvHOej.woff2",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/ach-cycles/nacha/export",
+        "bodyTextLength": 3313,
+        "mainTextSample": "DESCARGA LOS ARCHIVOS PLANOS POR CICLO EJECUTADO\n\nExportar archivos NACHA-M\nVolver a ciclos\nTodas las cámaras\nACH Colombia\nCENIT\nDesde\nHasta\nFiltrar\nsearch\n1 a 10 de 11. Página 1 de 2\nCiclo\nCámara\nFecha efectiva\nTransacciones\nAcciones\nCiclo 5\nACH Colombia\n20/05/2026\n1\nGenerar archivo NACHA\nGenerar con sobre digital\nCiclo 4\nACH Colombia\n20/05/2026\n1\nGenerar archivo NACHA\nGenerar con sobre digital\nCiclo 4\nCENIT\n20/05/2026\n2\nGenerar archivo NACHA\nGenerar con sobre digital\nCiclo 5\nCENIT\n20/05/2026\n1",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [],
+        "buttonCount": 35,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1058,
+            "height": 320,
+            "cellCount": 20,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1054,
+            "height": 268,
+            "cellCount": 20,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": []
+    },
+    {
+      "route": "/catalogs/financial-institutions",
+      "finalUrl": "http://localhost:743/catalogs/financial-institutions",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/catalogs_financial_institutions.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/catalogs/financial-institutions",
+        "bodyTextLength": 3121,
+        "mainTextSample": "CATÁLOGOS\n\nInstituciones financieras\n\nAdministra las instituciones configuradas en ACH, incluyendo su estado y datos de enrutamiento.\n\nrefresh\nRecargar\nadd\nNueva institución\nsearch\n1 a 10 de 96. Página 1 de 10\nNombre\nRouting\nTransit\nDígito\nOrigen por defecto\nEstado\nAcciones\nBancolombia\n00001\n007\n4\nNo\nActiva\nEditarDesactivar\nBanco de Bogota\n00001\n001\n6\nNo\nActiva\nEditarDesactivar\nBanco Popular\n00001\n002\n9\nNo\nActiva\nEditarDesactivar\nBancafe - No Disponible\n00001\n005\n8\nNo\nInactiva\nEditarActivar\nBanc",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [],
+        "buttonCount": 36,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1008,
+            "height": 320,
+            "cellCount": 20,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1004,
+            "height": 268,
+            "cellCount": 20,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": []
+    },
+    {
+      "route": "/catalogs/bank-holidays",
+      "finalUrl": "http://localhost:743/catalogs/bank-holidays",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/catalogs_bank_holidays.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/catalogs/bank-holidays",
+        "bodyTextLength": 2414,
+        "mainTextSample": "CATÁLOGOS\n\nFestivos bancarios\n\nAdministra los días festivos que no deben ejecutarse ciclos.\n\nBuscar\nNuevo festivo\nAño\n\nSelecciona un año y presiona Buscar para ver los festivos.",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [],
+        "buttonCount": 16,
+        "agGridState": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": []
+    },
+    {
+      "route": "/catalogs/document-types",
+      "finalUrl": "http://localhost:743/catalogs/document-types",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/catalogs_document_types.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/catalogs/document-types",
+        "bodyTextLength": 2564,
+        "mainTextSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE DOCUMENTO.\n\nTipos de documento\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\ninbox\n\nSin resultados\n\nNo hay registros.\nPuedes ajustar los filtros o crear un nuevo registro.\n0 a 0 de 0. Página 0 de 0\nCódigo\nNombre\nDescripción\nAcciones\nPage Size:\n10\n0 a 0 de 0\nPágina 0 de 0",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [],
+        "buttonCount": 16,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1024,
+            "height": 320,
+            "cellCount": 5,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1020,
+            "height": 268,
+            "cellCount": 5,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": []
+    },
+    {
+      "route": "/catalogs/person-types",
+      "finalUrl": "http://localhost:743/catalogs/person-types",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/catalogs_person_types.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/catalogs/person-types",
+        "bodyTextLength": 2556,
+        "mainTextSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE PERSONA.\n\nTipos de persona\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\ninbox\n\nSin resultados\n\nNo hay registros.\nPuedes ajustar los filtros o crear un nuevo registro.\n0 a 0 de 0. Página 0 de 0\nCódigo\nNombre\nDescripción\nAcciones\nPage Size:\n10\n0 a 0 de 0\nPágina 0 de 0",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [],
+        "buttonCount": 16,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1024,
+            "height": 320,
+            "cellCount": 5,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1020,
+            "height": 268,
+            "cellCount": 5,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": []
+    },
+    {
+      "route": "/catalogs/phone-types",
+      "finalUrl": "http://localhost:743/catalogs/phone-types",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/catalogs_phone_types.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/catalogs/phone-types",
+        "bodyTextLength": 2560,
+        "mainTextSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE TELÉFONO.\n\nTipos de teléfono\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\ninbox\n\nSin resultados\n\nNo hay registros.\nPuedes ajustar los filtros o crear un nuevo registro.\n0 a 0 de 0. Página 0 de 0\nCódigo\nNombre\nDescripción\nAcciones\nPage Size:\n10\n0 a 0 de 0\nPágina 0 de 0",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [],
+        "buttonCount": 16,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1024,
+            "height": 320,
+            "cellCount": 5,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1020,
+            "height": 268,
+            "cellCount": 5,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": []
+    },
+    {
+      "route": "/catalogs/email-types",
+      "finalUrl": "http://localhost:743/catalogs/email-types",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/catalogs_email_types.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/catalogs/email-types",
+        "bodyTextLength": 2552,
+        "mainTextSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE CORREO.\n\nTipos de correo\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\ninbox\n\nSin resultados\n\nNo hay registros.\nPuedes ajustar los filtros o crear un nuevo registro.\n0 a 0 de 0. Página 0 de 0\nCódigo\nNombre\nDescripción\nAcciones\nPage Size:\n10\n0 a 0 de 0\nPágina 0 de 0",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [],
+        "buttonCount": 16,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1024,
+            "height": 320,
+            "cellCount": 5,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1020,
+            "height": 268,
+            "cellCount": 5,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": []
+    },
+    {
+      "route": "/catalogs/address-types",
+      "finalUrl": "http://localhost:743/catalogs/address-types",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/catalogs_address_types.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/catalogs/address-types",
+        "bodyTextLength": 2564,
+        "mainTextSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE DIRECCIÓN.\n\nTipos de dirección\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\ninbox\n\nSin resultados\n\nNo hay registros.\nPuedes ajustar los filtros o crear un nuevo registro.\n0 a 0 de 0. Página 0 de 0\nCódigo\nNombre\nDescripción\nAcciones\nPage Size:\n10\n0 a 0 de 0\nPágina 0 de 0",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [],
+        "buttonCount": 16,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1024,
+            "height": 320,
+            "cellCount": 5,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1020,
+            "height": 268,
+            "cellCount": 5,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": []
+    },
+    {
+      "route": "/catalogs/transaction-codes",
+      "finalUrl": "http://localhost:743/catalogs/transaction-codes",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/catalogs_transaction_codes.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/catalogs/transaction-codes",
+        "bodyTextLength": 2596,
+        "mainTextSample": "ADMINISTRA EL CATÁLOGO DE CÓDIGOS DE TRANSACCIÓN ACH.\n\nCódigos de transacción ACH\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\ninbox\n\nSin resultados\n\nNo hay registros.\nPuedes ajustar los filtros o crear un nuevo registro.\n0 a 0 de 0. Página 0 de 0\nCódigo\nNombre\nDescripción\nAcciones\nPage Size:\n10\n0 a 0 de 0\nPágina 0 de 0",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [],
+        "buttonCount": 16,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1024,
+            "height": 320,
+            "cellCount": 5,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1020,
+            "height": 268,
+            "cellCount": 5,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": []
+    },
+    {
+      "route": "/customer-third-parties",
+      "finalUrl": "http://localhost:743/customer-third-parties",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/customer_third_parties.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/customer-third-parties",
+        "bodyTextLength": 2701,
+        "mainTextSample": "GESTIÓN Y CONSULTA DE PRENOTIFICACIONES POR TERCERO\n\nCustomer Third Parties\nBúsqueda general\nCuenta destino\nDocumento receptor\nEstado\nTodos\nPendiente\nAprobado\nRechazado\nBuscar\nLimpiar\nsearch\ninbox\n\nSin resultados\n\nNo hay registros para mostrar\nPuedes ajustar los filtros o crear un nuevo registro.\nCliente\nEntidad destino\nCuenta destino\nDocumento receptor\nEstado\nID prenotificación\nCiclo validación\nUsa los filtros y presiona buscar para cargar resultados.",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [],
+        "buttonCount": 16,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1058,
+            "height": 320,
+            "cellCount": 8,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1054,
+            "height": 316,
+            "cellCount": 8,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": []
+    },
+    {
+      "route": "/ach-cycles/nacha/layouts",
+      "finalUrl": "http://localhost:743/ach-cycles/nacha/layouts",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/ach_cycles_nacha_layouts.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/ach-cycles/nacha/layouts",
+        "bodyTextLength": 2592,
+        "mainTextSample": "ADMINISTRA CAMPOS Y POSICIONES DEL ARCHIVO NACHA-M\n\nNACHA Layouts\nNuevo layout\nRefrescar\nsearch\nCódigo\nTipo\nLongitud\nCampos\nAcciones\n1\nFILE_HEADER\n106\n12\nEditar\nEliminar\n5\nBATCH_HEADER\n106\n12\nEditar\nEliminar\n6\nENTRY_DETAIL\n106\n10\nEditar\nEliminar\n7\nADDENDA\n106\n4\nEditar\nEliminar\n8\nBATCH_CONTROL\n106\n9\nEditar\nEliminar\n9\nFILE_CONTROL\n106\n6\nEditar\nEliminar",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [],
+        "buttonCount": 28,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1058,
+            "height": 320,
+            "cellCount": 20,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1054,
+            "height": 316,
+            "cellCount": 20,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": []
+    },
+    {
+      "route": "/ach-cycles/nacha/definitions",
+      "finalUrl": "http://localhost:743/ach-cycles/nacha/definitions",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/ach_cycles_nacha_definitions.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/ach-cycles/nacha/definitions",
+        "bodyTextLength": 2852,
+        "mainTextSample": "Definiciones de registros NACHA\n\nConfigura el orden y la fuente de datos para cada registro, con resumen del layout asociado.\n\nNuevo\nsearch\nCódigo\nOrden\nFuente\nOrigen\nFiltro\nLayout (campos)\nActivo\nAcciones\n1\n10\nCustom\nCalculado (Custom)\nFILE_HEADER (12)\nEditar\nEliminar\n5\n20\nCustom\nCalculado (Custom)\nBATCH_HEADER (12)\nEditar\nEliminar\n6\n30\nCustom\nCalculado (Custom)\nBatchId\nENTRY_DETAIL (10)\nEditar\nEliminar\n7\n40\nCustom\nCalculado (Custom)\nBatchId\nADDENDA (4)\nEditar\nEliminar\n8\n50\nCustom\nCalculado (Cu",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [],
+        "buttonCount": 27,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1058,
+            "height": 320,
+            "cellCount": 20,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1054,
+            "height": 316,
+            "cellCount": 20,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": []
+    },
+    {
+      "route": "/reports",
+      "finalUrl": "http://localhost:743/reports",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/reports.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/reports",
+        "bodyTextLength": 3316,
+        "mainTextSample": "MÓDULO CORPORATIVO DE REPORTES Y TRAZABILIDAD\n\nReportes ACH\nExportar reporte operativo de revisión\n\nEste reporte es operativo y de soporte de conciliación/revisión de terceros. NO contabiliza, no genera asientos y no reemplaza evidencia externa ni aprobación humana.\n\nLa evidencia CUD es operacional/manual. No representa API CUD bancaria ni saldo real CUD. Liquidez simulada no equivale a saldo real CUD.\n\nFormato \nPDF\nCSV\nExcel\nDesde \nHasta \nCámara \nCiclo \nArchivo \nHash archivo \nTransacción \nEstad",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [],
+        "buttonCount": 15,
+        "agGridState": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": []
+    },
+    {
+      "route": "/reports/sent",
+      "finalUrl": "http://localhost:743/reports/sent",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/reports_sent.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/reports/sent",
+        "bodyTextLength": 2684,
+        "mainTextSample": "REPORTE DE TRANSACCIONES ENVIADAS\n\nEnviados\nSeleccione una cámara\nTodas las cámaras\nACH Colombia (ACHCOL)\nCENIT (CENIT)\nTodos los estados\nPending\nReturnedByOperator\nReturnedByEpr\nAppliedTacitly\nCertified\nBuscar\nLimpiar\nExportar PDF\nNo hay datos para los filtros seleccionados.\nsearch\ninbox\n\nSin resultados\n\nNo hay registros para mostrar\nPuedes ajustar los filtros o crear un nuevo registro.\nID\nFecha\nID operación\nReferencia legado\nMonto\nEstado\nBanco origen",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [
+          {
+            "text": "Buscar",
+            "visible": true,
+            "width": 72,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          },
+          {
+            "text": "Limpiar",
+            "visible": true,
+            "width": 78,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          },
+          {
+            "text": "Exportar PDF",
+            "visible": true,
+            "width": 112,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          }
+        ],
+        "buttonCount": 17,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1058,
+            "height": 320,
+            "cellCount": 8,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1054,
+            "height": 316,
+            "cellCount": 8,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [
+        {
+          "severity": "P1",
+          "type": "low-contrast-buttons",
+          "message": "3 botones con contraste bajo o potencialmente ilegibles."
+        }
+      ]
+    },
+    {
+      "route": "/reports/received",
+      "finalUrl": "http://localhost:743/reports/received",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/reports_received.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/reports/received",
+        "bodyTextLength": 2687,
+        "mainTextSample": "REPORTE DE TRANSACCIONES RECIBIDAS\n\nRecibidos\nSeleccione una cámara\nTodas las cámaras\nACH Colombia (ACHCOL)\nCENIT (CENIT)\nTodos los estados\nPending\nReturnedByOperator\nReturnedByEpr\nAppliedTacitly\nCertified\nBuscar\nLimpiar\nExportar PDF\nNo hay datos para los filtros seleccionados.\nsearch\ninbox\n\nSin resultados\n\nNo hay registros para mostrar\nPuedes ajustar los filtros o crear un nuevo registro.\nID\nFecha\nID operación\nReferencia legado\nMonto\nEstado\nBanco origen",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [
+          {
+            "text": "Buscar",
+            "visible": true,
+            "width": 72,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          },
+          {
+            "text": "Limpiar",
+            "visible": true,
+            "width": 78,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          },
+          {
+            "text": "Exportar PDF",
+            "visible": true,
+            "width": 112,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          }
+        ],
+        "buttonCount": 17,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1058,
+            "height": 320,
+            "cellCount": 8,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1054,
+            "height": 316,
+            "cellCount": 8,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [
+        {
+          "severity": "P1",
+          "type": "low-contrast-buttons",
+          "message": "3 botones con contraste bajo o potencialmente ilegibles."
+        }
+      ]
+    },
+    {
+      "route": "/reports/returns",
+      "finalUrl": "http://localhost:743/reports/returns",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/reports_returns.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/reports/returns",
+        "bodyTextLength": 2680,
+        "mainTextSample": "REPORTE DE DEVOLUCIONES ACH\n\nDevoluciones\nSeleccione una cámara\nTodas las cámaras\nACH Colombia (ACHCOL)\nCENIT (CENIT)\nTodos los estados\nPending\nReturnedByOperator\nReturnedByEpr\nAppliedTacitly\nCertified\nBuscar\nLimpiar\nExportar PDF\nNo hay datos para los filtros seleccionados.\nsearch\ninbox\n\nSin resultados\n\nNo hay registros para mostrar\nPuedes ajustar los filtros o crear un nuevo registro.\nID\nFecha\nID operación\nReferencia legado\nCausal\nMonto\nEstado",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [
+          {
+            "text": "Buscar",
+            "visible": true,
+            "width": 72,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          },
+          {
+            "text": "Limpiar",
+            "visible": true,
+            "width": 78,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          },
+          {
+            "text": "Exportar PDF",
+            "visible": true,
+            "width": 112,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          }
+        ],
+        "buttonCount": 17,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1058,
+            "height": 320,
+            "cellCount": 8,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1054,
+            "height": 316,
+            "cellCount": 8,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [
+        {
+          "severity": "P1",
+          "type": "low-contrast-buttons",
+          "message": "3 botones con contraste bajo o potencialmente ilegibles."
+        }
+      ]
+    },
+    {
+      "route": "/reports/rejections",
+      "finalUrl": "http://localhost:743/reports/rejections",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/reports_rejections.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/reports/rejections",
+        "bodyTextLength": 2668,
+        "mainTextSample": "REPORTE DE RECHAZOS ACH\n\nRechazos\nSeleccione una cámara\nTodas las cámaras\nACH Colombia (ACHCOL)\nCENIT (CENIT)\nTodos los estados\nPending\nReturnedByOperator\nReturnedByEpr\nAppliedTacitly\nCertified\nBuscar\nLimpiar\nExportar PDF\nNo hay datos para los filtros seleccionados.\nsearch\ninbox\n\nSin resultados\n\nNo hay registros para mostrar\nPuedes ajustar los filtros o crear un nuevo registro.\nID\nFecha\nID operación\nReferencia legado\nCausal\nMonto\nEstado",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [
+          {
+            "text": "Buscar",
+            "visible": true,
+            "width": 72,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          },
+          {
+            "text": "Limpiar",
+            "visible": true,
+            "width": 78,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          },
+          {
+            "text": "Exportar PDF",
+            "visible": true,
+            "width": 112,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          }
+        ],
+        "buttonCount": 17,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1058,
+            "height": 320,
+            "cellCount": 8,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1054,
+            "height": 316,
+            "cellCount": 8,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [
+        {
+          "severity": "P1",
+          "type": "low-contrast-buttons",
+          "message": "3 botones con contraste bajo o potencialmente ilegibles."
+        }
+      ]
+    },
+    {
+      "route": "/reports/files",
+      "finalUrl": "http://localhost:743/reports/files",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/reports_files.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/reports/files",
+        "bodyTextLength": 2571,
+        "mainTextSample": "REPORTE DE ARCHIVOS NACHA\n\nArchivos\nSeleccione una cámara\nTodas las cámaras\nACH Colombia (ACHCOL)\nCENIT (CENIT)\nBuscar\nLimpiar\nExportar PDF\nNo hay datos para los filtros seleccionados.\nsearch\ninbox\n\nSin resultados\n\nNo hay registros para mostrar\nPuedes ajustar los filtros o crear un nuevo registro.\nArchivo\nFecha\nCámara\nRegistros\nTransacciones",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [
+          {
+            "text": "Buscar",
+            "visible": true,
+            "width": 72,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          },
+          {
+            "text": "Limpiar",
+            "visible": true,
+            "width": 78,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          },
+          {
+            "text": "Exportar PDF",
+            "visible": true,
+            "width": 112,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          }
+        ],
+        "buttonCount": 17,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1058,
+            "height": 320,
+            "cellCount": 6,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1054,
+            "height": 316,
+            "cellCount": 6,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [
+        {
+          "severity": "P1",
+          "type": "low-contrast-buttons",
+          "message": "3 botones con contraste bajo o potencialmente ilegibles."
+        }
+      ]
+    },
+    {
+      "route": "/reports/cycles",
+      "finalUrl": "http://localhost:743/reports/cycles",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/reports_cycles.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/reports/cycles",
+        "bodyTextLength": 2555,
+        "mainTextSample": "REPORTE DE CICLOS ACH\n\nCiclos\nSeleccione una cámara\nTodas las cámaras\nACH Colombia (ACHCOL)\nCENIT (CENIT)\nBuscar\nLimpiar\nExportar PDF\nNo hay datos para los filtros seleccionados.\nsearch\ninbox\n\nSin resultados\n\nNo hay registros para mostrar\nPuedes ajustar los filtros o crear un nuevo registro.\nNombre\nHorario\nFecha\nEstado\nTx\nMonto",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [
+          {
+            "text": "Buscar",
+            "visible": true,
+            "width": 72,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          },
+          {
+            "text": "Limpiar",
+            "visible": true,
+            "width": 78,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          },
+          {
+            "text": "Exportar PDF",
+            "visible": true,
+            "width": 112,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          }
+        ],
+        "buttonCount": 17,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1058,
+            "height": 320,
+            "cellCount": 7,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1054,
+            "height": 316,
+            "cellCount": 7,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [
+        {
+          "severity": "P1",
+          "type": "low-contrast-buttons",
+          "message": "3 botones con contraste bajo o potencialmente ilegibles."
+        }
+      ]
+    },
+    {
+      "route": "/reports/reconciliation",
+      "finalUrl": "http://localhost:743/reports/reconciliation",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/reports_reconciliation.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/reports/reconciliation",
+        "bodyTextLength": 2388,
+        "mainTextSample": "COMPARATIVO ENVIADOS, RECIBIDOS Y DEVUELTOS\n\nConciliación\nSeleccione una cámara\nTodas las cámaras\nACH Colombia (ACHCOL)\nCENIT (CENIT)\nConsultar\nExportar PDF",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [],
+        "buttonCount": 16,
+        "agGridState": [],
+        "pdfState": {
+          "checked": true,
+          "viewerCount": 0,
+          "viewers": [],
+          "emptyPdfSuspected": false
+        }
+      },
+      "findings": []
+    },
+    {
+      "route": "/reports/audit",
+      "finalUrl": "http://localhost:743/reports/audit",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/reports_audit.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/reports/audit",
+        "bodyTextLength": 2513,
+        "mainTextSample": "TRAZA OPERATIVA POR USUARIO/ACCIÓN/ENTIDAD\n\nAuditoría\nBuscar\nLimpiar\nExportar PDF\nNo hay datos para los filtros seleccionados.\nsearch\ninbox\n\nSin resultados\n\nNo hay registros para mostrar\nPuedes ajustar los filtros o crear un nuevo registro.\nUsuario\nAcción\nEntidad\nID Entidad\nFecha UTC",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [
+          {
+            "text": "Buscar",
+            "visible": true,
+            "width": 72,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          },
+          {
+            "text": "Limpiar",
+            "visible": true,
+            "width": 78,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          },
+          {
+            "text": "Exportar PDF",
+            "visible": true,
+            "width": 112,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          }
+        ],
+        "buttonCount": 17,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1058,
+            "height": 320,
+            "cellCount": 6,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1054,
+            "height": 316,
+            "cellCount": 6,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [
+        {
+          "severity": "P1",
+          "type": "low-contrast-buttons",
+          "message": "3 botones con contraste bajo o potencialmente ilegibles."
+        }
+      ]
+    },
+    {
+      "route": "/reports/history",
+      "finalUrl": "http://localhost:743/reports/history",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/reports_history.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/reports/history",
+        "bodyTextLength": 2643,
+        "mainTextSample": "HISTÓRICO DE CAMBIOS POR RANGO DE FECHAS\n\nHistórico\nTodos los estados destino\nPending\nReturnedByOperator\nReturnedByEpr\nAppliedTacitly\nCertified\nTodas las fuentes\nOperator\nEpr\nSystem\nClaims\nBuscar\nLimpiar\nExportar PDF\nNo hay datos para los filtros seleccionados.\nsearch\ninbox\n\nSin resultados\n\nNo hay registros para mostrar\nPuedes ajustar los filtros o crear un nuevo registro.\nTx\nDesde\nHasta\nFuente\nCausal\nFecha UTC",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [
+          {
+            "text": "Buscar",
+            "visible": true,
+            "width": 72,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          },
+          {
+            "text": "Limpiar",
+            "visible": true,
+            "width": 78,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          },
+          {
+            "text": "Exportar PDF",
+            "visible": true,
+            "width": 112,
+            "height": 40,
+            "contrast": 1,
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)"
+          }
+        ],
+        "buttonCount": 17,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1058,
+            "height": 320,
+            "cellCount": 7,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1054,
+            "height": 316,
+            "cellCount": 7,
+            "unreadableCellCount": 0
+          }
+        ],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [
+        {
+          "severity": "P1",
+          "type": "low-contrast-buttons",
+          "message": "3 botones con contraste bajo o potencialmente ilegibles."
+        }
+      ]
+    },
+    {
+      "route": "/reports/traceability",
+      "finalUrl": "http://localhost:743/reports/traceability",
+      "screenshot": "docs/ux/evidencias/spa-global-audit/screenshots/reports_traceability.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "failedRequests": [],
+      "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "title": "ACH Interbank - Gestión de Transacciones",
+        "url": "http://localhost:743/reports/traceability",
+        "bodyTextLength": 3296,
+        "mainTextSample": "GENERA EL PDF POR FILTROS DE ESTADO, CICLO Y RANGO DE FECHAS\n\nReporte de trazabilidad ACH\nVolver a reportes\nDesde (UTC)\nHasta (UTC)\nEstado\nTodos los estados\nPendiente\nDevuelto por operador\nDevuelto por EPR\nAplicado tácitamente\nCertificado\nCiclo ACH (selección múltiple)\nACH Colombia · Ciclo 1\nACH Colombia · Ciclo 1\nACH Colombia · Ciclo 1\nACH Colombia · Ciclo 2\nACH Colombia · Ciclo 2\nACH Colombia · Ciclo 2\nACH Colombia · Ciclo 3\nACH Colombia · Ciclo 3\nACH Colombia · Ciclo 3\nACH Colombia · Ciclo 4\n",
+        "hasVisibleLoadingText": false,
+        "hasSpinner": false,
+        "blankScreen": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "hasHorizontalScroll": false,
+        "lowContrastButtons": [],
+        "buttonCount": 15,
+        "agGridState": [],
+        "pdfState": {
+          "checked": true,
+          "viewerCount": 0,
+          "viewers": [],
+          "emptyPdfSuspected": false
+        }
+      },
+      "findings": []
+    }
+  ]
+}
