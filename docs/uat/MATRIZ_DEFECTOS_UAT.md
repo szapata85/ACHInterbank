@@ -263,3 +263,13 @@ Validacion: `npm run build` OK, `npm test -- --watch=false --browsers=ChromeHead
 Productivo: **NO-GO**.
 
 Productivo: **NO-GO**.
+
+## Actualizacion 2026-05-24 - Fase 5 regresion final SPA Angular
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-UX-SPA-REG-001 Regresion final SPA Angular | Cerrado tecnico frontend | `docs/ux/evidencias/spa-regression-final/spa-final-regression.json`, `docs/ux/REGRESION_FINAL_SPA_UAT.md` | Se auditaron 30 rutas con Playwright limpio: P0=0, P1=0, P2=0. Se mantiene auditoria global historica 23 rutas en P0=0/P1=0/P2=0. |
+
+Validacion: `npm run build` OK, `npm test -- --watch=false --browsers=ChromeHeadless` OK con 214 SUCCESS, `ux-audit-spa-critical-routes.mjs` OK, `ux-audit-spa-final-regression.mjs` OK y `ux-validate-reports-pdf.mjs` OK.
+
+Productivo: **NO-GO**.

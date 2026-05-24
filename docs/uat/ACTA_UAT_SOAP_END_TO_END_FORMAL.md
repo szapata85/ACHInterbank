@@ -133,3 +133,16 @@ No se identifican defectos técnicos bloqueantes nuevos para continuar UAT contr
 ## 14. Anexos
 
 Ver inventario consolidado de evidencias y matriz de escenarios citados en esta acta.
+
+## 15. Anexo SPA Angular - Regresion final
+
+Se agrega evidencia final del frente SPA Angular:
+
+- Regresion Playwright final: 30 rutas auditadas, P0=0, P1=0, P2=0.
+- Auditoria global historica: 23 rutas auditadas, P0=0, P1=0, P2=0.
+- `npm run build`: OK.
+- `npm test -- --watch=false --browsers=ChromeHeadless`: OK, 214 SUCCESS.
+- Evidencia: `docs/ux/REGRESION_FINAL_SPA_UAT.md`.
+- Evidencia JSON/MD/screenshots: `docs/ux/evidencias/spa-regression-final/`.
+
+Conclusion del anexo: SPA Angular OK tecnico UAT. Continuar UAT controlado. Productivo **NO-GO**.

@@ -171,3 +171,13 @@ Cierre aplicado:
 6. Se agregaron pruebas positivas, negativas, duplicado, missing mapping y guardrails de no invocacion monetaria.
 
 Productivo: **NO-GO**.
+
+## Actualizacion 2026-05-24 - Fase 5 SPA Angular
+
+| Accion | Estado | Entregable | Criterio de cierre |
+|---|---|---|---|
+| Consolidar evidencia visual final SPA | Cerrado tecnico UAT | `docs/ux/evidencias/spa-regression-final/` | Playwright final P0=0/P1=0/P2=0 con screenshots por ruta |
+| Adjuntar evidencia visual sanitizada de navegacion SPA autenticada | Cerrado tecnico UAT | `docs/ux/REGRESION_FINAL_SPA_UAT.md` | Login demo validado sin imprimir password/token; rutas criticas auditadas |
+| Mantener paquete UAT actualizado con estado SPA | Cerrado documental | `docs/uat/RESUMEN_EJECUTIVO_UAT_SOAP_END_TO_END.md`, `docs/uat/ACTA_UAT_SOAP_END_TO_END_FORMAL.md` | SPA indicada como OK tecnico UAT sin cambiar decision productiva |
+
+Siguiente paso: continuar UAT controlado y mantener Productivo **NO-GO** hasta cerrar homologacion externa, certificados/sobre digital, CENIT/CUD, backup/restore/rollback y aprobaciones formales.

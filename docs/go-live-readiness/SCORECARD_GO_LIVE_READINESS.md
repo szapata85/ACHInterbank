@@ -203,3 +203,17 @@ Productivo permanece **NO-GO**.
 | Respuestas diferenciales sobre prenotificaciones CFA | OK tecnico UAT | Caso de uso aprueba/rechaza prenotificaciones pendientes, persiste trace/evento y no mueve dinero. |
 | Envelope Proc_Transacciones DryRun | OK tecnico UAT | Evidencia formal `proc_transacciones_envelope_sanitizado.xml`, sin transmision externa. |
 | Productivo | NO-GO | No se autoriza salida productiva. |
+
+## Actualizacion 2026-05-24 - Regresion final SPA Angular
+
+La SPA Angular queda OK tecnico UAT para las rutas auditadas:
+
+- Playwright global historico: 23 rutas, P0=0, P1=0, P2=0.
+- Playwright regresion final: 30 rutas, P0=0, P1=0, P2=0.
+- Angular build: OK.
+- Angular tests: OK, 214 SUCCESS.
+- Reportes PDF priorizados: OK tecnico frontend, sin descarga vacia.
+
+Impacto sobre score: mejora la evidencia UAT del frente SPA y reduce riesgo operativo frontend. No se incrementa artificialmente el score productivo porque persisten brechas externas y formales: homologacion, certificados/sobre digital, CENIT/CUD, backup/restore/rollback, UAT bancario formal y aprobaciones.
+
+Estado: **NO-GO productivo / continuar UAT controlado**.

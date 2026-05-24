@@ -50,3 +50,16 @@ Durante esta ejecución UAT no se realizó transmisión externa a proveedores, c
 ## Decisión recomendada
 
 Se recomienda continuar UAT controlado. No se recomienda salida a producción. Productivo permanece **NO-GO**.
+
+## Actualizacion SPA Angular - 2026-05-24
+
+Se ejecuto regresion final del frente SPA Angular con Playwright, `npm run build` y `npm test`.
+
+- Rutas auditadas en regresion final: 30.
+- Resultado: P0=0, P1=0, P2=0.
+- Auditoria global historica: 23 rutas OK, P0=0/P1=0/P2=0.
+- Build Angular: OK.
+- Tests Angular: OK, 214 SUCCESS.
+- Evidencia: `docs/ux/REGRESION_FINAL_SPA_UAT.md` y `docs/ux/evidencias/spa-regression-final/`.
+
+El frente SPA queda OK tecnico UAT. Esta validacion no cambia la decision productiva: continuar UAT controlado y Productivo **NO-GO**.

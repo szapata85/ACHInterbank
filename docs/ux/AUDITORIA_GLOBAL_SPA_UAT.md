@@ -120,3 +120,28 @@ Validaciones:
 - `node web/ach-interbank-ui/scripts/ux-audit-spa-critical-routes.mjs`: OK.
 
 Productivo: NO-GO.
+
+## Fase 5 - Regresion final SPA Angular
+
+Se ejecuto regresion final completa sobre las rutas criticas de fases previas y rutas adicionales de integraciones/mappings:
+
+- Rutas auditadas en regresion final: 30.
+- Rutas OK: 30.
+- P0: 0.
+- P1: 0.
+- P2: 0.
+- `npm run build`: OK.
+- `npm test -- --watch=false --browsers=ChromeHeadless`: OK, 214 SUCCESS.
+- `node web/ach-interbank-ui/scripts/ux-audit-spa-critical-routes.mjs`: OK, 23 rutas, P0=0/P1=0/P2=0.
+- `node web/ach-interbank-ui/scripts/ux-audit-spa-final-regression.mjs`: OK, 30 rutas, P0=0/P1=0/P2=0.
+- `node web/ach-interbank-ui/scripts/ux-validate-reports-pdf.mjs`: OK.
+
+Evidencias:
+
+- `docs/ux/REGRESION_FINAL_SPA_UAT.md`.
+- `docs/ux/evidencias/spa-regression-final/precheck_runtime.md`.
+- `docs/ux/evidencias/spa-regression-final/spa-final-regression.json`.
+- `docs/ux/evidencias/spa-regression-final/spa-final-regression.md`.
+- `docs/ux/evidencias/spa-regression-final/screenshots/`.
+
+Resultado: SPA Angular OK tecnico UAT. Continuar UAT controlado. Productivo **NO-GO**.

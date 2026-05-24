@@ -1,6 +1,6 @@
 # Auditoria SPA rutas criticas
 
-Fecha: 2026-05-24T03:55:43.249Z
+Fecha: 2026-05-24T04:24:49.885Z
 Base URL: http://localhost:743
 
 ## Runtime
