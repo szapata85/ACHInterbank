@@ -219,4 +219,12 @@ Productivo: **NO-GO**.
 
 El error `message channel closed before a response was received` no se reprodujo en Chromium limpio; queda documentado como ruido probable de extension si aparece en navegador local.
 
+## Actualizacion 2026-05-23 - P1 botones reportes SPA
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-UX-REPORTS-001 Botones Buscar/Limpiar/Exportar PDF con bajo contraste en rutas `/reports/*` | Cerrado tecnico frontend | `docs/ux/evidencias/spa-global-audit/spa-critical-routes-audit.json`, `docs/ux/evidencias/spa-global-audit/spa-critical-routes-audit.md`, `docs/ux/DESIGN_SYSTEM_BOTONES_SPA.md` | Se corrigio el patron comun en `ReportListPageComponent`; auditoria Playwright queda P0=0, P1=0, P2=0 para 23 rutas auditadas. No se tocaron backend, SOAP, reglas ACH/NACHA-M/CENIT/ROR ni PDFs. |
+
+Productivo: **NO-GO**.
+
 Productivo: **NO-GO**.

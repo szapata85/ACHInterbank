@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-24T01:40:05.835Z",
+  "generatedAt": "2026-05-24T01:54:00.177Z",
   "baseUrl": "http://localhost:743",
   "auditedRoutes": [
     "/ach-cycles/nacha/export",
@@ -29,9 +29,9 @@
   "summary": {
     "totalRoutes": 23,
     "p0": 0,
-    "p1": 8,
+    "p1": 0,
     "p2": 0,
-    "ok": 15
+    "ok": 23
   },
   "runtime": {
     "liveStatus": 200,
@@ -47,11 +47,6 @@
       "redirectedToLogin": false,
       "failedRequests": [],
       "ignoredFailedRequests": [
-        {
-          "method": "GET",
-          "url": "http://localhost:743/api/users/branding",
-          "failure": "net::ERR_ABORTED"
-        },
         {
           "method": "GET",
           "url": "https://fonts.gstatic.com/s/materialsymbolsoutlined/v339/kJF1BvYX7BgnkSrUwT8OhrdQw4oELdPIeeII9v6oDMzByHX9rA6RzaxHMPdY43zj-jCxv3fzvRNU22ZXGJpEpjC_1v-p_4MrImHCIJIZrDCvHOej.woff2",
@@ -718,35 +713,7 @@
         "bodyScrollWidth": 1366,
         "viewportWidth": 1366,
         "hasHorizontalScroll": false,
-        "lowContrastButtons": [
-          {
-            "text": "Buscar",
-            "visible": true,
-            "width": 72,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          },
-          {
-            "text": "Limpiar",
-            "visible": true,
-            "width": 78,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          },
-          {
-            "text": "Exportar PDF",
-            "visible": true,
-            "width": 112,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          }
-        ],
+        "lowContrastButtons": [],
         "buttonCount": 17,
         "agGridState": [
           {
@@ -768,13 +735,7 @@
           "checked": false
         }
       },
-      "findings": [
-        {
-          "severity": "P1",
-          "type": "low-contrast-buttons",
-          "message": "3 botones con contraste bajo o potencialmente ilegibles."
-        }
-      ]
+      "findings": []
     },
     {
       "route": "/reports/received",
@@ -804,35 +765,7 @@
         "bodyScrollWidth": 1366,
         "viewportWidth": 1366,
         "hasHorizontalScroll": false,
-        "lowContrastButtons": [
-          {
-            "text": "Buscar",
-            "visible": true,
-            "width": 72,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          },
-          {
-            "text": "Limpiar",
-            "visible": true,
-            "width": 78,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          },
-          {
-            "text": "Exportar PDF",
-            "visible": true,
-            "width": 112,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          }
-        ],
+        "lowContrastButtons": [],
         "buttonCount": 17,
         "agGridState": [
           {
@@ -854,13 +787,7 @@
           "checked": false
         }
       },
-      "findings": [
-        {
-          "severity": "P1",
-          "type": "low-contrast-buttons",
-          "message": "3 botones con contraste bajo o potencialmente ilegibles."
-        }
-      ]
+      "findings": []
     },
     {
       "route": "/reports/returns",
@@ -890,35 +817,7 @@
         "bodyScrollWidth": 1366,
         "viewportWidth": 1366,
         "hasHorizontalScroll": false,
-        "lowContrastButtons": [
-          {
-            "text": "Buscar",
-            "visible": true,
-            "width": 72,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          },
-          {
-            "text": "Limpiar",
-            "visible": true,
-            "width": 78,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          },
-          {
-            "text": "Exportar PDF",
-            "visible": true,
-            "width": 112,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          }
-        ],
+        "lowContrastButtons": [],
         "buttonCount": 17,
         "agGridState": [
           {
@@ -940,13 +839,7 @@
           "checked": false
         }
       },
-      "findings": [
-        {
-          "severity": "P1",
-          "type": "low-contrast-buttons",
-          "message": "3 botones con contraste bajo o potencialmente ilegibles."
-        }
-      ]
+      "findings": []
     },
     {
       "route": "/reports/rejections",
@@ -976,35 +869,7 @@
         "bodyScrollWidth": 1366,
         "viewportWidth": 1366,
         "hasHorizontalScroll": false,
-        "lowContrastButtons": [
-          {
-            "text": "Buscar",
-            "visible": true,
-            "width": 72,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          },
-          {
-            "text": "Limpiar",
-            "visible": true,
-            "width": 78,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          },
-          {
-            "text": "Exportar PDF",
-            "visible": true,
-            "width": 112,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          }
-        ],
+        "lowContrastButtons": [],
         "buttonCount": 17,
         "agGridState": [
           {
@@ -1026,13 +891,7 @@
           "checked": false
         }
       },
-      "findings": [
-        {
-          "severity": "P1",
-          "type": "low-contrast-buttons",
-          "message": "3 botones con contraste bajo o potencialmente ilegibles."
-        }
-      ]
+      "findings": []
     },
     {
       "route": "/reports/files",
@@ -1062,35 +921,7 @@
         "bodyScrollWidth": 1366,
         "viewportWidth": 1366,
         "hasHorizontalScroll": false,
-        "lowContrastButtons": [
-          {
-            "text": "Buscar",
-            "visible": true,
-            "width": 72,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          },
-          {
-            "text": "Limpiar",
-            "visible": true,
-            "width": 78,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          },
-          {
-            "text": "Exportar PDF",
-            "visible": true,
-            "width": 112,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          }
-        ],
+        "lowContrastButtons": [],
         "buttonCount": 17,
         "agGridState": [
           {
@@ -1112,13 +943,7 @@
           "checked": false
         }
       },
-      "findings": [
-        {
-          "severity": "P1",
-          "type": "low-contrast-buttons",
-          "message": "3 botones con contraste bajo o potencialmente ilegibles."
-        }
-      ]
+      "findings": []
     },
     {
       "route": "/reports/cycles",
@@ -1148,35 +973,7 @@
         "bodyScrollWidth": 1366,
         "viewportWidth": 1366,
         "hasHorizontalScroll": false,
-        "lowContrastButtons": [
-          {
-            "text": "Buscar",
-            "visible": true,
-            "width": 72,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          },
-          {
-            "text": "Limpiar",
-            "visible": true,
-            "width": 78,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          },
-          {
-            "text": "Exportar PDF",
-            "visible": true,
-            "width": 112,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          }
-        ],
+        "lowContrastButtons": [],
         "buttonCount": 17,
         "agGridState": [
           {
@@ -1198,13 +995,7 @@
           "checked": false
         }
       },
-      "findings": [
-        {
-          "severity": "P1",
-          "type": "low-contrast-buttons",
-          "message": "3 botones con contraste bajo o potencialmente ilegibles."
-        }
-      ]
+      "findings": []
     },
     {
       "route": "/reports/reconciliation",
@@ -1274,35 +1065,7 @@
         "bodyScrollWidth": 1366,
         "viewportWidth": 1366,
         "hasHorizontalScroll": false,
-        "lowContrastButtons": [
-          {
-            "text": "Buscar",
-            "visible": true,
-            "width": 72,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          },
-          {
-            "text": "Limpiar",
-            "visible": true,
-            "width": 78,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          },
-          {
-            "text": "Exportar PDF",
-            "visible": true,
-            "width": 112,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          }
-        ],
+        "lowContrastButtons": [],
         "buttonCount": 17,
         "agGridState": [
           {
@@ -1324,13 +1087,7 @@
           "checked": false
         }
       },
-      "findings": [
-        {
-          "severity": "P1",
-          "type": "low-contrast-buttons",
-          "message": "3 botones con contraste bajo o potencialmente ilegibles."
-        }
-      ]
+      "findings": []
     },
     {
       "route": "/reports/history",
@@ -1360,35 +1117,7 @@
         "bodyScrollWidth": 1366,
         "viewportWidth": 1366,
         "hasHorizontalScroll": false,
-        "lowContrastButtons": [
-          {
-            "text": "Buscar",
-            "visible": true,
-            "width": 72,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          },
-          {
-            "text": "Limpiar",
-            "visible": true,
-            "width": 78,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          },
-          {
-            "text": "Exportar PDF",
-            "visible": true,
-            "width": 112,
-            "height": 40,
-            "contrast": 1,
-            "color": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(255, 255, 255)"
-          }
-        ],
+        "lowContrastButtons": [],
         "buttonCount": 17,
         "agGridState": [
           {
@@ -1410,13 +1139,7 @@
           "checked": false
         }
       },
-      "findings": [
-        {
-          "severity": "P1",
-          "type": "low-contrast-buttons",
-          "message": "3 botones con contraste bajo o potencialmente ilegibles."
-        }
-      ]
+      "findings": []
     },
     {
       "route": "/reports/traceability",

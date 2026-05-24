@@ -195,3 +195,14 @@ Decision productiva: **NO-GO**.
 | Productivo | NO-GO | Este checklist | Si | Sin autorizacion Live ni homologacion final. |
 
 Decision productiva: **NO-GO**.
+
+## Actualizacion 2026-05-23 - botones reportes SPA
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| Botones de accion en reportes `/reports/*` | OK tecnico frontend | `docs/ux/evidencias/spa-global-audit/spa-critical-routes-audit.json` | No por si solo | Buscar queda primario, Limpiar secundario y Exportar PDF como accion documental. |
+| Auditoria visual rutas criticas SPA | OK tecnico frontend | `docs/ux/evidencias/spa-global-audit/spa-critical-routes-audit.md` | No por si solo | 23 rutas auditadas; P0=0, P1=0, P2=0. |
+| Design system minimo de botones | OK documental | `docs/ux/DESIGN_SYSTEM_BOTONES_SPA.md` | No por si solo | Regla explicita: ningun boton de accion principal debe quedar blanco/ilegible o sin contraste suficiente. |
+| Productivo | NO-GO | Este checklist | Si | La correccion visual no cambia autorizacion productiva ni homologa operacion externa. |
+
+Decision productiva: **NO-GO**.

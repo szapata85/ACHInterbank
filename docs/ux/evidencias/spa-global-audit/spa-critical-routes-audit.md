@@ -1,6 +1,6 @@
 # Auditoria SPA rutas criticas
 
-Fecha: 2026-05-24T01:40:05.835Z
+Fecha: 2026-05-24T01:54:00.177Z
 Base URL: http://localhost:743
 
 ## Runtime
@@ -13,9 +13,9 @@ Base URL: http://localhost:743
 ## Resumen
 
 - Rutas auditadas: 23
-- OK: 15
+- OK: 23
 - P0: 0
-- P1: 8
+- P1: 0
 - P2: 0
 
 ## Hallazgos por ruta
@@ -35,29 +35,20 @@ Base URL: http://localhost:743
 | `/ach-cycles/nacha/layouts` | OK | Sin hallazgos automaticos | `docs/ux/evidencias/spa-global-audit/screenshots/ach_cycles_nacha_layouts.png` |
 | `/ach-cycles/nacha/definitions` | OK | Sin hallazgos automaticos | `docs/ux/evidencias/spa-global-audit/screenshots/ach_cycles_nacha_definitions.png` |
 | `/reports` | OK | Sin hallazgos automaticos | `docs/ux/evidencias/spa-global-audit/screenshots/reports.png` |
-| `/reports/sent` | P1 | P1 low-contrast-buttons: 3 botones con contraste bajo o potencialmente ilegibles. | `docs/ux/evidencias/spa-global-audit/screenshots/reports_sent.png` |
-| `/reports/received` | P1 | P1 low-contrast-buttons: 3 botones con contraste bajo o potencialmente ilegibles. | `docs/ux/evidencias/spa-global-audit/screenshots/reports_received.png` |
-| `/reports/returns` | P1 | P1 low-contrast-buttons: 3 botones con contraste bajo o potencialmente ilegibles. | `docs/ux/evidencias/spa-global-audit/screenshots/reports_returns.png` |
-| `/reports/rejections` | P1 | P1 low-contrast-buttons: 3 botones con contraste bajo o potencialmente ilegibles. | `docs/ux/evidencias/spa-global-audit/screenshots/reports_rejections.png` |
-| `/reports/files` | P1 | P1 low-contrast-buttons: 3 botones con contraste bajo o potencialmente ilegibles. | `docs/ux/evidencias/spa-global-audit/screenshots/reports_files.png` |
-| `/reports/cycles` | P1 | P1 low-contrast-buttons: 3 botones con contraste bajo o potencialmente ilegibles. | `docs/ux/evidencias/spa-global-audit/screenshots/reports_cycles.png` |
+| `/reports/sent` | OK | Sin hallazgos automaticos | `docs/ux/evidencias/spa-global-audit/screenshots/reports_sent.png` |
+| `/reports/received` | OK | Sin hallazgos automaticos | `docs/ux/evidencias/spa-global-audit/screenshots/reports_received.png` |
+| `/reports/returns` | OK | Sin hallazgos automaticos | `docs/ux/evidencias/spa-global-audit/screenshots/reports_returns.png` |
+| `/reports/rejections` | OK | Sin hallazgos automaticos | `docs/ux/evidencias/spa-global-audit/screenshots/reports_rejections.png` |
+| `/reports/files` | OK | Sin hallazgos automaticos | `docs/ux/evidencias/spa-global-audit/screenshots/reports_files.png` |
+| `/reports/cycles` | OK | Sin hallazgos automaticos | `docs/ux/evidencias/spa-global-audit/screenshots/reports_cycles.png` |
 | `/reports/reconciliation` | OK | Sin hallazgos automaticos | `docs/ux/evidencias/spa-global-audit/screenshots/reports_reconciliation.png` |
-| `/reports/audit` | P1 | P1 low-contrast-buttons: 3 botones con contraste bajo o potencialmente ilegibles. | `docs/ux/evidencias/spa-global-audit/screenshots/reports_audit.png` |
-| `/reports/history` | P1 | P1 low-contrast-buttons: 3 botones con contraste bajo o potencialmente ilegibles. | `docs/ux/evidencias/spa-global-audit/screenshots/reports_history.png` |
+| `/reports/audit` | OK | Sin hallazgos automaticos | `docs/ux/evidencias/spa-global-audit/screenshots/reports_audit.png` |
+| `/reports/history` | OK | Sin hallazgos automaticos | `docs/ux/evidencias/spa-global-audit/screenshots/reports_history.png` |
 | `/reports/traceability` | OK | Sin hallazgos automaticos | `docs/ux/evidencias/spa-global-audit/screenshots/reports_traceability.png` |
 
 ## Orden recomendado de correccion
 
-### P1
-- `/reports/sent`: low-contrast-buttons - 3 botones con contraste bajo o potencialmente ilegibles.
-- `/reports/received`: low-contrast-buttons - 3 botones con contraste bajo o potencialmente ilegibles.
-- `/reports/returns`: low-contrast-buttons - 3 botones con contraste bajo o potencialmente ilegibles.
-- `/reports/rejections`: low-contrast-buttons - 3 botones con contraste bajo o potencialmente ilegibles.
-- `/reports/files`: low-contrast-buttons - 3 botones con contraste bajo o potencialmente ilegibles.
-- `/reports/cycles`: low-contrast-buttons - 3 botones con contraste bajo o potencialmente ilegibles.
-- `/reports/audit`: low-contrast-buttons - 3 botones con contraste bajo o potencialmente ilegibles.
-- `/reports/history`: low-contrast-buttons - 3 botones con contraste bajo o potencialmente ilegibles.
-
+No hay correcciones obligatorias detectadas por la auditoria automatizada.
 
 ## Nota
 
