@@ -218,3 +218,16 @@ Decision productiva: **NO-GO**.
 | Productivo | NO-GO | Este checklist | Si | La validacion PDF UAT no reemplaza UAT formal, homologacion ni aprobacion productiva. |
 
 Decision productiva: **NO-GO**.
+
+## Actualizacion 2026-05-24 - Fase 3 catalogos, terceros y AG Grid
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| `/catalogs/financial-institutions` AG Grid legible | OK tecnico frontend | `docs/ux/evidencias/catalogs-aggrid/screenshots/catalogs_financial_institutions.png` | No por si solo | Columnas y acciones visibles; no se cambio `IsDefaultSource` ni reglas del simulador. |
+| `/catalogs/bank-holidays` carga o informa estado claro | OK tecnico frontend | `docs/ux/evidencias/catalogs-aggrid/screenshots/catalogs_bank_holidays.png` | No por si solo | Proxy SPA corregido para `/bank-holidays`; sin backend ni seed. |
+| Catalogos tipologicos cargan o muestran vacio claro | OK tecnico frontend | `docs/ux/evidencias/catalogs-aggrid/catalogs-aggrid-validation.json` | No por si solo | `document-types`, `person-types`, `phone-types`, `email-types`, `address-types`, `transaction-codes` validados. |
+| `/customer-third-parties` carga o informa estado claro | OK tecnico frontend | `docs/ux/evidencias/catalogs-aggrid/screenshots/customer_third_parties.png` | No por si solo | Carga inicial y error/vacio controlado. No se crearon terceros reales. |
+| Auditoria global SPA posterior | OK tecnico frontend | `docs/ux/evidencias/spa-global-audit/spa-critical-routes-audit.json` | No por si solo | P0=0, P1=0, P2=0. |
+| Productivo | NO-GO | Este checklist | Si | La correccion de catálogos/AG Grid no sustituye UAT formal ni aprobacion productiva. |
+
+Decision productiva: **NO-GO**.

@@ -31,6 +31,30 @@ Se corrigio el componente comun `ReportListPageComponent`:
 - P1: 0.
 - P2: 0.
 
+## Fase 3 - Catalogos, terceros y AG Grid
+
+Se valido y corrigio el alcance acotado de catalogos y terceros:
+
+- `/catalogs/financial-institutions`: AG Grid legible, columnas con anchos minimos, acciones visibles y estado de error controlado.
+- `/catalogs/bank-holidays`: carga runtime corregida mediante proxy SPA; grilla y estados de carga/error/vacio controlados.
+- Catalogos tipologicos: `document-types`, `person-types`, `phone-types`, `email-types`, `address-types`, `transaction-codes` cargan por proxy SPA y muestran grilla/estado vacio sin spinner infinito.
+- `/customer-third-parties`: carga inicial ejecutada y estado de error/vacio visible.
+
+No se tocaron reportes, PDFs, SOAP, mappings, backend, seeds ni reglas ACH/NACHA-M/CENIT/ROR.
+
+Evidencias:
+
+- `docs/ux/evidencias/catalogs-aggrid/catalogs-aggrid-validation.json`
+- `docs/ux/evidencias/catalogs-aggrid/catalogs-aggrid-validation.md`
+- `docs/ux/evidencias/catalogs-aggrid/screenshots/`
+
+Validaciones:
+
+- `npm run build`: OK.
+- `npm test -- --watch=false --browsers=ChromeHeadless`: OK.
+- `node web/ach-interbank-ui/scripts/ux-validate-catalogs-aggrid.mjs`: OK.
+- `node web/ach-interbank-ui/scripts/ux-audit-spa-critical-routes.mjs`: OK, P0=0/P1=0/P2=0.
+
 ## Validacion funcional PDF reportes
 
 Se valido funcionalmente la exportacion PDF en las rutas priorizadas:

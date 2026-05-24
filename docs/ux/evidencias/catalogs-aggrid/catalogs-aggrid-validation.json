@@ -1,0 +1,2511 @@
+{
+  "generatedAt": "2026-05-24T02:46:49.890Z",
+  "baseUrl": "http://localhost:743",
+  "runtime": {
+    "loginOk": true
+  },
+  "summary": {
+    "total": 9,
+    "ok": 9,
+    "withFindings": 0
+  },
+  "routes": [
+    {
+      "route": "/catalogs/financial-institutions",
+      "screenshotPath": "docs/ux/evidencias/catalogs-aggrid/screenshots/catalogs_financial_institutions.png",
+      "ok": true,
+      "findings": [],
+      "apiResponses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalogs/financial-institutions",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/financial-institutions?includeInactive=true",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "consoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/catalogs/financial-institutions",
+        "gridCount": 2,
+        "headers": [
+          {
+            "text": "",
+            "width": 50
+          },
+          {
+            "text": "Nombre",
+            "width": 240
+          },
+          {
+            "text": "Routing",
+            "width": 150
+          },
+          {
+            "text": "Transit",
+            "width": 130
+          },
+          {
+            "text": "Dígito",
+            "width": 125
+          },
+          {
+            "text": "Origen por defecto",
+            "width": 180
+          },
+          {
+            "text": "Estado",
+            "width": 140
+          },
+          {
+            "text": "Acciones",
+            "width": 210
+          },
+          {
+            "text": "",
+            "width": 50
+          },
+          {
+            "text": "",
+            "width": 240
+          },
+          {
+            "text": "",
+            "width": 150
+          },
+          {
+            "text": "",
+            "width": 130
+          },
+          {
+            "text": "",
+            "width": 125
+          },
+          {
+            "text": "",
+            "width": 180
+          },
+          {
+            "text": "",
+            "width": 140
+          },
+          {
+            "text": "",
+            "width": 210
+          }
+        ],
+        "narrowHeaders": [],
+        "criticalButtons": [
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "Cerrar sesión",
+            "width": 179,
+            "height": 40
+          },
+          {
+            "text": "Salir",
+            "width": 62,
+            "height": 40
+          },
+          {
+            "text": "refreshRecargar",
+            "width": 120,
+            "height": 42
+          },
+          {
+            "text": "addNueva institución",
+            "width": 176,
+            "height": 42
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Desactivar",
+            "width": 70,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Desactivar",
+            "width": 70,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Desactivar",
+            "width": 70,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Activar",
+            "width": 49,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Desactivar",
+            "width": 70,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Activar",
+            "width": 49,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Desactivar",
+            "width": 70,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Activar",
+            "width": 49,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Desactivar",
+            "width": 70,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Desactivar",
+            "width": 70,
+            "height": 25
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          }
+        ],
+        "cutButtons": [],
+        "loadingVisible": false,
+        "emptyVisible": false,
+        "errorVisible": false,
+        "horizontalScroll": false,
+        "bodyTextSample": "ACH\n\nACH Interbank\n\nPortal backoffice\ndashboard\nDashboard\ngroup\nUsuarios\nexpand_more\npalette\nIdentidad y colores\npolicy\nReglas de contraseña\nlock_clock\nBloqueo de acceso\nschedule\nCiclos ACH\nexpand_more\ndownload\nExportar NACHA\nview_column\nLayouts NACHA\nplaylist_add_check\nDefiniciones NACHA\ninventory\nCatálogos\nexpand_more\naccount_balance\nInstituciones financieras\ntune\nPrioridades cámaras\nevent\nFestivos bancarios\nevent_busy\nFechas especiales cámaras\nlist\nConceptos de lote\nbadge\nTipos de documento\ndiversity_3\nTipos de género\napartment\nTipos de persona\ncall\nTipos de teléfono\nmail\nTipos de correo\nlo"
+      }
+    },
+    {
+      "route": "/catalogs/bank-holidays",
+      "screenshotPath": "docs/ux/evidencias/catalogs-aggrid/screenshots/catalogs_bank_holidays.png",
+      "ok": true,
+      "findings": [],
+      "apiResponses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalogs/bank-holidays",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/bank-holidays?year=2026",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "consoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/catalogs/bank-holidays",
+        "gridCount": 2,
+        "headers": [
+          {
+            "text": "",
+            "width": 50
+          },
+          {
+            "text": "Fecha",
+            "width": 160
+          },
+          {
+            "text": "Descripción",
+            "width": 472
+          },
+          {
+            "text": "País",
+            "width": 120
+          },
+          {
+            "text": "Acciones",
+            "width": 200
+          },
+          {
+            "text": "",
+            "width": 50
+          },
+          {
+            "text": "",
+            "width": 160
+          },
+          {
+            "text": "",
+            "width": 472
+          },
+          {
+            "text": "",
+            "width": 120
+          },
+          {
+            "text": "",
+            "width": 200
+          }
+        ],
+        "narrowHeaders": [],
+        "criticalButtons": [
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "Cerrar sesión",
+            "width": 179,
+            "height": 40
+          },
+          {
+            "text": "Salir",
+            "width": 62,
+            "height": 40
+          },
+          {
+            "text": "Buscar",
+            "width": 75,
+            "height": 40
+          },
+          {
+            "text": "Nuevo festivo",
+            "width": 121,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          }
+        ],
+        "cutButtons": [],
+        "loadingVisible": false,
+        "emptyVisible": false,
+        "errorVisible": false,
+        "horizontalScroll": false,
+        "bodyTextSample": "ACH\n\nACH Interbank\n\nPortal backoffice\ndashboard\nDashboard\ngroup\nUsuarios\nexpand_more\npalette\nIdentidad y colores\npolicy\nReglas de contraseña\nlock_clock\nBloqueo de acceso\nschedule\nCiclos ACH\nexpand_more\ndownload\nExportar NACHA\nview_column\nLayouts NACHA\nplaylist_add_check\nDefiniciones NACHA\ninventory\nCatálogos\nexpand_more\naccount_balance\nInstituciones financieras\ntune\nPrioridades cámaras\nevent\nFestivos bancarios\nevent_busy\nFechas especiales cámaras\nlist\nConceptos de lote\nbadge\nTipos de documento\ndiversity_3\nTipos de género\napartment\nTipos de persona\ncall\nTipos de teléfono\nmail\nTipos de correo\nlo"
+      }
+    },
+    {
+      "route": "/catalogs/document-types",
+      "screenshotPath": "docs/ux/evidencias/catalogs-aggrid/screenshots/catalogs_document_types.png",
+      "ok": true,
+      "findings": [],
+      "apiResponses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalogs/document-types",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalog-types/document-types",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "consoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/catalogs/document-types",
+        "gridCount": 2,
+        "headers": [
+          {
+            "text": "",
+            "width": 50
+          },
+          {
+            "text": "Código",
+            "width": 160
+          },
+          {
+            "text": "Nombre",
+            "width": 200
+          },
+          {
+            "text": "Descripción",
+            "width": 430
+          },
+          {
+            "text": "Acciones",
+            "width": 180
+          },
+          {
+            "text": "",
+            "width": 50
+          },
+          {
+            "text": "",
+            "width": 160
+          },
+          {
+            "text": "",
+            "width": 200
+          },
+          {
+            "text": "",
+            "width": 430
+          },
+          {
+            "text": "",
+            "width": 180
+          }
+        ],
+        "narrowHeaders": [],
+        "criticalButtons": [
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "Cerrar sesión",
+            "width": 179,
+            "height": 40
+          },
+          {
+            "text": "Salir",
+            "width": 62,
+            "height": 40
+          },
+          {
+            "text": "Crear",
+            "width": 67,
+            "height": 40
+          },
+          {
+            "text": "Cancelar",
+            "width": 88,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          }
+        ],
+        "cutButtons": [],
+        "loadingVisible": false,
+        "emptyVisible": false,
+        "errorVisible": false,
+        "horizontalScroll": false,
+        "bodyTextSample": "ACH\n\nACH Interbank\n\nPortal backoffice\ndashboard\nDashboard\ngroup\nUsuarios\nexpand_more\npalette\nIdentidad y colores\npolicy\nReglas de contraseña\nlock_clock\nBloqueo de acceso\nschedule\nCiclos ACH\nexpand_more\ndownload\nExportar NACHA\nview_column\nLayouts NACHA\nplaylist_add_check\nDefiniciones NACHA\ninventory\nCatálogos\nexpand_more\naccount_balance\nInstituciones financieras\ntune\nPrioridades cámaras\nevent\nFestivos bancarios\nevent_busy\nFechas especiales cámaras\nlist\nConceptos de lote\nbadge\nTipos de documento\ndiversity_3\nTipos de género\napartment\nTipos de persona\ncall\nTipos de teléfono\nmail\nTipos de correo\nlo"
+      }
+    },
+    {
+      "route": "/catalogs/person-types",
+      "screenshotPath": "docs/ux/evidencias/catalogs-aggrid/screenshots/catalogs_person_types.png",
+      "ok": true,
+      "findings": [],
+      "apiResponses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalogs/person-types",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalog-types/person-types",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "consoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/catalogs/person-types",
+        "gridCount": 2,
+        "headers": [
+          {
+            "text": "",
+            "width": 50
+          },
+          {
+            "text": "Código",
+            "width": 160
+          },
+          {
+            "text": "Nombre",
+            "width": 200
+          },
+          {
+            "text": "Descripción",
+            "width": 430
+          },
+          {
+            "text": "Acciones",
+            "width": 180
+          },
+          {
+            "text": "",
+            "width": 50
+          },
+          {
+            "text": "",
+            "width": 160
+          },
+          {
+            "text": "",
+            "width": 200
+          },
+          {
+            "text": "",
+            "width": 430
+          },
+          {
+            "text": "",
+            "width": 180
+          }
+        ],
+        "narrowHeaders": [],
+        "criticalButtons": [
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "Cerrar sesión",
+            "width": 179,
+            "height": 40
+          },
+          {
+            "text": "Salir",
+            "width": 62,
+            "height": 40
+          },
+          {
+            "text": "Crear",
+            "width": 67,
+            "height": 40
+          },
+          {
+            "text": "Cancelar",
+            "width": 88,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          }
+        ],
+        "cutButtons": [],
+        "loadingVisible": false,
+        "emptyVisible": false,
+        "errorVisible": false,
+        "horizontalScroll": false,
+        "bodyTextSample": "ACH\n\nACH Interbank\n\nPortal backoffice\ndashboard\nDashboard\ngroup\nUsuarios\nexpand_more\npalette\nIdentidad y colores\npolicy\nReglas de contraseña\nlock_clock\nBloqueo de acceso\nschedule\nCiclos ACH\nexpand_more\ndownload\nExportar NACHA\nview_column\nLayouts NACHA\nplaylist_add_check\nDefiniciones NACHA\ninventory\nCatálogos\nexpand_more\naccount_balance\nInstituciones financieras\ntune\nPrioridades cámaras\nevent\nFestivos bancarios\nevent_busy\nFechas especiales cámaras\nlist\nConceptos de lote\nbadge\nTipos de documento\ndiversity_3\nTipos de género\napartment\nTipos de persona\ncall\nTipos de teléfono\nmail\nTipos de correo\nlo"
+      }
+    },
+    {
+      "route": "/catalogs/phone-types",
+      "screenshotPath": "docs/ux/evidencias/catalogs-aggrid/screenshots/catalogs_phone_types.png",
+      "ok": true,
+      "findings": [],
+      "apiResponses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalogs/phone-types",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalog-types/phone-types",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "consoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/catalogs/phone-types",
+        "gridCount": 2,
+        "headers": [
+          {
+            "text": "",
+            "width": 50
+          },
+          {
+            "text": "Código",
+            "width": 160
+          },
+          {
+            "text": "Nombre",
+            "width": 200
+          },
+          {
+            "text": "Descripción",
+            "width": 430
+          },
+          {
+            "text": "Acciones",
+            "width": 180
+          },
+          {
+            "text": "",
+            "width": 50
+          },
+          {
+            "text": "",
+            "width": 160
+          },
+          {
+            "text": "",
+            "width": 200
+          },
+          {
+            "text": "",
+            "width": 430
+          },
+          {
+            "text": "",
+            "width": 180
+          }
+        ],
+        "narrowHeaders": [],
+        "criticalButtons": [
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "Cerrar sesión",
+            "width": 179,
+            "height": 40
+          },
+          {
+            "text": "Salir",
+            "width": 62,
+            "height": 40
+          },
+          {
+            "text": "Crear",
+            "width": 67,
+            "height": 40
+          },
+          {
+            "text": "Cancelar",
+            "width": 88,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          }
+        ],
+        "cutButtons": [],
+        "loadingVisible": false,
+        "emptyVisible": false,
+        "errorVisible": false,
+        "horizontalScroll": false,
+        "bodyTextSample": "ACH\n\nACH Interbank\n\nPortal backoffice\ndashboard\nDashboard\ngroup\nUsuarios\nexpand_more\npalette\nIdentidad y colores\npolicy\nReglas de contraseña\nlock_clock\nBloqueo de acceso\nschedule\nCiclos ACH\nexpand_more\ndownload\nExportar NACHA\nview_column\nLayouts NACHA\nplaylist_add_check\nDefiniciones NACHA\ninventory\nCatálogos\nexpand_more\naccount_balance\nInstituciones financieras\ntune\nPrioridades cámaras\nevent\nFestivos bancarios\nevent_busy\nFechas especiales cámaras\nlist\nConceptos de lote\nbadge\nTipos de documento\ndiversity_3\nTipos de género\napartment\nTipos de persona\ncall\nTipos de teléfono\nmail\nTipos de correo\nlo"
+      }
+    },
+    {
+      "route": "/catalogs/email-types",
+      "screenshotPath": "docs/ux/evidencias/catalogs-aggrid/screenshots/catalogs_email_types.png",
+      "ok": true,
+      "findings": [],
+      "apiResponses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalogs/email-types",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalog-types/email-types",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "consoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/catalogs/email-types",
+        "gridCount": 2,
+        "headers": [
+          {
+            "text": "",
+            "width": 50
+          },
+          {
+            "text": "Código",
+            "width": 160
+          },
+          {
+            "text": "Nombre",
+            "width": 200
+          },
+          {
+            "text": "Descripción",
+            "width": 430
+          },
+          {
+            "text": "Acciones",
+            "width": 180
+          },
+          {
+            "text": "",
+            "width": 50
+          },
+          {
+            "text": "",
+            "width": 160
+          },
+          {
+            "text": "",
+            "width": 200
+          },
+          {
+            "text": "",
+            "width": 430
+          },
+          {
+            "text": "",
+            "width": 180
+          }
+        ],
+        "narrowHeaders": [],
+        "criticalButtons": [
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "Cerrar sesión",
+            "width": 179,
+            "height": 40
+          },
+          {
+            "text": "Salir",
+            "width": 62,
+            "height": 40
+          },
+          {
+            "text": "Crear",
+            "width": 67,
+            "height": 40
+          },
+          {
+            "text": "Cancelar",
+            "width": 88,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          }
+        ],
+        "cutButtons": [],
+        "loadingVisible": false,
+        "emptyVisible": false,
+        "errorVisible": false,
+        "horizontalScroll": false,
+        "bodyTextSample": "ACH\n\nACH Interbank\n\nPortal backoffice\ndashboard\nDashboard\ngroup\nUsuarios\nexpand_more\npalette\nIdentidad y colores\npolicy\nReglas de contraseña\nlock_clock\nBloqueo de acceso\nschedule\nCiclos ACH\nexpand_more\ndownload\nExportar NACHA\nview_column\nLayouts NACHA\nplaylist_add_check\nDefiniciones NACHA\ninventory\nCatálogos\nexpand_more\naccount_balance\nInstituciones financieras\ntune\nPrioridades cámaras\nevent\nFestivos bancarios\nevent_busy\nFechas especiales cámaras\nlist\nConceptos de lote\nbadge\nTipos de documento\ndiversity_3\nTipos de género\napartment\nTipos de persona\ncall\nTipos de teléfono\nmail\nTipos de correo\nlo"
+      }
+    },
+    {
+      "route": "/catalogs/address-types",
+      "screenshotPath": "docs/ux/evidencias/catalogs-aggrid/screenshots/catalogs_address_types.png",
+      "ok": true,
+      "findings": [],
+      "apiResponses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalogs/address-types",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalog-types/address-types",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "consoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/catalogs/address-types",
+        "gridCount": 2,
+        "headers": [
+          {
+            "text": "",
+            "width": 50
+          },
+          {
+            "text": "Código",
+            "width": 160
+          },
+          {
+            "text": "Nombre",
+            "width": 200
+          },
+          {
+            "text": "Descripción",
+            "width": 430
+          },
+          {
+            "text": "Acciones",
+            "width": 180
+          },
+          {
+            "text": "",
+            "width": 50
+          },
+          {
+            "text": "",
+            "width": 160
+          },
+          {
+            "text": "",
+            "width": 200
+          },
+          {
+            "text": "",
+            "width": 430
+          },
+          {
+            "text": "",
+            "width": 180
+          }
+        ],
+        "narrowHeaders": [],
+        "criticalButtons": [
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "Cerrar sesión",
+            "width": 179,
+            "height": 40
+          },
+          {
+            "text": "Salir",
+            "width": 62,
+            "height": 40
+          },
+          {
+            "text": "Crear",
+            "width": 67,
+            "height": 40
+          },
+          {
+            "text": "Cancelar",
+            "width": 88,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          }
+        ],
+        "cutButtons": [],
+        "loadingVisible": false,
+        "emptyVisible": false,
+        "errorVisible": false,
+        "horizontalScroll": false,
+        "bodyTextSample": "ACH\n\nACH Interbank\n\nPortal backoffice\ndashboard\nDashboard\ngroup\nUsuarios\nexpand_more\npalette\nIdentidad y colores\npolicy\nReglas de contraseña\nlock_clock\nBloqueo de acceso\nschedule\nCiclos ACH\nexpand_more\ndownload\nExportar NACHA\nview_column\nLayouts NACHA\nplaylist_add_check\nDefiniciones NACHA\ninventory\nCatálogos\nexpand_more\naccount_balance\nInstituciones financieras\ntune\nPrioridades cámaras\nevent\nFestivos bancarios\nevent_busy\nFechas especiales cámaras\nlist\nConceptos de lote\nbadge\nTipos de documento\ndiversity_3\nTipos de género\napartment\nTipos de persona\ncall\nTipos de teléfono\nmail\nTipos de correo\nlo"
+      }
+    },
+    {
+      "route": "/catalogs/transaction-codes",
+      "screenshotPath": "docs/ux/evidencias/catalogs-aggrid/screenshots/catalogs_transaction_codes.png",
+      "ok": true,
+      "findings": [],
+      "apiResponses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalogs/transaction-codes",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/catalog-types/transaction-codes",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "consoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/catalogs/transaction-codes",
+        "gridCount": 2,
+        "headers": [
+          {
+            "text": "",
+            "width": 50
+          },
+          {
+            "text": "Código",
+            "width": 160
+          },
+          {
+            "text": "Nombre",
+            "width": 200
+          },
+          {
+            "text": "Descripción",
+            "width": 430
+          },
+          {
+            "text": "Acciones",
+            "width": 180
+          },
+          {
+            "text": "",
+            "width": 50
+          },
+          {
+            "text": "",
+            "width": 160
+          },
+          {
+            "text": "",
+            "width": 200
+          },
+          {
+            "text": "",
+            "width": 430
+          },
+          {
+            "text": "",
+            "width": 180
+          }
+        ],
+        "narrowHeaders": [],
+        "criticalButtons": [
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "Cerrar sesión",
+            "width": 179,
+            "height": 40
+          },
+          {
+            "text": "Salir",
+            "width": 62,
+            "height": 40
+          },
+          {
+            "text": "Crear",
+            "width": 67,
+            "height": 40
+          },
+          {
+            "text": "Cancelar",
+            "width": 88,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "Editar",
+            "width": 41,
+            "height": 25
+          },
+          {
+            "text": "Eliminar",
+            "width": 56,
+            "height": 25
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 16
+          }
+        ],
+        "cutButtons": [],
+        "loadingVisible": false,
+        "emptyVisible": false,
+        "errorVisible": false,
+        "horizontalScroll": false,
+        "bodyTextSample": "ACH\n\nACH Interbank\n\nPortal backoffice\ndashboard\nDashboard\ngroup\nUsuarios\nexpand_more\npalette\nIdentidad y colores\npolicy\nReglas de contraseña\nlock_clock\nBloqueo de acceso\nschedule\nCiclos ACH\nexpand_more\ndownload\nExportar NACHA\nview_column\nLayouts NACHA\nplaylist_add_check\nDefiniciones NACHA\ninventory\nCatálogos\nexpand_more\naccount_balance\nInstituciones financieras\ntune\nPrioridades cámaras\nevent\nFestivos bancarios\nevent_busy\nFechas especiales cámaras\nlist\nConceptos de lote\nbadge\nTipos de documento\ndiversity_3\nTipos de género\napartment\nTipos de persona\ncall\nTipos de teléfono\nmail\nTipos de correo\nlo"
+      }
+    },
+    {
+      "route": "/customer-third-parties",
+      "screenshotPath": "docs/ux/evidencias/catalogs-aggrid/screenshots/customer_third_parties.png",
+      "ok": true,
+      "findings": [],
+      "apiResponses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/customer-third-parties",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/customer-third-parties?page=1&pageSize=20",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "consoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/customer-third-parties",
+        "gridCount": 2,
+        "headers": [
+          {
+            "text": "",
+            "width": 50
+          },
+          {
+            "text": "Cliente",
+            "width": 200
+          },
+          {
+            "text": "Entidad destino",
+            "width": 200
+          },
+          {
+            "text": "Cuenta destino",
+            "width": 200
+          },
+          {
+            "text": "Documento receptor",
+            "width": 200
+          },
+          {
+            "text": "Estado",
+            "width": 200
+          },
+          {
+            "text": "ID prenotificación",
+            "width": 200
+          },
+          {
+            "text": "Ciclo validación",
+            "width": 200
+          },
+          {
+            "text": "",
+            "width": 50
+          },
+          {
+            "text": "",
+            "width": 200
+          },
+          {
+            "text": "",
+            "width": 200
+          },
+          {
+            "text": "",
+            "width": 200
+          },
+          {
+            "text": "",
+            "width": 200
+          },
+          {
+            "text": "",
+            "width": 200
+          },
+          {
+            "text": "",
+            "width": 200
+          },
+          {
+            "text": "",
+            "width": 200
+          }
+        ],
+        "narrowHeaders": [],
+        "criticalButtons": [
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "expand_more",
+            "width": 44,
+            "height": 44
+          },
+          {
+            "text": "Cerrar sesión",
+            "width": 179,
+            "height": 40
+          },
+          {
+            "text": "Salir",
+            "width": 62,
+            "height": 40
+          },
+          {
+            "text": "Buscar",
+            "width": 75,
+            "height": 40
+          },
+          {
+            "text": "Limpiar",
+            "width": 81,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          },
+          {
+            "text": "",
+            "width": 16,
+            "height": 40
+          }
+        ],
+        "cutButtons": [],
+        "loadingVisible": false,
+        "emptyVisible": false,
+        "errorVisible": false,
+        "horizontalScroll": false,
+        "bodyTextSample": "ACH\n\nACH Interbank\n\nPortal backoffice\ndashboard\nDashboard\ngroup\nUsuarios\nexpand_more\npalette\nIdentidad y colores\npolicy\nReglas de contraseña\nlock_clock\nBloqueo de acceso\nschedule\nCiclos ACH\nexpand_more\ndownload\nExportar NACHA\nview_column\nLayouts NACHA\nplaylist_add_check\nDefiniciones NACHA\ninventory\nCatálogos\nexpand_more\naccount_balance\nInstituciones financieras\ntune\nPrioridades cámaras\nevent\nFestivos bancarios\nevent_busy\nFechas especiales cámaras\nlist\nConceptos de lote\nbadge\nTipos de documento\ndiversity_3\nTipos de género\napartment\nTipos de persona\ncall\nTipos de teléfono\nmail\nTipos de correo\nlo"
+      }
+    }
+  ]
+}

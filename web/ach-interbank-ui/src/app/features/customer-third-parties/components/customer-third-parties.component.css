@@ -86,3 +86,20 @@ button.ghost {
   text-align: center;
   color: var(--color-text-soft);
 }
+
+.error-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: #991b1b;
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+}
+
+.error-state p {
+  margin: 0;
+  font-weight: 600;
+}

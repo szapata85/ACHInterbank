@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-24T02:17:44.835Z",
+  "generatedAt": "2026-05-24T02:47:23.896Z",
   "baseUrl": "http://localhost:743",
   "auditedRoutes": [
     "/ach-cycles/nacha/export",
@@ -50,11 +50,6 @@
         {
           "method": "GET",
           "url": "http://localhost:743/api/users/branding",
-          "failure": "net::ERR_ABORTED"
-        },
-        {
-          "method": "GET",
-          "url": "https://fonts.gstatic.com/s/materialsymbolsoutlined/v339/kJF1BvYX7BgnkSrUwT8OhrdQw4oELdPIeeII9v6oDMzByHX9rA6RzaxHMPdY43zj-jCxv3fzvRNU22ZXGJpEpjC_1v-p_4MrImHCIJIZrDCvHOej.woff2",
           "failure": "net::ERR_ABORTED"
         }
       ],
@@ -168,8 +163,8 @@
       "visual": {
         "title": "ACH Interbank - Gestión de Transacciones",
         "url": "http://localhost:743/catalogs/bank-holidays",
-        "bodyTextLength": 2414,
-        "mainTextSample": "CATÁLOGOS\n\nFestivos bancarios\n\nAdministra los días festivos que no deben ejecutarse ciclos.\n\nBuscar\nNuevo festivo\nAño\n\nSelecciona un año y presiona Buscar para ver los festivos.",
+        "bodyTextLength": 2895,
+        "mainTextSample": "CATÁLOGOS\n\nFestivos bancarios\n\nAdministra los días festivos que no deben ejecutarse ciclos.\n\nBuscar\nNuevo festivo\nAño\nsearch\n1 a 10 de 18. Página 1 de 2\nFecha\nDescripción\nPaís\nAcciones\n1/1/2026\nAño Nuevo\nCO\nEditarEliminar\n12/1/2026\nDía de los Reyes Magos\nCO\nEditarEliminar\n23/3/2026\nSan José\nCO\nEditarEliminar\n2/4/2026\nJueves Santo\nCO\nEditarEliminar\n3/4/2026\nViernes Santo\nCO\nEditarEliminar\n1/5/2026\nDía del Trabajo\nCO\nEditarEliminar\n18/5/2026\nAscensión del Señor\nCO\nEditarEliminar\n8/6/2026\nCorpus Ch",
         "hasVisibleLoadingText": false,
         "hasSpinner": false,
         "blankScreen": false,
@@ -177,8 +172,23 @@
         "viewportWidth": 1366,
         "hasHorizontalScroll": false,
         "lowContrastButtons": [],
-        "buttonCount": 16,
-        "agGridState": [],
+        "buttonCount": 36,
+        "agGridState": [
+          {
+            "visible": true,
+            "width": 1006,
+            "height": 320,
+            "cellCount": 20,
+            "unreadableCellCount": 0
+          },
+          {
+            "visible": true,
+            "width": 1002,
+            "height": 268,
+            "cellCount": 20,
+            "unreadableCellCount": 0
+          }
+        ],
         "pdfState": {
           "checked": false
         }
@@ -205,8 +215,8 @@
       "visual": {
         "title": "ACH Interbank - Gestión de Transacciones",
         "url": "http://localhost:743/catalogs/document-types",
-        "bodyTextLength": 2564,
-        "mainTextSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE DOCUMENTO.\n\nTipos de documento\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\ninbox\n\nSin resultados\n\nNo hay registros.\nPuedes ajustar los filtros o crear un nuevo registro.\n0 a 0 de 0. Página 0 de 0\nCódigo\nNombre\nDescripción\nAcciones\nPage Size:\n10\n0 a 0 de 0\nPágina 0 de 0",
+        "bodyTextLength": 2708,
+        "mainTextSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE DOCUMENTO.\n\nTipos de documento\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\n1 a 6 de 6. Página 1 de 1\nCódigo\nNombre\nDescripción\nAcciones\nCC\nCédula de Ciudadanía\n-\nEditarEliminar\nCE\nCédula de Extranjería\n-\nEditarEliminar\nNIT\nNúmero de Identificación Tributaria\n-\nEditarEliminar\nOTRO\nOtro\n-\nEditarEliminar\nPAS\nPasaporte\n-\nEditarEliminar\nTI\nTarjeta de Identidad\n-\nEditarEliminar\nPage Size:\n10\n1 a 6 de 6\nPágina 1 de 1",
         "hasVisibleLoadingText": false,
         "hasSpinner": false,
         "blankScreen": false,
@@ -214,20 +224,20 @@
         "viewportWidth": 1366,
         "hasHorizontalScroll": false,
         "lowContrastButtons": [],
-        "buttonCount": 16,
+        "buttonCount": 28,
         "agGridState": [
           {
             "visible": true,
             "width": 1024,
             "height": 320,
-            "cellCount": 5,
+            "cellCount": 20,
             "unreadableCellCount": 0
           },
           {
             "visible": true,
             "width": 1020,
             "height": 268,
-            "cellCount": 5,
+            "cellCount": 20,
             "unreadableCellCount": 0
           }
         ],
@@ -257,8 +267,8 @@
       "visual": {
         "title": "ACH Interbank - Gestión de Transacciones",
         "url": "http://localhost:743/catalogs/person-types",
-        "bodyTextLength": 2556,
-        "mainTextSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE PERSONA.\n\nTipos de persona\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\ninbox\n\nSin resultados\n\nNo hay registros.\nPuedes ajustar los filtros o crear un nuevo registro.\n0 a 0 de 0. Página 0 de 0\nCódigo\nNombre\nDescripción\nAcciones\nPage Size:\n10\n0 a 0 de 0\nPágina 0 de 0",
+        "bodyTextLength": 2534,
+        "mainTextSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE PERSONA.\n\nTipos de persona\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\n1 a 2 de 2. Página 1 de 1\nCódigo\nNombre\nDescripción\nAcciones\nPJ\nPersona jurídica\n-\nEditarEliminar\nPN\nPersona natural\n-\nEditarEliminar\nPage Size:\n10\n1 a 2 de 2\nPágina 1 de 1",
         "hasVisibleLoadingText": false,
         "hasSpinner": false,
         "blankScreen": false,
@@ -266,20 +276,20 @@
         "viewportWidth": 1366,
         "hasHorizontalScroll": false,
         "lowContrastButtons": [],
-        "buttonCount": 16,
+        "buttonCount": 20,
         "agGridState": [
           {
             "visible": true,
             "width": 1024,
             "height": 320,
-            "cellCount": 5,
+            "cellCount": 15,
             "unreadableCellCount": 0
           },
           {
             "visible": true,
             "width": 1020,
             "height": 268,
-            "cellCount": 5,
+            "cellCount": 15,
             "unreadableCellCount": 0
           }
         ],
@@ -309,8 +319,8 @@
       "visual": {
         "title": "ACH Interbank - Gestión de Transacciones",
         "url": "http://localhost:743/catalogs/phone-types",
-        "bodyTextLength": 2560,
-        "mainTextSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE TELÉFONO.\n\nTipos de teléfono\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\ninbox\n\nSin resultados\n\nNo hay registros.\nPuedes ajustar los filtros o crear un nuevo registro.\n0 a 0 de 0. Página 0 de 0\nCódigo\nNombre\nDescripción\nAcciones\nPage Size:\n10\n0 a 0 de 0\nPágina 0 de 0",
+        "bodyTextLength": 2554,
+        "mainTextSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE TELÉFONO.\n\nTipos de teléfono\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\n1 a 3 de 3. Página 1 de 1\nCódigo\nNombre\nDescripción\nAcciones\nFIJO\nFijo\n-\nEditarEliminar\nMOVIL\nMóvil\n-\nEditarEliminar\nTRABAJO\nTrabajo\n-\nEditarEliminar\nPage Size:\n10\n1 a 3 de 3\nPágina 1 de 1",
         "hasVisibleLoadingText": false,
         "hasSpinner": false,
         "blankScreen": false,
@@ -318,20 +328,20 @@
         "viewportWidth": 1366,
         "hasHorizontalScroll": false,
         "lowContrastButtons": [],
-        "buttonCount": 16,
+        "buttonCount": 22,
         "agGridState": [
           {
             "visible": true,
             "width": 1024,
             "height": 320,
-            "cellCount": 5,
+            "cellCount": 20,
             "unreadableCellCount": 0
           },
           {
             "visible": true,
             "width": 1020,
             "height": 268,
-            "cellCount": 5,
+            "cellCount": 20,
             "unreadableCellCount": 0
           }
         ],
@@ -362,7 +372,7 @@
         "title": "ACH Interbank - Gestión de Transacciones",
         "url": "http://localhost:743/catalogs/email-types",
         "bodyTextLength": 2552,
-        "mainTextSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE CORREO.\n\nTipos de correo\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\ninbox\n\nSin resultados\n\nNo hay registros.\nPuedes ajustar los filtros o crear un nuevo registro.\n0 a 0 de 0. Página 0 de 0\nCódigo\nNombre\nDescripción\nAcciones\nPage Size:\n10\n0 a 0 de 0\nPágina 0 de 0",
+        "mainTextSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE CORREO.\n\nTipos de correo\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\n1 a 3 de 3. Página 1 de 1\nCódigo\nNombre\nDescripción\nAcciones\nOTRO\nOtro\n-\nEditarEliminar\nPERSONAL\nPersonal\n-\nEditarEliminar\nTRABAJO\nTrabajo\n-\nEditarEliminar\nPage Size:\n10\n1 a 3 de 3\nPágina 1 de 1",
         "hasVisibleLoadingText": false,
         "hasSpinner": false,
         "blankScreen": false,
@@ -370,20 +380,20 @@
         "viewportWidth": 1366,
         "hasHorizontalScroll": false,
         "lowContrastButtons": [],
-        "buttonCount": 16,
+        "buttonCount": 22,
         "agGridState": [
           {
             "visible": true,
             "width": 1024,
             "height": 320,
-            "cellCount": 5,
+            "cellCount": 20,
             "unreadableCellCount": 0
           },
           {
             "visible": true,
             "width": 1020,
             "height": 268,
-            "cellCount": 5,
+            "cellCount": 20,
             "unreadableCellCount": 0
           }
         ],
@@ -413,8 +423,8 @@
       "visual": {
         "title": "ACH Interbank - Gestión de Transacciones",
         "url": "http://localhost:743/catalogs/address-types",
-        "bodyTextLength": 2564,
-        "mainTextSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE DIRECCIÓN.\n\nTipos de dirección\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\ninbox\n\nSin resultados\n\nNo hay registros.\nPuedes ajustar los filtros o crear un nuevo registro.\n0 a 0 de 0. Página 0 de 0\nCódigo\nNombre\nDescripción\nAcciones\nPage Size:\n10\n0 a 0 de 0\nPágina 0 de 0",
+        "bodyTextLength": 2642,
+        "mainTextSample": "ADMINISTRA EL CATÁLOGO DE TIPOS DE DIRECCIÓN.\n\nTipos de dirección\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\n1 a 5 de 5. Página 1 de 1\nCódigo\nNombre\nDescripción\nAcciones\nCASA\nCasa\n-\nEditarEliminar\nCORRESPONDENCIA\nCorrespondencia\n-\nEditarEliminar\nFINCA\nFinca\n-\nEditarEliminar\nPERSONAL\nPersonal\n-\nEditarEliminar\nTRABAJO\nTrabajo\n-\nEditarEliminar\nPage Size:\n10\n1 a 5 de 5\nPágina 1 de 1",
         "hasVisibleLoadingText": false,
         "hasSpinner": false,
         "blankScreen": false,
@@ -422,20 +432,20 @@
         "viewportWidth": 1366,
         "hasHorizontalScroll": false,
         "lowContrastButtons": [],
-        "buttonCount": 16,
+        "buttonCount": 26,
         "agGridState": [
           {
             "visible": true,
             "width": 1024,
             "height": 320,
-            "cellCount": 5,
+            "cellCount": 20,
             "unreadableCellCount": 0
           },
           {
             "visible": true,
             "width": 1020,
             "height": 268,
-            "cellCount": 5,
+            "cellCount": 20,
             "unreadableCellCount": 0
           }
         ],
@@ -465,8 +475,8 @@
       "visual": {
         "title": "ACH Interbank - Gestión de Transacciones",
         "url": "http://localhost:743/catalogs/transaction-codes",
-        "bodyTextLength": 2596,
-        "mainTextSample": "ADMINISTRA EL CATÁLOGO DE CÓDIGOS DE TRANSACCIÓN ACH.\n\nCódigos de transacción ACH\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\ninbox\n\nSin resultados\n\nNo hay registros.\nPuedes ajustar los filtros o crear un nuevo registro.\n0 a 0 de 0. Página 0 de 0\nCódigo\nNombre\nDescripción\nAcciones\nPage Size:\n10\n0 a 0 de 0\nPágina 0 de 0",
+        "bodyTextLength": 3399,
+        "mainTextSample": "ADMINISTRA EL CATÁLOGO DE CÓDIGOS DE TRANSACCIÓN ACH.\n\nCódigos de transacción ACH\nNuevo registro\nCódigo *\nNombre *\nDescripción\nCrear\nCancelar\nsearch\n1 a 10 de 19. Página 1 de 2\nCódigo\nNombre\nDescripción\nAcciones\n21\nDevolución crédito cuenta corriente\nDevolución de crédito a cuenta corriente.\nEditarEliminar\n22\nCrédito cuenta corriente\nCrédito a cuenta corriente.\nEditarEliminar\n23\nPrenotificación crédito cuenta corriente\nPrenotificación crédito a cuenta corriente.\nEditarEliminar\n26\nDevolución débi",
         "hasVisibleLoadingText": false,
         "hasSpinner": false,
         "blankScreen": false,
@@ -474,20 +484,20 @@
         "viewportWidth": 1366,
         "hasHorizontalScroll": false,
         "lowContrastButtons": [],
-        "buttonCount": 16,
+        "buttonCount": 36,
         "agGridState": [
           {
             "visible": true,
             "width": 1024,
             "height": 320,
-            "cellCount": 5,
+            "cellCount": 20,
             "unreadableCellCount": 0
           },
           {
             "visible": true,
             "width": 1020,
             "height": 268,
-            "cellCount": 5,
+            "cellCount": 20,
             "unreadableCellCount": 0
           }
         ],
@@ -517,8 +527,8 @@
       "visual": {
         "title": "ACH Interbank - Gestión de Transacciones",
         "url": "http://localhost:743/customer-third-parties",
-        "bodyTextLength": 2701,
-        "mainTextSample": "GESTIÓN Y CONSULTA DE PRENOTIFICACIONES POR TERCERO\n\nCustomer Third Parties\nBúsqueda general\nCuenta destino\nDocumento receptor\nEstado\nTodos\nPendiente\nAprobado\nRechazado\nBuscar\nLimpiar\nsearch\ninbox\n\nSin resultados\n\nNo hay registros para mostrar\nPuedes ajustar los filtros o crear un nuevo registro.\nCliente\nEntidad destino\nCuenta destino\nDocumento receptor\nEstado\nID prenotificación\nCiclo validación\nUsa los filtros y presiona buscar para cargar resultados.",
+        "bodyTextLength": 2834,
+        "mainTextSample": "GESTIÓN Y CONSULTA DE PRENOTIFICACIONES POR TERCERO\n\nCustomer Third Parties\nBúsqueda general\nCuenta destino\nDocumento receptor\nEstado\nTodos\nPendiente\nAprobado\nRechazado\nBuscar\nLimpiar\nsearch\nCliente\nEntidad destino\nCuenta destino\nDocumento receptor\nEstado\nID prenotificación\nCiclo validación\nUAT SINT\nBanco UAT Destino CENIT\n0000003202\n900003201\n0\n257\nUAT SINT\nBanco UAT Destino\n0000003102\n900003101\n0\n256\nCLIENTE UAT ACH\nBanco UAT Destino CENIT\n0000002002\n900000002\n0\n247\nCLIENTE UAT ACH\nBanco UAT D",
         "hasVisibleLoadingText": false,
         "hasSpinner": false,
         "blankScreen": false,
@@ -532,14 +542,14 @@
             "visible": true,
             "width": 1058,
             "height": 320,
-            "cellCount": 8,
+            "cellCount": 20,
             "unreadableCellCount": 0
           },
           {
             "visible": true,
             "width": 1054,
             "height": 316,
-            "cellCount": 8,
+            "cellCount": 20,
             "unreadableCellCount": 0
           }
         ],

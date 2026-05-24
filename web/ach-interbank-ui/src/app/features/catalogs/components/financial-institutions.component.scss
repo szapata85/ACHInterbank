@@ -81,6 +81,18 @@
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+}
+
+:host ::ng-deep .ag-cell {
+  min-width: 0;
+}
+
+:host ::ng-deep .ag-cell-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .empty {

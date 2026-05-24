@@ -238,4 +238,17 @@ Validacion: `npm run build` OK, `npm test -- --watch=false --browsers=ChromeHead
 
 Productivo: **NO-GO**.
 
+## Actualizacion 2026-05-24 - Fase 3 catalogos, terceros y AG Grid
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-UX-CATALOGS-001 AG Grid ilegible en `/catalogs/financial-institutions` | Cerrado tecnico frontend | `docs/ux/evidencias/catalogs-aggrid/catalogs-aggrid-validation.json` | Se ajustaron columnas, tooltips/ellipsis y acciones visibles. No se altero el uso de `IsDefaultSource`. |
+| DEF-UAT-UX-CATALOGS-002 `/catalogs/bank-holidays` no cargaba en SPA Docker | Cerrado tecnico frontend | `docs/ux/evidencias/catalogs-aggrid/screenshots/catalogs_bank_holidays.png` | El API directo respondia 200; faltaba proxy SPA para `/bank-holidays`. Se corrigio Nginx y estados de error/vacio. |
+| DEF-UAT-UX-CATALOGS-003 Catalogos tipologicos aparentaban falta de seed | Cerrado tecnico frontend | `docs/ux/evidencias/catalogs-aggrid/catalogs-aggrid-validation.md` | El API directo tenia datos; faltaba proxy SPA para `/catalog-types/`. No se agregaron seeds. |
+| DEF-UAT-UX-CATALOGS-004 `/customer-third-parties` parecia no cargar datos | Cerrado tecnico frontend | `docs/ux/evidencias/catalogs-aggrid/screenshots/customer_third_parties.png` | Se ejecuta carga inicial y se muestra error/vacio claro. No se inventaron terceros UAT. |
+
+Validacion: `npm run build` OK, `npm test -- --watch=false --browsers=ChromeHeadless` OK con 201 SUCCESS, `node web/ach-interbank-ui/scripts/ux-validate-catalogs-aggrid.mjs` OK y auditoria global SPA P0=0/P1=0/P2=0.
+
+Productivo: **NO-GO**.
+
 Productivo: **NO-GO**.

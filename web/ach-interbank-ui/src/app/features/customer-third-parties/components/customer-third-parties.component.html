@@ -33,7 +33,13 @@
     </div>
   </form>
 
+  <div class="error-state" *ngIf="loadError">
+    <p>No fue posible cargar los terceros de prenotificación.</p>
+    <button type="button" class="btn btn-secondary" (click)="search()" [disabled]="loading">Reintentar</button>
+  </div>
+
   <app-table
+    *ngIf="!loadError"
     [columns]="columns"
     [data]="rows"
     [loading]="loading"
