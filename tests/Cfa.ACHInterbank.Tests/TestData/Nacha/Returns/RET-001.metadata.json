@@ -1,0 +1,8 @@
+{
+  "scenarioId": "RET-001",
+  "clearingHouseCode": "ACH",
+  "flowType": "Return",
+  "expectedFileName": "1234567.001.RET",
+  "returnReasonCode": "R01",
+  "dataClassification": "synthetic-anonymized"
+}
