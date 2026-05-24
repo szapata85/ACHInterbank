@@ -1,5 +1,20 @@
 # Matriz de Defectos UAT - ACH Interbank
 
+## Actualizacion 2026-05-24 - Fase 6B.2 NACHA table-driven oficial
+
+- `NachaGenerationOptions.Mode` cambia a `TABLE_DRIVEN` como default oficial.
+- Export oficial ACH Colombia resuelve `OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0`.
+- Export oficial CENIT resuelve `OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0`.
+- Records 1/5/6/7/8/9 se renderizan desde `CfgLayoutVariant`/`CfgLayoutField`.
+- Faltantes de perfil/record/field/source/longitud/calculo fallan con codigos `NACHA_*` y 422 controlado.
+- `LoadLayoutsAsync`/`LoadDefinitionsAsync` no se invocan en modo oficial.
+- Legacy queda disponible solo con `Mode=LEGACY` explicito para pruebas historicas.
+
+Evidencia: `docs/uat/evidencias/nacha-config-table-driven/phase-6b2-builder/`.
+
+Estado DEF-UAT-020: **Parcial avanzado**. La generacion oficial table-driven queda OK tecnico UAT/local; siguen pendientes trace campo-a-campo, deprecacion SPA legacy, homologacion externa y aprobaciones formales.
+
+Productivo: **NO-GO**.
 Fecha de generacion/revalidacion: 2026-05-18 / 2026-05-19
 Version: 0.8
 Rama analizada: `fix/uat-operator-role-seed`

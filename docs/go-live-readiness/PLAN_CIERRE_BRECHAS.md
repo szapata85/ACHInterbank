@@ -198,6 +198,19 @@ Base documental: `docs/uat/evidencias/nacha-config-option-c-audit/phase-6b-imple
 
 Productivo permanece **NO-GO**.
 
+## Actualizacion 2026-05-24 - Cierre Fase 6B.2
+
+| Accion | Estado | Entregable | Criterio de cierre |
+|---|---|---|---|
+| Definir modo table-driven oficial estricto | Cerrado tecnico UAT | `NachaGenerationOptions.Mode=TABLE_DRIVEN` | Sin `LEGACY` como default oficial |
+| Usar perfiles oficiales ACH/CENIT en builder | Cerrado tecnico UAT | `NachaFileBuilder` + tests oficiales | ACH/CENIT resuelven perfiles publicados y vigentes |
+| Cortar fallback legacy oficial | Cerrado tecnico UAT | `no_legacy_fallback_report.md` | No se invoca `LoadLayoutsAsync`/`LoadDefinitionsAsync` en modo oficial |
+| Implementar fail-fast `NACHA_*` | Cerrado tecnico UAT | `NachaGenerationException`, API 422 | Missing profile/record/field/source/length/calculation falla controlado |
+| Persistir trace NACHA campo-a-campo | Pendiente Fase 6B.3 | Futuro `NachaGenerationTrace` | Evidencia FieldDefinition -> valor generado |
+| Declarar SPA oficial y deprecar legacy | Pendiente Fase 6B.4 | Rutas/UX/documentacion | Usuario no ve dos fuentes oficiales |
+
+Productivo permanece **NO-GO**.
+
 ## Actualizacion 2026-05-24 - Cierre Fase 6B.1
 
 | Accion | Estado | Entregable | Criterio de cierre |

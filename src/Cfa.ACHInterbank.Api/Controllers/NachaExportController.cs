@@ -176,6 +176,28 @@ public class NachaExportController : ControllerBase
 
     private static string ResolveNachaExportErrorCode(string message)
     {
+        var knownCodes = new[]
+        {
+            "NACHA_PROFILE_NOT_PUBLISHED",
+            "NACHA_PROFILE_NOT_EFFECTIVE",
+            "NACHA_PROFILE_AMBIGUOUS",
+            "NACHA_REQUIRED_RECORD_MISSING",
+            "NACHA_REQUIRED_FIELD_MISSING",
+            "NACHA_FIELD_SOURCE_NOT_FOUND",
+            "NACHA_FIELD_LENGTH_INVALID",
+            "NACHA_FIELD_VALIDATION_FAILED",
+            "NACHA_CALCULATION_FAILED",
+            "NACHA_LEGACY_GENERATION_DISABLED"
+        };
+
+        foreach (var code in knownCodes)
+        {
+            if (message.StartsWith(code, StringComparison.OrdinalIgnoreCase))
+            {
+                return code;
+            }
+        }
+
         if (message.Contains("Error Fatal ID", StringComparison.OrdinalIgnoreCase))
         {
             return "NACHA_VALIDATION_ERROR";

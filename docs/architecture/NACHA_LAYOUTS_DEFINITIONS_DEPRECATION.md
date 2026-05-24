@@ -19,3 +19,14 @@ Estas pantallas administran `NachaRecordLayout`, `NachaRecordField` y `NachaReco
 
 Productivo: **NO-GO**.
 
+## Estado tras Fase 6B.2
+
+El builder oficial `TABLE_DRIVEN` ya no lee `NachaRecordLayout` ni `NachaRecordDefinition` para exportacion oficial UAT/local. Las rutas y entidades legacy permanecen fisicamente para consulta historica, pruebas y transicion, pero no son fallback automatico.
+
+Pendiente Fase 6B.4:
+
+- declarar visualmente las pantallas legacy como no oficiales;
+- redirigir administracion operativa a `/nacha-config-admin/perfiles`;
+- evitar ambiguedad para usuarios de parametrizacion.
+
+Productivo: **NO-GO**.

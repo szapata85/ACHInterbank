@@ -1,0 +1,8 @@
+﻿{
+    "effectiveFrom":  "2026-01-01",
+    "resolvedProfile":  "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0",
+    "mode":  "TABLE_DRIVEN",
+    "clearingHouse":  "ACH",
+    "usedFallback":  false,
+    "status":  "Published"
+}

@@ -1,0 +1,18 @@
+﻿{
+    "mode":  "TABLE_DRIVEN",
+    "legacyFallbackUsed":  false,
+    "nonEmptyFile":  true,
+    "profileCode":  "OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0",
+    "generatedBy":  "Fase 6B.2 automated backend tests",
+    "externalTransmission":  false,
+    "records":  [
+                    "1",
+                    "5",
+                    "6",
+                    "7",
+                    "8",
+                    "9"
+                ],
+    "clearingHouse":  "CENIT",
+    "operation":  "NACHA official generation"
+}

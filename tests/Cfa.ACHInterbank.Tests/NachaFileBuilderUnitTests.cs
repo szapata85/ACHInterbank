@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -7,6 +8,7 @@ using Cfa.ACHInterbank.Persistence.DataBase;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -210,7 +212,8 @@ public class NachaFileBuilderUnitTests
             validator.Object,
             renderer.Object,
             recordDataProvider.Object,
-            semanticValidator.Object);
+            semanticValidator.Object,
+            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY" }));
     }
 
     private static SqliteConnection CreateOpenConnection()

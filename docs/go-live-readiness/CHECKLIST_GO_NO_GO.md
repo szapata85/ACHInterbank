@@ -269,6 +269,20 @@ Decision productiva: **NO-GO**.
 
 Decision productiva: **NO-GO**.
 
+## Actualizacion 2026-05-24 - Fase 6B.2 builder oficial table-driven
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| Generacion oficial table-driven | OK tecnico UAT/local | `docs/uat/evidencias/nacha-config-table-driven/phase-6b2-builder/validation_report.md` | No por si solo | `NachaGenerationOptions.Mode=TABLE_DRIVEN`; records 1/5/6/7/8/9 desde profile. |
+| Perfil ACH Colombia usado por builder | OK tecnico UAT/local | `profile_resolution_ach_colombia.json` | No por si solo | Resuelve `OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0`. |
+| Perfil CENIT usado por builder | OK tecnico UAT/local | `profile_resolution_cenit.json` | No por si solo | Resuelve `OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0`. |
+| No fallback legacy oficial | OK tecnico UAT/local | `no_legacy_fallback_report.md` | Si para go-live | Faltantes producen fail-fast; no carga layouts/definitions legacy. |
+| Trace FieldDefinition -> valor | Pendiente Fase 6B.3 | Este checklist | Si | Falta evidencia campo-a-campo de valor renderizado. |
+| SPA legacy NACHA | Pendiente Fase 6B.4 | Este checklist | Si | Falta deprecacion/redireccion de pantallas legacy. |
+| Productivo | NO-GO | Este checklist | Si | Persisten homologacion externa, aprobaciones, seguridad operativa y CENIT/CUD si aplica. |
+
+Decision productiva: **NO-GO**.
+
 ## Actualizacion 2026-05-24 - Fase 6B.1 perfiles oficiales NACHA-M
 
 | Criterio | Estado | Evidencia | Bloquea productivo | Observacion |

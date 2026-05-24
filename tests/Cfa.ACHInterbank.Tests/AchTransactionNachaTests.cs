@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
@@ -15,6 +16,7 @@ using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -333,7 +335,8 @@ public class AchTransactionNachaTests
         var renderer = new NachaFixedWidthRecordRenderer();
         var recordDataProvider = new NachaRecordDataProvider(executionContext);
         var semanticValidator = new NachaSemanticValidator();
-        var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator);
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator,
+            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY" }));
         var nachaContent = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
 
         var records = ChunkRecords(nachaContent);
@@ -432,7 +435,8 @@ public class AchTransactionNachaTests
         var renderer = new NachaFixedWidthRecordRenderer();
         var recordDataProvider = new NachaRecordDataProvider(executionContext);
         var semanticValidator = new NachaSemanticValidator();
-        var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator);
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator,
+            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY" }));
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None));
         Assert.Contains("devolución", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -558,7 +562,8 @@ public class AchTransactionNachaTests
         var renderer = new NachaFixedWidthRecordRenderer();
         var recordDataProvider = new NachaRecordDataProvider(executionContext);
         var semanticValidator = new NachaSemanticValidator();
-        var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator);
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator,
+            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY" }));
         var nachaContent = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
 
         Assert.NotEmpty(nachaContent);
@@ -652,7 +657,8 @@ public class AchTransactionNachaTests
         var renderer = new NachaFixedWidthRecordRenderer();
         var recordDataProvider = new NachaRecordDataProvider(executionContext);
         var semanticValidator = new Mock<INachaSemanticValidator>();
-        var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator.Object);
+        var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator.Object,
+            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY" }));
         var records = ChunkRecords(await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None));
         var addendaRecord = records.Last(record => record.StartsWith("7"));
 

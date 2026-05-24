@@ -26,6 +26,31 @@ Estos calculos pueden representarse como fuentes calculadas en trace, pero no de
 
 Productivo: **NO-GO**.
 
+## Actualizacion 2026-05-24 - Fase 6B.2
+
+`NachaGenerationOptions.Mode` cambia su default oficial a `TABLE_DRIVEN`.
+
+La generacion oficial de `NachaFileBuilder` ahora:
+
+- resuelve `CfgProfile` publicado/vigente por camara, flujo, direccion, servicio y fecha de proceso;
+- usa `CfgLayoutVariant` y `CfgLayoutField` para renderizar records 1/5/6/7/8/9;
+- usa `OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0` para ACH Colombia;
+- usa `OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0` para CENIT;
+- no invoca `LoadLayoutsAsync` ni `LoadDefinitionsAsync` en modo oficial;
+- no cae a `NachaRecordLayout`/`NachaRecordDefinition` si falta parametrizacion;
+- falla con codigos funcionales `NACHA_*` y respuesta API 422 controlada.
+
+El flujo legacy queda fisicamente disponible para pruebas historicas y modo `LEGACY` explicito, pero no como fallback automatico de exportacion oficial.
+
+Evidencia: `docs/uat/evidencias/nacha-config-table-driven/phase-6b2-builder/`.
+
+Brechas pendientes:
+
+- Fase 6B.3: trace campo-a-campo `CfgLayoutField -> valor renderizado`.
+- Fase 6B.4: deprecacion/redireccion de pantallas legacy `/ach-cycles/nacha/layouts` y `/ach-cycles/nacha/definitions`.
+
+Productivo: **NO-GO**.
+
 ## Actualizacion 2026-05-24 - Fase 6B.1
 
 Se agregan seeds runtime idempotentes de perfiles oficiales UAT/local:
