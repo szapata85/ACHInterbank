@@ -58,6 +58,40 @@ public class NachaGenerationAuditResult
     public List<string> Type7AliasResolutionTrace { get; init; } = [];
     public int ShadowDiffCount { get; set; }
     public List<string> ShadowDiffDetails { get; init; } = [];
+    public string Phase { get; set; } = "6B.3A";
+    public NachaFileIdModifierAudit? FileIdModifier { get; set; }
+    public NachaFileControlTotalsAudit? FileTotals { get; set; }
+    public List<NachaBatchControlTotalsAudit> BatchTotals { get; init; } = [];
+}
+
+public sealed class NachaFileIdModifierAudit
+{
+    public int DailySequence { get; init; }
+    public string ResolvedValue { get; init; } = string.Empty;
+}
+
+public sealed class NachaFileControlTotalsAudit
+{
+    public int BatchCount { get; init; }
+    public int BlockCount { get; init; }
+    public int EntryAddendaCount { get; init; }
+    public long EntryHash { get; init; }
+    public long TotalDebitAmountInCents { get; init; }
+    public long TotalCreditAmountInCents { get; init; }
+    public int PhysicalRecordCountBeforePadding { get; init; }
+    public int PaddingRecordCount { get; init; }
+    public int PhysicalRecordCountAfterPadding { get; init; }
+}
+
+public sealed class NachaBatchControlTotalsAudit
+{
+    public int BatchId { get; init; }
+    public int EntryAddendaCount { get; init; }
+    public long EntryHash { get; init; }
+    public long TotalDebitAmountInCents { get; init; }
+    public long TotalCreditAmountInCents { get; init; }
+    public int EntryDetailCount { get; init; }
+    public int AddendaCount { get; init; }
 }
 
 public class NachaGenerationTraceEntry

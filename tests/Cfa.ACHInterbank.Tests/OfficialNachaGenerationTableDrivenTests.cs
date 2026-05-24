@@ -383,6 +383,130 @@ public class OfficialNachaGenerationTableDrivenTests
     }
 
     [Fact]
+    public async Task GenerateOfficialFile_ShouldRenderBatchControlTotalsFromCalculator()
+    {
+        await using var context = await SeedAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+
+        var content = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        var batchControl = SplitRecords(content).Single(x => x[0] == '8');
+
+        batchControl.Substring(4, 6).Should().Be("000002");
+        batchControl.Substring(10, 10).Should().Be("0012345678");
+        batchControl.Substring(20, 12).Should().Be("000000000000");
+        batchControl.Substring(32, 12).Should().Be("000000010000");
+    }
+
+    [Fact]
+    public async Task GenerateOfficialFile_ShouldRenderFileControlTotalsFromCalculator()
+    {
+        await using var context = await SeedAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+
+        var content = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        var fileControl = SplitRecords(content).First(x => x[0] == '9' && x.Substring(1, 6) != "999999");
+
+        fileControl.Substring(1, 6).Should().Be("000001");
+        fileControl.Substring(7, 6).Should().Be("000001");
+        fileControl.Substring(13, 8).Should().Be("00000002");
+        fileControl.Substring(21, 10).Should().Be("0012345678");
+        fileControl.Substring(31, 12).Should().Be("000000000000");
+        fileControl.Substring(43, 12).Should().Be("000000010000");
+    }
+
+    [Fact]
+    public async Task GenerateFile_ShouldAddPaddingRecordsWhenRequired()
+    {
+        await using var context = await SeedAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+
+        var content = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        var records = SplitRecords(content);
+
+        records.Count.Should().Be(10);
+        records.TakeLast(4).Should().OnlyContain(x => x == new string('9', 106));
+    }
+
+    [Fact]
+    public async Task Trace_ShouldIncludeBatchTotals()
+    {
+        await using var context = await SeedAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+
+        await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        var trace = await LoadLatestTraceAsync(context);
+
+        trace.Phase.Should().Be("6B.3B");
+        trace.BatchTotals.Should().ContainSingle(x =>
+            x.BatchId == 100 &&
+            x.EntryAddendaCount == 2 &&
+            x.EntryHash == 12345678 &&
+            x.TotalCreditAmountInCents == 10000 &&
+            x.TotalDebitAmountInCents == 0 &&
+            x.EntryDetailCount == 1 &&
+            x.AddendaCount == 1);
+    }
+
+    [Fact]
+    public async Task Trace_ShouldIncludeFileTotals()
+    {
+        await using var context = await SeedAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+
+        await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        var trace = await LoadLatestTraceAsync(context);
+
+        trace.FileTotals.Should().NotBeNull();
+        trace.FileTotals!.BatchCount.Should().Be(1);
+        trace.FileTotals.EntryAddendaCount.Should().Be(2);
+        trace.FileTotals.EntryHash.Should().Be(12345678);
+        trace.FileTotals.TotalCreditAmountInCents.Should().Be(10000);
+    }
+
+    [Fact]
+    public async Task Trace_ShouldIncludeBlockCountAndPaddingCount()
+    {
+        await using var context = await SeedAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+
+        await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        var trace = await LoadLatestTraceAsync(context);
+
+        trace.FileTotals!.BlockCount.Should().Be(1);
+        trace.FileTotals.PhysicalRecordCountBeforePadding.Should().Be(6);
+        trace.FileTotals.PaddingRecordCount.Should().Be(4);
+        trace.FileTotals.PhysicalRecordCountAfterPadding.Should().Be(10);
+    }
+
+    [Fact]
+    public async Task Trace_ShouldIncludeFileIdModifierResolution()
+    {
+        await using var context = await SeedAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+
+        await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        var trace = await LoadLatestTraceAsync(context);
+
+        trace.FileIdModifier.Should().NotBeNull();
+        trace.FileIdModifier!.DailySequence.Should().Be(1);
+        trace.FileIdModifier.ResolvedValue.Should().Be("A");
+    }
+
+    [Fact]
+    public async Task ValidateOfficialLayout_ShouldCompareCalculatedVsRenderedTotals()
+    {
+        await using var context = await SeedAsync();
+        var entryHash = await LoadFieldAsync(context, "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0", "8", "ENTRYHASH");
+        entryHash.SourceDefinition.ExpressionDsl = JsonSerializer.Serialize(new { source = "runtime", calculationType = "BatchNumber" });
+        await context.SaveChangesAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+
+        var ex = await Assert.ThrowsAsync<NachaGenerationException>(() => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
+
+        ex.Code.Should().Be("NACHA_CONTROL_TOTAL_MISMATCH");
+    }
+
+    [Fact]
     public async Task Trace_ShouldMarkLegacyFallbackUsedFalse()
     {
         await using var context = await SeedAsync();
