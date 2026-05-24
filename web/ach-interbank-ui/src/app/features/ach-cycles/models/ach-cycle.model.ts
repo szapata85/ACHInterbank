@@ -8,7 +8,8 @@ export interface AchCycleSummary {
   cycleName: string;
   clearingHouseId: number;
   clearingHouseName: string;
-  date: string;
+  date?: string;
+  processingDate?: string;
   startTime: string;
   endTime: string;
   status: string;

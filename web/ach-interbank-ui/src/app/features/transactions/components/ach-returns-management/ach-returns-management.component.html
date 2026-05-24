@@ -18,11 +18,14 @@
   [columnas]="columnDefs"
   [datos]="rows"
   [cargando]="loading"
+  [error]="!!loadError"
+  [mensajeError]="loadError"
   [paginacion]="true"
   [tamanoPagina]="20"
-  [tituloVacio]="'Sin transacciones'"
-  [mensajeVacio]="'No hay transacciones cargadas para devolución.'"
+  [tituloVacio]="'No hay devoluciones registradas'"
+  [mensajeVacio]="'No hay devoluciones registradas para el ciclo seleccionado.'"
   [seleccionFilas]="rowSelection"
+  (reintentar)="loadTransactions()"
   (seleccionCambio)="onSelectionChanged($event)"
 ></ui-grilla-empresarial>
 

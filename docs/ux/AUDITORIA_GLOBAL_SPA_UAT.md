@@ -125,15 +125,15 @@ Productivo: NO-GO.
 
 Se ejecuto regresion final completa sobre las rutas criticas de fases previas y rutas adicionales de integraciones/mappings:
 
-- Rutas auditadas en regresion final: 30.
-- Rutas OK: 30.
+- Rutas auditadas en regresion final: 31.
+- Rutas OK: 31.
 - P0: 0.
 - P1: 0.
 - P2: 0.
 - `npm run build`: OK.
-- `npm test -- --watch=false --browsers=ChromeHeadless`: OK, 214 SUCCESS.
+- `npm test -- --watch=false --browsers=ChromeHeadless`: OK, 224 SUCCESS.
 - `node web/ach-interbank-ui/scripts/ux-audit-spa-critical-routes.mjs`: OK, 23 rutas, P0=0/P1=0/P2=0.
-- `node web/ach-interbank-ui/scripts/ux-audit-spa-final-regression.mjs`: OK, 30 rutas, P0=0/P1=0/P2=0.
+- `node web/ach-interbank-ui/scripts/ux-audit-spa-final-regression.mjs`: OK, 31 rutas, P0=0/P1=0/P2=0.
 - `node web/ach-interbank-ui/scripts/ux-validate-reports-pdf.mjs`: OK.
 
 Evidencias:
@@ -145,3 +145,36 @@ Evidencias:
 - `docs/ux/evidencias/spa-regression-final/screenshots/`.
 
 Resultado: SPA Angular OK tecnico UAT. Continuar UAT controlado. Productivo **NO-GO**.
+
+## Correccion puntual - /transactions/returns
+
+Se diagnostico y corrigio la pantalla `/transactions/returns` sin tocar backend, reportes, catalogos, SOAP, mappings ni reglas ACH/NACHA-M/CENIT/ROR.
+
+Hallazgos:
+
+- La ruta existe y el componente asociado es `AchReturnsManagementComponent`.
+- El API `/ach-cycles` retorna `processingDate`; la SPA esperaba `date`, provocando `RangeError: Invalid time value`.
+- En la SPA Docker faltaban proxies para `/return-reasons` y `/ach-returns/`, por lo que el runtime podia recibir `index.html` en vez de JSON.
+- El API de devoluciones respondio `200` con `[]` para el ciclo validado; el resultado correcto es estado vacio funcional, no error tecnico.
+
+Correcciones:
+
+- Compatibilidad `date`/`processingDate` y fecha invalida controlada.
+- `loading` finaliza en exito y error.
+- Estado vacio visible: `No hay devoluciones registradas`.
+- Error funcional visible con reintento.
+- Proxies SPA agregados para `/return-reasons` y `/ach-returns/`.
+
+Validaciones:
+
+- `node web/ach-interbank-ui/scripts/ux-validate-transactions-returns.mjs`: OK.
+- `node web/ach-interbank-ui/scripts/ux-audit-spa-final-regression.mjs`: OK, 31 rutas, P0=0/P1=0/P2=0.
+- `node web/ach-interbank-ui/scripts/ux-audit-spa-critical-routes.mjs`: OK, 23 rutas, P0=0/P1=0/P2=0.
+
+Evidencias:
+
+- `docs/ux/evidencias/transactions-returns/transactions-returns-validation.json`.
+- `docs/ux/evidencias/transactions-returns/transactions-returns-validation.md`.
+- `docs/ux/evidencias/transactions-returns/transactions-returns.png`.
+
+Productivo: **NO-GO**.

@@ -1,6 +1,6 @@
 # Regresion final SPA Angular UAT
 
-Fecha: 2026-05-24T04:21:51.824Z
+Fecha: 2026-05-24T05:01:08.639Z
 Base URL: http://localhost:743
 
 ## Runtime
@@ -13,8 +13,8 @@ Base URL: http://localhost:743
 
 ## Resumen
 
-- Rutas auditadas: 30
-- Rutas OK: 30
+- Rutas auditadas: 31
+- Rutas OK: 31
 - Rutas no aplica: 0
 - P0: 0
 - P1: 0
@@ -58,6 +58,7 @@ Base URL: http://localhost:743
 | `/integraciones/soap-settings` | OK | - | `docs/ux/evidencias/spa-regression-final/screenshots/integraciones_soap_settings.png` |
 | `/integraciones/mappings` | OK | - | `docs/ux/evidencias/spa-regression-final/screenshots/integraciones_mappings.png` |
 | `/uat/nacha-inbound-simulator` | OK | - | `docs/ux/evidencias/spa-regression-final/screenshots/uat_nacha_inbound_simulator.png` |
+| `/transactions/returns` | OK | - | `docs/ux/evidencias/spa-regression-final/screenshots/transactions_returns.png` |
 | `/transactions/clearing-house-rules` | OK | - | `docs/ux/evidencias/spa-regression-final/screenshots/transactions_clearing_house_rules.png` |
 | `/integraciones/mappings/WSCFAACH.Proc_Contrapartidas/1d6f8bce-d768-4ebd-80d0-c5331971e130` | OK | - | `docs/ux/evidencias/spa-regression-final/screenshots/integraciones_mappings_WSCFAACH_Proc_Contrapartidas_1d6f8bce_d768_4ebd_80d0_c5331971e130.png` |
 | `/integraciones/mappings/WSCFAACH.Proc_Transacciones/dc1b034b-4de3-4043-93cc-79072bf8a5e9` | OK | - | `docs/ux/evidencias/spa-regression-final/screenshots/integraciones_mappings_WSCFAACH_Proc_Transacciones_dc1b034b_4de3_4043_93cc_79072bf8a5e9.png` |

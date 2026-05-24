@@ -219,6 +219,22 @@ Productivo: **NO-GO**.
 
 El error `message channel closed before a response was received` no se reprodujo en Chromium limpio; queda documentado como ruido probable de extension si aparece en navegador local.
 
+## Actualizacion 2026-05-24 - /transactions/returns
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-UX-RETURNS-001 `/transactions/returns` no cargaba informacion de devoluciones | Cerrado tecnico frontend | `docs/ux/evidencias/transactions-returns/transactions-returns-validation.json`, `docs/ux/evidencias/transactions-returns/transactions-returns.png` | Causa raiz: mismatch DTO `date`/`processingDate` en ciclos y proxies SPA faltantes para `/return-reasons` y `/ach-returns/`. Se corrigio manejo de loading/error/vacio y proxy SPA. Runtime valido: `ach-returns` responde `200` con `[]` y la pantalla muestra `No hay devoluciones registradas`. |
+
+Validaciones:
+
+- `npm run build`: OK.
+- `npm test -- --watch=false --browsers=ChromeHeadless`: OK, 224 SUCCESS.
+- `node web/ach-interbank-ui/scripts/ux-validate-transactions-returns.mjs`: OK.
+- `node web/ach-interbank-ui/scripts/ux-audit-spa-final-regression.mjs`: OK, 31 rutas, P0=0/P1=0/P2=0.
+- `node web/ach-interbank-ui/scripts/ux-audit-spa-critical-routes.mjs`: OK, 23 rutas, P0=0/P1=0/P2=0.
+
+Productivo: **NO-GO**.
+
 ## Actualizacion 2026-05-23 - P1 botones reportes SPA
 
 | Defecto/Brecha | Estado | Evidencia | Observacion |

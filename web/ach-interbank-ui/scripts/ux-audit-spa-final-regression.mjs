@@ -43,6 +43,7 @@ const extraRoutes = [
   '/integraciones/soap-settings',
   '/integraciones/mappings',
   '/uat/nacha-inbound-simulator',
+  '/transactions/returns',
   '/transactions/clearing-house-rules'
 ];
 

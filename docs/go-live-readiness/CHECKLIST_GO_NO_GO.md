@@ -248,10 +248,23 @@ Decision productiva: **NO-GO**.
 
 | Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
 |---|---|---|---|---|
-| SPA Angular regresion final | OK tecnico UAT | `docs/ux/evidencias/spa-regression-final/spa-final-regression.md` | No por si solo | 30 rutas auditadas; P0=0, P1=0, P2=0. |
+| SPA Angular regresion final | OK tecnico UAT | `docs/ux/evidencias/spa-regression-final/spa-final-regression.md` | No por si solo | 31 rutas auditadas; P0=0, P1=0, P2=0. Incluye `/transactions/returns`. |
 | Auditoria global historica | OK tecnico UAT | `docs/ux/evidencias/spa-global-audit/spa-critical-routes-audit.md` | No por si solo | 23 rutas auditadas; P0=0, P1=0, P2=0. |
-| Build/test Angular | OK tecnico | `npm run build`, `npm test -- --watch=false --browsers=ChromeHeadless` | No por si solo | 214 specs SUCCESS; warnings de Browserslist no bloqueantes. |
+| Build/test Angular | OK tecnico | `npm run build`, `npm test -- --watch=false --browsers=ChromeHeadless` | No por si solo | 224 specs SUCCESS; warnings de Browserslist no bloqueantes. |
 | Reportes PDF UAT frontend | OK tecnico | `docs/ux/evidencias/reports-pdf/reports-pdf-validation.json` | No por si solo | Reconciliation/traceability no descargan PDF vacio; si no hay datos muestran mensaje claro. |
 | Productivo | NO-GO | Este checklist | Si | La validacion SPA no reemplaza homologacion externa, actas, certificados, CENIT/CUD, backup/restore ni aprobaciones formales. |
+
+Decision productiva: **NO-GO**.
+
+## Actualizacion 2026-05-24 - /transactions/returns
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| Ruta `/transactions/returns` carga correctamente | OK tecnico frontend | `docs/ux/evidencias/transactions-returns/transactions-returns-validation.json` | No por si solo | La pantalla finaliza loading y muestra grilla/estado vacio/error funcional segun respuesta API. |
+| Estado vacio de devoluciones | OK tecnico frontend | `docs/ux/evidencias/transactions-returns/transactions-returns.png` | No por si solo | API runtime retorna `200` con `[]`; la UI muestra `No hay devoluciones registradas`. |
+| Proxy SPA para devoluciones | OK tecnico frontend | `web/ach-interbank-ui/nginx.conf` | No por si solo | `/return-reasons` y `/ach-returns/` pasan a API y ya no devuelven `index.html`. |
+| Build/test Angular | OK tecnico | `npm run build`, `npm test -- --watch=false --browsers=ChromeHeadless` | No por si solo | 224 specs SUCCESS. |
+| Regresion SPA posterior | OK tecnico UAT | `docs/ux/evidencias/spa-regression-final/spa-final-regression.md` | No por si solo | 31 rutas auditadas; P0=0, P1=0, P2=0. |
+| Productivo | NO-GO | Este checklist | Si | La correccion UAT frontend no cambia readiness productivo. |
 
 Decision productiva: **NO-GO**.

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-24T04:21:51.824Z",
+  "generatedAt": "2026-05-24T05:01:08.639Z",
   "baseUrl": "http://localhost:743",
   "runtime": {
     "liveStatus": 200,
@@ -11,8 +11,8 @@
     ]
   },
   "summary": {
-    "totalRoutes": 30,
-    "ok": 30,
+    "totalRoutes": 31,
+    "ok": 31,
     "p0": 0,
     "p1": 0,
     "p2": 0
@@ -44,6 +44,7 @@
     "/integraciones/soap-settings",
     "/integraciones/mappings",
     "/uat/nacha-inbound-simulator",
+    "/transactions/returns",
     "/transactions/clearing-house-rules",
     "/integraciones/mappings/WSCFAACH.Proc_Contrapartidas/1d6f8bce-d768-4ebd-80d0-c5331971e130",
     "/integraciones/mappings/WSCFAACH.Proc_Transacciones/dc1b034b-4de3-4043-93cc-79072bf8a5e9",
@@ -90,14 +91,14 @@
           "contentType": "application/json; charset=utf-8"
         },
         {
-          "method": "POST",
-          "url": "http://localhost:743/api/navigation-logs",
+          "method": "GET",
+          "url": "http://localhost:743/ach-cycles/exportable",
           "status": 200,
           "contentType": "application/json; charset=utf-8"
         },
         {
-          "method": "GET",
-          "url": "http://localhost:743/ach-cycles/exportable",
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
           "status": 200,
           "contentType": "application/json; charset=utf-8"
         }
@@ -3479,15 +3480,15 @@
         },
         {
           "method": "GET",
-          "url": "http://localhost:743/api/reports/cycles?page=1&pageSize=25",
-          "status": 200,
-          "contentType": ""
-        },
-        {
-          "method": "GET",
           "url": "http://localhost:743/navigation/menu",
           "status": 200,
           "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/reports/cycles?page=1&pageSize=25",
+          "status": 200,
+          "contentType": ""
         },
         {
           "method": "GET",
@@ -4441,6 +4442,214 @@
       "ok": true
     },
     {
+      "route": "/transactions/returns",
+      "label": "/transactions/returns",
+      "finalUrl": "http://localhost:743/transactions/returns",
+      "screenshot": "docs/ux/evidencias/spa-regression-final/screenshots/transactions_returns.png",
+      "navigationError": null,
+      "redirectedToLogin": false,
+      "responses": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/transactions/returns",
+          "status": 200,
+          "contentType": "text/html"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/auth/refresh",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/navigation/menu",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/ach-cycles?page=1&pageSize=100",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:743/return-reasons?onlyForReturn=true",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        },
+        {
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8"
+        }
+      ],
+      "failedRequests": [],
+      "ignoredFailedRequests": [],
+      "httpErrors": [],
+      "consoleErrors": [],
+      "ignoredConsoleErrors": [],
+      "visual": {
+        "url": "http://localhost:743/transactions/returns",
+        "title": "Seleccione un ciclo, marque transacciones y genere el archivo .RETGestión de Devoluciones ACH",
+        "textLength": 1079,
+        "textSample": "SELECCIONE UN CICLO, MARQUE TRANSACCIONES Y GENERE EL ARCHIVO .RET\n\nGestión de Devoluciones ACH\nCiclo operativo\nLimpiar\nUAT-SINT-CICLO (2026-05-18)\nCiclo 1 (2026-05-19)\nCiclo 1 (2026-05-19)\nCiclo 2 (2026-05-19)\nCiclo 2 (2026-05-19)\nCiclo 3 (2026-05-19)\nCiclo 3 (2026-05-19)\nCiclo 4 (2026-05-19)\nCiclo 4 (2026-05-19)\nCiclo 5 (2026-05-19)\nCiclo 5 (2026-05-19)\nCiclo 1 (2026-05-20)\nCiclo 1 (2026-05-20)\nCiclo 2 (2026-05-20)\nCiclo 2 (2026-05-20)\nCiclo 3 (2026-05-20)\nCiclo 3 (2026-05-20)\nCiclo 4 (2026-05-20)\nCiclo 4 (2026-05-20)\nCiclo 5 (2026-05-20)\nCiclo 5 (2026-05-20)\nCiclo 1 (2026-05-21)\nCiclo 1 (2026-05-21)\nCiclo 2 (2026-05-21)\nCiclo 2 (2026-05-21)\nCiclo 3 (2026-05-21)\nCiclo 3 (2026-05-21)\nCiclo 4 (2026-05-21)\nCiclo 4 (2026-05-21)\nCiclo 5 (2026-05-21)\nCiclo 5 (2026-05-21)\nConsultar\nAsignar causal / Generar\nsearch\ninbox\n\nNo hay devoluciones registradas\n\nNo hay devoluciones registradas para el ",
+        "isLoading": false,
+        "blank": false,
+        "errorVisible": false,
+        "emptyVisible": false,
+        "horizontalScroll": false,
+        "bodyScrollWidth": 1366,
+        "viewportWidth": 1366,
+        "buttonsWithoutLabel": [],
+        "whiteButtons": [],
+        "grids": [
+          {
+            "width": 1058,
+            "height": 320,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "ID",
+                "width": 110
+              },
+              {
+                "text": "Trace",
+                "width": 200
+              },
+              {
+                "text": "Referencia",
+                "width": 200
+              },
+              {
+                "text": "Monto",
+                "width": 200
+              },
+              {
+                "text": "Cod. Tx",
+                "width": 130
+              },
+              {
+                "text": "Estado",
+                "width": 220
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 110
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 130
+              },
+              {
+                "text": "",
+                "width": 220
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          },
+          {
+            "width": 1054,
+            "height": 268,
+            "headers": [
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "ID",
+                "width": 110
+              },
+              {
+                "text": "Trace",
+                "width": 200
+              },
+              {
+                "text": "Referencia",
+                "width": 200
+              },
+              {
+                "text": "Monto",
+                "width": 200
+              },
+              {
+                "text": "Cod. Tx",
+                "width": 130
+              },
+              {
+                "text": "Estado",
+                "width": 220
+              },
+              {
+                "text": "",
+                "width": 50
+              },
+              {
+                "text": "",
+                "width": 110
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 200
+              },
+              {
+                "text": "",
+                "width": 130
+              },
+              {
+                "text": "",
+                "width": 220
+              }
+            ],
+            "narrowHeaders": [],
+            "cutActions": []
+          }
+        ],
+        "modals": [],
+        "pdfState": {
+          "checked": false
+        }
+      },
+      "findings": [],
+      "ok": true
+    },
+    {
       "route": "/transactions/clearing-house-rules",
       "label": "/transactions/clearing-house-rules",
       "finalUrl": "http://localhost:743/transactions/clearing-house-rules",
@@ -4816,14 +5025,14 @@
           "contentType": "application/json; charset=utf-8"
         },
         {
-          "method": "POST",
-          "url": "http://localhost:743/api/navigation-logs",
+          "method": "GET",
+          "url": "http://localhost:743/api/integrations/transformations",
           "status": 200,
           "contentType": "application/json; charset=utf-8"
         },
         {
-          "method": "GET",
-          "url": "http://localhost:743/api/integrations/transformations",
+          "method": "POST",
+          "url": "http://localhost:743/api/navigation-logs",
           "status": 200,
           "contentType": "application/json; charset=utf-8"
         },
@@ -4932,13 +5141,13 @@
         },
         {
           "method": "GET",
-          "url": "http://localhost:743/api/integrations/source-catalog?methodId=3",
+          "url": "http://localhost:743/api/integrations/methods/3/parameters",
           "status": 200,
           "contentType": "application/json; charset=utf-8"
         },
         {
           "method": "GET",
-          "url": "http://localhost:743/api/integrations/methods/3/parameters",
+          "url": "http://localhost:743/api/integrations/source-catalog?methodId=3",
           "status": 200,
           "contentType": "application/json; charset=utf-8"
         }
