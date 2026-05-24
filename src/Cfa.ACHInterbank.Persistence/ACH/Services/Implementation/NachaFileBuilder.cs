@@ -17,6 +17,7 @@ using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
@@ -730,8 +731,14 @@ public class NachaFileBuilder : INachaFileBuilder
         {
             Mode = "TABLE_DRIVEN",
             ClearingHouseCode = clearingHouseCode,
+            ClearingHouseName = context.Cycle.ClearingHouse?.Name,
             ProfileId = resolution.Profile?.Id,
-            ProfileCode = resolution.Profile?.ProfileCode
+            ProfileCode = resolution.Profile?.ProfileCode,
+            ProfileVersion = resolution.Profile is null ? null : $"{resolution.Profile.VersionMajor}.{resolution.Profile.VersionMinor}",
+            ProfileStatus = resolution.Profile?.Status?.Code,
+            EffectiveDate = context.Cycle.ProcessingDate,
+            LegacyFallbackUsed = false,
+            CorrelationId = $"NACHA-GEN-{DateTime.UtcNow:yyyyMMddHHmmss}"
         };
         audit.Trace.AddRange(resolution.Trace);
         audit.Trace.AddRange(batchNumberAssignment.ScopeTrace.Select(scopeTrace =>
@@ -798,69 +805,126 @@ public class NachaFileBuilder : INachaFileBuilder
                 BatchEntryDescription: batchDescription);
         }
 
-        recordCount += AppendOfficialRecords(
-            sb,
-            "1",
-            [FileHeaderRecord.From(context.Cycle, context.Transactions, header)],
-            RequireOfficialLayout(resolution, "1"));
-
-        foreach (var batch in orderedBatches)
+        var lineNumber = 1;
+        try
         {
-            var calculation = batchCalculations[batch.Id];
-            recordCount += AppendOfficialRecords(
-                sb,
-                "5",
-                [BatchHeaderRecord.From(batch, calculation.StandardEntryClassCode, batchSequenceById[batch.Id], calculation.BatchEntryDescription)],
-                RequireOfficialLayout(resolution, "5"));
-
-            var entryDetails = await BuildEntryDetailRecordsOfficialAsync(calculation.Transactions, RequireOfficialLayout(resolution, "6"), ct);
-            recordCount += AppendOfficialRecords(sb, "6", entryDetails, RequireOfficialLayout(resolution, "6"));
-            entryAddendaCount += entryDetails.Count;
-
-            var type7Candidates = (_type7GenerationStrategy?.BuildCandidates([batch])
-                                   ?? BuildFallbackType7Candidates([batch])).ToList();
-            recordCount += AppendOfficialRecords(
-                sb,
-                "7",
-                type7Candidates.Select(x => (object)x.FieldValues).ToList(),
-                RequireOfficialLayout(resolution, "7"));
-            entryAddendaCount += type7Candidates.Count;
-
-            recordCount += AppendOfficialRecords(
-                sb,
-                "8",
-                [BatchControlRecord.From(batch, calculation.EntryAddendaCount, calculation.BatchDebit, calculation.BatchCredit, batchSequenceById[batch.Id])],
-                RequireOfficialLayout(resolution, "8"));
-        }
-
-        var totalRecords = recordCount + 1;
-        var blockCount = (int)Math.Ceiling(totalRecords / 10m);
-        var paddingNeeded = (blockCount * 10) - totalRecords;
-        var fileControl = FileControlRecord.From(context.Cycle, orderedBatches, batchCount, blockCount, entryAddendaCount, totalDebit, totalCredit);
-        audit.Trace.Add($"FileIntegrity:BatchCount={batchCount};EntryAddendaCount={entryAddendaCount};TotalDebit={totalDebit};TotalCredit={totalCredit};BlockCount={blockCount};PaddingNeeded={paddingNeeded}");
-        recordCount += AppendOfficialRecords(sb, "9", [fileControl], RequireOfficialLayout(resolution, "9"));
-
-        if (paddingNeeded > 0)
-        {
-            var paddingRecord = new string('9', lineLength);
-            for (var i = 0; i < paddingNeeded; i++)
+            foreach (var recordCode in officialRecordCodes)
             {
-                sb.Append(paddingRecord);
+                ValidateOfficialLayout(recordCode, RequireOfficialLayout(resolution, recordCode), audit);
             }
+
+            recordCount += AppendOfficialRecords(
+                sb,
+                "1",
+                [FileHeaderRecord.From(context.Cycle, context.Transactions, header)],
+                RequireOfficialLayout(resolution, "1"),
+                audit,
+                ref lineNumber);
+
+            foreach (var batch in orderedBatches)
+            {
+                var calculation = batchCalculations[batch.Id];
+                recordCount += AppendOfficialRecords(
+                    sb,
+                    "5",
+                    [BatchHeaderRecord.From(batch, calculation.StandardEntryClassCode, batchSequenceById[batch.Id], calculation.BatchEntryDescription)],
+                    RequireOfficialLayout(resolution, "5"),
+                    audit,
+                    ref lineNumber);
+
+                var entryDetails = await BuildEntryDetailRecordsOfficialAsync(calculation.Transactions, RequireOfficialLayout(resolution, "6"), ct);
+                recordCount += AppendOfficialRecords(sb, "6", entryDetails, RequireOfficialLayout(resolution, "6"), audit, ref lineNumber);
+                entryAddendaCount += entryDetails.Count;
+
+                var type7Candidates = (_type7GenerationStrategy?.BuildCandidates([batch])
+                                       ?? BuildFallbackType7Candidates([batch])).ToList();
+                recordCount += AppendOfficialRecords(
+                    sb,
+                    "7",
+                    type7Candidates.Select(x => (object)x.FieldValues).ToList(),
+                    RequireOfficialLayout(resolution, "7"),
+                    audit,
+                    ref lineNumber);
+                entryAddendaCount += type7Candidates.Count;
+
+                recordCount += AppendOfficialRecords(
+                    sb,
+                    "8",
+                    [BatchControlRecord.From(batch, calculation.EntryAddendaCount, calculation.BatchDebit, calculation.BatchCredit, batchSequenceById[batch.Id])],
+                    RequireOfficialLayout(resolution, "8"),
+                    audit,
+                    ref lineNumber);
+            }
+
+            var totalRecords = recordCount + 1;
+            var blockCount = (int)Math.Ceiling(totalRecords / 10m);
+            var paddingNeeded = (blockCount * 10) - totalRecords;
+            var fileControl = FileControlRecord.From(context.Cycle, orderedBatches, batchCount, blockCount, entryAddendaCount, totalDebit, totalCredit);
+            audit.Trace.Add($"FileIntegrity:BatchCount={batchCount};EntryAddendaCount={entryAddendaCount};TotalDebit={totalDebit};TotalCredit={totalCredit};BlockCount={blockCount};PaddingNeeded={paddingNeeded}");
+            recordCount += AppendOfficialRecords(sb, "9", [fileControl], RequireOfficialLayout(resolution, "9"), audit, ref lineNumber);
+
+            if (paddingNeeded > 0)
+            {
+                var paddingRecord = new string('9', lineLength);
+                for (var i = 0; i < paddingNeeded; i++)
+                {
+                    sb.Append(paddingRecord);
+                    audit.FieldTraceEntries.Add(new NachaGenerationTraceEntry
+                    {
+                        TraceId = audit.TraceId,
+                        RecordType = "9",
+                        RecordSequence = i + 1,
+                        LineNumber = lineNumber++,
+                        FieldName = "PADDING_RECORD",
+                        DisplayName = "Padding record",
+                        PositionStart = 1,
+                        PositionEnd = lineLength,
+                        Length = lineLength,
+                        SourceType = "CALCULATED",
+                        CalculationType = "PaddingRecord",
+                        RawValueSanitized = "9",
+                        RenderedValue = paddingRecord,
+                        RenderedLength = lineLength,
+                        ValidationStatus = "Ok",
+                        GeneratedLinePreviewSanitized = paddingRecord,
+                        ValueStartIndex = 1,
+                        ValueEndIndex = lineLength
+                    });
+                }
+            }
+        }
+        catch (NachaGenerationException ex)
+        {
+            audit.Status = "Failed";
+            audit.ErrorCode = ex.Code;
+            audit.TotalRecords = lineNumber - 1;
+            audit.TotalFields = audit.FieldTraceEntries.Count;
+            await PersistGenerationAuditAsync(audit, resolution.Profile?.Id, ct);
+            throw;
         }
 
         var fileContent = sb.ToString();
+        audit.TotalRecords = fileContent.Length / lineLength;
+        audit.TotalFields = audit.FieldTraceEntries.Count;
+        audit.FileHash = Convert.ToHexString(SHA256.HashData(Encoding.ASCII.GetBytes(fileContent)));
         await PersistGenerationAuditAsync(audit, resolution.Profile?.Id, ct);
         _nachaSemanticValidator.Validate(fileContent, context);
         return fileContent;
     }
 
-    private int AppendOfficialRecords(StringBuilder sb, string recordCode, IEnumerable<object> records, CfgLayoutVariant layout)
+    private int AppendOfficialRecords(
+        StringBuilder sb,
+        string recordCode,
+        IEnumerable<object> records,
+        CfgLayoutVariant layout,
+        NachaGenerationAuditResult audit,
+        ref int lineNumber)
     {
         var count = 0;
         foreach (var record in records)
         {
-            sb.Append(RenderOfficialRecord(recordCode, record, layout));
+            sb.Append(RenderOfficialRecord(recordCode, record, layout, audit, count + 1, lineNumber));
+            lineNumber++;
             count++;
         }
 
@@ -1441,12 +1505,6 @@ public class NachaFileBuilder : INachaFileBuilder
             throw new NachaGenerationException("NACHA_LEGACY_GENERATION_DISABLED", "El resolver solicitó fallback legacy en modo oficial table-driven.");
         }
 
-        foreach (var recordCode in recordCodes)
-        {
-            var layout = RequireOfficialLayout(resolution, recordCode);
-            ValidateOfficialLayout(recordCode, layout);
-        }
-
         return resolution;
     }
 
@@ -1515,7 +1573,7 @@ public class NachaFileBuilder : INachaFileBuilder
         return layout;
     }
 
-    private static void ValidateOfficialLayout(string recordCode, CfgLayoutVariant layout)
+    private static void ValidateOfficialLayout(string recordCode, CfgLayoutVariant layout, NachaGenerationAuditResult? audit = null)
     {
         var enabledFields = layout.Fields.Where(x => x.IsEnabled).OrderBy(x => x.StartPosition).ToList();
         if (enabledFields.Count == 0)
@@ -1539,6 +1597,16 @@ public class NachaFileBuilder : INachaFileBuilder
             var field = enabledFields.FirstOrDefault(x => string.Equals(x.FieldCode, required, StringComparison.OrdinalIgnoreCase));
             if (field is null)
             {
+                audit?.FieldTraceEntries.Add(new NachaGenerationTraceEntry
+                {
+                    TraceId = audit.TraceId,
+                    RecordType = recordCode,
+                    FieldName = required,
+                    DisplayName = required,
+                    ValidationStatus = "Failed",
+                    ErrorCode = "NACHA_REQUIRED_FIELD_MISSING",
+                    ErrorMessage = $"Falta el campo requerido {required} en RecordCode={recordCode}."
+                });
                 throw new NachaGenerationException("NACHA_REQUIRED_FIELD_MISSING", $"Falta el campo requerido {required} en RecordCode={recordCode}.");
             }
         }
@@ -1583,28 +1651,181 @@ public class NachaFileBuilder : INachaFileBuilder
         }
     }
 
-    private string RenderOfficialRecord(string recordCode, object record, CfgLayoutVariant layout)
+    private string RenderOfficialRecord(
+        string recordCode,
+        object record,
+        CfgLayoutVariant layout,
+        NachaGenerationAuditResult audit,
+        int recordSequence,
+        int lineNumber)
     {
         var buffer = new char[layout.TotalLength];
         Array.Fill(buffer, ' ');
+        var recordEntries = new List<NachaGenerationTraceEntry>();
 
         foreach (var field in layout.Fields.Where(x => x.IsEnabled).OrderBy(x => x.StartPosition))
         {
-            var raw = ResolveOfficialRawValue(recordCode, record, field);
-            var value = FormatOfficialValue(raw, field);
-            if (value.Length > field.Length)
+            object? raw = null;
+            string? value = null;
+            try
             {
-                throw new NachaGenerationException("NACHA_FIELD_LENGTH_INVALID", $"El campo {field.FieldCode} en RecordCode={recordCode} excede longitud {field.Length}.");
+                raw = ResolveOfficialRawValue(recordCode, record, field);
+                value = FormatOfficialValue(raw, field);
+                if (value.Length > field.Length)
+                {
+                    throw new NachaGenerationException("NACHA_FIELD_LENGTH_INVALID", $"El campo {field.FieldCode} en RecordCode={recordCode} excede longitud {field.Length}.");
+                }
+
+                value = field.Justification == 'R'
+                    ? value.PadLeft(field.Length, field.PadChar)
+                    : value.PadRight(field.Length, field.PadChar);
+
+                value.CopyTo(0, buffer, field.StartPosition - 1, value.Length);
+                recordEntries.Add(CreateOfficialTraceEntry(audit, recordCode, recordSequence, lineNumber, layout, field, raw, value, "Ok", null, null));
             }
-
-            value = field.Justification == 'R'
-                ? value.PadLeft(field.Length, field.PadChar)
-                : value.PadRight(field.Length, field.PadChar);
-
-            value.CopyTo(0, buffer, field.StartPosition - 1, value.Length);
+            catch (NachaGenerationException ex)
+            {
+                audit.FieldTraceEntries.Add(CreateOfficialTraceEntry(audit, recordCode, recordSequence, lineNumber, layout, field, raw, value, "Failed", ex.Code, ex.Message));
+                throw;
+            }
         }
 
-        return new string(buffer);
+        var line = new string(buffer);
+        foreach (var entry in recordEntries)
+        {
+            entry.GeneratedLinePreviewSanitized = SanitizeTraceValue(line);
+            audit.FieldTraceEntries.Add(entry);
+        }
+
+        return line;
+    }
+
+    private static NachaGenerationTraceEntry CreateOfficialTraceEntry(
+        NachaGenerationAuditResult audit,
+        string recordCode,
+        int recordSequence,
+        int lineNumber,
+        CfgLayoutVariant layout,
+        CfgLayoutField field,
+        object? raw,
+        string? rendered,
+        string validationStatus,
+        string? errorCode,
+        string? errorMessage)
+    {
+        var source = field.SourceDefinition;
+        var sourceType = NormalizeTraceSourceType(source.DataSourceType.Code);
+        var calculationType = string.Equals(source.DataSourceType.Code, "EXPRESION", StringComparison.OrdinalIgnoreCase)
+            ? TryResolveCalculationType(source.ExpressionDsl)
+            : null;
+
+        return new NachaGenerationTraceEntry
+        {
+            TraceId = audit.TraceId,
+            RecordType = recordCode,
+            RecordSequence = recordSequence,
+            LineNumber = lineNumber,
+            LayoutVariantId = layout.Id,
+            LayoutVariantCode = layout.VariantCode,
+            FieldDefinitionId = field.Id,
+            FieldName = field.FieldCode,
+            DisplayName = field.FieldNameEs,
+            PositionStart = field.StartPosition,
+            PositionEnd = field.StartPosition + field.Length - 1,
+            Length = field.Length,
+            DataType = InferTraceDataType(field, raw),
+            Required = true,
+            SourceType = sourceType,
+            SourceFieldPath = source.PropertyPath,
+            ConstantValueSanitized = source.ConstantValue is null ? null : SanitizeTraceValue(source.ConstantValue),
+            CalculationType = calculationType,
+            TransformationApplied = field.FormatMask,
+            PaddingDirection = field.Justification == 'R' ? "Left" : "Right",
+            PaddingChar = field.PadChar.ToString(),
+            RawValueSanitized = SanitizeTraceValue(raw),
+            RenderedValue = SanitizeTraceValue(rendered),
+            RenderedLength = rendered?.Length ?? 0,
+            ValidationStatus = validationStatus,
+            ErrorCode = errorCode,
+            ErrorMessage = errorMessage,
+            ValueStartIndex = field.StartPosition,
+            ValueEndIndex = field.StartPosition + field.Length - 1
+        };
+    }
+
+    private static string NormalizeTraceSourceType(string sourceType)
+    {
+        if (string.Equals(sourceType, "CONSTANTE", StringComparison.OrdinalIgnoreCase))
+        {
+            return "CONSTANT";
+        }
+
+        if (string.Equals(sourceType, "ENTIDAD", StringComparison.OrdinalIgnoreCase))
+        {
+            return "SOURCE_FIELD";
+        }
+
+        if (string.Equals(sourceType, "EXPRESION", StringComparison.OrdinalIgnoreCase))
+        {
+            return "CALCULATED";
+        }
+
+        return sourceType.ToUpperInvariant();
+    }
+
+    private static string InferTraceDataType(CfgLayoutField field, object? raw)
+    {
+        if (raw is DateTime or DateOnly)
+        {
+            return "date";
+        }
+
+        if (raw is decimal or double or float)
+        {
+            return "decimal";
+        }
+
+        if (raw is int or long or short)
+        {
+            return "integer";
+        }
+
+        return field.FieldCode.Contains("AMOUNT", StringComparison.OrdinalIgnoreCase)
+            || field.FieldCode.Contains("TOTAL", StringComparison.OrdinalIgnoreCase)
+            || field.FieldCode.Contains("COUNT", StringComparison.OrdinalIgnoreCase)
+            || field.FieldCode.Contains("HASH", StringComparison.OrdinalIgnoreCase)
+            ? "numeric"
+            : "string";
+    }
+
+    private static string? SanitizeTraceValue(object? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        var text = value switch
+        {
+            DateTime date => date.ToString("O", CultureInfo.InvariantCulture),
+            DateOnly dateOnly => dateOnly.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
+            _ => value.ToString()
+        } ?? string.Empty;
+
+        text = text.Replace("\r", string.Empty, StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal);
+
+        if (text.Contains("Bearer ", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("Authorization", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("BEGIN PRIVATE", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("password", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("token", StringComparison.OrdinalIgnoreCase))
+        {
+            return "[SANITIZED]";
+        }
+
+        return text.Length <= 140 ? text : text[..140];
     }
 
     private object? ResolveOfficialRawValue(string recordCode, object record, CfgLayoutField field)
@@ -1665,6 +1886,21 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         throw new NachaGenerationException("NACHA_CALCULATION_FAILED", "ExpressionDsl no declara calculationType.");
+    }
+
+    private static string? TryResolveCalculationType(string? expressionDsl)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(expressionDsl ?? "{}");
+            return document.RootElement.TryGetProperty("calculationType", out var property)
+                ? property.GetString()
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static bool TryResolveOfficialValue(object record, string? path, out object? raw)
