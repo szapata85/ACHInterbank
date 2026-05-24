@@ -1,0 +1,8 @@
+{
+  "route": "/reports/reconciliation",
+  "apiResponses": [],
+  "download": null,
+  "noDataMessageVisible": true,
+  "ok": true,
+  "note": "Sin datos: descarga bloqueada con mensaje claro."
+}

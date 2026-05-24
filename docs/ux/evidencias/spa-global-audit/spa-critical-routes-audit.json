@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-24T01:54:00.177Z",
+  "generatedAt": "2026-05-24T02:17:44.835Z",
   "baseUrl": "http://localhost:743",
   "auditedRoutes": [
     "/ach-cycles/nacha/export",
@@ -47,6 +47,11 @@
       "redirectedToLogin": false,
       "failedRequests": [],
       "ignoredFailedRequests": [
+        {
+          "method": "GET",
+          "url": "http://localhost:743/api/users/branding",
+          "failure": "net::ERR_ABORTED"
+        },
         {
           "method": "GET",
           "url": "https://fonts.gstatic.com/s/materialsymbolsoutlined/v339/kJF1BvYX7BgnkSrUwT8OhrdQw4oELdPIeeII9v6oDMzByHX9rA6RzaxHMPdY43zj-jCxv3fzvRNU22ZXGJpEpjC_1v-p_4MrImHCIJIZrDCvHOej.woff2",

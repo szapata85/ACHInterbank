@@ -22,6 +22,7 @@ export class TraceabilityReportComponent implements OnInit {
   private readonly achCyclesApi = inject(AchCyclesApiService);
 
   loading = false;
+  exportError: string | null = null;
 
   readonly states: Array<{ value: '' | 'Pending' | 'ReturnedByOperator' | 'ReturnedByEpr' | 'AppliedTacitly' | 'Certified'; label: string }> = [
     { value: '', label: 'Todos los estados' },
@@ -68,13 +69,14 @@ export class TraceabilityReportComponent implements OnInit {
     }
 
     this.loading = true;
+    this.exportError = null;
     this.cdr.markForCheck();
 
     const payload = {
       fromUtc: this.form.value.fromUtc ? `${this.form.value.fromUtc}T00:00:00Z` : undefined,
       toUtc: this.form.value.toUtc ? `${this.form.value.toUtc}T23:59:59Z` : undefined,
       state: this.form.value.state ?? '',
-      achCycleId: (this.form.value.achCycleId ?? []).filter((value) => !!value)
+      achCycleId: this.getDistinctAchCycleIds()
     };
 
     this.api.downloadTraceabilityPdf(payload).subscribe({
@@ -85,7 +87,17 @@ export class TraceabilityReportComponent implements OnInit {
 
         const serverErrorMessage = await this.tryExtractServerErrorMessage(blob, contentType);
         if (serverErrorMessage) {
+          this.exportError = serverErrorMessage;
           this.notifications.error(serverErrorMessage);
+          this.loading = false;
+          this.cdr.markForCheck();
+          return;
+        }
+
+        const invalidPdfMessage = await this.getInvalidPdfMessage(blob);
+        if (invalidPdfMessage) {
+          this.exportError = invalidPdfMessage;
+          this.notifications.error(invalidPdfMessage);
           this.loading = false;
           this.cdr.markForCheck();
           return;
@@ -100,11 +112,13 @@ export class TraceabilityReportComponent implements OnInit {
 
         window.URL.revokeObjectURL(url);
         this.loading = false;
+        this.exportError = null;
         this.notifications.success('Reporte generado correctamente');
         this.cdr.markForCheck();
       },
       error: (error) => {
         const message = error?.error?.message ?? 'No fue posible generar el reporte de trazabilidad.';
+        this.exportError = String(message);
         this.notifications.error(String(message));
         this.loading = false;
         this.cdr.markForCheck();
@@ -133,6 +147,23 @@ export class TraceabilityReportComponent implements OnInit {
     } catch {
       return 'No fue posible generar el reporte de trazabilidad.';
     }
+  }
+
+  private async getInvalidPdfMessage(blob: Blob): Promise<string | null> {
+    if (blob.size === 0) {
+      return 'No hay informacion para exportar.';
+    }
+
+    if (blob.size < 512) {
+      return 'El PDF generado no contiene informacion suficiente para descargar.';
+    }
+
+    const header = await blob.slice(0, 5).text().catch(() => '');
+    return header === '%PDF-' ? null : 'El archivo generado no es un PDF valido.';
+  }
+
+  private getDistinctAchCycleIds(): string[] {
+    return Array.from(new Set((this.form.value.achCycleId ?? []).filter((value) => !!value)));
   }
 
   private isInvalidDateRange(): boolean {

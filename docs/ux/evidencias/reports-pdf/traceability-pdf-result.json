@@ -1,0 +1,17 @@
+{
+  "route": "/reports/traceability",
+  "selectedCycleCount": 2,
+  "apiResponses": [
+    {
+      "url": "http://localhost:743/api/reports/traceability/pdf?achCycleId=bd379e941269bb868bc2fb391b2fcc9d0feac357,7301fd9bf4c1bd7383399cd9d844fd1ccbd97649",
+      "status": 200,
+      "contentType": null,
+      "contentLength": "0"
+    }
+  ],
+  "download": null,
+  "noDataMessageVisible": true,
+  "duplicatedCycleQuery": false,
+  "ok": true,
+  "note": "Sin datos: descarga bloqueada con mensaje claro y sin ciclos duplicados."
+}

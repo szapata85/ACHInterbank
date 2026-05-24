@@ -206,3 +206,15 @@ Decision productiva: **NO-GO**.
 | Productivo | NO-GO | Este checklist | Si | La correccion visual no cambia autorizacion productiva ni homologa operacion externa. |
 
 Decision productiva: **NO-GO**.
+
+## Actualizacion 2026-05-23 - funcionalidad PDF reportes
+
+| Criterio | Estado | Evidencia | Bloquea productivo | Observacion |
+|---|---|---|---|---|
+| `/reports/reconciliation` no descarga PDF vacio | OK tecnico frontend | `docs/ux/evidencias/reports-pdf/reconciliation-pdf-result.json` | No por si solo | Si no hay datos, muestra mensaje claro y no descarga archivo vacio. |
+| `/reports/traceability` no descarga PDF vacio | OK tecnico frontend | `docs/ux/evidencias/reports-pdf/traceability-pdf-result.json` | No por si solo | Si no hay datos, muestra mensaje claro y no descarga archivo vacio. |
+| Seleccion multiple en traceability | OK tecnico frontend | `docs/ux/evidencias/reports-pdf/reports-pdf-validation.json` | No por si solo | Ciclos seleccionados se deduplican antes de llamar al endpoint PDF. |
+| Auditoria global SPA | OK tecnico frontend | `docs/ux/evidencias/spa-global-audit/spa-critical-routes-audit.json` | No por si solo | 23 rutas auditadas; P0=0, P1=0, P2=0. |
+| Productivo | NO-GO | Este checklist | Si | La validacion PDF UAT no reemplaza UAT formal, homologacion ni aprobacion productiva. |
+
+Decision productiva: **NO-GO**.

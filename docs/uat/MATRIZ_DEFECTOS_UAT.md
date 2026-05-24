@@ -227,4 +227,15 @@ El error `message channel closed before a response was received` no se reprodujo
 
 Productivo: **NO-GO**.
 
+## Actualizacion 2026-05-23 - PDF reportes reconciliation/traceability
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-UX-REPORTS-002 Descarga de PDF vacio en `/reports/reconciliation` | Cerrado tecnico frontend | `docs/ux/evidencias/reports-pdf/reconciliation-pdf-result.json` | Runtime/API devuelve `Content-Length=0` para escenario sin datos; la SPA bloquea descarga y muestra `No hay informacion para exportar`. |
+| DEF-UAT-UX-REPORTS-003 Descarga de PDF vacio y seleccion multiple confusa en `/reports/traceability` | Cerrado tecnico frontend | `docs/ux/evidencias/reports-pdf/traceability-pdf-result.json` | Runtime/API devuelve `Content-Length=0` para escenario sin datos; la SPA bloquea descarga, muestra mensaje claro y deduplica ciclos seleccionados antes de consultar PDF. |
+
+Validacion: `npm run build` OK, `npm test -- --watch=false --browsers=ChromeHeadless` OK con 192 SUCCESS, `node web/ach-interbank-ui/scripts/ux-validate-reports-pdf.mjs` OK y auditoria global SPA P0=0/P1=0/P2=0.
+
+Productivo: **NO-GO**.
+
 Productivo: **NO-GO**.

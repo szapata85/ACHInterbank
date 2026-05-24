@@ -31,16 +31,30 @@ Se corrigio el componente comun `ReportListPageComponent`:
 - P1: 0.
 - P2: 0.
 
+## Validacion funcional PDF reportes
+
+Se valido funcionalmente la exportacion PDF en las rutas priorizadas:
+
+- `/reports/reconciliation`: el backend/runtime devolvio PDF vacio para el escenario sin datos; la SPA bloquea la descarga y muestra `No hay informacion para exportar`.
+- `/reports/traceability`: el backend/runtime devolvio PDF vacio para el escenario sin datos; la SPA bloquea la descarga, muestra mensaje claro y deduplica la seleccion multiple de ciclos antes de invocar el endpoint.
+
+No se modificaron endpoints, backend, SOAP ni reglas ACH/NACHA-M/CENIT/ROR. No se agrego exportacion Excel nueva; las rutas `/reports/*` validadas no exponen accion Excel en esta pantalla.
+
 Evidencias:
 
 - `docs/ux/evidencias/spa-global-audit/spa-critical-routes-audit.json`
 - `docs/ux/evidencias/spa-global-audit/spa-critical-routes-audit.md`
 - `docs/ux/evidencias/spa-global-audit/screenshots/`
+- `docs/ux/evidencias/reports-pdf/reports-pdf-validation.json`
+- `docs/ux/evidencias/reports-pdf/reconciliation-pdf-result.json`
+- `docs/ux/evidencias/reports-pdf/traceability-pdf-result.json`
+- `docs/ux/evidencias/reports-pdf/screenshots/`
 
 Validaciones:
 
 - `npm run build`: OK.
 - `npm test -- --watch=false --browsers=ChromeHeadless`: OK.
+- `node web/ach-interbank-ui/scripts/ux-validate-reports-pdf.mjs`: OK.
 - `node web/ach-interbank-ui/scripts/ux-audit-spa-critical-routes.mjs`: OK.
 
 Productivo: NO-GO.

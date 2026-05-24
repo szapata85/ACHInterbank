@@ -30,6 +30,9 @@
     <button type="submit" [disabled]="loading">
       {{ loading ? 'Generando...' : 'Generar PDF' }}
     </button>
+    <p *ngIf="exportError" class="export-error" data-testid="traceability-export-error">
+      {{ exportError }}
+    </p>
   </form>
 </section>
 
