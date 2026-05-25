@@ -106,6 +106,19 @@ Resultado:
 - No se invoco SOAP real.
 - Productivo NO-GO.
 
+### Fase 6B.5.1 - Gateway SOAP controlado endurecido
+
+Commit:
+`b3b37455355b4c975df25a55ac44be7c6996e808`
+
+Resumen:
+Fase 6B.5.1 completada. Se creo/agrego `AGENTS.md`, se endurecieron modelos SOAP internos, mapper y executor dry-run. Se agrego validacion de contexto auditable, compatibilidad operacion/decision, bloqueo `BlockedByNoGo` para `DryRun=false`, payload sin credenciales y trace `Phase=6B.5`. No se invoca SOAP real.
+
+Resultado:
+- Build Release OK.
+- Tests Release OK: 1339 passed, 0 failed, 1 skipped, total 1340.
+- Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.

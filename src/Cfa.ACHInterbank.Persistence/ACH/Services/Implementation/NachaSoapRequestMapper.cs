@@ -7,6 +7,13 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public sealed class NachaSoapRequestMapper : INachaSoapRequestMapper
 {
+    private readonly INachaSoapPayloadMapper? _payloadMapper;
+
+    public NachaSoapRequestMapper(INachaSoapPayloadMapper? payloadMapper = null)
+    {
+        _payloadMapper = payloadMapper;
+    }
+
     public NachaSoapMappedRequest Map(NachaSoapExecutionRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -19,11 +26,20 @@ public sealed class NachaSoapRequestMapper : INachaSoapRequestMapper
         var methodName = ResolveMethodName(decision.SoapOperation);
         ValidateContext(request, errors);
         ValidateOperationDecisionCompatibility(decision, errors);
+        var payloadMapping = request.PayloadContext is not null && _payloadMapper is not null
+            ? _payloadMapper.Map(decision, request.PayloadContext)
+            : null;
 
         if (decision.SoapOperation is NachaSoapOperationCandidate.ProcContrapartidas or NachaSoapOperationCandidate.ProcTransacciones
             && !decision.RequiresMonetaryMovement)
         {
             errors.Add($"{decision.SoapOperation} requiere movimiento monetario.");
+            isExecutable = false;
+        }
+
+        if (payloadMapping is not null && !payloadMapping.IsExecutable)
+        {
+            errors.AddRange(payloadMapping.Errors);
             isExecutable = false;
         }
 
@@ -56,7 +72,8 @@ public sealed class NachaSoapRequestMapper : INachaSoapRequestMapper
             ProductiveExecution = false,
             MethodName = methodName,
             CorrelationId = request.CorrelationId,
-            Payload = BuildPayload(request, methodName),
+            PayloadMapping = payloadMapping,
+            Payload = BuildPayload(request, methodName, payloadMapping),
             Errors = errors,
             Trace = trace
         };
@@ -141,8 +158,12 @@ public sealed class NachaSoapRequestMapper : INachaSoapRequestMapper
             _ => string.Empty
         };
 
-    private static Dictionary<string, string> BuildPayload(NachaSoapExecutionRequest request, string methodName)
-        => new(StringComparer.OrdinalIgnoreCase)
+    private static Dictionary<string, string> BuildPayload(
+        NachaSoapExecutionRequest request,
+        string methodName,
+        NachaSoapPayloadMappingResult? payloadMapping)
+    {
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["MethodName"] = methodName,
             ["CorrelationId"] = request.CorrelationId,
@@ -159,4 +180,32 @@ public sealed class NachaSoapRequestMapper : INachaSoapRequestMapper
             ["PrenotificationId"] = request.Decision.PrenotificationId?.ToString() ?? string.Empty,
             ["ReasonCode"] = request.Decision.ReasonCode ?? string.Empty
         };
+
+        if (payloadMapping is not null)
+        {
+            payload["PayloadType"] = payloadMapping.PayloadType;
+            payload["PayloadIsMapped"] = payloadMapping.IsMapped.ToString();
+            payload["PayloadSummaryPhase"] = payloadMapping.SanitizedSummary.TryGetValue("Phase", out var phase) ? phase : string.Empty;
+            payload["PayloadSummaryOperation"] = payloadMapping.SanitizedSummary.TryGetValue("OperationCandidate", out var operation) ? operation : string.Empty;
+        }
+
+        foreach (var item in request.Metadata.Where(x => !IsSensitiveKey(x.Key)))
+        {
+            payload[$"Metadata.{item.Key}"] = MaskValue(item.Value);
+        }
+
+        return payload;
+    }
+
+    private static bool IsSensitiveKey(string key)
+        => key.Contains("password", StringComparison.OrdinalIgnoreCase)
+           || key.Contains("token", StringComparison.OrdinalIgnoreCase)
+           || key.Contains("secret", StringComparison.OrdinalIgnoreCase)
+           || key.Contains("credential", StringComparison.OrdinalIgnoreCase);
+
+    private static string MaskValue(string value)
+    {
+        var digits = new string((value ?? string.Empty).Where(char.IsDigit).ToArray());
+        return digits.Length >= 7 ? $"***{digits[^4..]}" : value ?? string.Empty;
+    }
 }

@@ -9,6 +9,8 @@ public sealed class NachaSoapExecutionRequest
     public string RequestedBy { get; init; } = "system";
     public bool IsEnabled { get; init; }
     public bool DryRun { get; init; } = true;
+    public NachaSoapExecutionContext? PayloadContext { get; init; }
+    public IReadOnlyDictionary<string, string> Metadata { get; init; } = new Dictionary<string, string>();
 }
 
 public sealed class NachaSoapMappedRequest
@@ -22,6 +24,7 @@ public sealed class NachaSoapMappedRequest
     public bool ProductiveExecution { get; init; }
     public string MethodName { get; init; } = string.Empty;
     public string CorrelationId { get; init; } = string.Empty;
+    public NachaSoapPayloadMappingResult? PayloadMapping { get; init; }
     public IReadOnlyDictionary<string, string> Payload { get; init; } = new Dictionary<string, string>();
     public IReadOnlyList<string> Errors { get; init; } = [];
     public IReadOnlyDictionary<string, string> Trace { get; init; } = new Dictionary<string, string>();
