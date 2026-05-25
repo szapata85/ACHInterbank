@@ -19,6 +19,7 @@ public sealed class NachaSoapMappedRequest
     public bool IsExecutable { get; init; }
     public bool RequiresMonetaryMovement { get; init; }
     public bool WouldInvokeSoap { get; init; }
+    public bool ProductiveExecution { get; init; }
     public string MethodName { get; init; } = string.Empty;
     public string CorrelationId { get; init; } = string.Empty;
     public IReadOnlyDictionary<string, string> Payload { get; init; } = new Dictionary<string, string>();
@@ -42,5 +43,6 @@ public enum NachaSoapExecutionStatus
 {
     Skipped = 0,
     Rejected = 1,
-    DryRunCompleted = 2
+    DryRunCompleted = 2,
+    BlockedByNoGo = 3
 }

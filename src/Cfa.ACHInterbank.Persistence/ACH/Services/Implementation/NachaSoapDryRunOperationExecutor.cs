@@ -38,15 +38,26 @@ public sealed class NachaSoapDryRunOperationExecutor : INachaSoapOperationExecut
             });
         }
 
+        if (!request.DryRun)
+        {
+            return Task.FromResult(new NachaSoapExecutionResult
+            {
+                Status = NachaSoapExecutionStatus.BlockedByNoGo,
+                MappedRequest = mapped,
+                SoapWasInvoked = false,
+                ProductiveExecution = false,
+                Message = "Ejecucion SOAP real bloqueada en Fase 6B.5.1. Productivo permanece NO-GO.",
+                Trace = BuildTrace(mapped, NachaSoapExecutionStatus.BlockedByNoGo)
+            });
+        }
+
         return Task.FromResult(new NachaSoapExecutionResult
         {
             Status = NachaSoapExecutionStatus.DryRunCompleted,
             MappedRequest = mapped,
             SoapWasInvoked = false,
             ProductiveExecution = false,
-            Message = request.DryRun
-                ? "Dry-run completado. No se invoco SOAP real."
-                : "Ejecucion real bloqueada en Fase 6B.5.1. No se invoco SOAP real.",
+            Message = "Dry-run completado. No se invoco SOAP real.",
             Trace = BuildTrace(mapped, NachaSoapExecutionStatus.DryRunCompleted)
         });
     }

@@ -17,6 +17,8 @@ public sealed class NachaSoapRequestMapper : INachaSoapRequestMapper
         var isExecutable = ResolveExecutable(decision, errors);
         var requiresMonetaryMovement = ResolveMonetaryRequirement(decision);
         var methodName = ResolveMethodName(decision.SoapOperation);
+        ValidateContext(request, errors);
+        ValidateOperationDecisionCompatibility(decision, errors);
 
         if (decision.SoapOperation is NachaSoapOperationCandidate.ProcContrapartidas or NachaSoapOperationCandidate.ProcTransacciones
             && !decision.RequiresMonetaryMovement)
@@ -51,6 +53,7 @@ public sealed class NachaSoapRequestMapper : INachaSoapRequestMapper
             IsExecutable = isExecutable && errors.Count == 0,
             RequiresMonetaryMovement = requiresMonetaryMovement,
             WouldInvokeSoap = isExecutable && errors.Count == 0 && decision.SoapOperation != NachaSoapOperationCandidate.None,
+            ProductiveExecution = false,
             MethodName = methodName,
             CorrelationId = request.CorrelationId,
             Payload = BuildPayload(request, methodName),
@@ -75,6 +78,49 @@ public sealed class NachaSoapRequestMapper : INachaSoapRequestMapper
         }
 
         return executable;
+    }
+
+    private static void ValidateContext(NachaSoapExecutionRequest request, List<string> errors)
+    {
+        if (string.IsNullOrWhiteSpace(request.CorrelationId))
+        {
+            errors.Add("CorrelationId es obligatorio para trazabilidad SOAP 6B.5.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ClearingHouseCode))
+        {
+            errors.Add("ClearingHouseCode es obligatorio para frontera SOAP 6B.5.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ProfileCode))
+        {
+            errors.Add("ProfileCode es obligatorio para frontera SOAP 6B.5.");
+        }
+    }
+
+    private static void ValidateOperationDecisionCompatibility(NachaIncomingDecision decision, List<string> errors)
+    {
+        if (decision.SoapOperation == NachaSoapOperationCandidate.ProcTransacciones
+            && decision.DecisionType != NachaIncomingDecisionType.ApplyCreditMovement)
+        {
+            errors.Add("ProcTransacciones solo es valido para ApplyCreditMovement.");
+        }
+
+        if (decision.SoapOperation == NachaSoapOperationCandidate.ProcContrapartidas
+            && decision.DecisionType != NachaIncomingDecisionType.ApplyDebitMovement)
+        {
+            errors.Add("ProcContrapartidas solo es valido para ApplyDebitMovement.");
+        }
+
+        if (decision.SoapOperation == NachaSoapOperationCandidate.RegistrarRespuestaTransaccion
+            && decision.DecisionType is not (NachaIncomingDecisionType.RegisterDifferentialResponse
+                or NachaIncomingDecisionType.ApprovePrenotification
+                or NachaIncomingDecisionType.RejectPrenotification
+                or NachaIncomingDecisionType.MarkTransactionRejected
+                or NachaIncomingDecisionType.MarkTransactionAccepted))
+        {
+            errors.Add("RegistrarRespuestaTransaccion solo es valido para respuestas diferenciales, prenotificaciones o actualizaciones de estado.");
+        }
     }
 
     private static bool ResolveMonetaryRequirement(NachaIncomingDecision decision)
@@ -102,6 +148,11 @@ public sealed class NachaSoapRequestMapper : INachaSoapRequestMapper
             ["CorrelationId"] = request.CorrelationId,
             ["ClearingHouseCode"] = request.ClearingHouseCode,
             ["ProfileCode"] = request.ProfileCode,
+            ["ProductiveExecution"] = "false",
+            ["RequestedBy"] = request.RequestedBy,
+            ["Operation"] = request.Decision.SoapOperation.ToString(),
+            ["DecisionType"] = request.Decision.DecisionType.ToString(),
+            ["RequiresMonetaryMovement"] = request.Decision.RequiresMonetaryMovement.ToString(),
             ["EntryTraceNumber"] = request.Decision.EntryTraceNumber,
             ["OriginalTraceNumber"] = request.Decision.OriginalTraceNumber ?? string.Empty,
             ["TransactionId"] = request.Decision.TransactionId?.ToString() ?? string.Empty,

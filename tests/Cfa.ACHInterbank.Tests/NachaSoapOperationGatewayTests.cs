@@ -91,18 +91,92 @@ public class NachaSoapOperationGatewayTests
         Assert.Equal("6B.5", result.MappedRequest!.Phase);
     }
 
+    [Fact]
+    public void Map_ProcTransacciones_WithNonCreditDecision_ShouldReject()
+    {
+        var mapped = new NachaSoapRequestMapper().Map(BuildRequest(NachaSoapOperationCandidate.ProcTransacciones, NachaIncomingDecisionType.ApplyDebitMovement, true));
+
+        Assert.False(mapped.IsExecutable);
+        Assert.Contains(mapped.Errors, x => x.Contains("ApplyCreditMovement", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Map_ProcContrapartidas_WithNonDebitDecision_ShouldReject()
+    {
+        var mapped = new NachaSoapRequestMapper().Map(BuildRequest(NachaSoapOperationCandidate.ProcContrapartidas, NachaIncomingDecisionType.ApplyCreditMovement, true));
+
+        Assert.False(mapped.IsExecutable);
+        Assert.Contains(mapped.Errors, x => x.Contains("ApplyDebitMovement", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Map_RegistrarRespuestaTransaccion_WithMonetaryFlag_ShouldReject()
+    {
+        var mapped = new NachaSoapRequestMapper().Map(BuildRequest(NachaSoapOperationCandidate.RegistrarRespuestaTransaccion, NachaIncomingDecisionType.RegisterDifferentialResponse, true));
+
+        Assert.False(mapped.IsExecutable);
+        Assert.False(mapped.RequiresMonetaryMovement);
+        Assert.Contains(mapped.Errors, x => x.Contains("no debe mover dinero", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Map_MissingAuditContext_ShouldReject()
+    {
+        var mapped = new NachaSoapRequestMapper().Map(BuildRequest(
+            NachaSoapOperationCandidate.ProcTransacciones,
+            NachaIncomingDecisionType.ApplyCreditMovement,
+            true,
+            correlationId: string.Empty,
+            clearingHouseCode: string.Empty,
+            profileCode: string.Empty));
+
+        Assert.False(mapped.IsExecutable);
+        Assert.Contains(mapped.Errors, x => x.Contains("CorrelationId", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(mapped.Errors, x => x.Contains("ClearingHouseCode", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(mapped.Errors, x => x.Contains("ProfileCode", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task RealExecutionRequest_ShouldBeBlockedByNoGo()
+    {
+        var executor = new NachaSoapDryRunOperationExecutor(new NachaSoapRequestMapper());
+
+        var result = await executor.ExecuteAsync(BuildRequest(NachaSoapOperationCandidate.ProcTransacciones, NachaIncomingDecisionType.ApplyCreditMovement, true, dryRun: false));
+
+        Assert.Equal(NachaSoapExecutionStatus.BlockedByNoGo, result.Status);
+        Assert.False(result.SoapWasInvoked);
+        Assert.False(result.ProductiveExecution);
+        Assert.Contains("NO-GO", result.Message);
+    }
+
+    [Fact]
+    public void Map_ShouldCarryAuditPayloadWithoutCredentials()
+    {
+        var mapped = new NachaSoapRequestMapper().Map(BuildRequest(NachaSoapOperationCandidate.RegistrarRespuestaTransaccion, NachaIncomingDecisionType.RegisterDifferentialResponse, false));
+
+        Assert.Equal("false", mapped.Payload["ProductiveExecution"]);
+        Assert.Equal("6B.5", mapped.Trace["Phase"]);
+        Assert.DoesNotContain(mapped.Payload.Keys, x => x.Contains("Password", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(mapped.Payload.Keys, x => x.Contains("Credential", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(mapped.Payload.Keys, x => x.Contains("Token", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static NachaSoapExecutionRequest BuildRequest(
         NachaSoapOperationCandidate operation,
         NachaIncomingDecisionType decisionType,
         bool requiresMonetaryMovement,
-        bool isEnabled = true)
+        bool isEnabled = true,
+        bool dryRun = true,
+        string correlationId = "phase-6b5-test",
+        string clearingHouseCode = "ACH",
+        string profileCode = "OFFICIAL_ACH_ENTRADA_ORIGINAL_V1_0")
         => new()
         {
-            CorrelationId = "phase-6b5-test",
-            ClearingHouseCode = "ACH",
-            ProfileCode = "OFFICIAL_ACH_ENTRADA_ORIGINAL_V1_0",
+            CorrelationId = correlationId,
+            ClearingHouseCode = clearingHouseCode,
+            ProfileCode = profileCode,
             IsEnabled = isEnabled,
-            DryRun = true,
+            DryRun = dryRun,
             RequestedBy = "test",
             Decision = new NachaIncomingDecision
             {
