@@ -208,7 +208,7 @@ Resultado:
 ### Fase 6B.5.6 - Wiring UAT controlado y readiness operacional final
 
 Commit:
-Pendiente de commit.
+`81d53ac84f07a9cc88e75b1d8d507cfd98e9feaa`
 
 Estado:
 Completada.
@@ -227,6 +227,34 @@ Resultado:
 - Tests Release OK: 1496 passed, 0 failed, 1 skipped, total 1497.
 - Productivo permanece NO-GO.
 - Queda listo para Fase 6C: cierre operativo/certificacion UAT formal, parametrizacion final o exposicion controlada por API/UI sin habilitar productivo.
+
+### Fase 6C.1 - SPA Angular: consulta operativa NACHA-M y readiness SOAP
+
+Estado:
+Completada.
+
+Commit:
+Pendiente de commit.
+
+Resumen:
+Se agrego una primera capa SPA Angular read-only para consulta operativa NACHA-M y readiness SOAP. La ruta `/ach/nacha/operational-dashboard` muestra estado Productivo NO-GO, modo SOAP simulado/dry-run, archivos NACHA-M demo seguros, decisiones funcionales, readiness UAT, auditoria sanitizada Phase 6B.5 y bloqueos operativos. No se agregaron endpoints backend nuevos en esta fase; la pantalla consume un servicio Angular local con datos demo seguros marcados como read-only.
+
+Archivos principales:
+- `web/ach-interbank-ui/src/app/features/nacha-operational/`
+- `web/ach-interbank-ui/src/app/app-routing.module.ts`
+
+Resultado:
+- Backend build Release OK: 0 warnings, 0 errors.
+- Backend tests Release OK: 1496 passed, 0 failed, 1 skipped, total 1497.
+- Angular build OK.
+- Angular tests OK: 239 success.
+- No se invoca SOAP real.
+- No se mueve dinero.
+- No se agregan credenciales ni endpoints reales.
+- No se modifican golden files.
+- No se toca table-driven.
+- Productivo permanece NO-GO.
+- Queda listo para Fase 6C.2: conectar consultas read-only a endpoints backend reales/sanitizados o ampliar vistas operativas sin habilitar ejecucion.
 
 ## 4. Decision arquitectonica oficial
 

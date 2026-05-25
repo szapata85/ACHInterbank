@@ -190,6 +190,20 @@ const routes: Routes = [
           )
       },
       {
+        path: 'ach',
+        canActivate: [roleGuard, permissionGuard],
+        data: {
+          roles: ['Admin', 'ACH.Operator'],
+          permissions: ['CanReadAch'],
+          breadcrumb: 'ACH',
+          title: 'Consulta operativa NACHA-M'
+        },
+        loadChildren: () =>
+          import('./features/nacha-operational/nacha-operational.module').then(
+            (m) => m.NachaOperationalModule
+          )
+      },
+      {
         path: 'payment-rail-capability-registry',
         canActivate: [roleGuard, permissionGuard],
         data: {
