@@ -119,6 +119,32 @@ Resultado:
 - Tests Release OK: 1339 passed, 0 failed, 1 skipped, total 1340.
 - Productivo permanece NO-GO.
 
+### Fase 6B.5.2 - Mapping detallado de payloads SOAP
+
+Commit:
+`32f882876fc0df49d56fda5fddca95d0c77daf92`
+
+Resumen:
+Fase 6B.5.2 completada. Se agregaron `INachaSoapPayloadMapper`, modelos de payload SOAP tipados y `NachaSoapPayloadMapper`. Se implemento mapping detallado para `ProcContrapartidas`, `ProcTransacciones`, `RegistrarRespuestaTransaccion`, `None` y `ManualReviewRequired`, con validacion de reglas monetarias/no monetarias, sanitizacion de summaries y puente con dry-run. No se invoca SOAP real.
+
+Resultado:
+- Build Release OK.
+- Tests Release OK: 1371 passed, 0 failed, 1 skipped, total 1372.
+- Productivo permanece NO-GO.
+
+### Fase 6B.5.3 - Gateway SOAP simulado con adaptadores mockeados
+
+Commit:
+Pendiente de commit.
+
+Resumen:
+Fase 6B.5.3 completada. Usa payloads tipados de 6B.5.2 e implementa un gateway SOAP simulado con adaptadores mockeados por operacion. Permite simular exito, SOAP faults, timeouts y fallas controladas; bloquea `ProductiveExecution=true` y `AllowExternalSoapInvocation=true`; sanitiza summaries y mantiene `Phase=6B.5`. No invoca SOAP real, no crea clientes SOAP reales y no usa credenciales.
+
+Resultado:
+- Build Release OK.
+- Tests Release OK: 1399 passed, 0 failed, 1 skipped, total 1400.
+- Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.

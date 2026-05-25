@@ -10,6 +10,8 @@ public sealed class NachaSoapExecutionRequest
     public bool IsEnabled { get; init; }
     public bool DryRun { get; init; } = true;
     public NachaSoapExecutionContext? PayloadContext { get; init; }
+    public NachaSoapSimulationScenario? SimulationScenario { get; init; }
+    public NachaSoapSimulationOptions? SimulationOptions { get; init; }
     public IReadOnlyDictionary<string, string> Metadata { get; init; } = new Dictionary<string, string>();
 }
 
@@ -36,8 +38,19 @@ public sealed class NachaSoapExecutionResult
     public NachaSoapExecutionStatus Status { get; init; } = NachaSoapExecutionStatus.Skipped;
     public NachaSoapMappedRequest? MappedRequest { get; init; }
     public bool SoapWasInvoked { get; init; }
+    public bool WasExecuted { get; init; }
+    public bool SimulatedExecution { get; init; }
     public bool ProductiveExecution { get; init; }
     public string Message { get; init; } = string.Empty;
+    public string ExternalReference { get; init; } = string.Empty;
+    public string ResponseCode { get; init; } = string.Empty;
+    public string ResponseMessage { get; init; } = string.Empty;
+    public bool IsSoapFault { get; init; }
+    public string SoapFaultCode { get; init; } = string.Empty;
+    public string SoapFaultMessage { get; init; } = string.Empty;
+    public bool IsTimeout { get; init; }
+    public IReadOnlyDictionary<string, string> RequestSummary { get; init; } = new Dictionary<string, string>();
+    public IReadOnlyDictionary<string, string> ResponseSummary { get; init; } = new Dictionary<string, string>();
     public IReadOnlyList<string> Errors { get; init; } = [];
     public IReadOnlyDictionary<string, string> Trace { get; init; } = new Dictionary<string, string>();
 }
@@ -47,5 +60,9 @@ public enum NachaSoapExecutionStatus
     Skipped = 0,
     Rejected = 1,
     DryRunCompleted = 2,
-    BlockedByNoGo = 3
+    BlockedByNoGo = 3,
+    SimulatedSuccess = 4,
+    SimulatedSoapFault = 5,
+    SimulatedTimeout = 6,
+    SimulatedFailure = 7
 }
