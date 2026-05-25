@@ -177,7 +177,7 @@ Resultado:
 ### Fase 6B.5.5 - Preparacion UAT/control operativo de SOAP real sin habilitar productivo
 
 Commit:
-Pendiente de commit.
+`d110195b996797f5ce1f09ea302c2eeeccc8ec1f`
 
 Estado:
 Completada.
@@ -204,6 +204,29 @@ Resultado:
 - Tests Release OK: 1464 passed, 0 failed, 1 skipped, total 1465.
 - Productivo permanece NO-GO.
 - Queda listo para Fase 6B.5.6 o Fase 6C: wiring controlado de UAT real/fakes certificados, sin habilitar productivo.
+
+### Fase 6B.5.6 - Wiring UAT controlado y readiness operacional final
+
+Commit:
+Pendiente de commit.
+
+Estado:
+Completada.
+
+Resumen:
+Fase 6B.5.6 completada. Conecta las piezas backend SOAP/UAT ya construidas para producir un readiness operacional final por decision NACHA-M, orquestando payload mapper, request mapper, operational gate, readiness checker, simulated gateway/resilient executor y cliente real bloqueado. Produce resultado consolidado, auditoria sanitizada, resumen de resiliencia/simulacion, bloqueos NO-GO y cortes tempranos de pipeline. Esta fase no invoca SOAP real, no agrega endpoints reales, no usa credenciales, no mueve dinero y mantiene Productivo NO-GO.
+
+Archivos principales:
+- `src/Cfa.ACHInterbank.Application/ACH/Models/NachaSoapUatOrchestrationModels.cs`
+- `src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaSoapUatOrchestrator.cs`
+- `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaSoapUatOrchestrator.cs`
+- `tests/Cfa.ACHInterbank.Tests/NachaSoapUatOrchestrationTests.cs`
+
+Resultado:
+- Build Release OK.
+- Tests Release OK: 1496 passed, 0 failed, 1 skipped, total 1497.
+- Productivo permanece NO-GO.
+- Queda listo para Fase 6C: cierre operativo/certificacion UAT formal, parametrizacion final o exposicion controlada por API/UI sin habilitar productivo.
 
 ## 4. Decision arquitectonica oficial
 
