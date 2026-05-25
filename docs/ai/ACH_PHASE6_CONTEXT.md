@@ -148,7 +148,7 @@ Resultado:
 ### Fase 6B.5.4 - Resiliencia, auditoria operacional e idempotencia SOAP
 
 Commit:
-Pendiente de commit.
+`b8244315e098e132a5979195282ef5eeb68e8dda`
 
 Estado:
 Completada.
@@ -173,6 +173,37 @@ Resultado:
 - Tests Release OK: 1431 passed, 0 failed, 1 skipped, total 1432.
 - Productivo permanece NO-GO.
 - Queda listo para Fase 6B.5.5: preparacion UAT/control operativo de integracion SOAP real sin habilitar productivo.
+
+### Fase 6B.5.5 - Preparacion UAT/control operativo de SOAP real sin habilitar productivo
+
+Commit:
+Pendiente de commit.
+
+Estado:
+Completada.
+
+Resumen:
+Fase 6B.5.5 completada. Prepara controles operativos para una futura integracion SOAP real en UAT/controlado, incluyendo feature flags, readiness checks, validacion segura de endpoints/certificados, operational gate y placeholder bloqueado para cliente SOAP real. Esta fase no invoca SOAP real, no agrega endpoints reales, no usa credenciales, no mueve dinero y mantiene Productivo NO-GO.
+
+Archivos principales:
+- `src/Cfa.ACHInterbank.Application/ACH/Models/NachaSoapUatControlModels.cs`
+- `src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaSoapUatReadinessChecker.cs`
+- `src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaSoapEndpointSafetyValidator.cs`
+- `src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaSoapCertificateReadinessValidator.cs`
+- `src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaSoapOperationalGate.cs`
+- `src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaRealSoapClientAdapter.cs`
+- `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaSoapUatReadinessChecker.cs`
+- `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaSoapEndpointSafetyValidator.cs`
+- `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaSoapCertificateReadinessValidator.cs`
+- `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaSoapOperationalGate.cs`
+- `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaBlockedRealSoapClientAdapter.cs`
+- `tests/Cfa.ACHInterbank.Tests/NachaSoapUatOperationalControlTests.cs`
+
+Resultado:
+- Build Release OK.
+- Tests Release OK: 1464 passed, 0 failed, 1 skipped, total 1465.
+- Productivo permanece NO-GO.
+- Queda listo para Fase 6B.5.6 o Fase 6C: wiring controlado de UAT real/fakes certificados, sin habilitar productivo.
 
 ## 4. Decision arquitectonica oficial
 
