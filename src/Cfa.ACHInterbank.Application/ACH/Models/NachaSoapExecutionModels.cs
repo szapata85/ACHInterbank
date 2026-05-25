@@ -11,6 +11,7 @@ public sealed class NachaSoapExecutionRequest
     public bool DryRun { get; init; } = true;
     public NachaSoapExecutionContext? PayloadContext { get; init; }
     public NachaSoapSimulationScenario? SimulationScenario { get; init; }
+    public IReadOnlyList<NachaSoapSimulationScenario> SimulationAttempts { get; init; } = [];
     public NachaSoapSimulationOptions? SimulationOptions { get; init; }
     public IReadOnlyDictionary<string, string> Metadata { get; init; } = new Dictionary<string, string>();
 }

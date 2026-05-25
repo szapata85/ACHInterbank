@@ -135,7 +135,7 @@ Resultado:
 ### Fase 6B.5.3 - Gateway SOAP simulado con adaptadores mockeados
 
 Commit:
-Pendiente de commit.
+`ac32dde1149b45823b38fbbcc9010cc72aeff006`
 
 Resumen:
 Fase 6B.5.3 completada. Usa payloads tipados de 6B.5.2 e implementa un gateway SOAP simulado con adaptadores mockeados por operacion. Permite simular exito, SOAP faults, timeouts y fallas controladas; bloquea `ProductiveExecution=true` y `AllowExternalSoapInvocation=true`; sanitiza summaries y mantiene `Phase=6B.5`. No invoca SOAP real, no crea clientes SOAP reales y no usa credenciales.
@@ -144,6 +144,35 @@ Resultado:
 - Build Release OK.
 - Tests Release OK: 1399 passed, 0 failed, 1 skipped, total 1400.
 - Productivo permanece NO-GO.
+
+### Fase 6B.5.4 - Resiliencia, auditoria operacional e idempotencia SOAP
+
+Commit:
+Pendiente de commit.
+
+Estado:
+Completada.
+
+Resumen:
+Fase 6B.5.4 completada. Agrega resiliencia operacional sobre el gateway SOAP simulado de 6B.5.3, incluyendo idempotencia in-memory, auditoria de intentos, retry policy, clasificacion de timeouts/SOAP faults/fallas, calculo de backoff sin sleeps largos, bloqueo de duplicados y resultados sanitizados. No invoca SOAP real, no agrega endpoints reales, no usa credenciales y mantiene Productivo NO-GO.
+
+Archivos principales:
+- `src/Cfa.ACHInterbank.Application/ACH/Models/NachaSoapResilienceModels.cs`
+- `src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaSoapIdempotencyStore.cs`
+- `src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaSoapAttemptAuditor.cs`
+- `src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaSoapResiliencePolicyEvaluator.cs`
+- `src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaSoapResilientExecutor.cs`
+- `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaSoapInMemoryIdempotencyStore.cs`
+- `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaSoapInMemoryAttemptAuditor.cs`
+- `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaSoapResiliencePolicyEvaluator.cs`
+- `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaSoapResilientExecutor.cs`
+- `tests/Cfa.ACHInterbank.Tests/NachaSoapResilienceAndIdempotencyTests.cs`
+
+Resultado:
+- Build Release OK.
+- Tests Release OK: 1431 passed, 0 failed, 1 skipped, total 1432.
+- Productivo permanece NO-GO.
+- Queda listo para Fase 6B.5.5: preparacion UAT/control operativo de integracion SOAP real sin habilitar productivo.
 
 ## 4. Decision arquitectonica oficial
 
