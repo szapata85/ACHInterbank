@@ -262,7 +262,7 @@ Estado:
 Completada.
 
 Commit:
-Pendiente de commit.
+`8f611085c36c593e0a2ed0561f86d8f019066d6f`
 
 Resumen:
 Se agregaron read-models backend sanitizados, servicio read-only y endpoints GET para alimentar el dashboard SPA de Fase 6C.1 con resumen operativo NACHA-M, archivos, decisiones, readiness SOAP/UAT y auditoria Phase 6B.5. Angular ahora consume `GET /api/ach/nacha/operational/dashboard` y conserva fallback demo seguro si la API no responde. Los endpoints son solo lectura, no ejecutan SOAP real, no mueven dinero, no exponen credenciales/payloads/cuentas/documentos completos, no modifican golden files, no tocan table-driven y mantienen Productivo NO-GO.
@@ -290,6 +290,41 @@ Resultado:
 - Angular tests OK: 241 success.
 - Productivo permanece NO-GO.
 - Queda listo para Fase 6C.3: reemplazar provider demo backend por read-store persistido/consultas operativas reales sanitizadas sin habilitar acciones criticas.
+
+### Fase 6C.2E - Playwright evidence para dashboard NACHA-M read-only
+
+Estado:
+Completada.
+
+Commit:
+Pendiente de commit.
+
+Resumen:
+Se agrego Playwright/Chromium para generar evidencia funcional y visual del dashboard NACHA-M read-only en `/ach/nacha/operational-dashboard`. La suite E2E valida banner Productivo NO-GO, SOAP real deshabilitado, resumen, secciones de archivos/decisiones/readiness/auditoria Phase 6B.5, fallback demo cuando falla el endpoint backend y ausencia de acciones peligrosas. Genera screenshot `dashboard-full-page.png`, reporte HTML y conserva trace/video/screenshot en fallos.
+
+Archivos principales:
+- `web/ach-interbank-ui/playwright.config.ts`
+- `web/ach-interbank-ui/e2e/nacha-operational-dashboard.spec.ts`
+- `web/ach-interbank-ui/e2e/README.md`
+- `web/ach-interbank-ui/package.json`
+- `web/ach-interbank-ui/package-lock.json`
+
+Resultado:
+- Backend build Release OK: 0 warnings, 0 errors.
+- Backend tests Release OK: 1516 passed, 0 failed, 1 skipped, total 1517.
+- Angular build OK.
+- Angular tests OK: 241 success.
+- Playwright E2E OK: 3 passed.
+- Evidencia generada en `web/ach-interbank-ui/test-results/.../dashboard-full-page.png`.
+- Reporte Playwright generado en `web/ach-interbank-ui/playwright-report/index.html`.
+- CI Playwright queda pendiente para una fase posterior.
+- No se invoca SOAP real.
+- No se mueve dinero.
+- No se agregan credenciales ni endpoints reales.
+- No se modifican golden files.
+- No se toca table-driven.
+- Productivo permanece NO-GO.
+- Queda listo para Fase 6C.3: read-store persistido/consultas operativas reales sanitizadas y eventual publicacion de artefactos E2E en CI.
 
 ## 4. Decision arquitectonica oficial
 

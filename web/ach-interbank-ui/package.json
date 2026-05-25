@@ -6,7 +6,10 @@
     "start:lan": "ng serve --host 0.0.0.0 --port 4200",
     "build": "ng build",
     "build:obfuscate": "ng build --configuration production && node scripts/obfuscate-dist.mjs",
-    "test": "ng test"
+    "test": "ng test",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
+    "e2e:report": "playwright show-report"
   },
   "private": true,
   "dependencies": {
@@ -28,6 +31,7 @@
     "@angular-devkit/build-angular": "^21.2.7",
     "@angular/cli": "^21.2.7",
     "@angular/compiler-cli": "^21.2.7",
+    "@playwright/test": "^1.60.0",
     "@types/jasmine": "^5.1.6",
     "jasmine-core": "^5.2.0",
     "javascript-obfuscator": "^5.3.0",
@@ -36,6 +40,7 @@
     "karma-coverage": "^2.2.1",
     "karma-jasmine": "^5.1.0",
     "karma-jasmine-html-reporter": "^2.1.0",
+    "@playwright/test": "^1.57.0",
     "puppeteer": "^24.9.0",
     "typescript": "~5.9.2"
   },

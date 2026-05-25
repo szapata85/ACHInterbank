@@ -1,0 +1,244 @@
+import { expect, Page, test } from '@playwright/test';
+
+const dashboardPath = '/ach/nacha/operational-dashboard';
+const dashboardEndpoint = /\/api\/ach\/nacha\/operational\/dashboard$/;
+const refreshEndpoint = /\/auth\/refresh$/;
+
+test.describe('NACHA-M operational dashboard read-only evidence', () => {
+  test.beforeEach(async ({ page }) => {
+    await seedAuthenticatedSession(page);
+    await mockAuthRefresh(page);
+  });
+
+  test('Dashboard_ShouldRenderReadOnlyOperationalEvidence', async ({ page }, testInfo) => {
+    await mockDashboard(page, backendDashboard());
+
+    await page.goto(dashboardPath);
+
+    await expect(page.getByRole('heading', { name: 'Consulta operativa NACHA-M y readiness SOAP', level: 1 })).toBeVisible();
+    await expect(page.getByText('Productivo NO-GO')).toBeVisible();
+    await expect(page.getByText('SOAP REAL DESHABILITADO', { exact: true })).toBeVisible();
+    await expect(page.getByText('BACKEND READ-ONLY SANITIZADO')).toBeVisible();
+    await expect(page.locator('section[aria-label="Resumen operativo"]')).toBeVisible();
+    await expect(page.getByText('ProductiveExecution')).toBeVisible();
+    await expect(page.getByText('WouldInvokeRealSoap')).toBeVisible();
+    await expect(page.getByText('false').first()).toBeVisible();
+
+    await expect(page.getByText('Archivos NACHA-M')).toBeVisible();
+    await expect(page.getByText('Decisiones funcionales')).toBeVisible();
+    await expect(page.getByText('Readiness SOAP/UAT')).toBeVisible();
+    await expect(page.getByText('Auditoria Phase 6B.5')).toBeVisible();
+
+    await assertDangerousActionsAbsent(page);
+    await page.screenshot({ path: testInfo.outputPath('dashboard-full-page.png'), fullPage: true });
+  });
+
+  test('Dashboard_ShouldShowDemoFallbackWhenBackendUnavailable', async ({ page }) => {
+    await page.route(dashboardEndpoint, async (route) => {
+      await route.fulfill({ status: 500, contentType: 'application/json', body: '{"message":"fallback test"}' });
+    });
+
+    await page.goto(dashboardPath);
+
+    await expect(page.getByText('DEMO READ-ONLY')).toBeVisible();
+    await expect(page.getByText('Productivo NO-GO')).toBeVisible();
+    await expect(page.getByText('SOAP REAL DESHABILITADO', { exact: true })).toBeVisible();
+    await assertDangerousActionsAbsent(page);
+  });
+
+  test('Dashboard_ShouldNotExposeDangerousActions', async ({ page }) => {
+    await mockDashboard(page, backendDashboard());
+
+    await page.goto(dashboardPath);
+
+    await expect(page.getByRole('heading', { name: 'Consulta operativa NACHA-M y readiness SOAP', level: 1 })).toBeVisible();
+    await assertDangerousActionsAbsent(page);
+    await expect(page.getByText('Error')).toHaveCount(0);
+  });
+});
+
+async function seedAuthenticatedSession(page: Page): Promise<void> {
+  const token = createUnsignedJwt({
+    unique_name: 'uat.evidence',
+    name: 'Usuario UAT Evidencia',
+    uid: 'uat-evidence',
+    role: ['Admin', 'ACH.Operator'],
+    permission: ['CanReadAch', 'CanManageAch'],
+    exp: Math.floor(Date.now() / 1000) + 3600,
+    iat: Math.floor(Date.now() / 1000)
+  });
+
+  await page.addInitScript((accessToken) => {
+    window.sessionStorage.setItem('ach.interbank.access_token', accessToken);
+  }, token);
+}
+
+async function mockAuthRefresh(page: Page): Promise<void> {
+  const token = createUnsignedJwt({
+    unique_name: 'uat.evidence',
+    name: 'Usuario UAT Evidencia',
+    uid: 'uat-evidence',
+    role: ['Admin', 'ACH.Operator'],
+    permission: ['CanReadAch', 'CanManageAch'],
+    exp: Math.floor(Date.now() / 1000) + 3600,
+    iat: Math.floor(Date.now() / 1000)
+  });
+
+  await page.route(refreshEndpoint, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        sucess: true,
+        data: {
+          token,
+          username: 'uat.evidence',
+          fullName: 'Usuario UAT Evidencia',
+          roles: ['Admin', 'ACH.Operator'],
+          permissions: ['CanReadAch', 'CanManageAch']
+        }
+      })
+    });
+  });
+}
+
+async function mockDashboard(page: Page, body: unknown): Promise<void> {
+  await page.route(dashboardEndpoint, async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+  });
+}
+
+async function assertDangerousActionsAbsent(page: Page): Promise<void> {
+  const dangerousLabels = [
+    /Ejecutar SOAP real/i,
+    /Ejecutar movimiento/i,
+    /Mover dinero/i,
+    /Cambiar a GO/i,
+    /Activar productivo/i,
+    /Confirmar operaci[oó]n real/i,
+    /Editar perfil/i,
+    /Subir archivo productivo/i,
+    /Invocar core/i,
+    /Reintentar ejecuci[oó]n real/i
+  ];
+
+  for (const label of dangerousLabels) {
+    await expect(page.getByRole('button', { name: label })).toHaveCount(0);
+  }
+}
+
+function backendDashboard() {
+  return {
+    summary: {
+      productiveStatus: 'NO-GO',
+      backendPhase: '6B.5.6',
+      soapMode: 'Simulated',
+      productiveExecution: false,
+      wouldInvokeRealSoap: false,
+      totalFiles: 3,
+      totalIncomingFiles: 2,
+      totalOutgoingFiles: 0,
+      totalReturnFiles: 1,
+      totalDecisions: 3,
+      totalSoapCandidates: 2,
+      totalNoGoBlocks: 1,
+      totalManualReview: 1,
+      totalReadinessChecks: 2,
+      lastUpdatedAt: '2026-05-25T04:00:00Z',
+      isDemoData: false,
+      warnings: []
+    },
+    files: [
+      {
+        fileId: 'e2e-ach-in-001',
+        fileName: 'ACH_COL_IN_001.ach',
+        clearingHouseCode: 'ACH',
+        profileCode: 'OFFICIAL_ACH_ENTRADA_ORIGINAL_V1_0',
+        flowType: 'IncomingCreditFromExternalOriginator',
+        isReturnFile: false,
+        validationPassed: true,
+        batchCount: 1,
+        entryCount: 2,
+        addendaCount: 1,
+        batchControlCount: 1,
+        fileControlCount: 1,
+        processingStatus: 'Processed',
+        receivedAt: '2026-05-25T04:00:00Z',
+        createdAt: '2026-05-25T04:00:00Z',
+        correlationId: 'phase-6c2e-ach-in',
+        hasErrors: false,
+        warningCount: 0,
+        errorCount: 0
+      }
+    ],
+    decisions: [
+      {
+        correlationId: 'phase-6c2e-ach-in',
+        fileName: 'ACH_COL_IN_001.ach',
+        entryTraceNumber: '900000010000001',
+        originalTraceNumber: null,
+        decisionType: 'ApplyCreditMovement',
+        soapOperationCandidate: 'ProcTransacciones',
+        requiresMonetaryMovement: true,
+        reasonCode: '00',
+        reasonDescription: 'Evidencia E2E UAT simulada',
+        newInternalStatus: 'Accepted',
+        manualReviewRequired: false,
+        isBlocked: false,
+        blockReason: null,
+        createdAt: '2026-05-25T04:00:00Z'
+      }
+    ],
+    readiness: [
+      {
+        correlationId: 'phase-6c2e-ach-in',
+        operationCandidate: 'ProcTransacciones',
+        isReadyForUat: true,
+        isBlocked: false,
+        blockReasons: [],
+        payloadMappingPassed: true,
+        requestMappingPassed: true,
+        operationalGatePassed: true,
+        readinessCheckPassed: true,
+        simulationPassed: true,
+        resiliencePassed: true,
+        wouldInvokeRealSoap: false,
+        productiveExecution: false,
+        requiresMonetaryMovement: true,
+        phase: '6B.5',
+        lastCheckedAt: '2026-05-25T04:00:00Z'
+      }
+    ],
+    audit: [
+      {
+        correlationId: 'phase-6c2e-ach-in',
+        phase: '6B.5',
+        eventType: 'ReadinessDashboardProjected',
+        severity: 'Information',
+        message: 'Evidencia E2E read-only generada.',
+        isBlocked: false,
+        timestamp: '2026-05-25T04:00:00Z',
+        sanitizedDetails: {
+          Phase: '6B.5',
+          Productivo: 'NO-GO',
+          WouldInvokeRealSoap: 'false'
+        }
+      }
+    ],
+    generatedAt: '2026-05-25T04:00:00Z',
+    isDemoData: false,
+    productiveStatus: 'NO-GO'
+  };
+}
+
+function createUnsignedJwt(payload: Record<string, unknown>): string {
+  return `${base64Url({ alg: 'none', typ: 'JWT' })}.${base64Url(payload)}.e2e`;
+}
+
+function base64Url(value: Record<string, unknown>): string {
+  return Buffer.from(JSON.stringify(value))
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
