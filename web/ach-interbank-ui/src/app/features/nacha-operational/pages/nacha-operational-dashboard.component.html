@@ -46,6 +46,10 @@
         <strong>{{ vm.summary.totalFiles }}</strong>
       </article>
       <article>
+        <small>Readiness</small>
+        <strong>{{ vm.summary.totalReadinessChecks }}</strong>
+      </article>
+      <article>
         <small>Decisiones</small>
         <strong>{{ vm.summary.totalDecisions }}</strong>
       </article>
@@ -71,6 +75,7 @@
       <span class="badge badge-warning">MANUAL REVIEW</span>
       <span class="badge badge-neutral">NO MONETARY MOVEMENT</span>
       <span class="badge badge-neutral" *ngIf="vm.summary.isDemoData">DEMO READ-ONLY</span>
+      <span class="badge badge-success" *ngIf="!vm.summary.isDemoData">BACKEND READ-ONLY SANITIZADO</span>
     </div>
 
     <ui-tarjeta titulo="Archivos NACHA-M" subtitulo="Archivos generados/recibidos anonimizados para consulta operacional.">

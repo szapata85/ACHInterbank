@@ -234,7 +234,7 @@ Estado:
 Completada.
 
 Commit:
-Pendiente de commit.
+`0af1fa4491c9c5622161baa640f28b0d2e3fc61f`
 
 Resumen:
 Se agrego una primera capa SPA Angular read-only para consulta operativa NACHA-M y readiness SOAP. La ruta `/ach/nacha/operational-dashboard` muestra estado Productivo NO-GO, modo SOAP simulado/dry-run, archivos NACHA-M demo seguros, decisiones funcionales, readiness UAT, auditoria sanitizada Phase 6B.5 y bloqueos operativos. No se agregaron endpoints backend nuevos en esta fase; la pantalla consume un servicio Angular local con datos demo seguros marcados como read-only.
@@ -255,6 +255,41 @@ Resultado:
 - No se toca table-driven.
 - Productivo permanece NO-GO.
 - Queda listo para Fase 6C.2: conectar consultas read-only a endpoints backend reales/sanitizados o ampliar vistas operativas sin habilitar ejecucion.
+
+### Fase 6C.2 - API/read-models operativos read-only para alimentar la SPA
+
+Estado:
+Completada.
+
+Commit:
+Pendiente de commit.
+
+Resumen:
+Se agregaron read-models backend sanitizados, servicio read-only y endpoints GET para alimentar el dashboard SPA de Fase 6C.1 con resumen operativo NACHA-M, archivos, decisiones, readiness SOAP/UAT y auditoria Phase 6B.5. Angular ahora consume `GET /api/ach/nacha/operational/dashboard` y conserva fallback demo seguro si la API no responde. Los endpoints son solo lectura, no ejecutan SOAP real, no mueven dinero, no exponen credenciales/payloads/cuentas/documentos completos, no modifican golden files, no tocan table-driven y mantienen Productivo NO-GO.
+
+Endpoints:
+- `GET /api/ach/nacha/operational/dashboard`
+- `GET /api/ach/nacha/operational/summary`
+- `GET /api/ach/nacha/operational/files`
+- `GET /api/ach/nacha/operational/decisions`
+- `GET /api/ach/nacha/operational/soap-readiness`
+- `GET /api/ach/nacha/operational/audit`
+
+Archivos principales:
+- `src/Cfa.ACHInterbank.Application/ACH/Models/NachaOperationalReadModels.cs`
+- `src/Cfa.ACHInterbank.Application/ACH/Interfaces/INachaOperationalReadModelService.cs`
+- `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaOperationalReadModelService.cs`
+- `src/Cfa.ACHInterbank.Api/Controllers/NachaOperationalReadinessController.cs`
+- `tests/Cfa.ACHInterbank.Tests/NachaOperationalReadModelTests.cs`
+- `web/ach-interbank-ui/src/app/features/nacha-operational/`
+
+Resultado:
+- Backend build Release OK: 0 warnings, 0 errors.
+- Backend tests Release OK: 1516 passed, 0 failed, 1 skipped, total 1517.
+- Angular build OK.
+- Angular tests OK: 241 success.
+- Productivo permanece NO-GO.
+- Queda listo para Fase 6C.3: reemplazar provider demo backend por read-store persistido/consultas operativas reales sanitizadas sin habilitar acciones criticas.
 
 ## 4. Decision arquitectonica oficial
 

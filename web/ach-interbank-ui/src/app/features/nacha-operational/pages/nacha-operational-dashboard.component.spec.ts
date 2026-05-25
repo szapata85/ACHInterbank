@@ -94,15 +94,21 @@ function data(): NachaOperationalDashboardData {
       productiveExecution: false,
       wouldInvokeRealSoap: false,
       totalFiles: 1,
+      totalIncomingFiles: 1,
+      totalOutgoingFiles: 0,
+      totalReturnFiles: 0,
       totalDecisions: 1,
       totalSoapCandidates: 1,
       totalNoGoBlocks: 1,
       totalManualReview: 0,
+      totalReadinessChecks: 1,
       lastUpdatedAt: '2026-05-24T23:00:00Z',
-      isDemoData: true
+      isDemoData: true,
+      warnings: []
     },
     files: [
       {
+        fileId: 'demo-ach-in-001',
         fileName: 'ACH_COL_IN_001.ach',
         clearingHouseCode: 'ACH',
         profileCode: 'OFFICIAL_ACH_ENTRADA_ORIGINAL_V1_0',
@@ -112,32 +118,51 @@ function data(): NachaOperationalDashboardData {
         batchCount: 1,
         entryCount: 1,
         addendaCount: 1,
+        batchControlCount: 1,
+        fileControlCount: 1,
         processingStatus: 'Processed',
-        receivedAt: '2026-05-24T23:00:00Z'
+        receivedAt: '2026-05-24T23:00:00Z',
+        createdAt: '2026-05-24T23:00:00Z',
+        correlationId: 'phase-6c1',
+        hasErrors: false,
+        warningCount: 0,
+        errorCount: 0
       }
     ],
     decisions: [
       {
         correlationId: 'phase-6c1',
+        fileName: 'ACH_COL_IN_001.ach',
+        entryTraceNumber: '900000010000001',
+        originalTraceNumber: null,
         decisionType: 'ApplyCreditMovement',
         soapOperationCandidate: 'ProcTransacciones',
         requiresMonetaryMovement: true,
         reasonCode: '00',
         reasonDescription: 'UAT',
         newInternalStatus: 'Accepted',
-        manualReviewRequired: false
+        manualReviewRequired: false,
+        isBlocked: false,
+        blockReason: null,
+        createdAt: '2026-05-24T23:00:00Z'
       }
     ],
     readiness: [
       {
         correlationId: 'phase-6c1',
+        operationCandidate: 'ProcTransacciones',
         isReadyForUat: true,
         isBlocked: false,
         blockReasons: [],
+        payloadMappingPassed: true,
+        requestMappingPassed: true,
         operationalGatePassed: true,
         readinessCheckPassed: true,
         simulationPassed: true,
         resiliencePassed: true,
+        requiresMonetaryMovement: true,
+        phase: '6B.5',
+        lastCheckedAt: '2026-05-24T23:00:00Z',
         productiveExecution: false,
         wouldInvokeRealSoap: false
       }
@@ -153,6 +178,9 @@ function data(): NachaOperationalDashboardData {
         timestamp: '2026-05-24T23:00:00Z',
         sanitizedDetails: { Phase: '6B.5' }
       }
-    ]
+    ],
+    generatedAt: '2026-05-24T23:00:00Z',
+    isDemoData: true,
+    productiveStatus: 'NO-GO'
   };
 }
