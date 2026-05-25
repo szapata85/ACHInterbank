@@ -380,6 +380,38 @@ Cierre:
 - Resultado verificacion: `dotnet build ACHInterbank.sln -c Release` OK (0 warnings, 0 errors); `dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build` OK (1525 passed, 1 skipped); `npm run build` OK; `npm test -- --watch=false --browsers=ChromeHeadless` OK (255 success); `npm run e2e` OK (9 passed).
 - No se inicio read-store persistido 6C.3, no se ejecuto SOAP real, no se movio dinero, no se tocaron golden files ni motor table-driven, y Productivo permanece NO-GO.
 
+### Fase 6C.3 - Read-store operativo persistido para dashboard NACHA-M
+
+Estado:
+Completada.
+
+Objetivo:
+Reemplazar progresivamente el provider demo seguro del backend por consultas read-only sobre persistencia operativa NACHA-M/SOAP para alimentar el dashboard `/ach/nacha/operational-dashboard`, manteniendo fallback demo, DTOs sanitizados, endpoints GET-only, NO-GO productivo y protecciones de NachaExport `cycleId`.
+
+Reglas:
+- El read-store debe consultar `NachaHeaders`, `BatchHeaders`, `EntryDetails`, `AddendaRecords`, `BatchControls`, `FileControls` y fuentes entrantes/SOAP persistidas cuando existan.
+- Usar `AsNoTracking`, limitar resultados, ordenar por fecha descendente y no llamar `SaveChanges`.
+- Si faltan decisiones/readiness/auditoria persistidas, devolver secciones parciales/read-only con warnings, sin inventar decisiones reales ni ejecutar orquestadores.
+- No ejecutar SOAP real, no mover dinero, no exponer credenciales, payloads SOAP completos, cuentas ni documentos completos.
+- No generar migraciones, no tocar golden files, no tocar motor table-driven.
+- Dashboard debe indicar fuente backend read-only/demo/parcial.
+- Productivo permanece NO-GO.
+
+Cierre:
+- Commit: pendiente de commit.
+- Archivos principales: `INachaOperationalReadStore`, `NachaOperationalReadStore`, `NachaOperationalReadModelService`, `NachaOperationalReadModels`, `NachaOperationalReadStoreTests`, dashboard Angular `nacha-operational`, specs Playwright del dashboard.
+- Endpoints mantenidos sin cambios y GET-only: `/api/ach/nacha/operational/dashboard`, `/summary`, `/files`, `/decisions`, `/soap-readiness`, `/audit`.
+- Read-store persistido: consulta `NachaHeaders` con `BatchHeaders`, `EntryDetails`, `AddendaRecords`, `BatchControls`, `FileControls`, ingestion/resultados entrantes, clasificaciones, cola/ejecuciones de integracion y eventos operativos. Usa `AsNoTracking`, limita resultados y ordena por fecha descendente.
+- Fallback: si no hay headers persistidos o falla la consulta, el servicio conserva demo seguro read-only. Si hay archivos pero faltan decisiones/readiness/auditoria, marca datos parciales y agrega warnings controlados.
+- Sanitizacion: no expone cuentas/documentos completos, hash completo de correlation/header, payload XML SOAP ni credenciales; `WouldInvokeRealSoap=false`, `ProductiveExecution=false`.
+- Angular: el dashboard muestra `Fuente: backend read-only`, `Fuente: demo seguro` o `Fuente: parcial`, mantiene NO-GO visible y no agrega acciones criticas.
+- NachaExport: sin regresion; SPA/tests/E2E siguen bloqueando fallback a `id/hash/fileHash/exportIdentifier` y no solicitan `/NachaExport/{hash}`.
+- Legacy: dashboard no consume `nacha-layouts` ni `nacha-record-definitions`; Playwright mantiene guard.
+- Verificacion: `dotnet build ACHInterbank.sln -c Release` OK (0 warnings, 0 errors); `dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build -- RunConfiguration.MaxCpuCount=1` OK (1552 passed, 1 skipped); `npm run build` OK; `npm test -- --watch=false --browsers=ChromeHeadless` OK (263 success); `npm run e2e` OK (11 passed).
+- Nota operativa: una corrida backend paralela previa aborto por crash interno CLR/EF en un test existente de `AchContrapartidasByCycleHandlerTests`; la corrida secuencial completa paso sin fallos.
+- Queda listo para Fase 6C.4: administracion oficial `nacha-config profiles` con `CfgProfile`, `CfgLayoutVariant`, `CfgLayoutField`, camaras ACH Colombia/CENIT, records 1/5/6/7/8/9, versionamiento y estados Draft/Published/Deprecated/Archived.
+- No se ejecuto SOAP real, no se movio dinero, no se editaron perfiles, no se generaron migraciones, no se tocaron golden files ni motor table-driven, y Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.

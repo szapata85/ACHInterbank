@@ -37,6 +37,13 @@
   gap: 0.5rem;
 }
 
+.data-source-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

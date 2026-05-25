@@ -18,6 +18,8 @@ public sealed record NachaOperationalSummaryReadModel
     public int TotalReadinessChecks { get; init; }
     public DateTimeOffset LastUpdatedAt { get; init; }
     public bool IsDemoData { get; init; }
+    public bool IsPartialData { get; init; }
+    public string DataSource { get; init; } = "demo-safe";
     public IReadOnlyList<string> Warnings { get; init; } = [];
 }
 
@@ -25,6 +27,11 @@ public sealed record NachaOperationalFileReadModel
 {
     public required string FileId { get; init; }
     public required string FileName { get; init; }
+    public string DataSource { get; init; } = "demo-safe";
+    public string? HeaderId { get; init; }
+    public int PersistedRecordCount { get; init; }
+    public DateTimeOffset? LastParsedAt { get; init; }
+    public bool NoSensitiveData { get; init; } = true;
     public required string ClearingHouseCode { get; init; }
     public required string ProfileCode { get; init; }
     public required string FlowType { get; init; }
@@ -59,6 +66,10 @@ public sealed record NachaOperationalDecisionReadModel
     public bool ManualReviewRequired { get; init; }
     public bool IsBlocked { get; init; }
     public string? BlockReason { get; init; }
+    public string DataSource { get; init; } = "demo-safe";
+    public bool IsDerived { get; init; }
+    public bool IsPersisted { get; init; }
+    public string? Warning { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
 }
 
@@ -79,6 +90,10 @@ public sealed record NachaSoapReadinessReadModel
     public bool ProductiveExecution { get; init; }
     public bool RequiresMonetaryMovement { get; init; }
     public required string Phase { get; init; }
+    public string DataSource { get; init; } = "demo-safe";
+    public bool IsDerived { get; init; }
+    public bool IsPersisted { get; init; }
+    public string? Warning { get; init; }
     public DateTimeOffset LastCheckedAt { get; init; }
 }
 
@@ -90,6 +105,10 @@ public sealed record NachaOperationalAuditReadModel
     public required string Severity { get; init; }
     public required string Message { get; init; }
     public bool IsBlocked { get; init; }
+    public string DataSource { get; init; } = "demo-safe";
+    public bool IsDerived { get; init; }
+    public bool IsPersisted { get; init; }
+    public string? Warning { get; init; }
     public DateTimeOffset Timestamp { get; init; }
     public IReadOnlyDictionary<string, string> SanitizedDetails { get; init; } = new Dictionary<string, string>();
 }
@@ -103,5 +122,8 @@ public sealed record NachaOperationalDashboardReadModel
     public IReadOnlyList<NachaOperationalAuditReadModel> Audit { get; init; } = [];
     public DateTimeOffset GeneratedAt { get; init; }
     public bool IsDemoData { get; init; }
+    public bool IsPartialData { get; init; }
+    public string DataSource { get; init; } = "demo-safe";
+    public IReadOnlyList<string> Warnings { get; init; } = [];
     public required string ProductiveStatus { get; init; }
 }

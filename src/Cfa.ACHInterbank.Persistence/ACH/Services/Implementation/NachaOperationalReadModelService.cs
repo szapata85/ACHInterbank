@@ -6,28 +6,36 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public sealed class NachaOperationalReadModelService : INachaOperationalReadModelService
 {
     private static readonly DateTimeOffset SnapshotTime = new(2026, 5, 24, 23, 0, 0, TimeSpan.Zero);
+    private readonly INachaOperationalReadStore? _readStore;
 
-    public Task<NachaOperationalDashboardReadModel> GetDashboardAsync(CancellationToken cancellationToken = default)
+    public NachaOperationalReadModelService(INachaOperationalReadStore? readStore = null)
+    {
+        _readStore = readStore;
+    }
+
+    public async Task<NachaOperationalDashboardReadModel> GetDashboardAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var files = BuildFiles();
-        var decisions = BuildDecisions();
-        var readiness = BuildReadiness();
-        var audit = BuildAudit();
-        var summary = BuildSummary(files, decisions, readiness);
-
-        return Task.FromResult(new NachaOperationalDashboardReadModel
+        if (_readStore is not null)
         {
-            Summary = summary,
-            Files = files,
-            Decisions = decisions,
-            Readiness = readiness,
-            Audit = audit,
-            GeneratedAt = SnapshotTime,
-            IsDemoData = true,
-            ProductiveStatus = "NO-GO"
-        });
+            try
+            {
+                var persisted = await _readStore.GetDashboardAsync(cancellationToken);
+                if (persisted.Files.Count > 0)
+                {
+                    return persisted;
+                }
+            }
+            catch
+            {
+                return BuildDemoDashboard(["Read-store persisted query failed; using safe read-only demo fallback."]);
+            }
+
+            return BuildDemoDashboard(["No persisted NACHA read-store data found; using safe read-only demo fallback."]);
+        }
+
+        return BuildDemoDashboard();
     }
 
     public async Task<NachaOperationalSummaryReadModel> GetSummaryAsync(CancellationToken cancellationToken = default)
@@ -45,11 +53,43 @@ public sealed class NachaOperationalReadModelService : INachaOperationalReadMode
     public async Task<IReadOnlyList<NachaOperationalAuditReadModel>> GetAuditAsync(CancellationToken cancellationToken = default)
         => (await GetDashboardAsync(cancellationToken)).Audit;
 
+    private static NachaOperationalDashboardReadModel BuildDemoDashboard(IReadOnlyList<string>? extraWarnings = null)
+    {
+        var files = BuildFiles();
+        var decisions = BuildDecisions();
+        var readiness = BuildReadiness();
+        var audit = BuildAudit();
+        var summary = BuildSummary(files, decisions, readiness, extraWarnings ?? []);
+
+        return new NachaOperationalDashboardReadModel
+        {
+            Summary = summary,
+            Files = files,
+            Decisions = decisions,
+            Readiness = readiness,
+            Audit = audit,
+            GeneratedAt = SnapshotTime,
+            IsDemoData = true,
+            IsPartialData = false,
+            DataSource = "demo seguro",
+            Warnings = summary.Warnings,
+            ProductiveStatus = "NO-GO"
+        };
+    }
+
     private static NachaOperationalSummaryReadModel BuildSummary(
         IReadOnlyList<NachaOperationalFileReadModel> files,
         IReadOnlyList<NachaOperationalDecisionReadModel> decisions,
-        IReadOnlyList<NachaSoapReadinessReadModel> readiness)
+        IReadOnlyList<NachaSoapReadinessReadModel> readiness,
+        IReadOnlyList<string> extraWarnings)
     {
+        var warnings = new List<string>
+        {
+            "Datos backend demo read-only sanitizados hasta conectar read-store operativo persistido.",
+            "Productivo permanece NO-GO y SOAP real esta deshabilitado."
+        };
+        warnings.AddRange(extraWarnings);
+
         return new NachaOperationalSummaryReadModel
         {
             ProductiveStatus = "NO-GO",
@@ -68,11 +108,9 @@ public sealed class NachaOperationalReadModelService : INachaOperationalReadMode
             TotalReadinessChecks = readiness.Count,
             LastUpdatedAt = SnapshotTime,
             IsDemoData = true,
-            Warnings =
-            [
-                "Datos backend demo read-only sanitizados hasta conectar read-store operativo persistido.",
-                "Productivo permanece NO-GO y SOAP real esta deshabilitado."
-            ]
+            IsPartialData = extraWarnings.Count > 0,
+            DataSource = "demo seguro",
+            Warnings = warnings
         };
     }
 

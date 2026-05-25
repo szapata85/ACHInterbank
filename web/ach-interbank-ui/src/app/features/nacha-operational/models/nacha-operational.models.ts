@@ -15,12 +15,19 @@ export interface NachaOperationalSummary {
   totalReadinessChecks: number;
   lastUpdatedAt: string;
   isDemoData: boolean;
+  isPartialData?: boolean;
+  dataSource?: string;
   warnings: string[];
 }
 
 export interface NachaOperationalFile {
   fileId: string;
   fileName: string;
+  dataSource?: string;
+  headerId?: string | null;
+  persistedRecordCount?: number;
+  lastParsedAt?: string | null;
+  noSensitiveData?: boolean;
   clearingHouseCode: string;
   profileCode: string;
   flowType: string;
@@ -54,6 +61,10 @@ export interface NachaOperationalDecision {
   manualReviewRequired: boolean;
   isBlocked: boolean;
   blockReason: string | null;
+  dataSource?: string;
+  isDerived?: boolean;
+  isPersisted?: boolean;
+  warning?: string | null;
   createdAt: string;
 }
 
@@ -71,6 +82,10 @@ export interface NachaSoapReadiness {
   resiliencePassed: boolean;
   requiresMonetaryMovement: boolean;
   phase: string;
+  dataSource?: string;
+  isDerived?: boolean;
+  isPersisted?: boolean;
+  warning?: string | null;
   lastCheckedAt: string;
   productiveExecution: boolean;
   wouldInvokeRealSoap: boolean;
@@ -83,6 +98,10 @@ export interface NachaOperationalAudit {
   severity: string;
   message: string;
   isBlocked: boolean;
+  dataSource?: string;
+  isDerived?: boolean;
+  isPersisted?: boolean;
+  warning?: string | null;
   timestamp: string;
   sanitizedDetails: Record<string, string>;
 }
@@ -95,5 +114,8 @@ export interface NachaOperationalDashboardData {
   audit: NachaOperationalAudit[];
   generatedAt: string;
   isDemoData: boolean;
+  isPartialData?: boolean;
+  dataSource?: string;
+  warnings?: string[];
   productiveStatus: string;
 }

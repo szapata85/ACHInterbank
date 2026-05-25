@@ -94,6 +94,23 @@ describe('NachaExportComponent', () => {
     expect(notifications.error).toHaveBeenCalledWith('No fue posible exportar: el ciclo no tiene identificador cycleId.');
   });
 
+  it('ExportRegression_ShouldNotUseHashAfterReadStoreChanges', () => {
+    component.download({
+      id: '8dbe5a2ce0da7c9eaff2a82d6a9e704c34ef77fa',
+      cycleId: '',
+      cycleName: 'Read-store metadata only',
+      processingDate: '2026-05-25T00:00:00Z',
+      transactionCount: 2,
+      isExportable: true,
+      hash: '8dbe5a2ce0da7c9eaff2a82d6a9e704c34ef77fa',
+      fileHash: '8dbe5a2ce0da7c9eaff2a82d6a9e704c34ef77fa',
+      exportIdentifier: '8dbe5a2ce0da7c9eaff2a82d6a9e704c34ef77fa'
+    }, false);
+
+    expect(api.downloadFile).not.toHaveBeenCalled();
+    expect(notifications.error).toHaveBeenCalledWith('No fue posible exportar: el ciclo no tiene identificador cycleId.');
+  });
+
   it('ExportFlow_ShouldNotCallNachaExportForNonExportableRows', () => {
     component.download({
       id: 'cycle-row',

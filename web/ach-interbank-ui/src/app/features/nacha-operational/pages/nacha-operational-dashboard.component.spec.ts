@@ -40,6 +40,38 @@ describe('NachaOperationalDashboardComponent', () => {
     expect(text()).toContain('NO-GO');
   });
 
+  it('Component_ShouldRenderBackendReadStoreData', () => {
+    expect(text()).toContain('Fuente: backend read-only');
+    expect(text()).toContain('BACKEND READ-ONLY SANITIZADO');
+  });
+
+  it('Component_ShouldRenderDataSourceBadge', () => {
+    expect(text()).toContain('Servicio: backend read-only');
+  });
+
+  it('Component_ShouldRenderPartialDataWarning', () => {
+    service.getDashboardData.and.returnValue(of(data({ isPartialData: true, dataSource: 'parcial', warnings: ['No persisted SOAP readiness data found; using safe read-only placeholder.'] })));
+    const partialFixture = TestBed.createComponent(NachaOperationalDashboardComponent);
+    partialFixture.detectChanges();
+
+    expect(partialFixture.nativeElement.textContent).toContain('Fuente: parcial');
+    expect(partialFixture.nativeElement.textContent).toContain('No persisted SOAP readiness data found');
+  });
+
+  it('Component_ShouldFallbackToDemoWhenApiFails', () => {
+    service.getDashboardData.and.returnValue(of(data({ isDemoData: true, dataSource: 'demo seguro' })));
+    const demoFixture = TestBed.createComponent(NachaOperationalDashboardComponent);
+    demoFixture.detectChanges();
+
+    expect(demoFixture.nativeElement.textContent).toContain('Fuente: demo seguro');
+    expect(demoFixture.nativeElement.textContent).toContain('DEMO READ-ONLY');
+  });
+
+  it('Component_ShouldKeepNoGoBannerWithReadStoreData', () => {
+    expect(text()).toContain('Productivo NO-GO');
+    expect(text()).toContain('NO-GO');
+  });
+
   it('Component_ShouldRenderFilesTable', () => {
     expect(text()).toContain('Archivos NACHA-M');
   });
@@ -85,7 +117,12 @@ describe('NachaOperationalDashboardComponent', () => {
   }
 });
 
-function data(): NachaOperationalDashboardData {
+function data(overrides: Partial<NachaOperationalDashboardData> = {}): NachaOperationalDashboardData {
+  const isDemoData = overrides.isDemoData ?? false;
+  const isPartialData = overrides.isPartialData ?? false;
+  const dataSource = overrides.dataSource ?? (isPartialData ? 'parcial' : isDemoData ? 'demo seguro' : 'backend read-only');
+  const warnings = overrides.warnings ?? (isPartialData ? ['Datos parciales read-only.'] : []);
+
   return {
     summary: {
       productiveStatus: 'NO-GO',
@@ -103,8 +140,10 @@ function data(): NachaOperationalDashboardData {
       totalManualReview: 0,
       totalReadinessChecks: 1,
       lastUpdatedAt: '2026-05-24T23:00:00Z',
-      isDemoData: true,
-      warnings: []
+      isDemoData,
+      isPartialData,
+      dataSource,
+      warnings
     },
     files: [
       {
@@ -180,7 +219,10 @@ function data(): NachaOperationalDashboardData {
       }
     ],
     generatedAt: '2026-05-24T23:00:00Z',
-    isDemoData: true,
+    isDemoData,
+    isPartialData,
+    dataSource,
+    warnings,
     productiveStatus: 'NO-GO'
   };
 }

@@ -123,6 +123,24 @@ public class PersistenceDependencyInjectionTests
     }
 
     [Fact]
+    public void AddPersistence_RegistersNachaOperationalReadStore()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Database:Provider"] = "sqlserver",
+            ["ConnectionStrings:SqlConnection"] = "Server=(localdb)\\MSSQLLocalDB;Database=AchInterbank;Trusted_Connection=True;"
+        }).Build();
+
+        services.AddPersistence(configuration);
+
+        var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(INachaOperationalReadStore));
+        Assert.NotNull(descriptor);
+        Assert.Equal(typeof(NachaOperationalReadStore), descriptor!.ImplementationType);
+        Assert.Equal(ServiceLifetime.Transient, descriptor.Lifetime);
+    }
+
+    [Fact]
     public void AddPersistence_ThrowsClearErrorWhenNoConnectionStringIsConfigured()
     {
         var services = new ServiceCollection();

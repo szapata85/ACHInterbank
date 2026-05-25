@@ -120,6 +120,18 @@ export class NachaOperationalDashboardComponent implements OnInit {
     return value ? new Date(value).toLocaleString('es-CO') : '-';
   }
 
+  dataSourceLabel(data: NachaOperationalDashboardData): string {
+    if (data.isDemoData || data.summary.isDemoData) {
+      return 'Fuente: demo seguro';
+    }
+
+    if (data.isPartialData || data.summary.isPartialData) {
+      return 'Fuente: parcial';
+    }
+
+    return 'Fuente: backend read-only';
+  }
+
   private formatDetails(details?: Record<string, string>): string {
     if (!details) {
       return '';

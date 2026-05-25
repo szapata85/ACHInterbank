@@ -43,6 +43,26 @@ describe('NachaOperationalReadinessService', () => {
     expect(dashboard.summary.wouldInvokeRealSoap).toBeFalse();
   });
 
+  it('Service_ShouldMapReadStoreDashboardResponse', async () => {
+    const dashboard = await firstValueFrom(service.getDashboardData());
+
+    expect(dashboard.isDemoData).toBeFalse();
+    expect(dashboard.isPartialData).toBeTrue();
+    expect(dashboard.dataSource).toBe('parcial');
+    expect(dashboard.summary.dataSource).toBe('parcial');
+    expect(dashboard.files[0].dataSource).toBe('backend read-only');
+  });
+
+  it('Service_ShouldPreserveFallbackDemoBehavior', async () => {
+    api.get.and.returnValue(throwError(() => new Error('api down')));
+
+    const dashboard = await firstValueFrom(service.getDashboardData());
+
+    expect(dashboard.isDemoData).toBeTrue();
+    expect(dashboard.dataSource).toBe('demo seguro');
+    expect(dashboard.summary.warnings.join(' ')).toContain('fallback read-only');
+  });
+
   it('Service_ShouldReturnOperationalSummaryNoGo', async () => {
     const summary = await firstValueFrom(service.getOperationalSummary());
 
@@ -102,12 +122,19 @@ function apiDashboard(): NachaOperationalDashboardData {
       totalReadinessChecks: 1,
       lastUpdatedAt: '2026-05-24T23:00:00Z',
       isDemoData: false,
-      warnings: []
+      isPartialData: true,
+      dataSource: 'parcial',
+      warnings: ['No persisted SOAP readiness data found; using safe read-only placeholder.']
     },
     files: [
       {
         fileId: 'backend-ach-in-001',
         fileName: 'ACH_COL_IN_001.ach',
+        dataSource: 'backend read-only',
+        headerId: 'N1',
+        persistedRecordCount: 5,
+        lastParsedAt: '2026-05-24T23:00:00Z',
+        noSensitiveData: true,
         clearingHouseCode: 'ACH',
         profileCode: 'OFFICIAL_ACH_ENTRADA_ORIGINAL_V1_0',
         flowType: 'IncomingCreditFromExternalOriginator',
@@ -142,6 +169,10 @@ function apiDashboard(): NachaOperationalDashboardData {
         manualReviewRequired: false,
         isBlocked: false,
         blockReason: null,
+        dataSource: 'backend read-only',
+        isDerived: true,
+        isPersisted: true,
+        warning: null,
         createdAt: '2026-05-24T23:00:00Z'
       }
     ],
@@ -162,7 +193,11 @@ function apiDashboard(): NachaOperationalDashboardData {
         phase: '6B.5',
         lastCheckedAt: '2026-05-24T23:00:00Z',
         productiveExecution: false,
-        wouldInvokeRealSoap: false
+        wouldInvokeRealSoap: false,
+        dataSource: 'backend read-only',
+        isDerived: true,
+        isPersisted: true,
+        warning: null
       }
     ],
     audit: [
@@ -173,12 +208,19 @@ function apiDashboard(): NachaOperationalDashboardData {
         severity: 'Information',
         message: 'Backend read-only sanitizado.',
         isBlocked: false,
+        dataSource: 'backend read-only',
+        isDerived: false,
+        isPersisted: true,
+        warning: null,
         timestamp: '2026-05-24T23:00:00Z',
         sanitizedDetails: { Productivo: 'NO-GO' }
       }
     ],
     generatedAt: '2026-05-24T23:00:00Z',
     isDemoData: false,
+    isPartialData: true,
+    dataSource: 'parcial',
+    warnings: ['No persisted SOAP readiness data found; using safe read-only placeholder.'],
     productiveStatus: 'NO-GO'
   };
 }

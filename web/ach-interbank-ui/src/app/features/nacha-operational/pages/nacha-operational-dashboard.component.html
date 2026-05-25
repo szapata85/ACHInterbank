@@ -20,6 +20,21 @@
   <ui-estado-carga *ngIf="cargando" mensaje="Cargando consulta operativa NACHA-M..."></ui-estado-carga>
 
   <ng-container *ngIf="data as vm">
+    <section class="data-source-strip" aria-label="Fuente de datos">
+      <span class="badge" [ngClass]="vm.isDemoData || vm.summary.isDemoData ? 'badge-warning' : (vm.isPartialData || vm.summary.isPartialData ? 'badge-neutral' : 'badge-success')">
+        {{ dataSourceLabel(vm) }}
+      </span>
+      <span class="badge badge-neutral" *ngIf="vm.summary.dataSource">Servicio: {{ vm.summary.dataSource }}</span>
+      <span class="badge badge-neutral" *ngIf="vm.files[0]?.dataSource">Archivos: {{ vm.files[0]?.dataSource }}</span>
+    </section>
+
+    <ui-alerta
+      *ngIf="(vm.warnings?.length || vm.summary.warnings.length)"
+      tipo="info"
+      titulo="Datos operativos parciales/read-only"
+      [mensaje]="(vm.warnings?.length ? vm.warnings : vm.summary.warnings).join(' ')"
+    ></ui-alerta>
+
     <section class="summary-strip" aria-label="Resumen operativo">
       <article>
         <small>Productivo</small>

@@ -66,6 +66,8 @@ const DEMO_DATA: NachaOperationalDashboardData = {
     totalReadinessChecks: 2,
     lastUpdatedAt: '2026-05-24T23:00:00Z',
     isDemoData: true,
+    isPartialData: false,
+    dataSource: 'demo seguro',
     warnings: ['Datos demo seguros locales usados como fallback read-only.']
   },
   files: [
@@ -253,5 +255,8 @@ const DEMO_DATA: NachaOperationalDashboardData = {
   ],
   generatedAt: '2026-05-24T23:00:00Z',
   isDemoData: true,
+  isPartialData: false,
+  dataSource: 'demo seguro',
+  warnings: ['Datos demo seguros locales usados como fallback read-only.'],
   productiveStatus: 'NO-GO'
 };

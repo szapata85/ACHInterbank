@@ -20,6 +20,7 @@ test.describe('NACHA-M operational dashboard read-only evidence', () => {
     await expect(page.getByText('Productivo NO-GO')).toBeVisible();
     await expect(page.getByText('SOAP REAL DESHABILITADO', { exact: true })).toBeVisible();
     await expect(page.getByText('BACKEND READ-ONLY SANITIZADO')).toBeVisible();
+    await expect(page.getByText('Fuente: backend read-only')).toBeVisible();
     await expect(page.locator('section[aria-label="Resumen operativo"]')).toBeVisible();
     await expect(page.getByText('ProductiveExecution')).toBeVisible();
     await expect(page.getByText('WouldInvokeRealSoap')).toBeVisible();
@@ -42,6 +43,7 @@ test.describe('NACHA-M operational dashboard read-only evidence', () => {
     await page.goto(dashboardPath);
 
     await expect(page.getByText('DEMO READ-ONLY')).toBeVisible();
+    await expect(page.getByText('Fuente: demo seguro')).toBeVisible();
     await expect(page.getByText('Productivo NO-GO')).toBeVisible();
     await expect(page.getByText('SOAP REAL DESHABILITADO', { exact: true })).toBeVisible();
     await assertDangerousActionsAbsent(page);
@@ -55,6 +57,26 @@ test.describe('NACHA-M operational dashboard read-only evidence', () => {
     await expect(page.getByRole('heading', { name: 'Consulta operativa NACHA-M y readiness SOAP', level: 1 })).toBeVisible();
     await assertDangerousActionsAbsent(page);
     await expect(page.getByText('Error')).toHaveCount(0);
+  });
+
+  test('Dashboard_ShouldShowBackendReadOnlySourceOrSafeFallback', async ({ page }) => {
+    await mockDashboard(page, backendDashboard({ isPartialData: true, dataSource: 'parcial' }));
+
+    await page.goto(dashboardPath);
+
+    await expect(page.getByText('Fuente: parcial')).toBeVisible();
+    await expect(page.getByText('Datos operativos parciales/read-only')).toBeVisible();
+  });
+
+  test('Dashboard_ShouldKeepNoGoAndReadOnlyStateAfterReadStoreChange', async ({ page }) => {
+    await mockDashboard(page, backendDashboard({ backendPhase: '6C.3', soapMode: 'ReadOnly' }));
+
+    await page.goto(dashboardPath);
+
+    await expect(page.getByText('Productivo NO-GO')).toBeVisible();
+    await expect(page.getByText('SOAP REAL DESHABILITADO', { exact: true })).toBeVisible();
+    await expect(page.getByText('Fuente: backend read-only')).toBeVisible();
+    await assertDangerousActionsAbsent(page);
   });
 
   test('Dashboard_ShouldNotCallLegacyLayoutsOrDefinitions', async ({ page }) => {
@@ -144,12 +166,15 @@ async function assertDangerousActionsAbsent(page: Page): Promise<void> {
   }
 }
 
-function backendDashboard() {
+function backendDashboard(overrides: { isPartialData?: boolean; dataSource?: string; backendPhase?: string; soapMode?: string } = {}) {
+  const isPartialData = overrides.isPartialData ?? false;
+  const dataSource = overrides.dataSource ?? (isPartialData ? 'parcial' : 'backend read-only');
+
   return {
     summary: {
       productiveStatus: 'NO-GO',
-      backendPhase: '6B.5.6',
-      soapMode: 'Simulated',
+      backendPhase: overrides.backendPhase ?? '6B.5.6',
+      soapMode: overrides.soapMode ?? 'Simulated',
       productiveExecution: false,
       wouldInvokeRealSoap: false,
       totalFiles: 3,
@@ -163,12 +188,19 @@ function backendDashboard() {
       totalReadinessChecks: 2,
       lastUpdatedAt: '2026-05-25T04:00:00Z',
       isDemoData: false,
-      warnings: []
+      isPartialData,
+      dataSource,
+      warnings: isPartialData ? ['No persisted SOAP readiness data found; using safe read-only placeholder.'] : []
     },
     files: [
       {
         fileId: 'e2e-ach-in-001',
         fileName: 'ACH_COL_IN_001.ach',
+        dataSource: 'backend read-only',
+        headerId: 'N1',
+        persistedRecordCount: 6,
+        lastParsedAt: '2026-05-25T04:00:00Z',
+        noSensitiveData: true,
         clearingHouseCode: 'ACH',
         profileCode: 'OFFICIAL_ACH_ENTRADA_ORIGINAL_V1_0',
         flowType: 'IncomingCreditFromExternalOriginator',
@@ -203,6 +235,10 @@ function backendDashboard() {
         manualReviewRequired: false,
         isBlocked: false,
         blockReason: null,
+        dataSource: 'backend read-only',
+        isDerived: true,
+        isPersisted: true,
+        warning: null,
         createdAt: '2026-05-25T04:00:00Z'
       }
     ],
@@ -223,6 +259,10 @@ function backendDashboard() {
         productiveExecution: false,
         requiresMonetaryMovement: true,
         phase: '6B.5',
+        dataSource: 'backend read-only',
+        isDerived: true,
+        isPersisted: true,
+        warning: null,
         lastCheckedAt: '2026-05-25T04:00:00Z'
       }
     ],
@@ -234,6 +274,10 @@ function backendDashboard() {
         severity: 'Information',
         message: 'Evidencia E2E read-only generada.',
         isBlocked: false,
+        dataSource: 'backend read-only',
+        isDerived: false,
+        isPersisted: true,
+        warning: null,
         timestamp: '2026-05-25T04:00:00Z',
         sanitizedDetails: {
           Phase: '6B.5',
@@ -244,6 +288,9 @@ function backendDashboard() {
     ],
     generatedAt: '2026-05-25T04:00:00Z',
     isDemoData: false,
+    isPartialData,
+    dataSource,
+    warnings: isPartialData ? ['No persisted SOAP readiness data found; using safe read-only placeholder.'] : [],
     productiveStatus: 'NO-GO'
   };
 }
