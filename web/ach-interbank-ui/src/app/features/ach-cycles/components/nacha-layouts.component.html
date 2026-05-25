@@ -1,8 +1,14 @@
 <section class="page-shell" data-testid="nacha-layouts-page">
   <app-page-header
-    title="Layouts NACHA-M"
-    subtitle="Administra la estructura de campos, posiciones y longitudes de los registros NACHA-M."
+    title="Layouts NACHA-M legacy"
+    subtitle="Diagnostico read-only de estructuras legacy. El modelo oficial es nacha-config profiles."
   ></app-page-header>
+
+  <section class="legacy-banner" role="status" aria-label="Aviso legacy NACHA-M">
+    <strong>LEGACY / Deprecated</strong>
+    <span>El modelo oficial NACHA-M es nacha-config profiles. Esta pantalla queda solo como diagnostico read-only y no debe usarse para parametrizacion oficial.</span>
+    <a routerLink="/nacha-config-admin/perfiles">Abrir perfiles NACHA oficiales</a>
+  </section>
 
   <div class="summary-grid" aria-label="Resumen de layouts NACHA-M">
     <article class="summary-card">
@@ -20,7 +26,6 @@
   </div>
 
   <div class="toolbar">
-    <button type="button" class="btn btn-primary" (click)="startCreate()">Nuevo layout</button>
     <button type="button" class="btn btn-outline" (click)="load()" [disabled]="loading">Refrescar</button>
   </div>
 
@@ -38,22 +43,14 @@
     [loading]="loading"
     [pageSize]="layouts.length || 10"
     [total]="layouts.length"
-    [rowActions]="rowActions"
   ></app-table>
 
   <ui-estado-vacio
     *ngIf="!loading && !loadError && layouts.length === 0"
     titulo="No hay layouts configurados"
-    mensaje="Cree un layout para definir campos, posiciones y longitudes NACHA-M."
+    mensaje="La administracion oficial se implementa con perfiles NACHA Config, no con layouts legacy."
   ></ui-estado-vacio>
 </section>
-
-<ng-template #rowActions let-layout>
-  <div class="row-actions">
-    <button type="button" class="btn btn-outline btn-sm" (click)="startEdit(layout)">Editar</button>
-    <button type="button" class="btn btn-danger btn-sm" (click)="remove(layout)">Eliminar</button>
-  </div>
-</ng-template>
 
 <section class="editor" *ngIf="form.get('recordCode')?.value">
   <h3>{{ editing ? 'Editar layout' : 'Nuevo layout' }}</h3>

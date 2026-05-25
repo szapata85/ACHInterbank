@@ -4,6 +4,10 @@ import { ApiService } from '../../../core/services/api.service';
 import { NachaRecordDefinitionDto } from '../models/nacha-record-definition.model';
 
 @Injectable({ providedIn: 'root' })
+/**
+ * @deprecated Legacy diagnostic API for NachaRecordDefinitions.
+ * Official NACHA-M configuration must use nacha-config profiles.
+ */
 export class NachaRecordDefinitionsService {
   private readonly api = inject(ApiService);
   private readonly basePath = 'nacha-record-definitions';

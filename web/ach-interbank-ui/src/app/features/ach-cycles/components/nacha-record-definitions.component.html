@@ -1,11 +1,16 @@
 <section class="page" data-testid="nacha-definitions-page">
   <div class="header">
     <div>
-      <h2>Definiciones NACHA-M</h2>
-      <p>Configura el orden y la fuente de datos de cada registro sin perder el contexto de la lista.</p>
+      <h2>Definiciones NACHA-M legacy</h2>
+      <p>Diagnostico read-only de definiciones legacy. El modelo oficial es nacha-config profiles.</p>
     </div>
-    <button type="button" class="btn btn-primary" (click)="startCreate()">Nueva definición</button>
   </div>
+
+  <section class="legacy-banner" role="status" aria-label="Aviso legacy NACHA-M">
+    <strong>LEGACY / Deprecated</strong>
+    <span>El modelo oficial NACHA-M es nacha-config profiles. Esta pantalla queda solo como diagnostico read-only y no debe usarse para parametrizacion oficial.</span>
+    <a routerLink="/nacha-config-admin/perfiles">Abrir perfiles NACHA oficiales</a>
+  </section>
 
   <div class="summary-grid" aria-label="Resumen de definiciones NACHA-M">
     <article class="summary-card">
@@ -36,20 +41,12 @@
     [loading]="loading"
     [pageSize]="definitions.length || 10"
     [total]="definitions.length"
-    [rowActions]="rowActions"
-  >
-    <ng-template #rowActions let-item>
-      <div class="actions">
-        <button type="button" class="btn btn-outline btn-sm" (click)="startEdit(item)">Editar</button>
-        <button type="button" class="btn btn-danger btn-sm" (click)="remove(item)">Eliminar</button>
-      </div>
-    </ng-template>
-  </app-table>
+  ></app-table>
 
   <ui-estado-vacio
     *ngIf="!loading && !loadError && definitions.length === 0"
     titulo="No hay definiciones configuradas"
-    mensaje="Cree una definición para relacionar cada registro NACHA-M con su fuente funcional."
+    mensaje="La administracion oficial se implementa con perfiles NACHA Config, no con definiciones legacy."
   ></ui-estado-vacio>
 </section>
 

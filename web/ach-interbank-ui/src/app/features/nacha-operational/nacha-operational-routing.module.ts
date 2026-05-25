@@ -14,6 +14,11 @@ const routes: Routes = [
       breadcrumb: 'Readiness SOAP',
       title: 'Consulta operativa NACHA-M y readiness SOAP'
     }
+  },
+  {
+    path: 'nacha/config-profiles',
+    pathMatch: 'full',
+    redirectTo: '/nacha-config-admin/perfiles'
   }
 ];
 

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormArray, FormBuilder, Validators } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 import { SharedModule } from '../../../shared/shared.module';
@@ -17,7 +17,7 @@ interface NachaLayoutRow extends NachaRecordLayoutDto {
 @Component({
   selector: 'app-nacha-layouts',
   standalone: true,
-  imports: [SharedModule],
+  imports: [SharedModule, RouterModule],
   templateUrl: './nacha-layouts.component.html',
   styleUrls: ['./nacha-layouts.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -36,6 +36,7 @@ export class NachaLayoutsComponent implements OnInit {
   saving = false;
   loadError = '';
   editing: NachaRecordLayoutDto | null = null;
+  readonly legacyReadOnly = true;
 
   readonly sourceColumnsBySourceName: Record<string, string[]> = {
     AchBatch: [
@@ -136,7 +137,7 @@ export class NachaLayoutsComponent implements OnInit {
             return acc;
           }, {});
 
-          if (targetRecordCode) {
+          if (targetRecordCode && !this.legacyReadOnly) {
             const selected = this.layouts.find((layout) => layout.recordCode === targetRecordCode);
             if (selected) {
               this.startEdit(selected);
@@ -178,6 +179,11 @@ export class NachaLayoutsComponent implements OnInit {
   }
 
   startCreate(): void {
+    if (this.legacyReadOnly) {
+      this.notifyLegacyReadOnly();
+      return;
+    }
+
     this.editing = null;
     this.form.reset({
       id: 0,
@@ -192,6 +198,11 @@ export class NachaLayoutsComponent implements OnInit {
   }
 
   startEdit(layout: NachaRecordLayoutDto): void {
+    if (this.legacyReadOnly) {
+      this.notifyLegacyReadOnly();
+      return;
+    }
+
     this.editing = layout;
     this.form.reset({
       id: layout.id,
@@ -209,6 +220,11 @@ export class NachaLayoutsComponent implements OnInit {
   }
 
   addField(field?: NachaRecordFieldDto): void {
+    if (this.legacyReadOnly) {
+      this.notifyLegacyReadOnly();
+      return;
+    }
+
     this.fields.push(this.fb.group({
       id: [field?.id ?? 0],
       fieldName: [field?.fieldName ?? '', Validators.required],
@@ -222,6 +238,11 @@ export class NachaLayoutsComponent implements OnInit {
   }
 
   removeField(index: number): void {
+    if (this.legacyReadOnly) {
+      this.notifyLegacyReadOnly();
+      return;
+    }
+
     this.fields.removeAt(index);
   }
 
@@ -233,6 +254,11 @@ export class NachaLayoutsComponent implements OnInit {
   }
 
   save(): void {
+    if (this.legacyReadOnly) {
+      this.notifyLegacyReadOnly();
+      return;
+    }
+
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -263,6 +289,11 @@ export class NachaLayoutsComponent implements OnInit {
   }
 
   remove(layout: NachaRecordLayoutDto): void {
+    if (this.legacyReadOnly) {
+      this.notifyLegacyReadOnly();
+      return;
+    }
+
     if (!confirm(`¿Eliminar layout ${layout.recordCode}?`)) {
       return;
     }
@@ -297,5 +328,9 @@ export class NachaLayoutsComponent implements OnInit {
         format: field.format || null
       }))
     };
+  }
+
+  private notifyLegacyReadOnly(): void {
+    this.notifications.info('Pantalla legacy en modo diagnostico read-only. La configuracion oficial NACHA-M se administra en nacha-config profiles.');
   }
 }

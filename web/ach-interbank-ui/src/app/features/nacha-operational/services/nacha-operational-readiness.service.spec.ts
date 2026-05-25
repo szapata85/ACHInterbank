@@ -25,6 +25,14 @@ describe('NachaOperationalReadinessService', () => {
     expect(api.get).toHaveBeenCalledWith('api/ach/nacha/operational/dashboard');
   });
 
+  it('Dashboard_ShouldNotCallLegacyLayoutsOrDefinitions', async () => {
+    await firstValueFrom(service.getDashboardData());
+
+    const calledPaths = api.get.calls.allArgs().map((args) => args[0]);
+    expect(calledPaths).not.toContain('nacha-layouts');
+    expect(calledPaths).not.toContain('nacha-record-definitions');
+  });
+
   it('Service_ShouldFallbackToDemoDataWhenBackendFails', async () => {
     api.get.and.returnValue(throwError(() => new Error('api down')));
 

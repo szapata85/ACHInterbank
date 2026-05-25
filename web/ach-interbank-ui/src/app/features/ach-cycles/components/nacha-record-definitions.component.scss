@@ -19,6 +19,27 @@
   color: var(--color-text-soft);
 }
 
+.legacy-banner {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #b45309;
+  border-radius: var(--radius-md);
+  background: #fffbeb;
+  color: #78350f;
+}
+
+.legacy-banner strong {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+}
+
+.legacy-banner a {
+  width: max-content;
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

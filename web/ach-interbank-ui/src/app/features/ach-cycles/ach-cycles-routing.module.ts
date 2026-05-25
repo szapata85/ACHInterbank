@@ -27,12 +27,24 @@ const routes: Routes = [
       {
         path: 'nacha/layouts',
         component: NachaLayoutsComponent,
-        data: { breadcrumb: 'Layouts NACHA', title: 'Layouts NACHA', permissions: ['CanManageAch'] }
+        data: {
+          breadcrumb: 'Layouts NACHA legacy',
+          title: 'Layouts NACHA-M legacy / diagnostico',
+          permissions: ['CanReadAch'],
+          legacy: true,
+          diagnosticOnly: true
+        }
       },
       {
         path: 'nacha/definitions',
         component: NachaRecordDefinitionsComponent,
-        data: { breadcrumb: 'Definiciones NACHA', title: 'Definiciones NACHA', permissions: ['CanManageAch'] }
+        data: {
+          breadcrumb: 'Definiciones NACHA legacy',
+          title: 'Definiciones NACHA-M legacy / diagnostico',
+          permissions: ['CanReadAch'],
+          legacy: true,
+          diagnosticOnly: true
+        }
       },
       {
         path: ':id/edit',

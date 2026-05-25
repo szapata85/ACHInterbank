@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { forkJoin } from 'rxjs';
 import { finalize } from 'rxjs/operators';
@@ -21,7 +21,7 @@ interface NachaDefinitionRow extends NachaRecordDefinitionDto {
 @Component({
   selector: 'app-nacha-record-definitions',
   standalone: true,
-  imports: [SharedModule],
+  imports: [SharedModule, RouterModule],
   templateUrl: './nacha-record-definitions.component.html',
   styleUrls: ['./nacha-record-definitions.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -42,6 +42,7 @@ export class NachaRecordDefinitionsComponent implements OnInit {
   loadError = '';
   editorOpen = false;
   editing: NachaRecordDefinitionDto | null = null;
+  readonly legacyReadOnly = true;
 
   readonly columns = [
     { key: 'recordCode', label: 'Código', width: '110px' },
@@ -157,6 +158,11 @@ export class NachaRecordDefinitionsComponent implements OnInit {
   }
 
   startCreate(): void {
+    if (this.legacyReadOnly) {
+      this.notifyLegacyReadOnly();
+      return;
+    }
+
     this.editing = null;
     this.editorOpen = true;
     this.form.reset({
@@ -172,6 +178,11 @@ export class NachaRecordDefinitionsComponent implements OnInit {
   }
 
   startEdit(definition: NachaRecordDefinitionDto): void {
+    if (this.legacyReadOnly) {
+      this.notifyLegacyReadOnly();
+      return;
+    }
+
     this.editing = definition;
     this.editorOpen = true;
     this.form.reset({
@@ -194,6 +205,11 @@ export class NachaRecordDefinitionsComponent implements OnInit {
   }
 
   save(): void {
+    if (this.legacyReadOnly) {
+      this.notifyLegacyReadOnly();
+      return;
+    }
+
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -224,6 +240,11 @@ export class NachaRecordDefinitionsComponent implements OnInit {
   }
 
   remove(definition: NachaRecordDefinitionDto): void {
+    if (this.legacyReadOnly) {
+      this.notifyLegacyReadOnly();
+      return;
+    }
+
     if (!confirm(`¿Eliminar definición ${definition.recordCode}?`)) {
       return;
     }
@@ -278,5 +299,9 @@ export class NachaRecordDefinitionsComponent implements OnInit {
       filterKey: raw.filterKey || null,
       isEnabled: raw.isEnabled
     };
+  }
+
+  private notifyLegacyReadOnly(): void {
+    this.notifications.info('Pantalla legacy en modo diagnostico read-only. La configuracion oficial NACHA-M se administra en nacha-config profiles.');
   }
 }

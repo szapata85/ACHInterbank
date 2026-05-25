@@ -3,6 +3,7 @@ import { expect, Page, test } from '@playwright/test';
 const dashboardPath = '/ach/nacha/operational-dashboard';
 const dashboardEndpoint = /\/api\/ach\/nacha\/operational\/dashboard$/;
 const refreshEndpoint = /\/auth\/refresh$/;
+const legacyNachaEndpoint = /\/(?:nacha-layouts|nacha-record-definitions)(?:\/|\?|$)/;
 
 test.describe('NACHA-M operational dashboard read-only evidence', () => {
   test.beforeEach(async ({ page }) => {
@@ -54,6 +55,22 @@ test.describe('NACHA-M operational dashboard read-only evidence', () => {
     await expect(page.getByRole('heading', { name: 'Consulta operativa NACHA-M y readiness SOAP', level: 1 })).toBeVisible();
     await assertDangerousActionsAbsent(page);
     await expect(page.getByText('Error')).toHaveCount(0);
+  });
+
+  test('Dashboard_ShouldNotCallLegacyLayoutsOrDefinitions', async ({ page }) => {
+    const legacyRequests: string[] = [];
+    page.on('request', request => {
+      const url = request.url();
+      if (legacyNachaEndpoint.test(url)) {
+        legacyRequests.push(url);
+      }
+    });
+    await mockDashboard(page, backendDashboard());
+
+    await page.goto(dashboardPath);
+
+    await expect(page.getByRole('heading', { name: 'Consulta operativa NACHA-M y readiness SOAP', level: 1 })).toBeVisible();
+    expect(legacyRequests).toEqual([]);
   });
 });
 

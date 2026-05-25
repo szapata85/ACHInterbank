@@ -51,4 +51,81 @@ describe('NavigationService', () => {
       done();
     });
   });
+
+  it('LegacyLayoutsRoute_ShouldNotBeShownAsOfficialMenuItem', (done) => {
+    const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
+    api.get.and.returnValue(of([
+      { id: 1, label: 'Layouts NACHA', route: '/ach-cycles/nacha/layouts' },
+      { id: 2, label: 'Definiciones NACHA', route: '/ach-cycles/nacha/definitions' }
+    ]));
+
+    TestBed.configureTestingModule({
+      providers: [
+        NavigationService,
+        { provide: ApiService, useValue: api }
+      ]
+    });
+
+    const service = TestBed.inject(NavigationService);
+
+    service.getMenu().subscribe((menu) => {
+      const routes = flattenRoutes(menu);
+
+      expect(routes).not.toContain('/ach-cycles/nacha/layouts');
+      done();
+    });
+  });
+
+  it('LegacyDefinitionsRoute_ShouldNotBeShownAsOfficialMenuItem', (done) => {
+    const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
+    api.get.and.returnValue(of([
+      {
+        id: 1,
+        label: 'ACH',
+        route: '/ach-cycles',
+        children: [{ id: 2, label: 'Definiciones NACHA', route: '/ach-cycles/nacha/definitions' }]
+      }
+    ]));
+
+    TestBed.configureTestingModule({
+      providers: [
+        NavigationService,
+        { provide: ApiService, useValue: api }
+      ]
+    });
+
+    const service = TestBed.inject(NavigationService);
+
+    service.getMenu().subscribe((menu) => {
+      const routes = flattenRoutes(menu);
+
+      expect(routes).not.toContain('/ach-cycles/nacha/definitions');
+      done();
+    });
+  });
+
+  it('OfficialNavigation_ShouldPreferNachaConfigProfilesPlaceholder', (done) => {
+    const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
+    api.get.and.returnValue(of([]));
+
+    TestBed.configureTestingModule({
+      providers: [
+        NavigationService,
+        { provide: ApiService, useValue: api }
+      ]
+    });
+
+    const service = TestBed.inject(NavigationService);
+
+    service.getMenu().subscribe((menu) => {
+      const routes = flattenRoutes(menu);
+
+      expect(routes).toContain('/nacha-config-admin/perfiles');
+      done();
+    });
+  });
 });
+
+function flattenRoutes(items: Array<{ route: string; children?: Array<{ route: string; children?: any[] }> }>): string[] {
+  return items.flatMap((item) => [item.route, ...flattenRoutes(item.children ?? [])]);
+}

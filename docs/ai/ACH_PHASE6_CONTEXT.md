@@ -16,7 +16,7 @@ Cualquier tarea futura relacionada con NACHA-M, ACH Colombia, CENIT, procesamien
 - Fase 6B.3C: COMPLETADA a nivel tecnico automatizado con golden files semirreales.
 - Fase 6B.3C.1: COMPLETADA.
 - Fase 6B.4: COMPLETADA para flujo interno end-to-end automatizado.
-- Siguiente fase: Fase 6B.5 - Integracion SOAP operativa controlada.
+- Siguiente fase: Fase 6C.3 - read-store persistido/consultas operativas reales sanitizadas.
 - Productivo: NO-GO.
 
 ## 3. Commits cerrados conocidos
@@ -329,22 +329,56 @@ Resultado:
 ### Prerrequisito 6C.3 - Control de NachaExport 422
 
 Estado:
-Completado, pendiente de commit.
+Completado.
+
+Commit:
+`7afa7149fff42e1f0b80c711de95a4369e0a1900`
 
 Resumen:
-Se diagnostico que `GET /NachaExport/{cycleId}` espera identificador de ciclo ACH (`cycleId`), no hash de archivo ni hash de contenido. Un 422 es funcional cuando el ciclo existe pero no tiene contenido/lotes NACHA-M exportables; un identificador inexistente retorna 404 controlado. Se agrego metadata `IsExportable`/`ExportUnavailableReason` al listado exportable, la SPA deshabilita descarga para filas no exportables o demo, usa el identificador persistido cuando corresponde y muestra mensajes controlados para 422 sin exponer errores crudos ni datos sensibles.
+Se diagnostico que `GET /NachaExport/{cycleId}` espera identificador de ciclo ACH (`cycleId`), no hash de archivo ni hash de contenido. `AchCycleExportDto` expone `CycleId` y `ExportIdentifier`; la SPA usa solo `row.cycleId` para descargar y no hace fallback a `id`, `hash`, `nachaId`, `fileHash` ni `exportIdentifier`. Playwright valida que no se llame `/NachaExport/{hash}`. Un 422 es funcional cuando el ciclo existe pero no tiene contenido/lotes NACHA-M exportables; un identificador inexistente retorna 404 controlado. Se agrego metadata `IsExportable`/`ExportUnavailableReason` al listado exportable, la SPA deshabilita descarga para filas no exportables o demo y muestra mensajes controlados para 422 sin exponer errores crudos ni datos sensibles.
 
 Resultado:
 - Backend build Release OK: 0 warnings, 0 errors.
-- Backend tests Release OK: 1520 passed, 0 failed, 1 skipped, total 1521.
+- Backend tests Release OK: 1521 passed, 0 failed, 1 skipped, total 1522.
 - Angular build OK.
-- Angular tests OK: 246 success.
+- Angular tests OK: 251 success.
+- Playwright E2E OK: 5 passed.
 - No se invoca SOAP real.
 - No se mueve dinero.
 - No se agregan credenciales ni endpoints reales.
 - No se modifican golden files.
 - No se toca table-driven.
 - Productivo permanece NO-GO.
+
+### Fase 6C.3A - Auditoria SPA de endpoints Legacy NACHA-M
+
+Estado:
+Completada.
+
+Objetivo:
+Auditar y corregir pantallas/servicios Angular que todavia consuman o presenten como oficiales los endpoints legacy `nacha-layouts` / `nacha-record-definitions`, expuestos en SPA bajo `/ach-cycles/nacha/layouts` y `/ach-cycles/nacha/definitions`.
+
+Reglas:
+- Estas rutas pertenecen al modelo legacy de layouts/definitions.
+- La administracion oficial NACHA-M futura debe basarse en `nacha-config profiles`.
+- `CfgProfile`, `CfgLayoutVariant` y `CfgLayoutField` son la base de transicion para Fase 6C.4.
+- Las pantallas legacy, si siguen accesibles, deben quedar como diagnostico/read-only/deprecated, no como parametrizacion oficial.
+- No iniciar el read-store persistido de Fase 6C.3 en esta fase.
+- Dashboard 6C.1/6C.2 no debe consumir endpoints legacy.
+- NachaExport debe seguir usando `cycleId`.
+- Productivo permanece NO-GO.
+
+Cierre:
+- Inventario corto: ver `docs/ai/ACH_PHASE6_LEGACY_AUDIT.md`.
+- Referencias legacy encontradas: rutas Angular `/ach-cycles/nacha/layouts` y `/ach-cycles/nacha/definitions`; servicios SPA `NachaLayoutsService` y `NachaRecordDefinitionsService`; componentes `NachaLayoutsComponent` y `NachaRecordDefinitionsComponent`; endpoints backend `nacha-layouts` y `nacha-record-definitions`; modelos DTO legacy de layouts/definitions; tests y documentacion.
+- Clasificacion final: SPA legacy queda `ActiveDiagnosticOnly`; servicios Angular quedan legacy/deprecated; endpoints backend quedan `BackendCompatibilityOnly`/diagnostico; tests/documentacion quedan `TestOnly`/contexto; administracion oficial queda en `nacha-config profiles`.
+- Acciones Angular: las pantallas legacy siguen accesibles solo como diagnostico read-only con banner `LEGACY / Deprecated`; se ocultaron acciones de crear/editar/eliminar; navegacion oficial filtra entradas legacy y prefiere `NACHA Config` (`/nacha-config-admin/perfiles`); se dejo redirect futuro `/ach/nacha/config-profiles`.
+- Acciones backend: controladores legacy marcados `[Obsolete]` y metadata Swagger/endpoint como diagnostico deprecado; POST/PUT/DELETE responden 410 sin llamar servicios; GET se mantiene por compatibilidad diagnostica.
+- Dashboard 6C.1/6C.2 no consume `nacha-layouts` ni `nacha-record-definitions`; Playwright lo valida con interceptores.
+- NachaExport permanece protegido: SPA/E2E siguen validando que no se solicite `/NachaExport/{hash}` y que el flujo use `cycleId`.
+- Pendiente 6C.4: administracion oficial completa de `nacha-config profiles` con `CfgProfile`, `CfgLayoutVariant`, `CfgLayoutField`, camaras ACH Colombia/CENIT, records 1/5/6/7/8/9, versionamiento y estados Draft/Published/Deprecated/Archived.
+- Resultado verificacion: `dotnet build ACHInterbank.sln -c Release` OK (0 warnings, 0 errors); `dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build` OK (1525 passed, 1 skipped); `npm run build` OK; `npm test -- --watch=false --browsers=ChromeHeadless` OK (255 success); `npm run e2e` OK (9 passed).
+- No se inicio read-store persistido 6C.3, no se ejecuto SOAP real, no se movio dinero, no se tocaron golden files ni motor table-driven, y Productivo permanece NO-GO.
 
 ## 4. Decision arquitectonica oficial
 

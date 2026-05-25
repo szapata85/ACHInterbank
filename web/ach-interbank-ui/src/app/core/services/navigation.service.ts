@@ -9,7 +9,7 @@ export class NavigationService {
 
   getMenu(): Observable<MenuItem[]> {
     return this.api.get<MenuItem[]>('navigation/menu').pipe(
-      map((items) => this.mergeDefaultMenu(this.sortMenu(items ?? [])))
+      map((items) => this.mergeDefaultMenu(this.sortMenu(this.removeLegacyNachaMenuItems(items ?? []))))
     );
   }
 
@@ -108,6 +108,16 @@ export class NavigationService {
       children: nachaSecurityChildren
     };
 
+    const nachaConfigGroup: MenuItem = {
+      id: -280,
+      label: 'NACHA Config',
+      route: '/nacha-config-admin/perfiles',
+      icon: 'tune',
+      children: [
+        { id: -2801, label: 'Perfiles NACHA', route: '/nacha-config-admin/perfiles', icon: 'fact_check' }
+      ]
+    };
+
     const logsChildren: MenuItem[] = [
       { id: -231, label: 'Log de auditoría', route: '/audit-logs', icon: 'fact_check' },
       { id: -232, label: 'Log de autenticaciones', route: '/auth-logs', icon: 'shield' },
@@ -138,7 +148,7 @@ export class NavigationService {
     };
 
     if (!items.length) {
-      return [transactionsGroup, achResponsesGroup, customerItem, reportsItem, cenitGroup, nachaSecurityGroup, logsGroup, catalogGroup];
+      return [transactionsGroup, achResponsesGroup, customerItem, reportsItem, cenitGroup, nachaConfigGroup, nachaSecurityGroup, logsGroup, catalogGroup];
     }
 
     const hasRoute = (menu: MenuItem[], route: string): boolean =>
@@ -196,6 +206,10 @@ export class NavigationService {
         next = [...next, nachaSecurityGroup];
       }
 
+      if (!hasRoute(next, nachaConfigGroup.route)) {
+        next = [...next, nachaConfigGroup];
+      }
+
       const existingLogsGroup = next.find((item) => item.route === '/audit-logs' || item.label === 'Logs');
       if (existingLogsGroup) {
         const existingLogChildren = existingLogsGroup.children ?? [];
@@ -216,7 +230,8 @@ export class NavigationService {
     const withCustomer = hasRoute(withAchResponses, customerItem.route) ? withAchResponses : [...withAchResponses, customerItem];
     const withReports = hasRoute(withCustomer, reportsItem.route) ? withCustomer : [...withCustomer, reportsItem];
     const withCenit = hasRoute(withReports, cenitGroup.route) ? withReports : [...withReports, cenitGroup];
-    const withNachaSecurity = hasRoute(withCenit, nachaSecurityGroup.route) ? withCenit : [...withCenit, nachaSecurityGroup];
+    const withNachaConfig = hasRoute(withCenit, nachaConfigGroup.route) ? withCenit : [...withCenit, nachaConfigGroup];
+    const withNachaSecurity = hasRoute(withNachaConfig, nachaSecurityGroup.route) ? withNachaConfig : [...withNachaConfig, nachaSecurityGroup];
     const withLogs = hasRoute(withNachaSecurity, '/navigation-logs') || hasRoute(withNachaSecurity, '/auth-logs') || hasRoute(withNachaSecurity, '/audit-logs')
       ? withNachaSecurity
       : [...withNachaSecurity, logsGroup];
@@ -230,6 +245,17 @@ export class NavigationService {
       .map((item) => ({
         ...item,
         children: item.children?.length ? this.sortMenu(item.children) : []
+      }));
+  }
+
+  private removeLegacyNachaMenuItems(items: MenuItem[]): MenuItem[] {
+    const legacyRoutes = new Set(['/ach-cycles/nacha/layouts', '/ach-cycles/nacha/definitions']);
+
+    return items
+      .filter((item) => !legacyRoutes.has(item.route))
+      .map((item) => ({
+        ...item,
+        children: item.children?.length ? this.removeLegacyNachaMenuItems(item.children) : []
       }));
   }
 }
