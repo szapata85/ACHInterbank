@@ -149,6 +149,8 @@ public class AchCycleAppService : IAchCycleAppService
             .Select(cycle => new AchCycleExportDto
             {
                 Id = cycle.Id,
+                CycleId = cycle.Id,
+                ExportIdentifier = cycle.Id,
                 CycleName = cycle.CycleName,
                 ProcessingDate = cycle.Transactions.Min(t => t.EffectiveEntryDate),
                 ClearingHouseName = cycle.ClearingHouse != null ? cycle.ClearingHouse.Name : null,

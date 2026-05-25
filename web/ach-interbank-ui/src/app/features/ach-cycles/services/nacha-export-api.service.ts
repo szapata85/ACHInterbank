@@ -31,9 +31,10 @@ export class NachaExportApiService {
   }
 
   downloadFile(cycleId: string, encrypted = false): Observable<HttpResponse<Blob>> {
+    const encodedCycleId = encodeURIComponent(cycleId);
     const url = encrypted
-      ? this.api.resolveUrl(`NachaExport/${cycleId}/sobre-digital?forceEncryption=true`)
-      : this.api.resolveUrl(`NachaExport/${cycleId}`);
+      ? this.api.resolveUrl(`NachaExport/${encodedCycleId}/sobre-digital?forceEncryption=true`)
+      : this.api.resolveUrl(`NachaExport/${encodedCycleId}`);
 
     return this.http.get(url, {
       observe: 'response',

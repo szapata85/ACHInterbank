@@ -18,6 +18,27 @@ namespace Cfa.ACHInterbank.Tests;
 public class NachaExportControllerTests
 {
     [Fact]
+    public void ExportDto_ShouldExposeIsExportableAndUnavailableReason()
+    {
+        var dto = new AchCycleExportDto
+        {
+            Id = "8dbe5a2ce0da7c9eaff2a82d6a9e704c34ef77fa",
+            CycleId = "42",
+            ExportIdentifier = "42",
+            CycleName = "Ciclo exportable",
+            ProcessingDate = new DateTime(2026, 5, 25),
+            TransactionCount = 1,
+            IsExportable = false,
+            ExportUnavailableReason = "El ciclo tiene transacciones, pero no tiene lotes NACHA-M exportables asociados."
+        };
+
+        Assert.Equal("42", dto.CycleId);
+        Assert.Equal("42", dto.ExportIdentifier);
+        Assert.False(dto.IsExportable);
+        Assert.Contains("no tiene lotes", dto.ExportUnavailableReason);
+    }
+
+    [Fact]
     public async Task NachaExport_ShouldReturnNotFoundWhenFileDoesNotExist()
     {
         const string identifier = "1b12995d45906869e194e237f3db64bfd7e07d2f";

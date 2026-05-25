@@ -40,6 +40,7 @@ describe('NachaExportComponent', () => {
   it('Dashboard_ShouldDisableDownloadForDemoFiles', () => {
     component.download({
       id: 'demo-hash',
+      cycleId: null,
       cycleName: 'Demo',
       processingDate: '2026-05-25T00:00:00Z',
       transactionCount: 1,
@@ -54,6 +55,7 @@ describe('NachaExportComponent', () => {
   it('Dashboard_ShouldNotCallNachaExportForNonExportableDemoRows', () => {
     component.download({
       id: '1b12995d45906869e194e237f3db64bfd7e07d2f',
+      cycleId: null,
       cycleName: 'Hash demo',
       processingDate: '2026-05-25T00:00:00Z',
       transactionCount: 1,
@@ -65,19 +67,104 @@ describe('NachaExportComponent', () => {
     expect(notifications.info).toHaveBeenCalled();
   });
 
-  it('Download_ShouldUsePersistedExportIdentifierWhenAvailable', () => {
+  it('ExportFlow_ShouldUseCycleIdFromAchCyclesNachaExport', () => {
     component.download({
-      id: 'cycle-persisted-001',
+      id: '1b12995d45906869e194e237f3db64bfd7e07d2f',
+      cycleId: '42',
       cycleName: 'Persisted',
       processingDate: '2026-05-25T00:00:00Z',
       transactionCount: 2,
       isExportable: true
     }, false);
 
-    expect(api.downloadFile).toHaveBeenCalledWith('cycle-persisted-001', false);
+    expect(api.downloadFile).toHaveBeenCalledWith('42', false);
   });
 
-  it('Download_ShouldHandle422WithUserFriendlyMessage', async () => {
+  it('ExportFlow_ShouldNotFallbackToHashFromRowId', () => {
+    component.download({
+      id: '8dbe5a2ce0da7c9eaff2a82d6a9e704c34ef77fa',
+      cycleName: 'Hash only',
+      processingDate: '2026-05-25T00:00:00Z',
+      transactionCount: 2,
+      isExportable: true,
+      fileHash: '8dbe5a2ce0da7c9eaff2a82d6a9e704c34ef77fa'
+    }, false);
+
+    expect(api.downloadFile).not.toHaveBeenCalled();
+    expect(notifications.error).toHaveBeenCalledWith('No fue posible exportar: el ciclo no tiene identificador cycleId.');
+  });
+
+  it('ExportFlow_ShouldNotCallNachaExportForNonExportableRows', () => {
+    component.download({
+      id: 'cycle-row',
+      cycleId: '42',
+      cycleName: 'No exportable',
+      processingDate: '2026-05-25T00:00:00Z',
+      transactionCount: 2,
+      isExportable: false,
+      exportUnavailableReason: 'Sin lotes exportables.'
+    }, false);
+
+    expect(api.downloadFile).not.toHaveBeenCalled();
+    expect(notifications.info).toHaveBeenCalledWith('Sin lotes exportables.');
+  });
+
+  it('ExportFlow_ShouldDisableExportActionWhenCycleIdIsMissing', () => {
+    const actionColumn = component.columnas.find(column => column.colId === 'acciones');
+    const rendered = actionColumn?.cellRenderer?.({
+      data: {
+        id: '8dbe5a2ce0da7c9eaff2a82d6a9e704c34ef77fa',
+        cycleName: 'Hash only',
+        processingDate: '2026-05-25T00:00:00Z',
+        transactionCount: 1,
+        isExportable: true
+      }
+    } as any) as string;
+
+    expect(rendered).toContain('disabled');
+    expect(rendered).toContain('Este ciclo no tiene archivo NACHA-M exportable.');
+  });
+
+  it('OnCellClicked_ShouldOnlyDownloadFromExportActionColumn', () => {
+    const actionColumn = component.columnas.find(column => column.colId === 'acciones');
+    const button = document.createElement('button');
+    button.setAttribute('data-action', 'generar-nacha');
+
+    actionColumn?.onCellClicked?.({
+      data: {
+        id: 'hash-metadata',
+        cycleId: '42',
+        cycleName: 'Exportable',
+        processingDate: '2026-05-25T00:00:00Z',
+        transactionCount: 1,
+        isExportable: true
+      },
+      event: { target: button }
+    } as any);
+
+    expect(api.downloadFile).toHaveBeenCalledWith('42', false);
+  });
+
+  it('OnCellClicked_ShouldNotDownloadOnRegularCellClick', () => {
+    const actionColumn = component.columnas.find(column => column.colId === 'acciones');
+    const cell = document.createElement('span');
+
+    actionColumn?.onCellClicked?.({
+      data: {
+        id: 'hash-metadata',
+        cycleId: '42',
+        cycleName: 'Exportable',
+        processingDate: '2026-05-25T00:00:00Z',
+        transactionCount: 1,
+        isExportable: true
+      },
+      event: { target: cell }
+    } as any);
+
+    expect(api.downloadFile).not.toHaveBeenCalled();
+  });
+
+  it('Download_ShouldHandle422WithControlledMessage', async () => {
     const errorBody = new Blob([
       JSON.stringify({
         codigo: 'NACHA_NO_EXPORTABLE_CONTENT',
@@ -88,6 +175,7 @@ describe('NachaExportComponent', () => {
 
     component.download({
       id: 'cycle-empty',
+      cycleId: 'cycle-empty',
       cycleName: 'Empty',
       processingDate: '2026-05-25T00:00:00Z',
       transactionCount: 1,
@@ -108,6 +196,7 @@ describe('NachaExportComponent', () => {
 
     component.download({
       id: 'cycle-invalid',
+      cycleId: 'cycle-invalid',
       cycleName: 'Invalid',
       processingDate: '2026-05-25T00:00:00Z',
       transactionCount: 1,

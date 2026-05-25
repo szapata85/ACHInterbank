@@ -33,10 +33,12 @@ public class AchCycleRequest
 public class AchCycleExportDto
 {
     public string Id { get; set; } = null!;
+    public string CycleId { get; set; } = null!;
     public string CycleName { get; set; } = null!;
     public DateTime ProcessingDate { get; set; }
     public string? ClearingHouseName { get; set; }
     public int TransactionCount { get; set; }
     public bool IsExportable { get; set; } = true;
     public string? ExportUnavailableReason { get; set; }
+    public string? ExportIdentifier { get; set; }
 }

@@ -54,13 +54,14 @@ export class NachaExportComponent implements OnInit {
       sortable: false,
       filter: false,
       cellRenderer: (params) => {
-        const rowId = params.data?.id;
+        const rowId = params.data?.cycleId;
         const exportable = this.isExportable(params.data);
         const ocupado = Boolean(rowId && this.downloadingId === rowId);
         const disabled = ocupado || !exportable;
         const disabledAttr = disabled ? 'disabled aria-disabled="true"' : '';
-        const tooltipGenerar = ocupado ? 'Generación en curso' : 'Generar archivo NACHA-M';
-        const tooltipSobre = ocupado ? 'Generación en curso' : 'Generar archivo con sobre digital';
+        const unavailableReason = params.data?.exportUnavailableReason ?? 'Este ciclo no tiene archivo NACHA-M exportable.';
+        const tooltipGenerar = ocupado ? 'Generación en curso' : exportable ? 'Generar archivo NACHA-M' : unavailableReason;
+        const tooltipSobre = ocupado ? 'Generación en curso' : exportable ? 'Generar archivo con sobre digital' : unavailableReason;
         const textoGenerar = ocupado ? 'Generando...' : 'Generar archivo NACHA';
         const textoSobre = ocupado ? 'Generando...' : 'Generar con sobre digital';
 
@@ -151,17 +152,23 @@ export class NachaExportComponent implements OnInit {
     if (this.downloadingId) {
       return;
     }
-    if (!this.isExportable(cycle)) {
+    if (cycle.isExportable !== true) {
       this.notifications.info(cycle.exportUnavailableReason ?? 'Este ciclo no tiene archivo NACHA-M exportable.');
       return;
     }
 
-    this.downloadingId = cycle.id;
+    const cycleId = this.getDownloadCycleId(cycle);
+    if (!cycleId) {
+      this.notifications.error('No fue posible exportar: el ciclo no tiene identificador cycleId.');
+      return;
+    }
+
+    this.downloadingId = cycleId;
     this.refrescarAccionesGrilla();
-    this.api.downloadFile(cycle.id, encrypted).subscribe({
+    this.api.downloadFile(cycleId, encrypted).subscribe({
       next: (response) => {
         const fileName = this.extractFileName(response.headers.get('content-disposition')) ??
-          `NACHA_${cycle.id}_${this.buildTimestamp()}.${encrypted ? 'ENV' : 'txt'}`;
+          `NACHA_${cycleId}_${this.buildTimestamp()}.${encrypted ? 'ENV' : 'txt'}`;
         const blob = response.body ?? new Blob();
         const url = window.URL.createObjectURL(blob);
 
@@ -225,7 +232,12 @@ export class NachaExportComponent implements OnInit {
   }
 
   private isExportable(cycle?: ExportableAchCycle | null): boolean {
-    return cycle?.isExportable !== false;
+    return cycle?.isExportable === true && Boolean(this.getDownloadCycleId(cycle));
+  }
+
+  private getDownloadCycleId(cycle?: ExportableAchCycle | null): string | null {
+    const cycleId = cycle?.cycleId?.trim();
+    return cycleId ? cycleId : null;
   }
 
   private async handleDownloadError(error: HttpErrorResponse, encrypted: boolean): Promise<void> {
