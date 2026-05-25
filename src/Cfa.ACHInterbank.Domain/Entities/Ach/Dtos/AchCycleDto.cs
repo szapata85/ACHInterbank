@@ -37,4 +37,6 @@ public class AchCycleExportDto
     public DateTime ProcessingDate { get; set; }
     public string? ClearingHouseName { get; set; }
     public int TransactionCount { get; set; }
+    public bool IsExportable { get; set; } = true;
+    public string? ExportUnavailableReason { get; set; }
 }

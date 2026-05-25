@@ -326,6 +326,26 @@ Resultado:
 - Productivo permanece NO-GO.
 - Queda listo para Fase 6C.3: read-store persistido/consultas operativas reales sanitizadas y eventual publicacion de artefactos E2E en CI.
 
+### Prerrequisito 6C.3 - Control de NachaExport 422
+
+Estado:
+Completado, pendiente de commit.
+
+Resumen:
+Se diagnostico que `GET /NachaExport/{cycleId}` espera identificador de ciclo ACH (`cycleId`), no hash de archivo ni hash de contenido. Un 422 es funcional cuando el ciclo existe pero no tiene contenido/lotes NACHA-M exportables; un identificador inexistente retorna 404 controlado. Se agrego metadata `IsExportable`/`ExportUnavailableReason` al listado exportable, la SPA deshabilita descarga para filas no exportables o demo, usa el identificador persistido cuando corresponde y muestra mensajes controlados para 422 sin exponer errores crudos ni datos sensibles.
+
+Resultado:
+- Backend build Release OK: 0 warnings, 0 errors.
+- Backend tests Release OK: 1520 passed, 0 failed, 1 skipped, total 1521.
+- Angular build OK.
+- Angular tests OK: 246 success.
+- No se invoca SOAP real.
+- No se mueve dinero.
+- No se agregan credenciales ni endpoints reales.
+- No se modifican golden files.
+- No se toca table-driven.
+- Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.

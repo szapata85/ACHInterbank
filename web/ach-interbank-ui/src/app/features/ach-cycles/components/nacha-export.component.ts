@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -40,6 +41,11 @@ export class NachaExportComponent implements OnInit {
     { field: 'processingDateText', headerName: 'Fecha efectiva', minWidth: 160 },
     { field: 'transactionCount', headerName: 'Transacciones', width: 140, cellStyle: { textAlign: 'right' } },
     {
+      headerName: 'Exportable',
+      minWidth: 160,
+      valueGetter: (params) => this.isExportable(params.data) ? 'Disponible' : 'No exportable'
+    },
+    {
       colId: 'acciones',
       headerName: 'Acciones',
       minWidth: 250,
@@ -49,8 +55,10 @@ export class NachaExportComponent implements OnInit {
       filter: false,
       cellRenderer: (params) => {
         const rowId = params.data?.id;
+        const exportable = this.isExportable(params.data);
         const ocupado = Boolean(rowId && this.downloadingId === rowId);
-        const disabledAttr = ocupado ? 'disabled aria-disabled="true"' : '';
+        const disabled = ocupado || !exportable;
+        const disabledAttr = disabled ? 'disabled aria-disabled="true"' : '';
         const tooltipGenerar = ocupado ? 'Generación en curso' : 'Generar archivo NACHA-M';
         const tooltipSobre = ocupado ? 'Generación en curso' : 'Generar archivo con sobre digital';
         const textoGenerar = ocupado ? 'Generando...' : 'Generar archivo NACHA';
@@ -65,6 +73,10 @@ export class NachaExportComponent implements OnInit {
       },
       onCellClicked: (params) => {
         if (!params.data || this.downloadingId) {
+          return;
+        }
+        if (!this.isExportable(params.data)) {
+          this.notifications.info(params.data.exportUnavailableReason ?? 'Este ciclo no tiene archivo NACHA-M exportable.');
           return;
         }
 
@@ -139,6 +151,10 @@ export class NachaExportComponent implements OnInit {
     if (this.downloadingId) {
       return;
     }
+    if (!this.isExportable(cycle)) {
+      this.notifications.info(cycle.exportUnavailableReason ?? 'Este ciclo no tiene archivo NACHA-M exportable.');
+      return;
+    }
 
     this.downloadingId = cycle.id;
     this.refrescarAccionesGrilla();
@@ -159,13 +175,8 @@ export class NachaExportComponent implements OnInit {
         this.refrescarAccionesGrilla();
         this.cdr.markForCheck();
       },
-      error: () => {
-        this.notifications.error(encrypted
-          ? 'No fue posible generar el archivo NACHA-M con Sobre Digital'
-          : 'No fue posible generar el archivo NACHA-M');
-        this.downloadingId = null;
-        this.refrescarAccionesGrilla();
-        this.cdr.markForCheck();
+      error: (error: HttpErrorResponse) => {
+        void this.handleDownloadError(error, encrypted);
       }
     });
   }
@@ -211,5 +222,56 @@ export class NachaExportComponent implements OnInit {
 
   private refrescarAccionesGrilla(): void {
     this.gridApi?.refreshCells({ force: true, columns: ['acciones'] });
+  }
+
+  private isExportable(cycle?: ExportableAchCycle | null): boolean {
+    return cycle?.isExportable !== false;
+  }
+
+  private async handleDownloadError(error: HttpErrorResponse, encrypted: boolean): Promise<void> {
+    this.notifications.error(await this.buildDownloadErrorMessage(error, encrypted));
+    this.downloadingId = null;
+    this.refrescarAccionesGrilla();
+    this.cdr.markForCheck();
+  }
+
+  private async buildDownloadErrorMessage(error: HttpErrorResponse, encrypted: boolean): Promise<string> {
+    const fallback = encrypted
+      ? 'No fue posible generar el archivo NACHA-M con Sobre Digital.'
+      : 'No fue posible generar el archivo NACHA-M.';
+
+    if (error.status !== 422) {
+      return fallback;
+    }
+
+    const parsed = await this.parseErrorBody(error.error);
+    const message = parsed?.mensaje ?? parsed?.message;
+    const code = parsed?.codigo ?? parsed?.code;
+
+    if (message && code) {
+      return `${message} (${code})`;
+    }
+
+    return message ?? 'El ciclo no cumple las condiciones funcionales para exportar NACHA-M.';
+  }
+
+  private async parseErrorBody(error: unknown): Promise<{ mensaje?: string; message?: string; codigo?: string; code?: string } | null> {
+    if (!error) {
+      return null;
+    }
+
+    if (error instanceof Blob) {
+      try {
+        return JSON.parse(await error.text());
+      } catch {
+        return null;
+      }
+    }
+
+    if (typeof error === 'object') {
+      return error as { mensaje?: string; message?: string; codigo?: string; code?: string };
+    }
+
+    return null;
   }
 }

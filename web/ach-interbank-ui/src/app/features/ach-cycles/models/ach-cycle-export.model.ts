@@ -4,6 +4,8 @@ export interface ExportableAchCycle {
   processingDate: string;
   clearingHouseName?: string;
   transactionCount: number;
+  isExportable?: boolean;
+  exportUnavailableReason?: string | null;
 }
 
 export interface ExportableAchCycleFilter {
