@@ -1,198 +1,46 @@
 <ui-migas-pan [items]="[{ label: 'Inicio', route: '/dashboard' }, { label: 'NACHA Config', route: '/nacha-config-admin/perfiles' }, { label: perfil?.profileCode || 'Perfil' }]" />
-<ui-encabezado-pagina [titulo]="'Perfil ' + (perfil?.profileCode || '')" descripcion="Espacio de operación técnica para validación, publicación y gobierno de configuración."></ui-encabezado-pagina>
+<ui-encabezado-pagina [titulo]="'Perfil ' + (perfil?.profileCode || '')" descripcion="Detalle oficial read-only de nacha-config profile."></ui-encabezado-pagina>
 
-<ui-alerta *ngIf="alerta" [tipo]="alerta.tipo" [mensaje]="alerta.mensaje"></ui-alerta>
+<section class="banners">
+  <ui-alerta tipo="info" mensaje="Modelo oficial NACHA-M: nacha-config profiles."></ui-alerta>
+  <ui-alerta tipo="advertencia" mensaje="Legacy layouts/definitions deprecated: esta pantalla no usa endpoints legacy."></ui-alerta>
+  <ui-alerta tipo="error" mensaje="Productivo NO-GO: sin crear, editar, publicar, archivar, borrar ni ejecutar SOAP."></ui-alerta>
+</section>
 
-<ui-tarjeta *ngIf="perfil" titulo="Resumen del perfil" subtitulo="Estado, versión y token de concurrencia actual.">
+<ui-alerta *ngIf="errorCarga" tipo="error" mensaje="No fue posible cargar el perfil oficial read-only."></ui-alerta>
+
+<ui-tarjeta *ngIf="perfil" titulo="Resumen del perfil" subtitulo="Estado, version, camara, vigencia e indicador de modelo oficial.">
   <div class="resumen">
-    <div><strong>Estado:</strong> {{ perfil.estado }}</div>
-    <div><strong>Versión:</strong> v{{ perfil.versionMajor }}.{{ perfil.versionMinor }}</div>
-    <div><strong>Versión de concurrencia:</strong> {{ perfil.rowVersion }}</div>
-    <div><strong>Contexto:</strong> {{ perfil.camara }} / {{ perfil.flujo }} / {{ perfil.direccion }} / {{ perfil.servicio || 'No aplica' }}</div>
+    <div><strong>Modelo oficial:</strong> {{ perfil.isOfficialModel ? 'Si' : 'No' }}</div>
+    <div><strong>Legacy deprecated:</strong> {{ perfil.legacyDeprecated ? 'Si' : 'No' }}</div>
+    <div><strong>Estado:</strong> {{ perfil.status }}</div>
+    <div><strong>Version:</strong> {{ perfil.version }}</div>
+    <div><strong>Camara:</strong> {{ perfil.clearingHouseCode }}</div>
+    <div><strong>Flujo:</strong> {{ perfil.flowType }}</div>
+    <div><strong>Vigencia:</strong> {{ date(perfil.effectiveFrom) }} a {{ perfil.effectiveTo ? date(perfil.effectiveTo) : 'abierta' }}</div>
+    <div><strong>Records:</strong> {{ perfil.recordTypes.join(', ') }}</div>
+    <div><strong>Variants:</strong> {{ perfil.layoutVariantCount }}</div>
+    <div><strong>Fields:</strong> {{ perfil.fieldCount }}</div>
   </div>
 </ui-tarjeta>
 
-<nav class="tabs">
-  <ui-boton *ngFor="let item of tabs" [texto]="item.label" variante="contorno" [deshabilitado]="tab===item.key" (accion)="seleccionarTab(item.key)"></ui-boton>
-</nav>
+<ui-tarjeta *ngIf="perfil" titulo="Variants" subtitulo="Records 1/5/6/7/8/9, longitud de registro y blocking factor.">
+  <ui-grilla-empresarial
+    [columnas]="columnasVariantes"
+    [datos]="perfil.variants"
+    [cargando]="cargando"
+    tituloVacio="Sin variants"
+    mensajeVacio="No hay variants configuradas para este perfil."
+  ></ui-grilla-empresarial>
+</ui-tarjeta>
 
-<section *ngIf="conflictosConcurrencia" class="seccion">
-  <ui-alerta tipo="error" mensaje="El perfil fue modificado por otro usuario. Puede recargar los datos o descartar sus cambios locales."></ui-alerta>
-  <div class="acciones-inline">
-    <ui-boton texto="Recargar datos" variante="primario" (accion)="recargarPorConcurrencia()"></ui-boton>
-    <ui-boton texto="Descartar cambios locales" variante="contorno" (accion)="descartarCambiosLocales()"></ui-boton>
-  </div>
-</section>
+<ui-tarjeta *ngIf="perfil" titulo="Fields" subtitulo="sourceFieldPath, posiciones, longitudes, padding, formato y campos calculados/control total.">
+  <ui-grilla-empresarial
+    [columnas]="columnasFields"
+    [datos]="perfil.fields"
+    [cargando]="cargando"
+    tituloVacio="Sin fields"
+    mensajeVacio="No hay fields configurados para este perfil."
+  ></ui-grilla-empresarial>
+</ui-tarjeta>
 
-<section *ngIf="tab === 'detalle' && perfil" class="seccion">
-  <ui-tarjeta titulo="Edición de metadatos" subtitulo="Formulario reactivo con control de concurrencia por versión de perfil.">
-    <div class="form-grid" [formGroup]="editarForm">
-      <ui-campo-texto etiqueta="Nombre" [control]="editarForm.controls.nombreEs"></ui-campo-texto>
-      <ui-campo-textarea etiqueta="Descripción" [control]="editarForm.controls.descripcion"></ui-campo-textarea>
-      <ui-campo-numero etiqueta="Prioridad contextual" [control]="editarForm.controls.contextPriority"></ui-campo-numero>
-      <ui-campo-fecha etiqueta="Vigente desde" [control]="editarForm.controls.effectiveFrom"></ui-campo-fecha>
-      <ui-campo-fecha etiqueta="Vigente hasta" [control]="editarForm.controls.effectiveTo"></ui-campo-fecha>
-    </div>
-    <div class="acciones-inline">
-      <ui-boton texto="Guardar edición" textoCargando="Guardando..." [cargando]="procesando" [deshabilitado]="procesando" (accion)="guardarEdicion()"></ui-boton>
-      <ui-boton texto="Inactivar" variante="peligro" [cargando]="procesando" [deshabilitado]="procesando" (accion)="inactivar()"></ui-boton>
-      <ui-boton texto="Archivar" variante="contorno" [cargando]="procesando" [deshabilitado]="procesando" (accion)="archivar()"></ui-boton>
-    </div>
-  </ui-tarjeta>
-
-  <ui-tarjeta titulo="Clonar perfil" subtitulo="Genera nueva versión en BORRADOR manteniendo trazabilidad.">
-    <div class="form-grid" [formGroup]="clonarForm">
-      <ui-campo-texto etiqueta="Nuevo código" [control]="clonarForm.controls.nuevoProfileCode"></ui-campo-texto>
-      <ui-campo-texto etiqueta="Nuevo nombre" [control]="clonarForm.controls.nuevoNombreEs"></ui-campo-texto>
-      <ui-campo-fecha etiqueta="Vigente desde" [control]="clonarForm.controls.effectiveFrom"></ui-campo-fecha>
-    </div>
-    <div class="acciones-inline">
-      <ui-boton texto="Clonar perfil" textoCargando="Clonando..." [cargando]="procesando" [deshabilitado]="procesando" (accion)="clonarPerfil()"></ui-boton>
-    </div>
-  </ui-tarjeta>
-</section>
-
-<section *ngIf="tab === 'secuencia' && perfil" class="seccion">
-  <ui-grilla-empresarial [columnas]="columnasRecords" [datos]="rowsRecords" [cargando]="cargando" tituloVacio="Sin registros" mensajeVacio="No hay registros configurados para este perfil."></ui-grilla-empresarial>
-  <div class="acciones-inline">
-    <ui-boton texto="Guardar secuencia" textoCargando="Guardando..." [cargando]="procesando" [deshabilitado]="procesando" (accion)="guardarSecuencia()"></ui-boton>
-  </div>
-</section>
-
-<section *ngIf="tab === 'variantes' && perfil" class="seccion">
-  <ui-grilla-empresarial [columnas]="columnasVariantes" [datos]="rowsVariantes" [cargando]="cargando" tituloVacio="Sin variantes" mensajeVacio="No hay variantes configuradas." (seleccionCambio)="seleccionarVariante($event[0])"></ui-grilla-empresarial>
-  <ui-tarjeta titulo="Editar variante" subtitulo="Seleccione una fila de la grilla para habilitar la edición guiada.">
-    <ui-alerta *ngIf="!varianteSeleccionada" tipo="info" mensaje="Primero seleccione una variante en la grilla para editarla."></ui-alerta>
-    <div class="form-grid" [formGroup]="varianteForm">
-      <ui-campo-numero etiqueta="Id variante" [control]="varianteForm.controls.variantId"></ui-campo-numero>
-      <ui-campo-texto etiqueta="Nombre" [control]="varianteForm.controls.nombreEs"></ui-campo-texto>
-      <ui-campo-textarea etiqueta="Descripción" [control]="varianteForm.controls.descripcion"></ui-campo-textarea>
-      <ui-campo-numero etiqueta="Prioridad" [control]="varianteForm.controls.priority"></ui-campo-numero>
-      <ui-campo-fecha etiqueta="Vigente desde" [control]="varianteForm.controls.effectiveFrom"></ui-campo-fecha>
-      <ui-campo-fecha etiqueta="Vigente hasta" [control]="varianteForm.controls.effectiveTo"></ui-campo-fecha>
-    </div>
-    <div class="acciones-inline">
-      <ui-boton texto="Guardar variante" [cargando]="procesando" [deshabilitado]="procesando || !varianteSeleccionada" (accion)="guardarVariante()"></ui-boton>
-    </div>
-  </ui-tarjeta>
-</section>
-
-<section *ngIf="tab === 'campos' && perfil" class="seccion">
-  <ui-grilla-empresarial [columnas]="columnasFields" [datos]="rowsFields" [cargando]="cargando" tituloVacio="Sin campos" mensajeVacio="No hay campos configurados." (seleccionCambio)="seleccionarField($event[0])"></ui-grilla-empresarial>
-  <ui-tarjeta titulo="Editar campo" subtitulo="Seleccione un campo desde la grilla para editar sin ingreso manual de identificadores.">
-    <ui-alerta *ngIf="!fieldSeleccionado" tipo="info" mensaje="Primero seleccione un campo en la grilla para habilitar la edición."></ui-alerta>
-    <div class="form-grid" [formGroup]="fieldForm">
-      <ui-campo-numero etiqueta="Id campo" [control]="fieldForm.controls.fieldId"></ui-campo-numero>
-      <ui-campo-texto etiqueta="Nombre" [control]="fieldForm.controls.fieldNameEs"></ui-campo-texto>
-      <ui-campo-numero etiqueta="Posición" [control]="fieldForm.controls.startPosition"></ui-campo-numero>
-      <ui-campo-numero etiqueta="Longitud" [control]="fieldForm.controls.length"></ui-campo-numero>
-      <ui-campo-texto etiqueta="Ruta origen" [control]="fieldForm.controls.propertyPath"></ui-campo-texto>
-    </div>
-    <div class="acciones-inline">
-      <ui-boton texto="Guardar campo" [cargando]="procesando" [deshabilitado]="procesando || !fieldSeleccionado" (accion)="guardarField()"></ui-boton>
-    </div>
-  </ui-tarjeta>
-</section>
-
-<section *ngIf="tab === 'reglas' && perfil" class="seccion">
-  <ui-grilla-empresarial [columnas]="columnasReglas" [datos]="rowsReglas" [cargando]="cargando" tituloVacio="Sin reglas" mensajeVacio="No hay reglas configuradas." (seleccionCambio)="seleccionarRegla($event[0])"></ui-grilla-empresarial>
-  <ui-tarjeta titulo="Editar regla" subtitulo="Seleccione una regla de la grilla para editarla.">
-    <div class="form-grid" [formGroup]="ruleForm">
-      <ui-campo-texto etiqueta="Código" [control]="ruleForm.controls.errorCode"></ui-campo-texto>
-      <ui-campo-texto etiqueta="Mensaje" [control]="ruleForm.controls.errorMessageEs"></ui-campo-texto>
-      <ui-campo-texto etiqueta="Severidad" [control]="ruleForm.controls.severity"></ui-campo-texto>
-    </div>
-    <div class="acciones-inline">
-      <ui-boton texto="Guardar regla" [cargando]="procesando" [deshabilitado]="procesando || !reglaSeleccionada" (accion)="guardarRule()"></ui-boton>
-    </div>
-  </ui-tarjeta>
-</section>
-
-<section *ngIf="tab === 'validacion' && perfil" class="seccion">
-  <ui-tarjeta titulo="Validación prepublicación" subtitulo="Muestra errores bloqueantes y advertencias antes de publicar.">
-    <div class="acciones-inline">
-      <ui-boton texto="Ejecutar validación" [cargando]="procesando" [deshabilitado]="procesando" (accion)="validar()"></ui-boton>
-      <ui-boton texto="Publicar perfil" variante="primario" [cargando]="procesando" [deshabilitado]="procesando" (accion)="publicar()"></ui-boton>
-    </div>
-
-    <div *ngIf="validacion" class="validacion-resumen">
-      <p><strong>Resumen:</strong> {{ validacion.resumen }}</p>
-      <p><strong>Errores bloqueantes:</strong> {{ validacion.erroresBloqueantes }}</p>
-      <p><strong>Advertencias:</strong> {{ validacion.advertencias }}</p>
-      <ul>
-        <li *ngFor="let issue of validacion.issues">
-          <strong>{{ issue.severidad }}</strong> - {{ issue.codigo }}: {{ issue.mensaje }}
-        </li>
-      </ul>
-    </div>
-
-    <div *ngIf="issuesPublicacion.length > 0" class="validacion-resumen">
-      <p><strong>Bloqueos de publicación:</strong></p>
-      <ul>
-        <li *ngFor="let issue of issuesPublicacion">
-          <strong>{{ issue.severidad }}</strong> - {{ issue.codigo }}: {{ issue.mensaje }}
-        </li>
-      </ul>
-    </div>
-  </ui-tarjeta>
-</section>
-
-<section *ngIf="tab === 'historial' && perfil" class="seccion">
-  <ui-tarjeta titulo="Línea de tiempo operacional" subtitulo="Resumen visual de eventos recientes.">
-    <div class="timeline">
-      <article class="timeline-item" *ngFor="let cambio of historial | slice:0:8">
-        <h4>Cambio {{ cambio.changeType }}</h4>
-        <p><strong>Fecha:</strong> {{ cambio.changedAtUtc | date:'short':'UTC' }}</p>
-        <p><strong>Usuario:</strong> {{ cambio.changedBy }}</p>
-        <p><strong>Correlación:</strong> {{ cambio.correlationId || 'No aplica' }}</p>
-      </article>
-      <article class="timeline-item" *ngFor="let snap of snapshots | slice:0:6">
-        <h4>Instantánea {{ snap.snapshotType }}</h4>
-        <p><strong>Fecha:</strong> {{ snap.createdAtUtc | date:'short':'UTC' }}</p>
-        <p><strong>Usuario:</strong> {{ snap.createdBy }}</p>
-        <p><strong>Versión:</strong> v{{ snap.versionMajor }}.{{ snap.versionMinor }}</p>
-      </article>
-    </div>
-  </ui-tarjeta>
-
-  <ui-tarjeta titulo="Historial de cambios" subtitulo="Auditoría por cambio, entidad y correlación.">
-    <ui-grilla-empresarial [columnas]="columnasHistorial" [datos]="historial" [cargando]="cargando" tituloVacio="Sin historial" mensajeVacio="No existen eventos de auditoría para este perfil."></ui-grilla-empresarial>
-  </ui-tarjeta>
-
-  <ui-tarjeta titulo="Instantáneas" subtitulo="Versiones publicadas y tipo de instantánea registrada.">
-    <ui-grilla-empresarial [columnas]="columnasSnapshots" [datos]="snapshots" [cargando]="cargando" tituloVacio="Sin instantáneas" mensajeVacio="No existen instantáneas para este perfil."></ui-grilla-empresarial>
-  </ui-tarjeta>
-</section>
-
-<section *ngIf="tab === 'vistaPrevia'" class="seccion">
-  <ui-tarjeta titulo="Vista previa del resolvedor contextual" subtitulo="Simula resolución por cámara, flujo, dirección, servicio, fecha y registros.">
-    <div class="form-grid" [formGroup]="previewForm">
-      <ui-campo-texto etiqueta="Cámara" [control]="previewForm.controls.camaraCode"></ui-campo-texto>
-      <ui-campo-texto etiqueta="Flujo" [control]="previewForm.controls.flujoCode"></ui-campo-texto>
-      <ui-campo-texto etiqueta="Dirección" [control]="previewForm.controls.direccionCode"></ui-campo-texto>
-      <ui-campo-texto etiqueta="Servicio" [control]="previewForm.controls.servicioCode"></ui-campo-texto>
-      <ui-campo-fecha etiqueta="Fecha proceso" [control]="previewForm.controls.processDateUtc"></ui-campo-fecha>
-      <ui-campo-texto etiqueta="Registros" [control]="previewForm.controls.recordCodesCsv" placeholder="1,5,6,8,9"></ui-campo-texto>
-    </div>
-    <div class="acciones-inline">
-      <ui-boton texto="Ejecutar vista previa" [cargando]="procesando" [deshabilitado]="procesando" (accion)="ejecutarVistaPrevia()"></ui-boton>
-    </div>
-
-    <div *ngIf="preview" class="preview-box">
-      <p><strong>Resolución exitosa:</strong> {{ preview.success ? 'Sí' : 'No' }}</p>
-      <p><strong>Perfil:</strong> {{ preview.profileCode || 'No resuelto' }} ({{ preview.profileId || 'No aplica' }})</p>
-      <p><strong>Estructuras aplicables:</strong></p>
-      <ul>
-        <li *ngFor="let layout of preview.layoutByRecordCode | keyvalue">Registro {{ layout.key }} → {{ layout.value }}</li>
-      </ul>
-      <p><strong>Advertencias:</strong></p>
-      <ul>
-        <li *ngFor="let warning of preview.warnings">{{ warning }}</li>
-      </ul>
-      <p><strong>Traza:</strong></p>
-      <ul>
-        <li *ngFor="let traceItem of preview.trace">{{ traceItem }}</li>
-      </ul>
-    </div>
-  </ui-tarjeta>
-</section>

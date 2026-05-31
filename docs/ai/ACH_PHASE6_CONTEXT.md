@@ -412,6 +412,21 @@ Cierre:
 - Queda listo para Fase 6C.4: administracion oficial `nacha-config profiles` con `CfgProfile`, `CfgLayoutVariant`, `CfgLayoutField`, camaras ACH Colombia/CENIT, records 1/5/6/7/8/9, versionamiento y estados Draft/Published/Deprecated/Archived.
 - No se ejecuto SOAP real, no se movio dinero, no se editaron perfiles, no se generaron migraciones, no se tocaron golden files ni motor table-driven, y Productivo permanece NO-GO.
 
+### Fase 6C.4 - Administracion oficial read-only de nacha-config profiles
+
+Estado:
+Completada.
+
+Resumen:
+Se agrego contrato backend oficial GET-only `/api/ach/nacha/config-profiles` para dashboard/listado/detalle/by-code/variants/fields, con read-models sanitizados sobre `CfgProfile`, `CfgProfileRecord`, `CfgLayoutVariant` y `CfgLayoutField`. La SPA oficial reutiliza `/nacha-config-admin/perfiles`; `/ach/nacha/config-profiles` redirige alli. La UI muestra modelo oficial, legacy deprecated y Productivo NO-GO, sin crear/editar/publicar/archivar/borrar ni llamar command service. Legacy layouts/definitions siguen diagnostico read-only y no son fuente oficial.
+
+Resultado:
+- Backend build OK; tests backend OK: 1565 passed, 1 skipped.
+- Angular build OK; tests Angular OK: 270 success.
+- Playwright OK: 18 passed.
+- No SOAP real, no migraciones, no golden files, no motor table-driven, no `/NachaExport/{hash}`.
+- Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.

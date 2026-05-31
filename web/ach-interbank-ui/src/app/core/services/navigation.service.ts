@@ -110,11 +110,11 @@ export class NavigationService {
 
     const nachaConfigGroup: MenuItem = {
       id: -280,
-      label: 'NACHA Config',
+      label: 'Config Profiles',
       route: '/nacha-config-admin/perfiles',
       icon: 'tune',
       children: [
-        { id: -2801, label: 'Perfiles NACHA', route: '/nacha-config-admin/perfiles', icon: 'fact_check' }
+        { id: -2801, label: 'Config Profiles', route: '/nacha-config-admin/perfiles', icon: 'fact_check' }
       ]
     };
 

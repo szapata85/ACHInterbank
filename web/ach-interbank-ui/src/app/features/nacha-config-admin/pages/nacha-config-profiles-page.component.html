@@ -1,51 +1,48 @@
 <ui-migas-pan [items]="[{ label: 'Inicio', route: '/dashboard' }, { label: 'NACHA Config' }]" />
-<ui-encabezado-pagina titulo="Perfiles NACHA" descripcion="Administración enterprise de configuración NACHA-M"></ui-encabezado-pagina>
+<ui-encabezado-pagina titulo="Config Profiles NACHA-M" descripcion="Administracion oficial read-only de nacha-config profiles"></ui-encabezado-pagina>
 
-<ui-tarjeta titulo="Filtros y alta de borrador" subtitulo="Use filtros para operación y cree nuevos perfiles en estado BORRADOR.">
+<section class="banners">
+  <ui-alerta tipo="info" mensaje="Modelo oficial NACHA-M: nacha-config profiles."></ui-alerta>
+  <ui-alerta tipo="advertencia" mensaje="Legacy layouts/definitions deprecated: solo diagnostico read-only, no fuente oficial."></ui-alerta>
+  <ui-alerta tipo="error" mensaje="Productivo NO-GO: certificacion/UAT formal pendiente; sin ejecucion SOAP ni mutaciones."></ui-alerta>
+</section>
+
+<section class="summary-grid" *ngIf="dashboard">
+  <article>
+    <span>Perfiles</span>
+    <strong>{{ dashboard.profileCount }}</strong>
+  </article>
+  <article>
+    <span>Publicados</span>
+    <strong>{{ dashboard.publishedProfileCount }}</strong>
+  </article>
+  <article>
+    <span>Variants</span>
+    <strong>{{ dashboard.layoutVariantCount }}</strong>
+  </article>
+  <article>
+    <span>Fields</span>
+    <strong>{{ dashboard.fieldCount }}</strong>
+  </article>
+</section>
+
+<ui-alerta *ngFor="let warning of dashboard?.warnings ?? []" tipo="advertencia" [mensaje]="warning"></ui-alerta>
+
+<ui-tarjeta titulo="Filtros read-only" subtitulo="Consulta oficial GET-only de perfiles, camaras ACH Colombia/CENIT, records 1/5/6/7/8/9, variants y fields.">
   <div class="filtros-grid" [formGroup]="filtrosForm">
-    <ui-campo-texto etiqueta="Buscar" [control]="filtrosForm.controls.texto" placeholder="Código o nombre"></ui-campo-texto>
+    <ui-campo-texto etiqueta="Buscar" [control]="filtrosForm.controls.texto" placeholder="Codigo o nombre"></ui-campo-texto>
     <label class="selector-campo">
       <span>Estado</span>
       <ui-selector-buscable [opciones]="opcionesEstado" [formControl]="filtrosForm.controls.estado" placeholderBusqueda="Buscar estado"></ui-selector-buscable>
     </label>
     <label class="selector-campo">
-      <span>Cámara</span>
-      <ui-selector-buscable [opciones]="opcionesCamara" [formControl]="filtrosForm.controls.camara" placeholderBusqueda="Buscar cámara"></ui-selector-buscable>
+      <span>Camara</span>
+      <ui-selector-buscable [opciones]="opcionesCamara" [formControl]="filtrosForm.controls.camara" placeholderBusqueda="Buscar camara"></ui-selector-buscable>
     </label>
     <label class="selector-campo">
       <span>Flujo</span>
       <ui-selector-buscable [opciones]="opcionesFlujo" [formControl]="filtrosForm.controls.flujo" placeholderBusqueda="Buscar flujo"></ui-selector-buscable>
     </label>
-    <label class="selector-campo">
-      <span>Dirección</span>
-      <ui-selector-buscable [opciones]="opcionesDireccion" [formControl]="filtrosForm.controls.direccion" placeholderBusqueda="Buscar dirección"></ui-selector-buscable>
-    </label>
-  </div>
-
-  <div class="crear-grid" [formGroup]="crearForm">
-    <ui-campo-texto etiqueta="Código perfil" [control]="crearForm.controls.profileCode"></ui-campo-texto>
-    <ui-campo-texto etiqueta="Nombre" [control]="crearForm.controls.nombreEs"></ui-campo-texto>
-    <label class="selector-campo">
-      <span>Cámara</span>
-      <ui-selector-buscable [opciones]="opcionesCamaraForm" [formControl]="crearForm.controls.camaraCode" placeholderBusqueda="Buscar cámara"></ui-selector-buscable>
-    </label>
-    <label class="selector-campo">
-      <span>Flujo</span>
-      <ui-selector-buscable [opciones]="opcionesFlujoForm" [formControl]="crearForm.controls.flujoCode" placeholderBusqueda="Buscar flujo"></ui-selector-buscable>
-    </label>
-    <label class="selector-campo">
-      <span>Dirección</span>
-      <ui-selector-buscable [opciones]="opcionesDireccionForm" [formControl]="crearForm.controls.direccionCode" placeholderBusqueda="Buscar dirección"></ui-selector-buscable>
-    </label>
-    <label class="selector-campo">
-      <span>Servicio</span>
-      <ui-selector-buscable [opciones]="opcionesServicio" [formControl]="crearForm.controls.servicioCode" placeholderBusqueda="Buscar servicio"></ui-selector-buscable>
-    </label>
-    <ui-campo-fecha etiqueta="Vigente desde" [control]="crearForm.controls.effectiveFrom"></ui-campo-fecha>
-  </div>
-
-  <div class="acciones">
-    <ui-boton texto="Crear borrador" textoCargando="Creando..." [cargando]="guardando" [deshabilitado]="guardando" (accion)="crearBorrador()"></ui-boton>
   </div>
 </ui-tarjeta>
 
@@ -56,7 +53,7 @@
   [error]="errorCarga"
   mensajeError="No fue posible cargar perfiles NACHA."
   tituloVacio="Sin perfiles"
-  mensajeVacio="No hay perfiles para los filtros seleccionados."
+  mensajeVacio="No hay perfiles oficiales para los filtros seleccionados."
   [paginacion]="true"
   [tamanoPagina]="15"
 ></ui-grilla-empresarial>

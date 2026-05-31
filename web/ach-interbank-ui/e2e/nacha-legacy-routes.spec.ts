@@ -16,7 +16,7 @@ test.describe('NACHA legacy layouts and definitions audit', () => {
 
     await page.goto('/ach/nacha/operational-dashboard');
 
-    await expect(page.getByRole('link', { name: 'NACHA Config' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Config Profiles' })).toBeVisible();
     await expect(page.getByText('Layouts NACHA legacy menu')).toHaveCount(0);
   });
 
@@ -25,7 +25,7 @@ test.describe('NACHA legacy layouts and definitions audit', () => {
 
     await page.goto('/ach/nacha/operational-dashboard');
 
-    await expect(page.getByRole('link', { name: 'NACHA Config' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Config Profiles' })).toBeVisible();
     await expect(page.getByText('Definiciones NACHA legacy menu')).toHaveCount(0);
   });
 
@@ -50,7 +50,7 @@ async function mockNavigationWithLegacyItems(page: Page): Promise<void> {
       body: JSON.stringify([
         { id: 1, label: 'Layouts NACHA legacy menu', route: '/ach-cycles/nacha/layouts' },
         { id: 2, label: 'Definiciones NACHA legacy menu', route: '/ach-cycles/nacha/definitions' },
-        { id: 3, label: 'NACHA Config', route: '/nacha-config-admin/perfiles' }
+        { id: 3, label: 'Config Profiles', route: '/nacha-config-admin/perfiles' }
       ])
     });
   });

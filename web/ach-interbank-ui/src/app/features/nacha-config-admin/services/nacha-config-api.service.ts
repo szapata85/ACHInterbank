@@ -5,7 +5,12 @@ import {
   NachaConfigHistoryItem,
   NachaConfigFilterCatalogs,
   NachaConfigProfileDetail,
+  NachaConfigProfileDetailReadModel,
+  NachaConfigProfileFieldReadModel,
   NachaConfigProfileListItem,
+  NachaConfigProfileReadModel,
+  NachaConfigProfilesDashboardReadModel,
+  NachaConfigProfileVariantReadModel,
   NachaConfigPublicationResult,
   NachaConfigResolverPreviewRequest,
   NachaConfigResolverPreviewResult,
@@ -17,6 +22,31 @@ import {
 export class NachaConfigApiService {
   private readonly api = inject(ApiService);
   private readonly basePath = 'nacha-config';
+  private readonly readOnlyBasePath = 'api/ach/nacha/config-profiles';
+
+  dashboardReadOnly(): Observable<NachaConfigProfilesDashboardReadModel> {
+    return this.api.get<NachaConfigProfilesDashboardReadModel>(`${this.readOnlyBasePath}/dashboard`);
+  }
+
+  listarPerfilesReadOnly(): Observable<NachaConfigProfileReadModel[]> {
+    return this.api.get<NachaConfigProfileReadModel[]>(this.readOnlyBasePath);
+  }
+
+  obtenerPerfilReadOnly(id: number): Observable<NachaConfigProfileDetailReadModel> {
+    return this.api.get<NachaConfigProfileDetailReadModel>(`${this.readOnlyBasePath}/${id}`);
+  }
+
+  obtenerPerfilPorCodigoReadOnly(profileCode: string): Observable<NachaConfigProfileDetailReadModel> {
+    return this.api.get<NachaConfigProfileDetailReadModel>(`${this.readOnlyBasePath}/by-code/${profileCode}`);
+  }
+
+  variantesReadOnly(id: number): Observable<NachaConfigProfileVariantReadModel[]> {
+    return this.api.get<NachaConfigProfileVariantReadModel[]>(`${this.readOnlyBasePath}/${id}/variants`);
+  }
+
+  fieldsReadOnly(id: number): Observable<NachaConfigProfileFieldReadModel[]> {
+    return this.api.get<NachaConfigProfileFieldReadModel[]>(`${this.readOnlyBasePath}/${id}/fields`);
+  }
 
   listarPerfiles(): Observable<NachaConfigProfileListItem[]> {
     return this.api.get<NachaConfigProfileListItem[]>(`${this.basePath}/perfiles`);
