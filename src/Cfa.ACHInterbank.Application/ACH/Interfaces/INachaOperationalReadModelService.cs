@@ -10,6 +10,8 @@ public interface INachaOperationalReadModelService
 
     Task<IReadOnlyList<NachaOperationalFileReadModel>> GetFilesAsync(CancellationToken cancellationToken = default);
 
+    Task<NachaOperationalFileDetailReadModel?> GetFileDetailAsync(string fileId, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<NachaOperationalDecisionReadModel>> GetDecisionsAsync(CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<NachaSoapReadinessReadModel>> GetSoapReadinessAsync(CancellationToken cancellationToken = default);

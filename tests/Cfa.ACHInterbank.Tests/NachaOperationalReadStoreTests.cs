@@ -121,6 +121,126 @@ public class NachaOperationalReadStoreTests
     }
 
     [Fact]
+    public async Task FileDetail_ShouldReturnPersistedHeaderAndChildren()
+    {
+        using var context = BuildContext();
+        SeedPersistedFile(context, "N1", DateTime.UtcNow, entries: 2, addendas: 1);
+        var store = new NachaOperationalReadStore(context);
+        var fileId = (await store.GetOperationalFilesAsync()).Single().FileId;
+
+        var detail = await store.GetOperationalFileDetailAsync(fileId);
+
+        detail.Should().NotBeNull();
+        detail!.Header.Should().NotBeNull();
+        detail.Batches.Should().ContainSingle();
+        detail.Entries.Should().HaveCount(2);
+        detail.Addendas.Should().ContainSingle();
+        detail.BatchControls.Should().ContainSingle();
+        detail.FileControls.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task FileDetail_ShouldReturnTotalsSummary()
+    {
+        using var context = BuildContext();
+        SeedPersistedFile(context, "N1", DateTime.UtcNow, entries: 2, addendas: 3);
+        var store = new NachaOperationalReadStore(context);
+        var fileId = (await store.GetOperationalFilesAsync()).Single().FileId;
+
+        var detail = await store.GetOperationalFileDetailAsync(fileId);
+
+        detail!.TotalsSummary.EntryCount.Should().Be(2);
+        detail.TotalsSummary.AddendaCount.Should().Be(3);
+        detail.TotalsSummary.PersistedRecordCount.Should().Be(9);
+    }
+
+    [Fact]
+    public async Task FileDetail_ShouldUseAsNoTracking()
+    {
+        using var context = BuildContext();
+        SeedPersistedFile(context, "N1", DateTime.UtcNow);
+        var store = new NachaOperationalReadStore(context);
+        var fileId = (await store.GetOperationalFilesAsync()).Single().FileId;
+        context.ChangeTracker.Clear();
+
+        await store.GetOperationalFileDetailAsync(fileId);
+
+        context.ChangeTracker.Entries().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task FileDetail_ShouldNotCallSaveChanges()
+    {
+        using var context = BuildCountingContext();
+        SeedPersistedFile(context, "N1", DateTime.UtcNow);
+        var store = new NachaOperationalReadStore(context);
+        var fileId = (await store.GetOperationalFilesAsync()).Single().FileId;
+        context.SaveChangesCount = 0;
+        context.SaveChangesAsyncCount = 0;
+
+        await store.GetOperationalFileDetailAsync(fileId);
+
+        context.SaveChangesCount.Should().Be(0);
+        context.SaveChangesAsyncCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task FileDetail_ShouldSanitizeSensitiveData()
+    {
+        using var context = BuildContext();
+        SeedPersistedFile(context, "N1", DateTime.UtcNow);
+        context.EntryDetails.Add(new EntryDetail { EntryDetailID = 990, NachaID = "N1", AccountNumber = "1234567890123456", RecipIdNumber = "DOC123456789", RecipUserName = "Cliente Real" });
+        await context.SaveChangesAsync();
+        var store = new NachaOperationalReadStore(context);
+        var fileId = (await store.GetOperationalFilesAsync()).Single().FileId;
+
+        var serialized = Serialize((await store.GetOperationalFileDetailAsync(fileId))!);
+
+        serialized.Should().NotContain("1234567890123456");
+        serialized.Should().NotContain("doc123456789");
+        serialized.Should().NotContain("cliente real");
+    }
+
+    [Fact]
+    public async Task FileDetail_ShouldMaskAccountNumbers()
+    {
+        using var context = BuildContext();
+        SeedPersistedFile(context, "N1", DateTime.UtcNow);
+        context.EntryDetails.Add(new EntryDetail { EntryDetailID = 991, NachaID = "N1", AccountNumber = "1234567890123456" });
+        await context.SaveChangesAsync();
+        var store = new NachaOperationalReadStore(context);
+        var fileId = (await store.GetOperationalFilesAsync()).Single().FileId;
+
+        var detail = await store.GetOperationalFileDetailAsync(fileId);
+
+        detail!.Entries.Select(x => x.AccountNumberMasked).Should().Contain("****3456");
+    }
+
+    [Fact]
+    public async Task FileDetail_ShouldReturn404WhenFileDoesNotExist()
+    {
+        using var context = BuildContext();
+        var controller = new NachaOperationalReadinessController(new NachaOperationalReadModelService(new NachaOperationalReadStore(context)));
+
+        var result = await controller.GetFileDetail("nacha-missing", default);
+
+        result.Should().BeOfType<NotFoundObjectResult>();
+    }
+
+    [Fact]
+    public async Task FileDetail_ShouldReturnPartialWarningWhenChildrenMissing()
+    {
+        using var context = BuildContext();
+        context.NachaHeaders.Add(new NachaHeader { NachaID = "PARTIAL", CycleNumber = 1 });
+        await context.SaveChangesAsync();
+
+        var detail = await new NachaOperationalReadStore(context).GetOperationalFileDetailAsync("nacha-PARTIAL");
+
+        detail!.IsPartialData.Should().BeTrue();
+        detail.Warnings.Should().Contain(x => x.Contains("parcial", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task ReadStore_ShouldLimitResults()
     {
         using var context = BuildContext();
@@ -320,11 +440,49 @@ public class NachaOperationalReadStoreTests
     }
 
     [Fact]
+    public async Task FileDetailEndpoint_ShouldNotTriggerSoapExecution()
+    {
+        var service = new Mock<INachaOperationalReadModelService>(MockBehavior.Strict);
+        service.Setup(x => x.GetFileDetailAsync("nacha-N1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NachaOperationalFileDetailReadModel
+            {
+                FileId = "nacha-N1",
+                HeaderId = "N1",
+                FileName = "entrada.ach",
+                ClearingHouseCode = "ACH",
+                ProfileCode = "nacha-config profiles",
+                FlowType = "IncomingPersisted",
+                ProcessingStatus = "Persisted",
+                ValidationPassed = true,
+                CreatedAt = DateTimeOffset.UtcNow,
+                CorrelationId = "corr-N1",
+                DataSource = "backend read-only",
+                TotalsSummary = new NachaOperationalTotalsSummaryReadModel(),
+                NoSensitiveData = true
+            });
+        var controller = new NachaOperationalReadinessController(service.Object);
+
+        await controller.GetFileDetail("nacha-N1", default);
+
+        service.Verify(x => x.GetFileDetailAsync("nacha-N1", It.IsAny<CancellationToken>()), Times.Once);
+        service.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public void ExportFlow_ShouldStillUseCycleId()
     {
         var action = typeof(NachaExportController).GetMethod(nameof(NachaExportController.Export));
 
         action!.GetParameters().Single(x => x.Name == "cycleId").ParameterType.Should().Be(typeof(string));
+    }
+
+    [Fact]
+    public void NachaExport_ShouldStillUseCycleIdNotHash()
+    {
+        var action = typeof(NachaExportController).GetMethod(nameof(NachaExportController.Export));
+
+        action!.GetParameters().Should().ContainSingle(x => x.Name == "cycleId");
+        action.GetParameters().Should().NotContain(x => x.Name!.Contains("hash", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

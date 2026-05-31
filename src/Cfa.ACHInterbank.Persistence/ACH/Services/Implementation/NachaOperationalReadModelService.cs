@@ -44,6 +44,30 @@ public sealed class NachaOperationalReadModelService : INachaOperationalReadMode
     public async Task<IReadOnlyList<NachaOperationalFileReadModel>> GetFilesAsync(CancellationToken cancellationToken = default)
         => (await GetDashboardAsync(cancellationToken)).Files;
 
+    public async Task<NachaOperationalFileDetailReadModel?> GetFileDetailAsync(string fileId, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (string.IsNullOrWhiteSpace(fileId) || fileId.StartsWith("demo-", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (_readStore is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return await _readStore.GetOperationalFileDetailAsync(fileId, cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public async Task<IReadOnlyList<NachaOperationalDecisionReadModel>> GetDecisionsAsync(CancellationToken cancellationToken = default)
         => (await GetDashboardAsync(cancellationToken)).Decisions;
 

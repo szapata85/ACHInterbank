@@ -2,8 +2,10 @@ import { expect, Page, test } from '@playwright/test';
 
 const dashboardPath = '/ach/nacha/operational-dashboard';
 const dashboardEndpoint = /\/api\/ach\/nacha\/operational\/dashboard$/;
+const fileDetailEndpoint = /\/api\/ach\/nacha\/operational\/files\/e2e-ach-in-001$/;
 const refreshEndpoint = /\/auth\/refresh$/;
 const legacyNachaEndpoint = /\/(?:nacha-layouts|nacha-record-definitions)(?:\/|\?|$)/;
+const hashExportPattern = /\/NachaExport\/[a-f0-9]{32,64}$/i;
 
 test.describe('NACHA-M operational dashboard read-only evidence', () => {
   test.beforeEach(async ({ page }) => {
@@ -94,6 +96,44 @@ test.describe('NACHA-M operational dashboard read-only evidence', () => {
     await expect(page.getByRole('heading', { name: 'Consulta operativa NACHA-M y readiness SOAP', level: 1 })).toBeVisible();
     expect(legacyRequests).toEqual([]);
   });
+
+  test('Dashboard_ShouldNavigateToFileDetail', async ({ page }) => {
+    await mockDashboard(page, backendDashboard());
+    await mockFileDetail(page, fileDetail());
+
+    await page.goto(dashboardPath);
+    await page.getByRole('button', { name: /Ver detalle ACH_COL_IN_001\.ach/i }).click();
+
+    await expect(page).toHaveURL(/\/ach\/nacha\/operational-dashboard\/files\/e2e-ach-in-001$/);
+    await expect(page.getByRole('heading', { name: 'Detalle operativo NACHA-M', level: 1 })).toBeVisible();
+  });
+
+  test('FileDetail_ShouldLoadReadOnlyPage', async ({ page }) => {
+    const blockedRequests: string[] = [];
+    page.on('request', request => {
+      const url = request.url();
+      if (legacyNachaEndpoint.test(url) || hashExportPattern.test(url)) {
+        blockedRequests.push(url);
+      }
+      if (/\/api\/ach\/nacha\/operational\/files\//.test(url) && !['GET'].includes(request.method())) {
+        blockedRequests.push(`${request.method()} ${url}`);
+      }
+    });
+    await mockFileDetail(page, fileDetail());
+
+    await page.goto(`${dashboardPath}/files/e2e-ach-in-001`);
+
+    await expect(page.getByText('Productivo NO-GO')).toBeVisible();
+    await expect(page.getByText('Backend read-only sanitizado')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Header' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Batches' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Entries' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Addendas' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Controls' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Totals' })).toBeVisible();
+    await assertDangerousActionsAbsent(page);
+    expect(blockedRequests).toEqual([]);
+  });
 });
 
 async function seedAuthenticatedSession(page: Page): Promise<void> {
@@ -143,6 +183,12 @@ async function mockAuthRefresh(page: Page): Promise<void> {
 
 async function mockDashboard(page: Page, body: unknown): Promise<void> {
   await page.route(dashboardEndpoint, async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+  });
+}
+
+async function mockFileDetail(page: Page, body: unknown): Promise<void> {
+  await page.route(fileDetailEndpoint, async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
   });
 }
@@ -292,6 +338,44 @@ function backendDashboard(overrides: { isPartialData?: boolean; dataSource?: str
     dataSource,
     warnings: isPartialData ? ['No persisted SOAP readiness data found; using safe read-only placeholder.'] : [],
     productiveStatus: 'NO-GO'
+  };
+}
+
+function fileDetail() {
+  return {
+    fileId: 'e2e-ach-in-001',
+    headerId: 'N1',
+    fileName: 'ACH_COL_IN_001.ach',
+    clearingHouseCode: 'ACH',
+    profileCode: 'nacha-config profiles',
+    flowType: 'IncomingPersisted',
+    isReturnFile: false,
+    processingStatus: 'Processed',
+    validationPassed: true,
+    receivedAt: '2026-05-25T04:00:00Z',
+    createdAt: '2026-05-25T04:00:00Z',
+    correlationId: 'corr-e2e',
+    dataSource: 'backend read-only',
+    isPartialData: false,
+    warnings: ['Productivo permanece NO-GO; esta consulta no ejecuta SOAP ni movimientos.'],
+    header: { headerId: 'N1', priorityCode: '01', recordSize: '094', blockingFactor: '10', cycleNumber: 1 },
+    batches: [{ batchId: 1, batchNumber: 1, serviceClassCode: '220', companyName: 'CFA', standardEntryClassCode: 'PPD' }],
+    entries: [{ entryDetailId: 1, transactionCode: '22', accountNumberMasked: '****3456', recipIdNumberMasked: '****6789', amount: 100 }],
+    addendas: [{ addendaId: 1, codeTypeAddendumRecord: '05', invoiceOrAccountNumberMasked: '****1111' }],
+    batchControls: [{ batchControlId: 1, batchNumber: '1', entryAddendaCount: 2, entryHash: 1, totalDebitAmount: 0, totalCreditAmount: 100 }],
+    fileControls: [{ fileControlId: 1, batchCount: 1, blockCount: 1, entryAddendaCount: 2, entryHash: 1, totalDebitAmount: 0, totalCreditAmount: 100 }],
+    totalsSummary: {
+      batchCount: 1,
+      entryCount: 1,
+      addendaCount: 1,
+      batchControlCount: 1,
+      fileControlCount: 1,
+      persistedRecordCount: 5,
+      totalDebitAmount: 0,
+      totalCreditAmount: 100,
+      validationPassed: true
+    },
+    noSensitiveData: true
   };
 }
 

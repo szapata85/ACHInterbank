@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { ColDef } from 'ag-grid-community';
 import { finalize } from 'rxjs';
 import { SharedModule } from '../../../shared/shared.module';
@@ -23,6 +23,7 @@ import { NachaOperationalReadinessService } from '../services/nacha-operational-
 })
 export class NachaOperationalDashboardComponent implements OnInit {
   private readonly service = inject(NachaOperationalReadinessService);
+  private readonly router = inject(Router);
   private readonly cdr = inject(ChangeDetectorRef);
 
   data?: NachaOperationalDashboardData;
@@ -130,6 +131,20 @@ export class NachaOperationalDashboardComponent implements OnInit {
     }
 
     return 'Fuente: backend read-only';
+  }
+
+  canNavigateToFileDetail(file: NachaOperationalFile): boolean {
+    const fileId = file.fileId ?? '';
+    const source = (file.dataSource ?? '').toLowerCase();
+    return fileId.length > 0 && !fileId.startsWith('demo-') && !source.includes('demo');
+  }
+
+  verDetalle(file: NachaOperationalFile): void {
+    if (!this.canNavigateToFileDetail(file)) {
+      return;
+    }
+
+    void this.router.navigate(['/ach/nacha/operational-dashboard/files', file.fileId]);
   }
 
   private formatDetails(details?: Record<string, string>): string {

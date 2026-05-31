@@ -102,6 +102,18 @@
       ></ui-grilla-empresarial>
     </ui-tarjeta>
 
+    <div class="badge-row" aria-label="Acciones read-only de archivos">
+      <button
+        type="button"
+        class="btn-link"
+        *ngFor="let file of vm.files"
+        [disabled]="!canNavigateToFileDetail(file)"
+        (click)="verDetalle(file)"
+      >
+        Ver detalle {{ file.fileName }}
+      </button>
+    </div>
+
     <ui-tarjeta titulo="Decisiones funcionales" subtitulo="Resultado de correlacion y decision NACHA-M. No ejecuta movimientos.">
       <ui-grilla-empresarial
         [columnas]="columnasDecisiones"

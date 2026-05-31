@@ -25,6 +25,21 @@ describe('NachaOperationalReadinessService', () => {
     expect(api.get).toHaveBeenCalledWith('api/ach/nacha/operational/dashboard');
   });
 
+  it('Service_ShouldCallFileDetailEndpoint', async () => {
+    api.get.and.returnValue(of(fileDetail()));
+
+    await firstValueFrom(service.getFileDetail('nacha-N1'));
+
+    expect(api.get).toHaveBeenCalledWith('api/ach/nacha/operational/files/nacha-N1');
+  });
+
+  it('Service_ShouldHandle404WithControlledMessage', async () => {
+    api.get.and.returnValue(throwError(() => ({ status: 404 })));
+
+    await expectAsync(firstValueFrom(service.getFileDetail('nacha-missing')))
+      .toBeRejectedWithError('Archivo NACHA-M no encontrado o no persistido.');
+  });
+
   it('Dashboard_ShouldNotCallLegacyLayoutsOrDefinitions', async () => {
     await firstValueFrom(service.getDashboardData());
 
@@ -222,5 +237,43 @@ function apiDashboard(): NachaOperationalDashboardData {
     dataSource: 'parcial',
     warnings: ['No persisted SOAP readiness data found; using safe read-only placeholder.'],
     productiveStatus: 'NO-GO'
+  };
+}
+
+function fileDetail() {
+  return {
+    fileId: 'nacha-N1',
+    headerId: 'N1',
+    fileName: 'entrada.ach',
+    clearingHouseCode: 'ACH',
+    profileCode: 'nacha-config profiles',
+    flowType: 'IncomingPersisted',
+    isReturnFile: false,
+    processingStatus: 'Persisted',
+    validationPassed: true,
+    receivedAt: '2026-05-24T23:00:00Z',
+    createdAt: '2026-05-24T23:00:00Z',
+    correlationId: 'corr-N1',
+    dataSource: 'backend read-only',
+    isPartialData: false,
+    warnings: [],
+    header: { headerId: 'N1', cycleNumber: 1 },
+    batches: [],
+    entries: [],
+    addendas: [],
+    batchControls: [],
+    fileControls: [],
+    totalsSummary: {
+      batchCount: 1,
+      entryCount: 1,
+      addendaCount: 1,
+      batchControlCount: 1,
+      fileControlCount: 1,
+      persistedRecordCount: 5,
+      totalDebitAmount: 0,
+      totalCreditAmount: 0,
+      validationPassed: true
+    },
+    noSensitiveData: true
   };
 }

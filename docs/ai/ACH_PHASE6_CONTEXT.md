@@ -427,6 +427,21 @@ Resultado:
 - No SOAP real, no migraciones, no golden files, no motor table-driven, no `/NachaExport/{hash}`.
 - Productivo permanece NO-GO.
 
+### Fase 6C.5 - Detalle operativo read-only por archivo NACHA-M
+
+Estado:
+Completada.
+
+Resumen:
+Se agrego detalle operativo GET-only `/api/ach/nacha/operational/files/{fileId}` usando el `fileId` sanitizado del dashboard (`nacha-{HeaderId}`). El read-store proyecta Header, BatchHeaders, EntryDetails, AddendaRecords, BatchControls, FileControls y TotalsSummary con `AsNoTracking`, limites de filas, warnings parciales y sanitizacion de cuentas/documentos/nombres/trazas/correlation. La SPA agrega `/ach/nacha/operational-dashboard/files/:fileId`, enlazada desde el dashboard solo para archivos persistidos, con banners NO-GO/read-only y sin acciones criticas.
+
+Resultado:
+- Backend build OK; tests backend OK: 1575 passed, 1 skipped.
+- Angular build OK; tests Angular OK: 283 success.
+- Playwright OK: 20 passed.
+- No SOAP real, no movimientos monetarios, no mutaciones, no legacy oficial, no `/NachaExport/{hash}`.
+- Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.

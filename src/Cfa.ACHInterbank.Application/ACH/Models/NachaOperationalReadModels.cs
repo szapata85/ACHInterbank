@@ -113,6 +113,124 @@ public sealed record NachaOperationalAuditReadModel
     public IReadOnlyDictionary<string, string> SanitizedDetails { get; init; } = new Dictionary<string, string>();
 }
 
+public sealed record NachaOperationalFileDetailReadModel
+{
+    public required string FileId { get; init; }
+    public string? HeaderId { get; init; }
+    public required string FileName { get; init; }
+    public required string ClearingHouseCode { get; init; }
+    public required string ProfileCode { get; init; }
+    public required string FlowType { get; init; }
+    public bool IsReturnFile { get; init; }
+    public required string ProcessingStatus { get; init; }
+    public bool ValidationPassed { get; init; }
+    public DateTimeOffset? ReceivedAt { get; init; }
+    public DateTimeOffset CreatedAt { get; init; }
+    public required string CorrelationId { get; init; }
+    public required string DataSource { get; init; }
+    public bool IsPartialData { get; init; }
+    public IReadOnlyList<string> Warnings { get; init; } = [];
+    public NachaOperationalHeaderReadModel? Header { get; init; }
+    public IReadOnlyList<NachaOperationalBatchHeaderReadModel> Batches { get; init; } = [];
+    public IReadOnlyList<NachaOperationalEntryDetailReadModel> Entries { get; init; } = [];
+    public IReadOnlyList<NachaOperationalAddendaRecordReadModel> Addendas { get; init; } = [];
+    public IReadOnlyList<NachaOperationalBatchControlReadModel> BatchControls { get; init; } = [];
+    public IReadOnlyList<NachaOperationalFileControlReadModel> FileControls { get; init; } = [];
+    public required NachaOperationalTotalsSummaryReadModel TotalsSummary { get; init; }
+    public bool NoSensitiveData { get; init; } = true;
+}
+
+public sealed record NachaOperationalHeaderReadModel
+{
+    public string? HeaderId { get; init; }
+    public string? PriorityCode { get; init; }
+    public string? ImmediateDestination { get; init; }
+    public string? ImmediateOrigin { get; init; }
+    public string? FileCreationDate { get; init; }
+    public string? FileCreationTime { get; init; }
+    public string? FileIdModifier { get; init; }
+    public string? RecordSize { get; init; }
+    public string? BlockingFactor { get; init; }
+    public string? FormatCode { get; init; }
+    public string? ReferenceCode { get; init; }
+    public int CycleNumber { get; init; }
+}
+
+public sealed record NachaOperationalBatchHeaderReadModel
+{
+    public int BatchId { get; init; }
+    public string? ServiceClassCode { get; init; }
+    public string? CompanyName { get; init; }
+    public string? StandardEntryClassCode { get; init; }
+    public string? CompanyEntryDescription { get; init; }
+    public string? EffectiveEntryDate { get; init; }
+    public int BatchNumber { get; init; }
+}
+
+public sealed record NachaOperationalEntryDetailReadModel
+{
+    public int EntryDetailId { get; init; }
+    public string? TransactionCode { get; init; }
+    public string? ReceivingParticipantEntityCode { get; init; }
+    public string? CheckDigit { get; init; }
+    public string? AccountNumberMasked { get; init; }
+    public decimal? Amount { get; init; }
+    public string? RecipIdNumberMasked { get; init; }
+    public string? RecipUserNameMasked { get; init; }
+    public string? AddendumIndicator { get; init; }
+    public string? SequenceNumberMasked { get; init; }
+}
+
+public sealed record NachaOperationalAddendaRecordReadModel
+{
+    public int AddendaId { get; init; }
+    public string? CodeTypeAddendumRecord { get; init; }
+    public string? BusinessType { get; init; }
+    public string? PurposeOfTransaction { get; init; }
+    public string? InvoiceOrAccountNumberMasked { get; init; }
+    public string? InfoFromOriginator { get; init; }
+    public string? ReturnReasonCode { get; init; }
+    public string? OriginalTraceNumberMasked { get; init; }
+    public string? NewTraceNumberMasked { get; init; }
+    public string? AddendumSequence { get; init; }
+    public string? EntryDetailSequenceNumberMasked { get; init; }
+}
+
+public sealed record NachaOperationalBatchControlReadModel
+{
+    public int BatchControlId { get; init; }
+    public string? BatchTranClassCode { get; init; }
+    public int? EntryAddendaCount { get; init; }
+    public long? EntryHash { get; init; }
+    public decimal TotalDebitAmount { get; init; }
+    public decimal TotalCreditAmount { get; init; }
+    public string? BatchNumber { get; init; }
+}
+
+public sealed record NachaOperationalFileControlReadModel
+{
+    public int FileControlId { get; init; }
+    public int BatchCount { get; init; }
+    public int BlockCount { get; init; }
+    public int EntryAddendaCount { get; init; }
+    public long EntryHash { get; init; }
+    public decimal TotalDebitAmount { get; init; }
+    public decimal TotalCreditAmount { get; init; }
+}
+
+public sealed record NachaOperationalTotalsSummaryReadModel
+{
+    public int BatchCount { get; init; }
+    public int EntryCount { get; init; }
+    public int AddendaCount { get; init; }
+    public int BatchControlCount { get; init; }
+    public int FileControlCount { get; init; }
+    public int PersistedRecordCount { get; init; }
+    public decimal TotalDebitAmount { get; init; }
+    public decimal TotalCreditAmount { get; init; }
+    public bool ValidationPassed { get; init; }
+}
+
 public sealed record NachaOperationalDashboardReadModel
 {
     public required NachaOperationalSummaryReadModel Summary { get; init; }

@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 import { provideRouter } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import { NachaOperationalDashboardData } from '../models/nacha-operational.models';
@@ -110,6 +111,26 @@ describe('NachaOperationalDashboardComponent', () => {
     expect(content).not.toContain('Ejecutar SOAP');
     expect(content).not.toContain('Mover dinero');
     expect(content).not.toContain('Habilitar productivo');
+  });
+
+  it('Dashboard_ShouldNavigateToFileDetailForPersistedFile', () => {
+    const router = TestBed.inject(Router);
+    const navigateSpy = spyOn(router, 'navigate').and.resolveTo(true);
+    const file = { ...fixture.componentInstance.data!.files[0], fileId: 'nacha-N1', dataSource: 'backend read-only' };
+
+    fixture.componentInstance.verDetalle(file);
+
+    expect(navigateSpy).toHaveBeenCalledWith(['/ach/nacha/operational-dashboard/files', 'nacha-N1']);
+  });
+
+  it('Dashboard_ShouldNotNavigateForDemoFileWithoutIdentifier', () => {
+    const router = TestBed.inject(Router);
+    const navigateSpy = spyOn(router, 'navigate').and.resolveTo(true);
+    const file = { ...fixture.componentInstance.data!.files[0], fileId: 'demo-ach-in-001', dataSource: 'demo seguro' };
+
+    fixture.componentInstance.verDetalle(file);
+
+    expect(navigateSpy).not.toHaveBeenCalled();
   });
 
   function text(): string {

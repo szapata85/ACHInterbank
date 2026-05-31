@@ -36,6 +36,18 @@ public sealed class NachaOperationalReadinessController : ControllerBase
     public async Task<IActionResult> GetFiles(CancellationToken cancellationToken)
         => Ok(await _service.GetFilesAsync(cancellationToken));
 
+    [HttpGet("files/{fileId}")]
+    [Authorize(Policy = P1Policies.NachaRead)]
+    [ProducesResponseType(typeof(NachaOperationalFileDetailReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetFileDetail(string fileId, CancellationToken cancellationToken)
+    {
+        var detail = await _service.GetFileDetailAsync(fileId, cancellationToken);
+        return detail is null
+            ? NotFound(new { errorCode = "NACHA_FILE_NOT_FOUND", message = "Archivo NACHA-M no encontrado o no persistido." })
+            : Ok(detail);
+    }
+
     [HttpGet("decisions")]
     [Authorize(Policy = P1Policies.NachaRead)]
     [ProducesResponseType(typeof(IReadOnlyList<NachaOperationalDecisionReadModel>), StatusCodes.Status200OK)]

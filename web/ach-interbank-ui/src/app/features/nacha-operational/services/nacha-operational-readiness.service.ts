@@ -1,11 +1,12 @@
 import { Injectable } from '@angular/core';
-import { Observable, catchError, map, of, shareReplay } from 'rxjs';
+import { Observable, catchError, map, of, shareReplay, throwError } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import {
   NachaOperationalAudit,
   NachaOperationalDashboardData,
   NachaOperationalDecision,
   NachaOperationalFile,
+  NachaOperationalFileDetail,
   NachaOperationalSummary,
   NachaSoapReadiness
 } from '../models/nacha-operational.models';
@@ -26,6 +27,19 @@ export class NachaOperationalReadinessService {
 
   getFiles(): Observable<NachaOperationalFile[]> {
     return this.getDashboardData().pipe(map((dashboard) => dashboard.files));
+  }
+
+  getFileDetail(fileId: string): Observable<NachaOperationalFileDetail> {
+    const safeFileId = encodeURIComponent(fileId);
+    return this.api.get<NachaOperationalFileDetail>(`${this.basePath}/files/${safeFileId}`).pipe(
+      catchError((error) => {
+        const status = error?.status;
+        const message = status === 404
+          ? 'Archivo NACHA-M no encontrado o no persistido.'
+          : 'No fue posible cargar el detalle operativo NACHA-M.';
+        return throwError(() => new Error(message));
+      })
+    );
   }
 
   getDecisions(): Observable<NachaOperationalDecision[]> {

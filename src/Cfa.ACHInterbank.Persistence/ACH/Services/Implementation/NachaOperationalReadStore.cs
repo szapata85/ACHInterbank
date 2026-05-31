@@ -10,6 +10,7 @@ public sealed class NachaOperationalReadStore : INachaOperationalReadStore
 {
     private const int MaxFiles = 50;
     private const int MaxRows = 100;
+    private const int MaxDetailRows = 200;
     private const string PersistedSource = "backend read-only";
     private const string PartialSource = "parcial";
 
@@ -68,6 +69,33 @@ public sealed class NachaOperationalReadStore : INachaOperationalReadStore
             .ToListAsync(cancellationToken);
 
         return headers.Select(ProjectFile).ToArray();
+    }
+
+    public async Task<NachaOperationalFileDetailReadModel?> GetOperationalFileDetailAsync(string fileId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(fileId))
+        {
+            return null;
+        }
+
+        var headers = await _context.NachaHeaders
+            .AsNoTracking()
+            .Include(x => x.ClearingHouse)
+            .Include(x => x.IncomingNachaFileIngestion)
+                .ThenInclude(x => x!.ProcessingResults)
+            .Include(x => x.Batches)
+            .Include(x => x.EntryDetails)
+            .Include(x => x.AddendaRecords)
+            .Include(x => x.BatchControls)
+            .Include(x => x.FileControls)
+            .OrderByDescending(x => x.IncomingNachaFileIngestion != null
+                ? x.IncomingNachaFileIngestion.ReceivedAtUtc ?? x.IncomingNachaFileIngestion.UploadedAtUtc
+                : DateTime.MinValue)
+            .Take(MaxFiles)
+            .ToListAsync(cancellationToken);
+
+        var header = headers.FirstOrDefault(x => string.Equals($"nacha-{SafeToken(x.NachaID)}", fileId, StringComparison.OrdinalIgnoreCase));
+        return header is null ? null : ProjectFileDetail(header);
     }
 
     public async Task<IReadOnlyList<NachaOperationalDecisionReadModel>> GetOperationalDecisionsAsync(CancellationToken cancellationToken = default)
@@ -172,6 +200,190 @@ public sealed class NachaOperationalReadStore : INachaOperationalReadStore
             WarningCount = warningCount,
             ErrorCount = errorCount
         };
+    }
+
+    private static NachaOperationalFileDetailReadModel ProjectFileDetail(NachaHeader header)
+    {
+        var file = ProjectFile(header);
+        var warnings = BuildDetailWarnings(header).ToArray();
+        var isPartial = warnings.Any(x => x.Contains("parcial", StringComparison.OrdinalIgnoreCase));
+        var entries = (header.EntryDetails ?? [])
+            .OrderBy(x => x.SequenceNumber)
+            .ThenBy(x => x.EntryDetailID)
+            .Take(MaxDetailRows)
+            .Select(ProjectEntry)
+            .ToArray();
+        var addendas = (header.AddendaRecords ?? [])
+            .OrderBy(x => x.AddendumSequence)
+            .ThenBy(x => x.AddendaID)
+            .Take(MaxDetailRows)
+            .Select(ProjectAddenda)
+            .ToArray();
+        var batches = (header.Batches ?? [])
+            .OrderBy(x => x.BatchNumber)
+            .Take(MaxDetailRows)
+            .Select(ProjectBatch)
+            .ToArray();
+        var batchControls = (header.BatchControls ?? [])
+            .OrderBy(x => x.BatchNumber)
+            .ThenBy(x => x.BatchControlID)
+            .Take(MaxDetailRows)
+            .Select(ProjectBatchControl)
+            .ToArray();
+        var fileControls = (header.FileControls ?? [])
+            .OrderBy(x => x.FileControlID)
+            .Take(MaxDetailRows)
+            .Select(ProjectFileControl)
+            .ToArray();
+
+        return new NachaOperationalFileDetailReadModel
+        {
+            FileId = file.FileId,
+            HeaderId = file.HeaderId,
+            FileName = file.FileName,
+            ClearingHouseCode = file.ClearingHouseCode,
+            ProfileCode = file.ProfileCode,
+            FlowType = file.FlowType,
+            IsReturnFile = file.IsReturnFile,
+            ProcessingStatus = file.ProcessingStatus,
+            ValidationPassed = file.ValidationPassed,
+            ReceivedAt = file.ReceivedAt,
+            CreatedAt = file.CreatedAt,
+            CorrelationId = file.CorrelationId,
+            DataSource = isPartial ? PartialSource : PersistedSource,
+            IsPartialData = isPartial,
+            Warnings = warnings,
+            Header = new NachaOperationalHeaderReadModel
+            {
+                HeaderId = file.HeaderId,
+                PriorityCode = SafeText(header.PriorityCode, "N/A", 16),
+                ImmediateDestination = SafeText(header.ImmediateDestination, "N/A", 32),
+                ImmediateOrigin = SafeText(header.ImmediateOrigin, "N/A", 32),
+                FileCreationDate = SafeText(header.FileCreationDate, "N/A", 16),
+                FileCreationTime = SafeText(header.FileCreationTime, "N/A", 16),
+                FileIdModifier = SafeText(header.FileIdModifier, "N/A", 16),
+                RecordSize = SafeText(header.RecordSize, "N/A", 16),
+                BlockingFactor = SafeText(header.BlockingFactor, "N/A", 16),
+                FormatCode = SafeText(header.FormatCode, "N/A", 16),
+                ReferenceCode = SafeText(header.ReferenceCode, "N/A", 32),
+                CycleNumber = header.CycleNumber
+            },
+            Batches = batches,
+            Entries = entries,
+            Addendas = addendas,
+            BatchControls = batchControls,
+            FileControls = fileControls,
+            TotalsSummary = BuildTotals(file, batchControls, fileControls),
+            NoSensitiveData = true
+        };
+    }
+
+    private static NachaOperationalBatchHeaderReadModel ProjectBatch(BatchHeader row)
+        => new()
+        {
+            BatchId = row.BatchID,
+            ServiceClassCode = SafeText(row.ServiceClassCode, "N/A", 16),
+            CompanyName = SafeText(row.CompanyName, "N/A", 64),
+            StandardEntryClassCode = SafeText(row.StandardEntryClassCode, "N/A", 16),
+            CompanyEntryDescription = SafeText(row.CompanyEntryDescription, "N/A", 64),
+            EffectiveEntryDate = SafeText(row.EffectiveEntryDate, "N/A", 16),
+            BatchNumber = row.BatchNumber
+        };
+
+    private static NachaOperationalEntryDetailReadModel ProjectEntry(EntryDetail row)
+        => new()
+        {
+            EntryDetailId = row.EntryDetailID,
+            TransactionCode = SafeText(row.TransactionCode, "N/A", 16),
+            ReceivingParticipantEntityCode = SafeText(row.ReceivingParticipantEntityCode, "N/A", 32),
+            CheckDigit = SafeText(row.CheckDigit, "N/A", 8),
+            AccountNumberMasked = MaskSensitive(row.AccountNumber),
+            Amount = row.Amount,
+            RecipIdNumberMasked = MaskSensitive(row.RecipIdNumber),
+            RecipUserNameMasked = MaskName(row.RecipUserName),
+            AddendumIndicator = SafeText(row.AddendumIndicator, "N/A", 8),
+            SequenceNumberMasked = MaskTrace(row.SequenceNumber)
+        };
+
+    private static NachaOperationalAddendaRecordReadModel ProjectAddenda(AddendaRecord row)
+        => new()
+        {
+            AddendaId = row.AddendaID,
+            CodeTypeAddendumRecord = SafeText(row.CodeTypeAddendumRecord, "N/A", 16),
+            BusinessType = SafeText(row.BusinessType, "N/A", 32),
+            PurposeOfTransaction = SafeText(row.PurposeOfTransaction, "N/A", 64),
+            InvoiceOrAccountNumberMasked = MaskSensitive(row.InvoiceOrAccountNumber),
+            InfoFromOriginator = SafeText(row.InfofromOriginator, "Sanitized", 80),
+            ReturnReasonCode = SafeText(row.ReturnReasonCode, "N/A", 16),
+            OriginalTraceNumberMasked = MaskTrace(row.OriginalTraceNumber),
+            NewTraceNumberMasked = MaskTrace(row.NewTraceNumber),
+            AddendumSequence = SafeText(row.AddendumSequence, "N/A", 16),
+            EntryDetailSequenceNumberMasked = MaskTrace(row.EntryDetailSequenceNumber)
+        };
+
+    private static NachaOperationalBatchControlReadModel ProjectBatchControl(BatchControl row)
+        => new()
+        {
+            BatchControlId = row.BatchControlID,
+            BatchTranClassCode = SafeText(row.BatchTranClassCode, "N/A", 16),
+            EntryAddendaCount = row.EntryAddendaCount,
+            EntryHash = row.EntryHash,
+            TotalDebitAmount = row.TotalDebitAmount,
+            TotalCreditAmount = row.TotalCreditAmount,
+            BatchNumber = SafeText(row.BatchNumber, "N/A", 16)
+        };
+
+    private static NachaOperationalFileControlReadModel ProjectFileControl(FileControl row)
+        => new()
+        {
+            FileControlId = row.FileControlID,
+            BatchCount = row.BatchCount,
+            BlockCount = row.BlockCount,
+            EntryAddendaCount = row.EntryAddendaCount,
+            EntryHash = row.EntryHash,
+            TotalDebitAmount = row.TotalDebitAmount,
+            TotalCreditAmount = row.TotalCreditAmount
+        };
+
+    private static NachaOperationalTotalsSummaryReadModel BuildTotals(
+        NachaOperationalFileReadModel file,
+        IReadOnlyList<NachaOperationalBatchControlReadModel> batchControls,
+        IReadOnlyList<NachaOperationalFileControlReadModel> fileControls)
+        => new()
+        {
+            BatchCount = file.BatchCount,
+            EntryCount = file.EntryCount,
+            AddendaCount = file.AddendaCount,
+            BatchControlCount = file.BatchControlCount,
+            FileControlCount = file.FileControlCount,
+            PersistedRecordCount = file.PersistedRecordCount,
+            TotalDebitAmount = fileControls.Sum(x => x.TotalDebitAmount) is var fileDebit && fileDebit > 0
+                ? fileDebit
+                : batchControls.Sum(x => x.TotalDebitAmount),
+            TotalCreditAmount = fileControls.Sum(x => x.TotalCreditAmount) is var fileCredit && fileCredit > 0
+                ? fileCredit
+                : batchControls.Sum(x => x.TotalCreditAmount),
+            ValidationPassed = file.ValidationPassed
+        };
+
+    private static IEnumerable<string> BuildDetailWarnings(NachaHeader header)
+    {
+        if (header.Batches?.Count is null or 0)
+        {
+            yield return "No persisted batch headers found; detalle parcial read-only.";
+        }
+
+        if (header.EntryDetails?.Count is null or 0)
+        {
+            yield return "No persisted entry details found; detalle parcial read-only.";
+        }
+
+        if (header.FileControls?.Count is null or 0)
+        {
+            yield return "No persisted file controls found; totales pueden ser parciales.";
+        }
+
+        yield return "Productivo permanece NO-GO; esta consulta no ejecuta SOAP ni movimientos.";
     }
 
     private static NachaOperationalDecisionReadModel ProjectDecision(IncomingNachaEntryClassification row)
@@ -453,6 +665,33 @@ public sealed class NachaOperationalReadStore : INachaOperationalReadStore
         }
 
         return $"***{digits[^4..]}";
+    }
+
+    private static string MaskSensitive(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "N/A";
+        }
+
+        var normalized = new string(value.Where(char.IsLetterOrDigit).ToArray());
+        if (normalized.Length <= 4)
+        {
+            return "****";
+        }
+
+        return $"****{normalized[^4..]}";
+    }
+
+    private static string MaskName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "N/A";
+        }
+
+        var sanitized = SafeText(value, "N/A", 64);
+        return sanitized.Length <= 2 ? "**" : $"{sanitized[0]}***";
     }
 
     private static string SeverityFromStatus(string? status)
