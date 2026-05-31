@@ -457,6 +457,21 @@ Resultado:
 - No SOAP real, no movimientos monetarios, no mutaciones, no endpoints/certificados/secretos/payloads completos, no legacy oficial, no `/NachaExport/{hash}`.
 - Productivo permanece NO-GO.
 
+### Fase 6C.7 - Publicacion de evidencias Playwright en CI y paquete UAT
+
+Estado:
+Completada.
+
+Resumen:
+Se extendio `angular-ci.yml` para ejecutar Playwright E2E despues de build y unit tests Angular, instalando Chromium en CI y publicando artefactos con `if: always()`. Se creo documentacion UAT compacta para el paquete de evidencia automatizada Playwright, cubriendo dashboard operacional, config profiles, detalle archivo NACHA-M, exportacion por `cycleId`, legacy deprecated y consola SOAP/UAT.
+
+Resultado:
+- Artefactos CI: `playwright-report`, `playwright-test-results`, `uat-evidence-playwright`.
+- Angular build/tests y Playwright deben ejecutarse desde el workflow Angular.
+- La evidencia automatizada no reemplaza certificacion oficial ACH Colombia/CENIT.
+- No SOAP real, no movimientos monetarios, no mutaciones criticas, no secretos, no legacy oficial, no `/NachaExport/{hash}`.
+- Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.
