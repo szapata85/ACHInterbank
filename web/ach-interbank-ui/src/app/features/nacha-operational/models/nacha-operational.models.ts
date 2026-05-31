@@ -229,3 +229,64 @@ export interface NachaOperationalDashboardData {
   warnings?: string[];
   productiveStatus: string;
 }
+
+export interface NachaSoapUatConsoleDashboard {
+  productiveStatus: string;
+  productiveExecution: boolean;
+  wouldInvokeRealSoap: boolean;
+  totalCandidates: number;
+  totalReadyForUat: number;
+  totalBlocked: number;
+  totalManualReview: number;
+  totalRegistrarRespuesta: number;
+  totalProcTransacciones: number;
+  totalProcContrapartidas: number;
+  totalNone: number;
+  totalSimulationPassed: number;
+  totalSimulationFailed: number;
+  totalResilienceWarnings: number;
+  totalDuplicateOrIdempotent: number;
+  lastUpdatedAt: string;
+  dataSource: string;
+  isPartialData: boolean;
+  warnings: string[];
+}
+
+export interface NachaSoapUatCandidate {
+  correlationId: string;
+  fileId?: string | null;
+  fileName: string;
+  entryTraceNumber: string;
+  decisionType: string;
+  operationCandidate: string;
+  requiresMonetaryMovement: boolean;
+  productiveExecution: boolean;
+  wouldInvokeRealSoap: boolean;
+  isReadyForUat: boolean;
+  isBlocked: boolean;
+  blockReasons: string[];
+  manualReviewRequired: boolean;
+  readinessStatus: string;
+  simulationStatus: string;
+  resilienceStatus: string;
+  idempotencyStatus: string;
+  lastAttemptAt?: string | null;
+  attemptCount: number;
+  dataSource: string;
+  isPersisted: boolean;
+  isDerived: boolean;
+  warning?: string | null;
+}
+
+export interface NachaSoapUatAudit {
+  correlationId: string;
+  phase: string;
+  eventType: string;
+  severity: string;
+  message: string;
+  isBlocked: boolean;
+  timestamp: string;
+  sanitizedDetails: Record<string, string>;
+  dataSource: string;
+  isPersisted: boolean;
+}

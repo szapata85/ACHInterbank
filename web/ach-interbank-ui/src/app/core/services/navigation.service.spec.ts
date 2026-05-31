@@ -127,6 +127,29 @@ describe('NavigationService', () => {
     });
   });
 
+  it('Navigation_ShouldExposeSoapUatConsole', (done) => {
+    const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
+    api.get.and.returnValue(of([]));
+
+    TestBed.configureTestingModule({
+      providers: [
+        NavigationService,
+        { provide: ApiService, useValue: api }
+      ]
+    });
+
+    const service = TestBed.inject(NavigationService);
+
+    service.getMenu().subscribe((menu) => {
+      const routes = flattenRoutes(menu);
+      const labels = flattenLabels(menu);
+
+      expect(routes).toContain('/ach/nacha/soap-uat-console');
+      expect(labels).toContain('SOAP UAT Console');
+      done();
+    });
+  });
+
   it('OfficialNavigation_ShouldNotExposeLegacyAsOfficial', (done) => {
     const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
     api.get.and.returnValue(of([]));

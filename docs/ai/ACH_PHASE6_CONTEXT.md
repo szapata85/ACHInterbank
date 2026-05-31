@@ -442,6 +442,21 @@ Resultado:
 - No SOAP real, no movimientos monetarios, no mutaciones, no legacy oficial, no `/NachaExport/{hash}`.
 - Productivo permanece NO-GO.
 
+### Fase 6C.6 - Consola SOAP/UAT read-only y auditoria operacional
+
+Estado:
+Completada.
+
+Resumen:
+Se agrego consola SOAP/UAT read-only con contrato GET-only `/api/ach/nacha/soap-uat-console` para dashboard, candidates, candidate y audit. Reutiliza el read-store operacional persistido para proyectar candidatos SOAP, readiness, bloqueos NO-GO, simulacion, resiliencia, idempotencia y auditoria sanitizada sin ejecutar orquestadores, gateways ni SOAP real. La SPA agrega `/ach/nacha/soap-uat-console` con banners NO-GO/SOAP deshabilitado/read-only, badges operativos y sin acciones criticas.
+
+Resultado:
+- Backend build OK; tests backend OK: 1588 passed, 1 skipped.
+- Angular build OK; tests Angular OK: 295 success.
+- Playwright OK: 27 passed.
+- No SOAP real, no movimientos monetarios, no mutaciones, no endpoints/certificados/secretos/payloads completos, no legacy oficial, no `/NachaExport/{hash}`.
+- Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.

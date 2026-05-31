@@ -1,0 +1,88 @@
+<section class="nacha-operational-page">
+  <ui-migas-pan [items]="[
+    { etiqueta: 'Inicio', ruta: '/dashboard' },
+    { etiqueta: 'ACH' },
+    { etiqueta: 'Consola SOAP/UAT' }
+  ]"></ui-migas-pan>
+
+  <ui-encabezado-pagina
+    titulo="Consola SOAP/UAT read-only"
+    descripcion="Auditoria operacional de candidatos SOAP, readiness UAT, bloqueos, simulacion, resiliencia e idempotencia."
+  ></ui-encabezado-pagina>
+
+  <ui-alerta tipo="advertencia" titulo="Productivo NO-GO" mensaje="La consola no ejecuta SOAP, no reintenta, no invoca core y no mueve dinero."></ui-alerta>
+  <ui-alerta tipo="advertencia" titulo="SOAP real deshabilitado" mensaje="ProductiveExecution=false y WouldInvokeRealSoap=false en toda la vista."></ui-alerta>
+  <ui-alerta tipo="info" titulo="Read-only sanitizado" mensaje="No se exponen endpoints reales, certificados, secretos, payloads SOAP completos, cuentas ni documentos completos."></ui-alerta>
+
+  <ui-alerta *ngIf="error" tipo="error" titulo="Error" [mensaje]="error"></ui-alerta>
+  <ui-estado-carga *ngIf="cargando" mensaje="Cargando consola SOAP/UAT..."></ui-estado-carga>
+
+  <ng-container *ngIf="data as vm">
+    <section class="data-source-strip" aria-label="Fuente de datos">
+      <span class="badge" [ngClass]="vm.dashboard.isPartialData ? 'badge-neutral' : 'badge-success'">Fuente: {{ vm.dashboard.dataSource }}</span>
+      <span class="badge badge-danger">NO-GO</span>
+      <span class="badge badge-danger">SOAP REAL DESHABILITADO</span>
+      <span class="badge badge-success">READ-ONLY</span>
+    </section>
+
+    <ui-alerta
+      *ngIf="vm.dashboard.warnings.length"
+      tipo="info"
+      titulo="Warnings parciales"
+      [mensaje]="vm.dashboard.warnings.join(' ')"
+    ></ui-alerta>
+
+    <section class="summary-strip" aria-label="Resumen SOAP UAT">
+      <article><small>Productivo</small><strong class="badge badge-danger">{{ vm.dashboard.productiveStatus }}</strong></article>
+      <article><small>ProductiveExecution</small><strong>{{ vm.dashboard.productiveExecution }}</strong></article>
+      <article><small>WouldInvokeRealSoap</small><strong>{{ vm.dashboard.wouldInvokeRealSoap }}</strong></article>
+      <article><small>Candidatos</small><strong>{{ vm.dashboard.totalCandidates }}</strong></article>
+      <article><small>Ready UAT</small><strong class="badge badge-success">{{ vm.dashboard.totalReadyForUat }}</strong></article>
+      <article><small>Bloqueados</small><strong class="badge badge-danger">{{ vm.dashboard.totalBlocked }}</strong></article>
+      <article><small>Manual review</small><strong class="badge badge-warning">{{ vm.dashboard.totalManualReview }}</strong></article>
+      <article><small>ProcTransacciones</small><strong>{{ vm.dashboard.totalProcTransacciones }}</strong></article>
+      <article><small>ProcContrapartidas</small><strong>{{ vm.dashboard.totalProcContrapartidas }}</strong></article>
+      <article><small>RegistrarRespuesta</small><strong>{{ vm.dashboard.totalRegistrarRespuesta }}</strong></article>
+      <article><small>None</small><strong>{{ vm.dashboard.totalNone }}</strong></article>
+      <article><small>Idempotent/Duplicate</small><strong>{{ vm.dashboard.totalDuplicateOrIdempotent }}</strong></article>
+    </section>
+
+    <div class="badge-row" aria-label="Estados SOAP UAT">
+      <span class="badge badge-danger">BLOCKED</span>
+      <span class="badge badge-success">READY UAT</span>
+      <span class="badge badge-success">SIMULATED</span>
+      <span class="badge badge-warning">MANUAL REVIEW</span>
+      <span class="badge badge-neutral">NO MONETARY MOVEMENT</span>
+      <span class="badge badge-danger">MONETARY CANDIDATE</span>
+      <span class="badge badge-warning">IDEMPOTENT/DUPLICATE</span>
+    </div>
+
+    <ui-tarjeta titulo="Candidatos SOAP/UAT" subtitulo="Solo lectura. ProcTransacciones y ProcContrapartidas son candidatos monetarios bloqueados/controlados.">
+      <ui-grilla-empresarial [columnas]="columnasCandidatos" [datos]="vm.candidates" [cargando]="cargando" tituloVacio="Sin candidatos SOAP/UAT"></ui-grilla-empresarial>
+    </ui-tarjeta>
+
+    <div class="badge-row" aria-label="Detalle de candidatos SOAP UAT">
+      <button type="button" class="btn-link" *ngFor="let candidate of vm.candidates" (click)="selectCandidate(candidate)">
+        Ver candidato {{ candidate.correlationId }}
+      </button>
+    </div>
+
+    <ui-tarjeta *ngIf="selectedCandidate as candidate" titulo="Detalle candidato" subtitulo="Detalle sanitizado sin payload SOAP ni endpoints reales.">
+      <section class="summary-strip">
+        <article><small>Operacion</small><strong>{{ candidate.operationCandidate }}</strong></article>
+        <article><small>Readiness</small><strong [ngClass]="badgeClass(candidate.readinessStatus)" class="badge">{{ candidate.readinessStatus }}</strong></article>
+        <article><small>Simulacion</small><strong [ngClass]="badgeClass(candidate.simulationStatus)" class="badge">{{ candidate.simulationStatus }}</strong></article>
+        <article><small>Resiliencia</small><strong [ngClass]="badgeClass(candidate.resilienceStatus)" class="badge">{{ candidate.resilienceStatus }}</strong></article>
+        <article><small>Idempotencia</small><strong [ngClass]="badgeClass(candidate.idempotencyStatus)" class="badge">{{ candidate.idempotencyStatus }}</strong></article>
+        <article><small>Attempts</small><strong>{{ candidate.attemptCount }}</strong></article>
+        <article><small>Monetario</small><strong>{{ candidate.requiresMonetaryMovement }}</strong></article>
+        <article><small>Manual review</small><strong>{{ candidate.manualReviewRequired }}</strong></article>
+      </section>
+      <ui-alerta *ngIf="candidate.blockReasons.length" tipo="advertencia" titulo="Bloqueos" [mensaje]="candidate.blockReasons.join(' ')"></ui-alerta>
+    </ui-tarjeta>
+
+    <ui-tarjeta titulo="Auditoria SOAP/UAT" subtitulo="Eventos sanitizados sin secretos, certificados, endpoints ni XML completo.">
+      <ui-grilla-empresarial [columnas]="columnasAuditoria" [datos]="vm.audit" [cargando]="cargando" tituloVacio="Sin auditoria SOAP/UAT"></ui-grilla-empresarial>
+    </ui-tarjeta>
+  </ng-container>
+</section>

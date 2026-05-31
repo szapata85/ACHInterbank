@@ -118,6 +118,16 @@ export class NavigationService {
       ]
     };
 
+    const soapUatConsoleGroup: MenuItem = {
+      id: -290,
+      label: 'SOAP UAT Console',
+      route: '/ach/nacha/soap-uat-console',
+      icon: 'fact_check',
+      children: [
+        { id: -2901, label: 'SOAP UAT Console', route: '/ach/nacha/soap-uat-console', icon: 'fact_check' }
+      ]
+    };
+
     const logsChildren: MenuItem[] = [
       { id: -231, label: 'Log de auditoría', route: '/audit-logs', icon: 'fact_check' },
       { id: -232, label: 'Log de autenticaciones', route: '/auth-logs', icon: 'shield' },
@@ -148,7 +158,7 @@ export class NavigationService {
     };
 
     if (!items.length) {
-      return [transactionsGroup, achResponsesGroup, customerItem, reportsItem, cenitGroup, nachaConfigGroup, nachaSecurityGroup, logsGroup, catalogGroup];
+      return [transactionsGroup, achResponsesGroup, customerItem, reportsItem, cenitGroup, nachaConfigGroup, soapUatConsoleGroup, nachaSecurityGroup, logsGroup, catalogGroup];
     }
 
     const hasRoute = (menu: MenuItem[], route: string): boolean =>
@@ -210,6 +220,10 @@ export class NavigationService {
         next = [...next, nachaConfigGroup];
       }
 
+      if (!hasRoute(next, soapUatConsoleGroup.route)) {
+        next = [...next, soapUatConsoleGroup];
+      }
+
       const existingLogsGroup = next.find((item) => item.route === '/audit-logs' || item.label === 'Logs');
       if (existingLogsGroup) {
         const existingLogChildren = existingLogsGroup.children ?? [];
@@ -231,7 +245,8 @@ export class NavigationService {
     const withReports = hasRoute(withCustomer, reportsItem.route) ? withCustomer : [...withCustomer, reportsItem];
     const withCenit = hasRoute(withReports, cenitGroup.route) ? withReports : [...withReports, cenitGroup];
     const withNachaConfig = hasRoute(withCenit, nachaConfigGroup.route) ? withCenit : [...withCenit, nachaConfigGroup];
-    const withNachaSecurity = hasRoute(withNachaConfig, nachaSecurityGroup.route) ? withNachaConfig : [...withNachaConfig, nachaSecurityGroup];
+    const withSoapUatConsole = hasRoute(withNachaConfig, soapUatConsoleGroup.route) ? withNachaConfig : [...withNachaConfig, soapUatConsoleGroup];
+    const withNachaSecurity = hasRoute(withSoapUatConsole, nachaSecurityGroup.route) ? withSoapUatConsole : [...withSoapUatConsole, nachaSecurityGroup];
     const withLogs = hasRoute(withNachaSecurity, '/navigation-logs') || hasRoute(withNachaSecurity, '/auth-logs') || hasRoute(withNachaSecurity, '/audit-logs')
       ? withNachaSecurity
       : [...withNachaSecurity, logsGroup];

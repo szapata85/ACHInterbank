@@ -3,6 +3,7 @@ import { RouterModule, Routes } from '@angular/router';
 import { permissionGuard } from '../../core/guards/permission.guard';
 import { NachaOperationalDashboardComponent } from './pages/nacha-operational-dashboard.component';
 import { NachaOperationalFileDetailComponent } from './pages/nacha-operational-file-detail.component';
+import { NachaSoapUatConsoleComponent } from './pages/nacha-soap-uat-console.component';
 
 const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'nacha/operational-dashboard' },
@@ -24,6 +25,16 @@ const routes: Routes = [
       permissions: ['CanReadAch'],
       breadcrumb: 'Detalle archivo NACHA-M',
       title: 'Detalle operativo NACHA-M read-only'
+    }
+  },
+  {
+    path: 'nacha/soap-uat-console',
+    component: NachaSoapUatConsoleComponent,
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['CanReadAch'],
+      breadcrumb: 'Consola SOAP/UAT',
+      title: 'Consola SOAP/UAT read-only'
     }
   },
   {
