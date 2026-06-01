@@ -27,6 +27,7 @@ Registrar la decision formal de Seguridad/Compliance sobre el paquete UAT extern
 | Operaciones/Mesa UAT | Pendiente |
 | Presentacion comite ejecutivo | Pendiente |
 | Decision comite ejecutivo | Pendiente / No recibida |
+| Estado paquete UAT | Congelado / En espera |
 
 ## Estados posibles
 
@@ -71,3 +72,7 @@ Pendiente presentacion a comite ejecutivo mediante `EXECUTIVE_COMMITTEE_PACKAGE.
 ## Nota 6D.10
 
 El registro de decision de comite se prepara en `EXECUTIVE_COMMITTEE_DECISION_RECORD.md`. Seguridad/Compliance siguen pendientes; no hay decision formal recibida.
+
+## Nota 6D.11C
+
+El paquete queda congelado en espera de decision externa formal. Seguridad/Compliance permanecen `Pendiente` y `Decision recibida` permanece `No recibida`.

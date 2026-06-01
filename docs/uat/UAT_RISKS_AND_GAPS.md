@@ -125,6 +125,16 @@ Decision vigente: Productivo permanece NO-GO.
 | RSK-060 | Confusion entre UAT externo y produccion | Riesgo de interpretacion GO | Productivo NO-GO en todos los documentos | Abierto |
 | RSK-061 | Evidencia insuficiente post-comite | Puede impedir ejecucion controlada | Log evidencias decision comite | Abierto |
 
+## Actualizacion 6D.11C
+
+| ID | Riesgo / brecha | Impacto | Mitigacion | Estado |
+| --- | --- | --- | --- | --- |
+| RSK-062 | Decision externa no recibida | Mantiene paquete en espera | Protocolo de espera decision externa | Abierto |
+| RSK-063 | Paquete desactualizado durante espera | Evidencia puede perder vigencia | Congelamiento y checklist revalidacion | Abierto |
+| RSK-064 | Cambios no controlados | Riesgo auditoria/trazabilidad | Control de cambios UAT | Abierto |
+| RSK-065 | Confusion entre congelado y aprobado | Avance indebido | Acta congelamiento con NO-GO explicito | Abierto |
+| RSK-066 | Avance indebido sin decision formal | Riesgo operativo/compliance | Prohibiciones durante congelamiento | Abierto |
+
 ## Condiciones bloqueantes
 
 - Cualquier SOAP real no autorizado.

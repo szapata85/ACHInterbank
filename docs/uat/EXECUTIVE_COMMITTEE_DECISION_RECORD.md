@@ -27,6 +27,7 @@ Registrar la decision formal del comite ejecutivo UAT sobre continuidad hacia UA
 | Compliance/Auditoria | Pendiente |
 | Tecnologia | Pendiente |
 | Operaciones | Pendiente |
+| Estado paquete UAT | Congelado / En espera |
 
 ## Estados posibles
 
@@ -64,3 +65,7 @@ Registrar la decision formal del comite ejecutivo UAT sobre continuidad hacia UA
 - No se autoriza carga de secretos/certificados/endpoints.
 - No se autoriza uso de datos reales.
 - No se autoriza certificacion oficial ACH Colombia/CENIT.
+
+## Nota 6D.11C
+
+El paquete UAT/comite/seguridad queda congelado en espera de decision externa formal. `Decision recibida` permanece `No recibida` y el estado sigue `Pendiente`.

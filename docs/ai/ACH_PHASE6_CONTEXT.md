@@ -683,6 +683,21 @@ Resultado:
 - No agrega codigo/tests/workflows, no crea credenciales/endpoints/certificados, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
 - Recomendacion: esperar decision formal, registrarla con evidencia y ejecutar solo el plan permitido por esa decision; Productivo permanece NO-GO.
 
+### Fase 6D.11C - Congelamiento controlado paquete UAT y espera decision externa
+
+Estado:
+Completada.
+
+Resumen:
+Se congelo documentalmente el paquete UAT/comite/seguridad en el commit base `229498168cc0d1820ecb8276358b6d836cb904cb`, dejando protocolo de espera, control de cambios y checklist minimo de revalidacion posterior a decision.
+
+Resultado:
+- Nuevos docs: `UAT_PACKAGE_FREEZE_RECORD.md`, `UAT_EXTERNAL_DECISION_WAITING_PROTOCOL.md`, `UAT_PACKAGE_CHANGE_CONTROL.md`, `UAT_REVALIDATION_CHECKLIST_AFTER_DECISION.md`.
+- Estado paquete: congelado/en espera; decision externa y decision comite siguen pendientes/no recibidas; no hay aprobaciones marcadas.
+- Certificados/endpoints/secretos siguen pendientes/no cargados, sin URLs, thumbprints ni valores reales.
+- No agrega codigo/tests/workflows, no crea credenciales/endpoints/certificados, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
+- Recomendacion: no ampliar alcance; esperar decision externa formal y reabrir solo mediante control de cambios/revalidacion; Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.

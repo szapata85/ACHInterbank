@@ -54,6 +54,10 @@
 - Plan respuesta observaciones ejecutivas: `docs/uat/EXECUTIVE_OBSERVATION_RESPONSE_PLAN.md`.
 - Matriz acciones post-comite: `docs/uat/POST_COMMITTEE_ACTION_MATRIX.md`.
 - Log evidencias decision comite: `docs/uat/COMMITTEE_DECISION_EVIDENCE_LOG.md`.
+- Acta congelamiento paquete UAT: `docs/uat/UAT_PACKAGE_FREEZE_RECORD.md`.
+- Protocolo espera decision externa: `docs/uat/UAT_EXTERNAL_DECISION_WAITING_PROTOCOL.md`.
+- Control cambios paquete UAT: `docs/uat/UAT_PACKAGE_CHANGE_CONTROL.md`.
+- Checklist revalidacion posterior decision: `docs/uat/UAT_REVALIDATION_CHECKLIST_AFTER_DECISION.md`.
 - Contexto Phase 6: `docs/ai/ACH_PHASE6_CONTEXT.md`.
 - Auditoria legacy: `docs/ai/ACH_PHASE6_LEGACY_AUDIT.md`.
 - Golden files semirreales: `tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles`.
@@ -74,9 +78,10 @@
 11. Usar registros 6D.8 para documentar decision y responder observaciones sin asumir aprobacion.
 12. Presentar paquete ejecutivo 6D.9 y registrar decisiones sin asumir aprobacion.
 13. Usar documentos 6D.10 para registrar decision formal y plan posterior sin asumir aprobacion.
-14. Ejecutar checklist y escenarios UAT con terceros en ambiente formal solo tras aprobacion.
-15. Registrar defectos/hallazgos, riesgos/brechas y decision de comite.
-16. Confirmar que no hay SOAP real, movimientos monetarios, mutaciones criticas, legacy oficial ni `/NachaExport/{hash}`.
+14. Mantener paquete congelado 6D.11C hasta decision externa formal o cambio controlado.
+15. Ejecutar checklist y escenarios UAT con terceros en ambiente formal solo tras aprobacion.
+16. Registrar defectos/hallazgos, riesgos/brechas y decision de comite.
+17. Confirmar que no hay SOAP real, movimientos monetarios, mutaciones criticas, legacy oficial ni `/NachaExport/{hash}`.
 
 ## Limitacion
 
@@ -109,3 +114,7 @@ Listo para presentacion ejecutiva y solicitud formal de decision. Comite, Seguri
 ## Estado registro post-comite 6D.10
 
 Preparado para registrar decision de comite y plan posterior. Decision de comite no recibida; no aprobado.
+
+## Estado congelamiento 6D.11C
+
+Paquete UAT/comite/seguridad congelado en espera de decision externa. No aprobado, no productivo.
