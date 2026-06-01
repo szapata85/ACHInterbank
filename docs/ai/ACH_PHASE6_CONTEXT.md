@@ -501,6 +501,21 @@ Resultado:
 - No agrega API/SPA, no ejecuta SOAP real, no mueve dinero, no muta estados, no usa secretos, no legacy oficial, no `/NachaExport/{hash}`.
 - Productivo permanece NO-GO.
 
+### Fase 6C.10 - Preparacion UAT formal ACH Colombia/CENIT
+
+Estado:
+Completada.
+
+Resumen:
+Se agrego paquete documental UAT formal con preparacion, checklist, escenarios ACH Colombia/CENIT y matriz de riesgos/brechas. El indice `docs/uat/UAT_EVIDENCE_PACKAGE.md` enlaza matriz 6C.9, evidencia Playwright, preparacion formal, checklist, escenarios y riesgos.
+
+Resultado:
+- Documentos: `UAT_FORMAL_PREPARATION_ACH_CENIT.md`, `UAT_EXECUTION_CHECKLIST.md`, `UAT_TEST_SCENARIOS_ACH_CENIT.md`, `UAT_RISKS_AND_GAPS.md`.
+- Alcance cubre ACH Colombia, CENIT, NACHA-M entrada/salida, `.RET`, respuestas, prenotificaciones, ROR, config profiles, dashboard, detalle, SOAP/UAT read-only, conciliacion y evidencia CI.
+- No agrega codigo/API/SPA, no ejecuta SOAP real, no mueve dinero, no muta estados, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
+- Certificacion oficial ACH Colombia/CENIT y SOAP real quedan pendientes/controlados.
+- Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.
