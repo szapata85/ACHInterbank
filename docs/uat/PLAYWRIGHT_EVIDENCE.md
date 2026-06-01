@@ -21,6 +21,7 @@ npm run e2e
 - Flujo de exportacion con `cycleId`, sin hash.
 - Rutas legacy deprecated/read-only.
 - Consola SOAP/UAT read-only.
+- Consola de conciliacion ACH read-only.
 
 ## Artefactos esperados
 

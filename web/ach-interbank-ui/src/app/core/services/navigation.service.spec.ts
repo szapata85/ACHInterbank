@@ -150,6 +150,29 @@ describe('NavigationService', () => {
     });
   });
 
+  it('Navigation_ShouldExposeReconciliationConsole', (done) => {
+    const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
+    api.get.and.returnValue(of([]));
+
+    TestBed.configureTestingModule({
+      providers: [
+        NavigationService,
+        { provide: ApiService, useValue: api }
+      ]
+    });
+
+    const service = TestBed.inject(NavigationService);
+
+    service.getMenu().subscribe((menu) => {
+      const routes = flattenRoutes(menu);
+      const labels = flattenLabels(menu);
+
+      expect(routes).toContain('/ach/reconciliation');
+      expect(labels).toContain('Conciliacion ACH');
+      done();
+    });
+  });
+
   it('OfficialNavigation_ShouldNotExposeLegacyAsOfficial', (done) => {
     const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
     api.get.and.returnValue(of([]));

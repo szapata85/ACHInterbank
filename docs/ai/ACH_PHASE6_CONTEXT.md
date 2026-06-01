@@ -472,6 +472,21 @@ Resultado:
 - No SOAP real, no movimientos monetarios, no mutaciones criticas, no secretos, no legacy oficial, no `/NachaExport/{hash}`.
 - Productivo permanece NO-GO.
 
+### Fase 6C.8 - Consola de conciliacion/read-only de respuestas y estados ACH
+
+Estado:
+Completada.
+
+Resumen:
+Se agrego API GET-only `/api/ach/reconciliation` y SPA `/ach/reconciliation` para conciliacion operativa read-only de respuestas diferenciales, devoluciones `.RET`, rechazos, ROR, prenotificaciones y estados internos. Cruza fuentes persistidas ACH/NACHA-M cuando existen y marca datos parciales con warnings sanitizados.
+
+Resultado:
+- Endpoints: dashboard, items, item por id y item por correlationId.
+- UI read-only con banners Productivo NO-GO, sin movimientos monetarios y sin acciones criticas.
+- Playwright cubre carga, detalle, no mutaciones, no legacy y no `/NachaExport/{hash}`.
+- No SOAP real, no movimientos monetarios, no mutaciones, no secretos/payloads/cuentas/documentos completos, no legacy oficial.
+- Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.

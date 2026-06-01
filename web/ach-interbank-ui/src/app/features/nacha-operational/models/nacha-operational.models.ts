@@ -290,3 +290,70 @@ export interface NachaSoapUatAudit {
   dataSource: string;
   isPersisted: boolean;
 }
+
+export interface AchReconciliationDashboard {
+  productiveStatus: string;
+  totalResponses: number;
+  totalDifferentialResponses: number;
+  totalReturns: number;
+  totalRejections: number;
+  totalPrenotifications: number;
+  totalRor: number;
+  totalReconciled: number;
+  totalPending: number;
+  totalInconsistent: number;
+  totalManualReviewRequired: number;
+  totalNonMonetary: number;
+  totalMonetaryCandidates: number;
+  lastUpdatedAt: string;
+  dataSource: string;
+  isPartialData: boolean;
+  warnings: string[];
+}
+
+export interface AchReconciliationItem {
+  reconciliationId: string;
+  correlationId: string;
+  fileId?: string | null;
+  fileName: string;
+  clearingHouseCode: string;
+  flowType: string;
+  responseType: string;
+  responseCode?: string | null;
+  responseDescription?: string | null;
+  reasonCode?: string | null;
+  reasonDescription?: string | null;
+  traceNumberMasked: string;
+  originalTraceNumberMasked: string;
+  entryId?: number | null;
+  transactionId?: number | null;
+  internalStatus: string;
+  reconciliationStatus: string;
+  requiresManualReview: boolean;
+  isReturnFile: boolean;
+  isRor: boolean;
+  isPrenotification: boolean;
+  isNonMonetary: boolean;
+  isMonetaryCandidate: boolean;
+  soapOperationCandidate: string;
+  createdAt: string;
+  updatedAt?: string | null;
+  dataSource: string;
+  isPersisted: boolean;
+  isDerived: boolean;
+  warning?: string | null;
+}
+
+export interface AchReconciliationDetail {
+  item: AchReconciliationItem;
+  nachaHeaderSummary?: Record<string, unknown> | null;
+  batchSummary?: Record<string, unknown> | null;
+  entrySummary?: Record<string, unknown> | null;
+  addendaSummary?: Record<string, unknown> | null;
+  controlSummary?: Record<string, unknown> | null;
+  internalTransactionSummary?: Record<string, unknown> | null;
+  responseHistory: Array<Record<string, unknown>>;
+  auditEvents: Array<Record<string, unknown>>;
+  warnings: string[];
+  noSensitiveData: boolean;
+}
