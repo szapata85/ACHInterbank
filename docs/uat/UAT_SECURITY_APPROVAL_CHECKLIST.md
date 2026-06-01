@@ -29,3 +29,7 @@ La columna `Simulacion 6D.6` clasifica preparacion documental. No equivale a apr
 ## Nota 6D.7
 
 Solicitud formal preparada en `SECURITY_COMPLIANCE_REVIEW_REQUEST.md`. Esto no cambia ningun estado a `Aprobado`; Seguridad/Compliance siguen pendientes.
+
+## Nota 6D.8
+
+El registro de decision y el plan de respuesta a observaciones quedan documentados en `SECURITY_COMPLIANCE_DECISION_RECORD.md` y `SECURITY_COMPLIANCE_OBSERVATION_RESPONSE_PLAN.md`. Esto no cambia ningun control a `Aprobado`; las aprobaciones Seguridad/Compliance/Tecnologia siguen pendientes.

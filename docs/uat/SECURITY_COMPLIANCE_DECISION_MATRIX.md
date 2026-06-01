@@ -4,6 +4,8 @@ Estados permitidos: `Pendiente`, `Aprobado`, `Aprobado con observaciones`, `Rech
 
 Productivo permanece NO-GO. Estado inicial: todo `Pendiente` o `No aplica`.
 
+Registro formal asociado: `docs/uat/SECURITY_COMPLIANCE_DECISION_RECORD.md`.
+
 | ID decision | Decision requerida | Responsable | Insumo/evidencia | Criterio de aprobacion | Estado | Observacion |
 | --- | --- | --- | --- | --- | --- | --- |
 | DEC-001 | Aprobar revision documental | Seguridad/Compliance | Paquete 6D.7 | Paquete completo y sin secretos | Pendiente | No aprobado |
@@ -18,3 +20,7 @@ Productivo permanece NO-GO. Estado inicial: todo `Pendiente` o `No aplica`.
 | DEC-010 | Mantener productivo NO-GO | Auditoria/Compliance | Acta NO-GO | NO-GO explicito | Pendiente | Anexo preparado |
 | DEC-011 | Bloquear SOAP real hasta autorizacion posterior | Mesa UAT + Seguridad | Acta bloqueo | Sin SOAP real previo | Pendiente | Control requerido |
 | DEC-012 | Certificacion oficial ACH/CENIT | ACH Colombia/CENIT | Evidencia oficial terceros | Certificacion formal emitida | No aplica | Fuera del alcance 6D.7 |
+
+## Nota 6D.8
+
+La Fase 6D.8 agrega registro de decision y plan de observaciones. Sin evidencia formal, DEC-001 a DEC-011 permanecen `Pendiente` y DEC-012 permanece `No aplica`.

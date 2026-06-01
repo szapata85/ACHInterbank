@@ -39,6 +39,10 @@
 - Matriz decision Seguridad/Compliance: `docs/uat/SECURITY_COMPLIANCE_DECISION_MATRIX.md`.
 - Checklist envio revision Seguridad: `docs/uat/SECURITY_REVIEW_SUBMISSION_CHECKLIST.md`.
 - Declaracion Productivo NO-GO: `docs/uat/PRODUCTIVE_NO_GO_ATTESTATION.md`.
+- Registro decision Seguridad/Compliance: `docs/uat/SECURITY_COMPLIANCE_DECISION_RECORD.md`.
+- Plan respuesta observaciones Seguridad/Compliance: `docs/uat/SECURITY_COMPLIANCE_OBSERVATION_RESPONSE_PLAN.md`.
+- Matriz acciones Seguridad/Compliance: `docs/uat/SECURITY_COMPLIANCE_ACTION_MATRIX.md`.
+- Log evidencias decision Seguridad/Compliance: `docs/uat/SECURITY_COMPLIANCE_DECISION_EVIDENCE_LOG.md`.
 - Contexto Phase 6: `docs/ai/ACH_PHASE6_CONTEXT.md`.
 - Auditoria legacy: `docs/ai/ACH_PHASE6_LEGACY_AUDIT.md`.
 - Golden files semirreales: `tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles`.
@@ -56,9 +60,10 @@
 8. Revisar paquete Seguridad 6D.5 antes de recibir/cargar certificados o endpoints.
 9. Revisar simulacion 6D.6 y brechas antes de enviar solicitud formal.
 10. Revisar paquete formal 6D.7 para presentacion a Seguridad/Compliance.
-11. Ejecutar checklist y escenarios UAT con terceros en ambiente formal solo tras aprobacion.
-12. Registrar defectos/hallazgos, riesgos/brechas y decision de comite.
-13. Confirmar que no hay SOAP real, movimientos monetarios, mutaciones criticas, legacy oficial ni `/NachaExport/{hash}`.
+11. Usar registros 6D.8 para documentar decision y responder observaciones sin asumir aprobacion.
+12. Ejecutar checklist y escenarios UAT con terceros en ambiente formal solo tras aprobacion.
+13. Registrar defectos/hallazgos, riesgos/brechas y decision de comite.
+14. Confirmar que no hay SOAP real, movimientos monetarios, mutaciones criticas, legacy oficial ni `/NachaExport/{hash}`.
 
 ## Limitacion
 
@@ -79,3 +84,7 @@ Listo para solicitar revision Seguridad/Compliance. No aprobado y no listo para 
 ## Estado paquete formal 6D.7
 
 Listo para presentacion a Seguridad/Compliance. Revision y decisiones siguen pendientes; no aprobado.
+
+## Estado registro decision 6D.8
+
+Preparado para registrar decision formal y observaciones. Decision Seguridad/Compliance no recibida; no aprobado.

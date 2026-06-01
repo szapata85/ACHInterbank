@@ -638,6 +638,21 @@ Resultado:
 - No agrega codigo/tests/workflows, no crea credenciales/endpoints/certificados, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
 - Recomendacion: presentar paquete formal y esperar decision antes de cualquier intercambio/carga; Productivo permanece NO-GO.
 
+### Fase 6D.8 - Registro decision Seguridad/Compliance y plan observaciones
+
+Estado:
+Completada.
+
+Resumen:
+Se agrego mecanismo documental para registrar la decision formal Seguridad/Compliance, gestionar observaciones, acciones por responsable y evidencias asociadas sin inventar aprobaciones ni cambiar estados.
+
+Resultado:
+- Nuevos docs: `SECURITY_COMPLIANCE_DECISION_RECORD.md`, `SECURITY_COMPLIANCE_OBSERVATION_RESPONSE_PLAN.md`, `SECURITY_COMPLIANCE_ACTION_MATRIX.md`, `SECURITY_COMPLIANCE_DECISION_EVIDENCE_LOG.md`.
+- Decision Seguridad/Compliance: pendiente; decision recibida: no recibida; DEC-001 a DEC-011 siguen `Pendiente`, DEC-012 sigue `No aplica`.
+- Certificados/endpoints/secretos siguen pendientes/no cargados, sin URLs, thumbprints ni valores reales.
+- No agrega codigo/tests/workflows, no crea credenciales/endpoints/certificados, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
+- Recomendacion: presentar paquete, registrar la decision cuando llegue y atender observaciones antes de cualquier intercambio/carga; Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.

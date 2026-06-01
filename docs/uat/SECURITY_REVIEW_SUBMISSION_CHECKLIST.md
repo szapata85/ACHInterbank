@@ -19,7 +19,11 @@ Productivo permanece NO-GO. Este checklist controla envio documental; no implica
 | SUB-013 | No thumbprints reales | CFA Seguridad | Preparado | Si | No documentados |
 | SUB-014 | No datos reales | Compliance | Pendiente revision | No | Requiere dictamen |
 | SUB-015 | Checklist Seguridad | CFA Seguridad | Pendiente | No | No aprobado |
+| SUB-016 | Registro decision Seguridad/Compliance | Mesa UAT | Preparado | Si | No contiene aprobacion |
+| SUB-017 | Plan respuesta observaciones | Mesa UAT | Preparado | Si | Para observaciones futuras |
+| SUB-018 | Matriz acciones Seguridad/Compliance | Mesa UAT | Preparado | Si | Acciones pendientes |
+| SUB-019 | Log evidencias decision | Mesa UAT | Preparado | Si | Evidencias pendientes visibles |
 
 ## Resultado
 
-Listo para envio parcial del paquete formal, con brechas explicitas. No listo para aprobacion automatica ni ejecucion externa.
+Listo para envio parcial del paquete formal, con brechas explicitas y mecanismo de registro de decision. No listo para aprobacion automatica ni ejecucion externa.

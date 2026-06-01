@@ -91,6 +91,18 @@ Decision vigente: Productivo permanece NO-GO.
 | RSK-041 | Terceros pendientes | Bloquea UAT externo/certificacion | Paquete externo y RACI para aceptacion | Abierto |
 | RSK-042 | Riesgo interpretacion NO-GO | Puede confundirse con autorizacion productiva | `PRODUCTIVE_NO_GO_ATTESTATION.md` | Abierto |
 
+## Actualizacion 6D.8
+
+| ID | Riesgo / brecha | Impacto | Mitigacion | Estado |
+| --- | --- | --- | --- | --- |
+| RSK-043 | Decision Seguridad/Compliance no recibida | Bloquea avance externo y carga de parametros | Registro decision 6D.8 con estado `Pendiente` | Abierto |
+| RSK-044 | Aprobacion con observaciones | Puede condicionar o limitar pre-habilitacion | Plan respuesta observaciones y matriz acciones | Abierto |
+| RSK-045 | Rechazo formal | Detiene avance y exige correcciones | Registrar impacto y condiciones de reenvio | Abierto |
+| RSK-046 | Observaciones criticas | Bloquean UAT externo o intercambio tecnico | Severidad critica y bloqueo hasta validacion | Abierto |
+| RSK-047 | Retraso por tercero | Mantiene certificados/endpoints/evidencia externa pendientes | Matriz acciones con `Bloqueado por tercero` | Abierto |
+| RSK-048 | Evidencia insuficiente | Puede impedir aprobacion Seguridad/Compliance | Log evidencias decision y gap analysis | Abierto |
+| RSK-049 | Interpretacion incorrecta de NO-GO | Puede confundirse preparacion con autorizacion productiva | Acta NO-GO y restricciones reiteradas | Abierto |
+
 ## Condiciones bloqueantes
 
 - Cualquier SOAP real no autorizado.
