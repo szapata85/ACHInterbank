@@ -17,6 +17,16 @@ Productivo permanece NO-GO. No se deben registrar secretos, certificados, creden
 | NO-GO productivo | Productivo no cambia de estado | Acta/comite NO-GO | Pendiente |
 | Payloads | No exponer XML/SOAP completo | Muestras sanitizadas | Pendiente |
 
+## Paquete aprobacion 6D.5
+
+- Paquete de aprobacion: `docs/uat/SECURITY_APPROVAL_PACKAGE.md`.
+- Registro placeholder certificados/endpoints: `docs/uat/UAT_CERTIFICATE_ENDPOINT_REGISTER.md`.
+- Modelo de custodia: `docs/uat/UAT_SECRET_CUSTODY_MODEL.md`.
+- Checklist Seguridad: `docs/uat/UAT_SECURITY_APPROVAL_CHECKLIST.md`.
+- Evidencias Seguridad/Compliance: `docs/uat/UAT_SECURITY_EVIDENCE_REQUESTS.md`.
+
+Los controles de certificados/endpoints permanecen `Pendiente` hasta aprobacion formal. SOAP real permanece bloqueado.
+
 ## Reglas operativas
 
 - No cargar certificados reales en git, CI o documentacion.

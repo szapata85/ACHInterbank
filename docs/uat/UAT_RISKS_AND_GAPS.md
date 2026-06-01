@@ -58,6 +58,18 @@ Decision vigente: Productivo permanece NO-GO.
 | RSK-023 | Evidencia oficial incompleta | No permite cierre de certificacion | Solicitudes `EXTERNAL_UAT_EVIDENCE_REQUESTS.md` | Abierto |
 | RSK-024 | Aprobacion Seguridad/Compliance pendiente | Bloquea intercambio tecnico | RACI y controles de seguridad | Abierto |
 
+## Actualizacion 6D.5
+
+| ID | Riesgo / brecha | Impacto | Mitigacion | Estado |
+| --- | --- | --- | --- | --- |
+| RSK-025 | Secretos mal custodiados | Exposicion de credenciales/certificados | Modelo de custodia y uso de OpenBao/Vault o mecanismo aprobado | Abierto |
+| RSK-026 | Endpoints no aprobados | Conexion a destino incorrecto o productivo | Registro placeholder y aprobacion Seguridad/Tecnologia | Abierto |
+| RSK-027 | Certificados vencidos/incorrectos | Falla handshake o exposicion operativa | Validacion Seguridad sin exponer material real | Abierto |
+| RSK-028 | Logging sensible | Exposicion de datos, secretos o payloads | Logging sanitizado y evidencia revisada | Abierto |
+| RSK-029 | Exposicion accidental de datos | Riesgo privacidad/compliance | Dataset sintetico y revision de evidencia | Abierto |
+| RSK-030 | Autorizacion incompleta | UAT externo bloqueado o no auditable | Checklist aprobacion Seguridad/Compliance/Tecnologia | Abierto |
+| RSK-031 | Uso indebido de SOAP real | Riesgo operacional/monetario | Bloqueo SOAP hasta autorizacion formal | Abierto |
+
 ## Condiciones bloqueantes
 
 - Cualquier SOAP real no autorizado.

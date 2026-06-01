@@ -25,6 +25,11 @@
 - Plan de ventanas UAT externo: `docs/uat/EXTERNAL_UAT_WINDOW_PLAN.md`.
 - Controles de seguridad UAT externo: `docs/uat/EXTERNAL_UAT_SECURITY_CONTROLS.md`.
 - Solicitudes de evidencia externa: `docs/uat/EXTERNAL_UAT_EVIDENCE_REQUESTS.md`.
+- Paquete aprobacion Seguridad/Compliance: `docs/uat/SECURITY_APPROVAL_PACKAGE.md`.
+- Registro certificados/endpoints UAT: `docs/uat/UAT_CERTIFICATE_ENDPOINT_REGISTER.md`.
+- Modelo custodia secretos UAT: `docs/uat/UAT_SECRET_CUSTODY_MODEL.md`.
+- Checklist aprobacion Seguridad: `docs/uat/UAT_SECURITY_APPROVAL_CHECKLIST.md`.
+- Solicitudes evidencia Seguridad: `docs/uat/UAT_SECURITY_EVIDENCE_REQUESTS.md`.
 - Contexto Phase 6: `docs/ai/ACH_PHASE6_CONTEXT.md`.
 - Auditoria legacy: `docs/ai/ACH_PHASE6_LEGACY_AUDIT.md`.
 - Golden files semirreales: `tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles`.
@@ -39,9 +44,10 @@
 5. Revisar cierre de hallazgos ronda 1 y plan de UAT ampliado.
 6. Revisar ejecucion UAT ampliada y actualizacion de defectos.
 7. Revisar paquete `EXTERNAL_UAT_*` para coordinacion con ACH Colombia/CENIT.
-8. Ejecutar checklist y escenarios UAT con terceros en ambiente formal solo tras aprobacion.
-9. Registrar defectos/hallazgos, riesgos/brechas y decision de comite.
-10. Confirmar que no hay SOAP real, movimientos monetarios, mutaciones criticas, legacy oficial ni `/NachaExport/{hash}`.
+8. Revisar paquete Seguridad 6D.5 antes de recibir/cargar certificados o endpoints.
+9. Ejecutar checklist y escenarios UAT con terceros en ambiente formal solo tras aprobacion.
+10. Registrar defectos/hallazgos, riesgos/brechas y decision de comite.
+11. Confirmar que no hay SOAP real, movimientos monetarios, mutaciones criticas, legacy oficial ni `/NachaExport/{hash}`.
 
 ## Limitacion
 
@@ -50,3 +56,7 @@ Este paquete organiza evidencia automatizada y trazabilidad interna. No reemplaz
 ## Estado coordinacion externa
 
 Listo para coordinacion externa documental con ACH Colombia/CENIT. No listo para productivo.
+
+## Estado seguridad 6D.5
+
+Preparacion de Seguridad/Compliance documentada. Certificados/endpoints/secretos permanecen pendientes, no cargados y no aprobados.

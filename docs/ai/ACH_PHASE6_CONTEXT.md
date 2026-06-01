@@ -592,6 +592,21 @@ Resultado:
 - No agrega codigo/tests/workflows, no crea credenciales/endpoints/certificados, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
 - Recomendacion: agendar UAT externo con RACI aceptado y seguridad aprobada; Productivo permanece NO-GO.
 
+### Fase 6D.5 - Paquete de aprobacion de seguridad y control certificados/endpoints UAT
+
+Estado:
+Completada.
+
+Resumen:
+Se preparo paquete documental para aprobacion Seguridad/Compliance previo a recibir o cargar certificados, endpoints, parametros tecnicos o secretos UAT. Todo queda como placeholder pendiente y bajo custodia corporativa.
+
+Resultado:
+- Nuevos docs: `SECURITY_APPROVAL_PACKAGE.md`, `UAT_CERTIFICATE_ENDPOINT_REGISTER.md`, `UAT_SECRET_CUSTODY_MODEL.md`, `UAT_SECURITY_APPROVAL_CHECKLIST.md`, `UAT_SECURITY_EVIDENCE_REQUESTS.md`.
+- Certificados/endpoints/secretos: pendientes, no cargados, no aprobados; sin URLs, thumbprints ni valores reales.
+- Riesgos nuevos: custodia secretos, endpoints no aprobados, certificados vencidos/incorrectos, logging sensible, exposicion de datos, autorizacion incompleta y uso indebido SOAP real.
+- No agrega codigo/tests/workflows, no crea credenciales/endpoints/certificados, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
+- Recomendacion: solicitar aprobacion Seguridad/Compliance antes de cualquier carga en UAT aislado; Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.
