@@ -23,3 +23,18 @@ Productivo permanece NO-GO. No SOAP real, no movimientos monetarios, no datos re
 | UAT-CHK-015 | Evidencias Playwright CI disponibles | `playwright-report`, `test-results`, `uat-evidence-playwright` | Pendiente | CI no reemplaza certificacion |
 | UAT-CHK-016 | Aprobaciones QA/UAT/Operaciones/Riesgo | Acta o registro de decision | Pendiente | Puede ser aprobado con observaciones |
 | UAT-CHK-017 | Decision Go/No-Go UAT registrada | Decision UAT y plan siguiente fase | Pendiente | Productivo sigue NO-GO |
+
+## Estado ronda 1 controlada
+
+| ID | Check | Estado ronda 1 | Observacion |
+| --- | --- | --- | --- |
+| UAT-CHK-003 | Datos sinteticos ACH Colombia cargados | Ejecutado con observacion | Dataset documentado; carga en ambiente UAT formal pendiente |
+| UAT-CHK-004 | Datos sinteticos CENIT cargados | Ejecutado con observacion | Dataset documentado; carga en ambiente UAT formal pendiente |
+| UAT-CHK-006 | CI backend/Angular/Playwright verde | Ejecutado OK | Baseline 1602/308/34 registrado desde 6C.11 |
+| UAT-CHK-007 | NACHA-M salida ACH Colombia | Ejecutado con observacion | Validado con golden semirreal; certificacion oficial pendiente |
+| UAT-CHK-008 | NACHA-M salida CENIT | Ejecutado con observacion | Validado con golden semirreal; certificacion oficial pendiente |
+| UAT-CHK-010 | Returns `.RET` ACH Colombia/CENIT | Ejecutado con observacion | `.RET` semirreal disponible; homologacion formal pendiente |
+| UAT-CHK-013 | Consola SOAP/UAT read-only | Ejecutado OK | Playwright/read-only; SOAP real bloqueado |
+| UAT-CHK-014 | Conciliacion ACH | Ejecutado OK | Playwright/read-only; sin mutaciones criticas |
+| UAT-CHK-015 | Evidencias Playwright CI disponibles | Ejecutado OK | Artefactos documentados |
+| UAT-CHK-017 | Decision Go/No-Go UAT registrada | Ejecutado con observacion | Recomendacion: continuar UAT formal ampliado; Productivo NO-GO |

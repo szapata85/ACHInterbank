@@ -532,6 +532,21 @@ Resultado:
 - No agrega features, no ejecuta SOAP real, no mueve dinero, no muta estados, no usa secretos, no legacy oficial, no `/NachaExport/{hash}`.
 - Productivo permanece NO-GO.
 
+### Fase 6D.1 - Ejecucion UAT controlada con datos sinteticos representativos
+
+Estado:
+Completada.
+
+Resumen:
+Se ejecuto/documento ronda UAT controlada con dataset sintetico representativo, mapeando 23 escenarios ACH Colombia/CENIT/transversales contra golden files semirreales, evidencias Playwright y reportes sanitizados existentes. Se creo matriz de defectos/hallazgos y resumen ejecutivo.
+
+Resultado:
+- Nuevos docs: `UAT_SYNTHETIC_DATASET.md`, `UAT_EXECUTION_ROUND_1.md`, `UAT_DEFECTS_MATRIX.md`, `UAT_ROUND_1_EXECUTIVE_SUMMARY.md`.
+- Resultado ronda 1: 23 escenarios; 13 OK, 9 observados, 0 bloqueados, 1 no ejecutado.
+- Hallazgos principales: certificacion oficial pendiente, ambiente UAT externo/datos cargados pendiente, homologacion formal de causales pendiente, ciclos/colas/neteo CENIT pendiente.
+- No agrega codigo, no modifica golden files, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
+- Recomendacion: continuar UAT formal ampliado; Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.

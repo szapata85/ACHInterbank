@@ -41,3 +41,14 @@ Restricciones globales: Productivo NO-GO, datos sinteticos, sin SOAP real, sin m
 | UAT-TRV-006 | Ambas | Legacy deprecated | Rutas legacy accesibles/ocultas | Intentar navegar legacy | Deprecated/read-only, no oficial | Playwright legacy | Pendiente |
 | UAT-TRV-007 | Ambas | Export `cycleId` / no hash | Ciclo exportable/no exportable | Ejecutar flujo controlado | No se llama `/NachaExport/{hash}` | Playwright export | Pendiente |
 | UAT-TRV-008 | Ambas | Playwright evidence | CI ejecutado | Revisar artefactos | Reporte y resultados publicados | `playwright-report`, `test-results` | Pendiente |
+
+## Resultado ronda 1 controlada
+
+| Resultado | Escenarios |
+| --- | --- |
+| OK | UAT-ACH-005, UAT-ACH-006, UAT-ACH-008, UAT-ACH-009, UAT-CEN-006, UAT-TRV-001, UAT-TRV-002, UAT-TRV-003, UAT-TRV-004, UAT-TRV-005, UAT-TRV-006, UAT-TRV-007, UAT-TRV-008 |
+| Observado | UAT-ACH-001, UAT-ACH-002, UAT-ACH-003, UAT-ACH-004, UAT-ACH-007, UAT-CEN-001, UAT-CEN-002, UAT-CEN-003, UAT-CEN-004 |
+| Bloqueado | Ninguno |
+| No ejecutado | UAT-CEN-005 |
+
+Detalle y defectos/hallazgos: `docs/uat/UAT_EXECUTION_ROUND_1.md` y `docs/uat/UAT_DEFECTS_MATRIX.md`.

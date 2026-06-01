@@ -10,6 +10,10 @@
 - Riesgos y brechas UAT: `docs/uat/UAT_RISKS_AND_GAPS.md`.
 - Hardening tecnico pre-UAT: `docs/uat/PRE_UAT_TECHNICAL_HARDENING.md`.
 - Checklist automatizado pre-UAT: `docs/uat/PRE_UAT_AUTOMATED_CHECKLIST.md`.
+- Dataset sintetico UAT ronda 1: `docs/uat/UAT_SYNTHETIC_DATASET.md`.
+- Ejecucion UAT controlada ronda 1: `docs/uat/UAT_EXECUTION_ROUND_1.md`.
+- Matriz defectos/hallazgos UAT: `docs/uat/UAT_DEFECTS_MATRIX.md`.
+- Resumen ejecutivo UAT ronda 1: `docs/uat/UAT_ROUND_1_EXECUTIVE_SUMMARY.md`.
 - Contexto Phase 6: `docs/ai/ACH_PHASE6_CONTEXT.md`.
 - Auditoria legacy: `docs/ai/ACH_PHASE6_LEGACY_AUDIT.md`.
 - Golden files semirreales: `tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles`.
@@ -20,9 +24,10 @@
 1. Revisar filas con estado `Parcial`, `Pendiente`, `Requiere certificacion oficial` o `No aplica productivo NO-GO`.
 2. Validar artefactos CI `playwright-report`, `playwright-test-results` y `uat-evidence-playwright`.
 3. Ejecutar checklist automatizado pre-UAT y registrar observaciones tecnicas.
-4. Ejecutar checklist y escenarios UAT con datos sinteticos.
-5. Registrar riesgos/brechas y decision de comite.
-6. Confirmar que no hay SOAP real, movimientos monetarios, mutaciones criticas, legacy oficial ni `/NachaExport/{hash}`.
+4. Revisar dataset sintetico y ejecucion controlada ronda 1.
+5. Ejecutar checklist y escenarios UAT con datos sinteticos en ambiente formal.
+6. Registrar defectos/hallazgos, riesgos/brechas y decision de comite.
+7. Confirmar que no hay SOAP real, movimientos monetarios, mutaciones criticas, legacy oficial ni `/NachaExport/{hash}`.
 
 ## Limitacion
 
