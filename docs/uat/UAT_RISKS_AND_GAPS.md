@@ -103,6 +103,17 @@ Decision vigente: Productivo permanece NO-GO.
 | RSK-048 | Evidencia insuficiente | Puede impedir aprobacion Seguridad/Compliance | Log evidencias decision y gap analysis | Abierto |
 | RSK-049 | Interpretacion incorrecta de NO-GO | Puede confundirse preparacion con autorizacion productiva | Acta NO-GO y restricciones reiteradas | Abierto |
 
+## Actualizacion 6D.9
+
+| ID | Riesgo / brecha | Impacto | Mitigacion | Estado |
+| --- | --- | --- | --- | --- |
+| RSK-050 | Decision ejecutiva pendiente | Bloquea continuidad UAT externo condicionada | Paquete ejecutivo y solicitud decision | Abierto |
+| RSK-051 | Interpretacion incorrecta de alcance ejecutivo | Puede confundirse con GO productivo | Brief ejecutivo y acta NO-GO | Abierto |
+| RSK-052 | Presion por salida productiva | Riesgo operativo/compliance | Productivo NO-GO explicito en anexos | Abierto |
+| RSK-053 | Aprobacion parcial con observaciones | Puede condicionar avance y requerir acciones | Plan observaciones y matriz acciones | Abierto |
+| RSK-054 | Bloqueo por comite | Detiene UAT externo | Plantilla acta y decision request con impactos | Abierto |
+| RSK-055 | Dependencia de terceros persiste | Retrasa evidencia ACH/CENIT | RACI, ventanas y dashboard ejecutivo | Abierto |
+
 ## Condiciones bloqueantes
 
 - Cualquier SOAP real no autorizado.

@@ -43,6 +43,12 @@
 - Plan respuesta observaciones Seguridad/Compliance: `docs/uat/SECURITY_COMPLIANCE_OBSERVATION_RESPONSE_PLAN.md`.
 - Matriz acciones Seguridad/Compliance: `docs/uat/SECURITY_COMPLIANCE_ACTION_MATRIX.md`.
 - Log evidencias decision Seguridad/Compliance: `docs/uat/SECURITY_COMPLIANCE_DECISION_EVIDENCE_LOG.md`.
+- Paquete comite ejecutivo: `docs/uat/EXECUTIVE_COMMITTEE_PACKAGE.md`.
+- Brief ejecutivo: `docs/uat/EXECUTIVE_PRESENTATION_BRIEF.md`.
+- Solicitud decision ejecutiva: `docs/uat/EXECUTIVE_DECISION_REQUEST.md`.
+- Plantilla acta comite: `docs/uat/EXECUTIVE_MEETING_MINUTES_TEMPLATE.md`.
+- Checklist anexos comite: `docs/uat/EXECUTIVE_APPENDIX_CHECKLIST.md`.
+- Dashboard ejecutivo riesgos/estado: `docs/uat/EXECUTIVE_RISK_STATUS_DASHBOARD.md`.
 - Contexto Phase 6: `docs/ai/ACH_PHASE6_CONTEXT.md`.
 - Auditoria legacy: `docs/ai/ACH_PHASE6_LEGACY_AUDIT.md`.
 - Golden files semirreales: `tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles`.
@@ -61,9 +67,10 @@
 9. Revisar simulacion 6D.6 y brechas antes de enviar solicitud formal.
 10. Revisar paquete formal 6D.7 para presentacion a Seguridad/Compliance.
 11. Usar registros 6D.8 para documentar decision y responder observaciones sin asumir aprobacion.
-12. Ejecutar checklist y escenarios UAT con terceros en ambiente formal solo tras aprobacion.
-13. Registrar defectos/hallazgos, riesgos/brechas y decision de comite.
-14. Confirmar que no hay SOAP real, movimientos monetarios, mutaciones criticas, legacy oficial ni `/NachaExport/{hash}`.
+12. Presentar paquete ejecutivo 6D.9 y registrar decisiones sin asumir aprobacion.
+13. Ejecutar checklist y escenarios UAT con terceros en ambiente formal solo tras aprobacion.
+14. Registrar defectos/hallazgos, riesgos/brechas y decision de comite.
+15. Confirmar que no hay SOAP real, movimientos monetarios, mutaciones criticas, legacy oficial ni `/NachaExport/{hash}`.
 
 ## Limitacion
 
@@ -88,3 +95,7 @@ Listo para presentacion a Seguridad/Compliance. Revision y decisiones siguen pen
 ## Estado registro decision 6D.8
 
 Preparado para registrar decision formal y observaciones. Decision Seguridad/Compliance no recibida; no aprobado.
+
+## Estado paquete ejecutivo 6D.9
+
+Listo para presentacion ejecutiva y solicitud formal de decision. Comite, Seguridad y Compliance siguen pendientes; no aprobado.

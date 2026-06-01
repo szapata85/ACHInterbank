@@ -5,6 +5,7 @@ Estados permitidos: `Pendiente`, `Aprobado`, `Aprobado con observaciones`, `Rech
 Productivo permanece NO-GO. Estado inicial: todo `Pendiente` o `No aplica`.
 
 Registro formal asociado: `docs/uat/SECURITY_COMPLIANCE_DECISION_RECORD.md`.
+Solicitud ejecutiva asociada: `docs/uat/EXECUTIVE_DECISION_REQUEST.md`.
 
 | ID decision | Decision requerida | Responsable | Insumo/evidencia | Criterio de aprobacion | Estado | Observacion |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -24,3 +25,7 @@ Registro formal asociado: `docs/uat/SECURITY_COMPLIANCE_DECISION_RECORD.md`.
 ## Nota 6D.8
 
 La Fase 6D.8 agrega registro de decision y plan de observaciones. Sin evidencia formal, DEC-001 a DEC-011 permanecen `Pendiente` y DEC-012 permanece `No aplica`.
+
+## Nota 6D.9
+
+El paquete ejecutivo 6D.9 referencia esta matriz para solicitar decision de comite. No cambia estados: DEC-001 a DEC-011 siguen `Pendiente` y DEC-012 sigue `No aplica`.

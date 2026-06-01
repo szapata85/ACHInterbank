@@ -25,6 +25,7 @@ Registrar la decision formal de Seguridad/Compliance sobre el paquete UAT extern
 | Compliance/Auditoria | Pendiente |
 | Tecnologia | Pendiente |
 | Operaciones/Mesa UAT | Pendiente |
+| Presentacion comite ejecutivo | Pendiente |
 
 ## Estados posibles
 
@@ -61,3 +62,7 @@ Registrar la decision formal de Seguridad/Compliance sobre el paquete UAT extern
 - No se autoriza movimiento monetario real.
 - No se autoriza carga de secretos, certificados ni endpoints hasta decision formal.
 - No se autoriza certificacion oficial ACH Colombia/CENIT.
+
+## Nota 6D.9
+
+Pendiente presentacion a comite ejecutivo mediante `EXECUTIVE_COMMITTEE_PACKAGE.md` y `EXECUTIVE_DECISION_REQUEST.md`. Esta nota no cambia `Decision recibida: No recibida`.
