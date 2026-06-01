@@ -12,9 +12,9 @@ const routes: Routes = [
     canActivate: [roleGuard, permissionGuard],
     data: {
       roles: ['Admin', 'ACH.Operator'],
-      permissions: ['CanReadAch', 'CanManageAch'],
-      title: 'Perfiles NACHA',
-      breadcrumb: 'Perfiles NACHA'
+      permissions: ['CanReadAch'],
+      title: 'Config Profiles NACHA',
+      breadcrumb: 'Config Profiles'
     }
   },
   {
@@ -23,8 +23,8 @@ const routes: Routes = [
     canActivate: [roleGuard, permissionGuard],
     data: {
       roles: ['Admin', 'ACH.Operator'],
-      permissions: ['CanReadAch', 'CanManageAch'],
-      title: 'Perfil NACHA',
+      permissions: ['CanReadAch'],
+      title: 'Perfil NACHA read-only',
       breadcrumb: 'Detalle de perfil'
     }
   },

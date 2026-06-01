@@ -3,7 +3,7 @@ namespace Cfa.ACHInterbank.Application.ACH.Configuration;
 public class NachaGenerationOptions
 {
     public const string SectionName = "NachaGeneration";
-    public string Mode { get; set; } = "LEGACY";
+    public string Mode { get; set; } = "TABLE_DRIVEN";
     public bool EnableType7TableDriven { get; set; }
     public bool FailOnResolverAmbiguity { get; set; }
     public bool EnableRecord6MappingEngine { get; set; }

@@ -144,9 +144,9 @@ const routes: Routes = [
         canActivate: [roleGuard, permissionGuard],
         data: {
           roles: ['Admin', 'ACH.Operator'],
-          permissions: ['CanReadAch', 'CanManageAch'],
-          breadcrumb: 'NACHA Config',
-          title: 'Administración NACHA Config'
+          permissions: ['CanReadAch'],
+          breadcrumb: 'Config Profiles',
+          title: 'Administracion read-only NACHA Config Profiles'
         },
         loadChildren: () => import('./features/nacha-config-admin/nacha-config-admin.module').then((m) => m.NachaConfigAdminModule)
       },
@@ -187,6 +187,20 @@ const routes: Routes = [
         loadChildren: () =>
           import('./features/ach-responses/ach-responses.module').then(
             (m) => m.AchResponsesModule
+          )
+      },
+      {
+        path: 'ach',
+        canActivate: [roleGuard, permissionGuard],
+        data: {
+          roles: ['Admin', 'ACH.Operator'],
+          permissions: ['CanReadAch'],
+          breadcrumb: 'ACH',
+          title: 'Consulta operativa NACHA-M'
+        },
+        loadChildren: () =>
+          import('./features/nacha-operational/nacha-operational.module').then(
+            (m) => m.NachaOperationalModule
           )
       },
       {

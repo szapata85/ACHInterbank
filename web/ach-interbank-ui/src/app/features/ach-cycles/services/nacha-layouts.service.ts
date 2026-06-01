@@ -3,6 +3,10 @@ import { ApiService } from '../../../core/services/api.service';
 import { NachaRecordLayoutDto } from '../models/nacha-layout.model';
 
 @Injectable({ providedIn: 'root' })
+/**
+ * @deprecated Legacy diagnostic API for NachaRecordLayouts.
+ * Official NACHA-M configuration must use nacha-config profiles.
+ */
 export class NachaLayoutsService {
   private readonly api = inject(ApiService);
   private readonly basePath = 'nacha-layouts';

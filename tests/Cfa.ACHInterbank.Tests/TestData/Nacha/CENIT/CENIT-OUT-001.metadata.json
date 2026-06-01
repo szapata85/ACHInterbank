@@ -1,0 +1,8 @@
+{
+  "scenarioId": "CENIT-OUT-001",
+  "clearingHouseCode": "CENIT",
+  "profileCode": "OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0",
+  "flowType": "Outgoing",
+  "expectedFileName": "8765432.001.1",
+  "dataClassification": "synthetic-anonymized"
+}

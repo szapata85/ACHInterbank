@@ -1,0 +1,7 @@
+{
+  "scenarioId": "PRENOTE-001",
+  "flowType": "Prenotification",
+  "expectedStatuses": ["PrenotificationApproved", "PrenotificationRejected:R17"],
+  "monetaryMovementAllowed": false,
+  "dataClassification": "synthetic-anonymized"
+}

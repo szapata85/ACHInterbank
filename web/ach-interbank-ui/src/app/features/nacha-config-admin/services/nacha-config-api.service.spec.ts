@@ -28,6 +28,22 @@ describe('NachaConfigApiService', () => {
     req.flush([]);
   });
 
+  it('Service_ShouldCallConfigProfilesReadOnlyEndpoints', () => {
+    service.listarPerfilesReadOnly().subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/ach/nacha/config-profiles`);
+    expect(req.request.method).toBe('GET');
+    req.flush([]);
+  });
+
+  it('Service_ShouldCallConfigProfilesReadOnlyDetailEndpoint', () => {
+    service.obtenerPerfilReadOnly(9).subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/ach/nacha/config-profiles/9`);
+    expect(req.request.method).toBe('GET');
+    req.flush({ profileId: 9, variants: [], fields: [] });
+  });
+
   it('debe consultar catálogos de filtro', () => {
     service.catalogosFiltro().subscribe();
 

@@ -54,7 +54,7 @@ describe('NACHA-M layouts y definiciones fase 4', () => {
       providers: [
         { provide: NachaLayoutsService, useValue: layoutsService },
         { provide: NachaRecordDefinitionsService, useValue: definitionsService },
-        { provide: NotificationService, useValue: jasmine.createSpyObj('NotificationService', ['success', 'error']) },
+        { provide: NotificationService, useValue: jasmine.createSpyObj('NotificationService', ['success', 'error', 'info']) },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } }
       ]
     }).compileComponents();
@@ -80,8 +80,9 @@ describe('NACHA-M layouts y definiciones fase 4', () => {
       providers: [
         { provide: NachaRecordDefinitionsService, useValue: definitionsService },
         { provide: NachaLayoutsService, useValue: layoutsService },
-        { provide: NotificationService, useValue: jasmine.createSpyObj('NotificationService', ['success', 'error']) },
-        { provide: Router, useValue: router }
+        { provide: NotificationService, useValue: jasmine.createSpyObj('NotificationService', ['success', 'error', 'info']) },
+        { provide: Router, useValue: router },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } }
       ]
     }).compileComponents();
 
@@ -93,7 +94,8 @@ describe('NACHA-M layouts y definiciones fase 4', () => {
   it('NachaLayouts_ShouldRenderHeader', async () => {
     const { fixture } = await createLayoutsFixture();
 
-    expect(fixture.nativeElement.textContent).toContain('Layouts NACHA-M');
+    expect(fixture.nativeElement.textContent).toContain('Layouts NACHA-M legacy');
+    expect(fixture.nativeElement.textContent).toContain('LEGACY / Deprecated');
     expect(fixture.nativeElement.textContent).toContain('Total layouts');
   });
 
@@ -103,6 +105,7 @@ describe('NACHA-M layouts y definiciones fase 4', () => {
 
     expect(component.layouts).toEqual([]);
     expect(fixture.nativeElement.textContent).toContain('No hay layouts configurados');
+    expect(fixture.nativeElement.textContent).toContain('perfiles NACHA Config');
   });
 
   it('NachaLayouts_ShouldShowError_WhenApiFails', async () => {
@@ -114,17 +117,28 @@ describe('NACHA-M layouts y definiciones fase 4', () => {
     expect(fixture.nativeElement.textContent).toContain('No fue posible cargar layouts NACHA-M');
   });
 
-  it('NachaLayouts_ShouldRenderActionsWithStandardButtons', async () => {
-    const { component } = await createLayoutsFixture();
+  it('LegacyScreen_ShouldBeReadOnly_WhenLayoutsKeptForDiagnostics', async () => {
+    const { fixture, component, layoutsService } = await createLayoutsFixture();
 
     expect(component.columns.find((column) => column.key === 'recordType')?.width).toBe('240px');
     expect(component.totalFields).toBe(1);
+    expect(fixture.nativeElement.textContent).not.toContain('Nuevo layout');
+    expect(fixture.nativeElement.textContent).not.toContain('Eliminar');
+
+    component.startCreate();
+    component.startEdit(layout);
+    component.remove(layout);
+
+    expect(layoutsService.create).not.toHaveBeenCalled();
+    expect(layoutsService.update).not.toHaveBeenCalled();
+    expect(layoutsService.delete).not.toHaveBeenCalled();
   });
 
   it('NachaDefinitions_ShouldRenderHeader', async () => {
     const { fixture } = await createDefinitionsFixture();
 
-    expect(fixture.nativeElement.textContent).toContain('Definiciones NACHA-M');
+    expect(fixture.nativeElement.textContent).toContain('Definiciones NACHA-M legacy');
+    expect(fixture.nativeElement.textContent).toContain('LEGACY / Deprecated');
     expect(fixture.nativeElement.textContent).toContain('Total definiciones');
   });
 
@@ -134,6 +148,7 @@ describe('NACHA-M layouts y definiciones fase 4', () => {
 
     expect(component.definitions).toEqual([]);
     expect(fixture.nativeElement.textContent).toContain('No hay definiciones configuradas');
+    expect(fixture.nativeElement.textContent).toContain('perfiles NACHA Config');
   });
 
   it('NachaDefinitions_ShouldShowError_WhenApiFails', async () => {
@@ -145,24 +160,31 @@ describe('NACHA-M layouts y definiciones fase 4', () => {
     expect(fixture.nativeElement.textContent).toContain('No fue posible cargar definiciones NACHA-M');
   });
 
-  it('NachaDefinitions_Edit_ShouldOpenModalOrDrawer_WhenDataExists', async () => {
-    const { fixture, component } = await createDefinitionsFixture();
+  it('LegacyScreen_ShouldBeReadOnly_WhenDefinitionsKeptForDiagnostics', async () => {
+    const { fixture, component, definitionsService } = await createDefinitionsFixture();
 
     component.startEdit(definition);
+    component.startCreate();
+    component.remove(definition);
     fixture.detectChanges();
 
-    expect(component.editorOpen).toBeTrue();
-    expect(fixture.nativeElement.querySelector('[data-testid="nacha-definition-edit-modal"]')).toBeTruthy();
+    expect(component.editorOpen).toBeFalse();
+    expect(fixture.nativeElement.querySelector('[data-testid="nacha-definition-edit-modal"]')).toBeFalsy();
+    expect(fixture.nativeElement.textContent).not.toContain('Nueva definición');
+    expect(fixture.nativeElement.textContent).not.toContain('Eliminar');
+    expect(definitionsService.create).not.toHaveBeenCalled();
+    expect(definitionsService.update).not.toHaveBeenCalled();
+    expect(definitionsService.delete).not.toHaveBeenCalled();
   });
 
-  it('NachaDefinitions_EditModal_ShouldShowSelectedDefinitionContext', async () => {
+  it('LegacyScreen_ShouldShowDeprecatedBanner_WhenAccessible', async () => {
     const { fixture, component } = await createDefinitionsFixture();
 
-    component.startEdit(definition);
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Registro 6');
-    expect(fixture.nativeElement.textContent).toContain('Editar definición NACHA-M');
+    expect(component.legacyReadOnly).toBeTrue();
+    expect(fixture.nativeElement.textContent).toContain('El modelo oficial NACHA-M es nacha-config profiles');
+    expect(fixture.nativeElement.textContent).toContain('Abrir perfiles NACHA oficiales');
   });
 
   it('NachaDefinitions_EditModal_ShouldCloseOnCancel', async () => {
@@ -182,22 +204,22 @@ describe('NACHA-M layouts y definiciones fase 4', () => {
     component.save();
     fixture.detectChanges();
 
-    expect(component.editorOpen).toBeTrue();
+    expect(component.editorOpen).toBeFalse();
     expect(component.form.invalid).toBeTrue();
   });
 
-  it('NachaDefinitions_EditModal_ShouldRefreshList_AfterSuccessfulSave', async () => {
+  it('NachaDefinitions_EditModal_ShouldNotSaveInLegacyReadOnlyMode', async () => {
     const { component, definitionsService } = await createDefinitionsFixture();
 
     component.startEdit(definition);
     component.save();
 
-    expect(definitionsService.update).toHaveBeenCalled();
-    expect(definitionsService.getAll).toHaveBeenCalledTimes(2);
+    expect(definitionsService.update).not.toHaveBeenCalled();
+    expect(definitionsService.getAll).toHaveBeenCalledTimes(1);
     expect(component.editorOpen).toBeFalse();
   });
 
-  it('NachaDefinitions_ShouldNotRenderWhiteCriticalButtons', async () => {
+  it('LegacyDefinitionsRoute_ShouldNotShowMutableActions', async () => {
     const { fixture, component } = await createDefinitionsFixture();
 
     component.startEdit(definition);
@@ -205,7 +227,6 @@ describe('NACHA-M layouts y definiciones fase 4', () => {
     const buttons = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
     const criticalButtons = buttons.filter((button) => /Guardar|Editar|Eliminar/.test(button.textContent ?? ''));
 
-    expect(criticalButtons.length).toBeGreaterThan(0);
-    expect(criticalButtons.every((button) => button.className.includes('btn'))).toBeTrue();
+    expect(criticalButtons.length).toBe(0);
   });
 });

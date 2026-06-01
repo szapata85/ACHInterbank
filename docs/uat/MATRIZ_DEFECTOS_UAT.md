@@ -1,5 +1,20 @@
 # Matriz de Defectos UAT - ACH Interbank
 
+## Actualizacion 2026-05-24 - Fase 6B.2 NACHA table-driven oficial
+
+- `NachaGenerationOptions.Mode` cambia a `TABLE_DRIVEN` como default oficial.
+- Export oficial ACH Colombia resuelve `OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0`.
+- Export oficial CENIT resuelve `OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0`.
+- Records 1/5/6/7/8/9 se renderizan desde `CfgLayoutVariant`/`CfgLayoutField`.
+- Faltantes de perfil/record/field/source/longitud/calculo fallan con codigos `NACHA_*` y 422 controlado.
+- `LoadLayoutsAsync`/`LoadDefinitionsAsync` no se invocan en modo oficial.
+- Legacy queda disponible solo con `Mode=LEGACY` explicito para pruebas historicas.
+
+Evidencia: `docs/uat/evidencias/nacha-config-table-driven/phase-6b2-builder/`.
+
+Estado DEF-UAT-020: **Parcial avanzado**. La generacion oficial table-driven queda OK tecnico UAT/local; siguen pendientes trace campo-a-campo, deprecacion SPA legacy, homologacion externa y aprobaciones formales.
+
+Productivo: **NO-GO**.
 Fecha de generacion/revalidacion: 2026-05-18 / 2026-05-19
 Version: 0.8
 Rama analizada: `fix/uat-operator-role-seed`
@@ -287,5 +302,31 @@ Productivo: **NO-GO**.
 | DEF-UAT-UX-SPA-REG-001 Regresion final SPA Angular | Cerrado tecnico frontend | `docs/ux/evidencias/spa-regression-final/spa-final-regression.json`, `docs/ux/REGRESION_FINAL_SPA_UAT.md` | Se auditaron 30 rutas con Playwright limpio: P0=0, P1=0, P2=0. Se mantiene auditoria global historica 23 rutas en P0=0/P1=0/P2=0. |
 
 Validacion: `npm run build` OK, `npm test -- --watch=false --browsers=ChromeHeadless` OK con 214 SUCCESS, `ux-audit-spa-critical-routes.mjs` OK, `ux-audit-spa-final-regression.mjs` OK y `ux-validate-reports-pdf.mjs` OK.
+
+Productivo: **NO-GO**.
+
+## Actualizacion 2026-05-24 - Fase 6A auditoria Opcion C NACHA-M
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-NACHA-OPTION-C-001 Dependencia funcional legacy en generacion NACHA-M | Abierto / Fase 6B | `docs/uat/evidencias/nacha-config-option-c-audit/legacy-dependency-map.md` | `NachaFileBuilder` sigue usando `NachaRecordDefinition`, `NachaRecordLayout` y `NachaRecordField`; modo default `LEGACY`. |
+| DEF-UAT-NACHA-OPTION-C-002 Perfil CENIT publicado completo no evidenciado | Abierto / Fase 6B | `docs/uat/evidencias/nacha-config-option-c-audit/clearing-house-separation-assessment.md` | `CatClearingHouse` existe para CENIT, pero no se evidencio perfil publicado completo para registros 1/5/6/7/8/9. |
+| DEF-UAT-NACHA-OPTION-C-003 Errores controlados Opcion C insuficientes | Abierto / Fase 6B | `docs/uat/evidencias/nacha-config-option-c-audit/controlled-errors-gap-analysis.md` | Missing profile/layout/field puede quedar como warning/fallback o excepcion generica. |
+| DEF-UAT-NACHA-OPTION-C-004 Trazabilidad FieldDefinition -> valor generado no normalizada | Abierto / Fase 6B | `docs/uat/evidencias/nacha-config-option-c-audit/traceability-gap-analysis.md` | No existe `NachaGenerationTraceEntry` persistido por campo para todos los registros. |
+| DEF-UAT-NACHA-OPTION-C-005 Ambiguedad SPA entre legacy y modulo oficial | Abierto / Fase 6B | `docs/uat/evidencias/nacha-config-option-c-audit/spa-route-assessment.md` | Legacy `/layouts` y `/definitions` siguen operativas; modulo oficial candidato es `/nacha-config-admin/perfiles`. |
+
+Fase 6A fue solo auditoria documental y estatica. No se modifico codigo, no se cambiaron reglas NACHA-M, no se crearon migraciones y no se cambio la generacion.
+
+Productivo: **NO-GO**.
+
+## Actualizacion 2026-05-24 - Fase 6B.1 perfiles oficiales NACHA-M
+
+| Defecto/Brecha | Estado | Evidencia | Observacion |
+|---|---|---|---|
+| DEF-UAT-NACHA-OPTION-C-002 Perfil CENIT publicado completo no evidenciado | Cerrado tecnico UAT para prerequisito 6B.1 | `docs/uat/evidencias/nacha-config-table-driven/phase-6b1-profiles/cenit_profile_summary.json` | Se crea `OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0`, publicado, vigente, con records 1/5/6/7/8/9. |
+| DEF-UAT-NACHA-OPTION-C-006 Perfil ACH Colombia oficial publicado completo | Cerrado tecnico UAT para prerequisito 6B.1 | `docs/uat/evidencias/nacha-config-table-driven/phase-6b1-profiles/ach_colombia_profile_summary.json` | Se crea `OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0`, publicado, vigente, con records 1/5/6/7/8/9. |
+| DEF-UAT-NACHA-OPTION-C-007 Independencia de perfiles ACH/CENIT | Cerrado tecnico UAT para prerequisito 6B.1 | `docs/uat/evidencias/nacha-config-table-driven/phase-6b1-profiles/profile_independence_report.md` | Perfiles, variants y fields son instancias separadas. |
+
+Brechas abiertas para Fase 6B.2: builder oficial table-driven, fail-fast, trace FieldDefinition -> valor generado, deprecacion legacy y SPA oficial.
 
 Productivo: **NO-GO**.

@@ -18,6 +18,100 @@ namespace Cfa.ACHInterbank.Tests;
 public class NachaExportControllerTests
 {
     [Fact]
+    public void ExportDto_ShouldExposeIsExportableAndUnavailableReason()
+    {
+        var dto = new AchCycleExportDto
+        {
+            Id = "8dbe5a2ce0da7c9eaff2a82d6a9e704c34ef77fa",
+            CycleId = "42",
+            ExportIdentifier = "42",
+            CycleName = "Ciclo exportable",
+            ProcessingDate = new DateTime(2026, 5, 25),
+            TransactionCount = 1,
+            IsExportable = false,
+            ExportUnavailableReason = "El ciclo tiene transacciones, pero no tiene lotes NACHA-M exportables asociados."
+        };
+
+        Assert.Equal("42", dto.CycleId);
+        Assert.Equal("42", dto.ExportIdentifier);
+        Assert.False(dto.IsExportable);
+        Assert.Contains("no tiene lotes", dto.ExportUnavailableReason);
+    }
+
+    [Fact]
+    public async Task NachaExport_ShouldReturnNotFoundWhenFileDoesNotExist()
+    {
+        const string identifier = "1b12995d45906869e194e237f3db64bfd7e07d2f";
+        var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
+        var crypto = new Mock<ICryptoServiceScoped>(MockBehavior.Strict);
+        var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
+        var clearingHouseService = new Mock<IClearingHouseService>(MockBehavior.Strict);
+        var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
+        var identifierMapService = new Mock<INachaFileIdentifierMapService>(MockBehavior.Strict);
+        var auditService = new Mock<IAchFileExportAuditService>(MockBehavior.Strict);
+        var externalFileNamePolicy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
+
+        cycleService
+            .Setup(c => c.GetByIdAsync(identifier, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AchCycleDto?)null);
+
+        var controller = new NachaExportController(
+            builder.Object,
+            crypto.Object,
+            cycleService.Object,
+            clearingHouseService.Object,
+            envelopePolicy.Object,
+            identifierMapService.Object,
+            auditService.Object,
+            externalFileNamePolicy.Object);
+
+        var result = await controller.Export(identifier, CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result);
+        builder.Verify(x => x.BuildNachaFileByCycleAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task NachaExport_ShouldReturnControlledErrorBodyFor422()
+    {
+        const string cycleId = "cycle-empty-controlled";
+        var controller = BuildControllerForEmptyExport(cycleId);
+
+        var result = await controller.Export(cycleId, CancellationToken.None);
+
+        var unprocessable = Assert.IsType<UnprocessableEntityObjectResult>(result);
+        var payload = unprocessable.Value;
+        Assert.NotNull(payload);
+        Assert.Contains("NACHA_NO_EXPORTABLE_CONTENT", payload.ToString());
+        Assert.Contains(cycleId, payload.ToString());
+    }
+
+    [Fact]
+    public async Task NachaExport_ShouldNotExposeSensitiveDataInError()
+    {
+        const string cycleId = "cycle-sensitive-error";
+        var controller = BuildControllerForEmptyExport(cycleId);
+
+        var result = await controller.Export(cycleId, CancellationToken.None);
+
+        var payload = Assert.IsType<UnprocessableEntityObjectResult>(result).Value?.ToString()?.ToLowerInvariant() ?? string.Empty;
+        Assert.DoesNotContain("password", payload);
+        Assert.DoesNotContain("token", payload);
+        Assert.DoesNotContain("secret", payload);
+        Assert.DoesNotContain("1234567890123456", payload);
+    }
+
+    [Fact]
+    public void NachaExport_ShouldUseExpectedIdentifierType()
+    {
+        var action = typeof(NachaExportController).GetMethod(nameof(NachaExportController.Export));
+
+        Assert.NotNull(action);
+        var parameter = action!.GetParameters().Single(x => x.Name == "cycleId");
+        Assert.Equal(typeof(string), parameter.ParameterType);
+    }
+
+    [Fact]
     public async Task Export_ReturnsPlainTextFileWithNachaContent_AndAuditsExport()
     {
         const string cycleId = "cycle-42";
@@ -333,5 +427,37 @@ public class NachaExportControllerTests
         var payload = unprocessable.Value?.ToString() ?? string.Empty;
         Assert.Contains("NACHA_EXPORT_PREREQUISITE_FAILED", payload);
         Assert.Contains("prenotificacion", payload);
+    }
+
+    private static NachaExportController BuildControllerForEmptyExport(string cycleId)
+    {
+        var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
+        var crypto = new Mock<ICryptoServiceScoped>(MockBehavior.Strict);
+        var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
+        var clearingHouseService = new Mock<IClearingHouseService>(MockBehavior.Strict);
+        var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
+        var identifierMapService = new Mock<INachaFileIdentifierMapService>(MockBehavior.Strict);
+        var auditService = new Mock<IAchFileExportAuditService>(MockBehavior.Strict);
+        var externalFileNamePolicy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
+
+        cycleService
+            .Setup(c => c.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchCycleDto { Id = cycleId, ClearingHouseId = 1, CycleName = "CICLO-1", ProcessingDate = DateTime.UtcNow });
+        clearingHouseService
+            .Setup(c => c.GetByIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ClearingHouseDto { Id = 1, Code = "ACHCOL", OriginCode = "12345678", Name = "ACH Colombia" });
+        builder
+            .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(string.Empty);
+
+        return new NachaExportController(
+            builder.Object,
+            crypto.Object,
+            cycleService.Object,
+            clearingHouseService.Object,
+            envelopePolicy.Object,
+            identifierMapService.Object,
+            auditService.Object,
+            externalFileNamePolicy.Object);
     }
 }

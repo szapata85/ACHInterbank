@@ -1,0 +1,6 @@
+﻿{
+    "legacyFallbackUsed":  false,
+    "code":  "NACHA_REQUIRED_FIELD_MISSING",
+    "httpStatus":  422,
+    "generatedFile":  false
+}

@@ -181,3 +181,45 @@ Productivo: **NO-GO**.
 | Mantener paquete UAT actualizado con estado SPA | Cerrado documental | `docs/uat/RESUMEN_EJECUTIVO_UAT_SOAP_END_TO_END.md`, `docs/uat/ACTA_UAT_SOAP_END_TO_END_FORMAL.md` | SPA indicada como OK tecnico UAT sin cambiar decision productiva |
 
 Siguiente paso: continuar UAT controlado y mantener Productivo **NO-GO** hasta cerrar homologacion externa, certificados/sobre digital, CENIT/CUD, backup/restore/rollback y aprobaciones formales.
+
+## Actualizacion 2026-05-24 - Plan Fase 6B Opcion C NACHA Config
+
+| Accion | Estado | Entregable | Criterio de cierre |
+|---|---|---|---|
+| Definir modo table-driven oficial estricto | Pendiente | Configuracion y guardrails backend | Sin fallback legacy para generacion oficial |
+| Crear perfiles oficiales ACH Colombia y CENIT | Pendiente | Perfiles publicados/vigentes con registros 1/5/6/7/8/9 | Cambios ACH no afectan CENIT y viceversa |
+| Migrar secuencia/layout/campos desde legacy a `Cfg*` | Pendiente | `CfgProfileRecord`, `CfgLayoutVariant`, `CfgLayoutField` completos | Builder no lee legacy en modo oficial |
+| Implementar errores controlados `NACHA_*` | Pendiente | API/servicios con errores funcionales | Missing profile/record/field falla controlado |
+| Persistir trace NACHA campo-a-campo | Pendiente | `NachaGenerationTrace` y entries | Evidencia FieldDefinition -> valor generado |
+| Declarar SPA oficial de perfiles | Pendiente | Menu/rutas y deprecacion legacy | Usuario no ve dos fuentes oficiales |
+| Tests Opcion C | Pendiente | Backend + Angular + evidencia UAT | Todos los escenarios oficiales pasan |
+
+Base documental: `docs/uat/evidencias/nacha-config-option-c-audit/phase-6b-implementation-plan.md`.
+
+Productivo permanece **NO-GO**.
+
+## Actualizacion 2026-05-24 - Cierre Fase 6B.2
+
+| Accion | Estado | Entregable | Criterio de cierre |
+|---|---|---|---|
+| Definir modo table-driven oficial estricto | Cerrado tecnico UAT | `NachaGenerationOptions.Mode=TABLE_DRIVEN` | Sin `LEGACY` como default oficial |
+| Usar perfiles oficiales ACH/CENIT en builder | Cerrado tecnico UAT | `NachaFileBuilder` + tests oficiales | ACH/CENIT resuelven perfiles publicados y vigentes |
+| Cortar fallback legacy oficial | Cerrado tecnico UAT | `no_legacy_fallback_report.md` | No se invoca `LoadLayoutsAsync`/`LoadDefinitionsAsync` en modo oficial |
+| Implementar fail-fast `NACHA_*` | Cerrado tecnico UAT | `NachaGenerationException`, API 422 | Missing profile/record/field/source/length/calculation falla controlado |
+| Persistir trace NACHA campo-a-campo | Pendiente Fase 6B.3 | Futuro `NachaGenerationTrace` | Evidencia FieldDefinition -> valor generado |
+| Declarar SPA oficial y deprecar legacy | Pendiente Fase 6B.4 | Rutas/UX/documentacion | Usuario no ve dos fuentes oficiales |
+
+Productivo permanece **NO-GO**.
+
+## Actualizacion 2026-05-24 - Cierre Fase 6B.1
+
+| Accion | Estado | Entregable | Criterio de cierre |
+|---|---|---|---|
+| Crear perfil oficial ACH Colombia | Cerrado tecnico UAT | `OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0` | Publicado, vigente y con records 1/5/6/7/8/9 |
+| Crear perfil oficial CENIT | Cerrado tecnico UAT | `OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0` | Publicado, vigente y con records 1/5/6/7/8/9 |
+| Validar independencia ACH/CENIT | Cerrado tecnico UAT | Tests backend + reporte independencia | No comparten profile/variants/fields |
+| Validar resolucion por `NachaConfigResolver` | Cerrado tecnico UAT | Tests backend + reporte resolucion | ACH y CENIT resuelven sin fallback |
+| Cambiar builder a oficial table-driven | Pendiente Fase 6B.2 | Cambio backend futuro | No usar legacy en modo oficial |
+| Implementar fail-fast y trace FieldDefinition -> valor | Pendiente Fase 6B.2 | Cambio backend futuro | Error controlado y evidencia por campo |
+
+Productivo permanece **NO-GO**.

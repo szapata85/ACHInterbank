@@ -141,3 +141,69 @@ export interface NachaConfigFilterCatalogs {
   direcciones: NachaConfigFilterCatalogOption[];
   servicios: NachaConfigFilterCatalogOption[];
 }
+
+export interface NachaConfigProfilesDashboardReadModel {
+  productiveStatus: string;
+  isOfficialModel: boolean;
+  legacyDeprecated: boolean;
+  profileCount: number;
+  publishedProfileCount: number;
+  currentProfileCount: number;
+  layoutVariantCount: number;
+  fieldCount: number;
+  clearingHouses: string[];
+  recordTypes: string[];
+  warnings: string[];
+}
+
+export interface NachaConfigProfileReadModel {
+  profileId: number;
+  profileCode: string;
+  profileName: string;
+  clearingHouseCode: string;
+  flowType: string;
+  status: string;
+  version: string;
+  isPublished: boolean;
+  isCurrent: boolean;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  layoutVariantCount: number;
+  fieldCount: number;
+  recordTypes: string[];
+  isOfficialModel: boolean;
+  legacyDeprecated: boolean;
+}
+
+export interface NachaConfigProfileDetailReadModel extends NachaConfigProfileReadModel {
+  variants: NachaConfigProfileVariantReadModel[];
+  fields: NachaConfigProfileFieldReadModel[];
+}
+
+export interface NachaConfigProfileVariantReadModel {
+  variantId: number;
+  variantCode: string;
+  recordType: string;
+  recordLength: number;
+  blockingFactor: number;
+  isActive: boolean;
+  fieldCount: number;
+}
+
+export interface NachaConfigProfileFieldReadModel {
+  fieldId: number;
+  recordType: string;
+  fieldName: string;
+  startPosition: number;
+  length: number;
+  endPosition: number;
+  dataType: string;
+  isRequired: boolean;
+  defaultValue?: string | null;
+  sourceFieldPath?: string | null;
+  paddingDirection: string;
+  paddingChar: string;
+  format?: string | null;
+  isComputed: boolean;
+  isControlTotalField: boolean;
+}

@@ -1,61 +1,63 @@
-# AGENTS.md — ACHInterbank (raíz)
+# AGENTS.md - ACHInterbank
 
-Este archivo aplica a todo el repositorio. Si existe otro `AGENTS.md` en subdirectorios, el más profundo tiene prioridad en su scope.
+Before making changes, read:
 
-## Stack técnico
-- Backend: .NET 10 (`net10.0`), EF Core Code First, PostgreSQL/SQL Server.
-- API principal: `src/Cfa.ACHInterbank.Api`.
-- Persistencia: `src/Cfa.ACHInterbank.Persistence`.
-- Tests backend: `tests/Cfa.ACHInterbank.Tests`.
-- Frontend SPA: Angular (`web/ach-interbank-ui`) con Karma + `ChromeHeadless`.
+- `docs/ai/ACH_PHASE6_CONTEXT.md`
 
-## Reglas de arquitectura y dominio (obligatorias)
-1. EF Code First es la fuente de verdad para esquema (no scripts SQL manuales como primarios).
-2. Mantener Clean Architecture (Application/Domain/Persistence/Api).
-3. No mover cálculos críticos NACHA (hash/totales/block count/controles) a configuración editable.
-4. No romper fallback legacy ni shadow compare en cambios del generador.
-5. Toda parametrización de negocio debe ser auditable.
+This file is the short entry point for Codex, OpenCode, Claude Code and other coding agents. The permanent Phase 6 NACHA-M context lives in `docs/ai/ACH_PHASE6_CONTEXT.md`.
 
-## Setup reproducible para Codex
-1. Ejecutar setup de entorno:
-   ```bash
-   bash scripts/codex/setup-codex-env.sh
-   ```
-2. Levantar PostgreSQL de test:
-   ```bash
-   docker compose -f docker-compose.test.yml --env-file .env.test.example up -d
-   ```
-3. Restaurar/build backend:
-   ```bash
-   dotnet restore ACHInterbank.sln
-   dotnet build ACHInterbank.sln -c Release
-   ```
-4. Aplicar migraciones EF (Postgres):
-   ```bash
-   dotnet ef database update \
-     --project src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj \
-     --startup-project src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj \
-     --context AchDbContext
-   ```
-5. Ejecutar tests backend:
-   ```bash
-   dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release
-   ```
-6. Frontend (Angular):
-   ```bash
-   cd web/ach-interbank-ui
-   npm ci
-   npm run build
-   npm test -- --watch=false --browsers=ChromeHeadless
-   ```
+## Core Rules
 
-## Si algo falla
-- Reportar el error exacto (comando + salida + causa probable).
-- No afirmar pruebas ejecutadas si no se ejecutaron realmente.
-- Si falta SDK/servicio, indicar bloqueo con acción concreta para destrabar.
+- Do not execute real SOAP calls.
+- Do not add real credentials.
+- Do not use real customer data.
+- Do not change production status.
+- Productivo remains NO-GO.
+- Do not modify NACHA-M golden files unless explicitly requested.
+- Do not modify the table-driven NACHA-M engine unless fixing a proven bug.
+- Do not generate migrations unless explicitly required.
+- Do not reduce test coverage.
+- Do not remove existing tests.
+- Preserve Clean Architecture boundaries: Application contracts, Domain rules, Persistence implementations, Api composition.
+- EF Code First remains the source of truth for schema changes.
 
-## Convenciones frontend
-- UI visible en español.
-- Listados en AG-GRID/ui-grilla-empresarial.
-- Formularios reactivos.
-- Acciones críticas: loading + disabled + anti doble click.
+## Build And Test Commands
+
+Use these commands after code changes:
+
+```bash
+dotnet build ACHInterbank.sln -c Release
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release
+```
+
+For a second run after a successful build:
+
+```bash
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build
+```
+
+Expected result:
+
+- Build succeeded.
+- 0 warnings.
+- 0 errors.
+- Tests passing.
+
+## Repository Map
+
+- Main API: `src/Cfa.ACHInterbank.Api`
+- Application contracts/models: `src/Cfa.ACHInterbank.Application`
+- Domain models/rules: `src/Cfa.ACHInterbank.Domain`
+- Persistence/infrastructure: `src/Cfa.ACHInterbank.Persistence`
+- Backend tests: `tests/Cfa.ACHInterbank.Tests`
+- NACHA golden files: `tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles`
+- Permanent AI context: `docs/ai/ACH_PHASE6_CONTEXT.md`
+
+## Phase 6 Current Guardrails
+
+- Fase 6B.3C/6B.3C.1 golden files are semireal, anonymized and not official certification artifacts.
+- Fase 6B.4 prepares internal incoming NACHA decisions.
+- Fase 6B.5 prepares controlled SOAP boundaries only.
+- `Proc_Contrapartidas` and `Proc_Transacciones` are monetary candidates and must remain blocked from real execution until an explicit later phase.
+- `RegistrarRespuestaTransaccion` is non-monetary and must not move money.
+- `None`, duplicates and `ManualReviewRequired` must not execute SOAP.

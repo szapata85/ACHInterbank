@@ -1,0 +1,33 @@
+{
+  "phase": "6A",
+  "scope": "NACHA-M Option C audit only",
+  "codeModified": false,
+  "generationChanged": false,
+  "migrationsCreated": false,
+  "legacyStatus": "functionally_used",
+  "nachaConfigStatus": "partial_candidate",
+  "builderDefaultMode": "LEGACY",
+  "officialScreenCandidate": "/nacha-config-admin/perfiles",
+  "legacyScreens": [
+    "/ach-cycles/nacha/layouts",
+    "/ach-cycles/nacha/definitions"
+  ],
+  "evidenceFiles": [
+    "executive-summary.md",
+    "current-state.md",
+    "legacy-dependency-map.md",
+    "official-profile-model-assessment.md",
+    "builder-flow-analysis.md",
+    "record-field-source-matrix.md",
+    "clearing-house-separation-assessment.md",
+    "spa-route-assessment.md",
+    "tests-coverage.md",
+    "controlled-errors-gap-analysis.md",
+    "traceability-gap-analysis.md",
+    "seeds-and-migrations-assessment.md",
+    "phase-6b-implementation-plan.md",
+    "option-c-readiness-score.json"
+  ],
+  "productionDecision": "NO-GO"
+}
+

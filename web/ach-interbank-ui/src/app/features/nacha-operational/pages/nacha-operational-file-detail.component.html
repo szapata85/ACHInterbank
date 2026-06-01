@@ -1,0 +1,100 @@
+<section class="nacha-operational-page">
+  <ui-migas-pan [items]="[
+    { etiqueta: 'Inicio', ruta: '/dashboard' },
+    { etiqueta: 'ACH' },
+    { etiqueta: 'Dashboard operacional', ruta: '/ach/nacha/operational-dashboard' },
+    { etiqueta: 'Detalle archivo' }
+  ]"></ui-migas-pan>
+
+  <ui-encabezado-pagina
+    titulo="Detalle operativo NACHA-M"
+    descripcion="Consulta read-only de header, batches, entries, addendas, controles y totales persistidos."
+  ></ui-encabezado-pagina>
+
+  <ui-alerta
+    tipo="advertencia"
+    titulo="Productivo NO-GO"
+    mensaje="Esta pantalla no reprocesa, no ejecuta SOAP, no mueve dinero y no descarga archivos productivos."
+  ></ui-alerta>
+
+  <ui-alerta
+    tipo="info"
+    titulo="Backend read-only sanitizado"
+    mensaje="El detalle usa el read-store persistido y enmascara cuentas, documentos, trazas y correlaciones sensibles."
+  ></ui-alerta>
+
+  <p class="back-link">
+    <a routerLink="/ach/nacha/operational-dashboard">Volver al dashboard</a>
+  </p>
+
+  <ui-alerta *ngIf="error" tipo="error" titulo="Detalle no disponible" [mensaje]="error"></ui-alerta>
+  <ui-estado-carga *ngIf="cargando" mensaje="Cargando detalle operativo NACHA-M..."></ui-estado-carga>
+
+  <ng-container *ngIf="detail as vm">
+    <section class="data-source-strip" aria-label="Fuente de datos">
+      <span class="badge" [ngClass]="vm.isPartialData ? 'badge-neutral' : 'badge-success'">Fuente: {{ vm.dataSource }}</span>
+      <span class="badge badge-success">NO SENSITIVE DATA: {{ vm.noSensitiveData }}</span>
+      <span class="badge badge-danger">NO-GO</span>
+    </section>
+
+    <ui-alerta
+      *ngIf="vm.warnings.length"
+      tipo="info"
+      titulo="Warnings operativos"
+      [mensaje]="vm.warnings.join(' ')"
+    ></ui-alerta>
+
+    <section class="summary-strip" aria-label="Resumen archivo">
+      <article><small>Archivo</small><strong>{{ vm.fileName }}</strong></article>
+      <article><small>Camara</small><strong>{{ vm.clearingHouseCode }}</strong></article>
+      <article><small>Perfil</small><strong>{{ vm.profileCode }}</strong></article>
+      <article><small>Flujo</small><strong>{{ vm.flowType }}</strong></article>
+      <article><small>Estado</small><strong>{{ vm.processingStatus }}</strong></article>
+      <article><small>Validado</small><strong>{{ vm.validationPassed }}</strong></article>
+      <article><small>CorrelationId</small><strong>{{ vm.correlationId }}</strong></article>
+      <article><small>Recibido</small><strong>{{ formatDate(vm.receivedAt) }}</strong></article>
+      <article><small>Records persistidos</small><strong>{{ vm.totalsSummary.persistedRecordCount }}</strong></article>
+    </section>
+
+    <ui-tarjeta titulo="Header" subtitulo="Header NACHA-M sanitizado.">
+      <section class="summary-strip" *ngIf="vm.header as header">
+        <article><small>HeaderId</small><strong>{{ header.headerId }}</strong></article>
+        <article><small>Priority</small><strong>{{ header.priorityCode }}</strong></article>
+        <article><small>Destination</small><strong>{{ header.immediateDestination }}</strong></article>
+        <article><small>Origin</small><strong>{{ header.immediateOrigin }}</strong></article>
+        <article><small>Fecha</small><strong>{{ header.fileCreationDate }}</strong></article>
+        <article><small>Hora</small><strong>{{ header.fileCreationTime }}</strong></article>
+        <article><small>Record size</small><strong>{{ header.recordSize }}</strong></article>
+        <article><small>Blocking</small><strong>{{ header.blockingFactor }}</strong></article>
+      </section>
+    </ui-tarjeta>
+
+    <ui-tarjeta titulo="Batches" subtitulo="BatchHeaders persistidos.">
+      <ui-grilla-empresarial [columnas]="columnasBatches" [datos]="vm.batches" [cargando]="cargando" tituloVacio="Sin batches"></ui-grilla-empresarial>
+    </ui-tarjeta>
+
+    <ui-tarjeta titulo="Entries" subtitulo="EntryDetails con cuentas y documentos enmascarados.">
+      <ui-grilla-empresarial [columnas]="columnasEntries" [datos]="vm.entries" [cargando]="cargando" tituloVacio="Sin entries"></ui-grilla-empresarial>
+    </ui-tarjeta>
+
+    <ui-tarjeta titulo="Addendas" subtitulo="AddendaRecords sanitizados.">
+      <ui-grilla-empresarial [columnas]="columnasAddendas" [datos]="vm.addendas" [cargando]="cargando" tituloVacio="Sin addendas"></ui-grilla-empresarial>
+    </ui-tarjeta>
+
+    <ui-tarjeta titulo="Controls" subtitulo="BatchControls y FileControls persistidos.">
+      <ui-grilla-empresarial [columnas]="columnasBatchControls" [datos]="vm.batchControls" [cargando]="cargando" tituloVacio="Sin batch controls"></ui-grilla-empresarial>
+      <ui-grilla-empresarial [columnas]="columnasFileControls" [datos]="vm.fileControls" [cargando]="cargando" tituloVacio="Sin file controls"></ui-grilla-empresarial>
+    </ui-tarjeta>
+
+    <ui-tarjeta titulo="Totals" subtitulo="Totales persistidos y conteos operativos.">
+      <section class="summary-strip">
+        <article><small>Batches</small><strong>{{ vm.totalsSummary.batchCount }}</strong></article>
+        <article><small>Entries</small><strong>{{ vm.totalsSummary.entryCount }}</strong></article>
+        <article><small>Addendas</small><strong>{{ vm.totalsSummary.addendaCount }}</strong></article>
+        <article><small>Records persistidos</small><strong>{{ vm.totalsSummary.persistedRecordCount }}</strong></article>
+        <article><small>Debitos</small><strong>{{ vm.totalsSummary.totalDebitAmount }}</strong></article>
+        <article><small>Creditos</small><strong>{{ vm.totalsSummary.totalCreditAmount }}</strong></article>
+      </section>
+    </ui-tarjeta>
+  </ng-container>
+</section>

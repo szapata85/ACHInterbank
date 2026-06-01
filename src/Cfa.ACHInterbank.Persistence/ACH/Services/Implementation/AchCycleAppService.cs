@@ -149,10 +149,16 @@ public class AchCycleAppService : IAchCycleAppService
             .Select(cycle => new AchCycleExportDto
             {
                 Id = cycle.Id,
+                CycleId = cycle.Id,
+                ExportIdentifier = cycle.Id,
                 CycleName = cycle.CycleName,
                 ProcessingDate = cycle.Transactions.Min(t => t.EffectiveEntryDate),
                 ClearingHouseName = cycle.ClearingHouse != null ? cycle.ClearingHouse.Name : null,
-                TransactionCount = cycle.Transactions.Count
+                TransactionCount = cycle.Transactions.Count,
+                IsExportable = cycle.Batches.Any(),
+                ExportUnavailableReason = cycle.Batches.Any()
+                    ? null
+                    : "El ciclo tiene transacciones, pero no tiene lotes NACHA-M exportables asociados."
             })
             .OrderByDescending(cycle => cycle.ProcessingDate)
             .ThenBy(cycle => cycle.Id)

@@ -1,4 +1,5 @@
 using System.Text;
+using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Implementation;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
@@ -15,6 +16,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -94,7 +96,15 @@ public class AchPreproductionCertificationTests
         var validation = new NachaTransactionValidationService(context, holidayService.Object);
         var renderer = new NachaFixedWidthRecordRenderer();
         var recordDataProvider = new NachaRecordDataProvider(context);
-        var builder = new NachaFileBuilder(context, holidayService.Object, loader, validation, renderer, recordDataProvider, new NachaSemanticValidator());
+        var builder = new NachaFileBuilder(
+            context,
+            holidayService.Object,
+            loader,
+            validation,
+            renderer,
+            recordDataProvider,
+            new NachaSemanticValidator(),
+            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY" }));
 
         var content = await builder.BuildNachaFileAsync([100], CancellationToken.None);
         var expected = BuildExpectedNachaGoldenMaster(type, transactionCode, isPrenotification, amount, recipientIdNumber, receiverName, batchDescription, traceNumber);

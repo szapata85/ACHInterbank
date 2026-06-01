@@ -27,4 +27,9 @@
     <ProjectReference Include="..\..\src\Cfa.ACHInterbank.Domain\Cfa.ACHInterbank.Domain.csproj" />
     <ProjectReference Include="..\..\src\Cfa.ACHInterbank.Persistence\Cfa.ACHInterbank.Persistence.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="TestData\Nacha\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

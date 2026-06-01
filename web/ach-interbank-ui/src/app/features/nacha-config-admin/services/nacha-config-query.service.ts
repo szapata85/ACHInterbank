@@ -10,6 +10,26 @@ export class NachaConfigQueryService {
     return this.api.listarPerfiles().pipe(map((rows) => rows ?? []));
   }
 
+  dashboardReadOnly() {
+    return this.api.dashboardReadOnly();
+  }
+
+  perfilesReadOnly() {
+    return this.api.listarPerfilesReadOnly().pipe(map((rows) => rows ?? []));
+  }
+
+  detalleReadOnly(profileId: number) {
+    return this.api.obtenerPerfilReadOnly(profileId);
+  }
+
+  variantesReadOnly(profileId: number) {
+    return this.api.variantesReadOnly(profileId).pipe(map((rows) => rows ?? []));
+  }
+
+  fieldsReadOnly(profileId: number) {
+    return this.api.fieldsReadOnly(profileId).pipe(map((rows) => rows ?? []));
+  }
+
   catalogosFiltro() {
     return this.api.catalogosFiltro().pipe(map((catalogos) => ({
       estados: catalogos?.estados ?? [],

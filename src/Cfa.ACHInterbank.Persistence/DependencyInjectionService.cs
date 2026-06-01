@@ -142,6 +142,7 @@ public static class DependencyInjectionService
         services.AddScoped<IAchReturnOfReturnEligibilityService, AchReturnOfReturnEligibilityService>();
         services.AddScoped<IAchReturnOfReturnFileGenerationService, AchReturnOfReturnFileGenerationService>();
         services.AddScoped<IAchIncomingReturnIngestionService, AchIncomingReturnIngestionService>();
+        services.AddScoped<IAchReconciliationReadModelService, AchReconciliationReadModelService>();
         services.AddSingleton<IAchReturnGenerationLockService, AchReturnGenerationLockService>();
 
         services.AddQuartz(q =>
