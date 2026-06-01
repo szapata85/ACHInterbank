@@ -66,3 +66,15 @@ Escenarios que pasan a ronda ampliada por observacion/no ejecucion: UAT-ACH-001,
 | UAT-EXP-005 | Ambas | Guardas read-only, NO-GO y no hash en evidencia CI | Playwright artifacts | Pendiente |
 
 La ronda ampliada no implica certificacion oficial ni habilitacion productiva.
+
+## Resultado ronda ampliada 6D.3
+
+| ID | Dataset | Resultado | Observacion |
+| --- | --- | --- | --- |
+| UAT-EXP-001 | DS-EXP-CONC-MANUAL, DS-EXP-ACH-RET-002 | OK | Manual review documentado sin mutaciones |
+| UAT-EXP-002 | DS-EXP-CONC-INCONS, DS-EXP-CEN-IN-002 | OK | Inconsistencia queda read-only |
+| UAT-EXP-003 | DS-EXP-CEN-CYCLE | Observado | Ciclo/cola/neteo CENIT requiere evidencia externa |
+| UAT-EXP-004 | DS-EXP-PRENOTE-REJ, DS-EXP-PRENOTE-APP | OK | Prenote no monetaria documentada |
+| UAT-EXP-005 | DS-EXP-CI-GUARDS, DS-EXP-SOAP-READONLY | OK | Guardas NO-GO/no mutacion/no hash confirmadas |
+
+Detalle: `docs/uat/UAT_EXPANDED_EXECUTION_ROUND.md`.

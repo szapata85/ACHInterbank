@@ -33,6 +33,18 @@ Decision vigente: Productivo permanece NO-GO.
 | RSK-007 | Warnings Browserslist/Node siguen diferidos; no se cambian dependencias mayores pre-UAT | Mitigado |
 | RSK-009 | Fuentes parciales se validaran con datos ampliados cargados en UAT | Abierto |
 
+## Actualizacion 6D.3
+
+| ID | Actualizacion | Estado |
+| --- | --- | --- |
+| RSK-001 | Ronda ampliada ejecutada con dataset sintetico; golden/evidencia siguen sin reemplazar certificacion oficial | Abierto |
+| RSK-002 | Certificacion oficial ACH Colombia/CENIT sigue pendiente | Abierto |
+| RSK-003 | SOAP real continua bloqueado; guardas CI/read-only confirmadas | Abierto |
+| RSK-005 | Dataset sintetico ampliado cargado/documentado para UAT interno | Mitigacion ampliada |
+| RSK-006 | Manual review e inconsistencias cubiertas documentalmente en UAT-EXP-001/002 | Mitigacion ampliada |
+| RSK-009 | Ciclo/cola/neteo CENIT queda observado por falta de ejecucion externa | Abierto |
+| RSK-010 | Requiere validacion con operadores ACH/CENIT y anexos oficiales | Abierto |
+
 ## Condiciones bloqueantes
 
 - Cualquier SOAP real no autorizado.

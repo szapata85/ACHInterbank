@@ -562,6 +562,21 @@ Resultado:
 - No agrega codigo/tests/workflows, no modifica golden files, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
 - Recomendacion: ejecutar UAT ampliado en ambiente aislado con dataset sintetico cargado; Productivo permanece NO-GO.
 
+### Fase 6D.3 - Ejecucion UAT ampliado con dataset sintetico cargado
+
+Estado:
+Completada.
+
+Resumen:
+Se documento ejecucion UAT ampliada con dataset sintetico cargado para UAT-EXP-001 a UAT-EXP-005, validando manual review, inconsistencias read-only, prenotes no monetarias y guardas CI/NO-GO. Ciclo/cola/neteo CENIT queda observado por requerir evidencia externa con operador.
+
+Resultado:
+- Nuevos docs: `UAT_EXPANDED_EXECUTION_ROUND.md`, `UAT_EXPANDED_DEFECTS_UPDATE.md`, `UAT_EXPANDED_EXECUTIVE_SUMMARY.md`.
+- Resultado ronda ampliada: 5 escenarios; 4 OK, 1 observado, 0 bloqueados, 0 no ejecutados.
+- Hallazgos: UAT-FND-006 cerrado, UAT-FND-003 parcial, UAT-FND-005 diferido, UAT-FND-001/002/004 pendientes, UAT-FND-007 nuevo por CENIT externo.
+- No agrega codigo/tests/workflows, no modifica golden files, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
+- Recomendacion: continuar UAT formal con terceros ACH Colombia/CENIT; Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.

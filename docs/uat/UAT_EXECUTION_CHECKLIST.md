@@ -43,10 +43,10 @@ Productivo permanece NO-GO. No SOAP real, no movimientos monetarios, no datos re
 
 | ID | Check | Evidencia esperada | Estado | Observacion |
 | --- | --- | --- | --- | --- |
-| UAT-EXP-CHK-001 | Datos sinteticos ampliados definidos | `UAT_EXPANDED_SYNTHETIC_DATASET.md` | Listo para ejecutar | Sin datos reales |
-| UAT-EXP-CHK-002 | Evidencia CI Playwright disponible | Artifacts `playwright-report`, `test-results`, `uat-evidence-playwright` | Listo para ejecutar | No reemplaza certificacion |
-| UAT-EXP-CHK-003 | Validacion manual review | Escenario UAT-EXP-001 | Pendiente | Causales ambiguas no mutan estados |
-| UAT-EXP-CHK-004 | Validacion inconsistencias | Escenario UAT-EXP-002 | Pendiente | Sin POST/PUT/PATCH/DELETE |
-| UAT-EXP-CHK-005 | Ciclo/cola/neteo CENIT sintetico | DS-EXP-CEN-CYCLE | Pendiente | Requiere ambiente UAT |
-| UAT-EXP-CHK-006 | Revision hallazgos cerrados | `UAT_ROUND_1_FINDINGS_CLOSURE.md` | Listo para ejecutar | UAT-FND-006 cerrado documentalmente |
-| UAT-EXP-CHK-007 | Revision hallazgos diferidos/externos | Matriz defectos actualizada | Listo para ejecutar | Certificacion/SOAP real siguen pendientes |
+| UAT-EXP-CHK-001 | Datos sinteticos ampliados definidos | `UAT_EXPANDED_SYNTHETIC_DATASET.md` | Ejecutado OK | Sin datos reales |
+| UAT-EXP-CHK-002 | Evidencia CI Playwright disponible | Artifacts `playwright-report`, `test-results`, `uat-evidence-playwright` | Ejecutado OK | No reemplaza certificacion |
+| UAT-EXP-CHK-003 | Validacion manual review | Escenario UAT-EXP-001 | Ejecutado OK | Causales ambiguas no mutan estados |
+| UAT-EXP-CHK-004 | Validacion inconsistencias | Escenario UAT-EXP-002 | Ejecutado OK | Sin POST/PUT/PATCH/DELETE |
+| UAT-EXP-CHK-005 | Ciclo/cola/neteo CENIT sintetico | DS-EXP-CEN-CYCLE | Ejecutado con observacion | Requiere evidencia externa con operador CENIT |
+| UAT-EXP-CHK-006 | Revision hallazgos cerrados | `UAT_ROUND_1_FINDINGS_CLOSURE.md` | Ejecutado OK | UAT-FND-006 cerrado documentalmente |
+| UAT-EXP-CHK-007 | Revision hallazgos diferidos/externos | Matriz defectos actualizada | Ejecutado con observacion | Certificacion/SOAP real/CENIT externo siguen pendientes |
