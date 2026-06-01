@@ -30,6 +30,11 @@ npm run e2e
 - Screenshots funcionales generados por specs de evidencia.
 - Traces/videos/screenshots automaticos en fallos segun `playwright.config.ts`.
 
+## Trazabilidad UAT
+
+- Matriz requisito-norma-codigo-prueba-evidencia: `docs/uat/REQUIREMENT_TRACEABILITY_MATRIX.md`.
+- Paquete UAT consolidado: `docs/uat/UAT_EVIDENCE_PACKAGE.md`.
+
 ## Garantias
 
 - Productivo permanece NO-GO.
