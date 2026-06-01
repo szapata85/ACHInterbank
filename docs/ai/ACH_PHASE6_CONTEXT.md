@@ -547,6 +547,21 @@ Resultado:
 - No agrega codigo, no modifica golden files, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
 - Recomendacion: continuar UAT formal ampliado; Productivo permanece NO-GO.
 
+### Fase 6D.2 - Cierre de hallazgos UAT ronda 1 y preparacion UAT ampliado
+
+Estado:
+Completada.
+
+Resumen:
+Se clasificaron y priorizaron los 6 hallazgos de ronda 1, cerrando quick wins documentales y dejando brechas externas/certificacion diferidas con plan de accion. Se preparo UAT ampliado con nuevos escenarios de manual review, inconsistencias, ciclo/cola/neteo CENIT y dataset sintetico ampliado.
+
+Resultado:
+- Nuevos docs: `UAT_ROUND_1_FINDINGS_CLOSURE.md`, `UAT_EXPANDED_ROUND_PLAN.md`, `UAT_EXPANDED_SYNTHETIC_DATASET.md`.
+- Hallazgos: 1 cerrado documentalmente, 1 parcial, 1 diferido, 3 pendientes externos/certificacion/UAT ampliado.
+- Nuevos escenarios: UAT-EXP-001 a UAT-EXP-005; nuevos datasets propuestos: DS-EXP-*.
+- No agrega codigo/tests/workflows, no modifica golden files, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
+- Recomendacion: ejecutar UAT ampliado en ambiente aislado con dataset sintetico cargado; Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.

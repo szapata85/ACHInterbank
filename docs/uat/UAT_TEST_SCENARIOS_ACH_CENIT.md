@@ -52,3 +52,17 @@ Restricciones globales: Productivo NO-GO, datos sinteticos, sin SOAP real, sin m
 | No ejecutado | UAT-CEN-005 |
 
 Detalle y defectos/hallazgos: `docs/uat/UAT_EXECUTION_ROUND_1.md` y `docs/uat/UAT_DEFECTS_MATRIX.md`.
+
+## Preparacion ronda ampliada 6D.2
+
+Escenarios que pasan a ronda ampliada por observacion/no ejecucion: UAT-ACH-001, UAT-ACH-002, UAT-ACH-003, UAT-ACH-004, UAT-ACH-007, UAT-CEN-001, UAT-CEN-002, UAT-CEN-003, UAT-CEN-004 y UAT-CEN-005.
+
+| ID | Camara | Objetivo | Evidencia esperada | Estado inicial |
+| --- | --- | --- | --- | --- |
+| UAT-EXP-001 | Ambas | Causal ambigua clasifica manual review | Consola conciliacion | Pendiente |
+| UAT-EXP-002 | Ambas | Respuesta diferencial inconsistente queda sin mutacion | Conciliacion/read-only | Pendiente |
+| UAT-EXP-003 | CENIT | Ciclo/cola/neteo sintetico visible sin movimiento | Dashboard/read-store | Pendiente |
+| UAT-EXP-004 | ACH Colombia | Prenote rechazada con causal homologada | Conciliacion/auditoria | Pendiente |
+| UAT-EXP-005 | Ambas | Guardas read-only, NO-GO y no hash en evidencia CI | Playwright artifacts | Pendiente |
+
+La ronda ampliada no implica certificacion oficial ni habilitacion productiva.

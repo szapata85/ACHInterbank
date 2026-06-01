@@ -21,6 +21,18 @@ Decision vigente: Productivo permanece NO-GO.
 | RSK-015 | Drift entre comandos locales y CI | Resultados UAT no reproducibles | Usar `docs/uat/PRE_UAT_AUTOMATED_CHECKLIST.md` y workflows revisados | Mitigado |
 | RSK-016 | Duplicidad de dependencias E2E | Version efectiva ambigua en `npm ci` | `@playwright/test` duplicado removido de `package.json` | Mitigado |
 
+## Actualizacion 6D.2
+
+| ID | Actualizacion | Estado |
+| --- | --- | --- |
+| RSK-001 | Se mantiene como brecha de certificacion; la ronda ampliada agrega dataset mas representativo pero no reemplaza certificacion oficial | Abierto |
+| RSK-002 | Se mantiene pendiente de tercero/comite ACH Colombia/CENIT | Abierto |
+| RSK-003 | SOAP real sigue bloqueado; UAT ampliado conserva consola read-only | Abierto |
+| RSK-005 | Dataset sintetico ampliado definido en `UAT_EXPANDED_SYNTHETIC_DATASET.md` | Mitigacion ampliada |
+| RSK-006 | Escenarios nuevos manual review/inconsistencia/ciclo CENIT agregados | Mitigacion ampliada |
+| RSK-007 | Warnings Browserslist/Node siguen diferidos; no se cambian dependencias mayores pre-UAT | Mitigado |
+| RSK-009 | Fuentes parciales se validaran con datos ampliados cargados en UAT | Abierto |
+
 ## Condiciones bloqueantes
 
 - Cualquier SOAP real no autorizado.
