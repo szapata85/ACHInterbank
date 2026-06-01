@@ -25,3 +25,7 @@ Productivo permanece NO-GO. Seguridad no esta aprobada hasta completar este chec
 ## Nota 6D.6
 
 La columna `Simulacion 6D.6` clasifica preparacion documental. No equivale a aprobacion formal.
+
+## Nota 6D.7
+
+Solicitud formal preparada en `SECURITY_COMPLIANCE_REVIEW_REQUEST.md`. Esto no cambia ningun estado a `Aprobado`; Seguridad/Compliance siguen pendientes.

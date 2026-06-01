@@ -1,5 +1,7 @@
 # Borrador solicitud aprobacion Seguridad/Compliance - Fase 6D.6
 
+Estado 6D.7: reemplazado por solicitud formal `docs/uat/SECURITY_COMPLIANCE_REVIEW_REQUEST.md`. Este borrador se conserva como antecedente y no representa aprobacion.
+
 ## Proposito
 
 Solicitar revision formal de Seguridad/Compliance para pre-habilitar intercambio controlado de parametros UAT con ACH Colombia/CENIT en ambiente aislado.

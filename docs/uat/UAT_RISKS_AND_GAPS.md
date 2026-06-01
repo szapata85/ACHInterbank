@@ -80,6 +80,17 @@ Decision vigente: Productivo permanece NO-GO.
 | RSK-035 | Acta Productivo NO-GO pendiente | Riesgo de interpretacion de alcance | Evidencia NO-GO solicitada a Compliance | Abierto |
 | RSK-036 | Evidencia terceros pendiente | Bloquea UAT externo/certificacion | Mantener dependencias ACH/CENIT visibles | Abierto |
 
+## Actualizacion 6D.7
+
+| ID | Riesgo / brecha | Impacto | Mitigacion | Estado |
+| --- | --- | --- | --- | --- |
+| RSK-037 | Aprobacion formal no otorgada | Bloquea recepcion/carga de parametros reales | Matriz decision y solicitud formal | Abierto |
+| RSK-038 | Evidencia incompleta para envio | Puede retrasar revision | Checklist de envio y gap analysis | Abierto |
+| RSK-039 | Canal seguro no definido formalmente | Bloquea intercambio con terceros | Decision DEC-002 pendiente | Abierto |
+| RSK-040 | Custodia pendiente de aprobacion | Bloquea secretos/certificados | Decision DEC-003 pendiente | Abierto |
+| RSK-041 | Terceros pendientes | Bloquea UAT externo/certificacion | Paquete externo y RACI para aceptacion | Abierto |
+| RSK-042 | Riesgo interpretacion NO-GO | Puede confundirse con autorizacion productiva | `PRODUCTIVE_NO_GO_ATTESTATION.md` | Abierto |
+
 ## Condiciones bloqueantes
 
 - Cualquier SOAP real no autorizado.

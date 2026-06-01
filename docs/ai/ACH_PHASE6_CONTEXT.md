@@ -623,6 +623,21 @@ Resultado:
 - No agrega codigo/tests/workflows, no crea credenciales/endpoints/certificados, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
 - Recomendacion: enviar borrador de solicitud a Seguridad/Compliance y bloquear cualquier carga hasta decision formal; Productivo permanece NO-GO.
 
+### Fase 6D.7 - Solicitud formal Seguridad/Compliance y paquete aprobacion externa
+
+Estado:
+Completada.
+
+Resumen:
+Se convirtio el borrador 6D.6 en paquete formal listo para presentar a Seguridad, Compliance, Tecnologia, Operaciones y Mesa UAT. Incluye solicitud formal, indice de anexos, matriz de decision, checklist de envio y declaracion Productivo NO-GO.
+
+Resultado:
+- Nuevos docs: `SECURITY_COMPLIANCE_REVIEW_REQUEST.md`, `EXTERNAL_APPROVAL_PACKAGE_INDEX.md`, `SECURITY_COMPLIANCE_DECISION_MATRIX.md`, `SECURITY_REVIEW_SUBMISSION_CHECKLIST.md`, `PRODUCTIVE_NO_GO_ATTESTATION.md`.
+- Estado: listo para presentacion; revision/aprobaciones siguen pendientes, sin decisiones aprobadas.
+- Decisiones DEC-001 a DEC-011 quedan `Pendiente`; DEC-012 `No aplica`.
+- No agrega codigo/tests/workflows, no crea credenciales/endpoints/certificados, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
+- Recomendacion: presentar paquete formal y esperar decision antes de cualquier intercambio/carga; Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.
