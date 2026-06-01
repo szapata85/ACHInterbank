@@ -49,6 +49,11 @@
 - Plantilla acta comite: `docs/uat/EXECUTIVE_MEETING_MINUTES_TEMPLATE.md`.
 - Checklist anexos comite: `docs/uat/EXECUTIVE_APPENDIX_CHECKLIST.md`.
 - Dashboard ejecutivo riesgos/estado: `docs/uat/EXECUTIVE_RISK_STATUS_DASHBOARD.md`.
+- Registro decision comite ejecutivo: `docs/uat/EXECUTIVE_COMMITTEE_DECISION_RECORD.md`.
+- Plan ejecucion post-comite: `docs/uat/POST_COMMITTEE_EXECUTION_PLAN.md`.
+- Plan respuesta observaciones ejecutivas: `docs/uat/EXECUTIVE_OBSERVATION_RESPONSE_PLAN.md`.
+- Matriz acciones post-comite: `docs/uat/POST_COMMITTEE_ACTION_MATRIX.md`.
+- Log evidencias decision comite: `docs/uat/COMMITTEE_DECISION_EVIDENCE_LOG.md`.
 - Contexto Phase 6: `docs/ai/ACH_PHASE6_CONTEXT.md`.
 - Auditoria legacy: `docs/ai/ACH_PHASE6_LEGACY_AUDIT.md`.
 - Golden files semirreales: `tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles`.
@@ -68,9 +73,10 @@
 10. Revisar paquete formal 6D.7 para presentacion a Seguridad/Compliance.
 11. Usar registros 6D.8 para documentar decision y responder observaciones sin asumir aprobacion.
 12. Presentar paquete ejecutivo 6D.9 y registrar decisiones sin asumir aprobacion.
-13. Ejecutar checklist y escenarios UAT con terceros en ambiente formal solo tras aprobacion.
-14. Registrar defectos/hallazgos, riesgos/brechas y decision de comite.
-15. Confirmar que no hay SOAP real, movimientos monetarios, mutaciones criticas, legacy oficial ni `/NachaExport/{hash}`.
+13. Usar documentos 6D.10 para registrar decision formal y plan posterior sin asumir aprobacion.
+14. Ejecutar checklist y escenarios UAT con terceros en ambiente formal solo tras aprobacion.
+15. Registrar defectos/hallazgos, riesgos/brechas y decision de comite.
+16. Confirmar que no hay SOAP real, movimientos monetarios, mutaciones criticas, legacy oficial ni `/NachaExport/{hash}`.
 
 ## Limitacion
 
@@ -99,3 +105,7 @@ Preparado para registrar decision formal y observaciones. Decision Seguridad/Com
 ## Estado paquete ejecutivo 6D.9
 
 Listo para presentacion ejecutiva y solicitud formal de decision. Comite, Seguridad y Compliance siguen pendientes; no aprobado.
+
+## Estado registro post-comite 6D.10
+
+Preparado para registrar decision de comite y plan posterior. Decision de comite no recibida; no aprobado.

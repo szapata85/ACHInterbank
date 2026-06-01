@@ -114,6 +114,17 @@ Decision vigente: Productivo permanece NO-GO.
 | RSK-054 | Bloqueo por comite | Detiene UAT externo | Plantilla acta y decision request con impactos | Abierto |
 | RSK-055 | Dependencia de terceros persiste | Retrasa evidencia ACH/CENIT | RACI, ventanas y dashboard ejecutivo | Abierto |
 
+## Actualizacion 6D.10
+
+| ID | Riesgo / brecha | Impacto | Mitigacion | Estado |
+| --- | --- | --- | --- | --- |
+| RSK-056 | Decision de comite no recibida | Bloquea ejecucion posterior | Registro decision comite y evidence log | Abierto |
+| RSK-057 | Aprobacion con observaciones | Condiciona avance y exige cierre | Plan observaciones ejecutivas | Abierto |
+| RSK-058 | Rechazo formal | Detiene UAT externo | Plan remediacion condicionado | Abierto |
+| RSK-059 | Avance indebido antes de decision | Riesgo operativo/compliance | Matriz post-comite bloqueada por decision | Abierto |
+| RSK-060 | Confusion entre UAT externo y produccion | Riesgo de interpretacion GO | Productivo NO-GO en todos los documentos | Abierto |
+| RSK-061 | Evidencia insuficiente post-comite | Puede impedir ejecucion controlada | Log evidencias decision comite | Abierto |
+
 ## Condiciones bloqueantes
 
 - Cualquier SOAP real no autorizado.

@@ -2,6 +2,9 @@
 
 Productivo permanece NO-GO. Estados iniciales permitidos: `Pendiente`, `No aplica`. Ninguna decision inicia aprobada.
 
+Registro posterior asociado: `docs/uat/EXECUTIVE_COMMITTEE_DECISION_RECORD.md`.
+Plan posterior asociado: `docs/uat/POST_COMMITTEE_EXECUTION_PLAN.md`.
+
 | ID | Decision solicitada | Responsable sugerido | Evidencia soporte | Criterio decision | Impacto si se aprueba | Impacto si se rechaza | Restricciones | Estado inicial |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | EXD-001 | Autorizar revision formal Seguridad/Compliance | Comite UAT | `SECURITY_COMPLIANCE_REVIEW_REQUEST.md` | Paquete completo, sin secretos | Permite revision formal | Requiere ajustar paquete | No habilita productivo | Pendiente |
@@ -17,3 +20,7 @@ Productivo permanece NO-GO. Estados iniciales permitidos: `Pendiente`, `No aplic
 ## Resultado esperado
 
 Registrar decision ejecutiva y observaciones sin inventar aprobaciones. Cualquier aprobacion debe quedar respaldada por acta o evidencia formal.
+
+## Nota 6D.10
+
+La Fase 6D.10 prepara registro y plan post-comite. EXD-001 a EXD-009 permanecen `Pendiente` hasta decision formal.

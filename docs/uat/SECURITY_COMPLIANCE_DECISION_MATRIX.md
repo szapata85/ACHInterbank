@@ -6,6 +6,7 @@ Productivo permanece NO-GO. Estado inicial: todo `Pendiente` o `No aplica`.
 
 Registro formal asociado: `docs/uat/SECURITY_COMPLIANCE_DECISION_RECORD.md`.
 Solicitud ejecutiva asociada: `docs/uat/EXECUTIVE_DECISION_REQUEST.md`.
+Decision comite asociada: `docs/uat/EXECUTIVE_COMMITTEE_DECISION_RECORD.md`.
 
 | ID decision | Decision requerida | Responsable | Insumo/evidencia | Criterio de aprobacion | Estado | Observacion |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -29,3 +30,7 @@ La Fase 6D.8 agrega registro de decision y plan de observaciones. Sin evidencia 
 ## Nota 6D.9
 
 El paquete ejecutivo 6D.9 referencia esta matriz para solicitar decision de comite. No cambia estados: DEC-001 a DEC-011 siguen `Pendiente` y DEC-012 sigue `No aplica`.
+
+## Nota 6D.10
+
+La decision de comite sigue pendiente/no recibida. Esta matriz no cambia estados sin evidencia formal: DEC-001 a DEC-011 siguen `Pendiente` y DEC-012 sigue `No aplica`.

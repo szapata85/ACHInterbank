@@ -14,6 +14,9 @@ Productivo permanece NO-GO. Riesgos abiertos no autorizan produccion.
 | ERSK-008 | Ambiente aislado pendiente de evidencia | Bloquea pre-habilitacion | Alta | Abierto | Adjuntar evidencia sanitizada | Tecnologia/Seguridad | Autorizar preparacion ambiente |
 | ERSK-009 | Datos reales prohibidos | Limita representatividad | Media | Controlado | Dataset sintetico aprobado | Compliance | Ratificar restriccion |
 | ERSK-010 | Interpretacion incorrecta de NO-GO | Riesgo productivo/compliance | Alta | Abierto | Acta NO-GO y comunicacion ejecutiva | Auditoria/Compliance | Mantener NO-GO explicito |
+| ERSK-011 | Decision de comite no recibida | Bloquea plan posterior | Alta | Abierto | Registro decision 6D.10 | Comite UAT | Emitir decision formal |
+| ERSK-012 | Aprobacion condicionada con observaciones | Puede limitar avance | Media | Abierto | Plan respuesta observaciones ejecutivas | Mesa UAT | Definir condiciones |
+| ERSK-013 | Avance indebido sin decision formal | Riesgo operativo/compliance | Alta | Abierto | Matriz post-comite con bloqueos | Auditoria/Compliance | Ratificar bloqueo |
 
 ## Estado ejecutivo
 

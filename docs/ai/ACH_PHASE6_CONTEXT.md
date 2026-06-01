@@ -668,6 +668,21 @@ Resultado:
 - No agrega codigo/tests/workflows, no crea credenciales/endpoints/certificados, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
 - Recomendacion: presentar paquete ejecutivo, registrar decision y observaciones, y mantener bloqueada cualquier carga/intercambio hasta aprobacion formal; Productivo permanece NO-GO.
 
+### Fase 6D.10 - Registro decision comite y plan ejecucion posterior
+
+Estado:
+Completada.
+
+Resumen:
+Se preparo mecanismo documental para registrar la decision formal del comite ejecutivo y planear ejecucion posterior segun resultado: aprobado, aprobado con observaciones, rechazado, bloqueado, diferido o pendiente.
+
+Resultado:
+- Nuevos docs: `EXECUTIVE_COMMITTEE_DECISION_RECORD.md`, `POST_COMMITTEE_EXECUTION_PLAN.md`, `EXECUTIVE_OBSERVATION_RESPONSE_PLAN.md`, `POST_COMMITTEE_ACTION_MATRIX.md`, `COMMITTEE_DECISION_EVIDENCE_LOG.md`.
+- Decision de comite: pendiente; decision recibida: no recibida; no hay aprobaciones marcadas.
+- Certificados/endpoints/secretos siguen pendientes/no cargados, sin URLs, thumbprints ni valores reales.
+- No agrega codigo/tests/workflows, no crea credenciales/endpoints/certificados, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
+- Recomendacion: esperar decision formal, registrarla con evidencia y ejecutar solo el plan permitido por esa decision; Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.
