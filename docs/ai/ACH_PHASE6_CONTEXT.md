@@ -487,6 +487,20 @@ Resultado:
 - No SOAP real, no movimientos monetarios, no mutaciones, no secretos/payloads/cuentas/documentos completos, no legacy oficial.
 - Productivo permanece NO-GO.
 
+### Fase 6C.9 - Matriz requisito-norma-codigo-prueba-evidencia
+
+Estado:
+Completada.
+
+Resumen:
+Se agrego matriz UAT/auditoria `docs/uat/REQUIREMENT_TRACEABILITY_MATRIX.md` que conecta ACH Colombia MAN-004 V32, CENIT/Banco de la Republica, reglas NACHA-M, codigo, pruebas backend/Angular/Playwright, evidencia CI y estado. Se agrego indice compacto `docs/uat/UAT_EVIDENCE_PACKAGE.md` y referencia desde `docs/uat/PLAYWRIGHT_EVIDENCE.md`.
+
+Resultado:
+- Matriz documental read-only con 30 filas/requisitos.
+- Marca golden files como semirreales y certificacion ACH Colombia/CENIT como pendiente/oficial.
+- No agrega API/SPA, no ejecuta SOAP real, no mueve dinero, no muta estados, no usa secretos, no legacy oficial, no `/NachaExport/{hash}`.
+- Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.
