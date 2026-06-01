@@ -70,6 +70,16 @@ Decision vigente: Productivo permanece NO-GO.
 | RSK-030 | Autorizacion incompleta | UAT externo bloqueado o no auditable | Checklist aprobacion Seguridad/Compliance/Tecnologia | Abierto |
 | RSK-031 | Uso indebido de SOAP real | Riesgo operacional/monetario | Bloqueo SOAP hasta autorizacion formal | Abierto |
 
+## Actualizacion 6D.6
+
+| ID | Riesgo / brecha | Impacto | Mitigacion | Estado |
+| --- | --- | --- | --- | --- |
+| RSK-032 | Simulacion confundida con aprobacion real | Carga indebida de secretos/endpoints | Marcar aprobacion formal NO otorgada | Abierto |
+| RSK-033 | Evidencia faltante ambiente aislado | Bloquea pre-habilitacion externa | Gap analysis y checklist pre-habilitacion | Abierto |
+| RSK-034 | Canal seguro no aprobado | Bloquea intercambio con terceros | Solicitud formal Seguridad/Compliance | Abierto |
+| RSK-035 | Acta Productivo NO-GO pendiente | Riesgo de interpretacion de alcance | Evidencia NO-GO solicitada a Compliance | Abierto |
+| RSK-036 | Evidencia terceros pendiente | Bloquea UAT externo/certificacion | Mantener dependencias ACH/CENIT visibles | Abierto |
+
 ## Condiciones bloqueantes
 
 - Cualquier SOAP real no autorizado.

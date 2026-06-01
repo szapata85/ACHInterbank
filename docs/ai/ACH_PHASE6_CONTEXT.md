@@ -607,6 +607,22 @@ Resultado:
 - No agrega codigo/tests/workflows, no crea credenciales/endpoints/certificados, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
 - Recomendacion: solicitar aprobacion Seguridad/Compliance antes de cualquier carga en UAT aislado; Productivo permanece NO-GO.
 
+### Fase 6D.6 - Simulacion aprobacion Seguridad/UAT y pre-habilitacion externa
+
+Estado:
+Completada.
+
+Resumen:
+Se simulo documentalmente la revision Seguridad/Compliance y se preparo checklist de pre-habilitacion externa ACH Colombia/CENIT. La simulacion clasifica controles y evidencias, pero no otorga aprobacion formal.
+
+Resultado:
+- Nuevos docs: `SECURITY_APPROVAL_SIMULATION.md`, `EXTERNAL_PRE_ENABLEMENT_CHECKLIST.md`, `SECURITY_EVIDENCE_GAP_ANALYSIS.md`, `SECURITY_APPROVAL_REQUEST_DRAFT.md`.
+- Resultado simulado: aprobacion formal NO otorgada; pre-habilitacion externa condicionada; listo para solicitar revision, no para cargar secretos/certificados/endpoints.
+- Certificados/endpoints/secretos siguen pendientes/no cargados; algunos quedan en `Pendiente intercambio seguro`.
+- Riesgos nuevos: confusion simulacion/aprobacion, evidencia ambiente aislado faltante, canal seguro no aprobado, acta NO-GO pendiente y evidencia terceros pendiente.
+- No agrega codigo/tests/workflows, no crea credenciales/endpoints/certificados, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
+- Recomendacion: enviar borrador de solicitud a Seguridad/Compliance y bloquear cualquier carga hasta decision formal; Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.

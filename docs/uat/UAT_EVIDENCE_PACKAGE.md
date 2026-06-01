@@ -30,6 +30,10 @@
 - Modelo custodia secretos UAT: `docs/uat/UAT_SECRET_CUSTODY_MODEL.md`.
 - Checklist aprobacion Seguridad: `docs/uat/UAT_SECURITY_APPROVAL_CHECKLIST.md`.
 - Solicitudes evidencia Seguridad: `docs/uat/UAT_SECURITY_EVIDENCE_REQUESTS.md`.
+- Simulacion aprobacion Seguridad/UAT: `docs/uat/SECURITY_APPROVAL_SIMULATION.md`.
+- Checklist pre-habilitacion externa: `docs/uat/EXTERNAL_PRE_ENABLEMENT_CHECKLIST.md`.
+- Gap analysis evidencia Seguridad: `docs/uat/SECURITY_EVIDENCE_GAP_ANALYSIS.md`.
+- Borrador solicitud Seguridad/Compliance: `docs/uat/SECURITY_APPROVAL_REQUEST_DRAFT.md`.
 - Contexto Phase 6: `docs/ai/ACH_PHASE6_CONTEXT.md`.
 - Auditoria legacy: `docs/ai/ACH_PHASE6_LEGACY_AUDIT.md`.
 - Golden files semirreales: `tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles`.
@@ -45,9 +49,10 @@
 6. Revisar ejecucion UAT ampliada y actualizacion de defectos.
 7. Revisar paquete `EXTERNAL_UAT_*` para coordinacion con ACH Colombia/CENIT.
 8. Revisar paquete Seguridad 6D.5 antes de recibir/cargar certificados o endpoints.
-9. Ejecutar checklist y escenarios UAT con terceros en ambiente formal solo tras aprobacion.
-10. Registrar defectos/hallazgos, riesgos/brechas y decision de comite.
-11. Confirmar que no hay SOAP real, movimientos monetarios, mutaciones criticas, legacy oficial ni `/NachaExport/{hash}`.
+9. Revisar simulacion 6D.6 y brechas antes de enviar solicitud formal.
+10. Ejecutar checklist y escenarios UAT con terceros en ambiente formal solo tras aprobacion.
+11. Registrar defectos/hallazgos, riesgos/brechas y decision de comite.
+12. Confirmar que no hay SOAP real, movimientos monetarios, mutaciones criticas, legacy oficial ni `/NachaExport/{hash}`.
 
 ## Limitacion
 
@@ -60,3 +65,7 @@ Listo para coordinacion externa documental con ACH Colombia/CENIT. No listo para
 ## Estado seguridad 6D.5
 
 Preparacion de Seguridad/Compliance documentada. Certificados/endpoints/secretos permanecen pendientes, no cargados y no aprobados.
+
+## Estado simulacion 6D.6
+
+Listo para solicitar revision Seguridad/Compliance. No aprobado y no listo para cargar secretos/certificados/endpoints.
