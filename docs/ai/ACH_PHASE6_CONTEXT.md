@@ -577,6 +577,21 @@ Resultado:
 - No agrega codigo/tests/workflows, no modifica golden files, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
 - Recomendacion: continuar UAT formal con terceros ACH Colombia/CENIT; Productivo permanece NO-GO.
 
+### Fase 6D.4 - Preparacion de UAT externo con terceros ACH Colombia/CENIT
+
+Estado:
+Completada.
+
+Resumen:
+Se preparo el paquete documental para coordinar UAT externo con ACH Colombia y Banco de la Republica/CENIT, incluyendo readiness, RACI, ventanas, controles de seguridad y solicitudes de evidencia. UAT externo queda pendiente/no ejecutado.
+
+Resultado:
+- Nuevos docs: `EXTERNAL_UAT_PREPARATION_ACH_CENIT.md`, `EXTERNAL_UAT_RACI.md`, `EXTERNAL_UAT_WINDOW_PLAN.md`, `EXTERNAL_UAT_SECURITY_CONTROLS.md`, `EXTERNAL_UAT_EVIDENCE_REQUESTS.md`.
+- UAT-FND-007 queda asociado a ventana/evidencia CENIT externa; no se cierra sin tercero.
+- Riesgos nuevos: dependencia terceros, homologacion causales, ventana CENIT, certificados/endpoints, SOAP real controlado, datos externos, evidencia oficial y aprobacion Seguridad/Compliance.
+- No agrega codigo/tests/workflows, no crea credenciales/endpoints/certificados, no ejecuta SOAP real, no mueve dinero, no usa datos reales/secretos, no legacy oficial, no `/NachaExport/{hash}`.
+- Recomendacion: agendar UAT externo con RACI aceptado y seguridad aprobada; Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.

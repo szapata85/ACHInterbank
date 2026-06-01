@@ -45,6 +45,19 @@ Decision vigente: Productivo permanece NO-GO.
 | RSK-009 | Ciclo/cola/neteo CENIT queda observado por falta de ejecucion externa | Abierto |
 | RSK-010 | Requiere validacion con operadores ACH/CENIT y anexos oficiales | Abierto |
 
+## Actualizacion 6D.4
+
+| ID | Riesgo / brecha | Impacto | Mitigacion | Estado |
+| --- | --- | --- | --- | --- |
+| RSK-017 | Dependencia de terceros ACH Colombia/CENIT | Puede retrasar UAT externo y certificacion | RACI, ventanas y solicitudes de evidencia externas | Abierto |
+| RSK-018 | Homologacion oficial de causales pendiente | Puede mantener manual review o inconsistencias | Validar Anexos A/B con terceros y registrar evidencia | Abierto |
+| RSK-019 | Ventana CENIT no confirmada | Bloquea ciclo/cola/neteo externo | Plan de ventanas W-005/W-006 | Abierto |
+| RSK-020 | Certificados/endpoints externos pendientes | Bloquea pruebas integradas controladas | Controles de seguridad y canales seguros | Abierto |
+| RSK-021 | SOAP real controlado futuro | Riesgo operativo si se habilita sin autorizacion | Mantener bloqueo hasta acta formal | Abierto |
+| RSK-022 | Datos externos no autorizados | Riesgo privacidad/compliance | Usar dataset sintetico salvo autorizacion expresa | Abierto |
+| RSK-023 | Evidencia oficial incompleta | No permite cierre de certificacion | Solicitudes `EXTERNAL_UAT_EVIDENCE_REQUESTS.md` | Abierto |
+| RSK-024 | Aprobacion Seguridad/Compliance pendiente | Bloquea intercambio tecnico | RACI y controles de seguridad | Abierto |
+
 ## Condiciones bloqueantes
 
 - Cualquier SOAP real no autorizado.

@@ -20,6 +20,11 @@
 - Ejecucion UAT ampliada: `docs/uat/UAT_EXPANDED_EXECUTION_ROUND.md`.
 - Actualizacion defectos UAT ampliado: `docs/uat/UAT_EXPANDED_DEFECTS_UPDATE.md`.
 - Resumen ejecutivo UAT ampliado: `docs/uat/UAT_EXPANDED_EXECUTIVE_SUMMARY.md`.
+- Preparacion UAT externo ACH/CENIT: `docs/uat/EXTERNAL_UAT_PREPARATION_ACH_CENIT.md`.
+- RACI UAT externo: `docs/uat/EXTERNAL_UAT_RACI.md`.
+- Plan de ventanas UAT externo: `docs/uat/EXTERNAL_UAT_WINDOW_PLAN.md`.
+- Controles de seguridad UAT externo: `docs/uat/EXTERNAL_UAT_SECURITY_CONTROLS.md`.
+- Solicitudes de evidencia externa: `docs/uat/EXTERNAL_UAT_EVIDENCE_REQUESTS.md`.
 - Contexto Phase 6: `docs/ai/ACH_PHASE6_CONTEXT.md`.
 - Auditoria legacy: `docs/ai/ACH_PHASE6_LEGACY_AUDIT.md`.
 - Golden files semirreales: `tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles`.
@@ -33,10 +38,15 @@
 4. Revisar dataset sintetico y ejecucion controlada ronda 1.
 5. Revisar cierre de hallazgos ronda 1 y plan de UAT ampliado.
 6. Revisar ejecucion UAT ampliada y actualizacion de defectos.
-7. Ejecutar checklist y escenarios UAT con terceros en ambiente formal.
-8. Registrar defectos/hallazgos, riesgos/brechas y decision de comite.
-9. Confirmar que no hay SOAP real, movimientos monetarios, mutaciones criticas, legacy oficial ni `/NachaExport/{hash}`.
+7. Revisar paquete `EXTERNAL_UAT_*` para coordinacion con ACH Colombia/CENIT.
+8. Ejecutar checklist y escenarios UAT con terceros en ambiente formal solo tras aprobacion.
+9. Registrar defectos/hallazgos, riesgos/brechas y decision de comite.
+10. Confirmar que no hay SOAP real, movimientos monetarios, mutaciones criticas, legacy oficial ni `/NachaExport/{hash}`.
 
 ## Limitacion
 
 Este paquete organiza evidencia automatizada y trazabilidad interna. No reemplaza certificacion oficial ACH Colombia/CENIT ni aprobacion formal de salida productiva.
+
+## Estado coordinacion externa
+
+Listo para coordinacion externa documental con ACH Colombia/CENIT. No listo para productivo.
