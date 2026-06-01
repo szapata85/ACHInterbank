@@ -18,6 +18,8 @@ Decision vigente: Productivo permanece NO-GO.
 | RSK-012 | Uso accidental de `/NachaExport/{hash}` | Error funcional y trazabilidad incorrecta | Guardas Angular/Playwright; export solo por `cycleId` | Mitigado |
 | RSK-013 | Datos sensibles en evidencia | Riesgo auditoria/privacidad | Sanitizacion obligatoria; no adjuntar XML SOAP completo ni cuentas/documentos | Abierto |
 | RSK-014 | Movimiento monetario accidental | Riesgo financiero critico | Productivo NO-GO, SOAP real bloqueado, sin botones criticos | Mitigado |
+| RSK-015 | Drift entre comandos locales y CI | Resultados UAT no reproducibles | Usar `docs/uat/PRE_UAT_AUTOMATED_CHECKLIST.md` y workflows revisados | Mitigado |
+| RSK-016 | Duplicidad de dependencias E2E | Version efectiva ambigua en `npm ci` | `@playwright/test` duplicado removido de `package.json` | Mitigado |
 
 ## Condiciones bloqueantes
 

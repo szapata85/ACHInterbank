@@ -516,6 +516,22 @@ Resultado:
 - Certificacion oficial ACH Colombia/CENIT y SOAP real quedan pendientes/controlados.
 - Productivo permanece NO-GO.
 
+### Fase 6C.11 - Hardening tecnico pre-UAT y cierre de brechas automatizadas
+
+Estado:
+Completada.
+
+Resumen:
+Se agrego hardening tecnico pre-UAT y checklist automatizado para estabilizar comandos, workflows, evidencia Playwright y guardas criticos antes de UAT formal. Se revisaron workflows backend/frontend y se documento mitigacion de warnings Browserslist/Node y crash paralelo CLR/EF.
+
+Resultado:
+- Nuevos docs: `docs/uat/PRE_UAT_TECHNICAL_HARDENING.md`, `docs/uat/PRE_UAT_AUTOMATED_CHECKLIST.md`.
+- `angular-ci.yml` mantiene artefactos Playwright con `if: always()` y timeout de job.
+- `dotnet-ci.yml` usa `RunConfiguration.MaxCpuCount=1` para estabilidad backend.
+- `package.json` conserva una sola declaracion de `@playwright/test`.
+- No agrega features, no ejecuta SOAP real, no mueve dinero, no muta estados, no usa secretos, no legacy oficial, no `/NachaExport/{hash}`.
+- Productivo permanece NO-GO.
+
 ## 4. Decision arquitectonica oficial
 
 Opcion C: usar `nacha-config profiles` como modelo oficial.

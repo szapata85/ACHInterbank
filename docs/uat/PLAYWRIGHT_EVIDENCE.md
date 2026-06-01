@@ -34,6 +34,8 @@ npm run e2e
 
 - Matriz requisito-norma-codigo-prueba-evidencia: `docs/uat/REQUIREMENT_TRACEABILITY_MATRIX.md`.
 - Paquete UAT consolidado: `docs/uat/UAT_EVIDENCE_PACKAGE.md`.
+- Hardening tecnico pre-UAT: `docs/uat/PRE_UAT_TECHNICAL_HARDENING.md`.
+- Checklist automatizado pre-UAT: `docs/uat/PRE_UAT_AUTOMATED_CHECKLIST.md`.
 
 ## Garantias
 

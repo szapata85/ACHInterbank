@@ -8,6 +8,8 @@
 - Checklist ejecucion UAT: `docs/uat/UAT_EXECUTION_CHECKLIST.md`.
 - Escenarios UAT ACH/CENIT: `docs/uat/UAT_TEST_SCENARIOS_ACH_CENIT.md`.
 - Riesgos y brechas UAT: `docs/uat/UAT_RISKS_AND_GAPS.md`.
+- Hardening tecnico pre-UAT: `docs/uat/PRE_UAT_TECHNICAL_HARDENING.md`.
+- Checklist automatizado pre-UAT: `docs/uat/PRE_UAT_AUTOMATED_CHECKLIST.md`.
 - Contexto Phase 6: `docs/ai/ACH_PHASE6_CONTEXT.md`.
 - Auditoria legacy: `docs/ai/ACH_PHASE6_LEGACY_AUDIT.md`.
 - Golden files semirreales: `tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles`.
@@ -17,9 +19,10 @@
 
 1. Revisar filas con estado `Parcial`, `Pendiente`, `Requiere certificacion oficial` o `No aplica productivo NO-GO`.
 2. Validar artefactos CI `playwright-report`, `playwright-test-results` y `uat-evidence-playwright`.
-3. Ejecutar checklist y escenarios UAT con datos sinteticos.
-4. Registrar riesgos/brechas y decision de comite.
-5. Confirmar que no hay SOAP real, movimientos monetarios, mutaciones criticas, legacy oficial ni `/NachaExport/{hash}`.
+3. Ejecutar checklist automatizado pre-UAT y registrar observaciones tecnicas.
+4. Ejecutar checklist y escenarios UAT con datos sinteticos.
+5. Registrar riesgos/brechas y decision de comite.
+6. Confirmar que no hay SOAP real, movimientos monetarios, mutaciones criticas, legacy oficial ni `/NachaExport/{hash}`.
 
 ## Limitacion
 
