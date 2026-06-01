@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -33,6 +33,7 @@ type RegulatoryView =
 export class CenitRegulatoryPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(CenitRegulatoryApiService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   loading = false;
   error = '';
@@ -51,6 +52,7 @@ export class CenitRegulatoryPageComponent implements OnInit {
   subtitulo = '';
 
   rows: Array<Record<string, string>> = [];
+  columnasTabla: ColDef<Record<string, string>>[] = [];
 
   ngOnInit(): void {
     this.view = (this.route.snapshot.data['view'] as RegulatoryView) ?? 'causales-devolucion';
@@ -67,17 +69,6 @@ export class CenitRegulatoryPageComponent implements OnInit {
     return this.rows.filter((row) => Object.values(row).some((value) => value.toLowerCase().includes(lower)));
   }
 
-  get columnasTabla(): ColDef<Record<string, string>>[] {
-    const headers = this.filteredRows[0] ? Object.keys(this.filteredRows[0]) : [];
-    return headers.map((header) => ({
-      field: header,
-      headerName: header,
-      sortable: true,
-      filter: 'agTextColumnFilter',
-      tooltipValueGetter: (params) => (params.value == null ? '' : String(params.value))
-    }));
-  }
-
   get indicadoresRegulatorios(): Array<{ etiqueta: string; valor: string; estado: 'activo' | 'pendiente' | 'exitoso' }> {
     return [
       { etiqueta: 'Panel', valor: this.titulo, estado: 'activo' },
@@ -86,15 +77,32 @@ export class CenitRegulatoryPageComponent implements OnInit {
     ];
   }
 
+  get mensajeVacio(): string {
+    const map: Record<RegulatoryView, string> = {
+      'causales-devolucion': 'No hay causales de devolucion CENIT disponibles para los filtros aplicados.',
+      'causales-rechazo': 'No hay causales de rechazo CENIT disponibles para los filtros aplicados.',
+      'politicas-transaccion': 'No hay politicas de transaccion CENIT disponibles para los filtros aplicados.',
+      'politicas-devolucion': 'No hay politicas de devolucion CENIT disponibles para los filtros aplicados.',
+      'politicas-prenotificacion': 'No hay politicas de prenotificacion CENIT disponibles para los filtros aplicados.'
+    };
+
+    return map[this.view];
+  }
+
   limpiarFiltros(): void {
     this.filtroControl.setValue('');
+    this.cdr.markForCheck();
   }
 
   private load(): void {
     this.loading = true;
     this.error = '';
+    this.cdr.markForCheck();
 
-    const done = () => (this.loading = false);
+    const done = () => {
+      this.loading = false;
+      this.cdr.markForCheck();
+    };
 
     switch (this.view) {
       case 'causales-rechazo':
@@ -102,8 +110,8 @@ export class CenitRegulatoryPageComponent implements OnInit {
           .getFileRejectionCodes()
           .pipe(finalize(done))
           .subscribe({
-            next: (items) => (this.rows = items.map((item) => this.mapRejectionRow(item))),
-            error: () => (this.error = 'No fue posible consultar causales de rechazo.')
+            next: (items) => this.setRows(items.map((item) => this.mapRejectionRow(item))),
+            error: () => this.setError('No fue posible consultar causales de rechazo.')
           });
         return;
       case 'politicas-transaccion':
@@ -111,8 +119,8 @@ export class CenitRegulatoryPageComponent implements OnInit {
           .getTransactionTypePolicies()
           .pipe(finalize(done))
           .subscribe({
-            next: (items) => (this.rows = items.map((item) => this.mapTxPolicyRow(item))),
-            error: () => (this.error = 'No fue posible consultar políticas de transacción.')
+            next: (items) => this.setRows(items.map((item) => this.mapTxPolicyRow(item))),
+            error: () => this.setError('No fue posible consultar politicas de transaccion.')
           });
         return;
       case 'politicas-devolucion':
@@ -121,10 +129,10 @@ export class CenitRegulatoryPageComponent implements OnInit {
           .pipe(finalize(done))
           .subscribe({
             next: (items) => {
-              this.rows = items.map((item) => this.mapReturnPolicyRow(item));
+              this.setRows(items.map((item) => this.mapReturnPolicyRow(item)));
               this.loadReturnOfReturnPolicies();
             },
-            error: () => (this.error = 'No fue posible consultar políticas de devolución.')
+            error: () => this.setError('No fue posible consultar politicas de devolucion.')
           });
         return;
       case 'politicas-prenotificacion':
@@ -132,8 +140,8 @@ export class CenitRegulatoryPageComponent implements OnInit {
           .getPrenotificationPolicies()
           .pipe(finalize(done))
           .subscribe({
-            next: (items) => (this.rows = items.map((item) => this.mapPrenotePolicyRow(item))),
-            error: () => (this.error = 'No fue posible consultar políticas de prenotificación.')
+            next: (items) => this.setRows(items.map((item) => this.mapPrenotePolicyRow(item))),
+            error: () => this.setError('No fue posible consultar politicas de prenotificacion.')
           });
         return;
       default:
@@ -141,8 +149,8 @@ export class CenitRegulatoryPageComponent implements OnInit {
           .getReturnCodes()
           .pipe(finalize(done))
           .subscribe({
-            next: (items) => (this.rows = items.map((item) => this.mapReturnCodeRow(item))),
-            error: () => (this.error = 'No fue posible consultar causales de devolución.')
+            next: (items) => this.setRows(items.map((item) => this.mapReturnCodeRow(item))),
+            error: () => this.setError('No fue posible consultar causales de devolucion.')
           });
     }
   }
@@ -151,9 +159,31 @@ export class CenitRegulatoryPageComponent implements OnInit {
     this.api.getReturnOfReturnPolicies().subscribe({
       next: (items) => {
         const mapped = items.map((item) => this.mapReturnOfReturnPolicyRow(item));
-        this.rows = [...this.rows, ...mapped];
+        this.setRows([...this.rows, ...mapped]);
       }
     });
+  }
+
+  private setRows(rows: Array<Record<string, string>>): void {
+    this.rows = rows;
+    this.columnasTabla = this.buildColumns(rows);
+    this.cdr.markForCheck();
+  }
+
+  private setError(message: string): void {
+    this.error = message;
+    this.setRows([]);
+  }
+
+  private buildColumns(rows: Array<Record<string, string>>): ColDef<Record<string, string>>[] {
+    const headers = rows[0] ? Object.keys(rows[0]) : [];
+    return headers.map((header) => ({
+      field: header,
+      headerName: header,
+      sortable: true,
+      filter: 'agTextColumnFilter',
+      tooltipValueGetter: (params) => (params.value == null ? '' : String(params.value))
+    }));
   }
 
   private mapReturnCodeRow(row: CenitReturnCode): Record<string, string> {
