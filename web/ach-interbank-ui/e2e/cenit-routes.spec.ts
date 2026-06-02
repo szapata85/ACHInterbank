@@ -9,6 +9,7 @@ type CenitRoute = {
 
 const refreshEndpoint = /\/auth\/refresh$/;
 const apiPattern = /\/api\//;
+const runCenitE2e = process.env['RUN_CENIT_E2E'] === 'true';
 
 const routes: CenitRoute[] = [
   { id: 'cenit-regulatorio-causales-devolucion', path: '/cenit/regulatorio/causales-devolucion', expectedApi: /\/api\/regulatory-catalogs\/return-codes(?:\?|$)/, emptyText: /No hay causales de devolucion CENIT/i },
@@ -25,6 +26,12 @@ const routes: CenitRoute[] = [
 test.use({ ignoreHTTPSErrors: true });
 
 test.describe('CENIT routes render with API evidence', () => {
+  test.skip(!runCenitE2e, 'RUN_CENIT_E2E !== "true"; suite CENIT UAT/E2E omitida porque no hay ambiente vivo habilitado.');
+
+  test.beforeAll(async () => {
+    await validateEnvironment();
+  });
+
   test.beforeEach(async ({ page }) => {
     await authenticate(page);
   });
@@ -100,6 +107,30 @@ test.describe('CENIT routes render with API evidence', () => {
   }
 });
 
+async function validateEnvironment(): Promise<void> {
+  const uiUrl = process.env['ACH_UI_URL'];
+  const apiUrl = process.env['ACH_API_URL'];
+  const healthUrl = process.env['ACH_API_HEALTH_URL'] || (apiUrl ? joinUrl(apiUrl, '/health/live') : '');
+
+  if (!uiUrl) {
+    throw new Error('RUN_CENIT_E2E=true requiere ACH_UI_URL apuntando a la SPA UAT/local viva.');
+  }
+
+  if (!apiUrl && !process.env['ACH_API_HEALTH_URL']) {
+    throw new Error('RUN_CENIT_E2E=true requiere ACH_API_URL o ACH_API_HEALTH_URL para validar disponibilidad de API.');
+  }
+
+  try {
+    const response = await fetch(healthUrl, { signal: AbortSignal.timeout(10_000) });
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`API CENIT no disponible en health endpoint ${healthUrl}: ${message}`);
+  }
+}
+
 async function authenticate(page: Page): Promise<void> {
   const user = process.env['ACH_USER'];
   const pass = process.env['ACH_PASS'];
@@ -115,6 +146,10 @@ async function authenticate(page: Page): Promise<void> {
 
   await seedAuthenticatedSession(page);
   await mockAuthRefresh(page);
+}
+
+function joinUrl(baseUrl: string, path: string): string {
+  return `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 }
 
 async function seedAuthenticatedSession(page: Page): Promise<void> {
