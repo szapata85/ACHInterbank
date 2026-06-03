@@ -1,17 +1,15 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
-import { FormArray, FormBuilder, Validators } from '@angular/forms';
-import { ActivatedRoute, RouterModule } from '@angular/router';
-import { forkJoin } from 'rxjs';
+import { RouterModule } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { SharedModule } from '../../../shared/shared.module';
-import { NachaRecordFieldDto, NachaRecordLayoutDto } from '../models/nacha-layout.model';
-import { NachaLayoutsService } from '../services/nacha-layouts.service';
 import { NotificationService } from '../../../core/services/notification.service';
-import { NachaRecordDefinitionsService } from '../services/nacha-record-definitions.service';
-import { NachaRecordDefinitionDto } from '../models/nacha-record-definition.model';
+import { NachaConfigProfileReadModel } from '../../nacha-config-admin/models/nacha-config-admin.models';
+import { NachaConfigQueryService } from '../../nacha-config-admin/services/nacha-config-query.service';
 
-interface NachaLayoutRow extends NachaRecordLayoutDto {
-  fieldsCount: number;
+interface OfficialNachaConfigRow extends NachaConfigProfileReadModel {
+  direction: string;
+  serviceClassCode: string;
+  effectiveRange: string;
 }
 
 @Component({
@@ -23,314 +21,79 @@ interface NachaLayoutRow extends NachaRecordLayoutDto {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class NachaLayoutsComponent implements OnInit {
-  private readonly service = inject(NachaLayoutsService);
-  private readonly definitionsService = inject(NachaRecordDefinitionsService);
-  private readonly fb = inject(FormBuilder);
+  private readonly query = inject(NachaConfigQueryService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
-  private readonly route = inject(ActivatedRoute);
 
-  layouts: NachaLayoutRow[] = [];
-  definitionsByRecordCode: Record<string, NachaRecordDefinitionDto> = {};
+  profiles: OfficialNachaConfigRow[] = [];
   loading = false;
-  saving = false;
   loadError = '';
-  editing: NachaRecordLayoutDto | null = null;
-  readonly legacyReadOnly = true;
-
-  readonly sourceColumnsBySourceName: Record<string, string[]> = {
-    AchBatch: [
-      'ServiceClassCode',
-      'CompanyName',
-      'CompanyIdentification',
-      'CompanyEntryDescription',
-      'OriginOrOdfi',
-      'EffectiveEntryDate',
-      'BatchSequenceNumber',
-      'TotalDebitAmount',
-      'TotalCreditAmount'
-    ],
-    AchTransaction: [
-      'TransactionCode',
-      'ReceivingDFI',
-      'DestinationAccountNumber',
-      'Amount',
-      'Reference',
-      'RecipientIdNumber',
-      'DiscretionaryData',
-      'AddendumIndicator',
-      'TraceNumber',
-      'CompanyIdentification',
-      'EffectiveEntryDate',
-      'IsPrenotification',
-      'ServiceClassCode',
-      'CompanyEntryDescription',
-      'CompanyName',
-      'OriginatingDFI'
-    ],
-    AchTransactionAddenda: [
-      'AddendaType',
-      'Information',
-      'SequenceNumber',
-      'EntryDetailSequenceNumber'
-    ]
-  };
 
   readonly columns = [
-    { key: 'recordCode', label: 'Código', width: '110px' },
-    { key: 'recordType', label: 'Tipo de registro', width: '240px' },
-    { key: 'totalLength', label: 'Longitud', width: '130px' },
-    { key: 'fieldsCount', label: 'Campos', width: '130px' },
-    { key: 'description', label: 'Descripción', width: '320px' }
+    { key: 'profileCode', label: 'profileCode', width: '160px' },
+    { key: 'profileName', label: 'profileName', width: '240px' },
+    { key: 'clearingHouseCode', label: 'clearingHouseCode', width: '150px' },
+    { key: 'flowType', label: 'flowType', width: '150px' },
+    { key: 'direction', label: 'direction', width: '130px' },
+    { key: 'serviceClassCode', label: 'serviceClassCode', width: '170px' },
+    { key: 'status', label: 'status', width: '120px' },
+    { key: 'version', label: 'version', width: '110px' },
+    { key: 'effectiveFrom', label: 'effectiveFrom', width: '150px' },
+    { key: 'effectiveTo', label: 'effectiveTo', width: '150px' },
+    { key: 'layoutVariantCount', label: 'layoutVariantCount', width: '180px' },
+    { key: 'fieldCount', label: 'fieldCount', width: '130px' }
   ];
-
-  form = this.fb.nonNullable.group({
-    id: [0],
-    recordType: ['', [Validators.required, Validators.maxLength(100)]],
-    recordCode: ['', [Validators.required, Validators.maxLength(10)]],
-    totalLength: [106, [Validators.required, Validators.min(1)]],
-    description: [''],
-    fields: this.fb.array([])
-  });
-
-  get fields(): FormArray {
-    return this.form.get('fields') as FormArray;
-  }
 
   ngOnInit(): void {
     this.load();
   }
 
-  get totalLayouts(): number {
-    return this.layouts.length;
-  }
-
-  get totalFields(): number {
-    return this.layouts.reduce((total, layout) => total + layout.fieldsCount, 0);
-  }
-
-  get configuredDefinitions(): number {
-    return Object.keys(this.definitionsByRecordCode).length;
-  }
-
   load(): void {
-    const targetRecordCode = this.route.snapshot.queryParamMap.get('recordCode')?.trim();
     this.loading = true;
     this.loadError = '';
-    forkJoin({
-      layouts: this.service.getAll(),
-      definitions: this.definitionsService.getAll()
-    })
+
+    this.query.perfilesReadOnly()
       .pipe(finalize(() => {
         this.loading = false;
         this.cdr.markForCheck();
       }))
       .subscribe({
-        next: ({ layouts, definitions }) => {
-          this.layouts = (layouts ?? []).map((layout) => ({
-            ...layout,
-            fieldsCount: layout.fields?.length ?? 0
-          }));
-
-          this.definitionsByRecordCode = (definitions ?? []).reduce<Record<string, NachaRecordDefinitionDto>>((acc, item) => {
-            acc[item.recordCode] = item;
-            return acc;
-          }, {});
-
-          if (targetRecordCode && !this.legacyReadOnly) {
-            const selected = this.layouts.find((layout) => layout.recordCode === targetRecordCode);
-            if (selected) {
-              this.startEdit(selected);
-            }
-          }
-
+        next: (profiles) => {
+          this.profiles = profiles.map((profile) => this.mapProfile(profile));
           this.cdr.markForCheck();
         },
         error: () => {
-          this.layouts = [];
-          this.definitionsByRecordCode = {};
-          this.loadError = 'No fue posible cargar los layouts NACHA-M. Intente nuevamente.';
-          this.notifications.error('No fue posible cargar los layouts NACHA');
+          this.profiles = [];
+          this.loadError = 'No fue posible cargar nacha-config profiles oficiales.';
+          this.notifications.error('No fue posible cargar nacha-config profiles oficiales.');
           this.cdr.markForCheck();
         }
       });
   }
 
-  get currentSourceName(): string | null {
-    const recordCode = this.form.getRawValue().recordCode?.trim();
-    if (!recordCode) {
-      return null;
-    }
-
-    return this.definitionsByRecordCode[recordCode]?.sourceName ?? null;
-  }
-
-  get dbColumnOptions(): string[] {
-    const sourceName = this.currentSourceName;
-    if (!sourceName) {
-      return [];
-    }
-
-    return this.sourceColumnsBySourceName[sourceName] ?? [];
-  }
-
-  get useDbColumnSelect(): boolean {
-    return this.dbColumnOptions.length > 0;
-  }
-
-  startCreate(): void {
-    if (this.legacyReadOnly) {
-      this.notifyLegacyReadOnly();
-      return;
-    }
-
-    this.editing = null;
-    this.form.reset({
-      id: 0,
-      recordType: '',
-      recordCode: '',
-      totalLength: 106,
-      description: ''
-    });
-    this.fields.clear();
-    this.addField();
-    this.cdr.markForCheck();
-  }
-
-  startEdit(layout: NachaRecordLayoutDto): void {
-    if (this.legacyReadOnly) {
-      this.notifyLegacyReadOnly();
-      return;
-    }
-
-    this.editing = layout;
-    this.form.reset({
-      id: layout.id,
-      recordType: layout.recordType,
-      recordCode: layout.recordCode,
-      totalLength: layout.totalLength,
-      description: layout.description ?? ''
-    });
-    this.fields.clear();
-    (layout.fields ?? []).forEach((field) => this.addField(field));
-    if (this.fields.length === 0) {
-      this.addField();
-    }
-    this.cdr.markForCheck();
-  }
-
-  addField(field?: NachaRecordFieldDto): void {
-    if (this.legacyReadOnly) {
-      this.notifyLegacyReadOnly();
-      return;
-    }
-
-    this.fields.push(this.fb.group({
-      id: [field?.id ?? 0],
-      fieldName: [field?.fieldName ?? '', Validators.required],
-      startPosition: [field?.startPosition ?? 1, Validators.required],
-      length: [field?.length ?? 1, Validators.required],
-      padChar: [field?.padChar ?? ' '],
-      justification: [field?.justification ?? 'L'],
-      dbColumn: [field?.dbColumn ?? '', Validators.required],
-      format: [field?.format ?? '']
-    }));
-  }
-
-  removeField(index: number): void {
-    if (this.legacyReadOnly) {
-      this.notifyLegacyReadOnly();
-      return;
-    }
-
-    this.fields.removeAt(index);
-  }
-
-  cancel(): void {
-    this.editing = null;
-    this.form.reset();
-    this.fields.clear();
-    this.cdr.markForCheck();
-  }
-
-  save(): void {
-    if (this.legacyReadOnly) {
-      this.notifyLegacyReadOnly();
-      return;
-    }
-
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      return;
-    }
-
-    const payload = this.toPayload();
-    this.saving = true;
-
-    const request$ = payload.id
-      ? this.service.update(payload)
-      : this.service.create(payload);
-
-    request$
-      .pipe(finalize(() => {
-        this.saving = false;
-        this.cdr.markForCheck();
-      }))
-      .subscribe({
-        next: () => {
-          this.notifications.success('Layout guardado correctamente');
-          this.cancel();
-          this.load();
-        },
-        error: () => {
-          this.notifications.error('No fue posible guardar el layout');
-        }
-      });
-  }
-
-  remove(layout: NachaRecordLayoutDto): void {
-    if (this.legacyReadOnly) {
-      this.notifyLegacyReadOnly();
-      return;
-    }
-
-    if (!confirm(`¿Eliminar layout ${layout.recordCode}?`)) {
-      return;
-    }
-
-    this.service.delete(layout.id).subscribe({
-      next: () => {
-        this.notifications.success('Layout eliminado');
-        this.load();
-      },
-      error: () => {
-        this.notifications.error('No fue posible eliminar el layout');
-      }
-    });
-  }
-
-  private toPayload(): NachaRecordLayoutDto {
-    const raw = this.form.getRawValue();
+  private mapProfile(profile: NachaConfigProfileReadModel): OfficialNachaConfigRow {
     return {
-      id: raw.id,
-      recordType: raw.recordType,
-      recordCode: raw.recordCode,
-      totalLength: raw.totalLength,
-      description: raw.description || null,
-      fields: (raw.fields as NachaRecordFieldDto[] ?? []).map((field) => ({
-        id: field.id,
-        fieldName: field.fieldName,
-        startPosition: field.startPosition,
-        length: field.length,
-        padChar: field.padChar,
-        justification: field.justification,
-        dbColumn: field.dbColumn,
-        format: field.format || null
-      }))
+      ...profile,
+      direction: this.resolveDirection(profile),
+      serviceClassCode: this.resolveServiceClassCode(profile),
+      effectiveRange: `${this.date(profile.effectiveFrom)} a ${profile.effectiveTo ? this.date(profile.effectiveTo) : 'abierta'}`
     };
   }
 
-  private notifyLegacyReadOnly(): void {
-    this.notifications.info('Pantalla legacy en modo diagnostico read-only. La configuracion oficial NACHA-M se administra en nacha-config profiles.');
+  private resolveDirection(profile: NachaConfigProfileReadModel): string {
+    const text = `${profile.profileCode} ${profile.profileName} ${profile.flowType}`.toLowerCase();
+    if (text.includes('incoming') || text.includes('entrada')) return 'Incoming';
+    if (text.includes('outgoing') || text.includes('salida')) return 'Outgoing';
+    if (text.includes('return') || text.includes('devolucion')) return 'Return';
+    return '-';
+  }
+
+  private resolveServiceClassCode(profile: NachaConfigProfileReadModel): string {
+    const match = `${profile.profileCode} ${profile.profileName}`.match(/\b(200|220|225)\b/);
+    return match?.[1] ?? '-';
+  }
+
+  private date(value?: string | null): string {
+    return value ? new Date(value).toLocaleDateString('es-CO') : '-';
   }
 }

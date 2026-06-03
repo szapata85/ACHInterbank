@@ -28,22 +28,18 @@ const routes: Routes = [
         path: 'nacha/layouts',
         component: NachaLayoutsComponent,
         data: {
-          breadcrumb: 'Layouts NACHA legacy',
-          title: 'Layouts NACHA-M legacy / diagnostico',
-          permissions: ['CanReadAch'],
-          legacy: true,
-          diagnosticOnly: true
+          breadcrumb: 'Variants y Fields',
+          title: 'NACHA Config - Variants y Fields',
+          permissions: ['CanReadAch']
         }
       },
       {
         path: 'nacha/definitions',
         component: NachaRecordDefinitionsComponent,
         data: {
-          breadcrumb: 'Definiciones NACHA legacy',
-          title: 'Definiciones NACHA-M legacy / diagnostico',
-          permissions: ['CanReadAch'],
-          legacy: true,
-          diagnosticOnly: true
+          breadcrumb: 'Records oficiales',
+          title: 'NACHA Config - Records',
+          permissions: ['CanReadAch']
         }
       },
       {

@@ -71,7 +71,8 @@ describe('NavigationService', () => {
     service.getMenu().subscribe((menu) => {
       const routes = flattenRoutes(menu);
 
-      expect(routes).not.toContain('/ach-cycles/nacha/layouts');
+      expect(routes).toContain('/ach-cycles/nacha/layouts');
+      expect(labelsWithoutLegacy(menu)).toContain('Variants y Fields');
       done();
     });
   });
@@ -99,7 +100,8 @@ describe('NavigationService', () => {
     service.getMenu().subscribe((menu) => {
       const routes = flattenRoutes(menu);
 
-      expect(routes).not.toContain('/ach-cycles/nacha/definitions');
+      expect(routes).toContain('/ach-cycles/nacha/definitions');
+      expect(labelsWithoutLegacy(menu)).toContain('Records oficiales');
       done();
     });
   });
@@ -122,7 +124,10 @@ describe('NavigationService', () => {
       const labels = flattenLabels(menu);
 
       expect(routes).toContain('/nacha-config-admin/perfiles');
-      expect(labels).toContain('Config Profiles');
+      expect(labels).toContain('NACHA-M Configuración');
+      expect(labels).toContain('Perfiles oficiales');
+      expect(labels).toContain('Records oficiales');
+      expect(labels).toContain('Variants y Fields');
       done();
     });
   });
@@ -191,6 +196,10 @@ describe('NavigationService', () => {
 
       expect(labels).not.toContain('Layouts NACHA');
       expect(labels).not.toContain('Definiciones NACHA');
+      expect(labels).not.toContain('legacy');
+      expect(labels).toContain('Perfiles oficiales');
+      expect(labels).toContain('Records oficiales');
+      expect(labels).toContain('Variants y Fields');
       done();
     });
   });
@@ -202,4 +211,8 @@ function flattenRoutes(items: Array<{ route: string; children?: Array<{ route: s
 
 function flattenLabels(items: Array<{ label: string; children?: Array<{ label: string; children?: any[] }> }>): string[] {
   return items.flatMap((item) => [item.label, ...flattenLabels(item.children ?? [])]);
+}
+
+function labelsWithoutLegacy(items: Array<{ label: string; children?: Array<{ label: string; children?: any[] }> }>): string[] {
+  return flattenLabels(items).filter((label) => !/Layouts NACHA|Definiciones NACHA/i.test(label));
 }

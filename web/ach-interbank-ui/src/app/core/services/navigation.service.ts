@@ -108,14 +108,18 @@ export class NavigationService {
       children: nachaSecurityChildren
     };
 
+    const nachaConfigChildren: MenuItem[] = [
+      { id: -2801, label: 'Perfiles oficiales', route: '/nacha-config-admin/perfiles', icon: 'fact_check' },
+      { id: -2802, label: 'Records oficiales', route: '/ach-cycles/nacha/definitions', icon: 'view_list' },
+      { id: -2803, label: 'Variants y Fields', route: '/ach-cycles/nacha/layouts', icon: 'schema' }
+    ];
+
     const nachaConfigGroup: MenuItem = {
       id: -280,
-      label: 'Config Profiles',
+      label: 'NACHA-M Configuración',
       route: '/nacha-config-admin/perfiles',
       icon: 'tune',
-      children: [
-        { id: -2801, label: 'Config Profiles', route: '/nacha-config-admin/perfiles', icon: 'fact_check' }
-      ]
+      children: nachaConfigChildren
     };
 
     const soapUatConsoleGroup: MenuItem = {
@@ -228,6 +232,14 @@ export class NavigationService {
 
       if (!hasRoute(next, nachaConfigGroup.route)) {
         next = [...next, nachaConfigGroup];
+      } else {
+        const existingNachaConfigGroup = next.find((item) => item.route === '/nacha-config-admin/perfiles' || item.label === 'NACHA-M Configuración' || item.label === 'Config Profiles');
+        if (existingNachaConfigGroup) {
+          existingNachaConfigGroup.label = 'NACHA-M Configuración';
+          const existingNachaConfigChildren = existingNachaConfigGroup.children ?? [];
+          const missingNachaConfigChildren = nachaConfigChildren.filter((child) => !hasRoute(existingNachaConfigChildren, child.route));
+          existingNachaConfigGroup.children = [...existingNachaConfigChildren, ...missingNachaConfigChildren];
+        }
       }
 
       if (!hasRoute(next, soapUatConsoleGroup.route)) {
@@ -258,7 +270,14 @@ export class NavigationService {
     const withCustomer = hasRoute(withAchResponses, customerItem.route) ? withAchResponses : [...withAchResponses, customerItem];
     const withReports = hasRoute(withCustomer, reportsItem.route) ? withCustomer : [...withCustomer, reportsItem];
     const withCenit = hasRoute(withReports, cenitGroup.route) ? withReports : [...withReports, cenitGroup];
-    const withNachaConfig = hasRoute(withCenit, nachaConfigGroup.route) ? withCenit : [...withCenit, nachaConfigGroup];
+    let withNachaConfig = hasRoute(withCenit, nachaConfigGroup.route) ? withCenit : [...withCenit, nachaConfigGroup];
+    const existingNachaConfigGroup = withNachaConfig.find((item) => item.route === '/nacha-config-admin/perfiles' || item.label === 'NACHA-M Configuración' || item.label === 'Config Profiles');
+    if (existingNachaConfigGroup) {
+      existingNachaConfigGroup.label = 'NACHA-M Configuración';
+      const existingNachaConfigChildren = existingNachaConfigGroup.children ?? [];
+      const missingNachaConfigChildren = nachaConfigChildren.filter((child) => !hasRoute(existingNachaConfigChildren, child.route));
+      existingNachaConfigGroup.children = [...existingNachaConfigChildren, ...missingNachaConfigChildren];
+    }
     const withSoapUatConsole = hasRoute(withNachaConfig, soapUatConsoleGroup.route) ? withNachaConfig : [...withNachaConfig, soapUatConsoleGroup];
     const withReconciliation = hasRoute(withSoapUatConsole, reconciliationGroup.route) ? withSoapUatConsole : [...withSoapUatConsole, reconciliationGroup];
     const withNachaSecurity = hasRoute(withReconciliation, nachaSecurityGroup.route) ? withReconciliation : [...withReconciliation, nachaSecurityGroup];

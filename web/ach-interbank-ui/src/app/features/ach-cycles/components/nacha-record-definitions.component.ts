@@ -1,21 +1,14 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
-import { FormBuilder, Validators } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { forkJoin } from 'rxjs';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { RouterModule } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { SharedModule } from '../../../shared/shared.module';
 import { NotificationService } from '../../../core/services/notification.service';
-import { NachaRecordDefinitionsService } from '../services/nacha-record-definitions.service';
-import { NachaRecordDefinitionDto } from '../models/nacha-record-definition.model';
-import { NachaLayoutsService } from '../services/nacha-layouts.service';
-import { NachaRecordLayoutDto } from '../models/nacha-layout.model';
+import { NachaConfigProfileReadModel } from '../../nacha-config-admin/models/nacha-config-admin.models';
+import { NachaConfigQueryService } from '../../nacha-config-admin/services/nacha-config-query.service';
 
-interface NachaDefinitionRow extends NachaRecordDefinitionDto {
-  sourceTypeLabel: string;
-  sourceDisplay: string;
-  isEnabledLabel: string;
-  layoutSummary?: string;
+interface OfficialNachaRecordRow extends NachaConfigProfileReadModel {
+  recordTypesDisplay: string;
+  vigencia: string;
 }
 
 @Component({
@@ -27,281 +20,58 @@ interface NachaDefinitionRow extends NachaRecordDefinitionDto {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class NachaRecordDefinitionsComponent implements OnInit {
-  private readonly service = inject(NachaRecordDefinitionsService);
-  private readonly layoutsService = inject(NachaLayoutsService);
-  private readonly fb = inject(FormBuilder);
+  private readonly query = inject(NachaConfigQueryService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
-  private readonly router = inject(Router);
-  private readonly destroyRef = inject(DestroyRef);
 
-  definitions: NachaDefinitionRow[] = [];
-  layoutsByCode: Record<string, NachaRecordLayoutDto> = {};
+  profiles: OfficialNachaRecordRow[] = [];
   loading = false;
-  saving = false;
   loadError = '';
-  editorOpen = false;
-  editing: NachaRecordDefinitionDto | null = null;
-  readonly legacyReadOnly = true;
 
   readonly columns = [
-    { key: 'recordCode', label: 'Código', width: '110px' },
-    { key: 'sequence', label: 'Orden', width: '90px' },
-    { key: 'sourceTypeLabel', label: 'Fuente', width: '150px' },
-    { key: 'sourceDisplay', label: 'Origen', width: '240px' },
-    { key: 'filterKey', label: 'Filtro', width: '220px' },
-    { key: 'layoutSummary', label: 'Layout (campos)', width: '220px' },
-    { key: 'isEnabledLabel', label: 'Estado', width: '130px' }
+    { key: 'profileCode', label: 'profileCode', width: '160px' },
+    { key: 'clearingHouseCode', label: 'clearingHouseCode', width: '150px' },
+    { key: 'flowType', label: 'flowType', width: '150px' },
+    { key: 'status', label: 'status', width: '120px' },
+    { key: 'version', label: 'version', width: '110px' },
+    { key: 'recordTypesDisplay', label: 'recordTypes', width: '180px' },
+    { key: 'layoutVariantCount', label: 'layoutVariantCount', width: '180px' },
+    { key: 'fieldCount', label: 'fieldCount', width: '130px' },
+    { key: 'vigencia', label: 'vigencia', width: '220px' }
   ];
-
-  readonly sourceTypes = [
-    { value: 0, label: 'Custom' },
-    { value: 1, label: 'Entity' },
-    { value: 2, label: 'View' },
-    { value: 3, label: 'Procedure' }
-  ];
-
-  readonly sourceOptionsByType: Record<number, Array<{ value: string; label: string }>> = {
-    0: [],
-    1: [
-      { value: 'AchBatch', label: 'AchBatch (tabla: AchBatches)' },
-      { value: 'AchTransaction', label: 'AchTransaction (tabla: AchTransactions)' },
-      { value: 'AchTransactionAddenda', label: 'AchTransactionAddenda (tabla: AchTransactionAddendas)' }
-    ],
-    2: [],
-    3: []
-  };
-
-  form = this.fb.nonNullable.group({
-    id: [0],
-    recordCode: ['', [Validators.required, Validators.maxLength(5)]],
-    sequence: [10, [Validators.required, Validators.min(1)]],
-    sourceType: [0, Validators.required],
-    sourceName: [''],
-    filterKey: [''],
-    isEnabled: [true]
-  });
 
   ngOnInit(): void {
-    this.form.controls.sourceType.valueChanges
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((sourceType) => {
-        if (sourceType === 0) {
-          this.form.patchValue({ sourceName: '' }, { emitEvent: false });
-        }
-        this.cdr.markForCheck();
-      });
-
     this.load();
-  }
-
-  get totalDefinitions(): number {
-    return this.definitions.length;
-  }
-
-  get enabledDefinitions(): number {
-    return this.definitions.filter((item) => item.isEnabled).length;
-  }
-
-  get disabledDefinitions(): number {
-    return this.totalDefinitions - this.enabledDefinitions;
-  }
-
-  get sourceNameOptions(): Array<{ value: string; label: string }> {
-    return this.sourceOptionsByType[this.form.getRawValue().sourceType] ?? [];
-  }
-
-  get showSourceNameSelect(): boolean {
-    const sourceType = this.form.getRawValue().sourceType;
-    return sourceType !== 0 && this.sourceNameOptions.length > 0;
-  }
-
-  get sourceTypeLabel(): string {
-    return this.resolveSourceType(this.form.getRawValue().sourceType);
   }
 
   load(): void {
     this.loading = true;
     this.loadError = '';
-    forkJoin({
-      definitions: this.service.getAll(),
-      layouts: this.layoutsService.getAll()
-    })
+
+    this.query.perfilesReadOnly()
       .pipe(finalize(() => {
         this.loading = false;
         this.cdr.markForCheck();
       }))
       .subscribe({
-        next: ({ definitions, layouts }) => {
-          this.layoutsByCode = (layouts ?? []).reduce<Record<string, NachaRecordLayoutDto>>((acc, layout) => {
-            acc[layout.recordCode] = layout;
-            return acc;
-          }, {});
-
-          this.definitions = (definitions ?? []).map((item) => ({
-            ...item,
-            sourceTypeLabel: this.resolveSourceType(item.sourceType),
-            sourceDisplay: this.resolveSourceDisplay(item),
-            isEnabledLabel: item.isEnabled ? 'Activo' : 'Inactivo',
-            layoutSummary: this.resolveLayoutSummary(item.recordCode)
+        next: (profiles) => {
+          this.profiles = profiles.map((profile) => ({
+            ...profile,
+            recordTypesDisplay: (profile.recordTypes ?? []).join(', ') || '-',
+            vigencia: `${this.date(profile.effectiveFrom)} a ${profile.effectiveTo ? this.date(profile.effectiveTo) : 'abierta'}`
           }));
           this.cdr.markForCheck();
         },
         error: () => {
-          this.definitions = [];
-          this.layoutsByCode = {};
-          this.loadError = 'No fue posible cargar las definiciones NACHA-M. Intente nuevamente.';
-          this.notifications.error('No fue posible cargar las definiciones NACHA');
+          this.profiles = [];
+          this.loadError = 'No fue posible cargar records oficiales desde nacha-config profiles.';
+          this.notifications.error('No fue posible cargar records oficiales NACHA Config.');
           this.cdr.markForCheck();
         }
       });
   }
 
-  startCreate(): void {
-    if (this.legacyReadOnly) {
-      this.notifyLegacyReadOnly();
-      return;
-    }
-
-    this.editing = null;
-    this.editorOpen = true;
-    this.form.reset({
-      id: 0,
-      recordCode: '',
-      sequence: 10,
-      sourceType: 0,
-      sourceName: '',
-      filterKey: '',
-      isEnabled: true
-    });
-    this.cdr.markForCheck();
-  }
-
-  startEdit(definition: NachaRecordDefinitionDto): void {
-    if (this.legacyReadOnly) {
-      this.notifyLegacyReadOnly();
-      return;
-    }
-
-    this.editing = definition;
-    this.editorOpen = true;
-    this.form.reset({
-      id: definition.id,
-      recordCode: definition.recordCode,
-      sequence: definition.sequence,
-      sourceType: definition.sourceType,
-      sourceName: definition.sourceName ?? '',
-      filterKey: definition.filterKey ?? '',
-      isEnabled: definition.isEnabled
-    });
-    this.cdr.markForCheck();
-  }
-
-  cancel(): void {
-    this.editorOpen = false;
-    this.editing = null;
-    this.form.reset();
-    this.cdr.markForCheck();
-  }
-
-  save(): void {
-    if (this.legacyReadOnly) {
-      this.notifyLegacyReadOnly();
-      return;
-    }
-
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      return;
-    }
-
-    const payload = this.toPayload();
-    this.saving = true;
-
-    const request$ = payload.id
-      ? this.service.update(payload)
-      : this.service.create(payload);
-
-    request$
-      .pipe(finalize(() => {
-        this.saving = false;
-        this.cdr.markForCheck();
-      }))
-      .subscribe({
-        next: () => {
-          this.notifications.success('Definición guardada correctamente');
-          this.cancel();
-          this.load();
-        },
-        error: () => {
-          this.notifications.error('No fue posible guardar la definición');
-        }
-      });
-  }
-
-  remove(definition: NachaRecordDefinitionDto): void {
-    if (this.legacyReadOnly) {
-      this.notifyLegacyReadOnly();
-      return;
-    }
-
-    if (!confirm(`¿Eliminar definición ${definition.recordCode}?`)) {
-      return;
-    }
-
-    this.service.delete(definition.id).subscribe({
-      next: () => {
-        this.notifications.success('Definición eliminada');
-        this.load();
-      },
-      error: () => {
-        this.notifications.error('No fue posible eliminar la definición');
-      }
-    });
-  }
-
-  manageLayout(): void {
-    const recordCode = this.form.getRawValue().recordCode?.trim();
-    void this.router.navigate(['/ach-cycles/nacha/layouts'], {
-      queryParams: recordCode ? { recordCode } : undefined
-    });
-  }
-
-  private resolveSourceType(value: number): string {
-    return this.sourceTypes.find((item) => item.value === value)?.label ?? 'Custom';
-  }
-
-  private resolveLayoutSummary(recordCode: string): string {
-    const layout = this.layoutsByCode[recordCode];
-    if (!layout) {
-      return 'Sin layout';
-    }
-
-    return `${layout.recordType} (${layout.fields?.length ?? 0})`;
-  }
-
-  private resolveSourceDisplay(definition: NachaRecordDefinitionDto): string {
-    if (definition.sourceType === 0) {
-      return 'Calculado (Custom)';
-    }
-
-    return definition.sourceName?.trim() || '-';
-  }
-
-  private toPayload(): NachaRecordDefinitionDto {
-    const raw = this.form.getRawValue();
-    return {
-      id: raw.id,
-      recordCode: raw.recordCode,
-      sequence: raw.sequence,
-      sourceType: raw.sourceType,
-      sourceName: raw.sourceName || null,
-      filterKey: raw.filterKey || null,
-      isEnabled: raw.isEnabled
-    };
-  }
-
-  private notifyLegacyReadOnly(): void {
-    this.notifications.info('Pantalla legacy en modo diagnostico read-only. La configuracion oficial NACHA-M se administra en nacha-config profiles.');
+  private date(value?: string | null): string {
+    return value ? new Date(value).toLocaleDateString('es-CO') : '-';
   }
 }
