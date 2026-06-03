@@ -220,7 +220,7 @@ public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
             "openbao:",
             "openbao-bootstrap",
             "openbao-volume-perms",
-            "busybox:1.36",
+            "busybox:1.37",
             "BAO_ADDR",
             "OPENBAO_",
             "DigitalEnvelope__OpenBao__",
@@ -237,8 +237,9 @@ public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
     public void Entrypoint_ShouldNotWaitForOpenBao_WhenOpenBaoDisabled()
     {
         var text = File.ReadAllText(Path.Combine(ResolveRepositoryRoot(), "src", "Cfa.ACHInterbank.Api", "entrypoint.sh"));
-        text.Should().Contain("openbao_enabled=\"${DigitalEnvelope__OpenBao__Enabled:-false}\"");
-        text.Should().Contain("if [ \"$openbao_enabled\" = \"true\" ] && [ \"$wait_openbao_token\" = \"true\" ]");
+        text.Should().NotContain("OpenBao");
+        text.Should().NotContain("openbao_token_file");
+        text.Should().NotContain("wait_openbao_token");
     }
 
     private static string ResolveRepositoryRoot()
