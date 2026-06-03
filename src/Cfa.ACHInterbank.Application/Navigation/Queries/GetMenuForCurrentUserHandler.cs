@@ -8,6 +8,12 @@ namespace Cfa.ACHInterbank.Application.Navigation.Queries;
 
 public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUserQuery, IList<MenuItemDto>>
 {
+    private static readonly HashSet<string> LegacyNachaRoutes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "/ach-cycles/nacha/layouts",
+        "/ach-cycles/nacha/definitions"
+    };
+
     private readonly IMenuQueryRepository _menuRepository;
     private readonly IHttpContextAccessor _httpContextAccessor;
 
@@ -31,6 +37,7 @@ public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUse
         var menuItems = await _menuRepository.GetActiveMenuItemsAsync(cancellationToken);
 
         var visibleItems = menuItems
+            .Where(mi => !LegacyNachaRoutes.Contains(mi.Route))
             .Where(mi => ShouldInclude(mi, userRoles, userPermissions))
             .ToList();
 
@@ -59,6 +66,8 @@ public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUse
             }
         }
 
+        EnsureOfficialNachaConfigMenu(roots, userPermissions);
+        RemoveLegacyNachaRoutes(roots);
         SortChildren(roots);
         return roots;
     }
@@ -94,6 +103,76 @@ public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUse
                     item.Children.Add(child);
                 }
                 SortChildren(item.Children);
+            }
+        }
+    }
+
+    private static void EnsureOfficialNachaConfigMenu(IList<MenuItemDto> roots, HashSet<string> userPermissions)
+    {
+        if (!userPermissions.Contains("CanReadAch"))
+        {
+            return;
+        }
+
+        var group = roots.FirstOrDefault(x => x.Route == "/nacha-config-admin/perfiles" || x.Label == "NACHA-M Configuración" || x.Label == "Config Profiles");
+        if (group is null)
+        {
+            group = new MenuItemDto
+            {
+                Id = 20,
+                Label = "NACHA-M Configuración",
+                Route = "/nacha-config-admin/perfiles",
+                Icon = "tune",
+                Exact = true,
+                Order = 2
+            };
+            roots.Add(group);
+        }
+        else
+        {
+            group.Label = "NACHA-M Configuración";
+            group.Route = "/nacha-config-admin/perfiles";
+            group.Icon = group.Icon ?? "tune";
+        }
+
+        AddOrUpdateChild(group, 25, "Perfiles oficiales", "/nacha-config-admin/perfiles", "fact_check", 1);
+        AddOrUpdateChild(group, 2802, "Records oficiales", "/nacha-config-admin/records", "view_list", 2);
+        AddOrUpdateChild(group, 2803, "Variants y Fields", "/nacha-config-admin/variants-fields", "schema", 3);
+    }
+
+    private static void AddOrUpdateChild(MenuItemDto parent, int id, string label, string route, string icon, int order)
+    {
+        var child = parent.Children.FirstOrDefault(x => x.Route == route || x.Id == id);
+        if (child is null)
+        {
+            parent.Children.Add(new MenuItemDto
+            {
+                Id = id,
+                Label = label,
+                Route = route,
+                Icon = icon,
+                Exact = true,
+                Order = order
+            });
+            return;
+        }
+
+        child.Label = label;
+        child.Route = route;
+        child.Icon = child.Icon ?? icon;
+        child.Exact = true;
+        child.Order = order;
+    }
+
+    private static void RemoveLegacyNachaRoutes(IList<MenuItemDto> items)
+    {
+        for (var i = items.Count - 1; i >= 0; i--)
+        {
+            var item = items[i];
+            RemoveLegacyNachaRoutes(item.Children);
+            if (LegacyNachaRoutes.Contains(item.Route))
+            {
+                items.RemoveAt(i);
             }
         }
     }
