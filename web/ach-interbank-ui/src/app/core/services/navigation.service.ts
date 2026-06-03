@@ -110,8 +110,8 @@ export class NavigationService {
 
     const nachaConfigChildren: MenuItem[] = [
       { id: -2801, label: 'Perfiles oficiales', route: '/nacha-config-admin/perfiles', icon: 'fact_check' },
-      { id: -2802, label: 'Records oficiales', route: '/ach-cycles/nacha/definitions', icon: 'view_list' },
-      { id: -2803, label: 'Variants y Fields', route: '/ach-cycles/nacha/layouts', icon: 'schema' }
+      { id: -2802, label: 'Records oficiales', route: '/nacha-config-admin/records', icon: 'view_list' },
+      { id: -2803, label: 'Variants y Fields', route: '/nacha-config-admin/variants-fields', icon: 'schema' }
     ];
 
     const nachaConfigGroup: MenuItem = {

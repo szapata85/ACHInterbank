@@ -1,18 +1,12 @@
-<section class="page" data-testid="nacha-definitions-page">
+<section class="page" data-testid="nacha-config-variants-fields-page">
   <app-page-header
-    title="NACHA Config - Records"
+    title="NACHA Config - Variants y Fields"
     subtitle="Vista read-only oficial basada en nacha-config profiles."
   ></app-page-header>
 
-  <section class="legacy-banner" role="status" aria-label="Aviso compatibilidad NACHA-M">
-    <strong>Ruta de compatibilidad</strong>
-    <span>Ruta de compatibilidad. La fuente oficial NACHA-M es nacha-config profiles. Legacy layouts/definitions no son fuente oficial.</span>
-    <a routerLink="/nacha-config-admin/perfiles">Perfiles oficiales</a>
-  </section>
-
   <ui-estado-error
     *ngIf="loadError"
-    titulo="No fue posible cargar records NACHA Config"
+    titulo="No fue posible cargar NACHA Config"
     [mensaje]="loadError"
     (reintentar)="load()"
   ></ui-estado-error>
@@ -32,7 +26,7 @@
 
   <ui-estado-vacio
     *ngIf="!loading && !loadError && profiles.length === 0"
-    titulo="Sin records oficiales"
-    mensaje="No hay profiles oficiales disponibles para mostrar records en esta ruta de compatibilidad."
+    titulo="Sin nacha-config profiles"
+    mensaje="No hay profiles oficiales disponibles para mostrar variants y fields."
   ></ui-estado-vacio>
 </section>

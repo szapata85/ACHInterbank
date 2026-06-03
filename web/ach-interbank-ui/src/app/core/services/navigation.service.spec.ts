@@ -52,7 +52,7 @@ describe('NavigationService', () => {
     });
   });
 
-  it('LegacyLayoutsRoute_ShouldNotBeShownAsOfficialMenuItem', (done) => {
+  it('LegacyLayoutsRoute_ShouldBeRemovedFromMenu', (done) => {
     const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
     api.get.and.returnValue(of([
       { id: 1, label: 'Layouts NACHA', route: '/ach-cycles/nacha/layouts' },
@@ -71,13 +71,14 @@ describe('NavigationService', () => {
     service.getMenu().subscribe((menu) => {
       const routes = flattenRoutes(menu);
 
-      expect(routes).toContain('/ach-cycles/nacha/layouts');
-      expect(labelsWithoutLegacy(menu)).toContain('Variants y Fields');
+      expect(routes).not.toContain('/ach-cycles/nacha/layouts');
+      expect(routes).toContain('/nacha-config-admin/variants-fields');
+      expect(flattenLabels(menu)).toContain('Variants y Fields');
       done();
     });
   });
 
-  it('LegacyDefinitionsRoute_ShouldNotBeShownAsOfficialMenuItem', (done) => {
+  it('LegacyDefinitionsRoute_ShouldBeRemovedFromMenu', (done) => {
     const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
     api.get.and.returnValue(of([
       {
@@ -100,8 +101,9 @@ describe('NavigationService', () => {
     service.getMenu().subscribe((menu) => {
       const routes = flattenRoutes(menu);
 
-      expect(routes).toContain('/ach-cycles/nacha/definitions');
-      expect(labelsWithoutLegacy(menu)).toContain('Records oficiales');
+      expect(routes).not.toContain('/ach-cycles/nacha/definitions');
+      expect(routes).toContain('/nacha-config-admin/records');
+      expect(flattenLabels(menu)).toContain('Records oficiales');
       done();
     });
   });
@@ -124,6 +126,10 @@ describe('NavigationService', () => {
       const labels = flattenLabels(menu);
 
       expect(routes).toContain('/nacha-config-admin/perfiles');
+      expect(routes).toContain('/nacha-config-admin/records');
+      expect(routes).toContain('/nacha-config-admin/variants-fields');
+      expect(routes).not.toContain('/ach-cycles/nacha/layouts');
+      expect(routes).not.toContain('/ach-cycles/nacha/definitions');
       expect(labels).toContain('NACHA-M Configuración');
       expect(labels).toContain('Perfiles oficiales');
       expect(labels).toContain('Records oficiales');
@@ -193,10 +199,13 @@ describe('NavigationService', () => {
 
     service.getMenu().subscribe((menu) => {
       const labels = flattenLabels(menu).join(' ');
+      const routes = flattenRoutes(menu);
 
       expect(labels).not.toContain('Layouts NACHA');
       expect(labels).not.toContain('Definiciones NACHA');
       expect(labels).not.toContain('legacy');
+      expect(routes).not.toContain('/ach-cycles/nacha/layouts');
+      expect(routes).not.toContain('/ach-cycles/nacha/definitions');
       expect(labels).toContain('Perfiles oficiales');
       expect(labels).toContain('Records oficiales');
       expect(labels).toContain('Variants y Fields');
@@ -211,8 +220,4 @@ function flattenRoutes(items: Array<{ route: string; children?: Array<{ route: s
 
 function flattenLabels(items: Array<{ label: string; children?: Array<{ label: string; children?: any[] }> }>): string[] {
   return items.flatMap((item) => [item.label, ...flattenLabels(item.children ?? [])]);
-}
-
-function labelsWithoutLegacy(items: Array<{ label: string; children?: Array<{ label: string; children?: any[] }> }>): string[] {
-  return flattenLabels(items).filter((label) => !/Layouts NACHA|Definiciones NACHA/i.test(label));
 }

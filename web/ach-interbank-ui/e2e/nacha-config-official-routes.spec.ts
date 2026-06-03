@@ -6,36 +6,25 @@ const layoutsEndpoint = /\/nacha-layouts(?:\?.*)?$/;
 const definitionsEndpoint = /\/nacha-record-definitions(?:\?.*)?$/;
 const configProfilesEndpoint = /\/api\/ach\/nacha\/config-profiles$/;
 
-test.describe('NACHA legacy layouts and definitions audit', () => {
+test.describe('NACHA Config official routes', () => {
   test.beforeEach(async ({ page }) => {
     await seedAuthenticatedSession(page);
     await mockAuthRefresh(page);
+    await mockNavigation(page);
   });
 
-  test('Navigation_ShouldNotExposeLegacyNachaLayoutsAsOfficial', async ({ page }) => {
-    await mockNavigationWithLegacyItems(page);
-
+  test('Navigation_ShouldExposeOfficialNachaConfigMenuOnly', async ({ page }) => {
     await page.goto('/ach/nacha/operational-dashboard');
 
     await expect(page.getByRole('link', { name: 'Perfiles oficiales' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Records oficiales' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Variants y Fields' })).toBeVisible();
-    await expect(page.getByText('Layouts NACHA legacy menu')).toHaveCount(0);
+    await expect(page.getByText(/legacy/i)).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Layouts NACHA' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Definiciones NACHA' })).toHaveCount(0);
   });
 
-  test('Navigation_ShouldNotExposeLegacyNachaDefinitionsAsOfficial', async ({ page }) => {
-    await mockNavigationWithLegacyItems(page);
-
-    await page.goto('/ach/nacha/operational-dashboard');
-
-    await expect(page.getByRole('link', { name: 'Perfiles oficiales' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Records oficiales' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Variants y Fields' })).toBeVisible();
-    await expect(page.getByText('Definiciones NACHA legacy menu')).toHaveCount(0);
-  });
-
-  test('CompatibilityRoutes_ShouldUseOfficialProfilesAndAvoidLegacyEndpoints', async ({ page }) => {
-    await mockNavigationWithLegacyItems(page);
+  test('OfficialRoutes_ShouldUseConfigProfilesAndAvoidLegacyEndpoints', async ({ page }) => {
     await mockOfficialConfigProfiles(page);
     const legacyRequests: string[] = [];
     page.on('request', request => {
@@ -44,33 +33,49 @@ test.describe('NACHA legacy layouts and definitions audit', () => {
       }
     });
 
-    await page.goto('/ach-cycles/nacha/layouts');
+    await page.goto('/nacha-config-admin/variants-fields');
 
-    await expect(page.getByTestId('nacha-layouts-page').getByRole('heading', { name: 'NACHA Config - Variants y Fields' })).toBeVisible();
-    await expect(page.getByText('La fuente oficial NACHA-M es nacha-config profiles')).toBeVisible();
+    await expect(page.getByTestId('nacha-config-variants-fields-page').getByRole('heading', { name: 'NACHA Config - Variants y Fields' })).toBeVisible();
+    await expect(page.getByText('nacha-config profiles')).toBeVisible();
     await expect(page.getByText('CENIT-OUT-220')).toBeVisible();
     await expect(page.getByRole('button', { name: /Crear|Editar|Guardar|Eliminar/i })).toHaveCount(0);
 
-    await page.goto('/ach-cycles/nacha/definitions');
+    await page.goto('/nacha-config-admin/records');
 
-    await expect(page.getByTestId('nacha-definitions-page').getByRole('heading', { name: 'NACHA Config - Records' })).toBeVisible();
-    await expect(page.getByText('La fuente oficial NACHA-M es nacha-config profiles')).toBeVisible();
+    await expect(page.getByTestId('nacha-config-records-page').getByRole('heading', { name: 'NACHA Config - Records' })).toBeVisible();
+    await expect(page.getByText('nacha-config profiles')).toBeVisible();
     await expect(page.getByText('1, 5, 6, 7, 8, 9')).toBeVisible();
     await expect(page.getByRole('button', { name: /Crear|Editar|Guardar|Eliminar/i })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /Eliminar/i })).toHaveCount(0);
     expect(legacyRequests).toEqual([]);
+  });
+
+  test('LegacyRoutes_ShouldEndInNotFound', async ({ page }) => {
+    await page.goto('/ach-cycles/nacha/layouts');
+    await expect(page).toHaveURL(/\/not-found$/);
+    await expect(page.getByText('404', { exact: true })).toBeVisible();
+
+    await page.goto('/ach-cycles/nacha/definitions');
+    await expect(page).toHaveURL(/\/not-found$/);
+    await expect(page.getByText('404', { exact: true })).toBeVisible();
   });
 });
 
-async function mockNavigationWithLegacyItems(page: Page): Promise<void> {
+async function mockNavigation(page: Page): Promise<void> {
   await page.route(navigationEndpoint, async route => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify([
-        { id: 1, label: 'Layouts NACHA legacy menu', route: '/ach-cycles/nacha/layouts' },
-        { id: 2, label: 'Definiciones NACHA legacy menu', route: '/ach-cycles/nacha/definitions' },
-        { id: 3, label: 'Config Profiles', route: '/nacha-config-admin/perfiles' }
+        {
+          id: 20,
+          label: 'NACHA-M ConfiguraciÃ³n',
+          route: '/nacha-config-admin/perfiles',
+          children: [
+            { id: 25, label: 'Perfiles oficiales', route: '/nacha-config-admin/perfiles' },
+            { id: 2802, label: 'Records oficiales', route: '/nacha-config-admin/records' },
+            { id: 2803, label: 'Variants y Fields', route: '/nacha-config-admin/variants-fields' }
+          ]
+        }
       ])
     });
   });
@@ -107,9 +112,9 @@ async function mockOfficialConfigProfiles(page: Page): Promise<void> {
 
 async function seedAuthenticatedSession(page: Page): Promise<void> {
   const token = createUnsignedJwt({
-    unique_name: 'uat.legacy',
-    name: 'Usuario UAT Legacy',
-    uid: 'uat-legacy',
+    unique_name: 'uat.official',
+    name: 'Usuario UAT Oficial',
+    uid: 'uat-official',
     role: ['Admin', 'ACH.Operator'],
     permission: ['CanReadAch', 'CanManageAch'],
     exp: Math.floor(Date.now() / 1000) + 3600,
@@ -123,9 +128,9 @@ async function seedAuthenticatedSession(page: Page): Promise<void> {
 
 async function mockAuthRefresh(page: Page): Promise<void> {
   const token = createUnsignedJwt({
-    unique_name: 'uat.legacy',
-    name: 'Usuario UAT Legacy',
-    uid: 'uat-legacy',
+    unique_name: 'uat.official',
+    name: 'Usuario UAT Oficial',
+    uid: 'uat-official',
     role: ['Admin', 'ACH.Operator'],
     permission: ['CanReadAch', 'CanManageAch'],
     exp: Math.floor(Date.now() / 1000) + 3600,
@@ -140,8 +145,8 @@ async function mockAuthRefresh(page: Page): Promise<void> {
         sucess: true,
         data: {
           token,
-          username: 'uat.legacy',
-          fullName: 'Usuario UAT Legacy',
+          username: 'uat.official',
+          fullName: 'Usuario UAT Oficial',
           roles: ['Admin', 'ACH.Operator'],
           permissions: ['CanReadAch', 'CanManageAch']
         }

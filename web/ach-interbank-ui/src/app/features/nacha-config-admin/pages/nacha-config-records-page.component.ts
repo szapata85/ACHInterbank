@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { finalize } from 'rxjs/operators';
-import { SharedModule } from '../../../shared/shared.module';
 import { NotificationService } from '../../../core/services/notification.service';
-import { NachaConfigProfileReadModel } from '../../nacha-config-admin/models/nacha-config-admin.models';
-import { NachaConfigQueryService } from '../../nacha-config-admin/services/nacha-config-query.service';
+import { SharedModule } from '../../../shared/shared.module';
+import { NachaConfigProfileReadModel } from '../models/nacha-config-admin.models';
+import { NachaConfigQueryService } from '../services/nacha-config-query.service';
 
 interface OfficialNachaRecordRow extends NachaConfigProfileReadModel {
   recordTypesDisplay: string;
@@ -12,14 +12,14 @@ interface OfficialNachaRecordRow extends NachaConfigProfileReadModel {
 }
 
 @Component({
-  selector: 'app-nacha-record-definitions',
+  selector: 'app-nacha-config-records-page',
   standalone: true,
   imports: [SharedModule, RouterModule],
-  templateUrl: './nacha-record-definitions.component.html',
-  styleUrls: ['./nacha-record-definitions.component.scss'],
+  templateUrl: './nacha-config-records-page.component.html',
+  styleUrls: ['./nacha-config-official-readonly-page.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class NachaRecordDefinitionsComponent implements OnInit {
+export class NachaConfigRecordsPageComponent implements OnInit {
   private readonly query = inject(NachaConfigQueryService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);

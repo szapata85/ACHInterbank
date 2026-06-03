@@ -1,26 +1,25 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { finalize } from 'rxjs/operators';
-import { SharedModule } from '../../../shared/shared.module';
 import { NotificationService } from '../../../core/services/notification.service';
-import { NachaConfigProfileReadModel } from '../../nacha-config-admin/models/nacha-config-admin.models';
-import { NachaConfigQueryService } from '../../nacha-config-admin/services/nacha-config-query.service';
+import { SharedModule } from '../../../shared/shared.module';
+import { NachaConfigProfileReadModel } from '../models/nacha-config-admin.models';
+import { NachaConfigQueryService } from '../services/nacha-config-query.service';
 
 interface OfficialNachaConfigRow extends NachaConfigProfileReadModel {
   direction: string;
   serviceClassCode: string;
-  effectiveRange: string;
 }
 
 @Component({
-  selector: 'app-nacha-layouts',
+  selector: 'app-nacha-config-variants-fields-page',
   standalone: true,
   imports: [SharedModule, RouterModule],
-  templateUrl: './nacha-layouts.component.html',
-  styleUrls: ['./nacha-layouts.component.scss'],
+  templateUrl: './nacha-config-variants-fields-page.component.html',
+  styleUrls: ['./nacha-config-official-readonly-page.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class NachaLayoutsComponent implements OnInit {
+export class NachaConfigVariantsFieldsPageComponent implements OnInit {
   private readonly query = inject(NachaConfigQueryService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -59,7 +58,11 @@ export class NachaLayoutsComponent implements OnInit {
       }))
       .subscribe({
         next: (profiles) => {
-          this.profiles = profiles.map((profile) => this.mapProfile(profile));
+          this.profiles = profiles.map((profile) => ({
+            ...profile,
+            direction: this.resolveDirection(profile),
+            serviceClassCode: this.resolveServiceClassCode(profile)
+          }));
           this.cdr.markForCheck();
         },
         error: () => {
@@ -69,15 +72,6 @@ export class NachaLayoutsComponent implements OnInit {
           this.cdr.markForCheck();
         }
       });
-  }
-
-  private mapProfile(profile: NachaConfigProfileReadModel): OfficialNachaConfigRow {
-    return {
-      ...profile,
-      direction: this.resolveDirection(profile),
-      serviceClassCode: this.resolveServiceClassCode(profile),
-      effectiveRange: `${this.date(profile.effectiveFrom)} a ${profile.effectiveTo ? this.date(profile.effectiveTo) : 'abierta'}`
-    };
   }
 
   private resolveDirection(profile: NachaConfigProfileReadModel): string {
@@ -91,9 +85,5 @@ export class NachaLayoutsComponent implements OnInit {
   private resolveServiceClassCode(profile: NachaConfigProfileReadModel): string {
     const match = `${profile.profileCode} ${profile.profileName}`.match(/\b(200|220|225)\b/);
     return match?.[1] ?? '-';
-  }
-
-  private date(value?: string | null): string {
-    return value ? new Date(value).toLocaleDateString('es-CO') : '-';
   }
 }

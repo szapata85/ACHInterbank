@@ -1,11 +1,11 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
-import { NachaConfigProfileReadModel } from '../../nacha-config-admin/models/nacha-config-admin.models';
-import { NachaConfigQueryService } from '../../nacha-config-admin/services/nacha-config-query.service';
-import { NachaLayoutsComponent } from './nacha-layouts.component';
-import { NachaRecordDefinitionsComponent } from './nacha-record-definitions.component';
+import { NachaConfigProfileReadModel } from '../models/nacha-config-admin.models';
+import { NachaConfigQueryService } from '../services/nacha-config-query.service';
+import { NachaConfigRecordsPageComponent } from './nacha-config-records-page.component';
+import { NachaConfigVariantsFieldsPageComponent } from './nacha-config-variants-fields-page.component';
 
 const profile: NachaConfigProfileReadModel = {
   profileId: 10,
@@ -26,15 +26,15 @@ const profile: NachaConfigProfileReadModel = {
   legacyDeprecated: true
 };
 
-describe('NACHA-M compatibility routes official config', () => {
+describe('NACHA Config official read-only pages', () => {
   afterEach(() => TestBed.resetTestingModule());
 
-  async function createLayoutsFixture(options?: { error?: boolean; profiles?: NachaConfigProfileReadModel[] }) {
+  async function createVariantsFixture(options?: { error?: boolean; profiles?: NachaConfigProfileReadModel[] }) {
     const query = jasmine.createSpyObj<NachaConfigQueryService>('NachaConfigQueryService', ['perfilesReadOnly']);
     query.perfilesReadOnly.and.returnValue(options?.error ? throwError(() => new Error('api')) : of(options?.profiles ?? [profile]));
 
     await TestBed.configureTestingModule({
-      imports: [NachaLayoutsComponent],
+      imports: [NachaConfigVariantsFieldsPageComponent],
       providers: [
         { provide: NachaConfigQueryService, useValue: query },
         { provide: NotificationService, useValue: jasmine.createSpyObj('NotificationService', ['error']) },
@@ -43,17 +43,17 @@ describe('NACHA-M compatibility routes official config', () => {
       ]
     }).compileComponents();
 
-    const fixture = TestBed.createComponent(NachaLayoutsComponent);
+    const fixture = TestBed.createComponent(NachaConfigVariantsFieldsPageComponent);
     fixture.detectChanges();
     return { fixture, component: fixture.componentInstance, query };
   }
 
-  async function createDefinitionsFixture(options?: { error?: boolean; profiles?: NachaConfigProfileReadModel[] }) {
+  async function createRecordsFixture(options?: { error?: boolean; profiles?: NachaConfigProfileReadModel[] }) {
     const query = jasmine.createSpyObj<NachaConfigQueryService>('NachaConfigQueryService', ['perfilesReadOnly']);
     query.perfilesReadOnly.and.returnValue(options?.error ? throwError(() => new Error('api')) : of(options?.profiles ?? [profile]));
 
     await TestBed.configureTestingModule({
-      imports: [NachaRecordDefinitionsComponent],
+      imports: [NachaConfigRecordsPageComponent],
       providers: [
         { provide: NachaConfigQueryService, useValue: query },
         { provide: NotificationService, useValue: jasmine.createSpyObj('NotificationService', ['error']) },
@@ -62,21 +62,19 @@ describe('NACHA-M compatibility routes official config', () => {
       ]
     }).compileComponents();
 
-    const fixture = TestBed.createComponent(NachaRecordDefinitionsComponent);
+    const fixture = TestBed.createComponent(NachaConfigRecordsPageComponent);
     fixture.detectChanges();
     return { fixture, component: fixture.componentInstance, query };
   }
 
-  it('LayoutsRoute_ShouldLoadOfficialProfiles', async () => {
-    const { fixture, component, query } = await createLayoutsFixture();
+  it('VariantsFields_ShouldLoadOfficialProfiles', async () => {
+    const { fixture, component, query } = await createVariantsFixture();
 
     expect(query.perfilesReadOnly).toHaveBeenCalled();
     expect(component.profiles.length).toBe(1);
     expect(fixture.nativeElement.textContent).toContain('NACHA Config - Variants y Fields');
     expect(fixture.nativeElement.textContent).toContain('nacha-config profiles');
     expect(fixture.nativeElement.textContent).toContain('CENIT-OUT-220');
-    expect(fixture.nativeElement.textContent).toContain('CENIT');
-    expect(fixture.nativeElement.textContent).toContain('Outgoing');
     expect(component.profiles[0].status).toBe('Published');
     expect(component.profiles[0].version).toBe('1.0');
     expect(fixture.nativeElement.textContent).not.toContain('Crear');
@@ -85,43 +83,40 @@ describe('NACHA-M compatibility routes official config', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Eliminar');
   });
 
-  it('DefinitionsRoute_ShouldLoadOfficialProfilesAndRecords', async () => {
-    const { fixture, component, query } = await createDefinitionsFixture();
+  it('Records_ShouldLoadOfficialProfilesAndRecords', async () => {
+    const { fixture, component, query } = await createRecordsFixture();
 
     expect(query.perfilesReadOnly).toHaveBeenCalled();
     expect(component.profiles.length).toBe(1);
     expect(fixture.nativeElement.textContent).toContain('NACHA Config - Records');
     expect(fixture.nativeElement.textContent).toContain('nacha-config profiles');
     expect(fixture.nativeElement.textContent).toContain('1, 5, 6, 7, 8, 9');
-    expect(fixture.nativeElement.textContent).toContain('CENIT');
-    expect(fixture.nativeElement.textContent).toContain('Outgoing');
-    expect(fixture.nativeElement.textContent).toContain('Published');
-    expect(fixture.nativeElement.textContent).toContain('1.0');
-    expect(fixture.nativeElement.textContent).not.toContain('Administrar campos');
+    expect(fixture.nativeElement.textContent).not.toContain('Crear');
+    expect(fixture.nativeElement.textContent).not.toContain('Editar');
     expect(fixture.nativeElement.textContent).not.toContain('Guardar');
     expect(fixture.nativeElement.textContent).not.toContain('Eliminar');
   });
 
-  it('LayoutsRoute_ShouldShowClearEmptyState', async () => {
-    const { fixture, component } = await createLayoutsFixture({ profiles: [] });
+  it('VariantsFields_ShouldShowClearEmptyState', async () => {
+    const { fixture, component } = await createVariantsFixture({ profiles: [] });
 
     expect(component.profiles).toEqual([]);
     expect(fixture.nativeElement.textContent).toContain('Sin nacha-config profiles');
   });
 
-  it('DefinitionsRoute_ShouldShowClearEmptyState', async () => {
-    const { fixture, component } = await createDefinitionsFixture({ profiles: [] });
+  it('Records_ShouldShowClearEmptyState', async () => {
+    const { fixture, component } = await createRecordsFixture({ profiles: [] });
 
     expect(component.profiles).toEqual([]);
     expect(fixture.nativeElement.textContent).toContain('Sin records oficiales');
   });
 
-  it('CompatibilityRoutes_ShouldUseNachaConfigQueryServiceOnly', async () => {
-    const layouts = await createLayoutsFixture();
+  it('OfficialReadOnlyPages_ShouldUseNachaConfigQueryServiceOnly', async () => {
+    const variants = await createVariantsFixture();
     TestBed.resetTestingModule();
-    const definitions = await createDefinitionsFixture();
+    const records = await createRecordsFixture();
 
-    expect(layouts.query.perfilesReadOnly).toHaveBeenCalledTimes(1);
-    expect(definitions.query.perfilesReadOnly).toHaveBeenCalledTimes(1);
+    expect(variants.query.perfilesReadOnly).toHaveBeenCalledTimes(1);
+    expect(records.query.perfilesReadOnly).toHaveBeenCalledTimes(1);
   });
 });

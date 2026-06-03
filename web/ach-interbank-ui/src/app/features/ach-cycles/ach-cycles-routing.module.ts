@@ -3,8 +3,6 @@ import { RouterModule, Routes } from '@angular/router';
 import { AchCycleListComponent } from './components/ach-cycle-list.component';
 import { AchCycleFormComponent } from './components/ach-cycle-form.component';
 import { NachaExportComponent } from './components/nacha-export.component';
-import { NachaLayoutsComponent } from './components/nacha-layouts.component';
-import { NachaRecordDefinitionsComponent } from './components/nacha-record-definitions.component';
 import { permissionGuard } from '../../core/guards/permission.guard';
 
 const routes: Routes = [
@@ -23,24 +21,6 @@ const routes: Routes = [
         path: 'nacha/export',
         component: NachaExportComponent,
         data: { breadcrumb: 'Exportar NACHA', title: 'Exportar NACHA-M', permissions: ['CanReadAch'] }
-      },
-      {
-        path: 'nacha/layouts',
-        component: NachaLayoutsComponent,
-        data: {
-          breadcrumb: 'Variants y Fields',
-          title: 'NACHA Config - Variants y Fields',
-          permissions: ['CanReadAch']
-        }
-      },
-      {
-        path: 'nacha/definitions',
-        component: NachaRecordDefinitionsComponent,
-        data: {
-          breadcrumb: 'Records oficiales',
-          title: 'NACHA Config - Records',
-          permissions: ['CanReadAch']
-        }
       },
       {
         path: ':id/edit',

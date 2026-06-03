@@ -69,12 +69,22 @@ public class MenuItemPermissionConfiguration : IEntityTypeConfiguration<MenuItem
             new MenuItemPermission
             {
                 MenuItemId = MenuItemConfiguration.NachaLayoutsId,
-                PermissionId = PermissionConfiguration.ManageAchPermissionId
+                PermissionId = PermissionConfiguration.ReadAchPermissionId
             },
             new MenuItemPermission
             {
                 MenuItemId = MenuItemConfiguration.NachaDefinitionsId,
-                PermissionId = PermissionConfiguration.ManageAchPermissionId
+                PermissionId = PermissionConfiguration.ReadAchPermissionId
+            },
+            new MenuItemPermission
+            {
+                MenuItemId = MenuItemConfiguration.NachaConfigRecordsId,
+                PermissionId = PermissionConfiguration.ReadAchPermissionId
+            },
+            new MenuItemPermission
+            {
+                MenuItemId = MenuItemConfiguration.NachaConfigVariantsFieldsId,
+                PermissionId = PermissionConfiguration.ReadAchPermissionId
             },
             new MenuItemPermission
             {

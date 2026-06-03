@@ -40,6 +40,8 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int ClearingHouseTransactionRulesId = 32;
     public const int UatSimulatorsId = 33;
     public const int NachaInboundSimulatorId = 34;
+    public const int NachaConfigRecordsId = 2802;
+    public const int NachaConfigVariantsFieldsId = 2803;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -179,10 +181,9 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
             {
                 Id = NachaLayoutsId,
                 MenuId = MenuConfiguration.MainMenuId,
-                ParentId = AchCyclesId,
-                Label = "Layouts NACHA",
-                Route = "/ach-cycles/nacha/layouts",
-                Icon = "view_column",
+                Label = "NACHA-M ConfiguraciÃ³n",
+                Route = "/nacha-config-admin/perfiles",
+                Icon = "tune",
                 Order = 2,
                 Exact = true,
                 IsActive = true
@@ -191,11 +192,35 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
             {
                 Id = NachaDefinitionsId,
                 MenuId = MenuConfiguration.MainMenuId,
-                ParentId = AchCyclesId,
-                Label = "Definiciones NACHA",
-                Route = "/ach-cycles/nacha/definitions",
-                Icon = "playlist_add_check",
+                ParentId = NachaLayoutsId,
+                Label = "Perfiles oficiales",
+                Route = "/nacha-config-admin/perfiles",
+                Icon = "fact_check",
                 Order = 3,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = NachaConfigRecordsId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = NachaLayoutsId,
+                Label = "Records oficiales",
+                Route = "/nacha-config-admin/records",
+                Icon = "view_list",
+                Order = 4,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = NachaConfigVariantsFieldsId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = NachaLayoutsId,
+                Label = "Variants y Fields",
+                Route = "/nacha-config-admin/variants-fields",
+                Icon = "schema",
+                Order = 5,
                 Exact = true,
                 IsActive = true
             },
