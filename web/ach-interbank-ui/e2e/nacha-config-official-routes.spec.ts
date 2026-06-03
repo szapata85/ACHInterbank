@@ -8,18 +8,18 @@ const configProfilesEndpoint = /\/api\/ach\/nacha\/config-profiles$/;
 
 test.describe('NACHA Config official routes', () => {
   test.beforeEach(async ({ page }) => {
-    await seedAuthenticatedSession(page);
     await mockAuthRefresh(page);
     await mockNavigation(page);
+    await authenticate(page);
   });
 
   test('Navigation_ShouldExposeOfficialNachaConfigMenuOnly', async ({ page }) => {
-    await page.goto('/ach/nacha/operational-dashboard');
+    await page.goto('/nacha-config-admin/perfiles');
 
     await expect(page.getByRole('link', { name: 'Perfiles oficiales' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Records oficiales' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Variants y Fields' })).toBeVisible();
-    await expect(page.getByText(/legacy/i)).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /legacy/i })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Layouts NACHA' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Definiciones NACHA' })).toHaveCount(0);
   });
@@ -27,12 +27,37 @@ test.describe('NACHA Config official routes', () => {
   test('OfficialRoutes_ShouldUseConfigProfilesAndAvoidLegacyEndpoints', async ({ page }) => {
     await mockOfficialConfigProfiles(page);
     const legacyRequests: string[] = [];
+    const htmlJsResponses: string[] = [];
+    const chunkRequestFailures: string[] = [];
+    const consoleErrors: string[] = [];
     page.on('request', request => {
       if (layoutsEndpoint.test(request.url()) || definitionsEndpoint.test(request.url())) {
         legacyRequests.push(request.url());
       }
     });
+    page.on('requestfailed', request => {
+      if (request.url().endsWith('.js')) {
+        chunkRequestFailures.push(`${request.method()} ${request.url()} ${request.failure()?.errorText ?? ''}`.trim());
+      }
+    });
+    page.on('console', message => {
+      if (message.type() === 'error') {
+        consoleErrors.push(message.text());
+      }
+    });
+    page.on('response', async response => {
+      const url = response.url();
+      if (!url.endsWith('.js')) {
+        return;
+      }
 
+      const contentType = response.headers()['content-type'] ?? '';
+      if (contentType.includes('text/html')) {
+        htmlJsResponses.push(`${response.status()} ${url} ${contentType}`);
+      }
+    });
+
+    await page.goto('/nacha-config-admin/perfiles');
     await page.goto('/nacha-config-admin/variants-fields');
 
     await expect(page.getByTestId('nacha-config-variants-fields-page').getByRole('heading', { name: 'NACHA Config - Variants y Fields' })).toBeVisible();
@@ -47,9 +72,13 @@ test.describe('NACHA Config official routes', () => {
     await expect(page.getByText('1, 5, 6, 7, 8, 9')).toBeVisible();
     await expect(page.getByRole('button', { name: /Crear|Editar|Guardar|Eliminar/i })).toHaveCount(0);
     expect(legacyRequests).toEqual([]);
+    expect(htmlJsResponses).toEqual([]);
+    expect(chunkRequestFailures).toEqual([]);
+    expect(consoleErrors).toEqual([]);
   });
 
   test('LegacyRoutes_ShouldEndInNotFound', async ({ page }) => {
+    await page.goto('/nacha-config-admin/perfiles');
     await page.goto('/ach-cycles/nacha/layouts');
     await expect(page).toHaveURL(/\/not-found$/);
     await expect(page.getByText('404', { exact: true })).toBeVisible();
@@ -110,22 +139,6 @@ async function mockOfficialConfigProfiles(page: Page): Promise<void> {
   });
 }
 
-async function seedAuthenticatedSession(page: Page): Promise<void> {
-  const token = createUnsignedJwt({
-    unique_name: 'uat.official',
-    name: 'Usuario UAT Oficial',
-    uid: 'uat-official',
-    role: ['Admin', 'ACH.Operator'],
-    permission: ['CanReadAch', 'CanManageAch'],
-    exp: Math.floor(Date.now() / 1000) + 3600,
-    iat: Math.floor(Date.now() / 1000)
-  });
-
-  await page.addInitScript((accessToken) => {
-    window.sessionStorage.setItem('ach.interbank.access_token', accessToken);
-  }, token);
-}
-
 async function mockAuthRefresh(page: Page): Promise<void> {
   const token = createUnsignedJwt({
     unique_name: 'uat.official',
@@ -153,6 +166,31 @@ async function mockAuthRefresh(page: Page): Promise<void> {
       })
     });
   });
+}
+
+async function authenticate(page: Page): Promise<void> {
+  const user = process.env['ACH_USER'] ?? 'admin';
+  const pass = process.env['ACH_PASS'] ?? 'Admin123!';
+
+  const apiBaseUrl = process.env['ACH_API_URL'] ?? 'http://localhost:843';
+  const response = await page.request.post(`${apiBaseUrl.replace(/\/+$/, '')}/auth/login`, {
+    data: { username: user, password: pass }
+  });
+
+  expect(response.ok()).toBeTruthy();
+
+  const payload = await response.json() as {
+    data?: {
+      token?: string;
+    };
+  };
+
+  const token = payload.data?.token;
+  expect(token).toBeTruthy();
+
+  await page.addInitScript((accessToken) => {
+    window.sessionStorage.setItem('ach.interbank.access_token', accessToken);
+  }, token as string);
 }
 
 function createUnsignedJwt(payload: Record<string, unknown>): string {
