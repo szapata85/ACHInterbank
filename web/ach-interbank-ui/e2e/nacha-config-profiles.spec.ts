@@ -20,26 +20,26 @@ test.describe('NACHA config profiles official read-only page', () => {
   });
 
   test('ConfigProfiles_ShouldLoadOfficialPage', async ({ page }) => {
-    await page.goto(configProfilesPagePath);
+    await loadConfigProfilesPage(page);
 
     await expect(page).toHaveURL(/\/nacha-config-admin\/perfiles$/);
     await expect(page.getByText('Config Profiles NACHA-M')).toBeVisible();
   });
 
   test('ConfigProfiles_ShouldShowOfficialModelBanner', async ({ page }) => {
-    await page.goto(configProfilesPagePath);
+    await loadConfigProfilesPage(page);
 
     await expect(page.getByText('Modelo oficial NACHA-M: nacha-config profiles.')).toBeVisible();
   });
 
   test('ConfigProfiles_ShouldShowNoGoBanner', async ({ page }) => {
-    await page.goto(configProfilesPagePath);
+    await loadConfigProfilesPage(page);
 
     await expect(page.getByText(/Productivo NO-GO/)).toBeVisible();
   });
 
   test('ConfigProfiles_ShouldNotRenderMutationButtons', async ({ page }) => {
-    await page.goto(configProfilesPagePath);
+    await loadConfigProfilesPage(page);
 
     await expect(page.getByTestId('nacha-config-profiles-page').getByRole('button', { name: /Crear borrador|Publicar|Guardar|Eliminar|Archivar|Inactivar/i })).toHaveCount(0);
   });
@@ -51,8 +51,7 @@ test.describe('NACHA config profiles official read-only page', () => {
       await route.abort();
     });
 
-    await page.goto(configProfilesPagePath);
-    await expect(page.getByTestId('nacha-config-profiles-page')).toContainText('OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0');
+    await loadConfigProfilesPage(page);
 
     expect(legacyCalled).toBe(false);
   });
@@ -65,8 +64,7 @@ test.describe('NACHA config profiles official read-only page', () => {
       }
     });
 
-    await page.goto(configProfilesPagePath);
-    await expect(page.getByTestId('nacha-config-profiles-page')).toContainText('OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0');
+    await loadConfigProfilesPage(page);
 
     expect(mutationRequests).toEqual([]);
   });
@@ -79,8 +77,7 @@ test.describe('NACHA config profiles official read-only page', () => {
       }
     });
 
-    await page.goto(configProfilesPagePath);
-    await expect(page.getByTestId('nacha-config-profiles-page')).toContainText('OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0');
+    await loadConfigProfilesPage(page);
 
     expect(exportRequests.some(url => hashExportPattern.test(url))).toBe(false);
   });
@@ -208,6 +205,18 @@ async function mockAuthRefresh(page: Page): Promise<void> {
       })
     });
   });
+}
+
+async function loadConfigProfilesPage(page: Page): Promise<void> {
+  await Promise.all([
+    page.waitForResponse(response => navigationEndpoint.test(response.url()) && response.status() === 200),
+    page.waitForResponse(response => filterCatalogsEndpoint.test(response.url()) && response.status() === 200),
+    page.waitForResponse(response => dashboardEndpoint.test(response.url()) && response.status() === 200),
+    page.waitForResponse(response => profilesEndpoint.test(response.url()) && response.status() === 200),
+    page.goto(configProfilesPagePath)
+  ]);
+
+  await expect(page.getByTestId('nacha-config-profiles-page')).toBeVisible();
 }
 
 function createUnsignedJwt(payload: Record<string, unknown>): string {
