@@ -170,8 +170,8 @@ async function seedAuthenticatedSession(page: Page): Promise<void> {
     unique_name: 'uat.config',
     name: 'Usuario UAT Config',
     uid: 'uat-config',
-    role: ['Admin', 'ACH.Operator'],
-    permission: ['CanReadAch', 'CanManageAch'],
+    role: ['ACH.Operator'],
+    permission: ['CanReadAch'],
     exp: Math.floor(Date.now() / 1000) + 3600,
     iat: Math.floor(Date.now() / 1000)
   });
@@ -186,8 +186,8 @@ async function mockAuthRefresh(page: Page): Promise<void> {
     unique_name: 'uat.config',
     name: 'Usuario UAT Config',
     uid: 'uat-config',
-    role: ['Admin', 'ACH.Operator'],
-    permission: ['CanReadAch', 'CanManageAch'],
+    role: ['ACH.Operator'],
+    permission: ['CanReadAch'],
     exp: Math.floor(Date.now() / 1000) + 3600,
     iat: Math.floor(Date.now() / 1000)
   });
@@ -202,8 +202,8 @@ async function mockAuthRefresh(page: Page): Promise<void> {
           token,
           username: 'uat.config',
           fullName: 'Usuario UAT Config',
-          roles: ['Admin', 'ACH.Operator'],
-          permissions: ['CanReadAch', 'CanManageAch']
+          roles: ['ACH.Operator'],
+          permissions: ['CanReadAch']
         }
       })
     });
