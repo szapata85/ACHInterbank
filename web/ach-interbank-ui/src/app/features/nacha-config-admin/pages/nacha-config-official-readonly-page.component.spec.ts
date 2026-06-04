@@ -1,157 +1,203 @@
-import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
+import { RouterTestingModule } from '@angular/router/testing';
 import { of, throwError } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
-import { NachaConfigProfileDetail, NachaConfigProfileReadModel } from '../models/nacha-config-admin.models';
+import { SharedModule } from '../../../shared/shared.module';
+import {
+  NachaConfigProfileDetail,
+  NachaConfigProfileReadModel
+} from '../models/nacha-config-admin.models';
+import { NachaConfigCommandService } from '../services/nacha-config-command.service';
 import { NachaConfigQueryService } from '../services/nacha-config-query.service';
 import { NachaConfigRecordsPageComponent } from './nacha-config-records-page.component';
-import { NachaConfigVariantsFieldsPageComponent } from './nacha-config-variants-fields-page.component';
 
-const profile: NachaConfigProfileReadModel = {
-  profileId: 10,
-  profileCode: 'CENIT-OUT-220',
-  profileName: 'CENIT salida 220',
-  clearingHouseCode: 'CENIT',
-  flowType: 'Outgoing',
-  status: 'Published',
-  version: '1.0',
-  isPublished: true,
-  isCurrent: true,
-  effectiveFrom: '2026-01-01T00:00:00Z',
-  effectiveTo: null,
-  layoutVariantCount: 6,
-  fieldCount: 42,
-  recordTypes: ['1', '5', '6', '7', '8', '9'],
-  isOfficialModel: true,
-  legacyDeprecated: true
-};
+describe('NachaConfigRecordsPageComponent', () => {
+  let fixture: ComponentFixture<NachaConfigRecordsPageComponent>;
+  let component: NachaConfigRecordsPageComponent;
+  let querySpy: jasmine.SpyObj<NachaConfigQueryService>;
+  let commandSpy: jasmine.SpyObj<NachaConfigCommandService>;
+  let router: Router;
+  let notificationsSpy: jasmine.SpyObj<NotificationService>;
+  let authStub: { hasPermission: jasmine.Spy };
 
-const detail: NachaConfigProfileDetail = {
-  id: 10,
-  profileCode: 'CENIT-OUT-220',
-  nombreEs: 'CENIT salida 220',
-  descripcion: 'Perfil CENIT',
-  estado: 'BORRADOR',
-  camara: 'CENIT',
-  flujo: 'Outgoing',
-  direccion: 'SALIDA',
-  servicio: 'PPD',
-  versionMajor: 1,
-  versionMinor: 0,
-  contextPriority: 100,
-  effectiveFrom: '2026-01-01T00:00:00Z',
-  effectiveTo: null,
-  rowVersion: 'cm93',
-  records: [
-    { id: 1, recordCode: '1', sequence: 10, isEnabled: true, minOccurs: 1, maxOccurs: 1, sourceStrategy: 'TABLE_DRIVEN' },
-    { id: 2, recordCode: '5', sequence: 20, isEnabled: true, minOccurs: 1, maxOccurs: 1, sourceStrategy: 'TABLE_DRIVEN' },
-    { id: 3, recordCode: '6', sequence: 30, isEnabled: true, minOccurs: 1, maxOccurs: 1, sourceStrategy: 'TABLE_DRIVEN' },
-    { id: 4, recordCode: '7', sequence: 40, isEnabled: true, minOccurs: 1, maxOccurs: 1, sourceStrategy: 'TABLE_DRIVEN' },
-    { id: 5, recordCode: '8', sequence: 50, isEnabled: true, minOccurs: 1, maxOccurs: 1, sourceStrategy: 'TABLE_DRIVEN' },
-    { id: 6, recordCode: '9', sequence: 60, isEnabled: true, minOccurs: 1, maxOccurs: 1, sourceStrategy: 'TABLE_DRIVEN' }
-  ],
-  variantes: []
-};
+  const profiles: NachaConfigProfileReadModel[] = [
+    {
+      profileId: 11,
+      profileCode: 'UAT-NACHA-CONFIG-RECORDS-001',
+      profileName: 'Perfil borrador',
+      clearingHouseCode: 'ACH',
+      flowType: 'BORRADOR',
+      status: 'BORRADOR',
+      version: '1.0',
+      isPublished: false,
+      isCurrent: true,
+      effectiveFrom: '2026-01-01',
+      effectiveTo: null,
+      layoutVariantCount: 6,
+      fieldCount: 20,
+      recordTypes: ['1', '5', '6', '7', '8', '9'],
+      isOfficialModel: true,
+      legacyDeprecated: false
+    },
+    {
+      profileId: 12,
+      profileCode: 'UAT-NACHA-CONFIG-RECORDS-002',
+      profileName: 'Perfil publicado',
+      clearingHouseCode: 'ACH',
+      flowType: 'ORIGINAL',
+      status: 'PUBLICADO',
+      version: '1.1',
+      isPublished: true,
+      isCurrent: true,
+      effectiveFrom: '2026-01-01',
+      effectiveTo: null,
+      layoutVariantCount: 6,
+      fieldCount: 20,
+      recordTypes: ['1', '5', '6', '7', '8', '9'],
+      isOfficialModel: true,
+      legacyDeprecated: false
+    }
+  ];
 
-describe('NACHA Config official read-only pages', () => {
-  afterEach(() => TestBed.resetTestingModule());
+  const draftDetail: NachaConfigProfileDetail = {
+    id: 11,
+    profileCode: 'UAT-NACHA-CONFIG-RECORDS-001',
+    nombreEs: 'Perfil borrador',
+    descripcion: 'Perfil editable',
+    estado: 'BORRADOR',
+    camara: 'ACH',
+    flujo: 'ORIGINAL',
+    direccion: 'SALIDA',
+    servicio: 'PPD',
+    versionMajor: 1,
+    versionMinor: 0,
+    contextPriority: 100,
+    effectiveFrom: '2026-01-01',
+    effectiveTo: null,
+    rowVersion: 'cm93',
+    records: [
+      { id: 101, recordCode: '1', sequence: 10, isEnabled: true, minOccurs: 1, maxOccurs: 1, sourceStrategy: 'TABLE_DRIVEN' },
+      { id: 102, recordCode: '5', sequence: 20, isEnabled: true, minOccurs: 1, maxOccurs: 1, sourceStrategy: 'TABLE_DRIVEN' },
+      { id: 103, recordCode: '6', sequence: 30, isEnabled: true, minOccurs: 1, maxOccurs: 1, sourceStrategy: 'TABLE_DRIVEN' },
+      { id: 104, recordCode: '7', sequence: 40, isEnabled: false, minOccurs: 0, maxOccurs: 1, sourceStrategy: 'TABLE_DRIVEN' },
+      { id: 105, recordCode: '8', sequence: 50, isEnabled: true, minOccurs: 1, maxOccurs: 1, sourceStrategy: 'TABLE_DRIVEN' },
+      { id: 106, recordCode: '9', sequence: 60, isEnabled: true, minOccurs: 1, maxOccurs: 1, sourceStrategy: 'TABLE_DRIVEN' }
+    ],
+    variantes: []
+  };
 
-  async function createVariantsFixture(options?: { error?: boolean; profiles?: NachaConfigProfileReadModel[] }) {
-    const query = jasmine.createSpyObj<NachaConfigQueryService>('NachaConfigQueryService', ['perfilesReadOnly']);
-    query.perfilesReadOnly.and.returnValue(options?.error ? throwError(() => new Error('api')) : of(options?.profiles ?? [profile]));
+  const publishedDetail: NachaConfigProfileDetail = {
+    ...draftDetail,
+    id: 12,
+    profileCode: 'UAT-NACHA-CONFIG-RECORDS-002',
+    nombreEs: 'Perfil publicado',
+    estado: 'PUBLICADO',
+    versionMinor: 1,
+    rowVersion: 'cm93Mg=='
+  };
+
+  beforeEach(async () => {
+    querySpy = jasmine.createSpyObj<NachaConfigQueryService>('NachaConfigQueryService', ['perfilesReadOnly', 'detalle']);
+    commandSpy = jasmine.createSpyObj<NachaConfigCommandService>('NachaConfigCommandService', ['actualizarSecuencia']);
+    notificationsSpy = jasmine.createSpyObj<NotificationService>('NotificationService', ['success', 'error', 'warning', 'info']);
+    authStub = { hasPermission: jasmine.createSpy().and.returnValue(true) };
+
+    querySpy.perfilesReadOnly.and.returnValue(of(profiles));
+    querySpy.detalle.and.returnValue(of(draftDetail));
+    commandSpy.actualizarSecuencia.and.returnValue(of(void 0));
 
     await TestBed.configureTestingModule({
-      imports: [NachaConfigVariantsFieldsPageComponent],
+      imports: [SharedModule, RouterTestingModule, NachaConfigRecordsPageComponent],
       providers: [
-        { provide: NachaConfigQueryService, useValue: query },
-        { provide: NotificationService, useValue: jasmine.createSpyObj('NotificationService', ['error']) },
-        { provide: Router, useValue: jasmine.createSpyObj<Router>('Router', ['navigate']) },
-        { provide: ActivatedRoute, useValue: { snapshot: {}, params: of({}) } },
-        { provide: AuthService, useValue: { hasPermission: () => false } }
+        { provide: NachaConfigQueryService, useValue: querySpy },
+        { provide: NachaConfigCommandService, useValue: commandSpy },
+        { provide: NotificationService, useValue: notificationsSpy },
+        { provide: AuthService, useValue: authStub }
       ]
     }).compileComponents();
 
-    const fixture = TestBed.createComponent(NachaConfigVariantsFieldsPageComponent);
+    fixture = TestBed.createComponent(NachaConfigRecordsPageComponent);
+    component = fixture.componentInstance;
+    router = TestBed.inject(Router);
+    spyOn(router, 'navigate').and.resolveTo(true);
     fixture.detectChanges();
-    return { fixture, component: fixture.componentInstance, query };
-  }
-
-  async function createRecordsFixture(options?: { error?: boolean; profiles?: NachaConfigProfileReadModel[] }) {
-    const query = jasmine.createSpyObj<NachaConfigQueryService>('NachaConfigQueryService', ['perfilesReadOnly', 'detalle']);
-    query.perfilesReadOnly.and.returnValue(options?.error ? throwError(() => new Error('api')) : of(options?.profiles ?? [profile]));
-    query.detalle.and.returnValue(of(detail));
-
-    await TestBed.configureTestingModule({
-      imports: [NachaConfigRecordsPageComponent],
-      providers: [
-        { provide: NachaConfigQueryService, useValue: query },
-        { provide: NotificationService, useValue: jasmine.createSpyObj('NotificationService', ['error']) },
-        { provide: Router, useValue: jasmine.createSpyObj<Router>('Router', ['navigate']) },
-        { provide: ActivatedRoute, useValue: { snapshot: {}, params: of({}) } },
-        { provide: AuthService, useValue: { hasPermission: () => false } }
-      ]
-    }).compileComponents();
-
-    const fixture = TestBed.createComponent(NachaConfigRecordsPageComponent);
-    fixture.detectChanges();
-    return { fixture, component: fixture.componentInstance, query };
-  }
-
-  it('VariantsFields_ShouldLoadOfficialProfiles', async () => {
-    const { fixture, component, query } = await createVariantsFixture();
-
-    expect(query.perfilesReadOnly).toHaveBeenCalled();
-    expect(component.profiles.length).toBe(1);
-    expect(fixture.nativeElement.textContent).toContain('NACHA Config - Variants y Fields');
-    expect(fixture.nativeElement.textContent).toContain('nacha-config profiles');
-    expect(fixture.nativeElement.textContent).toContain('CENIT-OUT-220');
-    expect(component.profiles[0].status).toBe('Published');
-    expect(component.profiles[0].version).toBe('1.0');
-    expect(fixture.nativeElement.textContent).not.toContain('Crear');
-    expect(fixture.nativeElement.textContent).not.toContain('Editar');
-    expect(fixture.nativeElement.textContent).not.toContain('Guardar');
-    expect(fixture.nativeElement.textContent).not.toContain('Eliminar');
   });
 
-  it('Records_ShouldLoadOfficialProfilesAndRecords', async () => {
-    const { fixture, component, query } = await createRecordsFixture();
+  it('Component_ShouldCreate', () => {
+    expect(component).toBeTruthy();
+  });
 
-    expect(query.perfilesReadOnly).toHaveBeenCalled();
-    expect(query.detalle).toHaveBeenCalled();
-    expect(component.profiles.length).toBe(1);
+  it('Component_ShouldLoadProfilesAndDraftRecords', () => {
+    expect(querySpy.perfilesReadOnly).toHaveBeenCalled();
+    expect(querySpy.detalle).toHaveBeenCalledWith(11);
+    expect(component.selectedProfile?.profileCode).toBe('UAT-NACHA-CONFIG-RECORDS-001');
     expect(component.records.length).toBe(6);
     expect(fixture.nativeElement.textContent).toContain('NACHA Config - Records');
-    expect(fixture.nativeElement.textContent).toContain('nacha-config profiles');
-    expect(component.records.map((record) => record.recordCode)).toEqual(['1', '5', '6', '7', '8', '9']);
-    expect(fixture.nativeElement.textContent).not.toContain('Crear');
-    expect(fixture.nativeElement.textContent).not.toContain('Editar');
-    expect(fixture.nativeElement.textContent).not.toContain('Guardar');
-    expect(fixture.nativeElement.textContent).not.toContain('Eliminar');
+    expect(fixture.nativeElement.textContent).toContain('UAT-NACHA-CONFIG-RECORDS-001');
+    expect(fixture.nativeElement.textContent).toContain('Secuencia');
+    expect(fixture.nativeElement.textContent).toContain('TABLE_DRIVEN');
+  });
+
+  it('Component_ShouldAllowSaveOnlyForDraftAndManagePermission', () => {
+    expect(fixture.nativeElement.textContent).toContain('Guardar secuencia');
+    component.onSequenceChange(component.records[0], { target: { value: '99' } } as unknown as Event);
+
+    component.guardarSecuencia();
+
+    expect(commandSpy.actualizarSecuencia).toHaveBeenCalledWith(11, {
+      expectedRowVersion: 'cm93',
+      records: [
+        { profileRecordId: 101, sequence: 99 },
+        { profileRecordId: 102, sequence: 20 },
+        { profileRecordId: 103, sequence: 30 },
+        { profileRecordId: 104, sequence: 40 },
+        { profileRecordId: 105, sequence: 50 },
+        { profileRecordId: 106, sequence: 60 }
+      ]
+    });
+    expect(notificationsSpy.success).toHaveBeenCalled();
+  });
+
+  it('Component_ShouldHideSaveForPublishedProfiles', () => {
+    querySpy.detalle.and.returnValue(of(publishedDetail));
+    fixture = TestBed.createComponent(NachaConfigRecordsPageComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    expect(component.selectedProfile?.estado).toBe('PUBLICADO');
     expect(fixture.nativeElement.textContent).not.toContain('Guardar secuencia');
   });
 
-  it('VariantsFields_ShouldShowClearEmptyState', async () => {
-    const { fixture, component } = await createVariantsFixture({ profiles: [] });
+  it('Component_ShouldHideSaveWithoutManagePermission', () => {
+    authStub.hasPermission.and.returnValue(false);
+    fixture = TestBed.createComponent(NachaConfigRecordsPageComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
 
-    expect(component.profiles).toEqual([]);
-    expect(fixture.nativeElement.textContent).toContain('Sin nacha-config profiles');
+    expect(fixture.nativeElement.textContent).not.toContain('Guardar secuencia');
+    expect(fixture.nativeElement.textContent).toContain('Solo lectura');
   });
 
-  it('Records_ShouldShowClearEmptyState', async () => {
-    const { fixture, component } = await createRecordsFixture({ profiles: [] });
+  it('Component_ShouldSurfaceConcurrencyErrorWhenSavingSequence', () => {
+    commandSpy.actualizarSecuencia.and.returnValue(throwError(() => ({
+      message: 'El perfil fue modificado por otro usuario.',
+      issues: [{ severidad: 'ERROR', codigo: 'CONCURRENCY_CONFLICT', mensaje: 'Concurrencia detectada.' }]
+    })));
 
-    expect(component.profiles).toEqual([]);
-    expect(fixture.nativeElement.textContent).toContain('Sin perfiles oficiales');
+    component.guardarSecuencia();
+
+    expect(notificationsSpy.error).toHaveBeenCalled();
+    expect(component.saveError).toContain('modificado por otro usuario');
+    expect(component.saveIssues.length).toBe(1);
   });
 
-  it('OfficialReadOnlyPages_ShouldUseNachaConfigQueryServiceOnly', async () => {
-    const variants = await createVariantsFixture();
-    TestBed.resetTestingModule();
-    const records = await createRecordsFixture();
+  it('Component_ShouldNavigateToOfficialVariantsAndProfileRoutes', () => {
+    component.irADetallePerfil();
+    expect(router.navigate).toHaveBeenCalledWith(['/nacha-config-admin/perfiles', 11]);
 
-    expect(variants.query.perfilesReadOnly).toHaveBeenCalledTimes(1);
-    expect(records.query.perfilesReadOnly).toHaveBeenCalledTimes(1);
-    expect(records.query.detalle).toHaveBeenCalledTimes(1);
+    component.irAVariantsFields();
+    expect(router.navigate).toHaveBeenCalledWith(['/nacha-config-admin/variants-fields']);
   });
 });

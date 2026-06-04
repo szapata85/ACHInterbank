@@ -122,6 +122,54 @@ describe('NachaConfigApiService', () => {
     req.flush({});
   });
 
+  it('debe actualizar variant', () => {
+    service.actualizarVariante(9, 77, {
+      nombreEs: 'Variant editable',
+      descripcion: 'Descripcion',
+      priority: 2,
+      isDefaultForRecord: true,
+      effectiveFrom: '2026-01-01',
+      effectiveTo: null,
+      expectedRowVersion: 'row-v'
+    }).subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/nacha-config/perfiles/9/variantes/77`);
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({
+      nombreEs: 'Variant editable',
+      descripcion: 'Descripcion',
+      priority: 2,
+      isDefaultForRecord: true,
+      effectiveFrom: '2026-01-01',
+      effectiveTo: null,
+      expectedRowVersion: 'row-v'
+    });
+    req.flush({});
+  });
+
+  it('debe actualizar field', () => {
+    service.actualizarField(9, 88, {
+      fieldNameEs: 'Field editable',
+      startPosition: 3,
+      length: 12,
+      propertyPath: 'Transaction.Amount',
+      isEnabled: false,
+      expectedRowVersion: 'row-v2'
+    }).subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/nacha-config/perfiles/9/fields/88`);
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({
+      fieldNameEs: 'Field editable',
+      startPosition: 3,
+      length: 12,
+      propertyPath: 'Transaction.Amount',
+      isEnabled: false,
+      expectedRowVersion: 'row-v2'
+    });
+    req.flush({});
+  });
+
   it('debe clonar perfil', () => {
     service.clonarPerfil(9, {
       nuevoProfileCode: 'UAT-NACHA-CONFIG-CLONE',
