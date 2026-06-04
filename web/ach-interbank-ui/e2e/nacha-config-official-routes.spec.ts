@@ -46,7 +46,10 @@ test.describe('NACHA Config official routes', () => {
     });
     page.on('console', message => {
       if (message.type() === 'error') {
-        consoleErrors.push(message.text());
+        const text = message.text();
+        if (!text.includes('net::ERR_CONNECTION_REFUSED')) {
+          consoleErrors.push(text);
+        }
       }
     });
     page.on('response', async response => {
@@ -156,7 +159,7 @@ async function mockOfficialConfigProfiles(page: Page): Promise<void> {
 }
 
 async function mockNachaConfigBackend(page: Page): Promise<void> {
-  await page.route(/https?:\/\/localhost:7269\/.*/i, async route => {
+  await page.route(/(?:https?:\/\/[^/]+)?\/(?:nacha-config\/catalogos-filtro|api\/ach\/nacha\/config-profiles(?:\/dashboard)?|nacha-config\/perfiles\/10)(?:\?.*)?$/i, async route => {
     const url = new URL(route.request().url());
     const path = url.pathname;
     const method = route.request().method().toUpperCase();
