@@ -70,8 +70,8 @@ test.describe('NACHA Config official routes', () => {
     await page.goto('/nacha-config-admin/variants-fields');
 
     await expect(page.getByTestId('nacha-config-variants-fields-page').getByRole('heading', { name: 'NACHA Config - Variants y Fields' })).toBeVisible();
-    await expect(page.getByTestId('nacha-config-variants-fields-page')).toContainText('Vista read-only oficial basada en nacha-config profiles.');
-    await expect(page.getByText('CENIT-OUT-220')).toBeVisible();
+    await expect(page.getByTestId('nacha-config-variants-fields-page')).toContainText('Workspace administrativo oficial sobre nacha-config profiles.');
+    await expect(page.getByTestId('profile-selector')).toBeVisible();
     await expect(page.getByRole('button', { name: /Crear|Editar|Eliminar/i })).toHaveCount(0);
 
     await page.goto('/nacha-config-admin/records');
