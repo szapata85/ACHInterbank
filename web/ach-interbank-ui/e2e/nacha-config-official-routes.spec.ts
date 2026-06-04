@@ -441,6 +441,23 @@ async function authenticate(page: Page): Promise<void> {
   const pass = process.env['ACH_PASS'] ?? 'Admin123!';
 
   const apiBaseUrl = process.env['ACH_API_URL'] ?? 'http://localhost:843';
+  if (!process.env['ACH_API_URL']) {
+    const token = createUnsignedJwt({
+      unique_name: user,
+      name: 'Usuario UAT Oficial',
+      uid: 'uat-official',
+      role: ['Admin', 'ACH.Operator'],
+      permission: ['CanReadAch', 'CanManageAch'],
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      iat: Math.floor(Date.now() / 1000)
+    });
+
+    await page.addInitScript((accessToken) => {
+      window.sessionStorage.setItem('ach.interbank.access_token', accessToken);
+    }, token);
+    return;
+  }
+
   const response = await page.request.post(`${apiBaseUrl.replace(/\/+$/, '')}/auth/login`, {
     data: { username: user, password: pass }
   });
