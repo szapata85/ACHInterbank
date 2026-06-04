@@ -2,12 +2,17 @@ import { expect, Page, test } from '@playwright/test';
 
 const refreshEndpoint = /\/auth\/refresh$/;
 const navigationEndpoint = /\/navigation\/menu$/;
+const catalogsEndpoint = /\/nacha-config\/catalogos-filtro$/;
+const dashboardEndpoint = /\/api\/ach\/nacha\/config-profiles\/dashboard$/;
+const profilesReadOnlyEndpoint = /\/api\/ach\/nacha\/config-profiles$/;
 const layoutsEndpoint = /\/nacha-layouts(?:\?.*)?$/;
 const definitionsEndpoint = /\/nacha-record-definitions(?:\?.*)?$/;
 const configProfilesEndpoint = /\/api\/ach\/nacha\/config-profiles$/;
+const configProfileDetailEndpoint = /\/nacha-config\/perfiles\/10$/;
 
 test.describe('NACHA Config official routes', () => {
   test.beforeEach(async ({ page }) => {
+    await mockNachaConfigBackend(page);
     await mockAuthRefresh(page);
     await mockNavigation(page);
     await authenticate(page);
@@ -25,7 +30,6 @@ test.describe('NACHA Config official routes', () => {
   });
 
   test('OfficialRoutes_ShouldUseConfigProfilesAndAvoidLegacyEndpoints', async ({ page }) => {
-    await mockOfficialConfigProfiles(page);
     const legacyRequests: string[] = [];
     const htmlJsResponses: string[] = [];
     const chunkRequestFailures: string[] = [];
@@ -58,6 +62,11 @@ test.describe('NACHA Config official routes', () => {
     });
 
     await page.goto('/nacha-config-admin/perfiles');
+
+    await expect(page.getByTestId('nacha-config-profiles-page').getByRole('heading', { name: 'Config Profiles NACHA-M' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Crear borrador' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Validar' })).toBeVisible();
+
     await page.goto('/nacha-config-admin/variants-fields');
 
     await expect(page.getByTestId('nacha-config-variants-fields-page').getByRole('heading', { name: 'NACHA Config - Variants y Fields' })).toBeVisible();
@@ -71,6 +80,13 @@ test.describe('NACHA Config official routes', () => {
     await expect(page.getByText('nacha-config profiles')).toBeVisible();
     await expect(page.getByText('1, 5, 6, 7, 8, 9')).toBeVisible();
     await expect(page.getByRole('button', { name: /Crear|Editar|Guardar|Eliminar/i })).toHaveCount(0);
+
+    await page.goto('/nacha-config-admin/perfiles/10');
+
+    await expect(page.getByTestId('nacha-config-profile-workspace-page').getByRole('heading', { name: 'Perfil CENIT-OUT-220' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Clonar como borrador' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Ir a records oficiales' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Ir a variants y fields' })).toBeVisible();
     expect(legacyRequests).toEqual([]);
     expect(htmlJsResponses).toEqual([]);
     expect(chunkRequestFailures).toEqual([]);
@@ -135,6 +151,258 @@ async function mockOfficialConfigProfiles(page: Page): Promise<void> {
           legacyDeprecated: true
         }
       ])
+    });
+  });
+}
+
+async function mockNachaConfigBackend(page: Page): Promise<void> {
+  await page.route(/https?:\/\/localhost:7269\/.*/i, async route => {
+    const url = new URL(route.request().url());
+    const path = url.pathname;
+    const method = route.request().method().toUpperCase();
+
+    if (method === 'GET' && path === '/nacha-config/catalogos-filtro') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          estados: [
+            { code: 'BORRADOR', labelEs: 'Borrador' },
+            { code: 'PUBLICADO', labelEs: 'Publicado' },
+            { code: 'INACTIVO', labelEs: 'Inactivo' },
+            { code: 'ARCHIVADO', labelEs: 'Archivado' }
+          ],
+          camaras: [
+            { code: 'ACH', labelEs: 'ACH Colombia' },
+            { code: 'CENIT', labelEs: 'CENIT' }
+          ],
+          flujos: [
+            { code: 'ORIGINAL', labelEs: 'Original' },
+            { code: 'RETORNO', labelEs: 'Retorno' }
+          ],
+          direcciones: [
+            { code: 'SALIDA', labelEs: 'Salida' },
+            { code: 'ENTRADA', labelEs: 'Entrada' }
+          ],
+          servicios: [
+            { code: 'PPD', labelEs: 'PPD' },
+            { code: 'CCD', labelEs: 'CCD' }
+          ]
+        })
+      });
+      return;
+    }
+
+    if (method === 'GET' && path === '/api/ach/nacha/config-profiles/dashboard') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          productiveStatus: 'NO-GO',
+          isOfficialModel: true,
+          legacyDeprecated: false,
+          profileCount: 1,
+          publishedProfileCount: 1,
+          currentProfileCount: 1,
+          layoutVariantCount: 6,
+          fieldCount: 42,
+          clearingHouses: ['ACH', 'CENIT'],
+          recordTypes: ['1', '5', '6', '7', '8', '9'],
+          warnings: []
+        })
+      });
+      return;
+    }
+
+    if (method === 'GET' && path === '/api/ach/nacha/config-profiles') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            profileId: 10,
+            profileCode: 'CENIT-OUT-220',
+            profileName: 'CENIT salida 220',
+            clearingHouseCode: 'CENIT',
+            flowType: 'Outgoing',
+            status: 'Published',
+            version: '1.0',
+            isPublished: true,
+            isCurrent: true,
+            effectiveFrom: '2026-01-01T00:00:00Z',
+            effectiveTo: null,
+            layoutVariantCount: 6,
+            fieldCount: 42,
+            recordTypes: ['1', '5', '6', '7', '8', '9'],
+            isOfficialModel: true,
+            legacyDeprecated: false
+          }
+        ])
+      });
+      return;
+    }
+
+    if (method === 'GET' && path === '/nacha-config/perfiles/10') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 10,
+          profileCode: 'CENIT-OUT-220',
+          nombreEs: 'CENIT salida 220',
+          descripcion: 'Perfil oficial administrable',
+          estado: 'BORRADOR',
+          versionMajor: 1,
+          versionMinor: 0,
+          contextPriority: 100,
+          effectiveFrom: '2026-01-01T00:00:00Z',
+          effectiveTo: null,
+          rowVersion: 'cm93',
+          records: [
+            { id: 1, recordCode: '1', sequence: 1, isEnabled: true, minOccurs: 1, maxOccurs: 1, sourceStrategy: 'STATIC' }
+          ],
+          variantes: [
+            {
+              id: 2,
+              recordCode: '1',
+              variantCode: 'CENIT_R1_BASE_V1',
+              nombreEs: 'Base',
+              priority: 1,
+              isDefaultForRecord: true,
+              totalLength: 94,
+              fields: []
+            }
+          ]
+        })
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '{}'
+    });
+  });
+}
+
+async function mockNachaConfigCatalogs(page: Page): Promise<void> {
+  await page.route(catalogsEndpoint, async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        estados: [
+          { code: 'BORRADOR', labelEs: 'Borrador' },
+          { code: 'PUBLICADO', labelEs: 'Publicado' },
+          { code: 'INACTIVO', labelEs: 'Inactivo' },
+          { code: 'ARCHIVADO', labelEs: 'Archivado' }
+        ],
+        camaras: [
+          { code: 'ACH', labelEs: 'ACH Colombia' },
+          { code: 'CENIT', labelEs: 'CENIT' }
+        ],
+        flujos: [
+          { code: 'ORIGINAL', labelEs: 'Original' },
+          { code: 'RETORNO', labelEs: 'Retorno' }
+        ],
+        direcciones: [
+          { code: 'SALIDA', labelEs: 'Salida' },
+          { code: 'ENTRADA', labelEs: 'Entrada' }
+        ],
+        servicios: [
+          { code: 'PPD', labelEs: 'PPD' },
+          { code: 'CCD', labelEs: 'CCD' }
+        ]
+      })
+    });
+  });
+}
+
+async function mockNachaConfigDashboard(page: Page): Promise<void> {
+  await page.route(dashboardEndpoint, async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        productiveStatus: 'NO-GO',
+        isOfficialModel: true,
+        legacyDeprecated: false,
+        profileCount: 1,
+        publishedProfileCount: 1,
+        currentProfileCount: 1,
+        layoutVariantCount: 6,
+        fieldCount: 42,
+        clearingHouses: ['ACH', 'CENIT'],
+        recordTypes: ['1', '5', '6', '7', '8', '9'],
+        warnings: []
+      })
+    });
+  });
+}
+
+async function mockNachaConfigProfilesReadOnly(page: Page): Promise<void> {
+  await page.route(profilesReadOnlyEndpoint, async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          profileId: 10,
+          profileCode: 'CENIT-OUT-220',
+          profileName: 'CENIT salida 220',
+          clearingHouseCode: 'CENIT',
+          flowType: 'Outgoing',
+          status: 'Published',
+          version: '1.0',
+          isPublished: true,
+          isCurrent: true,
+          effectiveFrom: '2026-01-01T00:00:00Z',
+          effectiveTo: null,
+          layoutVariantCount: 6,
+          fieldCount: 42,
+          recordTypes: ['1', '5', '6', '7', '8', '9'],
+          isOfficialModel: true,
+          legacyDeprecated: false
+        }
+      ])
+    });
+  });
+}
+
+async function mockOfficialProfileDetail(page: Page): Promise<void> {
+  await page.route(configProfileDetailEndpoint, async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 10,
+        profileCode: 'CENIT-OUT-220',
+        nombreEs: 'CENIT salida 220',
+        descripcion: 'Perfil oficial administrable',
+        estado: 'BORRADOR',
+        versionMajor: 1,
+        versionMinor: 0,
+        contextPriority: 100,
+        effectiveFrom: '2026-01-01T00:00:00Z',
+        effectiveTo: null,
+        rowVersion: 'cm93',
+        records: [
+          { id: 1, recordCode: '1', sequence: 1, isEnabled: true, minOccurs: 1, maxOccurs: 1, sourceStrategy: 'STATIC' }
+        ],
+        variantes: [
+          {
+            id: 2,
+            recordCode: '1',
+            variantCode: 'CENIT_R1_BASE_V1',
+            nombreEs: 'Base',
+            priority: 1,
+            isDefaultForRecord: true,
+            totalLength: 94,
+            fields: []
+          }
+        ]
+      })
     });
   });
 }

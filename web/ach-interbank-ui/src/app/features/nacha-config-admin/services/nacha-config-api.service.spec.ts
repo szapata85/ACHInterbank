@@ -60,4 +60,79 @@ describe('NachaConfigApiService', () => {
     expect(req.request.body).toEqual({ expectedRowVersion: 'abc=' });
     req.flush({ publicado: true });
   });
+
+  it('debe crear borrador', () => {
+    service.crearBorrador({
+      profileCode: 'UAT-NACHA-CONFIG-001',
+      nombreEs: 'Perfil UAT',
+      descripcion: 'Descripcion',
+      camaraCode: 'ACH',
+      flujoCode: 'ORIGINAL',
+      direccionCode: 'SALIDA',
+      servicioCode: 'PPD',
+      effectiveFrom: '2026-01-01'
+    }).subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/nacha-config/perfiles`);
+    expect(req.request.method).toBe('POST');
+    req.flush({ id: 99 });
+  });
+
+  it('debe editar borrador', () => {
+    service.editarBorrador(9, {
+      nombreEs: 'Perfil UAT',
+      descripcion: 'Descripcion',
+      contextPriority: 150,
+      effectiveFrom: '2026-01-01',
+      effectiveTo: null,
+      expectedRowVersion: 'abc='
+    }).subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/nacha-config/perfiles/9`);
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({
+      nombreEs: 'Perfil UAT',
+      descripcion: 'Descripcion',
+      contextPriority: 150,
+      effectiveFrom: '2026-01-01',
+      effectiveTo: null,
+      expectedRowVersion: 'abc='
+    });
+    req.flush({ id: 9 });
+  });
+
+  it('debe clonar perfil', () => {
+    service.clonarPerfil(9, {
+      nuevoProfileCode: 'UAT-NACHA-CONFIG-CLONE',
+      nuevoNombreEs: 'Perfil clonado',
+      effectiveFrom: '2026-01-01',
+      expectedRowVersion: 'abc='
+    }).subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/nacha-config/perfiles/9/clonar`);
+    expect(req.request.method).toBe('POST');
+    req.flush({ id: 19 });
+  });
+
+  it('debe validar perfil', () => {
+    service.validar(9).subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/nacha-config/perfiles/9/validar`);
+    expect(req.request.method).toBe('POST');
+    req.flush({ profileId: 9, isValid: true, erroresBloqueantes: 0, advertencias: 0, resumen: 'OK', issues: [] });
+  });
+
+  it('debe inactivar y archivar perfiles', () => {
+    service.inactivar(9, 'abc=').subscribe();
+    let req = httpMock.expectOne(`${environment.apiBaseUrl}/nacha-config/perfiles/9/inactivar`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ expectedRowVersion: 'abc=' });
+    req.flush({});
+
+    service.archivar(9, 'def=').subscribe();
+    req = httpMock.expectOne(`${environment.apiBaseUrl}/nacha-config/perfiles/9/archivar`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ expectedRowVersion: 'def=' });
+    req.flush({});
+  });
 });

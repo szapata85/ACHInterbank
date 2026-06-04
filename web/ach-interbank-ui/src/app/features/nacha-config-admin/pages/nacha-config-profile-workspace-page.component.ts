@@ -1,12 +1,17 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ColDef } from 'ag-grid-community';
 import { finalize } from 'rxjs';
+import { AuthService } from '../../../core/services/auth.service';
+import { NotificationService } from '../../../core/services/notification.service';
 import {
-  NachaConfigProfileDetailReadModel,
-  NachaConfigProfileFieldReadModel,
-  NachaConfigProfileVariantReadModel
+  NachaConfigLayoutVariant,
+  NachaConfigProfileDetail,
+  NachaConfigProfileRecord,
+  NachaConfigValidationResult
 } from '../models/nacha-config-admin.models';
+import { NachaConfigCommandService } from '../services/nacha-config-command.service';
 import { NachaConfigQueryService } from '../services/nacha-config-query.service';
 
 @Component({
@@ -14,40 +19,93 @@ import { NachaConfigQueryService } from '../services/nacha-config-query.service'
   templateUrl: './nacha-config-profile-workspace-page.component.html',
   styleUrls: ['./nacha-config-profile-workspace-page.component.scss'],
   standalone: false,
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.Default
 })
 export class NachaConfigProfileWorkspacePageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly query = inject(NachaConfigQueryService);
+  private readonly command = inject(NachaConfigCommandService);
+  private readonly auth = inject(AuthService);
+  private readonly notifications = inject(NotificationService);
+  private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
+  readonly puedeGestionar = this.auth.hasPermission('CanManageAch');
 
   perfilId = 0;
-  perfil: NachaConfigProfileDetailReadModel | null = null;
+  perfil: NachaConfigProfileDetail | null = null;
   cargando = false;
   errorCarga = false;
+  validacion: NachaConfigValidationResult | null = null;
+  guardando = false;
+  clonando = false;
+  validando = false;
+  publicando = false;
+  inactivando = false;
+  archivando = false;
+  modalAbierto = false;
+  modalAccion: 'publicar' | 'inactivar' | 'archivar' | null = null;
+  modalTitulo = '';
+  modalMensaje = '';
 
-  readonly columnasVariantes: ColDef<NachaConfigProfileVariantReadModel>[] = [
-    { field: 'recordType', headerName: 'Record', minWidth: 90 },
+  readonly editarForm = this.fb.group({
+    nombreEs: ['', [Validators.required, Validators.minLength(3)]],
+    descripcion: [''],
+    contextPriority: [100, [Validators.required, Validators.min(1)]],
+    effectiveFrom: ['', Validators.required],
+    effectiveTo: [''],
+    expectedRowVersion: ['']
+  });
+
+  readonly cloneForm = this.fb.group({
+    nuevoProfileCode: ['', [Validators.required, Validators.minLength(6)]],
+    nuevoNombreEs: ['', [Validators.required, Validators.minLength(3)]],
+    effectiveFrom: ['', Validators.required],
+    expectedRowVersion: ['']
+  });
+
+  readonly columnasRecords: ColDef<NachaConfigProfileRecord>[] = [
+    { field: 'recordCode', headerName: 'Record', minWidth: 100 },
+    { field: 'sequence', headerName: 'Secuencia', minWidth: 110 },
+    { field: 'isEnabled', headerName: 'Habilitado', minWidth: 120 },
+    { field: 'minOccurs', headerName: 'MinOccurs', minWidth: 110 },
+    { field: 'maxOccurs', headerName: 'MaxOccurs', minWidth: 110 },
+    { field: 'sourceStrategy', headerName: 'SourceStrategy', minWidth: 200 }
+  ];
+
+  readonly columnasVariantes: ColDef<NachaConfigLayoutVariant>[] = [
+    { field: 'recordCode', headerName: 'Record', minWidth: 90 },
     { field: 'variantCode', headerName: 'Variant', minWidth: 180 },
-    { field: 'recordLength', headerName: 'Longitud', minWidth: 100 },
-    { field: 'blockingFactor', headerName: 'Blocking factor', minWidth: 130 },
-    { field: 'isActive', headerName: 'Activa', minWidth: 100 },
-    { field: 'fieldCount', headerName: 'Fields', minWidth: 100 }
+    { field: 'nombreEs', headerName: 'Nombre', minWidth: 220 },
+    { field: 'priority', headerName: 'Prioridad', minWidth: 100 },
+    { field: 'isDefaultForRecord', headerName: 'Default', minWidth: 100 },
+    { field: 'totalLength', headerName: 'Longitud', minWidth: 100 },
+    { headerName: 'Fields', minWidth: 100, valueGetter: (p) => p.data?.fields.length ?? 0 }
   ];
 
-  readonly columnasFields: ColDef<NachaConfigProfileFieldReadModel>[] = [
-    { field: 'recordType', headerName: 'Record', minWidth: 90 },
-    { field: 'fieldName', headerName: 'Field', minWidth: 220 },
-    { field: 'startPosition', headerName: 'Inicio', minWidth: 90 },
-    { field: 'length', headerName: 'Longitud', minWidth: 100 },
-    { field: 'endPosition', headerName: 'Fin', minWidth: 90 },
-    { field: 'dataType', headerName: 'Tipo', minWidth: 120 },
-    { field: 'sourceFieldPath', headerName: 'sourceFieldPath', minWidth: 220 },
-    { field: 'paddingDirection', headerName: 'Padding', minWidth: 120 },
-    { field: 'isComputed', headerName: 'Calculado', minWidth: 110 },
-    { field: 'isControlTotalField', headerName: 'Control total', minWidth: 130 }
-  ];
+  get estadoNormalizado(): string {
+    return this.perfil?.estado?.toUpperCase?.() ?? '';
+  }
+
+  get esBorrador(): boolean {
+    return this.estadoNormalizado === 'BORRADOR';
+  }
+
+  get puedeEditarBorrador(): boolean {
+    return this.puedeGestionar && this.esBorrador;
+  }
+
+  get puedePublicar(): boolean {
+    return this.puedeGestionar && this.esBorrador;
+  }
+
+  get puedeInactivar(): boolean {
+    return this.puedeGestionar && this.estadoNormalizado === 'PUBLICADO';
+  }
+
+  get puedeArchivar(): boolean {
+    return this.puedeGestionar && ['PUBLICADO', 'INACTIVO'].includes(this.estadoNormalizado);
+  }
 
   ngOnInit(): void {
     this.perfilId = Number(this.route.snapshot.paramMap.get('id'));
@@ -63,24 +121,338 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
     this.cargando = true;
     this.errorCarga = false;
 
-    this.query.detalleReadOnly(this.perfilId).pipe(finalize(() => {
-      this.cargando = false;
+    this.query.detalle(this.perfilId)
+      .pipe(finalize(() => {
+        this.cargando = false;
+        this.cdr.markForCheck();
+      }))
+      .subscribe({
+        next: (perfil) => {
+          this.perfil = perfil;
+          this.sincronizarFormularios();
+          this.validacion = null;
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.errorCarga = true;
+          this.notifications.error('No fue posible cargar el perfil NACHA administrativo.');
+          this.cdr.markForCheck();
+        }
+      });
+  }
+
+  guardarBorrador(): void {
+    if (!this.puedeEditarBorrador || !this.perfil || this.guardando) {
+      return;
+    }
+
+    if (this.editarForm.invalid) {
+      this.editarForm.markAllAsTouched();
       this.cdr.markForCheck();
-    })).subscribe({
-      next: (perfil) => {
-        this.perfil = perfil;
-      },
-      error: () => {
-        this.errorCarga = true;
-      }
-    });
+      return;
+    }
+
+    const form = this.editarForm.getRawValue();
+    this.guardando = true;
+
+    this.command
+      .editarBorrador(this.perfil.id, {
+        nombreEs: (form.nombreEs ?? '').trim(),
+        descripcion: (form.descripcion ?? '').trim() || null,
+        contextPriority: Number(form.contextPriority ?? 100),
+        effectiveFrom: form.effectiveFrom,
+        effectiveTo: (form.effectiveTo ?? '').trim() || null,
+        expectedRowVersion: form.expectedRowVersion ?? ''
+      })
+      .pipe(finalize(() => {
+        this.guardando = false;
+        this.cdr.markForCheck();
+      }))
+      .subscribe({
+        next: () => {
+          this.notifications.success('Borrador actualizado correctamente.');
+          this.cargar();
+        },
+        error: (error) => {
+          this.notifications.error(this.errorMessage(error, 'No fue posible guardar el borrador.'));
+        }
+      });
+  }
+
+  validarPerfil(): void {
+    if (!this.perfil || this.validando) {
+      return;
+    }
+
+    this.validando = true;
+    this.command
+      .validar(this.perfil.id)
+      .pipe(finalize(() => {
+        this.validando = false;
+        this.cdr.markForCheck();
+      }))
+      .subscribe({
+        next: (result) => {
+          this.validacion = result;
+          if (result.isValid) {
+            this.notifications.success(`Perfil ${this.perfil?.profileCode} validado correctamente.`);
+          } else {
+            this.notifications.warning(`Perfil ${this.perfil?.profileCode} tiene observaciones de validacion.`);
+          }
+          this.cdr.markForCheck();
+        },
+        error: (error) => {
+          this.notifications.error(this.errorMessage(error, 'No fue posible validar el perfil.'));
+        }
+      });
+  }
+
+  publicarPerfil(): void {
+    if (!this.puedePublicar || !this.perfil) {
+      return;
+    }
+
+    this.validarPerfilYPublicar();
+  }
+
+  inactivarPerfil(): void {
+    if (!this.puedeInactivar || !this.perfil) {
+      return;
+    }
+
+    this.abrirModal('inactivar');
+  }
+
+  archivarPerfil(): void {
+    if (!this.puedeArchivar || !this.perfil) {
+      return;
+    }
+
+    this.abrirModal('archivar');
+  }
+
+  clonarPerfil(): void {
+    if (!this.puedeGestionar || !this.perfil || this.clonando) {
+      return;
+    }
+
+    if (this.cloneForm.invalid) {
+      this.cloneForm.markAllAsTouched();
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const form = this.cloneForm.getRawValue();
+    this.clonando = true;
+
+    this.command
+      .clonar(this.perfil.id, {
+        nuevoProfileCode: (form.nuevoProfileCode ?? '').trim(),
+        nuevoNombreEs: (form.nuevoNombreEs ?? '').trim(),
+        effectiveFrom: form.effectiveFrom,
+        expectedRowVersion: form.expectedRowVersion ?? ''
+      })
+      .pipe(finalize(() => {
+        this.clonando = false;
+        this.cdr.markForCheck();
+      }))
+      .subscribe({
+        next: (created) => {
+          this.notifications.success(`Perfil clonado como ${created.profileCode}.`);
+          this.router.navigate(['/nacha-config-admin/perfiles', created.id]);
+        },
+        error: (error) => {
+          this.notifications.error(this.errorMessage(error, 'No fue posible clonar el perfil.'));
+        }
+      });
   }
 
   volver(): void {
     this.router.navigate(['/nacha-config-admin/perfiles']);
   }
 
+  irARecords(): void {
+    this.router.navigate(['/nacha-config-admin/records']);
+  }
+
+  irAVariantsFields(): void {
+    this.router.navigate(['/nacha-config-admin/variants-fields']);
+  }
+
+  cerrarModal(): void {
+    this.modalAbierto = false;
+    this.modalAccion = null;
+    this.modalTitulo = '';
+    this.modalMensaje = '';
+  }
+
+  confirmarModal(): void {
+    if (!this.modalAccion || !this.perfil) {
+      return;
+    }
+
+    const expectedRowVersion = this.editarForm.controls.expectedRowVersion.value || this.cloneForm.controls.expectedRowVersion.value || this.perfil.rowVersion;
+    const accion = this.modalAccion;
+    this.cerrarModal();
+
+    if (accion === 'publicar') {
+      this.publicando = true;
+      this.command
+        .publicar(this.perfil.id, expectedRowVersion ?? '')
+        .pipe(finalize(() => {
+          this.publicando = false;
+          this.cdr.markForCheck();
+        }))
+        .subscribe({
+          next: (result) => {
+            if (result.publicado) {
+              this.notifications.success(result.mensaje || 'Perfil publicado correctamente.');
+            } else {
+              this.notifications.warning(result.mensaje || 'La publicacion quedo bloqueada por validacion.');
+            }
+            this.cargar();
+          },
+          error: (error) => this.notifications.error(this.errorMessage(error, 'No fue posible publicar el perfil.'))
+        });
+      return;
+    }
+
+    if (accion === 'inactivar') {
+      this.inactivando = true;
+      this.command
+        .inactivar(this.perfil.id, expectedRowVersion ?? '')
+        .pipe(finalize(() => {
+          this.inactivando = false;
+          this.cdr.markForCheck();
+        }))
+        .subscribe({
+          next: () => {
+            this.notifications.success('Perfil inactivado correctamente.');
+            this.cargar();
+          },
+          error: (error) => this.notifications.error(this.errorMessage(error, 'No fue posible inactivar el perfil.'))
+        });
+      return;
+    }
+
+    if (accion === 'archivar') {
+      this.archivando = true;
+      this.command
+        .archivar(this.perfil.id, expectedRowVersion ?? '')
+        .pipe(finalize(() => {
+          this.archivando = false;
+          this.cdr.markForCheck();
+        }))
+        .subscribe({
+          next: () => {
+            this.notifications.success('Perfil archivado correctamente.');
+            this.cargar();
+          },
+          error: (error) => this.notifications.error(this.errorMessage(error, 'No fue posible archivar el perfil.'))
+        });
+    }
+  }
+
+  abrirModal(accion: 'publicar' | 'inactivar' | 'archivar'): void {
+    if (!this.perfil) {
+      return;
+    }
+
+    this.modalAccion = accion;
+    if (accion === 'publicar') {
+      this.modalTitulo = 'Publicar perfil NACHA-M';
+      this.modalMensaje = 'Esta accion exige validacion previa. Si el backend detecta inconsistencias, la publicacion quedara bloqueada.';
+    } else if (accion === 'inactivar') {
+      this.modalTitulo = 'Inactivar perfil NACHA-M';
+      this.modalMensaje = 'El perfil dejara de quedar activo para resolucion oficial.';
+    } else {
+      this.modalTitulo = 'Archivar perfil NACHA-M';
+      this.modalMensaje = 'El perfil quedara archivado y solo se podra clonar como borrador.';
+    }
+
+    this.modalAbierto = true;
+  }
+
+  private validarPerfilYPublicar(): void {
+    if (!this.perfil || this.publicando) {
+      return;
+    }
+
+    this.validando = true;
+    this.command
+      .validar(this.perfil.id)
+      .pipe(finalize(() => {
+        this.validando = false;
+        this.cdr.markForCheck();
+      }))
+      .subscribe({
+        next: (result) => {
+          this.validacion = result;
+          if (!result.isValid) {
+            this.notifications.warning('Publicacion bloqueada: primero corrige las observaciones de validacion.');
+            return;
+          }
+
+          this.abrirModal('publicar');
+          this.cdr.markForCheck();
+        },
+        error: (error) => this.notifications.error(this.errorMessage(error, 'No fue posible validar el perfil antes de publicar.'))
+      });
+  }
+
+  private sincronizarFormularios(): void {
+    if (!this.perfil) {
+      return;
+    }
+
+    this.editarForm.reset(
+      {
+        nombreEs: this.perfil.nombreEs,
+        descripcion: this.perfil.descripcion ?? '',
+        contextPriority: this.perfil.contextPriority,
+        effectiveFrom: this.dateInputValue(this.perfil.effectiveFrom),
+        effectiveTo: this.dateInputValue(this.perfil.effectiveTo),
+        expectedRowVersion: this.perfil.rowVersion
+      },
+      { emitEvent: false }
+    );
+
+    if (this.puedeEditarBorrador) {
+      this.editarForm.enable({ emitEvent: false });
+    } else {
+      this.editarForm.disable({ emitEvent: false });
+    }
+
+    this.cloneForm.patchValue(
+      {
+        nuevoProfileCode: `${this.perfil.profileCode}-CLONE`,
+        nuevoNombreEs: `${this.perfil.nombreEs} (copia)`,
+        effectiveFrom: this.dateInputValue(this.perfil.effectiveFrom),
+        expectedRowVersion: this.perfil.rowVersion
+      },
+      { emitEvent: false }
+    );
+
+    if (this.puedeGestionar) {
+      this.cloneForm.enable({ emitEvent: false });
+    } else {
+      this.cloneForm.disable({ emitEvent: false });
+    }
+  }
+
+  private dateInputValue(value?: string | null): string {
+    return value ? new Date(value).toISOString().slice(0, 10) : '';
+  }
+
   date(value?: string | null): string {
     return value ? new Date(value).toLocaleDateString('es-CO') : '-';
   }
+
+  private errorMessage(error: unknown, fallback: string): string {
+    if (error && typeof error === 'object' && 'message' in error && typeof (error as { message?: unknown }).message === 'string') {
+      return (error as { message: string }).message;
+    }
+    return fallback;
+  }
+
 }
