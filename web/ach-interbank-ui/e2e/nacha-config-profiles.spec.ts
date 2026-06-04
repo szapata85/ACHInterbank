@@ -52,7 +52,7 @@ test.describe('NACHA config profiles official read-only page', () => {
     });
 
     await page.goto(configProfilesPagePath);
-    await expect(page.getByText('OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0')).toBeVisible();
+    await expect(page.getByTestId('nacha-config-profiles-page')).toContainText('OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0');
 
     expect(legacyCalled).toBe(false);
   });
@@ -66,7 +66,7 @@ test.describe('NACHA config profiles official read-only page', () => {
     });
 
     await page.goto(configProfilesPagePath);
-    await expect(page.getByText('OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0')).toBeVisible();
+    await expect(page.getByTestId('nacha-config-profiles-page')).toContainText('OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0');
 
     expect(mutationRequests).toEqual([]);
   });
@@ -80,7 +80,7 @@ test.describe('NACHA config profiles official read-only page', () => {
     });
 
     await page.goto(configProfilesPagePath);
-    await expect(page.getByText('OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0')).toBeVisible();
+    await expect(page.getByTestId('nacha-config-profiles-page')).toContainText('OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0');
 
     expect(exportRequests.some(url => hashExportPattern.test(url))).toBe(false);
   });
