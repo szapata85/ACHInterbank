@@ -1,32 +1,154 @@
 <section class="page" data-testid="nacha-config-records-page">
   <app-page-header
     title="NACHA Config - Records"
-    subtitle="Vista read-only oficial basada en nacha-config profiles."
+    subtitle="Administracion de secuencia de records oficiales basada en nacha-config profiles."
   ></app-page-header>
 
+  <ui-alerta
+    tipo="info"
+    titulo="Fuente oficial"
+    mensaje="nacha-config profiles es la fuente oficial. Esta pantalla solo administra secuencia y orden de records del perfil seleccionado."
+  ></ui-alerta>
+
+  <ui-alerta
+    *ngIf="!puedeGestionar"
+    tipo="advertencia"
+    titulo="Solo lectura"
+    mensaje="CanReadAch permite consultar perfiles y records. CanManageAch es obligatorio para guardar secuencia."
+  ></ui-alerta>
+
+  <ui-alerta
+    *ngIf="puedeGestionar && selectedProfile && !puedeEditarSecuencia"
+    tipo="advertencia"
+    titulo="Perfil bloqueado"
+    mensaje="Solo BORRADOR permite guardar secuencia. Los estados PUBLICADO, INACTIVO y ARCHIVADO quedan en lectura."
+  ></ui-alerta>
+
   <ui-estado-error
-    *ngIf="loadError"
-    titulo="No fue posible cargar records NACHA Config"
-    [mensaje]="loadError"
-    (reintentar)="load()"
+    *ngIf="profilesError"
+    titulo="No fue posible cargar perfiles oficiales"
+    [mensaje]="profilesError"
+    (reintentar)="loadProfiles()"
   ></ui-estado-error>
 
-  <app-table
-    *ngIf="!loadError"
-    [columns]="columns"
-    [data]="profiles"
-    [loading]="loading"
-    [pageSize]="profiles.length || 10"
-    [total]="profiles.length"
-  >
-    <ng-template #rowActions let-row>
-      <a class="btn btn-outline" [routerLink]="['/nacha-config-admin/perfiles', row.profileId]">Ver perfil</a>
-    </ng-template>
-  </app-table>
+  <section class="selector-card" *ngIf="!profilesError">
+    <div class="selector-grid">
+      <label for="profileSelector">Perfil oficial</label>
+      <select
+        id="profileSelector"
+        [value]="selectedProfileId ?? ''"
+        [disabled]="loadingProfiles || loadingDetail || saving || profiles.length === 0"
+        (change)="onProfileChange($event)"
+      >
+        <option value="" disabled>Seleccione un perfil</option>
+        <option *ngFor="let profile of profiles" [value]="profile.profileId">
+          {{ profile.profileCode }} - {{ profile.profileName }} ({{ profile.status }})
+        </option>
+      </select>
+    </div>
+
+    <div class="selector-actions">
+      <button type="button" class="btn btn-outline" [disabled]="!selectedProfileId" (click)="irADetallePerfil()">Ver perfil</button>
+      <button type="button" class="btn btn-outline" [disabled]="!selectedProfileId" (click)="irAVariantsFields()">Ir a variants-fields</button>
+      <button type="button" class="btn btn-outline" [disabled]="loadingProfiles || loadingDetail || saving" (click)="loadProfiles()">Refrescar</button>
+      <button *ngIf="puedeEditarSecuencia" type="button" class="btn btn-primary" [disabled]="saving || loadingDetail" (click)="guardarSecuencia()">Guardar secuencia</button>
+    </div>
+  </section>
 
   <ui-estado-vacio
-    *ngIf="!loading && !loadError && profiles.length === 0"
-    titulo="Sin records oficiales"
-    mensaje="No hay profiles oficiales disponibles para mostrar records."
+    *ngIf="!loadingProfiles && profiles.length === 0 && !profilesError"
+    titulo="Sin perfiles oficiales"
+    mensaje="No hay perfiles oficiales disponibles para mostrar records."
   ></ui-estado-vacio>
+
+  <ui-estado-error
+    *ngIf="detailError"
+    titulo="No fue posible cargar el detalle del perfil"
+    [mensaje]="detailError"
+    (reintentar)="recargarDetalle()"
+  ></ui-estado-error>
+
+  <section class="summary-card" *ngIf="selectedProfile">
+    <div class="summary-grid">
+      <div><strong>Perfil:</strong> {{ selectedProfile.profileCode }}</div>
+      <div><strong>Nombre:</strong> {{ selectedProfile.nombreEs }}</div>
+      <div><strong>Estado:</strong> <span [class]="estadoBadgeClass()">{{ selectedProfile.estado }}</span></div>
+      <div><strong>Version:</strong> {{ selectedProfile.versionMajor }}.{{ selectedProfile.versionMinor }}</div>
+      <div><strong>Camara:</strong> {{ selectedProfile.camara }}</div>
+      <div><strong>Flujo:</strong> {{ selectedProfile.flujo }}</div>
+      <div><strong>Direccion:</strong> {{ selectedProfile.direccion }}</div>
+      <div><strong>Servicio:</strong> {{ selectedProfile.servicio || 'Sin servicio' }}</div>
+      <div><strong>Vigencia:</strong> {{ formatDate(selectedProfile.effectiveFrom) }} a {{ selectedProfile.effectiveTo ? formatDate(selectedProfile.effectiveTo) : 'abierta' }}</div>
+      <div><strong>RowVersion:</strong> {{ selectedProfile.rowVersion }}</div>
+      <div><strong>Records:</strong> {{ selectedProfile.records.length }}</div>
+    </div>
+  </section>
+
+  <ui-alerta
+    *ngIf="saveError"
+    tipo="error"
+    titulo="No fue posible guardar la secuencia"
+    [mensaje]="saveError"
+  ></ui-alerta>
+
+  <section class="issues-card" *ngIf="saveIssues.length > 0">
+    <div class="issues-title">Observaciones de validacion / concurrencia</div>
+    <ul class="issues-list">
+      <li *ngFor="let issue of saveIssues">
+        <strong>{{ issue.severidad }}</strong> · {{ issue.codigo }} · {{ issue.mensaje }}
+      </li>
+    </ul>
+  </section>
+
+  <section class="records-card" *ngIf="selectedProfile">
+    <div class="section-header">
+      <h3>Records del perfil</h3>
+      <span *ngIf="loadingDetail">Cargando detalle...</span>
+      <span *ngIf="saving">Guardando secuencia...</span>
+    </div>
+
+    <table class="records-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Record</th>
+          <th>Secuencia</th>
+          <th>Habilitado</th>
+          <th>MinOccurs</th>
+          <th>MaxOccurs</th>
+          <th>SourceStrategy</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let record of records; trackBy: trackByRecordId">
+          <td>{{ record.position }}</td>
+          <td>{{ record.recordCode }}</td>
+          <td>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              [disabled]="!puedeEditarSecuencia"
+              [value]="record.sequence"
+              (input)="onSequenceChange(record, $event)"
+            />
+          </td>
+          <td>
+            <span [class]="'flag ' + (record.isEnabled ? 'flag-on' : 'flag-off')">
+              {{ record.isEnabled ? 'Si' : 'No' }}
+            </span>
+          </td>
+          <td>{{ record.minOccurs }}</td>
+          <td>{{ record.maxOccurs ?? '-' }}</td>
+          <td>{{ record.sourceStrategy }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <ui-estado-vacio
+      *ngIf="!loadingDetail && records.length === 0"
+      titulo="Sin records"
+      mensaje="El perfil seleccionado no tiene records configurados."
+    ></ui-estado-vacio>
+  </section>
 </section>

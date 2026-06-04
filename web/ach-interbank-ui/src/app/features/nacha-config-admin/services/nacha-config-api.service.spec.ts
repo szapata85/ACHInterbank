@@ -101,6 +101,27 @@ describe('NachaConfigApiService', () => {
     req.flush({ id: 9 });
   });
 
+  it('debe actualizar secuencia de records', () => {
+    service.actualizarSecuencia(9, {
+      expectedRowVersion: 'abc=',
+      records: [
+        { profileRecordId: 101, sequence: 10 },
+        { profileRecordId: 102, sequence: 20 }
+      ]
+    }).subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/nacha-config/perfiles/9/records/secuencia`);
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({
+      expectedRowVersion: 'abc=',
+      records: [
+        { profileRecordId: 101, sequence: 10 },
+        { profileRecordId: 102, sequence: 20 }
+      ]
+    });
+    req.flush({});
+  });
+
   it('debe clonar perfil', () => {
     service.clonarPerfil(9, {
       nuevoProfileCode: 'UAT-NACHA-CONFIG-CLONE',
