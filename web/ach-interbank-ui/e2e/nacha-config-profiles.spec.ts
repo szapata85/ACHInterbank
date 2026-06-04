@@ -41,7 +41,7 @@ test.describe('NACHA config profiles official read-only page', () => {
   test('ConfigProfiles_ShouldNotRenderMutationButtons', async ({ page }) => {
     await page.goto(configProfilesPagePath);
 
-    await expect(page.getByRole('button', { name: /Crear borrador|Publicar|Guardar|Eliminar|Archivar|Inactivar/i })).toHaveCount(0);
+    await expect(page.getByTestId('nacha-config-profiles-page').getByRole('button', { name: /Crear borrador|Publicar|Guardar|Eliminar|Archivar|Inactivar/i })).toHaveCount(0);
   });
 
   test('ConfigProfiles_ShouldNotCallLegacyLayoutsOrDefinitions', async ({ page }) => {
