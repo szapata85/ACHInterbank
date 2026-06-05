@@ -88,7 +88,7 @@ export class NavigationService {
     };
 
     const nachaSecurityChildren: MenuItem[] = [
-      { id: -2601, label: 'Dashboard seguridad', route: '/nacha-security/dashboard', icon: 'shield' },
+      { id: -2601, label: 'Panel seguridad NACHA', route: '/nacha-security/dashboard', icon: 'shield' },
       { id: -2602, label: 'Certificados', route: '/nacha-security/certificates', icon: 'badge' },
       { id: -2603, label: 'Generar NACHA-M', route: '/nacha-security/nacha/generate', icon: 'description' },
       { id: -2604, label: 'Generar NACHA-M cifrado', route: '/nacha-security/nacha/generate-encrypted', icon: 'encrypted' },
@@ -122,10 +122,10 @@ export class NavigationService {
 
     const soapUatConsoleGroup: MenuItem = {
       id: -290,
-      label: 'SOAP UAT Console',
+      label: 'Consola SOAP UAT',
       route: '/ach/nacha/soap-uat-console',
       icon: 'fact_check',
-      children: [{ id: -2901, label: 'SOAP UAT Console', route: '/ach/nacha/soap-uat-console', icon: 'fact_check' }]
+      children: [{ id: -2901, label: 'Consola SOAP UAT', route: '/ach/nacha/soap-uat-console', icon: 'fact_check' }]
     };
 
     const reconciliationGroup: MenuItem = {

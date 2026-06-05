@@ -160,7 +160,7 @@ describe('NavigationService', () => {
       const labels = flattenLabels(menu);
 
       expect(routes).toContain('/ach/nacha/soap-uat-console');
-      expect(labels).toContain('SOAP UAT Console');
+      expect(labels).toContain('Consola SOAP UAT');
       done();
     });
   });

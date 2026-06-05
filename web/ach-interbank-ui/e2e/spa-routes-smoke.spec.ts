@@ -245,7 +245,7 @@ async function mockNavigation(page: Page): Promise<void> {
           { id: 81, label: 'Menús', route: '/navigation/menu-items' }
         ]},
         { id: 9, label: 'Seguridad NACHA', route: '/nacha-security/dashboard', children: [
-          { id: 91, label: 'Dashboard seguridad', route: '/nacha-security/dashboard' },
+          { id: 91, label: 'Panel seguridad NACHA', route: '/nacha-security/dashboard' },
           { id: 92, label: 'Certificados', route: '/nacha-security/certificates' },
           { id: 93, label: 'Sobre digital', route: '/nacha-security/sobre-digital' }
         ]},
@@ -522,7 +522,7 @@ async function mockBackend(page: Page): Promise<void> {
           { id: 81, label: 'Menús', route: '/navigation/menu-items' }
         ]},
         { id: 9, label: 'Seguridad NACHA', route: '/nacha-security/dashboard', children: [
-          { id: 91, label: 'Dashboard seguridad', route: '/nacha-security/dashboard' },
+          { id: 91, label: 'Panel seguridad NACHA', route: '/nacha-security/dashboard' },
           { id: 92, label: 'Certificados', route: '/nacha-security/certificates' },
           { id: 93, label: 'Sobre digital', route: '/nacha-security/sobre-digital' }
         ]},
@@ -744,7 +744,7 @@ async function mockBackend(page: Page): Promise<void> {
           { id: 81, label: 'Menús', route: '/navigation/menu-items' }
         ]},
         { id: 9, label: 'Seguridad NACHA', route: '/nacha-security/dashboard', children: [
-          { id: 91, label: 'Dashboard seguridad', route: '/nacha-security/dashboard' },
+          { id: 91, label: 'Panel seguridad NACHA', route: '/nacha-security/dashboard' },
           { id: 92, label: 'Certificados', route: '/nacha-security/certificates' },
           { id: 93, label: 'Sobre digital', route: '/nacha-security/sobre-digital' }
         ]},

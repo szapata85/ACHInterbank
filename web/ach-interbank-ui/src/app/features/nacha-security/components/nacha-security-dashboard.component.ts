@@ -11,7 +11,7 @@ import { CommonModule } from '@angular/common';
       <p>Consola operativa para certificados, operaciones y sobre digital.</p>
       <ul>
         <li>Angular opera, backend cifra/descifra/valida.</li>
-        <li>No se muestra plano si firma falla.</li>
+        <li>No se muestra el archivo plano si falla la firma.</li>
         <li>La descarga requiere autorización por operationId.</li>
       </ul>
     </section>
