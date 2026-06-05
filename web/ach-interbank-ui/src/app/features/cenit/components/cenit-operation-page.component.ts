@@ -94,8 +94,8 @@ export class CenitOperationPageComponent implements OnInit {
     const map: Record<OperationView, string> = {
       ciclos: 'No hay ciclos CENIT para los filtros aplicados.',
       cola: 'No hay transacciones en cola CENIT para los filtros aplicados.',
-      neteo: 'No hay posiciones netas CENIT registradas para la ejecucion consultada.',
-      optimizacion: 'No hay decisiones de optimizacion CENIT registradas para los filtros aplicados.',
+      neteo: 'No hay posiciones netas CENIT registradas para la ejecución consultada.',
+      optimizacion: 'No hay decisiones de optimización CENIT registradas para los filtros aplicados.',
       devoluciones: 'No hay devoluciones operativas CENIT para los filtros aplicados.',
       trazabilidad: 'No hay eventos de trazabilidad CENIT/ACH para los filtros aplicados.'
     };
@@ -152,7 +152,7 @@ export class CenitOperationPageComponent implements OnInit {
           .pipe(finalize(done))
           .subscribe({
             next: (response) => this.setRows((response.items ?? []).map((x) => this.mapOptimization(x))),
-            error: () => this.setError('No fue posible consultar decisiones de optimizacion.')
+            error: () => this.setError('No fue posible consultar decisiones de optimización.')
           });
         return;
       case 'devoluciones':

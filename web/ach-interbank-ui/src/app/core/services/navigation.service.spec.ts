@@ -183,7 +183,7 @@ describe('NavigationService', () => {
       const labels = flattenLabels(menu);
 
       expect(routes).toContain('/ach/reconciliation');
-      expect(labels).toContain('Conciliacion ACH');
+      expect(labels).toContain('Conciliación ACH');
       done();
     });
   });

@@ -74,7 +74,7 @@ export class NavigationService {
       { id: -2504, label: 'Operación: Ciclos', route: '/cenit/operacion/ciclos', icon: 'schedule' },
       { id: -2505, label: 'Operación: Cola', route: '/cenit/operacion/cola', icon: 'queue' },
       { id: -2506, label: 'Operación: Neteo', route: '/cenit/operacion/neteo', icon: 'account_balance' },
-      { id: -2507, label: 'Operación: Optimizacion', route: '/cenit/operacion/optimizacion', icon: 'tune' },
+      { id: -2507, label: 'Operación: Optimización', route: '/cenit/operacion/optimizacion', icon: 'tune' },
       { id: -2508, label: 'Operación: Devoluciones', route: '/cenit/operacion/devoluciones', icon: 'assignment_return' },
       { id: -2509, label: 'Operación: Trazabilidad', route: '/cenit/operacion/trazabilidad', icon: 'travel_explore' }
     ];
@@ -130,10 +130,10 @@ export class NavigationService {
 
     const reconciliationGroup: MenuItem = {
       id: -291,
-      label: 'Conciliacion ACH',
+      label: 'Conciliación ACH',
       route: '/ach/reconciliation',
       icon: 'fact_check',
-      children: [{ id: -2911, label: 'Conciliacion ACH', route: '/ach/reconciliation', icon: 'fact_check' }]
+      children: [{ id: -2911, label: 'Conciliación ACH', route: '/ach/reconciliation', icon: 'fact_check' }]
     };
 
     const logsChildren: MenuItem[] = [

@@ -79,11 +79,11 @@ export class CenitRegulatoryPageComponent implements OnInit {
 
   get mensajeVacio(): string {
     const map: Record<RegulatoryView, string> = {
-      'causales-devolucion': 'No hay causales de devolucion CENIT disponibles para los filtros aplicados.',
+      'causales-devolucion': 'No hay causales de devolución CENIT disponibles para los filtros aplicados.',
       'causales-rechazo': 'No hay causales de rechazo CENIT disponibles para los filtros aplicados.',
-      'politicas-transaccion': 'No hay politicas de transaccion CENIT disponibles para los filtros aplicados.',
-      'politicas-devolucion': 'No hay politicas de devolucion CENIT disponibles para los filtros aplicados.',
-      'politicas-prenotificacion': 'No hay politicas de prenotificacion CENIT disponibles para los filtros aplicados.'
+      'politicas-transaccion': 'No hay políticas de transacción CENIT disponibles para los filtros aplicados.',
+      'politicas-devolucion': 'No hay políticas de devolución CENIT disponibles para los filtros aplicados.',
+      'politicas-prenotificacion': 'No hay políticas de prenotificación CENIT disponibles para los filtros aplicados.'
     };
 
     return map[this.view];
@@ -120,7 +120,7 @@ export class CenitRegulatoryPageComponent implements OnInit {
           .pipe(finalize(done))
           .subscribe({
             next: (items) => this.setRows(items.map((item) => this.mapTxPolicyRow(item))),
-            error: () => this.setError('No fue posible consultar politicas de transaccion.')
+            error: () => this.setError('No fue posible consultar políticas de transacción.')
           });
         return;
       case 'politicas-devolucion':
@@ -132,7 +132,7 @@ export class CenitRegulatoryPageComponent implements OnInit {
               this.setRows(items.map((item) => this.mapReturnPolicyRow(item)));
               this.loadReturnOfReturnPolicies();
             },
-            error: () => this.setError('No fue posible consultar politicas de devolucion.')
+            error: () => this.setError('No fue posible consultar políticas de devolución.')
           });
         return;
       case 'politicas-prenotificacion':
@@ -141,7 +141,7 @@ export class CenitRegulatoryPageComponent implements OnInit {
           .pipe(finalize(done))
           .subscribe({
             next: (items) => this.setRows(items.map((item) => this.mapPrenotePolicyRow(item))),
-            error: () => this.setError('No fue posible consultar politicas de prenotificacion.')
+            error: () => this.setError('No fue posible consultar políticas de prenotificación.')
           });
         return;
       default:
@@ -150,7 +150,7 @@ export class CenitRegulatoryPageComponent implements OnInit {
           .pipe(finalize(done))
           .subscribe({
             next: (items) => this.setRows(items.map((item) => this.mapReturnCodeRow(item))),
-            error: () => this.setError('No fue posible consultar causales de devolucion.')
+            error: () => this.setError('No fue posible consultar causales de devolución.')
           });
     }
   }

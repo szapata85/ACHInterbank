@@ -12,13 +12,13 @@ const apiPattern = /\/api\//;
 const runCenitE2e = process.env['RUN_CENIT_E2E'] === 'true';
 
 const routes: CenitRoute[] = [
-  { id: 'cenit-regulatorio-causales-devolucion', path: '/cenit/regulatorio/causales-devolucion', expectedApi: /\/api\/regulatory-catalogs\/return-codes(?:\?|$)/, emptyText: /No hay causales de devolucion CENIT/i },
+  { id: 'cenit-regulatorio-causales-devolucion', path: '/cenit/regulatorio/causales-devolucion', expectedApi: /\/api\/regulatory-catalogs\/return-codes(?:\?|$)/, emptyText: /No hay causales de devolución CENIT/i },
   { id: 'cenit-regulatorio-causales-rechazo', path: '/cenit/regulatorio/causales-rechazo', expectedApi: /\/api\/regulatory-catalogs\/file-rejection-codes(?:\?|$)/, emptyText: /No hay causales de rechazo CENIT/i },
-  { id: 'cenit-regulatorio-politicas-transaccion', path: '/cenit/regulatorio/politicas-transaccion', expectedApi: /\/api\/regulatory-catalogs\/transaction-type-policies(?:\?|$)/, emptyText: /No hay politicas de transaccion CENIT/i },
+  { id: 'cenit-regulatorio-politicas-transaccion', path: '/cenit/regulatorio/politicas-transaccion', expectedApi: /\/api\/regulatory-catalogs\/transaction-type-policies(?:\?|$)/, emptyText: /No hay políticas de transacción CENIT/i },
   { id: 'cenit-operacion-ciclos', path: '/cenit/operacion/ciclos', expectedApi: /\/api\/reports\/cycles(?:\?|$)/, emptyText: /No hay ciclos CENIT/i },
   { id: 'cenit-operacion-cola', path: '/cenit/operacion/cola', expectedApi: /\/api\/cenit\/queues(?:\?|$)/, emptyText: /No hay transacciones en cola CENIT/i },
   { id: 'cenit-operacion-neteo', path: '/cenit/operacion/neteo', expectedApi: /\/api\/cenit\/net-positions(?:\?|$)/, emptyText: /No hay posiciones netas CENIT/i },
-  { id: 'cenit-operacion-optimizacion', path: '/cenit/operacion/optimizacion', expectedApi: /\/api\/cenit\/optimization-decisions(?:\?|$)/, emptyText: /No hay decisiones de optimizacion CENIT/i },
+  { id: 'cenit-operacion-optimizacion', path: '/cenit/operacion/optimizacion', expectedApi: /\/api\/cenit\/optimization-decisions(?:\?|$)/, emptyText: /No hay decisiones de optimización CENIT/i },
   { id: 'cenit-operacion-devoluciones', path: '/cenit/operacion/devoluciones', expectedApi: /\/api\/reports\/returns(?:\?|$)/, emptyText: /No hay devoluciones operativas CENIT/i },
   { id: 'cenit-operacion-trazabilidad', path: '/cenit/operacion/trazabilidad', expectedApi: /\/api\/cenit\/traceability(?:\?|$)/, emptyText: /No hay eventos de trazabilidad CENIT\/ACH/i }
 ];

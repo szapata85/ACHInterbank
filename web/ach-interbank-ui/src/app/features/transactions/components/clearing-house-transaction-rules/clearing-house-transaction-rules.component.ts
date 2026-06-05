@@ -48,12 +48,12 @@ export class ClearingHouseTransactionRulesComponent implements OnInit {
   readonly transactionTypes = TransactionTypeEnum;
   readonly natureOptions: Array<{ value: RuleNatureFilter; label: string }> = [
     { value: 'all', label: 'Todas' },
-    { value: 'Credit', label: 'Credito' },
-    { value: 'Debit', label: 'Debito' }
+    { value: 'Credit', label: 'Crédito' },
+    { value: 'Debit', label: 'Débito' }
   ];
   readonly formNatureOptions: Array<{ value: TransactionNature; label: string }> = [
-    { value: 'Credit', label: 'Credito' },
-    { value: 'Debit', label: 'Debito' }
+    { value: 'Credit', label: 'Crédito' },
+    { value: 'Debit', label: 'Débito' }
   ];
   readonly modeOptions: Array<{ value: PrenotificationRequirementMode; label: string }> = [
     { value: 'Mandatory', label: 'Obligatoria' },
@@ -67,11 +67,11 @@ export class ClearingHouseTransactionRulesComponent implements OnInit {
   ];
 
   readonly columnDefs: ColDef<ClearingHouseTransactionRuleItem>[] = [
-    { headerName: 'Camara', minWidth: 190, valueGetter: (params) => params.data?.clearingHouseName || params.data?.clearingHouseId },
+    { headerName: 'Cámara', minWidth: 190, valueGetter: (params) => params.data?.clearingHouseName || params.data?.clearingHouseId },
     { headerName: 'Naturaleza', width: 130, valueGetter: (params) => this.natureLabel(params.data?.transactionNature) },
     { headerName: 'Tipo', width: 110, valueGetter: (params) => this.transactionTypeLabel(params.data?.transactionType) },
-    { headerName: 'Prenotificacion', width: 150, valueGetter: (params) => this.modeLabel(params.data?.prenotificationMode) },
-    { headerName: 'Validacion ID', width: 140, valueGetter: (params) => this.modeLabel(params.data?.receiverIdentificationValidationMode) },
+    { headerName: 'Prenotificación', width: 150, valueGetter: (params) => this.modeLabel(params.data?.prenotificationMode) },
+    { headerName: 'Validación ID', width: 140, valueGetter: (params) => this.modeLabel(params.data?.receiverIdentificationValidationMode) },
     {
       headerName: 'Vigencia',
       minWidth: 210,
@@ -178,7 +178,7 @@ export class ClearingHouseTransactionRulesComponent implements OnInit {
         },
         error: () => {
           this.rules = [];
-          this.loadError = 'No fue posible consultar reglas por camara.';
+          this.loadError = 'No fue posible consultar reglas por cámara.';
           this.notifications.error(this.loadError);
           this.cdr.markForCheck();
         }
@@ -318,11 +318,11 @@ export class ClearingHouseTransactionRulesComponent implements OnInit {
   }
 
   natureLabel(value?: TransactionNature): string {
-    return value === 'Debit' ? 'Debito' : value === 'Credit' ? 'Credito' : '';
+    return value === 'Debit' ? 'Débito' : value === 'Credit' ? 'Crédito' : '';
   }
 
   transactionTypeLabel(value?: TransactionTypeEnum): string {
-    return value === TransactionTypeEnum.Debit ? 'Debito' : value === TransactionTypeEnum.Credit ? 'Credito' : `${value ?? ''}`;
+    return value === TransactionTypeEnum.Debit ? 'Débito' : value === TransactionTypeEnum.Credit ? 'Crédito' : `${value ?? ''}`;
   }
 
   modeLabel(value?: PrenotificationRequirementMode | ValidationRequirementMode): string {
@@ -360,7 +360,7 @@ export class ClearingHouseTransactionRulesComponent implements OnInit {
         this.clearingHouses = houses.map((house) => ({ id: house.id, name: house.name }));
         this.cdr.markForCheck();
       },
-      error: () => this.notifications.error('No fue posible cargar camaras de compensacion.')
+      error: () => this.notifications.error('No fue posible cargar cámaras de compensación.')
     });
   }
 
