@@ -329,28 +329,6 @@ async function mockNachaConfigCatalogs(page: Page): Promise<void> {
   });
 }
 
-async function mockNachaConfigBackend(page: Page): Promise<void> {
-  await page.route(dashboardEndpoint, async route => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        productiveStatus: 'NO-GO',
-        isOfficialModel: true,
-        legacyDeprecated: false,
-        profileCount: 1,
-        publishedProfileCount: 1,
-        currentProfileCount: 1,
-        layoutVariantCount: 6,
-        fieldCount: 42,
-        clearingHouses: ['ACH', 'CENIT'],
-        recordTypes: ['1', '5', '6', '7', '8', '9'],
-        warnings: []
-      })
-    });
-  });
-}
-
 async function mockNachaConfigProfilesReadOnly(page: Page): Promise<void> {
   await page.route(profilesReadOnlyEndpoint, async route => {
     await route.fulfill({
