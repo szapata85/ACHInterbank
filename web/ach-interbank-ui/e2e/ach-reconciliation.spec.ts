@@ -1,4 +1,4 @@
-import { expect, Page, test } from '@playwright/test';
+﻿import { expect, Page, test } from '@playwright/test';
 
 const path = '/ach/reconciliation';
 const dashboardEndpoint = /\/api\/ach\/reconciliation\/dashboard$/;
@@ -19,7 +19,7 @@ test.describe('ACH reconciliation read-only console', () => {
     await page.goto(path);
 
     await expect(page.getByRole('heading', { name: 'Consola de conciliación ACH solo lectura', level: 1 })).toBeVisible();
-    await expect(page.getByText('Items conciliacion ACH')).toBeVisible();
+    await expect(page.getByText('Ítems conciliación ACH')).toBeVisible();
   });
 
   test('Reconciliation_ShouldShowNoGoAndNoMonetaryMovement', async ({ page }) => {
@@ -27,14 +27,14 @@ test.describe('ACH reconciliation read-only console', () => {
 
     await expect(page.getByText('Productivo NO-GO')).toBeVisible();
     await expect(page.getByText('Sin movimientos monetarios')).toBeVisible();
-    await expect(page.getByLabel('Fuente conciliacion').getByText('NO-GO', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Fuente conciliación').getByText('NO-GO', { exact: true })).toBeVisible();
   });
 
   test('Reconciliation_ShouldRenderItemsAndDetail', async ({ page }) => {
     await page.goto(path);
 
-    await expect(page.getByText('Items conciliacion ACH')).toBeVisible();
-    await expect(page.getByText('Detalle conciliacion')).toBeVisible();
+    await expect(page.getByText('Ítems conciliación ACH')).toBeVisible();
+    await expect(page.getByText('Detalle de conciliación')).toBeVisible();
     await expect(page.getByText('Diferenciales', { exact: true })).toBeVisible();
     await expect(page.getByText('.RET', { exact: true })).toBeVisible();
     await expect(page.getByText('CONCILIADO', { exact: true })).toBeVisible();
@@ -135,3 +135,4 @@ function createUnsignedJwt(payload: Record<string, unknown>): string {
 function base64Url(value: Record<string, unknown>): string {
   return Buffer.from(JSON.stringify(value)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
+

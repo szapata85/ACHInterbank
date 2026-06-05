@@ -1,4 +1,4 @@
-import { expect, Page, test } from '@playwright/test';
+﻿import { expect, Page, test } from '@playwright/test';
 
 const dashboardPath = '/ach/nacha/operational-dashboard';
 const dashboardEndpoint = /\/api\/ach\/nacha\/operational\/dashboard$/;
@@ -18,11 +18,11 @@ test.describe('NACHA-M operational dashboard read-only evidence', () => {
 
     await page.goto(dashboardPath);
 
-    await expect(page.getByRole('heading', { name: 'Consulta operativa NACHA-M y readiness SOAP', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Consulta operativa NACHA-M y preparación SOAP', level: 1 })).toBeVisible();
     await expect(page.getByText('Productivo NO-GO')).toBeVisible();
     await expect(page.getByText('SOAP REAL DESHABILITADO', { exact: true })).toBeVisible();
     await expect(page.getByText('BACKEND READ-ONLY SANITIZADO')).toBeVisible();
-    await expect(page.getByText('Fuente: backend read-only')).toBeVisible();
+    await expect(page.getByText('Fuente: backend solo lectura')).toBeVisible();
     await expect(page.locator('section[aria-label="Resumen operativo"]')).toBeVisible();
     await expect(page.getByText('ProductiveExecution')).toBeVisible();
     await expect(page.getByText('WouldInvokeRealSoap')).toBeVisible();
@@ -56,7 +56,7 @@ test.describe('NACHA-M operational dashboard read-only evidence', () => {
 
     await page.goto(dashboardPath);
 
-    await expect(page.getByRole('heading', { name: 'Consulta operativa NACHA-M y readiness SOAP', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Consulta operativa NACHA-M y preparación SOAP', level: 1 })).toBeVisible();
     await assertDangerousActionsAbsent(page);
     await expect(page.getByText('Error')).toHaveCount(0);
   });
@@ -67,7 +67,7 @@ test.describe('NACHA-M operational dashboard read-only evidence', () => {
     await page.goto(dashboardPath);
 
     await expect(page.getByText('Fuente: parcial')).toBeVisible();
-    await expect(page.getByText('Datos operativos parciales/read-only')).toBeVisible();
+    await expect(page.getByText('Datos operativos parciales/solo lectura')).toBeVisible();
   });
 
   test('Dashboard_ShouldKeepNoGoAndReadOnlyStateAfterReadStoreChange', async ({ page }) => {
@@ -77,7 +77,7 @@ test.describe('NACHA-M operational dashboard read-only evidence', () => {
 
     await expect(page.getByText('Productivo NO-GO')).toBeVisible();
     await expect(page.getByText('SOAP REAL DESHABILITADO', { exact: true })).toBeVisible();
-    await expect(page.getByText('Fuente: backend read-only')).toBeVisible();
+    await expect(page.getByText('Fuente: backend solo lectura')).toBeVisible();
     await assertDangerousActionsAbsent(page);
   });
 
@@ -93,7 +93,7 @@ test.describe('NACHA-M operational dashboard read-only evidence', () => {
 
     await page.goto(dashboardPath);
 
-    await expect(page.getByRole('heading', { name: 'Consulta operativa NACHA-M y readiness SOAP', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Consulta operativa NACHA-M y preparación SOAP', level: 1 })).toBeVisible();
     expect(legacyRequests).toEqual([]);
   });
 
@@ -124,7 +124,7 @@ test.describe('NACHA-M operational dashboard read-only evidence', () => {
     await page.goto(`${dashboardPath}/files/e2e-ach-in-001`);
 
     await expect(page.getByText('Productivo NO-GO')).toBeVisible();
-    await expect(page.getByText('Backend read-only sanitizado')).toBeVisible();
+    await expect(page.getByText('Backend solo lectura sanitizado')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Encabezado' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Lotes' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Entradas' })).toBeVisible();
@@ -200,11 +200,11 @@ async function assertDangerousActionsAbsent(page: Page): Promise<void> {
     /Mover dinero/i,
     /Cambiar a GO/i,
     /Activar productivo/i,
-    /Confirmar operaci[oó]n real/i,
+    /Confirmar operaci[oÃ³]n real/i,
     /Editar perfil/i,
     /Subir archivo productivo/i,
     /Invocar core/i,
-    /Reintentar ejecuci[oó]n real/i
+    /Reintentar ejecuci[oÃ³]n real/i
   ];
 
   for (const label of dangerousLabels) {
@@ -236,7 +236,7 @@ function backendDashboard(overrides: { isPartialData?: boolean; dataSource?: str
       isDemoData: false,
       isPartialData,
       dataSource,
-      warnings: isPartialData ? ['No persisted SOAP readiness data found; using safe read-only placeholder.'] : []
+      warnings: isPartialData ? ['No se encontraron datos persistidos de preparación SOAP; se usa un marcador seguro solo lectura.'] : []
     },
     files: [
       {
@@ -336,7 +336,7 @@ function backendDashboard(overrides: { isPartialData?: boolean; dataSource?: str
     isDemoData: false,
     isPartialData,
     dataSource,
-    warnings: isPartialData ? ['No persisted SOAP readiness data found; using safe read-only placeholder.'] : [],
+    warnings: isPartialData ? ['No se encontraron datos persistidos de preparación SOAP; se usa un marcador seguro solo lectura.'] : [],
     productiveStatus: 'NO-GO'
   };
 }
@@ -390,3 +390,4 @@ function base64Url(value: Record<string, unknown>): string {
     .replace(/\//g, '_')
     .replace(/=+$/g, '');
 }
+

@@ -1,4 +1,4 @@
-import { expect, Page, test } from '@playwright/test';
+﻿import { expect, Page, test } from '@playwright/test';
 
 const exportPagePath = '/ach-cycles/nacha/export';
 const exportableEndpoint = /\/ach-cycles\/exportable(?:\?.*)?$/;
@@ -23,7 +23,13 @@ test.describe('NACHA export flow from ACH cycles', () => {
 
     await page.goto(exportPagePath);
     await expect(page.getByText('Ciclo exportable')).toBeVisible();
-    await page.getByRole('button', { name: 'Generar archivo NACHA' }).first().click();
+        const exportButton = page.getByRole('row', { name: /Ciclo exportable/i }).getByRole('button', { name: 'Generar archivo NACHA' });
+    await expect(exportButton).toBeVisible();
+    await expect(exportButton).toBeEnabled();
+    await Promise.all([
+      page.waitForRequest(request => numericCycleExportPattern.test(request.url())),
+      exportButton.click()
+    ]);
 
     expect(exportRequests.some(url => hashExportPattern.test(url))).toBe(false);
     expect(exportRequests.some(url => numericCycleExportPattern.test(url))).toBe(true);
@@ -44,7 +50,7 @@ test.describe('NACHA export flow from ACH cycles', () => {
 
     await page.goto(exportPagePath);
     await expect(page.getByText('Demo no exportable')).toBeVisible();
-    const disabledAction = page.getByRole('button', { name: 'Generar archivo NACHA' }).first();
+    const disabledAction = page.getByRole('row', { name: /Demo no exportable/i }).getByRole('button', { name: 'Generar archivo NACHA' });
     await expect(disabledAction).toBeDisabled();
     await page.getByText('Demo no exportable').click();
 
@@ -163,3 +169,4 @@ function base64Url(value: Record<string, unknown>): string {
     .replace(/\//g, '_')
     .replace(/=+$/g, '');
 }
+

@@ -34,16 +34,19 @@ test.describe('NACHA Config official routes', () => {
     const htmlJsResponses: string[] = [];
     const chunkRequestFailures: string[] = [];
     const consoleErrors: string[] = [];
+
     page.on('request', request => {
       if (layoutsEndpoint.test(request.url()) || definitionsEndpoint.test(request.url())) {
         legacyRequests.push(request.url());
       }
     });
+
     page.on('requestfailed', request => {
       if (request.url().endsWith('.js')) {
         chunkRequestFailures.push(`${request.method()} ${request.url()} ${request.failure()?.errorText ?? ''}`.trim());
       }
     });
+
     page.on('console', message => {
       if (message.type() === 'error') {
         const text = message.text();
@@ -52,6 +55,7 @@ test.describe('NACHA Config official routes', () => {
         }
       }
     });
+
     page.on('response', async response => {
       const url = response.url();
       if (!url.endsWith('.js')) {
@@ -73,7 +77,7 @@ test.describe('NACHA Config official routes', () => {
     await page.goto('/nacha-config-admin/variants-fields');
 
     await expect(page.getByTestId('nacha-config-variants-fields-page').getByRole('heading', { name: 'Variantes y campos NACHA-M' })).toBeVisible();
-    await expect(page.getByTestId('nacha-config-variants-fields-page')).toContainText('Workspace administrativo oficial sobre nacha-config profiles.');
+    await expect(page.getByTestId('nacha-config-variants-fields-page')).toContainText('Espacio administrativo oficial sobre perfiles NACHA-M.');
     await expect(page.getByRole('button', { name: /Crear|Editar|Eliminar/i })).toHaveCount(0);
 
     await page.goto('/nacha-config-admin/records');

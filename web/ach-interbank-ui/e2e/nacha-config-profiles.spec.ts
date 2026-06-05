@@ -23,13 +23,13 @@ test.describe('NACHA config profiles official read-only page', () => {
     await loadConfigProfilesPage(page);
 
     await expect(page).toHaveURL(/\/nacha-config-admin\/perfiles$/);
-    await expect(page.getByText('Configuración NACHA-M')).toBeVisible();
+    await expect(page.getByTestId('nacha-config-profiles-page').getByRole('heading', { name: 'Configuración NACHA-M' })).toBeVisible();
   });
 
   test('ConfigProfiles_ShouldShowOfficialModelBanner', async ({ page }) => {
     await loadConfigProfilesPage(page);
 
-    await expect(page.getByText('Modelo oficial NACHA-M: nacha-config profiles.')).toBeVisible();
+    await expect(page.getByText('Modelo oficial NACHA-M: perfiles de configuración oficiales.')).toBeVisible();
   });
 
   test('ConfigProfiles_ShouldShowNoGoBanner', async ({ page }) => {
