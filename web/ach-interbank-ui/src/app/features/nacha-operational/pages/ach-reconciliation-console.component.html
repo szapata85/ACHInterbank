@@ -19,7 +19,7 @@
 
   <ng-container *ngIf="data as vm">
     <section class="data-source-strip" aria-label="Fuente conciliación">
-      <span class="badge" [ngClass]="vm.dashboard.isPartialData ? 'badge-neutral' : 'badge-success'">Fuente: {{ vm.dashboard.dataSource }}</span>
+      <span class="badge" [ngClass]="vm.dashboard.isPartialData ? 'badge-neutral' : 'badge-success'">Fuente: {{ dataSourceLabel(vm.dashboard.dataSource) }}</span>
       <span class="badge badge-danger">NO-GO</span>
       <span class="badge badge-success">SOLO LECTURA</span>
       <span class="badge badge-success">NO MONETARIO</span>

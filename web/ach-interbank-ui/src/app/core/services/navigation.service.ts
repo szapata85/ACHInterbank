@@ -240,9 +240,7 @@ export class NavigationService {
         (item) =>
           item.route === '/nacha-config-admin/perfiles' ||
           item.label === 'Configuración NACHA-M' ||
-          item.label === 'Configuración NACHA-M' ||
-          item.label === 'NACHA-M Configuración' ||
-          item.label === 'NACHA-M ConfiguraciÃ³n'
+          item.label === 'NACHA-M Configuración'
       );
       if (existingNachaConfigGroup) {
         existingNachaConfigGroup.label = 'Configuración NACHA-M';

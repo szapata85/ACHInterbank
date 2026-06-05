@@ -32,8 +32,8 @@
 
   <ng-container *ngIf="detail as vm">
     <section class="data-source-strip" aria-label="Fuente de datos">
-      <span class="badge" [ngClass]="vm.isPartialData ? 'badge-neutral' : 'badge-success'">Fuente: {{ vm.dataSource }}</span>
-      <span class="badge badge-success">NO SENSITIVE DATA: {{ vm.noSensitiveData }}</span>
+      <span class="badge" [ngClass]="vm.isPartialData ? 'badge-neutral' : 'badge-success'">Fuente: {{ dataSourceLabel(vm.dataSource) }}</span>
+      <span class="badge badge-success">SIN DATOS SENSIBLES: {{ vm.noSensitiveData }}</span>
       <span class="badge badge-danger">NO-GO</span>
     </section>
 
@@ -46,7 +46,7 @@
 
     <section class="summary-strip" aria-label="Resumen archivo">
       <article><small>Archivo</small><strong>{{ vm.fileName }}</strong></article>
-      <article><small>Camara</small><strong>{{ vm.clearingHouseCode }}</strong></article>
+      <article><small>Cámara</small><strong>{{ vm.clearingHouseCode }}</strong></article>
       <article><small>Perfil</small><strong>{{ vm.profileCode }}</strong></article>
       <article><small>Flujo</small><strong>{{ vm.flowType }}</strong></article>
       <article><small>Estado</small><strong>{{ vm.processingStatus }}</strong></article>
@@ -77,7 +77,7 @@
       <ui-grilla-empresarial [columnas]="columnasEntries" [datos]="vm.entries" [cargando]="cargando" tituloVacio="Sin entradas"></ui-grilla-empresarial>
     </ui-tarjeta>
 
-    <ui-tarjeta titulo="Addendas" subtitulo="AddendaRecords sanitizados.">
+    <ui-tarjeta titulo="Addendas" subtitulo="Registros de addenda sanitizados.">
       <ui-grilla-empresarial [columnas]="columnasAddendas" [datos]="vm.addendas" [cargando]="cargando" tituloVacio="Sin addendas"></ui-grilla-empresarial>
     </ui-tarjeta>
 

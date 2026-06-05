@@ -32,7 +32,7 @@ export class NachaOperationalDashboardComponent implements OnInit {
 
   readonly columnasArchivos: ColDef<NachaOperationalFile>[] = [
     { field: 'fileName', headerName: 'Archivo', minWidth: 210 },
-    { field: 'clearingHouseCode', headerName: 'Camara', minWidth: 110 },
+    { field: 'clearingHouseCode', headerName: 'Cámara', minWidth: 110 },
     { field: 'profileCode', headerName: 'Perfil', minWidth: 260 },
     { field: 'flowType', headerName: 'Flujo', minWidth: 220 },
     { field: 'isReturnFile', headerName: '.RET', minWidth: 90 },
@@ -131,6 +131,17 @@ export class NachaOperationalDashboardComponent implements OnInit {
     }
 
     return 'Fuente: backend solo lectura';
+  }
+
+  dataSourceLabelValue(value?: string | null): string {
+    const normalized = String(value ?? '').toLowerCase();
+    if (normalized.includes('demo')) {
+      return 'demo seguro';
+    }
+    if (normalized.includes('parcial')) {
+      return 'parcial';
+    }
+    return 'backend solo lectura';
   }
 
   canNavigateToFileDetail(file: NachaOperationalFile): boolean {

@@ -11,7 +11,7 @@
   ></ui-encabezado-pagina>
 
   <ui-alerta tipo="advertencia" titulo="Productivo NO-GO" mensaje="La consola no ejecuta SOAP, no reintenta, no invoca core y no mueve dinero."></ui-alerta>
-  <ui-alerta tipo="advertencia" titulo="SOAP real deshabilitado" mensaje="ProductiveExecution=false y WouldInvokeRealSoap=false en toda la vista."></ui-alerta>
+  <ui-alerta tipo="advertencia" titulo="SOAP real deshabilitado" mensaje="Ejecución productiva=false e Invocaría SOAP real=false en toda la vista."></ui-alerta>
   <ui-alerta tipo="info" titulo="Solo lectura sanitizada" mensaje="No se exponen endpoints reales, certificados, secretos, payloads SOAP completos, cuentas ni documentos completos."></ui-alerta>
 
   <ui-alerta *ngIf="error" tipo="error" titulo="Error" [mensaje]="error"></ui-alerta>
@@ -19,7 +19,7 @@
 
   <ng-container *ngIf="data as vm">
     <section class="data-source-strip" aria-label="Fuente de datos">
-      <span class="badge" [ngClass]="vm.dashboard.isPartialData ? 'badge-neutral' : 'badge-success'">Fuente: {{ vm.dashboard.dataSource }}</span>
+      <span class="badge" [ngClass]="vm.dashboard.isPartialData ? 'badge-neutral' : 'badge-success'">Fuente: {{ dataSourceLabel(vm.dashboard.dataSource) }}</span>
       <span class="badge badge-danger">NO-GO</span>
       <span class="badge badge-danger">SOAP REAL DESHABILITADO</span>
       <span class="badge badge-success">SOLO LECTURA</span>
@@ -28,14 +28,14 @@
     <ui-alerta
       *ngIf="vm.dashboard.warnings.length"
       tipo="info"
-      titulo="Warnings parciales"
+      titulo="Advertencias parciales"
       [mensaje]="vm.dashboard.warnings.join(' ')"
     ></ui-alerta>
 
     <section class="summary-strip" aria-label="Resumen SOAP UAT">
       <article><small>Productivo</small><strong class="badge badge-danger">{{ vm.dashboard.productiveStatus }}</strong></article>
-      <article><small>ProductiveExecution</small><strong>{{ vm.dashboard.productiveExecution }}</strong></article>
-      <article><small>WouldInvokeRealSoap</small><strong>{{ vm.dashboard.wouldInvokeRealSoap }}</strong></article>
+      <article><small>Ejecución productiva</small><strong>{{ vm.dashboard.productiveExecution }}</strong></article>
+      <article><small>Invocaría SOAP real</small><strong>{{ vm.dashboard.wouldInvokeRealSoap }}</strong></article>
       <article><small>Candidatos</small><strong>{{ vm.dashboard.totalCandidates }}</strong></article>
       <article><small>Ready UAT</small><strong class="badge badge-success">{{ vm.dashboard.totalReadyForUat }}</strong></article>
       <article><small>Bloqueados</small><strong class="badge badge-danger">{{ vm.dashboard.totalBlocked }}</strong></article>
@@ -48,13 +48,13 @@
     </section>
 
     <div class="badge-row" aria-label="Estados SOAP UAT">
-      <span class="badge badge-danger">BLOCKED</span>
-      <span class="badge badge-success">READY UAT</span>
-      <span class="badge badge-success">SIMULATED</span>
+      <span class="badge badge-danger">BLOQUEADO</span>
+      <span class="badge badge-success">LISTO UAT</span>
+      <span class="badge badge-success">SIMULADO</span>
       <span class="badge badge-warning">REVISIÓN MANUAL</span>
-      <span class="badge badge-neutral">NO MONETARY MOVEMENT</span>
+      <span class="badge badge-neutral">SIN MOVIMIENTO MONETARIO</span>
       <span class="badge badge-danger">CANDIDATO MONETARIO</span>
-      <span class="badge badge-warning">IDEMPOTENT/DUPLICATE</span>
+      <span class="badge badge-warning">IDEMPOTENTE/DUPLICADO</span>
     </div>
 
     <ui-tarjeta titulo="Candidatos SOAP/UAT" subtitulo="Solo lectura. ProcTransacciones y ProcContrapartidas son candidatos monetarios bloqueados/controlados.">

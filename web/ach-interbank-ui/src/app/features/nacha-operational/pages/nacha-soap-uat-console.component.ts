@@ -29,7 +29,7 @@ export class NachaSoapUatConsoleComponent implements OnInit {
     { field: 'fileName', headerName: 'Archivo', minWidth: 180 },
     { field: 'entryTraceNumber', headerName: 'Trace', minWidth: 130 },
     { field: 'decisionType', headerName: 'Decision', minWidth: 180 },
-    { field: 'operationCandidate', headerName: 'Operacion', minWidth: 190 },
+    { field: 'operationCandidate', headerName: 'Operación', minWidth: 190 },
     { field: 'requiresMonetaryMovement', headerName: 'Monetario', minWidth: 120 },
     { field: 'readinessStatus', headerName: 'Preparación', minWidth: 140 },
     { field: 'simulationStatus', headerName: 'Simulación', minWidth: 130 },
@@ -86,6 +86,17 @@ export class NachaSoapUatConsoleComponent implements OnInit {
       return 'badge-warning';
     }
     return 'badge-neutral';
+  }
+
+  dataSourceLabel(value?: string | null): string {
+    const normalized = String(value ?? '').toLowerCase();
+    if (normalized.includes('demo')) {
+      return 'demo seguro';
+    }
+    if (normalized.includes('parcial')) {
+      return 'parcial';
+    }
+    return 'backend solo lectura';
   }
 
   formatDate(value?: string | null): string {

@@ -109,7 +109,7 @@ function data() {
       lastUpdatedAt: '2026-05-31T12:00:00Z',
       dataSource: 'parcial',
       isPartialData: true,
-      warnings: ['Datos parciales read-only.']
+      warnings: ['Datos parciales solo lectura.']
     },
     items: [item()]
   };

@@ -104,4 +104,15 @@ export class NachaOperationalFileDetailComponent implements OnInit {
   formatDate(value?: string | null): string {
     return value ? new Date(value).toLocaleString('es-CO') : '-';
   }
+
+  dataSourceLabel(value?: string | null): string {
+    const normalized = String(value ?? '').toLowerCase();
+    if (normalized.includes('demo')) {
+      return 'demo seguro';
+    }
+    if (normalized.includes('parcial')) {
+      return 'parcial';
+    }
+    return 'backend solo lectura';
+  }
 }

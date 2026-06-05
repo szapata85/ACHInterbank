@@ -101,7 +101,7 @@ function detail() {
     correlationId: 'corr-N1',
     dataSource: 'parcial',
     isPartialData: true,
-    warnings: ['No persisted file controls found; detalle parcial read-only.'],
+    warnings: ['No se encontraron controles de archivo persistidos; detalle parcial solo lectura.'],
     header: { headerId: 'N1', priorityCode: '01', recordSize: '094', blockingFactor: '10', cycleNumber: 1 },
     batches: [{ batchId: 1, batchNumber: 1, serviceClassCode: '220', companyName: 'CFA', standardEntryClassCode: 'PPD' }],
     entries: [{ entryDetailId: 1, transactionCode: '22', accountNumberMasked: '****3456', recipIdNumberMasked: '****6789', amount: 100 }],

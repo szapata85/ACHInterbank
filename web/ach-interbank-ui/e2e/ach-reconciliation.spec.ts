@@ -114,13 +114,13 @@ async function mockAuthRefresh(page: Page): Promise<void> {
 }
 
 function dashboard() {
-  return { productiveStatus: 'NO-GO', totalResponses: 2, totalDifferentialResponses: 1, totalReturns: 1, totalRejections: 1, totalPrenotifications: 1, totalRor: 1, totalReconciled: 1, totalPending: 1, totalInconsistent: 1, totalManualReviewRequired: 1, totalNonMonetary: 3, totalMonetaryCandidates: 1, lastUpdatedAt: '2026-05-31T12:00:00Z', dataSource: 'backend read-only', isPartialData: false, warnings: ['Productivo permanece NO-GO; consola read-only sin SOAP real ni movimientos.'] };
+  return { productiveStatus: 'NO-GO', totalResponses: 2, totalDifferentialResponses: 1, totalReturns: 1, totalRejections: 1, totalPrenotifications: 1, totalRor: 1, totalReconciled: 1, totalPending: 1, totalInconsistent: 1, totalManualReviewRequired: 1, totalNonMonetary: 3, totalMonetaryCandidates: 1, lastUpdatedAt: '2026-05-31T12:00:00Z', dataSource: 'backend read-only', isPartialData: false, warnings: ['Productivo permanece NO-GO; consola solo lectura sin SOAP real ni movimientos.'] };
 }
 
 function items() {
   return [
     { reconciliationId: 'resp-1', correlationId: 'corr-1', fileName: 'entrada.ach', clearingHouseCode: 'ACH', flowType: 'DifferentialResponse', responseType: 'Respuesta diferencial', reasonCode: 'R01', traceNumberMasked: '***0001', originalTraceNumberMasked: '***9999', internalStatus: 'Notificada', reconciliationStatus: 'Conciliado', requiresManualReview: false, isReturnFile: false, isRor: false, isPrenotification: false, isNonMonetary: true, isMonetaryCandidate: false, soapOperationCandidate: 'RegistrarRespuestaTransaccion', createdAt: '2026-05-31T12:00:00Z', dataSource: 'backend read-only', isPersisted: true, isDerived: true },
-    { reconciliationId: 'ret-1', correlationId: 'corr-ret', fileName: 'return.RET', clearingHouseCode: 'CENIT', flowType: 'Return', responseType: 'Devolucion .RET', reasonCode: 'R02', traceNumberMasked: '***0002', originalTraceNumberMasked: '***0001', internalStatus: 'Returned', reconciliationStatus: 'Pendiente', requiresManualReview: false, isReturnFile: true, isRor: false, isPrenotification: false, isNonMonetary: true, isMonetaryCandidate: false, soapOperationCandidate: 'RegistrarRespuestaTransaccion', createdAt: '2026-05-31T12:00:00Z', dataSource: 'backend read-only', isPersisted: true, isDerived: true }
+    { reconciliationId: 'ret-1', correlationId: 'corr-ret', fileName: 'return.RET', clearingHouseCode: 'CENIT', flowType: 'Return', responseType: 'Devolución .RET', reasonCode: 'R02', traceNumberMasked: '***0002', originalTraceNumberMasked: '***0001', internalStatus: 'Returned', reconciliationStatus: 'Pendiente', requiresManualReview: false, isReturnFile: true, isRor: false, isPrenotification: false, isNonMonetary: true, isMonetaryCandidate: false, soapOperationCandidate: 'RegistrarRespuestaTransaccion', createdAt: '2026-05-31T12:00:00Z', dataSource: 'backend read-only', isPersisted: true, isDerived: true }
   ];
 }
 

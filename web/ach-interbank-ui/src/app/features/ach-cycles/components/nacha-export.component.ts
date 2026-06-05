@@ -67,8 +67,8 @@ export class NachaExportComponent implements OnInit {
 
         return `
           <div class="acciones-fila-nacha">
-            <button type="button" class="btn btn-primary btn-grid" data-action="generar-nacha" title="${tooltipGenerar}" ${disabledAttr}>${textoGenerar}</button>
-            <button type="button" class="btn btn-outline btn-grid" data-action="generar-sobre" title="${tooltipSobre}" ${disabledAttr}>${textoSobre}</button>
+            <button type="button" class="primary btn-grid" data-action="generar-nacha" title="${tooltipGenerar}" ${disabledAttr}>${textoGenerar}</button>
+            <button type="button" class="secondary btn-grid" data-action="generar-sobre" title="${tooltipSobre}" ${disabledAttr}>${textoSobre}</button>
           </div>
         `;
       },

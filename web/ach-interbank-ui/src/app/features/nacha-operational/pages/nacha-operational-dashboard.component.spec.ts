@@ -43,7 +43,7 @@ describe('NachaOperationalDashboardComponent', () => {
 
   it('Component_ShouldRenderBackendReadStoreData', () => {
     expect(text()).toContain('Fuente: backend solo lectura');
-    expect(text()).toContain('BACKEND READ-ONLY SANITIZADO');
+    expect(text()).toContain('BACKEND SOLO LECTURA SANITIZADO');
   });
 
   it('Component_ShouldRenderDataSourceBadge', () => {
@@ -51,12 +51,12 @@ describe('NachaOperationalDashboardComponent', () => {
   });
 
   it('Component_ShouldRenderPartialDataWarning', () => {
-    service.getDashboardData.and.returnValue(of(data({ isPartialData: true, dataSource: 'parcial', warnings: ['No persisted SOAP readiness data found; using safe read-only placeholder.'] })));
+    service.getDashboardData.and.returnValue(of(data({ isPartialData: true, dataSource: 'parcial', warnings: ['No se encontraron datos persistidos de preparación SOAP; se usa un marcador seguro solo lectura.'] })));
     const partialFixture = TestBed.createComponent(NachaOperationalDashboardComponent);
     partialFixture.detectChanges();
 
     expect(partialFixture.nativeElement.textContent).toContain('Fuente: parcial');
-    expect(partialFixture.nativeElement.textContent).toContain('No persisted SOAP readiness data found');
+    expect(partialFixture.nativeElement.textContent).toContain('No se encontraron datos persistidos de preparación SOAP');
   });
 
   it('Component_ShouldFallbackToDemoWhenApiFails', () => {
@@ -65,7 +65,7 @@ describe('NachaOperationalDashboardComponent', () => {
     demoFixture.detectChanges();
 
     expect(demoFixture.nativeElement.textContent).toContain('Fuente: demo seguro');
-    expect(demoFixture.nativeElement.textContent).toContain('DEMO READ-ONLY');
+    expect(demoFixture.nativeElement.textContent).toContain('DEMO SOLO LECTURA');
   });
 
   it('Component_ShouldKeepNoGoBannerWithReadStoreData', () => {
@@ -142,7 +142,7 @@ function data(overrides: Partial<NachaOperationalDashboardData> = {}): NachaOper
   const isDemoData = overrides.isDemoData ?? false;
   const isPartialData = overrides.isPartialData ?? false;
   const dataSource = overrides.dataSource ?? (isPartialData ? 'parcial' : isDemoData ? 'demo seguro' : 'backend solo lectura');
-  const warnings = overrides.warnings ?? (isPartialData ? ['Datos parciales read-only.'] : []);
+  const warnings = overrides.warnings ?? (isPartialData ? ['Datos parciales solo lectura.'] : []);
 
   return {
     summary: {

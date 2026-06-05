@@ -21,11 +21,11 @@ test.describe('NACHA-M operational dashboard read-only evidence', () => {
     await expect(page.getByRole('heading', { name: 'Consulta operativa NACHA-M y preparación SOAP', level: 1 })).toBeVisible();
     await expect(page.getByText('Productivo NO-GO')).toBeVisible();
     await expect(page.getByText('SOAP REAL DESHABILITADO', { exact: true })).toBeVisible();
-    await expect(page.getByText('BACKEND READ-ONLY SANITIZADO')).toBeVisible();
+    await expect(page.getByText('BACKEND SOLO LECTURA SANITIZADO')).toBeVisible();
     await expect(page.getByText('Fuente: backend solo lectura')).toBeVisible();
     await expect(page.locator('section[aria-label="Resumen operativo"]')).toBeVisible();
-    await expect(page.getByText('ProductiveExecution')).toBeVisible();
-    await expect(page.getByText('WouldInvokeRealSoap')).toBeVisible();
+    await expect(page.getByText('Ejecución productiva')).toBeVisible();
+    await expect(page.getByText('Invocaría SOAP real')).toBeVisible();
     await expect(page.getByText('false').first()).toBeVisible();
 
     await expect(page.getByText('Archivos NACHA-M')).toBeVisible();
@@ -44,7 +44,7 @@ test.describe('NACHA-M operational dashboard read-only evidence', () => {
 
     await page.goto(dashboardPath);
 
-    await expect(page.getByText('DEMO READ-ONLY')).toBeVisible();
+    await expect(page.getByText('DEMO SOLO LECTURA')).toBeVisible();
     await expect(page.getByText('Fuente: demo seguro')).toBeVisible();
     await expect(page.getByText('Productivo NO-GO')).toBeVisible();
     await expect(page.getByText('SOAP REAL DESHABILITADO', { exact: true })).toBeVisible();
@@ -200,11 +200,11 @@ async function assertDangerousActionsAbsent(page: Page): Promise<void> {
     /Mover dinero/i,
     /Cambiar a GO/i,
     /Activar productivo/i,
-    /Confirmar operaci[oÃ³]n real/i,
+    /Confirmar operaci[oó]n real/i,
     /Editar perfil/i,
     /Subir archivo productivo/i,
     /Invocar core/i,
-    /Reintentar ejecuci[oÃ³]n real/i
+    /Reintentar ejecuci[oó]n real/i
   ];
 
   for (const label of dangerousLabels) {
@@ -318,7 +318,7 @@ function backendDashboard(overrides: { isPartialData?: boolean; dataSource?: str
         phase: '6B.5',
         eventType: 'ReadinessDashboardProjected',
         severity: 'Information',
-        message: 'Evidencia E2E read-only generada.',
+        message: 'Evidencia E2E solo lectura generada.',
         isBlocked: false,
         dataSource: 'backend read-only',
         isDerived: false,
