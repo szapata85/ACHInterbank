@@ -35,21 +35,21 @@ describe('NachaOperationalFileDetailComponent', () => {
   });
 
   it('FileDetailComponent_ShouldRenderReadOnlyBanner', () => {
-    expect(text()).toContain('Backend read-only sanitizado');
+    expect(text()).toContain('Backend solo lectura sanitizado');
   });
 
   it('FileDetailComponent_ShouldRenderHeaderBatchesEntriesAddendasControls', () => {
     const content = text();
 
-    expect(content).toContain('Header');
-    expect(content).toContain('Batches');
-    expect(content).toContain('Entries');
+    expect(content).toContain('Encabezado');
+    expect(content).toContain('Lotes');
+    expect(content).toContain('Entradas');
     expect(content).toContain('Addendas');
-    expect(content).toContain('Controls');
+    expect(content).toContain('Controles');
   });
 
   it('FileDetailComponent_ShouldRenderTotalsSummary', () => {
-    expect(text()).toContain('Totals');
+    expect(text()).toContain('Totales');
     expect(text()).toContain('Records persistidos');
   });
 

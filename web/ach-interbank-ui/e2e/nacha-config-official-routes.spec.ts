@@ -66,19 +66,19 @@ test.describe('NACHA Config official routes', () => {
 
     await page.goto('/nacha-config-admin/perfiles');
 
-    await expect(page.getByTestId('nacha-config-profiles-page').getByRole('heading', { name: 'Config Profiles NACHA-M' })).toBeVisible();
+    await expect(page.getByTestId('nacha-config-profiles-page').getByRole('heading', { name: 'Configuración NACHA-M' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Crear borrador' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Validar' })).toBeVisible();
 
     await page.goto('/nacha-config-admin/variants-fields');
 
-    await expect(page.getByTestId('nacha-config-variants-fields-page').getByRole('heading', { name: 'NACHA Config - Variants y Fields' })).toBeVisible();
+    await expect(page.getByTestId('nacha-config-variants-fields-page').getByRole('heading', { name: 'Variantes y campos NACHA-M' })).toBeVisible();
     await expect(page.getByTestId('nacha-config-variants-fields-page')).toContainText('Workspace administrativo oficial sobre nacha-config profiles.');
     await expect(page.getByRole('button', { name: /Crear|Editar|Eliminar/i })).toHaveCount(0);
 
     await page.goto('/nacha-config-admin/records');
 
-    await expect(page.getByTestId('nacha-config-records-page').getByRole('heading', { name: 'NACHA Config - Records' })).toBeVisible();
+    await expect(page.getByTestId('nacha-config-records-page').getByRole('heading', { name: 'Registros oficiales NACHA-M' })).toBeVisible();
     await expect(page.getByTestId('nacha-config-records-page').locator('ui-alerta').first()).toContainText('nacha-config profiles es la fuente oficial.');
     await expect(page.getByTestId('nacha-config-records-page').getByRole('row', { name: /1 1 Si 1 1 STATIC/ })).toBeVisible();
     await expect(page.getByTestId('nacha-config-records-page').getByRole('button', { name: /Crear|Editar|Eliminar/i })).toHaveCount(0);
@@ -87,8 +87,8 @@ test.describe('NACHA Config official routes', () => {
 
     await expect(page.getByTestId('nacha-config-profile-workspace-page').getByRole('heading', { name: 'Perfil CENIT-OUT-220' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Clonar como borrador' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Ir a records oficiales' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Ir a variants y fields' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Ir a registros oficiales' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Ir a variantes y campos' })).toBeVisible();
     expect(legacyRequests).toEqual([]);
     expect(htmlJsResponses).toEqual([]);
     expect(chunkRequestFailures).toEqual([]);

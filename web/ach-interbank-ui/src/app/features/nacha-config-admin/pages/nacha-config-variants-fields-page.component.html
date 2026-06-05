@@ -1,41 +1,41 @@
-<section class="page" data-testid="nacha-config-variants-fields-page">
+﻿<section class="page" data-testid="nacha-config-variants-fields-page">
   <ng-template #accionesHeader>
     <div class="header-actions">
       <button type="button" class="btn btn-outline" [disabled]="!selectedProfileId" (click)="irADetallePerfil()">Ir a perfil</button>
-      <button type="button" class="btn btn-outline" [disabled]="!selectedProfileId" (click)="irARecords()">Ir a records</button>
+      <button type="button" class="btn btn-outline" [disabled]="!selectedProfileId" (click)="irARecords()">Ir a registros</button>
     </div>
   </ng-template>
 
   <ui-encabezado-pagina
-    titulo="NACHA Config - Variants y Fields"
-    descripcion="Workspace administrativo oficial sobre nacha-config profiles."
+    titulo="Variantes y campos NACHA-M"
+    descripcion="Espacio administrativo oficial sobre perfiles NACHA-M."
     [acciones]="accionesHeader"
   ></ui-encabezado-pagina>
 
   <div class="alerts">
-    <ui-alerta tipo="info" mensaje="NACHA-M oficial usa nacha-config profiles como fuente maestra para variants y fields."></ui-alerta>
+    <ui-alerta tipo="info" mensaje="NACHA-M oficial usa perfiles NACHA-M como fuente maestra para variantes y campos."></ui-alerta>
     <ui-alerta *ngIf="!puedeGestionar" tipo="advertencia" mensaje="CanReadAch deja esta pantalla en consulta. CanManageAch es obligatorio para editar o guardar."></ui-alerta>
     <ui-alerta *ngIf="puedeGestionar && estadoNormalizado && estadoNormalizado !== 'BORRADOR'" tipo="advertencia" mensaje="El perfil seleccionado no está en BORRADOR. La edición queda bloqueada."></ui-alerta>
   </div>
 
   <ui-estado-error
     *ngIf="profilesError"
-    titulo="No fue posible cargar profiles oficiales"
+    titulo="No fue posible cargar perfiles oficiales"
     [mensaje]="profilesError"
     (reintentar)="loadProfiles()"
   ></ui-estado-error>
 
-  <ui-estado-carga *ngIf="loadingProfiles && !profilesError" mensaje="Cargando profiles oficiales..."></ui-estado-carga>
+  <ui-estado-carga *ngIf="loadingProfiles && !profilesError" mensaje="Cargando perfiles oficiales..."></ui-estado-carga>
 
   <ui-estado-vacio
     *ngIf="!loadingProfiles && !profilesError && profiles.length === 0"
-    titulo="Sin nacha-config profiles"
-    mensaje="No hay profiles oficiales disponibles para administrar variants y fields."
+    titulo="Sin perfiles NACHA-M"
+    mensaje="No hay perfiles oficiales disponibles para administrar variantes y campos."
   ></ui-estado-vacio>
 
   <ui-estado-carga
     *ngIf="loadingDetail && !selectedProfile && !detailError"
-    mensaje="Cargando detalle del profile seleccionado..."
+    mensaje="Cargando detalle del perfil seleccionado..."
   ></ui-estado-carga>
 
   <section class="workspace" *ngIf="profiles.length > 0">
@@ -43,15 +43,15 @@
       <div class="section-head">
         <div>
           <h3>Perfil seleccionado</h3>
-          <p>Selecciona el profile oficial sobre el que quieres administrar variants y fields.</p>
+          <p>Selecciona el perfil oficial sobre el que quieres administrar variantes y campos.</p>
         </div>
         <span class="badge" [class.badge-readonly]="!puedeEditar" [class.badge-editable]="puedeEditar">{{ estadoNormalizado || 'SIN ESTADO' }}</span>
       </div>
 
       <label class="field">
-        <span>Profile</span>
+        <span>Perfil</span>
         <select data-testid="profile-selector" [value]="selectedProfileId ?? ''" (change)="onProfileChange($event)">
-          <option value="">Selecciona un profile</option>
+          <option value="">Selecciona un perfil</option>
           <option *ngFor="let profile of profiles; trackBy: trackByProfileId" [value]="profile.profileId">
             {{ profile.profileCode }} · {{ profile.profileName }} · {{ profile.status }} · v{{ profile.version }}
           </option>
@@ -79,26 +79,26 @@
       <article class="card">
         <div class="section-head">
           <div>
-            <h3>Records del perfil</h3>
-            <p>Selecciona el record para ver sus variants oficiales.</p>
+            <h3>Registros del perfil</h3>
+            <p>Selecciona el registro para ver sus variantes oficiales.</p>
           </div>
-          <span class="badge">{{ sortedRecords.length }} records</span>
+          <span class="badge">{{ sortedRecords.length }} registros</span>
         </div>
 
         <ui-estado-vacio
           *ngIf="sortedRecords.length === 0"
-          titulo="Sin records"
-          mensaje="El profile seleccionado no tiene records configurados."
+          titulo="Sin registros"
+          mensaje="El perfil seleccionado no tiene registros configurados."
         ></ui-estado-vacio>
 
         <div class="table-wrap" *ngIf="sortedRecords.length > 0">
           <table class="data-table">
             <thead>
               <tr>
-                <th>Record</th>
+                <th>Registro</th>
                 <th>Secuencia</th>
                 <th>Estado</th>
-                <th>Source</th>
+                <th>Fuente</th>
                 <th>Acción</th>
               </tr>
             </thead>
@@ -120,32 +120,32 @@
       <article class="card">
         <div class="section-head">
           <div>
-            <h3>Variants del record</h3>
-            <p>{{ selectedRecord ? 'Record seleccionado: ' + selectedRecord.recordCode : 'Selecciona un record para cargar sus variants.' }}</p>
+            <h3>Variantes del registro</h3>
+            <p>{{ selectedRecord ? 'Registro seleccionado: ' + selectedRecord.recordCode : 'Selecciona un registro para cargar sus variantes.' }}</p>
           </div>
-          <span class="badge">{{ recordVariants.length }} variants</span>
+          <span class="badge">{{ recordVariants.length }} variantes</span>
         </div>
 
         <ui-estado-vacio
           *ngIf="!selectedRecord"
-          titulo="Sin record seleccionado"
-          mensaje="Elige un record para listar sus variants."
+          titulo="Sin registro seleccionado"
+          mensaje="Elige un registro para listar sus variantes."
         ></ui-estado-vacio>
 
         <ui-estado-vacio
           *ngIf="selectedRecord && recordVariants.length === 0"
-          titulo="Sin variants"
-          mensaje="El record seleccionado no tiene variants configuradas."
+          titulo="Sin variantes"
+          mensaje="El registro seleccionado no tiene variantes configuradas."
         ></ui-estado-vacio>
 
         <div class="table-wrap" *ngIf="selectedRecord && recordVariants.length > 0">
           <table class="data-table">
             <thead>
               <tr>
-                <th>Variant</th>
+                <th>Variante</th>
                 <th>Nombre</th>
                 <th>Prioridad</th>
-                <th>Default</th>
+                <th>Predeterminado</th>
                 <th>Longitud</th>
                 <th>Acción</th>
               </tr>
@@ -169,34 +169,34 @@
       <article class="card">
         <div class="section-head">
           <div>
-            <h3>Fields de la variant</h3>
-            <p>{{ selectedVariant ? 'Variant seleccionada: ' + selectedVariant.variantCode : 'Selecciona una variant para listar sus fields.' }}</p>
+            <h3>Campos de la variante</h3>
+            <p>{{ selectedVariant ? 'Variante seleccionada: ' + selectedVariant.variantCode : 'Selecciona una variante para listar sus campos.' }}</p>
           </div>
-          <span class="badge">{{ selectedFields.length }} fields</span>
+          <span class="badge">{{ selectedFields.length }} campos</span>
         </div>
 
         <ui-estado-vacio
           *ngIf="!selectedVariant"
-          titulo="Sin variant seleccionada"
-          mensaje="Elige una variant para listar sus fields."
+          titulo="Sin variante seleccionada"
+          mensaje="Elige una variante para listar sus campos."
         ></ui-estado-vacio>
 
         <ui-estado-vacio
           *ngIf="selectedVariant && selectedFields.length === 0"
-          titulo="Sin fields"
-          mensaje="La variant seleccionada no tiene fields configurados."
+          titulo="Sin campos"
+          mensaje="La variante seleccionada no tiene campos configurados."
         ></ui-estado-vacio>
 
         <div class="table-wrap" *ngIf="selectedVariant && selectedFields.length > 0">
           <table class="data-table">
             <thead>
               <tr>
-                <th>Field</th>
+                <th>Campo</th>
                 <th>Nombre</th>
                 <th>Inicio</th>
                 <th>Largo</th>
                 <th>PropertyPath</th>
-                <th>Rules</th>
+                <th>Reglas</th>
                 <th>Estado</th>
                 <th>Acción</th>
               </tr>
@@ -222,14 +222,14 @@
       <article class="card editor-card">
         <div class="section-head">
           <div>
-            <h3>Editar variant</h3>
-            <p *ngIf="selectedVariant; else noVariantSelected">Edita solo si el profile está en BORRADOR y tienes CanManageAch.</p>
+            <h3>Editar variante</h3>
+            <p *ngIf="selectedVariant; else noVariantSelected">Edita solo si el perfil está en BORRADOR y tienes CanManageAch.</p>
           </div>
           <span class="badge" *ngIf="selectedVariant">{{ selectedVariant.variantCode }}</span>
         </div>
 
         <ng-template #noVariantSelected>
-          <ui-estado-vacio titulo="Sin variant seleccionada" mensaje="Selecciona una variant para editarla."></ui-estado-vacio>
+          <ui-estado-vacio titulo="Sin variante seleccionada" mensaje="Selecciona una variante para editarla."></ui-estado-vacio>
         </ng-template>
 
         <form *ngIf="selectedVariant" [formGroup]="variantForm" class="form-grid">
@@ -240,36 +240,36 @@
           </label>
 
           <label class="field field--wide">
-            <span>Descripcion</span>
+            <span>Descripción</span>
             <textarea rows="3" formControlName="descripcion"></textarea>
           </label>
 
           <label class="field">
-            <span>Priority</span>
+            <span>Prioridad</span>
             <input type="number" min="1" step="1" formControlName="priority" />
             <small *ngIf="variantForm.controls.priority.touched && variantForm.controls.priority.invalid" class="field-error">La prioridad debe ser mayor o igual a 1.</small>
           </label>
 
           <label class="field field--inline">
-            <span>Default para el record</span>
+            <span>Predeterminada para el registro</span>
             <input type="checkbox" formControlName="isDefaultForRecord" />
           </label>
 
           <label class="field">
-            <span>Effective from</span>
+            <span>Vigencia inicial</span>
             <input type="date" formControlName="effectiveFrom" />
           </label>
 
           <label class="field">
-            <span>Effective to</span>
+            <span>Vigencia final</span>
             <input type="date" formControlName="effectiveTo" />
           </label>
         </form>
 
         <div class="meta-note" *ngIf="selectedVariant">
-          <span><strong>Record:</strong> {{ selectedVariant.recordCode }}</span>
-          <span><strong>Total length:</strong> {{ selectedVariant.totalLength }}</span>
-          <span><strong>RowVersion del profile:</strong> {{ selectedProfile?.rowVersion }}</span>
+          <span><strong>Registro:</strong> {{ selectedVariant.recordCode }}</span>
+          <span><strong>Longitud total:</strong> {{ selectedVariant.totalLength }}</span>
+          <span><strong>RowVersion del perfil:</strong> {{ selectedProfile?.rowVersion }}</span>
         </div>
 
         <ui-alerta
@@ -279,7 +279,7 @@
         ></ui-alerta>
 
         <div class="form-actions" *ngIf="puedeEditarVariantActual">
-          <button type="button" class="btn btn-primary" [disabled]="savingVariant || variantForm.invalid" (click)="guardarVariant()">Guardar variant</button>
+          <button type="button" class="btn btn-primary" [disabled]="savingVariant || variantForm.invalid" (click)="guardarVariant()">Guardar variante</button>
         </div>
 
         <ui-alerta *ngIf="variantSaveError" tipo="error" [mensaje]="variantSaveError"></ui-alerta>
@@ -293,61 +293,61 @@
       <article class="card editor-card">
         <div class="section-head">
           <div>
-            <h3>Editar field</h3>
-            <p *ngIf="selectedField; else noFieldSelected">Edita solo si el profile está en BORRADOR y tienes CanManageAch.</p>
+            <h3>Editar campo</h3>
+            <p *ngIf="selectedField; else noFieldSelected">Edita solo si el perfil está en BORRADOR y tienes CanManageAch.</p>
           </div>
           <span class="badge" *ngIf="selectedField">{{ selectedField.fieldCode }}</span>
         </div>
 
         <ng-template #noFieldSelected>
-          <ui-estado-vacio titulo="Sin field seleccionado" mensaje="Selecciona un field para editarlo."></ui-estado-vacio>
+          <ui-estado-vacio titulo="Sin campo seleccionado" mensaje="Selecciona un campo para editarlo."></ui-estado-vacio>
         </ng-template>
 
         <form *ngIf="selectedField" [formGroup]="fieldForm" class="form-grid">
           <label class="field">
-            <span>Field name ES</span>
+            <span>Nombre del campo ES</span>
             <input type="text" formControlName="fieldNameEs" />
-            <small *ngIf="fieldForm.controls.fieldNameEs.touched && fieldForm.controls.fieldNameEs.invalid" class="field-error">El nombre del field es obligatorio.</small>
+            <small *ngIf="fieldForm.controls.fieldNameEs.touched && fieldForm.controls.fieldNameEs.invalid" class="field-error">El nombre del campo es obligatorio.</small>
           </label>
 
           <label class="field">
-            <span>Start position</span>
+            <span>Posición inicial</span>
             <input type="number" min="1" step="1" formControlName="startPosition" />
             <small *ngIf="fieldForm.controls.startPosition.touched && fieldForm.controls.startPosition.invalid" class="field-error">La posición inicial debe ser mayor o igual a 1.</small>
           </label>
 
           <label class="field">
-            <span>Length</span>
+            <span>Longitud</span>
             <input type="number" min="1" step="1" formControlName="length" />
             <small *ngIf="fieldForm.controls.length.touched && fieldForm.controls.length.invalid" class="field-error">La longitud debe ser mayor o igual a 1.</small>
           </label>
 
           <label class="field field--wide">
-            <span>Property path</span>
+            <span>Ruta de propiedad</span>
             <input type="text" formControlName="propertyPath" />
             <small class="field-hint">Si se deja vacío, el backend conserva el valor actual.</small>
           </label>
 
           <label class="field field--inline">
-            <span>Field habilitado</span>
+            <span>Campo habilitado</span>
             <input type="checkbox" formControlName="isEnabled" />
           </label>
         </form>
 
         <div class="meta-note" *ngIf="selectedField">
-          <span><strong>Field code:</strong> {{ selectedField.fieldCode }}</span>
-          <span><strong>Source type:</strong> {{ selectedField.sourceType || 'N/D' }}</span>
-          <span><strong>RowVersion del profile:</strong> {{ selectedProfile?.rowVersion }}</span>
+          <span><strong>Código del campo:</strong> {{ selectedField.fieldCode }}</span>
+          <span><strong>Tipo de fuente:</strong> {{ selectedField.sourceType || 'N/D' }}</span>
+          <span><strong>RowVersion del perfil:</strong> {{ selectedProfile?.rowVersion }}</span>
         </div>
 
         <ui-alerta
           *ngIf="selectedField && !puedeEditarFieldActual"
           tipo="advertencia"
-          mensaje="La edición de fields está bloqueada porque el profile no está en BORRADOR o no tienes CanManageAch."
+          mensaje="La edición de campos está bloqueada porque el profile no está en BORRADOR o no tienes CanManageAch."
         ></ui-alerta>
 
         <div class="form-actions" *ngIf="puedeEditarFieldActual">
-          <button type="button" class="btn btn-primary" [disabled]="savingField || fieldForm.invalid" (click)="guardarField()">Guardar field</button>
+          <button type="button" class="btn btn-primary" [disabled]="savingField || fieldForm.invalid" (click)="guardarField()">Guardar campo</button>
         </div>
 
         <ui-alerta *ngIf="fieldSaveError" tipo="error" [mensaje]="fieldSaveError"></ui-alerta>
@@ -361,22 +361,22 @@
       <article class="card">
         <div class="section-head">
           <div>
-            <h3>Rules del field</h3>
-            <p>{{ selectedField ? 'Field seleccionado: ' + selectedField.fieldCode : 'Selecciona un field para listar sus rules.' }}</p>
+            <h3>Reglas del campo</h3>
+            <p>{{ selectedField ? 'Campo seleccionado: ' + selectedField.fieldCode : 'Selecciona un campo para listar sus reglas.' }}</p>
           </div>
-          <span class="badge">{{ selectedRules.length }} rules</span>
+          <span class="badge">{{ selectedRules.length }} reglas</span>
         </div>
 
         <ui-estado-vacio
           *ngIf="!selectedField"
-          titulo="Sin field seleccionado"
-          mensaje="Elige un field para listar sus rules."
+          titulo="Sin campo seleccionado"
+          mensaje="Elige un campo para listar sus reglas."
         ></ui-estado-vacio>
 
         <ui-estado-vacio
           *ngIf="selectedField && selectedRules.length === 0"
-          titulo="Sin rules"
-          mensaje="El field seleccionado no tiene rules configuradas."
+          titulo="Sin reglas"
+          mensaje="El campo seleccionado no tiene reglas configuradas."
         ></ui-estado-vacio>
 
         <div class="table-wrap" *ngIf="selectedField && selectedRules.length > 0">
@@ -384,9 +384,9 @@
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Error code</th>
+                <th>Código de error</th>
                 <th>Mensaje</th>
-                <th>Severity</th>
+                <th>Severidad</th>
                 <th>Estado</th>
                 <th>Acción</th>
               </tr>
@@ -410,31 +410,31 @@
       <article class="card editor-card">
         <div class="section-head">
           <div>
-            <h3>Editar rule</h3>
-            <p *ngIf="selectedRule; else noRuleSelected">Edita solo si el profile está en BORRADOR y tienes CanManageAch.</p>
+            <h3>Editar regla</h3>
+            <p *ngIf="selectedRule; else noRuleSelected">Edita solo si el perfil está en BORRADOR y tienes CanManageAch.</p>
           </div>
           <span class="badge" *ngIf="selectedRule">{{ selectedRule.errorCode }}</span>
         </div>
 
         <ng-template #noRuleSelected>
-          <ui-estado-vacio titulo="Sin rule seleccionada" mensaje="Selecciona una rule para editarla."></ui-estado-vacio>
+          <ui-estado-vacio titulo="Sin regla seleccionada" mensaje="Selecciona una regla para editarla."></ui-estado-vacio>
         </ng-template>
 
         <form *ngIf="selectedRule" [formGroup]="ruleForm" class="form-grid">
           <label class="field">
-            <span>Error code</span>
+            <span>Código de error</span>
             <input type="text" formControlName="errorCode" />
-            <small *ngIf="ruleForm.controls.errorCode.touched && ruleForm.controls.errorCode.invalid" class="field-error">El error code es obligatorio.</small>
+            <small *ngIf="ruleForm.controls.errorCode.touched && ruleForm.controls.errorCode.invalid" class="field-error">El código de error es obligatorio.</small>
           </label>
 
           <label class="field field--wide">
-            <span>Error message ES</span>
+            <span>Mensaje de error ES</span>
             <textarea rows="3" formControlName="errorMessageEs"></textarea>
             <small *ngIf="ruleForm.controls.errorMessageEs.touched && ruleForm.controls.errorMessageEs.invalid" class="field-error">El mensaje es obligatorio.</small>
           </label>
 
           <label class="field">
-            <span>Severity</span>
+            <span>Severidad</span>
             <select formControlName="severity">
               <option value="ERROR">ERROR</option>
               <option value="WARN">WARN</option>
@@ -442,25 +442,25 @@
           </label>
 
           <label class="field field--inline">
-            <span>Rule habilitada</span>
+            <span>Regla habilitada</span>
             <input type="checkbox" formControlName="isEnabled" />
           </label>
         </form>
 
         <div class="meta-note" *ngIf="selectedRule">
-          <span><strong>Rule ID:</strong> {{ selectedRule.id }}</span>
-          <span><strong>RowVersion del profile:</strong> {{ selectedProfile?.rowVersion }}</span>
-          <span><strong>Field:</strong> {{ selectedField?.fieldCode || 'N/D' }}</span>
+          <span><strong>ID de regla:</strong> {{ selectedRule.id }}</span>
+          <span><strong>RowVersion del perfil:</strong> {{ selectedProfile?.rowVersion }}</span>
+          <span><strong>Campo:</strong> {{ selectedField?.fieldCode || 'N/D' }}</span>
         </div>
 
         <ui-alerta
           *ngIf="selectedRule && !puedeEditarRuleActual"
           tipo="advertencia"
-          mensaje="La edición de rules está bloqueada porque el profile no está en BORRADOR o no tienes CanManageAch."
+          mensaje="La edición de reglas está bloqueada porque el perfil no está en BORRADOR o no tienes CanManageAch."
         ></ui-alerta>
 
         <div class="form-actions" *ngIf="puedeEditarRuleActual">
-          <button type="button" class="btn btn-primary" [disabled]="savingRule || ruleForm.invalid" (click)="guardarRule()">Guardar rule</button>
+          <button type="button" class="btn btn-primary" [disabled]="savingRule || ruleForm.invalid" (click)="guardarRule()">Guardar regla</button>
         </div>
 
         <ui-alerta *ngIf="ruleSaveError" tipo="error" [mensaje]="ruleSaveError"></ui-alerta>
@@ -473,3 +473,7 @@
     </ng-container>
   </section>
 </section>
+
+
+
+

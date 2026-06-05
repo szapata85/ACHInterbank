@@ -2,32 +2,32 @@
   <ui-migas-pan [items]="[
     { etiqueta: 'Inicio', ruta: '/dashboard' },
     { etiqueta: 'ACH' },
-    { etiqueta: 'Conciliacion' }
+    { etiqueta: 'Conciliación' }
   ]"></ui-migas-pan>
 
   <ui-encabezado-pagina
-    titulo="Consola de conciliacion ACH read-only"
+    titulo="Consola de conciliación ACH solo lectura"
     descripcion="Cruce operativo de respuestas, diferenciales, devoluciones, ROR, prenotificaciones y estados internos contra NACHA-M desagregado."
   ></ui-encabezado-pagina>
 
-  <ui-alerta tipo="advertencia" titulo="Productivo NO-GO" mensaje="Consulta read-only; no habilita salida productiva."></ui-alerta>
-  <ui-alerta tipo="info" titulo="Read-only sanitizado" mensaje="Sin aprobaciones, rechazos manuales, reprocesos, generacion de archivos ni edicion de estados."></ui-alerta>
+  <ui-alerta tipo="advertencia" titulo="Productivo NO-GO" mensaje="Consulta solo lectura; no habilita salida productiva."></ui-alerta>
+  <ui-alerta tipo="info" titulo="Solo lectura sanitizada" mensaje="Sin aprobaciones, rechazos manuales, reprocesos, generación de archivos ni edición de estados."></ui-alerta>
   <ui-alerta tipo="advertencia" titulo="Sin movimientos monetarios" mensaje="No ejecuta SOAP, no mueve dinero y solo marca candidatos monetarios controlados."></ui-alerta>
 
   <ui-alerta *ngIf="error" tipo="error" titulo="Error" [mensaje]="error"></ui-alerta>
-  <ui-estado-carga *ngIf="cargando" mensaje="Cargando conciliacion ACH..."></ui-estado-carga>
+  <ui-estado-carga *ngIf="cargando" mensaje="Cargando conciliación ACH..."></ui-estado-carga>
 
   <ng-container *ngIf="data as vm">
-    <section class="data-source-strip" aria-label="Fuente conciliacion">
+    <section class="data-source-strip" aria-label="Fuente conciliación">
       <span class="badge" [ngClass]="vm.dashboard.isPartialData ? 'badge-neutral' : 'badge-success'">Fuente: {{ vm.dashboard.dataSource }}</span>
       <span class="badge badge-danger">NO-GO</span>
-      <span class="badge badge-success">READ-ONLY</span>
+      <span class="badge badge-success">SOLO LECTURA</span>
       <span class="badge badge-success">NO MONETARIO</span>
     </section>
 
-    <ui-alerta *ngIf="vm.dashboard.warnings.length" tipo="info" titulo="Warnings parciales" [mensaje]="vm.dashboard.warnings.join(' ')"></ui-alerta>
+    <ui-alerta *ngIf="vm.dashboard.warnings.length" tipo="info" titulo="Advertencias parciales" [mensaje]="vm.dashboard.warnings.join(' ')"></ui-alerta>
 
-    <section class="summary-strip" aria-label="Resumen conciliacion ACH">
+    <section class="summary-strip" aria-label="Resumen conciliación ACH">
       <article><small>Productivo</small><strong class="badge badge-danger">{{ vm.dashboard.productiveStatus }}</strong></article>
       <article><small>Respuestas</small><strong>{{ vm.dashboard.totalResponses }}</strong></article>
       <article><small>Diferenciales</small><strong>{{ vm.dashboard.totalDifferentialResponses }}</strong></article>
@@ -38,55 +38,55 @@
       <article><small>Conciliados</small><strong class="badge badge-success">{{ vm.dashboard.totalReconciled }}</strong></article>
       <article><small>Pendientes</small><strong class="badge badge-warning">{{ vm.dashboard.totalPending }}</strong></article>
       <article><small>Inconsistentes</small><strong class="badge badge-danger">{{ vm.dashboard.totalInconsistent }}</strong></article>
-      <article><small>Manual review</small><strong class="badge badge-danger">{{ vm.dashboard.totalManualReviewRequired }}</strong></article>
-      <article><small>Monetary candidates</small><strong class="badge badge-warning">{{ vm.dashboard.totalMonetaryCandidates }}</strong></article>
+      <article><small>Revisión manual</small><strong class="badge badge-danger">{{ vm.dashboard.totalManualReviewRequired }}</strong></article>
+      <article><small>Candidatos monetarios</small><strong class="badge badge-warning">{{ vm.dashboard.totalMonetaryCandidates }}</strong></article>
     </section>
 
-    <div class="badge-row" aria-label="Badges conciliacion">
+    <div class="badge-row" aria-label="Badges conciliación">
       <span class="badge badge-success">CONCILIADO</span>
       <span class="badge badge-warning">PENDIENTE</span>
       <span class="badge badge-danger">INCONSISTENTE</span>
-      <span class="badge badge-danger">MANUAL REVIEW</span>
+      <span class="badge badge-danger">REVISIÓN MANUAL</span>
       <span class="badge badge-success">NO MONETARIO</span>
-      <span class="badge badge-warning">MONETARY CANDIDATE</span>
+      <span class="badge badge-warning">CANDIDATO MONETARIO</span>
       <span class="badge badge-neutral">RET</span>
       <span class="badge badge-neutral">ROR</span>
       <span class="badge badge-neutral">PRENOTE</span>
     </div>
 
-    <ui-tarjeta titulo="Filtros" subtitulo="Filtros locales read-only">
+    <ui-tarjeta titulo="Filtros" subtitulo="Filtros locales solo lectura">
       <section class="badge-row">
         <label>Estado <select [(ngModel)]="estado"><option value="">Todos</option><option>Conciliado</option><option>Pendiente</option><option>Inconsistente</option><option>RequiereRevisionManual</option></select></label>
-        <label>Camara <select [(ngModel)]="camara"><option value="">Todas</option><option>ACH</option><option>CENIT</option><option>N/A</option></select></label>
-        <label>Tipo <select [(ngModel)]="tipo"><option value="">Todos</option><option>Respuesta diferencial</option><option>Devolucion .RET</option><option>ROR / Return of Return</option><option>Prenotificacion</option></select></label>
-        <label><input type="checkbox" [(ngModel)]="soloRevision"> Requiere revision</label>
+        <label>Cámara <select [(ngModel)]="camara"><option value="">Todas</option><option>ACH</option><option>CENIT</option><option>N/A</option></select></label>
+        <label>Tipo <select [(ngModel)]="tipo"><option value="">Todos</option><option>Respuesta diferencial</option><option>Devolución .RET</option><option>ROR / Return of Return</option><option>Prenotificación</option></select></label>
+        <label><input type="checkbox" [(ngModel)]="soloRevision"> Requiere revisión</label>
       </section>
     </ui-tarjeta>
 
-    <ui-tarjeta titulo="Items conciliacion ACH" subtitulo="Respuestas, devoluciones, ROR y prenotificaciones sanitizadas.">
-      <ui-grilla-empresarial [columnas]="columnas" [datos]="filteredItems" [cargando]="cargando" tituloVacio="Sin items de conciliacion"></ui-grilla-empresarial>
+    <ui-tarjeta titulo="Ítems conciliación ACH" subtitulo="Respuestas, devoluciones, ROR y prenotificaciones sanitizadas.">
+      <ui-grilla-empresarial [columnas]="columnas" [datos]="filteredItems" [cargando]="cargando" tituloVacio="Sin ítems de conciliación"></ui-grilla-empresarial>
       <div class="badge-row">
         <button type="button" class="btn-link" *ngFor="let item of filteredItems" (click)="verDetalle(item)">Ver detalle {{ item.reconciliationId }}</button>
       </div>
     </ui-tarjeta>
 
-    <ui-tarjeta *ngIf="detail as detailVm" titulo="Detalle conciliacion" subtitulo="Cruce NACHA-M, transaccion interna, historia y auditoria sin datos sensibles.">
+    <ui-tarjeta *ngIf="detail as detailVm" titulo="Detalle de conciliación" subtitulo="Cruce NACHA-M, transacción interna, historia y auditoría sin datos sensibles.">
       <section class="summary-strip">
         <article><small>ID</small><strong>{{ detailVm.item.reconciliationId }}</strong></article>
         <article><small>Estado</small><strong class="badge" [ngClass]="badgeClass(detailVm.item.reconciliationStatus)">{{ detailVm.item.reconciliationStatus }}</strong></article>
         <article><small>Tipo</small><strong>{{ detailVm.item.responseType }}</strong></article>
         <article><small>Trace</small><strong>{{ detailVm.item.traceNumberMasked }}</strong></article>
         <article><small>Original trace</small><strong>{{ detailVm.item.originalTraceNumberMasked }}</strong></article>
-        <article><small>SOAP candidato</small><strong>{{ detailVm.item.soapOperationCandidate }}</strong></article>
-        <article><small>NoSensitiveData</small><strong>{{ detailVm.noSensitiveData }}</strong></article>
+        <article><small>Candidato SOAP</small><strong>{{ detailVm.item.soapOperationCandidate }}</strong></article>
+        <article><small>Sin datos sensibles</small><strong>{{ detailVm.noSensitiveData }}</strong></article>
       </section>
       <ui-alerta *ngIf="detailVm.warnings.length" tipo="info" titulo="Detalle parcial/sanitizado" [mensaje]="detailVm.warnings.join(' ')"></ui-alerta>
       <div class="badge-row">
-        <span class="badge badge-neutral" *ngIf="detailVm.nachaHeaderSummary">NACHA HEADER</span>
-        <span class="badge badge-neutral" *ngIf="detailVm.batchSummary">BATCH</span>
-        <span class="badge badge-neutral" *ngIf="detailVm.entrySummary">ENTRY</span>
+        <span class="badge badge-neutral" *ngIf="detailVm.nachaHeaderSummary">ENCABEZADO NACHA</span>
+        <span class="badge badge-neutral" *ngIf="detailVm.batchSummary">LOTE</span>
+        <span class="badge badge-neutral" *ngIf="detailVm.entrySummary">ENTRADA</span>
         <span class="badge badge-neutral" *ngIf="detailVm.addendaSummary">ADDENDA</span>
-        <span class="badge badge-neutral" *ngIf="detailVm.controlSummary">CONTROLS</span>
+        <span class="badge badge-neutral" *ngIf="detailVm.controlSummary">CONTROLES</span>
         <span class="badge badge-neutral" *ngIf="detailVm.internalTransactionSummary">TRANSACCION INTERNA</span>
       </div>
     </ui-tarjeta>

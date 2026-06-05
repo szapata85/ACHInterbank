@@ -229,10 +229,10 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
     expect(component.recordVariants.map((variant) => variant.variantCode)).toEqual(['R1_BASE', 'R1_ALT']);
     expect(component.selectedFields.map((field) => field.fieldCode)).toEqual(['FIELD_A', 'FIELD_B']);
     expect(component.selectedRules.map((rule) => rule.errorCode)).toEqual(['ERR_REQUIRED']);
-    expect(fixture.nativeElement.textContent).toContain('NACHA Config - Variants y Fields');
+    expect(fixture.nativeElement.textContent).toContain('Variantes y campos NACHA-M');
     expect(fixture.nativeElement.textContent).toContain('Record 1 base');
     expect(fixture.nativeElement.textContent).toContain('Field A');
-    expect(fixture.nativeElement.textContent).toContain('Rules del field');
+    expect(fixture.nativeElement.textContent).toContain('Reglas del campo');
     expect(fixture.nativeElement.textContent).toContain('ERR_REQUIRED');
   });
 

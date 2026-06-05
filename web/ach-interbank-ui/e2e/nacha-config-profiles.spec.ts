@@ -23,7 +23,7 @@ test.describe('NACHA config profiles official read-only page', () => {
     await loadConfigProfilesPage(page);
 
     await expect(page).toHaveURL(/\/nacha-config-admin\/perfiles$/);
-    await expect(page.getByText('Config Profiles NACHA-M')).toBeVisible();
+    await expect(page.getByText('Configuración NACHA-M')).toBeVisible();
   });
 
   test('ConfigProfiles_ShouldShowOfficialModelBanner', async ({ page }) => {
@@ -88,7 +88,7 @@ async function mockNavigation(page: Page): Promise<void> {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify([{ id: 3, label: 'Config Profiles', route: '/nacha-config-admin/perfiles' }])
+      body: JSON.stringify([{ id: 3, label: 'Configuración NACHA-M', route: '/nacha-config-admin/perfiles' }])
     });
   });
 }

@@ -154,7 +154,7 @@ export class NavigationService {
       { id: -2701, label: 'Bandeja', route: '/ach-responses', icon: 'assignment' },
       { id: -2702, label: 'Revisión manual', route: '/ach-responses/manual-review', icon: 'rule' },
       { id: -2703, label: 'Homologaciones', route: '/ach-responses/status-mappings', icon: 'sync_alt' },
-      { id: -2704, label: 'Dashboard operativo', route: '/ach-responses/dashboard', icon: 'dashboard' }
+      { id: -2704, label: 'Panel operativo', route: '/ach-responses/dashboard', icon: 'dashboard' }
     ];
 
     const achResponsesGroup: MenuItem = {
@@ -240,7 +240,7 @@ export class NavigationService {
         (item) =>
           item.route === '/nacha-config-admin/perfiles' ||
           item.label === 'Configuración NACHA-M' ||
-          item.label === 'Config Profiles' ||
+          item.label === 'Configuración NACHA-M' ||
           item.label === 'NACHA-M Configuración' ||
           item.label === 'NACHA-M ConfiguraciÃ³n'
       );

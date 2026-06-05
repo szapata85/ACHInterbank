@@ -30,8 +30,8 @@ test.describe('NACHA-M operational dashboard read-only evidence', () => {
 
     await expect(page.getByText('Archivos NACHA-M')).toBeVisible();
     await expect(page.getByText('Decisiones funcionales')).toBeVisible();
-    await expect(page.getByText('Readiness SOAP/UAT')).toBeVisible();
-    await expect(page.getByText('Auditoria Phase 6B.5')).toBeVisible();
+    await expect(page.getByText('Preparación SOAP/UAT')).toBeVisible();
+    await expect(page.getByText('Auditoría Fase 6B.5')).toBeVisible();
 
     await assertDangerousActionsAbsent(page);
     await page.screenshot({ path: testInfo.outputPath('dashboard-full-page.png'), fullPage: true });
@@ -125,12 +125,12 @@ test.describe('NACHA-M operational dashboard read-only evidence', () => {
 
     await expect(page.getByText('Productivo NO-GO')).toBeVisible();
     await expect(page.getByText('Backend read-only sanitizado')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Header' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Batches' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Entries' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Encabezado' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Lotes' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Entradas' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Addendas' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Controls' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Totals' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Controles' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Totales' })).toBeVisible();
     await assertDangerousActionsAbsent(page);
     expect(blockedRequests).toEqual([]);
   });

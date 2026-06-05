@@ -42,12 +42,12 @@ describe('NachaOperationalDashboardComponent', () => {
   });
 
   it('Component_ShouldRenderBackendReadStoreData', () => {
-    expect(text()).toContain('Fuente: backend read-only');
+    expect(text()).toContain('Fuente: backend solo lectura');
     expect(text()).toContain('BACKEND READ-ONLY SANITIZADO');
   });
 
   it('Component_ShouldRenderDataSourceBadge', () => {
-    expect(text()).toContain('Servicio: backend read-only');
+    expect(text()).toContain('Servicio: backend solo lectura');
   });
 
   it('Component_ShouldRenderPartialDataWarning', () => {
@@ -82,11 +82,11 @@ describe('NachaOperationalDashboardComponent', () => {
   });
 
   it('Component_ShouldRenderReadinessTable', () => {
-    expect(text()).toContain('Readiness SOAP/UAT');
+    expect(text()).toContain('Preparación SOAP/UAT');
   });
 
   it('Component_ShouldRenderAuditTable', () => {
-    expect(text()).toContain('Auditoria Phase 6B.5');
+    expect(text()).toContain('Auditoría Fase 6B.5');
   });
 
   it('Component_ShouldShowLoadingState', () => {
@@ -116,7 +116,7 @@ describe('NachaOperationalDashboardComponent', () => {
   it('Dashboard_ShouldNavigateToFileDetailForPersistedFile', () => {
     const router = TestBed.inject(Router);
     const navigateSpy = spyOn(router, 'navigate').and.resolveTo(true);
-    const file = { ...fixture.componentInstance.data!.files[0], fileId: 'nacha-N1', dataSource: 'backend read-only' };
+    const file = { ...fixture.componentInstance.data!.files[0], fileId: 'nacha-N1', dataSource: 'backend solo lectura' };
 
     fixture.componentInstance.verDetalle(file);
 
@@ -141,7 +141,7 @@ describe('NachaOperationalDashboardComponent', () => {
 function data(overrides: Partial<NachaOperationalDashboardData> = {}): NachaOperationalDashboardData {
   const isDemoData = overrides.isDemoData ?? false;
   const isPartialData = overrides.isPartialData ?? false;
-  const dataSource = overrides.dataSource ?? (isPartialData ? 'parcial' : isDemoData ? 'demo seguro' : 'backend read-only');
+  const dataSource = overrides.dataSource ?? (isPartialData ? 'parcial' : isDemoData ? 'demo seguro' : 'backend solo lectura');
   const warnings = overrides.warnings ?? (isPartialData ? ['Datos parciales read-only.'] : []);
 
   return {

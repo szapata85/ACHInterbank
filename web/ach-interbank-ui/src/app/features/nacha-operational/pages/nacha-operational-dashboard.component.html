@@ -2,12 +2,12 @@
   <ui-migas-pan [items]="[
     { etiqueta: 'Inicio', ruta: '/dashboard' },
     { etiqueta: 'ACH' },
-    { etiqueta: 'Readiness SOAP' }
+    { etiqueta: 'Preparación SOAP' }
   ]"></ui-migas-pan>
 
   <ui-encabezado-pagina
-    titulo="Consulta operativa NACHA-M y readiness SOAP"
-    descripcion="Vista read-only de archivos, decisiones, candidatos SOAP, readiness UAT y auditoria sanitizada."
+    titulo="Consulta operativa NACHA-M y preparación SOAP"
+    descripcion="Vista solo lectura de archivos, decisiones, candidatos SOAP, preparación UAT y auditoría sanitizada."
   ></ui-encabezado-pagina>
 
   <ui-alerta
@@ -31,7 +31,7 @@
     <ui-alerta
       *ngIf="(vm.warnings?.length || vm.summary.warnings.length)"
       tipo="info"
-      titulo="Datos operativos parciales/read-only"
+      titulo="Datos operativos parciales/solo lectura"
       [mensaje]="(vm.warnings?.length ? vm.warnings : vm.summary.warnings).join(' ')"
     ></ui-alerta>
 
@@ -61,7 +61,7 @@
         <strong>{{ vm.summary.totalFiles }}</strong>
       </article>
       <article>
-        <small>Readiness</small>
+        <small>Preparación</small>
         <strong>{{ vm.summary.totalReadinessChecks }}</strong>
       </article>
       <article>
@@ -77,7 +77,7 @@
         <strong class="badge badge-danger">{{ vm.summary.totalNoGoBlocks }}</strong>
       </article>
       <article>
-        <small>Manual review</small>
+        <small>Revisión manual</small>
         <strong class="badge badge-warning">{{ vm.summary.totalManualReview }}</strong>
       </article>
     </section>
@@ -102,7 +102,7 @@
       ></ui-grilla-empresarial>
     </ui-tarjeta>
 
-    <div class="badge-row" aria-label="Acciones read-only de archivos">
+    <div class="badge-row" aria-label="Acciones solo lectura de archivos">
       <button
         type="button"
         class="btn-link"
@@ -123,16 +123,16 @@
       ></ui-grilla-empresarial>
     </ui-tarjeta>
 
-    <ui-tarjeta titulo="Readiness SOAP/UAT" subtitulo="Estado consolidado de gate, readiness, simulacion y resiliencia.">
+    <ui-tarjeta titulo="Preparación SOAP/UAT" subtitulo="Estado consolidado de gate, preparación, simulación y resiliencia.">
       <ui-grilla-empresarial
         [columnas]="columnasReadiness"
         [datos]="vm.readiness"
         [cargando]="cargando"
-        tituloVacio="Sin readiness SOAP"
+        tituloVacio="Sin preparación SOAP"
       ></ui-grilla-empresarial>
     </ui-tarjeta>
 
-    <ui-tarjeta titulo="Auditoria Phase 6B.5" subtitulo="Eventos sanitizados sin credenciales, endpoints reales ni payload SOAP completo.">
+    <ui-tarjeta titulo="Auditoría Fase 6B.5" subtitulo="Eventos sanitizados sin credenciales, endpoints reales ni payload SOAP completo.">
       <ui-grilla-empresarial
         [columnas]="columnasAuditoria"
         [datos]="vm.audit"

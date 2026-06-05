@@ -32,18 +32,18 @@ export class NachaOperationalFileDetailComponent implements OnInit {
   error = '';
 
   readonly columnasBatches: ColDef<NachaOperationalBatchHeader>[] = [
-    { field: 'batchNumber', headerName: 'Batch', minWidth: 110 },
-    { field: 'serviceClassCode', headerName: 'Service class', minWidth: 140 },
-    { field: 'companyName', headerName: 'Compania', minWidth: 180 },
+    { field: 'batchNumber', headerName: 'Lote', minWidth: 110 },
+    { field: 'serviceClassCode', headerName: 'Clase de servicio', minWidth: 140 },
+    { field: 'companyName', headerName: 'Compañía', minWidth: 180 },
     { field: 'standardEntryClassCode', headerName: 'SEC', minWidth: 100 },
-    { field: 'companyEntryDescription', headerName: 'Descripcion', minWidth: 220 },
+    { field: 'companyEntryDescription', headerName: 'Descripción', minWidth: 220 },
     { field: 'effectiveEntryDate', headerName: 'Vigencia', minWidth: 130 }
   ];
 
   readonly columnasEntries: ColDef<NachaOperationalEntryDetail>[] = [
-    { field: 'transactionCode', headerName: 'Transaccion', minWidth: 130 },
+    { field: 'transactionCode', headerName: 'Transacción', minWidth: 130 },
     { field: 'receivingParticipantEntityCode', headerName: 'Entidad', minWidth: 130 },
-    { field: 'checkDigit', headerName: 'Digito', minWidth: 90 },
+    { field: 'checkDigit', headerName: 'Dígito', minWidth: 90 },
     { field: 'accountNumberMasked', headerName: 'Cuenta', minWidth: 140 },
     { field: 'amount', headerName: 'Valor', minWidth: 130 },
     { field: 'recipIdNumberMasked', headerName: 'Documento', minWidth: 140 },
@@ -54,7 +54,7 @@ export class NachaOperationalFileDetailComponent implements OnInit {
   readonly columnasAddendas: ColDef<NachaOperationalAddendaRecord>[] = [
     { field: 'codeTypeAddendumRecord', headerName: 'Tipo', minWidth: 100 },
     { field: 'businessType', headerName: 'Negocio', minWidth: 150 },
-    { field: 'purposeOfTransaction', headerName: 'Proposito', minWidth: 180 },
+    { field: 'purposeOfTransaction', headerName: 'Propósito', minWidth: 180 },
     { field: 'invoiceOrAccountNumberMasked', headerName: 'Referencia', minWidth: 150 },
     { field: 'returnReasonCode', headerName: 'Causal', minWidth: 110 },
     { field: 'originalTraceNumberMasked', headerName: 'Trace original', minWidth: 150 },
@@ -64,19 +64,19 @@ export class NachaOperationalFileDetailComponent implements OnInit {
   readonly columnasBatchControls: ColDef<NachaOperationalBatchControl>[] = [
     { field: 'batchNumber', headerName: 'Batch', minWidth: 110 },
     { field: 'batchTranClassCode', headerName: 'Clase', minWidth: 110 },
-    { field: 'entryAddendaCount', headerName: 'Entries/Addendas', minWidth: 160 },
-    { field: 'entryHash', headerName: 'Entry hash', minWidth: 140 },
-    { field: 'totalDebitAmount', headerName: 'Debitos', minWidth: 130 },
-    { field: 'totalCreditAmount', headerName: 'Creditos', minWidth: 130 }
+    { field: 'entryAddendaCount', headerName: 'Entradas/Addendas', minWidth: 160 },
+    { field: 'entryHash', headerName: 'Hash de entrada', minWidth: 140 },
+    { field: 'totalDebitAmount', headerName: 'Débitos', minWidth: 130 },
+    { field: 'totalCreditAmount', headerName: 'Créditos', minWidth: 130 }
   ];
 
   readonly columnasFileControls: ColDef<NachaOperationalFileControl>[] = [
-    { field: 'batchCount', headerName: 'Batches', minWidth: 110 },
+    { field: 'batchCount', headerName: 'Lotes', minWidth: 110 },
     { field: 'blockCount', headerName: 'Bloques', minWidth: 110 },
-    { field: 'entryAddendaCount', headerName: 'Entries/Addendas', minWidth: 160 },
-    { field: 'entryHash', headerName: 'Entry hash', minWidth: 140 },
-    { field: 'totalDebitAmount', headerName: 'Debitos', minWidth: 130 },
-    { field: 'totalCreditAmount', headerName: 'Creditos', minWidth: 130 }
+    { field: 'entryAddendaCount', headerName: 'Entradas/Addendas', minWidth: 160 },
+    { field: 'entryHash', headerName: 'Hash de entrada', minWidth: 140 },
+    { field: 'totalDebitAmount', headerName: 'Débitos', minWidth: 130 },
+    { field: 'totalCreditAmount', headerName: 'Créditos', minWidth: 130 }
   ];
 
   ngOnInit(): void {

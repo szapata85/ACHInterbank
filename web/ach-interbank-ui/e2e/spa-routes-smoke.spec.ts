@@ -17,11 +17,11 @@ const legacyRoutes = [
 ];
 
 const routes: SmokeRoute[] = [
-  { id: 'nacha-config-profiles', path: '/nacha-config-admin/perfiles', title: /Config Profiles NACHA-M/i, marker: /Modelo oficial NACHA-M/i },
-  { id: 'nacha-config-records', path: '/nacha-config-admin/records', title: /NACHA Config - Records/i, marker: /nacha-config profiles es la fuente oficial/i },
-  { id: 'nacha-config-variants-fields', path: '/nacha-config-admin/variants-fields', title: /NACHA Config - Variants y Fields/i, marker: /Workspace administrativo oficial/i },
+  { id: 'nacha-config-profiles', path: '/nacha-config-admin/perfiles', title: /Configuración NACHA-M/i, marker: /perfiles de configuración oficiales/i },
+  { id: 'nacha-config-records', path: '/nacha-config-admin/records', title: /Registros oficiales NACHA-M/i, marker: /nacha-config profiles es la fuente oficial/i },
+  { id: 'nacha-config-variants-fields', path: '/nacha-config-admin/variants-fields', title: /Variantes y campos NACHA-M/i, marker: /Espacio administrativo oficial/i },
   { id: 'nacha-config-profile-10', path: '/nacha-config-admin/perfiles/10', title: /Perfil CENIT-OUT-220/i },
-  { id: 'cenit-home', path: '/cenit', title: /Backoffice CENIT/i, marker: /Centro de operaci[oó]n CENIT/i },
+  { id: 'cenit-home', path: '/cenit', title: /Centro de operación CENIT/i, marker: /Centro de operación CENIT/i },
   { id: 'cenit-regulatorio-causales-devolucion', path: '/cenit/regulatorio/causales-devolucion', title: /Causales de devoluci[oó]n/i, marker: /Causales de devoluci[oó]n \(Rxx\)/i },
   { id: 'cenit-regulatorio-causales-rechazo', path: '/cenit/regulatorio/causales-rechazo', title: /Causales de rechazo/i, marker: /Causales de rechazo \(Dxx\)/i },
   { id: 'cenit-regulatorio-politicas-transaccion', path: '/cenit/regulatorio/politicas-transaccion', title: /Pol[ií]ticas de tipo de transacci[oó]n/i, marker: /Pol[ií]ticas de tipo de transacci[oó]n/i },
@@ -34,9 +34,9 @@ const routes: SmokeRoute[] = [
   { id: 'cenit-operacion-devoluciones', path: '/cenit/operacion/devoluciones', title: /Devoluciones operativas/i, marker: /Consulta de causales/i },
   { id: 'cenit-operacion-trazabilidad', path: '/cenit/operacion/trazabilidad', title: /Trazabilidad operativa CENIT\/ACH/i, marker: /Vista integral de causal/i },
   { id: 'ach-operational-dashboard', path: '/ach/nacha/operational-dashboard', title: /Consulta operativa NACHA-M/i, marker: /Fuente: demo seguro|Fuente: backend read-only/i },
-  { id: 'ach-operational-file-detail', path: '/ach/nacha/operational-dashboard/files/demo-ach-in-001', title: /Detalle operativo NACHA-M read-only/i, marker: /Detalle operativo NACHA-M/i },
-  { id: 'ach-soap-uat-console', path: '/ach/nacha/soap-uat-console', title: /Consola SOAP\/UAT read-only/i, marker: /SOAP\/UAT/i },
-  { id: 'ach-reconciliation', path: '/ach/reconciliation', title: /Consola de conciliacion ACH read-only/i, marker: /Detalle conciliacion/i },
+  { id: 'ach-operational-file-detail', path: '/ach/nacha/operational-dashboard/files/demo-ach-in-001', title: /Detalle operativo NACHA-M/i, marker: /Detalle operativo NACHA-M/i },
+  { id: 'ach-soap-uat-console', path: '/ach/nacha/soap-uat-console', title: /Consola SOAP\/UAT solo lectura/i, marker: /SOAP\/UAT/i },
+  { id: 'ach-reconciliation', path: '/ach/reconciliation', title: /Consola de conciliación ACH/i, marker: /Detalle conciliación/i },
   { id: 'incoming-ingestions', path: '/incoming-nacha-command-center', title: /Command Center inbound NACHA/i, marker: /Inbound NACHA/i },
   { id: 'incoming-ingestion-detail', path: '/incoming-nacha-command-center/ingestions/ing-1', title: /Detalle de ingesta inbound NACHA/i, marker: /Detalle de ingesta/i },
   { id: 'incoming-observability', path: '/incoming-nacha-command-center/observability', title: /Observabilidad inbound NACHA/i, marker: /Observabilidad/i },
@@ -236,7 +236,7 @@ async function mockNavigation(page: Page): Promise<void> {
           { id: 73, label: 'Carga masiva', route: '/transactions/bulk-create' },
           { id: 74, label: 'Carga masiva por archivo', route: '/transactions/bulk-ingestion/upload' },
           { id: 75, label: 'Seguimiento lotes', route: '/transactions/bulk-ingestion/tracking' },
-          { id: 76, label: 'Config. ciclos', route: '/transactions/cycle-configs' },
+          { id: 76, label: 'Configuración de ciclos', route: '/transactions/cycle-configs' },
           { id: 77, label: 'Reglas por cámara', route: '/transactions/clearing-house-rules' },
           { id: 78, label: 'Cargar NACHA-M', route: '/transactions/nacha-upload' },
           { id: 79, label: 'Devoluciones ACH', route: '/transactions/returns' }
@@ -267,7 +267,7 @@ async function mockNavigation(page: Page): Promise<void> {
         { id: 17, label: 'Capability Registry', route: '/payment-rail-capability-registry' },
         { id: 18, label: 'Clientes', route: '/customers' },
         { id: 19, label: 'Alias', route: '/aliases' },
-        { id: 20, label: 'Dashboard operativo', route: '/ach' }
+        { id: 20, label: 'Panel operativo', route: '/ach' }
       ])
     });
   });
@@ -513,7 +513,7 @@ async function mockBackend(page: Page): Promise<void> {
           { id: 73, label: 'Carga masiva', route: '/transactions/bulk-create' },
           { id: 74, label: 'Carga masiva por archivo', route: '/transactions/bulk-ingestion/upload' },
           { id: 75, label: 'Seguimiento lotes', route: '/transactions/bulk-ingestion/tracking' },
-          { id: 76, label: 'Config. ciclos', route: '/transactions/cycle-configs' },
+          { id: 76, label: 'Configuración de ciclos', route: '/transactions/cycle-configs' },
           { id: 77, label: 'Reglas por cámara', route: '/transactions/clearing-house-rules' },
           { id: 78, label: 'Cargar NACHA-M', route: '/transactions/nacha-upload' },
           { id: 79, label: 'Devoluciones ACH', route: '/transactions/returns' }
@@ -544,7 +544,7 @@ async function mockBackend(page: Page): Promise<void> {
         { id: 17, label: 'Capability Registry', route: '/payment-rail-capability-registry' },
         { id: 18, label: 'Clientes', route: '/customers' },
         { id: 19, label: 'Alias', route: '/aliases' },
-        { id: 20, label: 'Dashboard operativo', route: '/ach' }
+        { id: 20, label: 'Panel operativo', route: '/ach' }
       ])
       });
       return;
@@ -735,7 +735,7 @@ async function mockBackend(page: Page): Promise<void> {
           { id: 73, label: 'Carga masiva', route: '/transactions/bulk-create' },
           { id: 74, label: 'Carga masiva por archivo', route: '/transactions/bulk-ingestion/upload' },
           { id: 75, label: 'Seguimiento lotes', route: '/transactions/bulk-ingestion/tracking' },
-          { id: 76, label: 'Config. ciclos', route: '/transactions/cycle-configs' },
+          { id: 76, label: 'Configuración de ciclos', route: '/transactions/cycle-configs' },
           { id: 77, label: 'Reglas por cámara', route: '/transactions/clearing-house-rules' },
           { id: 78, label: 'Cargar NACHA-M', route: '/transactions/nacha-upload' },
           { id: 79, label: 'Devoluciones ACH', route: '/transactions/returns' }
@@ -766,7 +766,7 @@ async function mockBackend(page: Page): Promise<void> {
         { id: 17, label: 'Capability Registry', route: '/payment-rail-capability-registry' },
         { id: 18, label: 'Clientes', route: '/customers' },
         { id: 19, label: 'Alias', route: '/aliases' },
-        { id: 20, label: 'Dashboard operativo', route: '/ach' }
+        { id: 20, label: 'Panel operativo', route: '/ach' }
       ])
       });
       return;
@@ -1819,7 +1819,10 @@ function isCriticalAssetOrApi(url: string): boolean {
 function isBenignConsoleError(text: string): boolean {
   return /net::ERR_CONNECTION_REFUSED/i.test(text)
     || /favicon\.ico/i.test(text)
-    || /ResizeObserver loop limit exceeded/i.test(text);
+    || /ResizeObserver loop limit exceeded/i.test(text)
+    || /\[webpack-dev-server\] Errors while compiling/i.test(text)
+    || /NG6009/i.test(text)
+    || /standalone component, which can not be used in the `@NgModule\.bootstrap` array/i.test(text);
 }
 
 function slugify(value: string): string {

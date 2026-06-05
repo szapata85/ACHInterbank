@@ -1,11 +1,11 @@
 <section class="nacha-config-profiles-page" data-testid="nacha-config-profiles-page">
   <ui-migas-pan [items]="[{ label: 'Inicio', route: '/dashboard' }, { label: 'NACHA Config' }]" />
-  <ui-encabezado-pagina titulo="Config Profiles NACHA-M" descripcion="Administracion oficial read-only y administrativa de nacha-config profiles"></ui-encabezado-pagina>
+  <ui-encabezado-pagina titulo="Configuración NACHA-M" descripcion="Administración oficial de perfiles NACHA-M, en modo solo lectura y administración controlada"></ui-encabezado-pagina>
 
   <section class="banners">
-    <ui-alerta tipo="info" mensaje="Modelo oficial NACHA-M: nacha-config profiles."></ui-alerta>
-    <ui-alerta tipo="advertencia" mensaje="Legacy layouts/definitions deprecated: solo diagnostico read-only, no fuente oficial."></ui-alerta>
-    <ui-alerta tipo="error" mensaje="Productivo NO-GO: certificacion/UAT formal pendiente; sin ejecucion SOAP ni mutaciones."></ui-alerta>
+    <ui-alerta tipo="info" mensaje="Modelo oficial NACHA-M: perfiles de configuración oficiales."></ui-alerta>
+    <ui-alerta tipo="advertencia" mensaje="Layouts/definitions legacy obsoletos: solo diagnóstico en lectura, no son la fuente oficial."></ui-alerta>
+    <ui-alerta tipo="error" mensaje="Productivo NO-GO: certificación/UAT formal pendiente; sin ejecución SOAP ni mutaciones."></ui-alerta>
   </section>
 
   <section class="summary-grid" *ngIf="dashboard">
@@ -18,11 +18,11 @@
       <strong>{{ dashboard.publishedProfileCount }}</strong>
     </article>
     <article>
-      <span>Variants</span>
+      <span>Variantes</span>
       <strong>{{ dashboard.layoutVariantCount }}</strong>
     </article>
     <article>
-      <span>Fields</span>
+      <span>Campos</span>
       <strong>{{ dashboard.fieldCount }}</strong>
     </article>
   </section>
@@ -31,12 +31,12 @@
 
   <ng-template #crearTpl>
     <form [formGroup]="crearForm" class="crear-grid">
-      <ui-campo-texto etiqueta="Codigo del perfil" [control]="crearForm.controls.profileCode" placeholder="UAT-NACHA-CONFIG-..." />
+      <ui-campo-texto etiqueta="Código del perfil" [control]="crearForm.controls.profileCode" placeholder="UAT-NACHA-CONFIG-..." />
       <ui-campo-texto etiqueta="Nombre" [control]="crearForm.controls.nombreEs" placeholder="Nombre descriptivo" />
-      <ui-campo-textarea etiqueta="Descripcion" [control]="crearForm.controls.descripcion" placeholder="Descripcion opcional" [filas]="3" />
+      <ui-campo-textarea etiqueta="Descripción" [control]="crearForm.controls.descripcion" placeholder="Descripción opcional" [filas]="3" />
 
       <label class="selector-campo">
-        <span>Camara</span>
+        <span>Cámara</span>
         <select [formControl]="crearForm.controls.camaraCode">
           <option *ngFor="let opcion of opcionesCamara.slice(1)" [value]="opcion.valor">{{ opcion.etiqueta }}</option>
         </select>
@@ -52,7 +52,7 @@
       </label>
 
       <label class="selector-campo">
-        <span>Direccion</span>
+        <span>Dirección</span>
         <select [formControl]="crearForm.controls.direccionCode">
           <option *ngFor="let opcion of opcionesDireccion" [value]="opcion.valor">{{ opcion.etiqueta }}</option>
         </select>
@@ -79,14 +79,14 @@
 
   <ng-template #filtrosTpl>
     <div class="filtros-grid" [formGroup]="filtrosForm">
-      <ui-campo-texto etiqueta="Buscar" [control]="filtrosForm.controls.texto" placeholder="Codigo o nombre"></ui-campo-texto>
+      <ui-campo-texto etiqueta="Buscar" [control]="filtrosForm.controls.texto" placeholder="Código o nombre"></ui-campo-texto>
       <label class="selector-campo">
         <span>Estado</span>
         <ui-selector-buscable [opciones]="opcionesEstado" [formControl]="filtrosForm.controls.estado" placeholderBusqueda="Buscar estado"></ui-selector-buscable>
       </label>
       <label class="selector-campo">
-        <span>Camara</span>
-        <ui-selector-buscable [opciones]="opcionesCamara" [formControl]="filtrosForm.controls.camara" placeholderBusqueda="Buscar camara"></ui-selector-buscable>
+        <span>Cámara</span>
+        <ui-selector-buscable [opciones]="opcionesCamara" [formControl]="filtrosForm.controls.camara" placeholderBusqueda="Buscar cámara"></ui-selector-buscable>
       </label>
       <label class="selector-campo">
         <span>Flujo</span>
@@ -94,7 +94,7 @@
       </label>
     </div>
   </ng-template>
-  <ui-tarjeta titulo="Filtros read-only" subtitulo="Consulta oficial GET-only de perfiles, camaras ACH Colombia/CENIT, records 1/5/6/7/8/9, variants y fields." [contenido]="filtrosTpl"></ui-tarjeta>
+  <ui-tarjeta titulo="Filtros solo lectura" subtitulo="Consulta oficial GET-only de perfiles, cámaras ACH Colombia/CENIT, registros 1/5/6/7/8/9, variantes y campos." [contenido]="filtrosTpl"></ui-tarjeta>
 
   <ui-grilla-empresarial
     [columnas]="columnas"
@@ -118,9 +118,9 @@
     </div>
     <ul class="issues" *ngIf="(validationResult?.issues?.length ?? 0) > 0">
       <li *ngFor="let issue of validationResult?.issues ?? []">
-        <strong>{{ issue.severidad }}</strong> Â· {{ issue.codigo }} Â· {{ issue.mensaje }}
+        <strong>{{ issue.severidad }}</strong> · {{ issue.codigo }} · {{ issue.mensaje }}
       </li>
     </ul>
   </ng-template>
-  <ui-tarjeta *ngIf="validationResult" titulo="Ultima validacion" subtitulo="Resultado de la ultima validacion ejecutada desde la lista" [contenido]="validacionTpl"></ui-tarjeta>
+  <ui-tarjeta *ngIf="validationResult" titulo="Última validación" subtitulo="Resultado de la última validación ejecutada desde la lista" [contenido]="validacionTpl"></ui-tarjeta>
 </section>

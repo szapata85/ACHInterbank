@@ -38,7 +38,7 @@ export class AchReconciliationConsoleComponent implements OnInit {
     { field: 'reasonCode', headerName: 'Causal', minWidth: 110 },
     { field: 'traceNumberMasked', headerName: 'Trace', minWidth: 130 },
     { field: 'internalStatus', headerName: 'Estado interno', minWidth: 170 },
-    { field: 'reconciliationStatus', headerName: 'Conciliacion', minWidth: 150 },
+    { field: 'reconciliationStatus', headerName: 'Conciliación', minWidth: 150 },
     { field: 'soapOperationCandidate', headerName: 'SOAP candidato', minWidth: 190 }
   ];
 
@@ -70,7 +70,7 @@ export class AchReconciliationConsoleComponent implements OnInit {
         }
       },
       error: (err) => {
-        this.error = err?.message ?? 'No fue posible cargar conciliacion ACH.';
+        this.error = err?.message ?? 'No fue posible cargar conciliación ACH.';
       }
     });
   }

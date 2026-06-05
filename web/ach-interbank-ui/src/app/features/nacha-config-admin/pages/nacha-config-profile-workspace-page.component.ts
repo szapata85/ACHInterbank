@@ -65,22 +65,22 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
   });
 
   readonly columnasRecords: ColDef<NachaConfigProfileRecord>[] = [
-    { field: 'recordCode', headerName: 'Record', minWidth: 100 },
+    { field: 'recordCode', headerName: 'Registro', minWidth: 100 },
     { field: 'sequence', headerName: 'Secuencia', minWidth: 110 },
     { field: 'isEnabled', headerName: 'Habilitado', minWidth: 120 },
-    { field: 'minOccurs', headerName: 'MinOccurs', minWidth: 110 },
-    { field: 'maxOccurs', headerName: 'MaxOccurs', minWidth: 110 },
-    { field: 'sourceStrategy', headerName: 'SourceStrategy', minWidth: 200 }
+    { field: 'minOccurs', headerName: 'Mínimo', minWidth: 110 },
+    { field: 'maxOccurs', headerName: 'Máximo', minWidth: 110 },
+    { field: 'sourceStrategy', headerName: 'Estrategia fuente', minWidth: 200 }
   ];
 
   readonly columnasVariantes: ColDef<NachaConfigLayoutVariant>[] = [
-    { field: 'recordCode', headerName: 'Record', minWidth: 90 },
-    { field: 'variantCode', headerName: 'Variant', minWidth: 180 },
+    { field: 'recordCode', headerName: 'Registro', minWidth: 90 },
+    { field: 'variantCode', headerName: 'Variante', minWidth: 180 },
     { field: 'nombreEs', headerName: 'Nombre', minWidth: 220 },
     { field: 'priority', headerName: 'Prioridad', minWidth: 100 },
-    { field: 'isDefaultForRecord', headerName: 'Default', minWidth: 100 },
+    { field: 'isDefaultForRecord', headerName: 'Predeterminado', minWidth: 120 },
     { field: 'totalLength', headerName: 'Longitud', minWidth: 100 },
-    { headerName: 'Fields', minWidth: 100, valueGetter: (p) => p.data?.fields.length ?? 0 }
+    { headerName: 'Campos', minWidth: 100, valueGetter: (p) => p.data?.fields.length ?? 0 }
   ];
 
   get estadoNormalizado(): string {
@@ -197,7 +197,7 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
           if (result.isValid) {
             this.notifications.success(`Perfil ${this.perfil?.profileCode} validado correctamente.`);
           } else {
-            this.notifications.warning(`Perfil ${this.perfil?.profileCode} tiene observaciones de validacion.`);
+          this.notifications.warning(`Perfil ${this.perfil?.profileCode} tiene observaciones de validación.`);
           }
           this.cdr.markForCheck();
         },

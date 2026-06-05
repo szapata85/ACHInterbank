@@ -1,20 +1,20 @@
-<section class="page" data-testid="nacha-config-records-page">
+﻿<section class="page" data-testid="nacha-config-records-page">
   <app-page-header
-    title="NACHA Config - Records"
-    subtitle="Administracion de secuencia de records oficiales basada en nacha-config profiles."
+    title="Registros oficiales NACHA-M"
+    subtitle="Administración de secuencia de registros oficiales basada en perfiles NACHA-M."
   ></app-page-header>
 
   <ui-alerta
     tipo="info"
     titulo="Fuente oficial"
-    mensaje="nacha-config profiles es la fuente oficial. Esta pantalla solo administra secuencia y orden de records del perfil seleccionado."
+    mensaje="nacha-config profiles es la fuente oficial. Esta pantalla solo administra secuencia y orden de registros del perfil seleccionado."
   ></ui-alerta>
 
   <ui-alerta
     *ngIf="!puedeGestionar"
     tipo="advertencia"
     titulo="Solo lectura"
-    mensaje="CanReadAch permite consultar perfiles y records. CanManageAch es obligatorio para guardar secuencia."
+    mensaje="CanReadAch permite consultar perfiles y registros. CanManageAch es obligatorio para guardar secuencia."
   ></ui-alerta>
 
   <ui-alerta
@@ -58,7 +58,7 @@
   <ui-estado-vacio
     *ngIf="!loadingProfiles && profiles.length === 0 && !profilesError"
     titulo="Sin perfiles oficiales"
-    mensaje="No hay perfiles oficiales disponibles para mostrar records."
+    mensaje="No hay perfiles oficiales disponibles para mostrar registros."
   ></ui-estado-vacio>
 
   <ui-estado-error
@@ -73,14 +73,14 @@
       <div><strong>Perfil:</strong> {{ selectedProfile.profileCode }}</div>
       <div><strong>Nombre:</strong> {{ selectedProfile.nombreEs }}</div>
       <div><strong>Estado:</strong> <span [class]="estadoBadgeClass()">{{ selectedProfile.estado }}</span></div>
-      <div><strong>Version:</strong> {{ selectedProfile.versionMajor }}.{{ selectedProfile.versionMinor }}</div>
-      <div><strong>Camara:</strong> {{ selectedProfile.camara }}</div>
+      <div><strong>Versión:</strong> {{ selectedProfile.versionMajor }}.{{ selectedProfile.versionMinor }}</div>
+      <div><strong>Cámara:</strong> {{ selectedProfile.camara }}</div>
       <div><strong>Flujo:</strong> {{ selectedProfile.flujo }}</div>
-      <div><strong>Direccion:</strong> {{ selectedProfile.direccion }}</div>
+      <div><strong>Dirección:</strong> {{ selectedProfile.direccion }}</div>
       <div><strong>Servicio:</strong> {{ selectedProfile.servicio || 'Sin servicio' }}</div>
       <div><strong>Vigencia:</strong> {{ formatDate(selectedProfile.effectiveFrom) }} a {{ selectedProfile.effectiveTo ? formatDate(selectedProfile.effectiveTo) : 'abierta' }}</div>
       <div><strong>RowVersion:</strong> {{ selectedProfile.rowVersion }}</div>
-      <div><strong>Records:</strong> {{ selectedProfile.records.length }}</div>
+      <div><strong>Registros:</strong> {{ selectedProfile.records.length }}</div>
     </div>
   </section>
 
@@ -102,7 +102,7 @@
 
   <section class="records-card" *ngIf="selectedProfile">
     <div class="section-header">
-      <h3>Records del perfil</h3>
+      <h3>Registros del perfil</h3>
       <span *ngIf="loadingDetail">Cargando detalle...</span>
       <span *ngIf="saving">Guardando secuencia...</span>
     </div>
@@ -111,12 +111,12 @@
       <thead>
         <tr>
           <th>#</th>
-          <th>Record</th>
+          <th>Registro</th>
           <th>Secuencia</th>
           <th>Habilitado</th>
           <th>MinOccurs</th>
           <th>MaxOccurs</th>
-          <th>SourceStrategy</th>
+          <th>Estrategia fuente</th>
         </tr>
       </thead>
       <tbody>
@@ -145,10 +145,11 @@
       </tbody>
     </table>
 
-    <ui-estado-vacio
+      <ui-estado-vacio
       *ngIf="!loadingDetail && records.length === 0"
-      titulo="Sin records"
-      mensaje="El perfil seleccionado no tiene records configurados."
+      titulo="Sin registros"
+      mensaje="El perfil seleccionado no tiene registros configurados."
     ></ui-estado-vacio>
   </section>
 </section>
+

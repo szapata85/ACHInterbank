@@ -1,14 +1,14 @@
-<app-page-header title="Reglas por camara" subtitle="Configuracion ACH"></app-page-header>
+<app-page-header title="Reglas por cámara" subtitle="Configuración ACH"></app-page-header>
 
 <section class="panel filters">
   <h3>Filtros</h3>
   <form [formGroup]="filterForm" (ngSubmit)="search()" class="filter-grid">
     <label>
-      Camara
+      Cámara
       <ui-selector-buscable
         [opciones]="clearingHouseOptions"
         [formControl]="filterForm.controls.clearingHouseId"
-        placeholderBusqueda="Buscar camara"
+        placeholderBusqueda="Buscar cámara"
       ></ui-selector-buscable>
     </label>
 
@@ -47,11 +47,11 @@
 
   <form [formGroup]="form" class="form-grid">
     <label>
-      Camara
+      Cámara
       <ui-selector-buscable
         [opciones]="clearingHouseOptions"
         [formControl]="form.controls.clearingHouseId"
-        placeholderBusqueda="Buscar camara"
+        placeholderBusqueda="Buscar cámara"
       ></ui-selector-buscable>
     </label>
 
@@ -65,7 +65,7 @@
     </label>
 
     <label>
-      Tipo transaccion
+      Tipo transacción
       <select formControlName="transactionType">
         <option [ngValue]="transactionTypes.Credit">Credito</option>
         <option [ngValue]="transactionTypes.Debit">Debito</option>
@@ -73,7 +73,7 @@
     </label>
 
     <label>
-      Prenotificacion
+      Prenotificación
       <ui-selector-buscable
         [opciones]="modeSelectorOptions"
         [formControl]="form.controls.prenotificationMode"
@@ -82,7 +82,7 @@
     </label>
 
     <label>
-      Validacion identificacion
+      Validación de identificación
       <ui-selector-buscable
         [opciones]="validationModeSelectorOptions"
         [formControl]="form.controls.receiverIdentificationValidationMode"
@@ -129,7 +129,7 @@
     <div class="actions form-actions">
       <button type="button" class="btn btn-outline" (click)="preview()" [disabled]="previewLoading">
         <span class="material-symbols-outlined">rule</span>
-        {{ previewLoading ? 'Validando...' : 'Preview' }}
+        {{ previewLoading ? 'Validando...' : 'Vista previa' }}
       </button>
       <button type="button" class="btn btn-outline" (click)="closeForm()">Cancelar</button>
       <button type="button" class="btn btn-primary" (click)="save()" [disabled]="saving">

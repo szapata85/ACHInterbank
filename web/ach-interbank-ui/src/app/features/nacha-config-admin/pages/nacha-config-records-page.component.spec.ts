@@ -134,7 +134,7 @@ describe('NachaConfigRecordsPageComponent', () => {
     expect(querySpy.detalle).toHaveBeenCalledWith(11);
     expect(component.selectedProfile?.profileCode).toBe('UAT-NACHA-CONFIG-RECORDS-001');
     expect(component.records.length).toBe(6);
-    expect(fixture.nativeElement.textContent).toContain('NACHA Config - Records');
+    expect(fixture.nativeElement.textContent).toContain('Registros oficiales NACHA-M');
     expect(fixture.nativeElement.textContent).toContain('UAT-NACHA-CONFIG-RECORDS-001');
     expect(fixture.nativeElement.textContent).toContain('Secuencia');
     expect(fixture.nativeElement.textContent).toContain('TABLE_DRIVEN');

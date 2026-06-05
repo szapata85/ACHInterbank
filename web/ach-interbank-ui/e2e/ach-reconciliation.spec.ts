@@ -18,7 +18,7 @@ test.describe('ACH reconciliation read-only console', () => {
   test('Reconciliation_ShouldLoadReadOnlyPage', async ({ page }) => {
     await page.goto(path);
 
-    await expect(page.getByRole('heading', { name: 'Consola de conciliacion ACH read-only', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Consola de conciliación ACH solo lectura', level: 1 })).toBeVisible();
     await expect(page.getByText('Items conciliacion ACH')).toBeVisible();
   });
 
@@ -55,7 +55,7 @@ test.describe('ACH reconciliation read-only console', () => {
     });
 
     await page.goto(path);
-    await expect(page.getByRole('heading', { name: 'Consola de conciliacion ACH read-only', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Consola de conciliación ACH solo lectura', level: 1 })).toBeVisible();
 
     expect(blockedRequests).toEqual([]);
   });
@@ -69,7 +69,7 @@ test.describe('ACH reconciliation read-only console', () => {
     });
 
     await page.goto(path);
-    await expect(page.getByRole('heading', { name: 'Consola de conciliacion ACH read-only', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Consola de conciliación ACH solo lectura', level: 1 })).toBeVisible();
 
     expect(legacyRequests).toEqual([]);
   });
@@ -83,7 +83,7 @@ test.describe('ACH reconciliation read-only console', () => {
     });
 
     await page.goto(path);
-    await expect(page.getByRole('heading', { name: 'Consola de conciliacion ACH read-only', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Consola de conciliación ACH solo lectura', level: 1 })).toBeVisible();
 
     expect(hashRequests).toEqual([]);
   });

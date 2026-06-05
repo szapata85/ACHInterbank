@@ -34,7 +34,7 @@ describe('AchReconciliationConsoleComponent', () => {
   });
 
   it('ReconciliationComponent_ShouldRenderReadOnlyBanner', () => {
-    expect(text()).toContain('Read-only sanitizado');
+    expect(text()).toContain('Solo lectura sanitizada');
   });
 
   it('ReconciliationComponent_ShouldRenderNoMonetaryMovementBanner', () => {
@@ -48,18 +48,18 @@ describe('AchReconciliationConsoleComponent', () => {
   });
 
   it('ReconciliationComponent_ShouldRenderItemsTable', () => {
-    expect(text()).toContain('Items conciliacion ACH');
+    expect(text()).toContain('Ítems conciliación ACH');
     expect(fixture.componentInstance.filteredItems[0].reconciliationId).toBe('resp-1');
   });
 
   it('ReconciliationComponent_ShouldRenderStatusBadges', () => {
     expect(text()).toContain('CONCILIADO');
-    expect(text()).toContain('MANUAL REVIEW');
-    expect(text()).toContain('MONETARY CANDIDATE');
+    expect(text()).toContain('REVISIÓN MANUAL');
+    expect(text()).toContain('CANDIDATO MONETARIO');
   });
 
   it('ReconciliationComponent_ShouldRenderDetail', () => {
-    expect(text()).toContain('Detalle conciliacion');
+    expect(text()).toContain('Detalle de conciliación');
     expect(fixture.componentInstance.detail?.noSensitiveData).toBeTrue();
   });
 
@@ -73,7 +73,7 @@ describe('AchReconciliationConsoleComponent', () => {
   });
 
   it('ReconciliationService_ShouldHandlePartialWarnings', () => {
-    expect(text()).toContain('Warnings parciales');
+    expect(text()).toContain('Advertencias parciales');
   });
 
   it('ReconciliationService_ShouldHandleErrorState', () => {

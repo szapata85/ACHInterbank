@@ -7,7 +7,7 @@ import { CommonModule } from '@angular/common';
   imports: [CommonModule],
   template: `
     <section class="page-header">
-      <h1>Dashboard de seguridad NACHA-M</h1>
+      <h1>Panel de seguridad NACHA-M</h1>
       <p>Consola operativa para certificados, operaciones y sobre digital.</p>
       <ul>
         <li>Angular opera, backend cifra/descifra/valida.</li>

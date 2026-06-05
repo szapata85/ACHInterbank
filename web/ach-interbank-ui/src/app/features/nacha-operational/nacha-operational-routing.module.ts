@@ -14,8 +14,8 @@ const routes: Routes = [
     canActivate: [permissionGuard],
     data: {
       permissions: ['CanReadAch'],
-      breadcrumb: 'Readiness SOAP',
-      title: 'Consulta operativa NACHA-M y readiness SOAP'
+      breadcrumb: 'Preparación SOAP',
+      title: 'Consulta operativa NACHA-M y preparación SOAP'
     }
   },
   {
@@ -25,7 +25,7 @@ const routes: Routes = [
     data: {
       permissions: ['CanReadAch'],
       breadcrumb: 'Detalle archivo NACHA-M',
-      title: 'Detalle operativo NACHA-M read-only'
+      title: 'Detalle operativo NACHA-M solo lectura'
     }
   },
   {
@@ -35,7 +35,7 @@ const routes: Routes = [
     data: {
       permissions: ['CanReadAch'],
       breadcrumb: 'Consola SOAP/UAT',
-      title: 'Consola SOAP/UAT read-only'
+      title: 'Consola SOAP/UAT solo lectura'
     }
   },
   {
@@ -44,8 +44,8 @@ const routes: Routes = [
     canActivate: [permissionGuard],
     data: {
       permissions: ['CanReadAch'],
-      breadcrumb: 'Conciliacion ACH',
-      title: 'Consola de conciliacion ACH read-only'
+      breadcrumb: 'Conciliación ACH',
+      title: 'Consola de conciliación ACH solo lectura'
     }
   },
   {
