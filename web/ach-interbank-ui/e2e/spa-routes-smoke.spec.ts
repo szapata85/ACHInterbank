@@ -358,7 +358,7 @@ async function seedAuthenticatedSession(page: Page): Promise<void> {
 }
 
 async function mockBackend(page: Page): Promise<void> {
-  await page.route(/(?:https?:\/\/[^/]+)?\/(?:api\/.*|nacha-config\/catalogos-filtro|financial-institutions|clearing-houses|ach-cycles(?:\/exportable)?|incoming-nacha-command-center\/.*|NachaExport\/.*)(?:\?.*)?$/i, async route => {
+  await page.route(/(?:https?:\/\/[^/]+)?\/(?:api\/.*|nacha-config\/catalogos-filtro|financial-institutions|clearing-houses|customers|transactions\/company-entry-descriptions|ach-cycles(?:\/exportable)?|incoming-nacha-command-center\/.*|NachaExport\/.*)(?:\?.*)?$/i, async route => {
     const url = new URL(route.request().url());
     const path = url.pathname;
     const method = route.request().method().toUpperCase();
@@ -425,6 +425,16 @@ async function mockBackend(page: Page): Promise<void> {
 
     if (method === 'GET' && path === '/api/transactions') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildTransactions()) });
+      return;
+    }
+
+    if (method === 'GET' && path === '/customers') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildCustomers()) });
+      return;
+    }
+
+    if (method === 'GET' && path === '/transactions/company-entry-descriptions') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildCompanyEntryDescriptions()) });
       return;
     }
 
@@ -591,6 +601,11 @@ async function mockBackend(page: Page): Promise<void> {
 
     if (path.startsWith('/api/ach/reconciliation/')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildReconciliation(path)) });
+      return;
+    }
+
+    if (method === 'GET' && path === '/api/customer-third-parties') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildCustomerThirdParties()) });
       return;
     }
 
@@ -1058,6 +1073,55 @@ function buildFinancialInstitutions(): Record<string, unknown>[] {
       status: 'Active'
     }
   ];
+}
+
+function buildCustomers(): Record<string, unknown>[] {
+  return [
+    {
+      id: 1,
+      documentType: 'NIT',
+      documentNumber: '900123456',
+      accountNumber: '1234567890',
+      accountNumbers: ['1234567890'],
+      personType: 'PJ',
+      companyName: 'Smoke Co',
+      fullName: 'Smoke Co S.A.S.'
+    },
+    {
+      id: 2,
+      documentType: 'CC',
+      documentNumber: '100200300',
+      accountNumber: '9876543210',
+      accountNumbers: ['9876543210'],
+      personType: 'PN',
+      companyName: null,
+      fullName: 'Usuario Smoke'
+    }
+  ];
+}
+
+function buildCompanyEntryDescriptions(): Record<string, unknown>[] {
+  return [
+    { id: 1, term: 'NOMINAS', description: 'Nóminas', standardEntryClassCode: 'PPD' },
+    { id: 2, term: 'PROVEEDORES', description: 'Proveedores', standardEntryClassCode: 'CCD' }
+  ];
+}
+
+function buildCustomerThirdParties(): Record<string, unknown> {
+  return {
+    items: [
+      {
+        id: 1,
+        destinationInstitutionId: 1,
+        destinationInstitutionName: 'ACH Colombia',
+        destinationAccountNumber: '6543210001',
+        recipientIdNumber: '900123456'
+      }
+    ],
+    total: 1,
+    page: 1,
+    pageSize: 500
+  };
 }
 
 function buildTransactions(): Record<string, unknown>[] {
