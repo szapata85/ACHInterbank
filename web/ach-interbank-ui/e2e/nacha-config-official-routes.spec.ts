@@ -72,7 +72,7 @@ test.describe('NACHA Config official routes', () => {
 
     await page.goto('/nacha-config-admin/variants-fields');
 
-    await expect(page.getByTestId('nacha-config-variants-fields-page').getByRole('heading', { name: 'NACHA Config - Variantes y campos' })).toBeVisible();
+    await expect(page.getByTestId('nacha-config-variants-fields-page').getByRole('heading', { name: 'NACHA Config - Variants y Fields' })).toBeVisible();
     await expect(page.getByTestId('nacha-config-variants-fields-page')).toContainText('Workspace administrativo oficial sobre nacha-config profiles.');
     await expect(page.getByRole('button', { name: /Crear|Editar|Eliminar/i })).toHaveCount(0);
 
