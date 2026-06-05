@@ -196,6 +196,7 @@
                 <th>Inicio</th>
                 <th>Largo</th>
                 <th>PropertyPath</th>
+                <th>Rules</th>
                 <th>Estado</th>
                 <th>Acción</th>
               </tr>
@@ -207,6 +208,7 @@
                 <td>{{ field.startPosition }}</td>
                 <td>{{ field.length }}</td>
                 <td>{{ fieldValue(field) }}</td>
+                <td>{{ fieldRulesCount(field) }}</td>
                 <td>{{ field.isEnabled ? 'Habilitado' : 'Inactivo' }}</td>
                 <td>
                   <button type="button" class="btn btn-outline" [disabled]="isSelectedField(field)" (click)="onSelectField(field.id)">Seleccionar</button>
@@ -351,6 +353,119 @@
         <ui-alerta *ngIf="fieldSaveError" tipo="error" [mensaje]="fieldSaveError"></ui-alerta>
         <ul class="issues" *ngIf="fieldSaveIssues.length > 0">
           <li *ngFor="let issue of fieldSaveIssues">
+            <strong>{{ issue.severidad }}</strong> · {{ issue.codigo }} · {{ issue.mensaje }}
+          </li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <div class="section-head">
+          <div>
+            <h3>Rules del field</h3>
+            <p>{{ selectedField ? 'Field seleccionado: ' + selectedField.fieldCode : 'Selecciona un field para listar sus rules.' }}</p>
+          </div>
+          <span class="badge">{{ selectedRules.length }} rules</span>
+        </div>
+
+        <ui-estado-vacio
+          *ngIf="!selectedField"
+          titulo="Sin field seleccionado"
+          mensaje="Elige un field para listar sus rules."
+        ></ui-estado-vacio>
+
+        <ui-estado-vacio
+          *ngIf="selectedField && selectedRules.length === 0"
+          titulo="Sin rules"
+          mensaje="El field seleccionado no tiene rules configuradas."
+        ></ui-estado-vacio>
+
+        <div class="table-wrap" *ngIf="selectedField && selectedRules.length > 0">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Error code</th>
+                <th>Mensaje</th>
+                <th>Severity</th>
+                <th>Estado</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let rule of selectedRules; trackBy: trackByRuleId" [class.is-selected]="isSelectedRule(rule)">
+                <td>{{ rule.id }}</td>
+                <td>{{ rule.errorCode }}</td>
+                <td>{{ rule.errorMessageEs }}</td>
+                <td>{{ rule.severity }}</td>
+                <td>{{ rule.isEnabled ? 'Habilitada' : 'Inactiva' }}</td>
+                <td>
+                  <button type="button" class="btn btn-outline" [disabled]="isSelectedRule(rule)" (click)="onSelectRule(rule.id)">Seleccionar</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="card editor-card">
+        <div class="section-head">
+          <div>
+            <h3>Editar rule</h3>
+            <p *ngIf="selectedRule; else noRuleSelected">Edita solo si el profile está en BORRADOR y tienes CanManageAch.</p>
+          </div>
+          <span class="badge" *ngIf="selectedRule">{{ selectedRule.errorCode }}</span>
+        </div>
+
+        <ng-template #noRuleSelected>
+          <ui-estado-vacio titulo="Sin rule seleccionada" mensaje="Selecciona una rule para editarla."></ui-estado-vacio>
+        </ng-template>
+
+        <form *ngIf="selectedRule" [formGroup]="ruleForm" class="form-grid">
+          <label class="field">
+            <span>Error code</span>
+            <input type="text" formControlName="errorCode" />
+            <small *ngIf="ruleForm.controls.errorCode.touched && ruleForm.controls.errorCode.invalid" class="field-error">El error code es obligatorio.</small>
+          </label>
+
+          <label class="field field--wide">
+            <span>Error message ES</span>
+            <textarea rows="3" formControlName="errorMessageEs"></textarea>
+            <small *ngIf="ruleForm.controls.errorMessageEs.touched && ruleForm.controls.errorMessageEs.invalid" class="field-error">El mensaje es obligatorio.</small>
+          </label>
+
+          <label class="field">
+            <span>Severity</span>
+            <select formControlName="severity">
+              <option value="ERROR">ERROR</option>
+              <option value="WARN">WARN</option>
+            </select>
+          </label>
+
+          <label class="field field--inline">
+            <span>Rule habilitada</span>
+            <input type="checkbox" formControlName="isEnabled" />
+          </label>
+        </form>
+
+        <div class="meta-note" *ngIf="selectedRule">
+          <span><strong>Rule ID:</strong> {{ selectedRule.id }}</span>
+          <span><strong>RowVersion del profile:</strong> {{ selectedProfile?.rowVersion }}</span>
+          <span><strong>Field:</strong> {{ selectedField?.fieldCode || 'N/D' }}</span>
+        </div>
+
+        <ui-alerta
+          *ngIf="selectedRule && !puedeEditarRuleActual"
+          tipo="advertencia"
+          mensaje="La edición de rules está bloqueada porque el profile no está en BORRADOR o no tienes CanManageAch."
+        ></ui-alerta>
+
+        <div class="form-actions" *ngIf="puedeEditarRuleActual">
+          <button type="button" class="btn btn-primary" [disabled]="savingRule || ruleForm.invalid" (click)="guardarRule()">Guardar rule</button>
+        </div>
+
+        <ui-alerta *ngIf="ruleSaveError" tipo="error" [mensaje]="ruleSaveError"></ui-alerta>
+        <ul class="issues" *ngIf="ruleSaveIssues.length > 0">
+          <li *ngFor="let issue of ruleSaveIssues">
             <strong>{{ issue.severidad }}</strong> · {{ issue.codigo }} · {{ issue.mensaje }}
           </li>
         </ul>

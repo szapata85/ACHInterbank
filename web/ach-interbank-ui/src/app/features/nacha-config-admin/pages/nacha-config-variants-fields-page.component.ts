@@ -11,6 +11,8 @@ import {
   NachaConfigLayoutFieldEditRequest,
   NachaConfigLayoutVariant,
   NachaConfigLayoutVariantEditRequest,
+  NachaConfigFieldRule,
+  NachaConfigFieldRuleEditRequest,
   NachaConfigProfileDetail,
   NachaConfigProfileReadModel,
   NachaConfigProfileRecord,
@@ -45,18 +47,22 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
   selectedRecordCode: string | null = null;
   selectedVariantId: number | null = null;
   selectedFieldId: number | null = null;
+  selectedRuleId: number | null = null;
 
   loadingProfiles = false;
   loadingDetail = false;
   savingVariant = false;
   savingField = false;
+  savingRule = false;
 
   profilesError = '';
   detailError = '';
   variantSaveError = '';
   fieldSaveError = '';
+  ruleSaveError = '';
   variantSaveIssues: NachaConfigValidationIssue[] = [];
   fieldSaveIssues: NachaConfigValidationIssue[] = [];
+  ruleSaveIssues: NachaConfigValidationIssue[] = [];
 
   readonly variantForm = this.fb.group({
     nombreEs: ['', [Validators.required, Validators.minLength(3)]],
@@ -72,6 +78,13 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     startPosition: [1, [Validators.required, Validators.min(1)]],
     length: [1, [Validators.required, Validators.min(1)]],
     propertyPath: [''],
+    isEnabled: [true]
+  });
+
+  readonly ruleForm = this.fb.group({
+    errorCode: ['', [Validators.required, Validators.minLength(3)]],
+    errorMessageEs: ['', [Validators.required, Validators.minLength(3)]],
+    severity: ['ERROR', [Validators.required]],
     isEnabled: [true]
   });
 
@@ -140,12 +153,33 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     return this.selectedFields.find((field) => field.id === this.selectedFieldId) ?? null;
   }
 
+  get selectedRules(): NachaConfigFieldRule[] {
+    if (!this.selectedField) {
+      return [];
+    }
+
+    return [...(this.selectedField.reglas ?? [])]
+      .sort((a, b) => a.errorCode.localeCompare(b.errorCode) || a.severity.localeCompare(b.severity) || a.id - b.id);
+  }
+
+  get selectedRule(): NachaConfigFieldRule | null {
+    if (!this.selectedRuleId) {
+      return null;
+    }
+
+    return this.selectedRules.find((rule) => rule.id === this.selectedRuleId) ?? null;
+  }
+
   get puedeEditarVariantActual(): boolean {
     return this.puedeEditar && !!this.selectedVariant;
   }
 
   get puedeEditarFieldActual(): boolean {
     return this.puedeEditar && !!this.selectedField;
+  }
+
+  get puedeEditarRuleActual(): boolean {
+    return this.puedeEditar && !!this.selectedRule;
   }
 
   loadProfiles(): void {
@@ -200,6 +234,9 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     this.selectedFieldId = this.selectedFields.some((field) => field.id === this.selectedFieldId)
       ? this.selectedFieldId
       : this.selectedFields[0]?.id ?? null;
+    this.selectedRuleId = this.selectedRules.some((rule) => rule.id === this.selectedRuleId)
+      ? this.selectedRuleId
+      : this.selectedRules[0]?.id ?? null;
     this.syncForms();
   }
 
@@ -212,6 +249,9 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     this.selectedFieldId = this.selectedFields.some((field) => field.id === this.selectedFieldId)
       ? this.selectedFieldId
       : this.selectedFields[0]?.id ?? null;
+    this.selectedRuleId = this.selectedRules.some((rule) => rule.id === this.selectedRuleId)
+      ? this.selectedRuleId
+      : this.selectedRules[0]?.id ?? null;
     this.syncForms();
   }
 
@@ -221,6 +261,18 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     }
 
     this.selectedFieldId = fieldId;
+    this.selectedRuleId = this.selectedRules.some((rule) => rule.id === this.selectedRuleId)
+      ? this.selectedRuleId
+      : this.selectedRules[0]?.id ?? null;
+    this.syncForms();
+  }
+
+  onSelectRule(ruleId: number): void {
+    if (!ruleId || ruleId === this.selectedRuleId) {
+      return;
+    }
+
+    this.selectedRuleId = ruleId;
     this.syncForms();
   }
 
@@ -299,6 +351,42 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
       });
   }
 
+  guardarRule(): void {
+    if (!this.puedeEditarRuleActual || !this.selectedProfile || !this.selectedRule || this.savingRule) {
+      return;
+    }
+
+    if (this.ruleForm.invalid) {
+      this.ruleForm.markAllAsTouched();
+      return;
+    }
+
+    this.ruleSaveError = '';
+    this.ruleSaveIssues = [];
+    this.savingRule = true;
+
+    const form = this.ruleForm.getRawValue();
+    const payload: NachaConfigFieldRuleEditRequest = {
+      errorCode: this.normalizeText(form.errorCode),
+      errorMessageEs: this.normalizeText(form.errorMessageEs),
+      severity: this.normalizeText(form.severity).toUpperCase() as 'ERROR' | 'WARN',
+      isEnabled: Boolean(form.isEnabled),
+      expectedRowVersion: this.selectedProfile.rowVersion
+    };
+
+    this.command.actualizarRule(this.selectedProfile.id, this.selectedRule.id, payload as unknown as Record<string, unknown>)
+      .pipe(finalize(() => {
+        this.savingRule = false;
+      }))
+      .subscribe({
+        next: () => {
+          this.notifications.success('Rule actualizada correctamente.');
+          this.reloadDetailAfterSave();
+        },
+        error: (error) => this.handleSaveError(error, 'rule')
+      });
+  }
+
   irADetallePerfil(): void {
     if (!this.selectedProfileId) {
       return;
@@ -316,7 +404,7 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
       return;
     }
 
-    this.loadDetail(this.selectedProfileId, this.selectedRecordCode, this.selectedVariantId, this.selectedFieldId);
+    this.loadDetail(this.selectedProfileId, this.selectedRecordCode, this.selectedVariantId, this.selectedFieldId, this.selectedRuleId);
   }
 
   trackByProfileId(_: number, profile: ProfileOption): number {
@@ -335,6 +423,10 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     return field.id;
   }
 
+  trackByRuleId(_: number, rule: NachaConfigFieldRule): number {
+    return rule.id;
+  }
+
   isSelectedRecord(record: NachaConfigProfileRecord): boolean {
     return record.recordCode === this.selectedRecordCode;
   }
@@ -345,6 +437,10 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
 
   isSelectedField(field: NachaConfigLayoutField): boolean {
     return field.id === this.selectedFieldId;
+  }
+
+  isSelectedRule(rule: NachaConfigFieldRule): boolean {
+    return rule.id === this.selectedRuleId;
   }
 
   formatDate(value?: string | null): string {
@@ -359,13 +455,21 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     return field.reglas?.length ?? 0;
   }
 
-  private loadDetail(profileId: number, preferredRecordCode?: string | null, preferredVariantId?: number | null, preferredFieldId?: number | null): void {
+  private loadDetail(
+    profileId: number,
+    preferredRecordCode?: string | null,
+    preferredVariantId?: number | null,
+    preferredFieldId?: number | null,
+    preferredRuleId?: number | null
+  ): void {
     this.loadingDetail = true;
     this.detailError = '';
     this.variantSaveError = '';
     this.fieldSaveError = '';
+    this.ruleSaveError = '';
     this.variantSaveIssues = [];
     this.fieldSaveIssues = [];
+    this.ruleSaveIssues = [];
 
     this.query.detalle(profileId)
       .pipe(finalize(() => {
@@ -375,7 +479,7 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
         next: (detail) => {
           this.selectedProfile = detail;
           this.selectedProfileId = detail.id;
-          this.reconcileSelection(detail, preferredRecordCode, preferredVariantId, preferredFieldId);
+          this.reconcileSelection(detail, preferredRecordCode, preferredVariantId, preferredFieldId, preferredRuleId ?? this.selectedRuleId);
           this.syncForms();
         },
         error: () => {
@@ -396,7 +500,8 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
       this.selectedProfileId,
       this.selectedRecordCode,
       this.selectedVariantId,
-      this.selectedFieldId
+      this.selectedFieldId,
+      this.selectedRuleId
     );
   }
 
@@ -404,7 +509,8 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     detail: NachaConfigProfileDetail,
     preferredRecordCode?: string | null,
     preferredVariantId?: number | null,
-    preferredFieldId?: number | null
+    preferredFieldId?: number | null,
+    preferredRuleId?: number | null
   ): void {
     const records = [...(detail.records ?? [])].sort((a, b) => a.sequence - b.sequence || a.recordCode.localeCompare(b.recordCode));
     const nextRecordCode = this.pickRecordCode(records, preferredRecordCode ?? this.selectedRecordCode);
@@ -417,6 +523,10 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     const fields = this.fieldsForVariantId(detail, nextVariantId);
     const nextFieldId = this.pickFieldId(fields, preferredFieldId ?? this.selectedFieldId);
     this.selectedFieldId = nextFieldId;
+
+    const rules = this.rulesForFieldId(detail, nextFieldId);
+    const nextRuleId = this.pickRuleId(rules, preferredRuleId ?? this.selectedRuleId);
+    this.selectedRuleId = nextRuleId;
   }
 
   private pickRecordCode(records: NachaConfigProfileRecord[], preferred?: string | null): string | null {
@@ -443,6 +553,14 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     return fields[0]?.id ?? null;
   }
 
+  private pickRuleId(rules: NachaConfigFieldRule[], preferred?: number | null): number | null {
+    if (preferred && rules.some((rule) => rule.id === preferred)) {
+      return preferred;
+    }
+
+    return rules[0]?.id ?? null;
+  }
+
   private variantsForRecordCode(detail: NachaConfigProfileDetail, recordCode: string | null): NachaConfigLayoutVariant[] {
     if (!recordCode) {
       return [];
@@ -464,9 +582,23 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
       : [];
   }
 
+  private rulesForFieldId(detail: NachaConfigProfileDetail, fieldId: number | null): NachaConfigFieldRule[] {
+    if (!fieldId) {
+      return [];
+    }
+
+    const field = [...(detail.variantes ?? [])]
+      .reduce<NachaConfigLayoutField[]>((acc, variant) => acc.concat(variant.fields ?? []), [])
+      .find((item) => item.id === fieldId);
+
+    return [...(field?.reglas ?? [])]
+      .sort((a, b) => a.errorCode.localeCompare(b.errorCode) || a.severity.localeCompare(b.severity) || a.id - b.id);
+  }
+
   private syncForms(): void {
     this.syncVariantForm();
     this.syncFieldForm();
+    this.syncRuleForm();
   }
 
   private syncVariantForm(): void {
@@ -539,6 +671,38 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     }
   }
 
+  private syncRuleForm(): void {
+    if (!this.selectedRule) {
+      this.ruleForm.reset(
+        {
+          errorCode: '',
+          errorMessageEs: '',
+          severity: 'ERROR',
+          isEnabled: true
+        },
+        { emitEvent: false }
+      );
+      this.ruleForm.disable({ emitEvent: false });
+      return;
+    }
+
+    this.ruleForm.reset(
+      {
+        errorCode: this.selectedRule.errorCode,
+        errorMessageEs: this.selectedRule.errorMessageEs,
+        severity: this.selectedRule.severity,
+        isEnabled: this.selectedRule.isEnabled
+      },
+      { emitEvent: false }
+    );
+
+    if (this.puedeEditarRuleActual) {
+      this.ruleForm.enable({ emitEvent: false });
+    } else {
+      this.ruleForm.disable({ emitEvent: false });
+    }
+  }
+
   private clearWorkspace(): void {
     this.selectedProfileId = null;
     this.selectedProfile = null;
@@ -550,9 +714,10 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     this.selectedRecordCode = null;
     this.selectedVariantId = null;
     this.selectedFieldId = null;
+    this.selectedRuleId = null;
   }
 
-  private handleSaveError(error: unknown, target: 'variant' | 'field'): void {
+  private handleSaveError(error: unknown, target: 'variant' | 'field' | 'rule'): void {
     const apiError = error as Partial<NachaConfigApiError> | null;
     const message = apiError?.message?.trim() || `No fue posible guardar el ${target}.`;
     const issues = apiError?.issues ?? [];
@@ -560,9 +725,12 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     if (target === 'variant') {
       this.variantSaveError = message;
       this.variantSaveIssues = issues;
-    } else {
+    } else if (target === 'field') {
       this.fieldSaveError = message;
       this.fieldSaveIssues = issues;
+    } else {
+      this.ruleSaveError = message;
+      this.ruleSaveIssues = issues;
     }
 
     this.notifications.error(message);

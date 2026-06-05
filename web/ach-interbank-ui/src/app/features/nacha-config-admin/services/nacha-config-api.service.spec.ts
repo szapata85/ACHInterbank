@@ -170,6 +170,27 @@ describe('NachaConfigApiService', () => {
     req.flush({});
   });
 
+  it('debe actualizar rule', () => {
+    service.actualizarRule(9, 99, {
+      errorCode: 'ERR_UPDATED',
+      errorMessageEs: 'Mensaje actualizado',
+      severity: 'WARN',
+      isEnabled: false,
+      expectedRowVersion: 'row-v3'
+    }).subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/nacha-config/perfiles/9/rules/99`);
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({
+      errorCode: 'ERR_UPDATED',
+      errorMessageEs: 'Mensaje actualizado',
+      severity: 'WARN',
+      isEnabled: false,
+      expectedRowVersion: 'row-v3'
+    });
+    req.flush({});
+  });
+
   it('debe clonar perfil', () => {
     service.clonarPerfil(9, {
       nuevoProfileCode: 'UAT-NACHA-CONFIG-CLONE',

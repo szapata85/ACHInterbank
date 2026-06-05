@@ -8,6 +8,7 @@ import { SharedModule } from '../../../shared/shared.module';
 import {
   NachaConfigLayoutFieldEditRequest,
   NachaConfigLayoutVariantEditRequest,
+  NachaConfigFieldRuleEditRequest,
   NachaConfigProfileDetail,
   NachaConfigProfileReadModel
 } from '../models/nacha-config-admin.models';
@@ -84,7 +85,15 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
             propertyPath: 'Transaction.Amount',
             sourceType: 'CONSTANTE',
             isEnabled: true,
-            reglas: []
+            reglas: [
+              {
+                id: 401,
+                errorCode: 'ERR_REQUIRED',
+                errorMessageEs: 'Campo requerido',
+                severity: 'ERROR',
+                isEnabled: true
+              }
+            ]
           },
           {
             id: 302,
@@ -162,16 +171,35 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
       : variant)
   };
 
+  const detailAfterRuleSave: NachaConfigProfileDetail = {
+    ...detail,
+    rowVersion: 'cm93LTQ=',
+    variantes: detail.variantes.map((variant) => variant.id === 201
+      ? {
+          ...variant,
+          fields: variant.fields.map((field) => field.id === 301
+            ? {
+                ...field,
+                reglas: field.reglas.map((rule) => rule.id === 401
+                  ? { ...rule, errorCode: 'ERR_UPDATED', errorMessageEs: 'Mensaje actualizado', severity: 'WARN', isEnabled: false }
+                  : rule)
+              }
+            : field)
+        }
+      : variant)
+  };
+
   beforeEach(async () => {
     querySpy = jasmine.createSpyObj<NachaConfigQueryService>('NachaConfigQueryService', ['perfilesReadOnly', 'detalle']);
-    commandSpy = jasmine.createSpyObj<NachaConfigCommandService>('NachaConfigCommandService', ['actualizarVariante', 'actualizarField']);
+    commandSpy = jasmine.createSpyObj<NachaConfigCommandService>('NachaConfigCommandService', ['actualizarVariante', 'actualizarField', 'actualizarRule']);
     notificationsSpy = jasmine.createSpyObj<NotificationService>('NotificationService', ['success', 'error', 'warning', 'info']);
     authStub = { hasPermission: jasmine.createSpy().and.returnValue(true) };
 
     querySpy.perfilesReadOnly.and.returnValue(of(profiles));
-    querySpy.detalle.and.returnValues(of(detail), of(detailAfterVariantSave));
+    querySpy.detalle.and.returnValues(of(detail), of(detailAfterVariantSave), of(detailAfterFieldSave), of(detailAfterRuleSave));
     commandSpy.actualizarVariante.and.returnValue(of(void 0));
     commandSpy.actualizarField.and.returnValue(of(void 0));
+    commandSpy.actualizarRule.and.returnValue(of(void 0));
 
     await TestBed.configureTestingModule({
       imports: [SharedModule, RouterTestingModule, NachaConfigVariantsFieldsPageComponent],
@@ -197,11 +225,15 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
     expect(component.selectedRecordCode).toBe('1');
     expect(component.selectedVariantId).toBe(201);
     expect(component.selectedFieldId).toBe(301);
+    expect(component.selectedRuleId).toBe(401);
     expect(component.recordVariants.map((variant) => variant.variantCode)).toEqual(['R1_BASE', 'R1_ALT']);
     expect(component.selectedFields.map((field) => field.fieldCode)).toEqual(['FIELD_A', 'FIELD_B']);
+    expect(component.selectedRules.map((rule) => rule.errorCode)).toEqual(['ERR_REQUIRED']);
     expect(fixture.nativeElement.textContent).toContain('NACHA Config - Variants y Fields');
     expect(fixture.nativeElement.textContent).toContain('Record 1 base');
     expect(fixture.nativeElement.textContent).toContain('Field A');
+    expect(fixture.nativeElement.textContent).toContain('Rules del field');
+    expect(fixture.nativeElement.textContent).toContain('ERR_REQUIRED');
   });
 
   it('Component_ShouldAllowSelectingRecordVariantAndField', () => {
@@ -217,6 +249,16 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
 
     component.onSelectField(302);
     expect(component.selectedFieldId).toBe(302);
+    expect(component.selectedRuleId).toBeNull();
+
+    component.onSelectVariant(201);
+    component.onSelectField(301);
+    expect(component.selectedVariantId).toBe(201);
+    expect(component.selectedFieldId).toBe(301);
+    expect(component.selectedRuleId).toBe(401);
+
+    component.onSelectRule(401);
+    expect(component.selectedRuleId).toBe(401);
   });
 
   it('Component_ShouldSaveVariantWithProfileRowVersionAndRefreshDetail', () => {
@@ -268,6 +310,33 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
     expect(notificationsSpy.success).toHaveBeenCalledWith('Field actualizado correctamente.');
   });
 
+  it('Component_ShouldSaveRuleWithProfileRowVersionAndRefreshDetail', () => {
+    querySpy.detalle.and.returnValue(of(detailAfterRuleSave));
+
+    component.onSelectRule(401);
+    component.ruleForm.patchValue({
+      errorCode: 'ERR_UPDATED',
+      errorMessageEs: 'Mensaje actualizado',
+      severity: 'WARN',
+      isEnabled: false
+    });
+    component.guardarRule();
+
+    const expectedPayload: NachaConfigFieldRuleEditRequest = {
+      errorCode: 'ERR_UPDATED',
+      errorMessageEs: 'Mensaje actualizado',
+      severity: 'WARN',
+      isEnabled: false,
+      expectedRowVersion: 'cm93'
+    };
+
+    expect(commandSpy.actualizarRule).toHaveBeenCalledWith(11, 401, jasmine.objectContaining(expectedPayload as object));
+    expect(querySpy.detalle).toHaveBeenCalledTimes(2);
+    expect(component.selectedProfile?.rowVersion).toBe('cm93LTQ=');
+    expect(component.selectedRule?.errorCode).toBe('ERR_UPDATED');
+    expect(notificationsSpy.success).toHaveBeenCalledWith('Rule actualizada correctamente.');
+  });
+
   it('Component_ShouldBlockEditingWhenReadonlyOrWithoutManagePermission', async () => {
     authStub.hasPermission.and.returnValue(false);
     querySpy.detalle.and.returnValue(of({
@@ -283,8 +352,10 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
     expect(component.puedeEditar).toBeFalse();
     expect(component.variantForm.disabled).toBeTrue();
     expect(component.fieldForm.disabled).toBeTrue();
+    expect(component.ruleForm.disabled).toBeTrue();
     expect(fixture.nativeElement.textContent).not.toContain('Guardar variant');
     expect(fixture.nativeElement.textContent).not.toContain('Guardar field');
+    expect(fixture.nativeElement.textContent).not.toContain('Guardar rule');
   });
 
   it('Component_ShouldSurfaceValidationAndConcurrencyErrors', () => {
@@ -305,6 +376,21 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
     expect(component.fieldSaveError).toContain('modificado por otro usuario');
     expect(component.fieldSaveIssues.length).toBe(1);
     expect(notificationsSpy.error).toHaveBeenCalled();
+  });
+
+  it('Component_ShouldBlockRuleEditingWhenReadonlyState', () => {
+    querySpy.detalle.and.returnValue(of({
+      ...detail,
+      estado: 'PUBLICADO'
+    }));
+
+    fixture = TestBed.createComponent(NachaConfigVariantsFieldsPageComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    expect(component.puedeEditarRuleActual).toBeFalse();
+    expect(component.ruleForm.disabled).toBeTrue();
+    expect(fixture.nativeElement.textContent).not.toContain('Guardar rule');
   });
 
   it('Component_ShouldNavigateToProfileAndRecords', () => {

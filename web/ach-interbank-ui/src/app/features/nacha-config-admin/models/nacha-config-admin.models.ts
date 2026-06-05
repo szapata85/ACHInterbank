@@ -63,6 +63,14 @@ export interface NachaConfigFieldRule {
   isEnabled: boolean;
 }
 
+export interface NachaConfigFieldRuleEditRequest {
+  errorCode: string;
+  errorMessageEs: string;
+  severity: 'ERROR' | 'WARN';
+  isEnabled: boolean;
+  expectedRowVersion: string;
+}
+
 export interface NachaConfigLayoutVariantEditRequest {
   nombreEs: string;
   descripcion?: string | null;
