@@ -169,7 +169,7 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
         var updated = false;
         await ExecuteInTransactionAsync(async () =>
         {
-            var profile = await _context.CfgProfiles.FirstOrDefaultAsync(x => x.Id == profileId, ct);
+            var profile = await _context.CfgProfiles.Include(x => x.Status).FirstOrDefaultAsync(x => x.Id == profileId, ct);
             if (profile is null)
             {
                 return;
@@ -206,13 +206,14 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
         var updated = false;
         await ExecuteInTransactionAsync(async () =>
         {
-            var profile = await _context.CfgProfiles.FirstOrDefaultAsync(x => x.Id == profileId, ct);
+            var profile = await _context.CfgProfiles.Include(x => x.Status).FirstOrDefaultAsync(x => x.Id == profileId, ct);
             if (profile is null)
             {
                 return;
             }
 
             EnsureExpectedRowVersion(profile, request.ExpectedRowVersion);
+            EnsureProfileIsBorrador(profile);
             var variant = await _context.CfgLayoutVariants.FirstOrDefaultAsync(x => x.Id == variantId && x.ProfileId == profileId, ct);
             if (variant is null)
             {
@@ -239,13 +240,14 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
         var updated = false;
         await ExecuteInTransactionAsync(async () =>
         {
-            var profile = await _context.CfgProfiles.FirstOrDefaultAsync(x => x.Id == profileId, ct);
+            var profile = await _context.CfgProfiles.Include(x => x.Status).FirstOrDefaultAsync(x => x.Id == profileId, ct);
             if (profile is null)
             {
                 return;
             }
 
             EnsureExpectedRowVersion(profile, request.ExpectedRowVersion);
+            EnsureProfileIsBorrador(profile);
             var field = await _context.CfgLayoutFields
                 .Include(x => x.LayoutVariant)
                 .Include(x => x.SourceDefinition)
@@ -279,13 +281,14 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
         var updated = false;
         await ExecuteInTransactionAsync(async () =>
         {
-            var profile = await _context.CfgProfiles.FirstOrDefaultAsync(x => x.Id == profileId, ct);
+            var profile = await _context.CfgProfiles.Include(x => x.Status).FirstOrDefaultAsync(x => x.Id == profileId, ct);
             if (profile is null)
             {
                 return;
             }
 
             EnsureExpectedRowVersion(profile, request.ExpectedRowVersion);
+            EnsureProfileIsBorrador(profile);
             var rule = await _context.CfgFieldRules
                 .Include(x => x.LayoutField)
                     .ThenInclude(x => x.LayoutVariant)
@@ -366,6 +369,14 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
         if (!profile.RowVersion.SequenceEqual(expectedBytes))
         {
             throw new NachaConfigException("CONCURRENCY_CONFLICT", "El perfil fue modificado por otro usuario.", 409, Convert.ToBase64String(profile.RowVersion));
+        }
+    }
+
+    private static void EnsureProfileIsBorrador(CfgProfile profile)
+    {
+        if (!string.Equals(profile.Status.Code, "BORRADOR", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new NachaConfigException("INVALID_PROFILE_STATE", "Solo se puede editar perfiles en estado BORRADOR.", 409, Convert.ToBase64String(profile.RowVersion));
         }
     }
 
