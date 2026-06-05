@@ -11,7 +11,9 @@ public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUse
     private static readonly HashSet<string> LegacyNachaRoutes = new(StringComparer.OrdinalIgnoreCase)
     {
         "/ach-cycles/nacha/layouts",
-        "/ach-cycles/nacha/definitions"
+        "/ach-cycles/nacha/definitions",
+        "/nacha-layouts",
+        "/nacha-record-definitions"
     };
 
     private readonly IMenuQueryRepository _menuRepository;
@@ -114,13 +116,18 @@ public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUse
             return;
         }
 
-        var group = roots.FirstOrDefault(x => x.Route == "/nacha-config-admin/perfiles" || x.Label == "NACHA-M Configuración" || x.Label == "Config Profiles");
+        var group = roots.FirstOrDefault(x =>
+            x.Route == "/nacha-config-admin/perfiles" ||
+            x.Label == "Configuración NACHA-M" ||
+            x.Label == "NACHA-M Configuración" ||
+            x.Label == "NACHA-M ConfiguraciÃ³n" ||
+            x.Label == "Config Profiles");
         if (group is null)
         {
             group = new MenuItemDto
             {
                 Id = 20,
-                Label = "NACHA-M Configuración",
+                Label = "Configuración NACHA-M",
                 Route = "/nacha-config-admin/perfiles",
                 Icon = "tune",
                 Exact = true,
@@ -130,14 +137,14 @@ public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUse
         }
         else
         {
-            group.Label = "NACHA-M Configuración";
+            group.Label = "Configuración NACHA-M";
             group.Route = "/nacha-config-admin/perfiles";
             group.Icon = group.Icon ?? "tune";
         }
 
         AddOrUpdateChild(group, 25, "Perfiles oficiales", "/nacha-config-admin/perfiles", "fact_check", 1);
-        AddOrUpdateChild(group, 2802, "Records oficiales", "/nacha-config-admin/records", "view_list", 2);
-        AddOrUpdateChild(group, 2803, "Variants y Fields", "/nacha-config-admin/variants-fields", "schema", 3);
+        AddOrUpdateChild(group, 2802, "Registros oficiales", "/nacha-config-admin/records", "view_list", 2);
+        AddOrUpdateChild(group, 2803, "Variantes y campos", "/nacha-config-admin/variants-fields", "schema", 3);
     }
 
     private static void AddOrUpdateChild(MenuItemDto parent, int id, string label, string route, string icon, int order)

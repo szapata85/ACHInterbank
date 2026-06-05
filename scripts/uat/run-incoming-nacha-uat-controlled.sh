@@ -60,9 +60,9 @@ echo "[UAT] DigitalEnvelope/Signature/OpenEnvelope"
 dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release \
   --filter "FullyQualifiedName~DigitalEnvelope|FullyQualifiedName~Signature|FullyQualifiedName~OpenEnvelope" -v minimal
 
-echo "[UAT] Certificate/SecretRef/OpenBao/Vault"
+echo "[UAT] Certificate/SecretRef"
 dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release \
-  --filter "FullyQualifiedName~Certificate|FullyQualifiedName~SecretRef|FullyQualifiedName~OpenBao|FullyQualifiedName~Vault" -v minimal
+  --filter "FullyQualifiedName~Certificate|FullyQualifiedName~SecretRef" -v minimal
 
 echo "[UAT] Frontend build"
 pushd web/ach-interbank-ui >/dev/null

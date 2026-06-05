@@ -15,8 +15,8 @@ const routes: Routes = [
     data: {
       roles: ['Admin', 'ACH.Operator'],
       permissions: ['CanReadAch'],
-      title: 'Config Profiles NACHA',
-      breadcrumb: 'Config Profiles'
+      title: 'Configuración NACHA-M',
+      breadcrumb: 'Configuración NACHA-M'
     }
   },
   {
@@ -26,8 +26,8 @@ const routes: Routes = [
     data: {
       roles: ['Admin', 'ACH.Operator'],
       permissions: ['CanReadAch'],
-      title: 'NACHA Config - Records',
-      breadcrumb: 'Records oficiales'
+      title: 'Registros oficiales',
+      breadcrumb: 'Registros oficiales'
     }
   },
   {
@@ -37,8 +37,8 @@ const routes: Routes = [
     data: {
       roles: ['Admin', 'ACH.Operator'],
       permissions: ['CanReadAch'],
-      title: 'NACHA Config - Variants y Fields',
-      breadcrumb: 'Variants y Fields'
+      title: 'Variantes y campos',
+      breadcrumb: 'Variantes y campos'
     }
   },
   {
@@ -48,7 +48,7 @@ const routes: Routes = [
     data: {
       roles: ['Admin', 'ACH.Operator'],
       permissions: ['CanReadAch'],
-      title: 'Perfil NACHA read-only',
+      title: 'Perfil oficial NACHA-M',
       breadcrumb: 'Detalle de perfil'
     }
   },

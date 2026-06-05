@@ -43,8 +43,13 @@ public class NavigationMenuNachaConfigTests
         Assert.Contains("/nacha-config-admin/variants-fields", routes);
         Assert.DoesNotContain("/ach-cycles/nacha/layouts", routes);
         Assert.DoesNotContain("/ach-cycles/nacha/definitions", routes);
+        Assert.DoesNotContain("/nacha-layouts", routes);
+        Assert.DoesNotContain("/nacha-record-definitions", routes);
         Assert.DoesNotContain("Layouts NACHA", labels);
         Assert.DoesNotContain("Definiciones NACHA", labels);
+        Assert.Contains("Configuración NACHA-M", labels);
+        Assert.Contains("Registros oficiales", labels);
+        Assert.Contains("Variantes y campos", labels);
     }
 
     [Fact]
@@ -77,8 +82,13 @@ public class NavigationMenuNachaConfigTests
         Assert.Contains("/nacha-config-admin/variants-fields", activeRoutes);
         Assert.DoesNotContain("/ach-cycles/nacha/layouts", activeRoutes);
         Assert.DoesNotContain("/ach-cycles/nacha/definitions", activeRoutes);
+        Assert.DoesNotContain("/nacha-layouts", activeRoutes);
+        Assert.DoesNotContain("/nacha-record-definitions", activeRoutes);
         Assert.DoesNotContain("Layouts NACHA", labels);
         Assert.DoesNotContain("Definiciones NACHA", labels);
+        Assert.Contains("Configuración NACHA-M", labels);
+        Assert.Contains("Registros oficiales", labels);
+        Assert.Contains("Variantes y campos", labels);
 
         var officialIds = new[]
         {

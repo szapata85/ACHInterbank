@@ -59,7 +59,7 @@ const routes: Routes = [
   {
     path: 'clearing-house-rules',
     component: ClearingHouseTransactionRulesComponent,
-    data: { title: 'Reglas por camara', breadcrumb: 'Reglas por camara' }
+    data: { title: 'Reglas por cámara', breadcrumb: 'Reglas por cámara' }
   },
   {
     path: 'returns',

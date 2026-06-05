@@ -22,8 +22,8 @@ test.describe('NACHA Config official routes', () => {
     await page.goto('/nacha-config-admin/perfiles');
 
     await expect(page.getByRole('link', { name: 'Perfiles oficiales' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Records oficiales' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Variants y Fields' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Registros oficiales' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Variantes y campos' })).toBeVisible();
     await expect(page.getByRole('link', { name: /legacy/i })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Layouts NACHA' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Definiciones NACHA' })).toHaveCount(0);
@@ -72,7 +72,7 @@ test.describe('NACHA Config official routes', () => {
 
     await page.goto('/nacha-config-admin/variants-fields');
 
-    await expect(page.getByTestId('nacha-config-variants-fields-page').getByRole('heading', { name: 'NACHA Config - Variants y Fields' })).toBeVisible();
+    await expect(page.getByTestId('nacha-config-variants-fields-page').getByRole('heading', { name: 'NACHA Config - Variantes y campos' })).toBeVisible();
     await expect(page.getByTestId('nacha-config-variants-fields-page')).toContainText('Workspace administrativo oficial sobre nacha-config profiles.');
     await expect(page.getByRole('button', { name: /Crear|Editar|Eliminar/i })).toHaveCount(0);
 
@@ -104,6 +104,14 @@ test.describe('NACHA Config official routes', () => {
     await page.goto('/ach-cycles/nacha/definitions');
     await expect(page).toHaveURL(/\/not-found$/);
     await expect(page.getByText('404', { exact: true })).toBeVisible();
+
+    await page.goto('/nacha-layouts');
+    await expect(page).toHaveURL(/\/not-found$/);
+    await expect(page.getByText('404', { exact: true })).toBeVisible();
+
+    await page.goto('/nacha-record-definitions');
+    await expect(page).toHaveURL(/\/not-found$/);
+    await expect(page.getByText('404', { exact: true })).toBeVisible();
   });
 });
 
@@ -115,12 +123,12 @@ async function mockNavigation(page: Page): Promise<void> {
       body: JSON.stringify([
         {
           id: 20,
-          label: 'NACHA-M ConfiguraciÃ³n',
+          label: 'Configuración NACHA-M',
           route: '/nacha-config-admin/perfiles',
           children: [
             { id: 25, label: 'Perfiles oficiales', route: '/nacha-config-admin/perfiles' },
-            { id: 2802, label: 'Records oficiales', route: '/nacha-config-admin/records' },
-            { id: 2803, label: 'Variants y Fields', route: '/nacha-config-admin/variants-fields' }
+            { id: 2802, label: 'Registros oficiales', route: '/nacha-config-admin/records' },
+            { id: 2803, label: 'Variantes y campos', route: '/nacha-config-admin/variants-fields' }
           ]
         }
       ])
@@ -321,7 +329,7 @@ async function mockNachaConfigCatalogs(page: Page): Promise<void> {
   });
 }
 
-async function mockNachaConfigDashboard(page: Page): Promise<void> {
+async function mockNachaConfigBackend(page: Page): Promise<void> {
   await page.route(dashboardEndpoint, async route => {
     await route.fulfill({
       status: 200,

@@ -10,14 +10,14 @@ namespace Cfa.ACHInterbank.Persistence.Navigation.Seeders;
 [Scoped]
 public sealed class NachaConfigMenuSeeder : IDbSeeder
 {
-    private const string GroupLabel = "NACHA-M Configuración";
+    private const string GroupLabel = "Configuración NACHA-M";
     private const string ProfilesLabel = "Perfiles oficiales";
-    private const string RecordsLabel = "Records oficiales";
-    private const string VariantsFieldsLabel = "Variants y Fields";
+    private const string RecordsLabel = "Registros oficiales";
+    private const string VariantsFieldsLabel = "Variantes y campos";
     private const string ProfilesRoute = "/nacha-config-admin/perfiles";
     private const string RecordsRoute = "/nacha-config-admin/records";
     private const string VariantsFieldsRoute = "/nacha-config-admin/variants-fields";
-    private static readonly string[] LegacyRoutes = ["/ach-cycles/nacha/layouts", "/ach-cycles/nacha/definitions"];
+    private static readonly string[] LegacyRoutes = ["/ach-cycles/nacha/layouts", "/ach-cycles/nacha/definitions", "/nacha-layouts", "/nacha-record-definitions"];
 
     private readonly AchDbContext _context;
 

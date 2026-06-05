@@ -72,8 +72,9 @@ describe('NavigationService', () => {
       const routes = flattenRoutes(menu);
 
       expect(routes).not.toContain('/ach-cycles/nacha/layouts');
+      expect(routes).not.toContain('/nacha-layouts');
       expect(routes).toContain('/nacha-config-admin/variants-fields');
-      expect(flattenLabels(menu)).toContain('Variants y Fields');
+      expect(flattenLabels(menu)).toContain('Variantes y campos');
       done();
     });
   });
@@ -102,8 +103,9 @@ describe('NavigationService', () => {
       const routes = flattenRoutes(menu);
 
       expect(routes).not.toContain('/ach-cycles/nacha/definitions');
+      expect(routes).not.toContain('/nacha-record-definitions');
       expect(routes).toContain('/nacha-config-admin/records');
-      expect(flattenLabels(menu)).toContain('Records oficiales');
+      expect(flattenLabels(menu)).toContain('Registros oficiales');
       done();
     });
   });
@@ -130,10 +132,12 @@ describe('NavigationService', () => {
       expect(routes).toContain('/nacha-config-admin/variants-fields');
       expect(routes).not.toContain('/ach-cycles/nacha/layouts');
       expect(routes).not.toContain('/ach-cycles/nacha/definitions');
-      expect(labels).toContain('NACHA-M Configuración');
+      expect(routes).not.toContain('/nacha-layouts');
+      expect(routes).not.toContain('/nacha-record-definitions');
+      expect(labels).toContain('Configuración NACHA-M');
       expect(labels).toContain('Perfiles oficiales');
-      expect(labels).toContain('Records oficiales');
-      expect(labels).toContain('Variants y Fields');
+      expect(labels).toContain('Registros oficiales');
+      expect(labels).toContain('Variantes y campos');
       done();
     });
   });
@@ -207,8 +211,8 @@ describe('NavigationService', () => {
       expect(routes).not.toContain('/ach-cycles/nacha/layouts');
       expect(routes).not.toContain('/ach-cycles/nacha/definitions');
       expect(labels).toContain('Perfiles oficiales');
-      expect(labels).toContain('Records oficiales');
-      expect(labels).toContain('Variants y Fields');
+      expect(labels).toContain('Registros oficiales');
+      expect(labels).toContain('Variantes y campos');
       done();
     });
   });
