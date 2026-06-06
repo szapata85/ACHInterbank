@@ -26,7 +26,7 @@ export const ACH_RESPONSES_ROUTES: Routes = [
   {
     path: 'dashboard',
     component: AchResponseDashboardPageComponent,
-    data: { title: 'Dashboard Respuestas ACH', breadcrumb: 'Dashboard' }
+    data: { title: 'Panel de respuestas ACH', breadcrumb: 'Panel' }
   },
   {
     path: ':id/notification-attempts',

@@ -1,0 +1,11 @@
+.page {
+  display: grid;
+  gap: 1rem;
+}
+
+:host ::ng-deep .ag-cell-value,
+:host ::ng-deep .ag-cell {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

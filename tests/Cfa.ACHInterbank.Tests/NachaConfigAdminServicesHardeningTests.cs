@@ -57,6 +57,230 @@ public sealed class NachaConfigAdminServicesHardeningTests
     }
 
     [Fact]
+    public async Task UpdateLayoutVariantAsync_ShouldAllowEdit_WhenBorrador()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var query = new NachaConfigProfileQueryService(context);
+        var command = new NachaConfigProfileCommandService(context, query);
+        var record1Id = await context.CatRecordCodes.Where(x => x.Code == "1").Select(x => x.Id).SingleAsync();
+        var variantId = await context.CfgLayoutVariants
+            .Where(x => x.ProfileId == profile.Id && x.RecordCodeId == record1Id)
+            .Select(x => x.Id)
+            .SingleAsync();
+
+        var updated = await command.UpdateLayoutVariantAsync(profile.Id, variantId, new NachaConfigLayoutVariantEditDto
+        {
+            NombreEs = "Variante actualizada",
+            Descripcion = "Descripcion actualizada",
+            Priority = 25,
+            IsDefaultForRecord = false,
+            EffectiveFrom = profile.EffectiveFrom.AddDays(1),
+            EffectiveTo = profile.EffectiveFrom.AddDays(10),
+            ExpectedRowVersion = Convert.ToBase64String(profile.RowVersion)
+        }, "tester");
+
+        updated.Should().BeTrue();
+        var persisted = await context.CfgLayoutVariants.AsNoTracking().SingleAsync(x => x.Id == variantId);
+        persisted.NameEs.Should().Be("Variante actualizada");
+        persisted.Description.Should().Be("Descripcion actualizada");
+        persisted.Priority.Should().Be(25);
+        persisted.IsDefaultForRecord.Should().BeFalse();
+        persisted.EffectiveFrom.Should().Be(profile.EffectiveFrom.AddDays(1));
+        persisted.EffectiveTo.Should().Be(profile.EffectiveFrom.AddDays(10));
+    }
+
+    [Fact]
+    public async Task UpdateLayoutFieldAsync_ShouldAllowEdit_WhenBorrador()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var query = new NachaConfigProfileQueryService(context);
+        var command = new NachaConfigProfileCommandService(context, query);
+        var variantId = await context.CfgLayoutVariants
+            .Where(x => x.ProfileId == profile.Id)
+            .OrderBy(x => x.Id)
+            .Select(x => x.Id)
+            .FirstAsync();
+        var fieldId = await context.CfgLayoutFields
+            .Where(x => x.LayoutVariantId == variantId)
+            .Select(x => x.Id)
+            .SingleAsync();
+
+        var updated = await command.UpdateLayoutFieldAsync(profile.Id, fieldId, new NachaConfigLayoutFieldEditDto
+        {
+            FieldNameEs = "Campo actualizado",
+            StartPosition = 7,
+            Length = 12,
+            PropertyPath = "AchTransaction.Amount",
+            IsEnabled = false,
+            ExpectedRowVersion = Convert.ToBase64String(profile.RowVersion)
+        }, "tester");
+
+        updated.Should().BeTrue();
+        var persisted = await context.CfgLayoutFields
+            .Include(x => x.SourceDefinition)
+            .AsNoTracking()
+            .SingleAsync(x => x.Id == fieldId);
+        persisted.FieldNameEs.Should().Be("Campo actualizado");
+        persisted.StartPosition.Should().Be(7);
+        persisted.Length.Should().Be(12);
+        persisted.IsEnabled.Should().BeFalse();
+        persisted.SourceDefinition.PropertyPath.Should().Be("AchTransaction.Amount");
+    }
+
+    [Fact]
+    public async Task UpdateFieldRuleAsync_ShouldAllowEdit_WhenBorrador()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var query = new NachaConfigProfileQueryService(context);
+        var command = new NachaConfigProfileCommandService(context, query);
+        var ruleId = await context.CfgFieldRules
+            .Where(x => x.LayoutField.LayoutVariant.ProfileId == profile.Id)
+            .Select(x => x.Id)
+            .SingleAsync();
+
+        var updated = await command.UpdateFieldRuleAsync(profile.Id, ruleId, new NachaConfigFieldRuleEditDto
+        {
+            ErrorCode = "ERR_UPDATED",
+            ErrorMessageEs = "Mensaje actualizado",
+            Severity = "WARN",
+            IsEnabled = false,
+            ExpectedRowVersion = Convert.ToBase64String(profile.RowVersion)
+        }, "tester");
+
+        updated.Should().BeTrue();
+        var persisted = await context.CfgFieldRules.AsNoTracking().SingleAsync(x => x.Id == ruleId);
+        persisted.ErrorCode.Should().Be("ERR_UPDATED");
+        persisted.ErrorMessageEs.Should().Be("Mensaje actualizado");
+        persisted.Severity.Should().Be("WARN");
+        persisted.IsEnabled.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("PUBLICADO")]
+    [InlineData("INACTIVO")]
+    [InlineData("ARCHIVADO")]
+    public async Task UpdateLayoutVariantAsync_ShouldReject_WhenProfileNotBorrador(string statusCode)
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var query = new NachaConfigProfileQueryService(context);
+        var command = new NachaConfigProfileCommandService(context, query);
+        var record1Id = await context.CatRecordCodes.Where(x => x.Code == "1").Select(x => x.Id).SingleAsync();
+        var variantId = await context.CfgLayoutVariants
+            .Where(x => x.ProfileId == profile.Id && x.RecordCodeId == record1Id)
+            .Select(x => x.Id)
+            .SingleAsync();
+
+        profile = await SetProfileStatusAsync(context, profile.Id, statusCode);
+
+        var call = () => command.UpdateLayoutVariantAsync(profile.Id, variantId, new NachaConfigLayoutVariantEditDto
+        {
+            NombreEs = "No permitido",
+            Priority = 99,
+            IsDefaultForRecord = true,
+            EffectiveFrom = profile.EffectiveFrom,
+            ExpectedRowVersion = Convert.ToBase64String(profile.RowVersion)
+        }, "tester");
+
+        var ex = await Assert.ThrowsAsync<NachaConfigException>(call);
+        ex.ErrorCode.Should().Be("INVALID_PROFILE_STATE");
+    }
+
+    [Theory]
+    [InlineData("PUBLICADO")]
+    [InlineData("INACTIVO")]
+    [InlineData("ARCHIVADO")]
+    public async Task UpdateLayoutFieldAsync_ShouldReject_WhenProfileNotBorrador(string statusCode)
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var query = new NachaConfigProfileQueryService(context);
+        var command = new NachaConfigProfileCommandService(context, query);
+        var variantId = await context.CfgLayoutVariants
+            .Where(x => x.ProfileId == profile.Id)
+            .OrderBy(x => x.Id)
+            .Select(x => x.Id)
+            .FirstAsync();
+        var fieldId = await context.CfgLayoutFields
+            .Where(x => x.LayoutVariantId == variantId)
+            .Select(x => x.Id)
+            .SingleAsync();
+
+        profile = await SetProfileStatusAsync(context, profile.Id, statusCode);
+
+        var call = () => command.UpdateLayoutFieldAsync(profile.Id, fieldId, new NachaConfigLayoutFieldEditDto
+        {
+            FieldNameEs = "No permitido",
+            StartPosition = 2,
+            Length = 8,
+            IsEnabled = true,
+            ExpectedRowVersion = Convert.ToBase64String(profile.RowVersion)
+        }, "tester");
+
+        var ex = await Assert.ThrowsAsync<NachaConfigException>(call);
+        ex.ErrorCode.Should().Be("INVALID_PROFILE_STATE");
+    }
+
+    [Theory]
+    [InlineData("PUBLICADO")]
+    [InlineData("INACTIVO")]
+    [InlineData("ARCHIVADO")]
+    public async Task UpdateFieldRuleAsync_ShouldReject_WhenProfileNotBorrador(string statusCode)
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var query = new NachaConfigProfileQueryService(context);
+        var command = new NachaConfigProfileCommandService(context, query);
+        var ruleId = await context.CfgFieldRules
+            .Where(x => x.LayoutField.LayoutVariant.ProfileId == profile.Id)
+            .Select(x => x.Id)
+            .SingleAsync();
+
+        profile = await SetProfileStatusAsync(context, profile.Id, statusCode);
+
+        var call = () => command.UpdateFieldRuleAsync(profile.Id, ruleId, new NachaConfigFieldRuleEditDto
+        {
+            ErrorCode = "ERR_BLOCKED",
+            ErrorMessageEs = "No permitido",
+            Severity = "ERROR",
+            IsEnabled = true,
+            ExpectedRowVersion = Convert.ToBase64String(profile.RowVersion)
+        }, "tester");
+
+        var ex = await Assert.ThrowsAsync<NachaConfigException>(call);
+        ex.ErrorCode.Should().Be("INVALID_PROFILE_STATE");
+    }
+
+    [Fact]
+    public async Task UpdateLayoutVariantAsync_ShouldFail_OnConcurrencyConflict()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var query = new NachaConfigProfileQueryService(context);
+        var command = new NachaConfigProfileCommandService(context, query);
+        var record1Id = await context.CatRecordCodes.Where(x => x.Code == "1").Select(x => x.Id).SingleAsync();
+        var variantId = await context.CfgLayoutVariants
+            .Where(x => x.ProfileId == profile.Id && x.RecordCodeId == record1Id)
+            .Select(x => x.Id)
+            .SingleAsync();
+
+        var call = () => command.UpdateLayoutVariantAsync(profile.Id, variantId, new NachaConfigLayoutVariantEditDto
+        {
+            NombreEs = "Nuevo",
+            Priority = 10,
+            IsDefaultForRecord = true,
+            EffectiveFrom = profile.EffectiveFrom,
+            ExpectedRowVersion = Convert.ToBase64String([99, 99, 99])
+        }, "tester");
+
+        var ex = await Assert.ThrowsAsync<NachaConfigException>(call);
+        ex.ErrorCode.Should().Be("CONCURRENCY_CONFLICT");
+    }
+
+    [Fact]
     public async Task CloneProfileAsync_ShouldCreateSupersedingDraft()
     {
         await using var context = await CreateSqliteContextAsync();
@@ -446,6 +670,14 @@ public sealed class NachaConfigAdminServicesHardeningTests
         result.Servicios.Should().Contain(x => x.Code == "PPD");
     }
 
+    private static async Task<CfgProfile> SetProfileStatusAsync(AchDbContext context, int profileId, string statusCode)
+    {
+        var profile = await context.CfgProfiles.SingleAsync(x => x.Id == profileId);
+        profile.StatusId = await context.CatConfigStatuses.Where(x => x.Code == statusCode).Select(x => x.Id).SingleAsync();
+        await context.SaveChangesAsync();
+        return await context.CfgProfiles.AsNoTracking().SingleAsync(x => x.Id == profileId);
+    }
+
     private static async Task<AchDbContext> CreateSqliteContextAsync()
     {
         var connection = new SqliteConnection("DataSource=:memory:");
@@ -488,6 +720,7 @@ public sealed class NachaConfigAdminServicesHardeningTests
         context.CatDataSourceTypes.AddRange(
             new CatDataSourceType { Id = 1, Code = "CONSTANTE", NameEs = "Constante" },
             new CatDataSourceType { Id = 2, Code = "ENTIDAD", NameEs = "Entidad" });
+        context.CatRuleTypes.Add(new CatRuleType { Id = 1, Code = "REQUIRED", NameEs = "Required" });
         await context.SaveChangesAsync();
     }
 
@@ -579,6 +812,25 @@ public sealed class NachaConfigAdminServicesHardeningTests
             });
         }
 
+        await context.SaveChangesAsync();
+        var ruleTypeId = await context.CatRuleTypes.Where(x => x.Code == "REQUIRED").Select(x => x.Id).SingleAsync();
+        var firstFieldId = await context.CfgLayoutFields
+            .Where(x => x.LayoutVariant.ProfileId == profile.Id)
+            .OrderBy(x => x.Id)
+            .Select(x => x.Id)
+            .FirstAsync();
+
+        context.CfgFieldRules.Add(new CfgFieldRule
+        {
+            LayoutFieldId = firstFieldId,
+            RuleTypeId = ruleTypeId,
+            RuleCode = "R1",
+            ErrorCode = "ERR_REQUIRED",
+            ErrorMessageEs = "Campo requerido",
+            Severity = "ERROR",
+            Order = 1,
+            IsEnabled = true
+        });
         await context.SaveChangesAsync();
         return await context.CfgProfiles.AsNoTracking().SingleAsync(x => x.Id == profile.Id);
     }

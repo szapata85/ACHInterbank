@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const externalUiUrl = process.env['ACH_UI_URL'];
+
 export default defineConfig({
   testDir: './e2e',
   outputDir: './test-results',
@@ -14,13 +16,13 @@ export default defineConfig({
     ['html', { outputFolder: 'playwright-report', open: 'never' }]
   ],
   use: {
-    baseURL: 'http://localhost:4200',
+    baseURL: externalUiUrl || 'http://localhost:4200',
     browserName: 'chromium',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure'
   },
-  webServer: {
+  webServer: externalUiUrl ? undefined : {
     command: 'npm start',
     url: 'http://localhost:4200',
     reuseExistingServer: !process.env['CI'],

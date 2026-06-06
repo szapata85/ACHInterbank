@@ -37,18 +37,18 @@ describe('NachaSoapUatConsoleComponent', () => {
   });
 
   it('ConsoleComponent_ShouldRenderReadOnlyBanner', () => {
-    expect(text()).toContain('Read-only sanitizado');
+    expect(text()).toContain('Solo lectura sanitizada');
   });
 
   it('ConsoleComponent_ShouldRenderCandidatesAndAudit', () => {
     expect(text()).toContain('Candidatos SOAP/UAT');
-    expect(text()).toContain('Auditoria SOAP/UAT');
+    expect(text()).toContain('Auditoría SOAP/UAT');
     expect(text()).toContain('ProcTransacciones');
   });
 
   it('ConsoleComponent_ShouldRenderBlockedAndManualReviewBadges', () => {
-    expect(text()).toContain('BLOCKED');
-    expect(text()).toContain('MANUAL REVIEW');
+    expect(text()).toContain('BLOQUEADO');
+    expect(text()).toContain('REVISIÓN MANUAL');
   });
 
   it('ConsoleComponent_ShouldNotRenderExecutionButtons', () => {
@@ -95,7 +95,7 @@ function data() {
       lastUpdatedAt: '2026-05-31T12:00:00Z',
       dataSource: 'parcial',
       isPartialData: true,
-      warnings: ['Consola parcial read-only.']
+      warnings: ['Consola parcial solo lectura.']
     },
     candidates: [
       {

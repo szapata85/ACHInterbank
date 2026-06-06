@@ -2,12 +2,12 @@
   <ui-migas-pan [items]="[
     { etiqueta: 'Inicio', ruta: '/dashboard' },
     { etiqueta: 'ACH' },
-    { etiqueta: 'Readiness SOAP' }
+    { etiqueta: 'Preparación SOAP' }
   ]"></ui-migas-pan>
 
   <ui-encabezado-pagina
-    titulo="Consulta operativa NACHA-M y readiness SOAP"
-    descripcion="Vista read-only de archivos, decisiones, candidatos SOAP, readiness UAT y auditoria sanitizada."
+    titulo="Consulta operativa NACHA-M y preparación SOAP"
+    descripcion="Vista solo lectura de archivos, decisiones, candidatos SOAP, preparación UAT y auditoría sanitizada."
   ></ui-encabezado-pagina>
 
   <ui-alerta
@@ -24,14 +24,14 @@
       <span class="badge" [ngClass]="vm.isDemoData || vm.summary.isDemoData ? 'badge-warning' : (vm.isPartialData || vm.summary.isPartialData ? 'badge-neutral' : 'badge-success')">
         {{ dataSourceLabel(vm) }}
       </span>
-      <span class="badge badge-neutral" *ngIf="vm.summary.dataSource">Servicio: {{ vm.summary.dataSource }}</span>
-      <span class="badge badge-neutral" *ngIf="vm.files[0]?.dataSource">Archivos: {{ vm.files[0]?.dataSource }}</span>
+      <span class="badge badge-neutral" *ngIf="vm.summary.dataSource">Servicio: {{ dataSourceLabelValue(vm.summary.dataSource) }}</span>
+      <span class="badge badge-neutral" *ngIf="vm.files[0]?.dataSource">Archivos: {{ dataSourceLabelValue(vm.files[0]?.dataSource) }}</span>
     </section>
 
     <ui-alerta
       *ngIf="(vm.warnings?.length || vm.summary.warnings.length)"
       tipo="info"
-      titulo="Datos operativos parciales/read-only"
+      titulo="Datos operativos parciales/solo lectura"
       [mensaje]="(vm.warnings?.length ? vm.warnings : vm.summary.warnings).join(' ')"
     ></ui-alerta>
 
@@ -49,11 +49,11 @@
         <strong class="badge badge-success">{{ vm.summary.soapMode }}</strong>
       </article>
       <article>
-        <small>ProductiveExecution</small>
+        <small>Ejecución productiva</small>
         <strong>{{ vm.summary.productiveExecution }}</strong>
       </article>
       <article>
-        <small>WouldInvokeRealSoap</small>
+        <small>Invocaría SOAP real</small>
         <strong>{{ vm.summary.wouldInvokeRealSoap }}</strong>
       </article>
       <article>
@@ -61,7 +61,7 @@
         <strong>{{ vm.summary.totalFiles }}</strong>
       </article>
       <article>
-        <small>Readiness</small>
+        <small>Preparación</small>
         <strong>{{ vm.summary.totalReadinessChecks }}</strong>
       </article>
       <article>
@@ -77,7 +77,7 @@
         <strong class="badge badge-danger">{{ vm.summary.totalNoGoBlocks }}</strong>
       </article>
       <article>
-        <small>Manual review</small>
+        <small>Revisión manual</small>
         <strong class="badge badge-warning">{{ vm.summary.totalManualReview }}</strong>
       </article>
     </section>
@@ -85,12 +85,12 @@
     <div class="badge-row" aria-label="Controles de seguridad">
       <span class="badge badge-danger">NO-GO</span>
       <span class="badge badge-danger">SOAP REAL DESHABILITADO</span>
-      <span class="badge badge-success">SIMULATED</span>
-      <span class="badge badge-success">DRY-RUN</span>
-      <span class="badge badge-warning">MANUAL REVIEW</span>
-      <span class="badge badge-neutral">NO MONETARY MOVEMENT</span>
-      <span class="badge badge-neutral" *ngIf="vm.summary.isDemoData">DEMO READ-ONLY</span>
-      <span class="badge badge-success" *ngIf="!vm.summary.isDemoData">BACKEND READ-ONLY SANITIZADO</span>
+      <span class="badge badge-success">SIMULADO</span>
+      <span class="badge badge-success">PRUEBA CONTROLADA</span>
+      <span class="badge badge-warning">REVISIÓN MANUAL</span>
+      <span class="badge badge-neutral">SIN MOVIMIENTO MONETARIO</span>
+      <span class="badge badge-neutral" *ngIf="vm.summary.isDemoData">DEMO SOLO LECTURA</span>
+      <span class="badge badge-success" *ngIf="!vm.summary.isDemoData">BACKEND SOLO LECTURA SANITIZADO</span>
     </div>
 
     <ui-tarjeta titulo="Archivos NACHA-M" subtitulo="Archivos generados/recibidos anonimizados para consulta operacional.">
@@ -102,7 +102,7 @@
       ></ui-grilla-empresarial>
     </ui-tarjeta>
 
-    <div class="badge-row" aria-label="Acciones read-only de archivos">
+    <div class="badge-row" aria-label="Acciones solo lectura de archivos">
       <button
         type="button"
         class="btn-link"
@@ -123,21 +123,21 @@
       ></ui-grilla-empresarial>
     </ui-tarjeta>
 
-    <ui-tarjeta titulo="Readiness SOAP/UAT" subtitulo="Estado consolidado de gate, readiness, simulacion y resiliencia.">
+    <ui-tarjeta titulo="Preparación SOAP/UAT" subtitulo="Estado consolidado de gate, preparación, simulación y resiliencia.">
       <ui-grilla-empresarial
         [columnas]="columnasReadiness"
         [datos]="vm.readiness"
         [cargando]="cargando"
-        tituloVacio="Sin readiness SOAP"
+        tituloVacio="Sin preparación SOAP"
       ></ui-grilla-empresarial>
     </ui-tarjeta>
 
-    <ui-tarjeta titulo="Auditoria Phase 6B.5" subtitulo="Eventos sanitizados sin credenciales, endpoints reales ni payload SOAP completo.">
+    <ui-tarjeta titulo="Auditoría Fase 6B.5" subtitulo="Eventos sanitizados sin credenciales, endpoints reales ni payload SOAP completo.">
       <ui-grilla-empresarial
         [columnas]="columnasAuditoria"
         [datos]="vm.audit"
         [cargando]="cargando"
-        tituloVacio="Sin auditoria operacional"
+        tituloVacio="Sin auditoría operacional"
       ></ui-grilla-empresarial>
     </ui-tarjeta>
   </ng-container>

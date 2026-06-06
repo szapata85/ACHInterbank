@@ -82,7 +82,7 @@ const DEMO_DATA: NachaOperationalDashboardData = {
     isDemoData: true,
     isPartialData: false,
     dataSource: 'demo seguro',
-    warnings: ['Datos demo seguros locales usados como fallback read-only.']
+    warnings: ['Datos demo seguros locales usados como respaldo solo lectura.']
   },
   files: [
     {
@@ -159,7 +159,7 @@ const DEMO_DATA: NachaOperationalDashboardData = {
       soapOperationCandidate: 'ProcTransacciones',
       requiresMonetaryMovement: true,
       reasonCode: '00',
-      reasonDescription: 'Simulacion UAT aprobada',
+      reasonDescription: 'Simulación UAT aprobada',
       newInternalStatus: 'Accepted',
       manualReviewRequired: false,
       isBlocked: false,
@@ -223,7 +223,7 @@ const DEMO_DATA: NachaOperationalDashboardData = {
       operationCandidate: 'ProcContrapartidas',
       isReadyForUat: false,
       isBlocked: true,
-      blockReasons: ['Invocacion SOAP real bloqueada por NO-GO en Fase 6B.5.6.'],
+      blockReasons: ['Invocación SOAP real bloqueada por NO-GO en Fase 6B.5.6.'],
       payloadMappingPassed: true,
       requestMappingPassed: true,
       operationalGatePassed: false,
@@ -271,6 +271,6 @@ const DEMO_DATA: NachaOperationalDashboardData = {
   isDemoData: true,
   isPartialData: false,
   dataSource: 'demo seguro',
-  warnings: ['Datos demo seguros locales usados como fallback read-only.'],
+  warnings: ['Datos demo seguros locales usados como respaldo solo lectura.'],
   productiveStatus: 'NO-GO'
 };

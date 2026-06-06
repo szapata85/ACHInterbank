@@ -29,23 +29,23 @@ export class NachaSoapUatConsoleComponent implements OnInit {
     { field: 'fileName', headerName: 'Archivo', minWidth: 180 },
     { field: 'entryTraceNumber', headerName: 'Trace', minWidth: 130 },
     { field: 'decisionType', headerName: 'Decision', minWidth: 180 },
-    { field: 'operationCandidate', headerName: 'Operacion', minWidth: 190 },
+    { field: 'operationCandidate', headerName: 'Operación', minWidth: 190 },
     { field: 'requiresMonetaryMovement', headerName: 'Monetario', minWidth: 120 },
-    { field: 'readinessStatus', headerName: 'Readiness', minWidth: 140 },
-    { field: 'simulationStatus', headerName: 'Simulacion', minWidth: 130 },
+    { field: 'readinessStatus', headerName: 'Preparación', minWidth: 140 },
+    { field: 'simulationStatus', headerName: 'Simulación', minWidth: 130 },
     { field: 'resilienceStatus', headerName: 'Resiliencia', minWidth: 130 },
     { field: 'idempotencyStatus', headerName: 'Idempotencia', minWidth: 150 },
-    { field: 'attemptCount', headerName: 'Attempts', minWidth: 110 }
+    { field: 'attemptCount', headerName: 'Intentos', minWidth: 110 }
   ];
 
   readonly columnasAuditoria: ColDef<NachaSoapUatAudit>[] = [
     { field: 'correlationId', headerName: 'CorrelationId', minWidth: 190 },
-    { field: 'phase', headerName: 'Phase', minWidth: 100 },
+    { field: 'phase', headerName: 'Fase', minWidth: 100 },
     { field: 'eventType', headerName: 'Evento', minWidth: 220 },
     { field: 'severity', headerName: 'Severidad', minWidth: 130 },
     { field: 'message', headerName: 'Mensaje', minWidth: 280 },
-    { field: 'isBlocked', headerName: 'Blocked', minWidth: 120 },
-    { headerName: 'Timestamp', minWidth: 180, valueGetter: (p) => this.formatDate(p.data?.timestamp) },
+    { field: 'isBlocked', headerName: 'Bloqueado', minWidth: 120 },
+    { headerName: 'Marca temporal', minWidth: 180, valueGetter: (p) => this.formatDate(p.data?.timestamp) },
     { headerName: 'Detalles sanitizados', minWidth: 300, valueGetter: (p) => this.formatDetails(p.data?.sanitizedDetails) }
   ];
 
@@ -86,6 +86,17 @@ export class NachaSoapUatConsoleComponent implements OnInit {
       return 'badge-warning';
     }
     return 'badge-neutral';
+  }
+
+  dataSourceLabel(value?: string | null): string {
+    const normalized = String(value ?? '').toLowerCase();
+    if (normalized.includes('demo')) {
+      return 'demo seguro';
+    }
+    if (normalized.includes('parcial')) {
+      return 'parcial';
+    }
+    return 'backend solo lectura';
   }
 
   formatDate(value?: string | null): string {

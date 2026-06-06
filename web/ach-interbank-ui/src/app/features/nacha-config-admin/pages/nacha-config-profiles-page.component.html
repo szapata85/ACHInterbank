@@ -1,59 +1,126 @@
-<ui-migas-pan [items]="[{ label: 'Inicio', route: '/dashboard' }, { label: 'NACHA Config' }]" />
-<ui-encabezado-pagina titulo="Config Profiles NACHA-M" descripcion="Administracion oficial read-only de nacha-config profiles"></ui-encabezado-pagina>
+<section class="nacha-config-profiles-page" data-testid="nacha-config-profiles-page">
+  <ui-migas-pan [items]="[{ label: 'Inicio', route: '/dashboard' }, { label: 'NACHA Config' }]" />
+  <ui-encabezado-pagina titulo="Configuración NACHA-M" descripcion="Administración oficial de perfiles NACHA-M, en modo solo lectura y administración controlada"></ui-encabezado-pagina>
 
-<section class="banners">
-  <ui-alerta tipo="info" mensaje="Modelo oficial NACHA-M: nacha-config profiles."></ui-alerta>
-  <ui-alerta tipo="advertencia" mensaje="Legacy layouts/definitions deprecated: solo diagnostico read-only, no fuente oficial."></ui-alerta>
-  <ui-alerta tipo="error" mensaje="Productivo NO-GO: certificacion/UAT formal pendiente; sin ejecucion SOAP ni mutaciones."></ui-alerta>
+  <section class="banners">
+    <ui-alerta tipo="info" mensaje="Modelo oficial NACHA-M: perfiles de configuración oficiales."></ui-alerta>
+    <ui-alerta tipo="advertencia" mensaje="Layouts/definitions legacy obsoletos: solo diagnóstico en lectura, no son la fuente oficial."></ui-alerta>
+    <ui-alerta tipo="error" mensaje="Productivo NO-GO: certificación/UAT formal pendiente; sin ejecución SOAP ni mutaciones."></ui-alerta>
+  </section>
+
+  <section class="summary-grid" *ngIf="dashboard">
+    <article>
+      <span>Perfiles</span>
+      <strong>{{ dashboard.profileCount }}</strong>
+    </article>
+    <article>
+      <span>Publicados</span>
+      <strong>{{ dashboard.publishedProfileCount }}</strong>
+    </article>
+    <article>
+      <span>Variantes</span>
+      <strong>{{ dashboard.layoutVariantCount }}</strong>
+    </article>
+    <article>
+      <span>Campos</span>
+      <strong>{{ dashboard.fieldCount }}</strong>
+    </article>
+  </section>
+
+  <ui-alerta *ngFor="let warning of dashboard?.warnings ?? []" tipo="advertencia" [mensaje]="warning"></ui-alerta>
+
+  <ng-template #crearTpl>
+    <form [formGroup]="crearForm" class="crear-grid">
+      <ui-campo-texto etiqueta="Código del perfil" [control]="crearForm.controls.profileCode" placeholder="UAT-NACHA-CONFIG-..." />
+      <ui-campo-texto etiqueta="Nombre" [control]="crearForm.controls.nombreEs" placeholder="Nombre descriptivo" />
+      <ui-campo-textarea etiqueta="Descripción" [control]="crearForm.controls.descripcion" placeholder="Descripción opcional" [filas]="3" />
+
+      <label class="selector-campo">
+        <span>Cámara</span>
+        <select [formControl]="crearForm.controls.camaraCode">
+          <option *ngFor="let opcion of opcionesCamara.slice(1)" [value]="opcion.valor">{{ opcion.etiqueta }}</option>
+        </select>
+        <ui-error-campo [control]="crearForm.controls.camaraCode"></ui-error-campo>
+      </label>
+
+      <label class="selector-campo">
+        <span>Flujo</span>
+        <select [formControl]="crearForm.controls.flujoCode">
+          <option *ngFor="let opcion of opcionesFlujo.slice(1)" [value]="opcion.valor">{{ opcion.etiqueta }}</option>
+        </select>
+        <ui-error-campo [control]="crearForm.controls.flujoCode"></ui-error-campo>
+      </label>
+
+      <label class="selector-campo">
+        <span>Dirección</span>
+        <select [formControl]="crearForm.controls.direccionCode">
+          <option *ngFor="let opcion of opcionesDireccion" [value]="opcion.valor">{{ opcion.etiqueta }}</option>
+        </select>
+        <ui-error-campo [control]="crearForm.controls.direccionCode"></ui-error-campo>
+      </label>
+
+      <label class="selector-campo">
+        <span>Servicio</span>
+        <select [formControl]="crearForm.controls.servicioCode">
+          <option value="">Sin servicio</option>
+          <option *ngFor="let opcion of opcionesServicio" [value]="opcion.valor">{{ opcion.etiqueta }}</option>
+        </select>
+      </label>
+
+      <ui-campo-fecha etiqueta="Vigencia inicial" [control]="crearForm.controls.effectiveFrom"></ui-campo-fecha>
+    </form>
+
+    <div class="acciones-crear">
+      <ui-boton texto="Crear borrador" variante="primario" [cargando]="creando" [deshabilitado]="crearForm.invalid" (accion)="crearBorrador()"></ui-boton>
+      <ui-boton texto="Validar" variante="contorno" [deshabilitado]="visibles.length === 0 || validando" (accion)="validarPrimerPerfil()"></ui-boton>
+    </div>
+  </ng-template>
+  <ui-tarjeta *ngIf="puedeGestionar" titulo="Crear borrador" subtitulo="Solo perfiles BORRADOR/CLONE pueden editarse; create borra datos si el usuario confirma." [contenido]="crearTpl"></ui-tarjeta>
+
+  <ng-template #filtrosTpl>
+    <div class="filtros-grid" [formGroup]="filtrosForm">
+      <ui-campo-texto etiqueta="Buscar" [control]="filtrosForm.controls.texto" placeholder="Código o nombre"></ui-campo-texto>
+      <label class="selector-campo">
+        <span>Estado</span>
+        <ui-selector-buscable [opciones]="opcionesEstado" [formControl]="filtrosForm.controls.estado" placeholderBusqueda="Buscar estado"></ui-selector-buscable>
+      </label>
+      <label class="selector-campo">
+        <span>Cámara</span>
+        <ui-selector-buscable [opciones]="opcionesCamara" [formControl]="filtrosForm.controls.camara" placeholderBusqueda="Buscar cámara"></ui-selector-buscable>
+      </label>
+      <label class="selector-campo">
+        <span>Flujo</span>
+        <ui-selector-buscable [opciones]="opcionesFlujo" [formControl]="filtrosForm.controls.flujo" placeholderBusqueda="Buscar flujo"></ui-selector-buscable>
+      </label>
+    </div>
+  </ng-template>
+  <ui-tarjeta titulo="Filtros solo lectura" subtitulo="Consulta oficial GET-only de perfiles, cámaras ACH Colombia/CENIT, registros 1/5/6/7/8/9, variantes y campos." [contenido]="filtrosTpl"></ui-tarjeta>
+
+  <ui-grilla-empresarial
+    [columnas]="columnas"
+    [datos]="visibles"
+    [cargando]="cargando"
+    [error]="errorCarga"
+    mensajeError="No fue posible cargar perfiles NACHA."
+    tituloVacio="Sin perfiles"
+    mensajeVacio="No hay perfiles oficiales para los filtros seleccionados."
+    [paginacion]="true"
+    [tamanoPagina]="15"
+  ></ui-grilla-empresarial>
+
+  <ng-template #validacionTpl>
+    <div class="validacion-resumen">
+      <p><strong>Perfil:</strong> {{ validationProfile?.profileCode }}</p>
+      <p><strong>Estado:</strong> {{ validationResult?.isValid ? 'Apto para publicar' : 'Bloqueado para publicar' }}</p>
+      <p><strong>Errores bloqueantes:</strong> {{ validationResult?.erroresBloqueantes }}</p>
+      <p><strong>Advertencias:</strong> {{ validationResult?.advertencias }}</p>
+      <p><strong>Resumen:</strong> {{ validationResult?.resumen }}</p>
+    </div>
+    <ul class="issues" *ngIf="(validationResult?.issues?.length ?? 0) > 0">
+      <li *ngFor="let issue of validationResult?.issues ?? []">
+        <strong>{{ issue.severidad }}</strong> · {{ issue.codigo }} · {{ issue.mensaje }}
+      </li>
+    </ul>
+  </ng-template>
+  <ui-tarjeta *ngIf="validationResult" titulo="Última validación" subtitulo="Resultado de la última validación ejecutada desde la lista" [contenido]="validacionTpl"></ui-tarjeta>
 </section>
-
-<section class="summary-grid" *ngIf="dashboard">
-  <article>
-    <span>Perfiles</span>
-    <strong>{{ dashboard.profileCount }}</strong>
-  </article>
-  <article>
-    <span>Publicados</span>
-    <strong>{{ dashboard.publishedProfileCount }}</strong>
-  </article>
-  <article>
-    <span>Variants</span>
-    <strong>{{ dashboard.layoutVariantCount }}</strong>
-  </article>
-  <article>
-    <span>Fields</span>
-    <strong>{{ dashboard.fieldCount }}</strong>
-  </article>
-</section>
-
-<ui-alerta *ngFor="let warning of dashboard?.warnings ?? []" tipo="advertencia" [mensaje]="warning"></ui-alerta>
-
-<ui-tarjeta titulo="Filtros read-only" subtitulo="Consulta oficial GET-only de perfiles, camaras ACH Colombia/CENIT, records 1/5/6/7/8/9, variants y fields.">
-  <div class="filtros-grid" [formGroup]="filtrosForm">
-    <ui-campo-texto etiqueta="Buscar" [control]="filtrosForm.controls.texto" placeholder="Codigo o nombre"></ui-campo-texto>
-    <label class="selector-campo">
-      <span>Estado</span>
-      <ui-selector-buscable [opciones]="opcionesEstado" [formControl]="filtrosForm.controls.estado" placeholderBusqueda="Buscar estado"></ui-selector-buscable>
-    </label>
-    <label class="selector-campo">
-      <span>Camara</span>
-      <ui-selector-buscable [opciones]="opcionesCamara" [formControl]="filtrosForm.controls.camara" placeholderBusqueda="Buscar camara"></ui-selector-buscable>
-    </label>
-    <label class="selector-campo">
-      <span>Flujo</span>
-      <ui-selector-buscable [opciones]="opcionesFlujo" [formControl]="filtrosForm.controls.flujo" placeholderBusqueda="Buscar flujo"></ui-selector-buscable>
-    </label>
-  </div>
-</ui-tarjeta>
-
-<ui-grilla-empresarial
-  [columnas]="columnas"
-  [datos]="visibles"
-  [cargando]="cargando"
-  [error]="errorCarga"
-  mensajeError="No fue posible cargar perfiles NACHA."
-  tituloVacio="Sin perfiles"
-  mensajeVacio="No hay perfiles oficiales para los filtros seleccionados."
-  [paginacion]="true"
-  [tamanoPagina]="15"
-></ui-grilla-empresarial>

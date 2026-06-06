@@ -38,7 +38,7 @@ export class AchReturnsManagementComponent implements OnInit {
   selectedRows = new Set<number>();
   readonly columnDefs: ColDef<ReturnEligibleTransaction>[] = [
     { field: 'id', headerName: 'ID', width: 110 },
-    { field: 'traceNumber', headerName: 'Trace', minWidth: 170 },
+    { field: 'traceNumber', headerName: 'Traza', minWidth: 170 },
     { field: 'reference', headerName: 'Referencia', minWidth: 180 },
     { field: 'amount', headerName: 'Monto', valueFormatter: (params) => Number(params.value ?? 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP' }) },
     { field: 'transactionCode', headerName: 'Cod. Tx', width: 130 },

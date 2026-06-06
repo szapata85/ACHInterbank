@@ -155,7 +155,8 @@ export class UiSelectorBuscableComponent implements ControlValueAccessor {
 
   filtrar(): void {
     const termino = this.terminoControl.value.trim().toLocaleLowerCase();
-    this.opcionesFiltradas = this.opciones.filter((o) => o.etiqueta.toLocaleLowerCase().includes(termino));
+    const opciones = Array.isArray(this.opciones) ? this.opciones : [];
+    this.opcionesFiltradas = opciones.filter((o) => (o?.etiqueta ?? '').toLocaleLowerCase().includes(termino));
     this.busqueda.emit(this.terminoControl.value);
   }
 

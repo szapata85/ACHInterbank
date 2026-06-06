@@ -1,4 +1,4 @@
-<section class="transaction-card" aria-labelledby="transaction-create-title">
+﻿<section class="transaction-card" aria-labelledby="transaction-create-title">
   <div class="header">
     <h2 id="transaction-create-title">Crear transacción ACH</h2>
     <p class="subtitle">Complete los datos de la transacción</p>
@@ -235,7 +235,7 @@
 
     <div class="addenda-section">
       <div class="section-header">
-        <h3>Adendas</h3>
+        <h3>Addendas</h3>
         <button type="button" class="link" (click)="addAddenda()">Agregar addenda</button>
       </div>
       <ng-container *ngIf="addendas.controls.length; else noAddendas">
@@ -349,3 +349,4 @@
     <p>{{ errorMessage.value }}</p>
   </section>
 </section>
+

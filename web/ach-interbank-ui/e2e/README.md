@@ -12,6 +12,14 @@ npm run e2e:headed
 npm run e2e:report
 ```
 
+La suite CENIT contra ambiente vivo es opt-in para no romper CI cuando no existe API local:
+
+```bash
+RUN_CENIT_E2E=true ACH_UI_URL=http://localhost:743 ACH_API_URL=http://localhost:843 ACH_USER=admin ACH_PASS="..." npx playwright test e2e/cenit-routes.spec.ts --project=chromium
+```
+
+Si `RUN_CENIT_E2E` no es `true`, `e2e/cenit-routes.spec.ts` se omite explicitamente. Para validar readiness de base de datos en UAT puede usarse `ACH_API_HEALTH_URL` apuntando a `/health/ready`; por defecto se usa `ACH_API_URL/health/live`.
+
 En CI, `angular-ci.yml` publica `playwright-report`, `playwright-test-results` y `uat-evidence-playwright` con `if: always()`.
 
 ## Evidencia generada

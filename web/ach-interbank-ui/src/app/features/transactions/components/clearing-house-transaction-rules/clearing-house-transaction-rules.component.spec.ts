@@ -40,7 +40,7 @@ describe('ClearingHouseTransactionRulesComponent', () => {
       normativeSource: 'MAN-004',
       normativeReference: '2.11',
       decision: 'PRENOTIFICATION_REQUIRED',
-      message: 'Requiere prenotificacion.'
+      message: 'Requiere prenotificación.'
     } as any));
 
     await TestBed.configureTestingModule({

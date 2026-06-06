@@ -6,7 +6,7 @@ const routes: Routes = [
   {
     path: '',
     component: CustomerThirdPartiesComponent,
-    data: { breadcrumb: 'Terceros prenotificación', title: 'CustomerThirdParties' }
+    data: { breadcrumb: 'Terceros prenotificación', title: 'Terceros de prenotificación' }
   }
 ];
 

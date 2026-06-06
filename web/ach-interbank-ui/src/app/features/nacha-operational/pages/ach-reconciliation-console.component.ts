@@ -32,13 +32,13 @@ export class AchReconciliationConsoleComponent implements OnInit {
     { field: 'reconciliationId', headerName: 'ID', minWidth: 170 },
     { field: 'correlationId', headerName: 'CorrelationId', minWidth: 180 },
     { field: 'fileName', headerName: 'Archivo', minWidth: 180 },
-    { field: 'clearingHouseCode', headerName: 'Camara', minWidth: 110 },
+    { field: 'clearingHouseCode', headerName: 'Cámara', minWidth: 110 },
     { field: 'flowType', headerName: 'Flujo', minWidth: 170 },
     { field: 'responseType', headerName: 'Respuesta', minWidth: 180 },
     { field: 'reasonCode', headerName: 'Causal', minWidth: 110 },
     { field: 'traceNumberMasked', headerName: 'Trace', minWidth: 130 },
     { field: 'internalStatus', headerName: 'Estado interno', minWidth: 170 },
-    { field: 'reconciliationStatus', headerName: 'Conciliacion', minWidth: 150 },
+    { field: 'reconciliationStatus', headerName: 'Conciliación', minWidth: 150 },
     { field: 'soapOperationCandidate', headerName: 'SOAP candidato', minWidth: 190 }
   ];
 
@@ -70,7 +70,7 @@ export class AchReconciliationConsoleComponent implements OnInit {
         }
       },
       error: (err) => {
-        this.error = err?.message ?? 'No fue posible cargar conciliacion ACH.';
+        this.error = err?.message ?? 'No fue posible cargar conciliación ACH.';
       }
     });
   }
@@ -94,6 +94,17 @@ export class AchReconciliationConsoleComponent implements OnInit {
     if (normalized.includes('conciliado') || normalized.includes('no monetario')) return 'badge-success';
     if (normalized.includes('pendiente') || normalized.includes('candidate')) return 'badge-warning';
     return 'badge-neutral';
+  }
+
+  dataSourceLabel(value?: string | null): string {
+    const normalized = String(value ?? '').toLowerCase();
+    if (normalized.includes('demo')) {
+      return 'demo seguro';
+    }
+    if (normalized.includes('parcial')) {
+      return 'parcial';
+    }
+    return 'backend solo lectura';
   }
 
   keys(value?: Record<string, unknown> | null): string[] {

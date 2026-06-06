@@ -144,8 +144,8 @@ export class NavigationMenuComponent implements OnInit {
     this.cdr.markForCheck();
     this.navigationService.getMenuItems().subscribe({
       next: (items) => {
-        this.menuItems = items;
-        this.flatItems = this.flatten(items);
+        this.menuItems = Array.isArray(items) ? items : [];
+        this.flatItems = this.flatten(this.menuItems);
         this.gridApi?.setGridOption('rowData', this.tableData);
         this.loading = false;
         this.hasLoaded = true;
@@ -163,16 +163,16 @@ export class NavigationMenuComponent implements OnInit {
 
   loadRoles(): void {
     this.rolesApi.getRoles().subscribe((roles) => {
-      this.roles = roles;
-      this.roleLookup = new Map(roles.map((role) => [role.id, role.name]));
+      this.roles = Array.isArray(roles) ? roles : [];
+      this.roleLookup = new Map(this.roles.map((role) => [role.id, role.name]));
       this.cdr.markForCheck();
     });
   }
 
   loadPermissions(): void {
     this.permissionsService.getPermissions().subscribe((permissions) => {
-      this.permissions = permissions;
-      this.permissionLookup = new Map(permissions.map((permission) => [permission.id, permission.name]));
+      this.permissions = Array.isArray(permissions) ? permissions : [];
+      this.permissionLookup = new Map(this.permissions.map((permission) => [permission.id, permission.name]));
       this.cdr.markForCheck();
     });
   }

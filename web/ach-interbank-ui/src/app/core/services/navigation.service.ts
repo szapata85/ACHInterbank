@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, map } from 'rxjs';
+import { map, Observable } from 'rxjs';
 import { MenuItem } from '../models/menu.model';
 import { ApiService } from './api.service';
 
@@ -14,7 +14,6 @@ export class NavigationService {
   }
 
   private mergeDefaultMenu(items: MenuItem[]): MenuItem[] {
-
     const transactionsChildren: MenuItem[] = [
       { id: -201, label: 'Listado', route: '/transactions/list', icon: 'list' },
       { id: -202, label: 'Crear transacción', route: '/transactions/create', icon: 'add_circle' },
@@ -22,7 +21,7 @@ export class NavigationService {
       { id: -2031, label: 'Carga masiva por archivo', route: '/transactions/bulk-ingestion/upload', icon: 'file_upload' },
       { id: -2032, label: 'Seguimiento lotes', route: '/transactions/bulk-ingestion/tracking', icon: 'monitoring' },
       { id: -2033, label: 'Config. ciclos', route: '/transactions/cycle-configs', icon: 'schedule' },
-      { id: -2034, label: 'Reglas por camara', route: '/transactions/clearing-house-rules', icon: 'rule' },
+      { id: -2034, label: 'Reglas por cámara', route: '/transactions/clearing-house-rules', icon: 'rule' },
       { id: -204, label: 'Cargar NACHA-M', route: '/transactions/nacha-upload', icon: 'upload' },
       { id: -205, label: 'Devoluciones ACH', route: '/transactions/returns', icon: 'assignment_return' }
     ];
@@ -53,6 +52,7 @@ export class NavigationService {
       icon: 'list_alt',
       children: catalogChildren
     };
+
     const customerItem: MenuItem = {
       id: -220,
       label: 'Clientes',
@@ -87,10 +87,8 @@ export class NavigationService {
       children: cenitChildren
     };
 
-
-
     const nachaSecurityChildren: MenuItem[] = [
-      { id: -2601, label: 'Dashboard seguridad', route: '/nacha-security/dashboard', icon: 'shield' },
+      { id: -2601, label: 'Panel seguridad NACHA', route: '/nacha-security/dashboard', icon: 'shield' },
       { id: -2602, label: 'Certificados', route: '/nacha-security/certificates', icon: 'badge' },
       { id: -2603, label: 'Generar NACHA-M', route: '/nacha-security/nacha/generate', icon: 'description' },
       { id: -2604, label: 'Generar NACHA-M cifrado', route: '/nacha-security/nacha/generate-encrypted', icon: 'encrypted' },
@@ -108,34 +106,34 @@ export class NavigationService {
       children: nachaSecurityChildren
     };
 
+    const nachaConfigChildren: MenuItem[] = [
+      { id: -2801, label: 'Perfiles oficiales', route: '/nacha-config-admin/perfiles', icon: 'fact_check' },
+      { id: -2802, label: 'Registros oficiales', route: '/nacha-config-admin/records', icon: 'view_list' },
+      { id: -2803, label: 'Variantes y campos', route: '/nacha-config-admin/variants-fields', icon: 'schema' }
+    ];
+
     const nachaConfigGroup: MenuItem = {
       id: -280,
-      label: 'Config Profiles',
+      label: 'Configuración NACHA-M',
       route: '/nacha-config-admin/perfiles',
       icon: 'tune',
-      children: [
-        { id: -2801, label: 'Config Profiles', route: '/nacha-config-admin/perfiles', icon: 'fact_check' }
-      ]
+      children: nachaConfigChildren
     };
 
     const soapUatConsoleGroup: MenuItem = {
       id: -290,
-      label: 'SOAP UAT Console',
+      label: 'Consola SOAP UAT',
       route: '/ach/nacha/soap-uat-console',
       icon: 'fact_check',
-      children: [
-        { id: -2901, label: 'SOAP UAT Console', route: '/ach/nacha/soap-uat-console', icon: 'fact_check' }
-      ]
+      children: [{ id: -2901, label: 'Consola SOAP UAT', route: '/ach/nacha/soap-uat-console', icon: 'fact_check' }]
     };
 
     const reconciliationGroup: MenuItem = {
       id: -291,
-      label: 'Conciliacion ACH',
+      label: 'Conciliación ACH',
       route: '/ach/reconciliation',
       icon: 'fact_check',
-      children: [
-        { id: -2911, label: 'Conciliacion ACH', route: '/ach/reconciliation', icon: 'fact_check' }
-      ]
+      children: [{ id: -2911, label: 'Conciliación ACH', route: '/ach/reconciliation', icon: 'fact_check' }]
     };
 
     const logsChildren: MenuItem[] = [
@@ -156,7 +154,7 @@ export class NavigationService {
       { id: -2701, label: 'Bandeja', route: '/ach-responses', icon: 'assignment' },
       { id: -2702, label: 'Revisión manual', route: '/ach-responses/manual-review', icon: 'rule' },
       { id: -2703, label: 'Homologaciones', route: '/ach-responses/status-mappings', icon: 'sync_alt' },
-      { id: -2704, label: 'Dashboard operativo', route: '/ach-responses/dashboard', icon: 'dashboard' }
+      { id: -2704, label: 'Panel operativo', route: '/ach-responses/dashboard', icon: 'dashboard' }
     ];
 
     const achResponsesGroup: MenuItem = {
@@ -168,105 +166,104 @@ export class NavigationService {
     };
 
     if (!items.length) {
-      return [transactionsGroup, achResponsesGroup, customerItem, reportsItem, cenitGroup, nachaConfigGroup, soapUatConsoleGroup, reconciliationGroup, nachaSecurityGroup, logsGroup, catalogGroup];
+      return [
+        transactionsGroup,
+        achResponsesGroup,
+        customerItem,
+        reportsItem,
+        cenitGroup,
+        nachaConfigGroup,
+        soapUatConsoleGroup,
+        reconciliationGroup,
+        nachaSecurityGroup,
+        logsGroup,
+        catalogGroup
+      ];
     }
 
     const hasRoute = (menu: MenuItem[], route: string): boolean =>
       menu.some((item) => item.route === route || (item.children?.length && hasRoute(item.children, route)));
 
+    const mergeChildren = (menu: MenuItem[] | undefined, children: MenuItem[]): MenuItem[] => {
+      const existing = menu ?? [];
+      const missing = children.filter((child) => !hasRoute(existing, child.route));
+      return missing.length ? [...existing, ...missing] : existing;
+    };
+
     const existingCatalogGroup = items.find((item) => item.route === '/catalogs' || item.label === 'Catálogos');
     if (existingCatalogGroup) {
-      const existingChildren = existingCatalogGroup.children ?? [];
-      const missingChildren = catalogChildren.filter((child) => !hasRoute(existingChildren, child.route));
-      if (missingChildren.length) {
-        existingCatalogGroup.children = [...existingChildren, ...missingChildren];
-      }
-      const existingTransactionsGroup = items.find((item) => item.route === '/transactions' || item.label === 'Transacciones');
-      if (existingTransactionsGroup) {
-        const existingTransactionChildren = existingTransactionsGroup.children ?? [];
-        const missingTransactionChildren = transactionsChildren.filter((child) => !hasRoute(existingTransactionChildren, child.route));
-        if (missingTransactionChildren.length) {
-          existingTransactionsGroup.children = [...existingTransactionChildren, ...missingTransactionChildren];
-        }
-      }
-
-      let next = hasRoute(items, transactionsGroup.route) ? items : [...items, transactionsGroup];
-      if (!hasRoute(next, customerItem.route)) {
-        next = [...next, customerItem];
-      }
-      if (!hasRoute(next, reportsItem.route)) {
-        next = [...next, reportsItem];
-      }
-      if (!hasRoute(next, achResponsesGroup.route)) {
-        next = [...next, achResponsesGroup];
-      } else {
-        const existingAchResponsesGroup = next.find((item) => item.route === '/ach-responses' || item.label === 'Respuestas ACH');
-        if (existingAchResponsesGroup) {
-          const existingAchResponsesChildren = existingAchResponsesGroup.children ?? [];
-          const missingAchResponsesChildren = achResponsesChildren.filter((child) => !hasRoute(existingAchResponsesChildren, child.route));
-          if (missingAchResponsesChildren.length) {
-            existingAchResponsesGroup.children = [...existingAchResponsesChildren, ...missingAchResponsesChildren];
-          }
-        }
-      }
-      if (!hasRoute(next, cenitGroup.route)) {
-        next = [...next, cenitGroup];
-      } else {
-        const existingCenitGroup = next.find((item) => item.route === '/cenit' || item.label === 'CENIT');
-        if (existingCenitGroup) {
-          const existingCenitChildren = existingCenitGroup.children ?? [];
-          const missingCenitChildren = cenitChildren.filter((child) => !hasRoute(existingCenitChildren, child.route));
-          if (missingCenitChildren.length) {
-            existingCenitGroup.children = [...existingCenitChildren, ...missingCenitChildren];
-          }
-        }
-      }
-
-      if (!hasRoute(next, nachaSecurityGroup.route)) {
-        next = [...next, nachaSecurityGroup];
-      }
-
-      if (!hasRoute(next, nachaConfigGroup.route)) {
-        next = [...next, nachaConfigGroup];
-      }
-
-      if (!hasRoute(next, soapUatConsoleGroup.route)) {
-        next = [...next, soapUatConsoleGroup];
-      }
-
-      if (!hasRoute(next, reconciliationGroup.route)) {
-        next = [...next, reconciliationGroup];
-      }
-
-      const existingLogsGroup = next.find((item) => item.route === '/audit-logs' || item.label === 'Logs');
-      if (existingLogsGroup) {
-        const existingLogChildren = existingLogsGroup.children ?? [];
-        const missingLogChildren = logsChildren.filter((child) => !hasRoute(existingLogChildren, child.route));
-        if (missingLogChildren.length) {
-          existingLogsGroup.children = [...existingLogChildren, ...missingLogChildren];
-        }
-        return next;
-      }
-
-      return [...next, logsGroup];
+      existingCatalogGroup.children = mergeChildren(existingCatalogGroup.children, catalogChildren);
     }
 
-    const withTransactions = hasRoute(items, transactionsGroup.route) ? items : [...items, transactionsGroup];
-    const withAchResponses = hasRoute(withTransactions, achResponsesGroup.route)
-      ? withTransactions
-      : [...withTransactions, achResponsesGroup];
-    const withCustomer = hasRoute(withAchResponses, customerItem.route) ? withAchResponses : [...withAchResponses, customerItem];
-    const withReports = hasRoute(withCustomer, reportsItem.route) ? withCustomer : [...withCustomer, reportsItem];
-    const withCenit = hasRoute(withReports, cenitGroup.route) ? withReports : [...withReports, cenitGroup];
-    const withNachaConfig = hasRoute(withCenit, nachaConfigGroup.route) ? withCenit : [...withCenit, nachaConfigGroup];
-    const withSoapUatConsole = hasRoute(withNachaConfig, soapUatConsoleGroup.route) ? withNachaConfig : [...withNachaConfig, soapUatConsoleGroup];
-    const withReconciliation = hasRoute(withSoapUatConsole, reconciliationGroup.route) ? withSoapUatConsole : [...withSoapUatConsole, reconciliationGroup];
-    const withNachaSecurity = hasRoute(withReconciliation, nachaSecurityGroup.route) ? withReconciliation : [...withReconciliation, nachaSecurityGroup];
-    const withLogs = hasRoute(withNachaSecurity, '/navigation-logs') || hasRoute(withNachaSecurity, '/auth-logs') || hasRoute(withNachaSecurity, '/audit-logs')
-      ? withNachaSecurity
-      : [...withNachaSecurity, logsGroup];
+    const existingTransactionsGroup = items.find((item) => item.route === '/transactions' || item.label === 'Transacciones');
+    if (existingTransactionsGroup) {
+      existingTransactionsGroup.children = mergeChildren(existingTransactionsGroup.children, transactionsChildren);
+    }
 
-    return [...withLogs, catalogGroup];
+    let next = hasRoute(items, transactionsGroup.route) ? items : [...items, transactionsGroup];
+    if (!hasRoute(next, customerItem.route)) {
+      next = [...next, customerItem];
+    }
+    if (!hasRoute(next, reportsItem.route)) {
+      next = [...next, reportsItem];
+    }
+    if (!hasRoute(next, achResponsesGroup.route)) {
+      next = [...next, achResponsesGroup];
+    } else {
+      const existingAchResponsesGroup = next.find((item) => item.route === '/ach-responses' || item.label === 'Respuestas ACH');
+      if (existingAchResponsesGroup) {
+        existingAchResponsesGroup.children = mergeChildren(existingAchResponsesGroup.children, achResponsesChildren);
+      }
+    }
+    if (!hasRoute(next, cenitGroup.route)) {
+      next = [...next, cenitGroup];
+    } else {
+      const existingCenitGroup = next.find((item) => item.route === '/cenit' || item.label === 'CENIT');
+      if (existingCenitGroup) {
+        existingCenitGroup.children = mergeChildren(existingCenitGroup.children, cenitChildren);
+      }
+    }
+
+    if (!hasRoute(next, nachaSecurityGroup.route)) {
+      next = [...next, nachaSecurityGroup];
+    } else {
+      const existingNachaSecurityGroup = next.find((item) => item.route === '/nacha-security/dashboard' || item.label === 'Seguridad NACHA');
+      if (existingNachaSecurityGroup) {
+        existingNachaSecurityGroup.children = mergeChildren(existingNachaSecurityGroup.children, nachaSecurityChildren);
+      }
+    }
+
+    if (!hasRoute(next, nachaConfigGroup.route)) {
+      next = [...next, nachaConfigGroup];
+    } else {
+      const existingNachaConfigGroup = next.find(
+        (item) =>
+          item.route === '/nacha-config-admin/perfiles' ||
+          item.label === 'Configuración NACHA-M' ||
+          item.label === 'NACHA-M Configuración'
+      );
+      if (existingNachaConfigGroup) {
+        existingNachaConfigGroup.label = 'Configuración NACHA-M';
+        existingNachaConfigGroup.children = mergeChildren(existingNachaConfigGroup.children, nachaConfigChildren);
+      }
+    }
+
+    if (!hasRoute(next, soapUatConsoleGroup.route)) {
+      next = [...next, soapUatConsoleGroup];
+    }
+
+    if (!hasRoute(next, reconciliationGroup.route)) {
+      next = [...next, reconciliationGroup];
+    }
+
+    const existingLogsGroup = next.find((item) => item.route === '/audit-logs' || item.label === 'Logs');
+    if (existingLogsGroup) {
+      existingLogsGroup.children = mergeChildren(existingLogsGroup.children, logsChildren);
+    } else {
+      next = [...next, logsGroup];
+    }
+
+    return [...next, catalogGroup];
   }
 
   private sortMenu(items: MenuItem[]): MenuItem[] {
@@ -279,7 +276,12 @@ export class NavigationService {
   }
 
   private removeLegacyNachaMenuItems(items: MenuItem[]): MenuItem[] {
-    const legacyRoutes = new Set(['/ach-cycles/nacha/layouts', '/ach-cycles/nacha/definitions']);
+    const legacyRoutes = new Set([
+      '/ach-cycles/nacha/layouts',
+      '/ach-cycles/nacha/definitions',
+      '/nacha-layouts',
+      '/nacha-record-definitions'
+    ]);
 
     return items
       .filter((item) => !legacyRoutes.has(item.route))

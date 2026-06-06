@@ -10,7 +10,7 @@ const routes: Routes = [
   {
     path: 'auth',
     component: LoginLayoutComponent,
-    data: { title: 'Autenticación', breadcrumb: 'Auth' },
+    data: { title: 'Autenticación', breadcrumb: 'Autenticación' },
     loadChildren: () => import('./features/auth/auth.module').then((m) => m.AuthModule)
   },
   { path: 'login', pathMatch: 'full', redirectTo: '/auth/login' },
@@ -135,7 +135,7 @@ const routes: Routes = [
           roles: ['Admin', 'ACH.Operator'],
           permissions: ['CanReadAch'],
           breadcrumb: 'CENIT',
-          title: 'Backoffice CENIT'
+          title: 'Centro de operación CENIT'
         },
         loadChildren: () => import('./features/cenit/cenit.module').then((m) => m.CenitModule)
       },
@@ -145,8 +145,8 @@ const routes: Routes = [
         data: {
           roles: ['Admin', 'ACH.Operator'],
           permissions: ['CanReadAch'],
-          breadcrumb: 'Config Profiles',
-          title: 'Administracion read-only NACHA Config Profiles'
+          breadcrumb: 'Configuración NACHA-M',
+          title: 'Configuración NACHA-M solo lectura'
         },
         loadChildren: () => import('./features/nacha-config-admin/nacha-config-admin.module').then((m) => m.NachaConfigAdminModule)
       },

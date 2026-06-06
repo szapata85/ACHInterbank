@@ -32,13 +32,13 @@ export class NachaOperationalDashboardComponent implements OnInit {
 
   readonly columnasArchivos: ColDef<NachaOperationalFile>[] = [
     { field: 'fileName', headerName: 'Archivo', minWidth: 210 },
-    { field: 'clearingHouseCode', headerName: 'Camara', minWidth: 110 },
+    { field: 'clearingHouseCode', headerName: 'Cámara', minWidth: 110 },
     { field: 'profileCode', headerName: 'Perfil', minWidth: 260 },
     { field: 'flowType', headerName: 'Flujo', minWidth: 220 },
     { field: 'isReturnFile', headerName: '.RET', minWidth: 90 },
     { field: 'validationPassed', headerName: 'Validado', minWidth: 110 },
-    { field: 'batchCount', headerName: 'Batches', minWidth: 110 },
-    { field: 'entryCount', headerName: 'Entries', minWidth: 110 },
+    { field: 'batchCount', headerName: 'Lotes', minWidth: 110 },
+    { field: 'entryCount', headerName: 'Entradas', minWidth: 110 },
     { field: 'addendaCount', headerName: 'Addenda', minWidth: 110 },
     { field: 'processingStatus', headerName: 'Estado', minWidth: 170 },
     { headerName: 'Recibido', minWidth: 180, valueGetter: (p) => this.formatDate(p.data?.receivedAt) }
@@ -50,9 +50,9 @@ export class NachaOperationalDashboardComponent implements OnInit {
     { field: 'soapOperationCandidate', headerName: 'Candidato SOAP', minWidth: 210 },
     { field: 'requiresMonetaryMovement', headerName: 'Movimiento', minWidth: 130 },
     { field: 'reasonCode', headerName: 'Causal', minWidth: 110 },
-    { field: 'reasonDescription', headerName: 'Descripcion', minWidth: 260 },
+    { field: 'reasonDescription', headerName: 'Descripción', minWidth: 260 },
     { field: 'newInternalStatus', headerName: 'Nuevo estado', minWidth: 170 },
-    { field: 'manualReviewRequired', headerName: 'Manual review', minWidth: 150 }
+    { field: 'manualReviewRequired', headerName: 'Revisión manual', minWidth: 150 }
   ];
 
   readonly columnasReadiness: ColDef<NachaSoapReadiness>[] = [
@@ -61,8 +61,8 @@ export class NachaOperationalDashboardComponent implements OnInit {
     { field: 'isBlocked', headerName: 'Blocked', minWidth: 120 },
     { headerName: 'Bloqueos', minWidth: 320, valueGetter: (p) => p.data?.blockReasons.join(' | ') ?? '' },
     { field: 'operationalGatePassed', headerName: 'Gate', minWidth: 110 },
-    { field: 'readinessCheckPassed', headerName: 'Readiness', minWidth: 130 },
-    { field: 'simulationPassed', headerName: 'Simulacion', minWidth: 130 },
+    { field: 'readinessCheckPassed', headerName: 'Preparación', minWidth: 130 },
+    { field: 'simulationPassed', headerName: 'Simulación', minWidth: 130 },
     { field: 'resiliencePassed', headerName: 'Resiliencia', minWidth: 130 },
     { field: 'productiveExecution', headerName: 'Productivo', minWidth: 130 },
     { field: 'wouldInvokeRealSoap', headerName: 'SOAP real', minWidth: 130 }
@@ -70,12 +70,12 @@ export class NachaOperationalDashboardComponent implements OnInit {
 
   readonly columnasAuditoria: ColDef<NachaOperationalAudit>[] = [
     { field: 'correlationId', headerName: 'CorrelationId', minWidth: 210 },
-    { field: 'phase', headerName: 'Phase', minWidth: 100 },
+    { field: 'phase', headerName: 'Fase', minWidth: 100 },
     { field: 'eventType', headerName: 'Evento', minWidth: 220 },
     { field: 'severity', headerName: 'Severidad', minWidth: 130 },
     { field: 'message', headerName: 'Mensaje', minWidth: 300 },
-    { field: 'isBlocked', headerName: 'Blocked', minWidth: 120 },
-    { headerName: 'Timestamp', minWidth: 180, valueGetter: (p) => this.formatDate(p.data?.timestamp) },
+    { field: 'isBlocked', headerName: 'Bloqueado', minWidth: 120 },
+    { headerName: 'Marca temporal', minWidth: 180, valueGetter: (p) => this.formatDate(p.data?.timestamp) },
     { headerName: 'Detalles sanitizados', minWidth: 300, valueGetter: (p) => this.formatDetails(p.data?.sanitizedDetails) }
   ];
 
@@ -130,7 +130,18 @@ export class NachaOperationalDashboardComponent implements OnInit {
       return 'Fuente: parcial';
     }
 
-    return 'Fuente: backend read-only';
+    return 'Fuente: backend solo lectura';
+  }
+
+  dataSourceLabelValue(value?: string | null): string {
+    const normalized = String(value ?? '').toLowerCase();
+    if (normalized.includes('demo')) {
+      return 'demo seguro';
+    }
+    if (normalized.includes('parcial')) {
+      return 'parcial';
+    }
+    return 'backend solo lectura';
   }
 
   canNavigateToFileDetail(file: NachaOperationalFile): boolean {

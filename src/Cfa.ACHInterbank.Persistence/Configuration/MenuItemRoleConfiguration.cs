@@ -98,11 +98,6 @@ public class MenuItemRoleConfiguration : IEntityTypeConfiguration<MenuItemRole>
             },
             new MenuItemRole
             {
-                MenuItemId = MenuItemConfiguration.NachaDefinitionsId,
-                RoleId = RoleConfiguration.AdminRoleId
-            },
-            new MenuItemRole
-            {
                 MenuItemId = MenuItemConfiguration.NavigationAdminId,
                 RoleId = RoleConfiguration.AdminRoleId
             },

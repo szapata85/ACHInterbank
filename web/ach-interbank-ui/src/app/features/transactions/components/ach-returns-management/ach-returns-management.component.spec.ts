@@ -110,7 +110,7 @@ describe('AchReturnsManagementComponent', () => {
   it('TransactionsReturns_ShouldRenderGridColumns', () => {
     const headers = component.columnDefs.map((column) => column.headerName);
 
-    expect(headers).toContain('Trace');
+    expect(headers).toContain('Traza');
     expect(headers).toContain('Referencia');
     expect(headers).toContain('Monto');
     expect(headers).toContain('Estado');

@@ -36,6 +36,7 @@ export interface NachaConfigLayoutVariant {
   recordCode: string;
   variantCode: string;
   nombreEs: string;
+  descripcion?: string | null;
   priority: number;
   isDefaultForRecord: boolean;
   totalLength: number;
@@ -60,6 +61,33 @@ export interface NachaConfigFieldRule {
   errorMessageEs: string;
   severity: string;
   isEnabled: boolean;
+}
+
+export interface NachaConfigFieldRuleEditRequest {
+  errorCode: string;
+  errorMessageEs: string;
+  severity: 'ERROR' | 'WARN';
+  isEnabled: boolean;
+  expectedRowVersion: string;
+}
+
+export interface NachaConfigLayoutVariantEditRequest {
+  nombreEs: string;
+  descripcion?: string | null;
+  priority: number;
+  isDefaultForRecord: boolean;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  expectedRowVersion: string;
+}
+
+export interface NachaConfigLayoutFieldEditRequest {
+  fieldNameEs: string;
+  startPosition: number;
+  length: number;
+  propertyPath?: string | null;
+  isEnabled: boolean;
+  expectedRowVersion: string;
 }
 
 export interface NachaConfigValidationIssue {

@@ -18,9 +18,9 @@ test.describe('NACHA SOAP/UAT console read-only', () => {
   test('SoapUatConsole_ShouldLoadReadOnlyPage', async ({ page }) => {
     await page.goto(consolePath);
 
-    await expect(page.getByRole('heading', { name: 'Consola SOAP/UAT read-only', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Consola SOAP/UAT solo lectura', level: 1 })).toBeVisible();
     await expect(page.getByText('Candidatos SOAP/UAT')).toBeVisible();
-    await expect(page.getByText('Auditoria SOAP/UAT')).toBeVisible();
+    await expect(page.getByText('Auditoría SOAP/UAT')).toBeVisible();
   });
 
   test('SoapUatConsole_ShouldShowNoGoAndSoapDisabled', async ({ page }) => {
@@ -28,8 +28,8 @@ test.describe('NACHA SOAP/UAT console read-only', () => {
 
     await expect(page.getByText('Productivo NO-GO')).toBeVisible();
     await expect(page.getByText('SOAP real deshabilitado', { exact: true })).toBeVisible();
-    await expect(page.getByText('ProductiveExecution', { exact: true })).toBeVisible();
-    await expect(page.getByText('WouldInvokeRealSoap', { exact: true })).toBeVisible();
+    await expect(page.getByText('Ejecución productiva', { exact: true })).toBeVisible();
+    await expect(page.getByText('Invocaría SOAP real', { exact: true })).toBeVisible();
   });
 
   test('SoapUatConsole_ShouldRenderCandidatesAndAudit', async ({ page }) => {
@@ -37,8 +37,8 @@ test.describe('NACHA SOAP/UAT console read-only', () => {
 
     await expect(page.getByText('ProcTransacciones', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('RegistrarRespuesta', { exact: true })).toBeVisible();
-    await expect(page.getByText('IDEMPOTENT/DUPLICATE', { exact: true })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Auditoria SOAP/UAT' })).toBeVisible();
+    await expect(page.getByText('IDEMPOTENTE/DUPLICADO', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Auditoría SOAP/UAT' })).toBeVisible();
   });
 
   test('SoapUatConsole_ShouldNotRenderExecutionButtons', async ({ page }) => {
@@ -56,7 +56,7 @@ test.describe('NACHA SOAP/UAT console read-only', () => {
     });
 
     await page.goto(consolePath);
-    await expect(page.getByRole('heading', { name: 'Consola SOAP/UAT read-only', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Consola SOAP/UAT solo lectura', level: 1 })).toBeVisible();
 
     expect(blockedRequests).toEqual([]);
   });
@@ -70,7 +70,7 @@ test.describe('NACHA SOAP/UAT console read-only', () => {
     });
 
     await page.goto(consolePath);
-    await expect(page.getByRole('heading', { name: 'Consola SOAP/UAT read-only', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Consola SOAP/UAT solo lectura', level: 1 })).toBeVisible();
 
     expect(legacyRequests).toEqual([]);
   });
@@ -84,7 +84,7 @@ test.describe('NACHA SOAP/UAT console read-only', () => {
     });
 
     await page.goto(consolePath);
-    await expect(page.getByRole('heading', { name: 'Consola SOAP/UAT read-only', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Consola SOAP/UAT solo lectura', level: 1 })).toBeVisible();
 
     expect(hashRequests).toEqual([]);
   });

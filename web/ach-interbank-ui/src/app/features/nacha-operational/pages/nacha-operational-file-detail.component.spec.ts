@@ -35,21 +35,21 @@ describe('NachaOperationalFileDetailComponent', () => {
   });
 
   it('FileDetailComponent_ShouldRenderReadOnlyBanner', () => {
-    expect(text()).toContain('Backend read-only sanitizado');
+    expect(text()).toContain('Backend solo lectura sanitizado');
   });
 
   it('FileDetailComponent_ShouldRenderHeaderBatchesEntriesAddendasControls', () => {
     const content = text();
 
-    expect(content).toContain('Header');
-    expect(content).toContain('Batches');
-    expect(content).toContain('Entries');
+    expect(content).toContain('Encabezado');
+    expect(content).toContain('Lotes');
+    expect(content).toContain('Entradas');
     expect(content).toContain('Addendas');
-    expect(content).toContain('Controls');
+    expect(content).toContain('Controles');
   });
 
   it('FileDetailComponent_ShouldRenderTotalsSummary', () => {
-    expect(text()).toContain('Totals');
+    expect(text()).toContain('Totales');
     expect(text()).toContain('Records persistidos');
   });
 
@@ -101,7 +101,7 @@ function detail() {
     correlationId: 'corr-N1',
     dataSource: 'parcial',
     isPartialData: true,
-    warnings: ['No persisted file controls found; detalle parcial read-only.'],
+    warnings: ['No se encontraron controles de archivo persistidos; detalle parcial solo lectura.'],
     header: { headerId: 'N1', priorityCode: '01', recordSize: '094', blockingFactor: '10', cycleNumber: 1 },
     batches: [{ batchId: 1, batchNumber: 1, serviceClassCode: '220', companyName: 'CFA', standardEntryClassCode: 'PPD' }],
     entries: [{ entryDetailId: 1, transactionCode: '22', accountNumberMasked: '****3456', recipIdNumberMasked: '****6789', amount: 100 }],

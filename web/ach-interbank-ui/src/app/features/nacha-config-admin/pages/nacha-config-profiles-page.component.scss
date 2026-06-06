@@ -1,14 +1,17 @@
+.nacha-config-profiles-page {
+  display: grid;
+  gap: 1rem;
+}
+
 .banners {
   display: grid;
   gap: 0.75rem;
-  margin-bottom: 1rem;
 }
 
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 0.75rem;
-  margin-bottom: 1rem;
 }
 
 .summary-grid article {
@@ -35,12 +38,12 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 0.75rem;
-  margin-bottom: 1rem;
 }
 
-.acciones {
+.acciones-crear {
   display: flex;
   justify-content: flex-end;
+  margin-top: 1rem;
 }
 
 .selector-campo {
@@ -52,4 +55,31 @@
 .selector-campo > span {
   font-weight: 600;
   font-size: var(--font-sm);
+}
+
+.selector-campo select {
+  min-height: var(--control-height);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: 0.55rem 0.75rem;
+  background: #fff;
+}
+
+.validacion-resumen {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.25rem 0.75rem;
+}
+
+.issues {
+  margin: 0.75rem 0 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.acciones-grid {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
 }

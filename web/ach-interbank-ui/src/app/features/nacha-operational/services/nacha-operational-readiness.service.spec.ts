@@ -75,7 +75,7 @@ describe('NachaOperationalReadinessService', () => {
 
     expect(dashboard.isDemoData).toBeTrue();
     expect(dashboard.dataSource).toBe('demo seguro');
-    expect(dashboard.summary.warnings.join(' ')).toContain('fallback read-only');
+    expect(dashboard.summary.warnings.join(' ')).toContain('respaldo solo lectura');
   });
 
   it('Service_ShouldReturnOperationalSummaryNoGo', async () => {
@@ -139,7 +139,7 @@ function apiDashboard(): NachaOperationalDashboardData {
       isDemoData: false,
       isPartialData: true,
       dataSource: 'parcial',
-      warnings: ['No persisted SOAP readiness data found; using safe read-only placeholder.']
+      warnings: ['No se encontraron datos persistidos de preparación SOAP; se usa un marcador seguro solo lectura.']
     },
     files: [
       {
@@ -179,7 +179,7 @@ function apiDashboard(): NachaOperationalDashboardData {
         soapOperationCandidate: 'ProcTransacciones',
         requiresMonetaryMovement: true,
         reasonCode: '00',
-        reasonDescription: 'Backend read-only',
+        reasonDescription: 'Backend solo lectura',
         newInternalStatus: 'Accepted',
         manualReviewRequired: false,
         isBlocked: false,
@@ -221,7 +221,7 @@ function apiDashboard(): NachaOperationalDashboardData {
         phase: '6B.5',
         eventType: 'Projected',
         severity: 'Information',
-        message: 'Backend read-only sanitizado.',
+        message: 'Backend solo lectura sanitizado.',
         isBlocked: false,
         dataSource: 'backend read-only',
         isDerived: false,
@@ -235,7 +235,7 @@ function apiDashboard(): NachaOperationalDashboardData {
     isDemoData: false,
     isPartialData: true,
     dataSource: 'parcial',
-    warnings: ['No persisted SOAP readiness data found; using safe read-only placeholder.'],
+    warnings: ['No se encontraron datos persistidos de preparación SOAP; se usa un marcador seguro solo lectura.'],
     productiveStatus: 'NO-GO'
   };
 }

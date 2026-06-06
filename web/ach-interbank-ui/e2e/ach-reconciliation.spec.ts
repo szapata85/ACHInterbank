@@ -1,4 +1,4 @@
-import { expect, Page, test } from '@playwright/test';
+﻿import { expect, Page, test } from '@playwright/test';
 
 const path = '/ach/reconciliation';
 const dashboardEndpoint = /\/api\/ach\/reconciliation\/dashboard$/;
@@ -18,8 +18,8 @@ test.describe('ACH reconciliation read-only console', () => {
   test('Reconciliation_ShouldLoadReadOnlyPage', async ({ page }) => {
     await page.goto(path);
 
-    await expect(page.getByRole('heading', { name: 'Consola de conciliacion ACH read-only', level: 1 })).toBeVisible();
-    await expect(page.getByText('Items conciliacion ACH')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Consola de conciliación ACH solo lectura', level: 1 })).toBeVisible();
+    await expect(page.getByText('Ítems conciliación ACH')).toBeVisible();
   });
 
   test('Reconciliation_ShouldShowNoGoAndNoMonetaryMovement', async ({ page }) => {
@@ -27,14 +27,14 @@ test.describe('ACH reconciliation read-only console', () => {
 
     await expect(page.getByText('Productivo NO-GO')).toBeVisible();
     await expect(page.getByText('Sin movimientos monetarios')).toBeVisible();
-    await expect(page.getByLabel('Fuente conciliacion').getByText('NO-GO', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Fuente conciliación').getByText('NO-GO', { exact: true })).toBeVisible();
   });
 
   test('Reconciliation_ShouldRenderItemsAndDetail', async ({ page }) => {
     await page.goto(path);
 
-    await expect(page.getByText('Items conciliacion ACH')).toBeVisible();
-    await expect(page.getByText('Detalle conciliacion')).toBeVisible();
+    await expect(page.getByText('Ítems conciliación ACH')).toBeVisible();
+    await expect(page.getByText('Detalle de conciliación')).toBeVisible();
     await expect(page.getByText('Diferenciales', { exact: true })).toBeVisible();
     await expect(page.getByText('.RET', { exact: true })).toBeVisible();
     await expect(page.getByText('CONCILIADO', { exact: true })).toBeVisible();
@@ -55,7 +55,7 @@ test.describe('ACH reconciliation read-only console', () => {
     });
 
     await page.goto(path);
-    await expect(page.getByRole('heading', { name: 'Consola de conciliacion ACH read-only', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Consola de conciliación ACH solo lectura', level: 1 })).toBeVisible();
 
     expect(blockedRequests).toEqual([]);
   });
@@ -69,7 +69,7 @@ test.describe('ACH reconciliation read-only console', () => {
     });
 
     await page.goto(path);
-    await expect(page.getByRole('heading', { name: 'Consola de conciliacion ACH read-only', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Consola de conciliación ACH solo lectura', level: 1 })).toBeVisible();
 
     expect(legacyRequests).toEqual([]);
   });
@@ -83,7 +83,7 @@ test.describe('ACH reconciliation read-only console', () => {
     });
 
     await page.goto(path);
-    await expect(page.getByRole('heading', { name: 'Consola de conciliacion ACH read-only', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Consola de conciliación ACH solo lectura', level: 1 })).toBeVisible();
 
     expect(hashRequests).toEqual([]);
   });
@@ -114,13 +114,13 @@ async function mockAuthRefresh(page: Page): Promise<void> {
 }
 
 function dashboard() {
-  return { productiveStatus: 'NO-GO', totalResponses: 2, totalDifferentialResponses: 1, totalReturns: 1, totalRejections: 1, totalPrenotifications: 1, totalRor: 1, totalReconciled: 1, totalPending: 1, totalInconsistent: 1, totalManualReviewRequired: 1, totalNonMonetary: 3, totalMonetaryCandidates: 1, lastUpdatedAt: '2026-05-31T12:00:00Z', dataSource: 'backend read-only', isPartialData: false, warnings: ['Productivo permanece NO-GO; consola read-only sin SOAP real ni movimientos.'] };
+  return { productiveStatus: 'NO-GO', totalResponses: 2, totalDifferentialResponses: 1, totalReturns: 1, totalRejections: 1, totalPrenotifications: 1, totalRor: 1, totalReconciled: 1, totalPending: 1, totalInconsistent: 1, totalManualReviewRequired: 1, totalNonMonetary: 3, totalMonetaryCandidates: 1, lastUpdatedAt: '2026-05-31T12:00:00Z', dataSource: 'backend read-only', isPartialData: false, warnings: ['Productivo permanece NO-GO; consola solo lectura sin SOAP real ni movimientos.'] };
 }
 
 function items() {
   return [
     { reconciliationId: 'resp-1', correlationId: 'corr-1', fileName: 'entrada.ach', clearingHouseCode: 'ACH', flowType: 'DifferentialResponse', responseType: 'Respuesta diferencial', reasonCode: 'R01', traceNumberMasked: '***0001', originalTraceNumberMasked: '***9999', internalStatus: 'Notificada', reconciliationStatus: 'Conciliado', requiresManualReview: false, isReturnFile: false, isRor: false, isPrenotification: false, isNonMonetary: true, isMonetaryCandidate: false, soapOperationCandidate: 'RegistrarRespuestaTransaccion', createdAt: '2026-05-31T12:00:00Z', dataSource: 'backend read-only', isPersisted: true, isDerived: true },
-    { reconciliationId: 'ret-1', correlationId: 'corr-ret', fileName: 'return.RET', clearingHouseCode: 'CENIT', flowType: 'Return', responseType: 'Devolucion .RET', reasonCode: 'R02', traceNumberMasked: '***0002', originalTraceNumberMasked: '***0001', internalStatus: 'Returned', reconciliationStatus: 'Pendiente', requiresManualReview: false, isReturnFile: true, isRor: false, isPrenotification: false, isNonMonetary: true, isMonetaryCandidate: false, soapOperationCandidate: 'RegistrarRespuestaTransaccion', createdAt: '2026-05-31T12:00:00Z', dataSource: 'backend read-only', isPersisted: true, isDerived: true }
+    { reconciliationId: 'ret-1', correlationId: 'corr-ret', fileName: 'return.RET', clearingHouseCode: 'CENIT', flowType: 'Return', responseType: 'Devolución .RET', reasonCode: 'R02', traceNumberMasked: '***0002', originalTraceNumberMasked: '***0001', internalStatus: 'Returned', reconciliationStatus: 'Pendiente', requiresManualReview: false, isReturnFile: true, isRor: false, isPrenotification: false, isNonMonetary: true, isMonetaryCandidate: false, soapOperationCandidate: 'RegistrarRespuestaTransaccion', createdAt: '2026-05-31T12:00:00Z', dataSource: 'backend read-only', isPersisted: true, isDerived: true }
   ];
 }
 
@@ -135,3 +135,4 @@ function createUnsignedJwt(payload: Record<string, unknown>): string {
 function base64Url(value: Record<string, unknown>): string {
   return Buffer.from(JSON.stringify(value)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
+

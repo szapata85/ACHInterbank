@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -28,6 +28,7 @@ interface IndicadorOperacion {
 export class CenitOperationPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(CenitOperationsApiService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   view: OperationView = 'ciclos';
   titulo = '';
@@ -45,6 +46,7 @@ export class CenitOperationPageComponent implements OnInit {
   ];
 
   rows: Array<Record<string, string>> = [];
+  columnasTabla: ColDef<Record<string, string>>[] = [];
 
   ngOnInit(): void {
     this.view = (this.route.snapshot.data['view'] as OperationView) ?? 'ciclos';
@@ -88,9 +90,105 @@ export class CenitOperationPageComponent implements OnInit {
     ];
   }
 
-  get columnasTabla(): ColDef<Record<string, string>>[] {
-    const headers = this.filteredRows[0] ? Object.keys(this.filteredRows[0]) : [];
+  get mensajeVacio(): string {
+    const map: Record<OperationView, string> = {
+      ciclos: 'No hay ciclos CENIT para los filtros aplicados.',
+      cola: 'No hay transacciones en cola CENIT para los filtros aplicados.',
+      neteo: 'No hay posiciones netas CENIT registradas para la ejecución consultada.',
+      optimizacion: 'No hay decisiones de optimización CENIT registradas para los filtros aplicados.',
+      devoluciones: 'No hay devoluciones operativas CENIT para los filtros aplicados.',
+      trazabilidad: 'No hay eventos de trazabilidad CENIT/ACH para los filtros aplicados.'
+    };
 
+    return map[this.view];
+  }
+
+  limpiarFiltros(): void {
+    this.filtroControl.setValue('');
+    this.cdr.markForCheck();
+  }
+
+  private load(): void {
+    this.loading = true;
+    this.error = '';
+    this.cdr.markForCheck();
+
+    const done = () => {
+      this.loading = false;
+      this.cdr.markForCheck();
+    };
+
+    switch (this.view) {
+      case 'ciclos':
+        this.api
+          .getCycles({ page: 1, pageSize: 50 })
+          .pipe(finalize(done))
+          .subscribe({
+            next: (items) => this.setRows(items.map((x) => this.mapCycle(x))),
+            error: () => this.setError('No fue posible consultar ciclos operativos.')
+          });
+        return;
+      case 'cola':
+        this.api
+          .getQueueTransactions('', 1, 50)
+          .pipe(finalize(done))
+          .subscribe({
+            next: (response) => this.setRows((response.items ?? []).map((x) => this.mapQueue(x))),
+            error: () => this.setError('No fue posible consultar la cola operativa.')
+          });
+        return;
+      case 'neteo':
+        this.api
+          .getNetPositions()
+          .pipe(finalize(done))
+          .subscribe({
+            next: (response) => this.setRows((response.items ?? []).map((x) => this.mapNet(x))),
+            error: () => this.setError('No fue posible consultar posiciones netas.')
+          });
+        return;
+      case 'optimizacion':
+        this.api
+          .getOptimizationDecisions()
+          .pipe(finalize(done))
+          .subscribe({
+            next: (response) => this.setRows((response.items ?? []).map((x) => this.mapOptimization(x))),
+            error: () => this.setError('No fue posible consultar decisiones de optimización.')
+          });
+        return;
+      case 'devoluciones':
+        this.api
+          .getReturns({ page: 1, pageSize: 50 })
+          .pipe(finalize(done))
+          .subscribe({
+            next: (items) => this.setRows(items.map((x) => this.mapTrace(x))),
+            error: () => this.setError('No fue posible consultar devoluciones.')
+          });
+        return;
+      case 'trazabilidad':
+        this.api
+          .getOperationalTraceability(1, 50)
+          .pipe(finalize(done))
+          .subscribe({
+            next: (response) => this.setRows((response.items ?? []).map((x) => this.mapTrace(x))),
+            error: () => this.setError('No fue posible consultar trazabilidad operativa.')
+          });
+        return;
+    }
+  }
+
+  private setRows(rows: Array<Record<string, string>>): void {
+    this.rows = rows;
+    this.columnasTabla = this.buildColumns(rows);
+    this.cdr.markForCheck();
+  }
+
+  private setError(message: string): void {
+    this.error = message;
+    this.setRows([]);
+  }
+
+  private buildColumns(rows: Array<Record<string, string>>): ColDef<Record<string, string>>[] {
+    const headers = rows[0] ? Object.keys(rows[0]) : [];
     return headers.map((header) => ({
       field: header,
       headerName: header,
@@ -98,72 +196,6 @@ export class CenitOperationPageComponent implements OnInit {
       filter: 'agTextColumnFilter',
       tooltipValueGetter: (params) => (params.value == null ? '' : String(params.value))
     }));
-  }
-
-  limpiarFiltros(): void {
-    this.filtroControl.setValue('');
-  }
-
-  private load(): void {
-    this.loading = true;
-    this.error = '';
-
-    switch (this.view) {
-      case 'ciclos':
-        this.api
-          .getCycles({ page: 1, pageSize: 50 })
-          .pipe(finalize(() => (this.loading = false)))
-          .subscribe({
-            next: (items) => (this.rows = items.map((x) => this.mapCycle(x))),
-            error: () => (this.error = 'No fue posible consultar ciclos operativos.')
-          });
-        return;
-      case 'cola':
-        this.api
-          .getQueueTransactions('', 1, 50)
-          .pipe(finalize(() => (this.loading = false)))
-          .subscribe({
-            next: (response) => (this.rows = (response.items ?? []).map((x) => this.mapQueue(x))),
-            error: () => (this.error = 'No fue posible consultar la cola operativa.')
-          });
-        return;
-      case 'neteo':
-        this.api
-          .getNetPositions()
-          .pipe(finalize(() => (this.loading = false)))
-          .subscribe({
-            next: (response) => (this.rows = (response.items ?? []).map((x) => this.mapNet(x))),
-            error: () => (this.error = 'No fue posible consultar posiciones netas.')
-          });
-        return;
-      case 'optimizacion':
-        this.api
-          .getOptimizationDecisions()
-          .pipe(finalize(() => (this.loading = false)))
-          .subscribe({
-            next: (response) => (this.rows = (response.items ?? []).map((x) => this.mapOptimization(x))),
-            error: () => (this.error = 'No fue posible consultar decisiones de optimización.')
-          });
-        return;
-      case 'devoluciones':
-        this.api
-          .getReturns({ page: 1, pageSize: 50 })
-          .pipe(finalize(() => (this.loading = false)))
-          .subscribe({
-            next: (items) => (this.rows = items.map((x) => this.mapTrace(x))),
-            error: () => (this.error = 'No fue posible consultar devoluciones.')
-          });
-        return;
-      case 'trazabilidad':
-        this.api
-          .getOperationalTraceability(1, 50)
-          .pipe(finalize(() => (this.loading = false)))
-          .subscribe({
-            next: (response) => (this.rows = (response.items ?? []).map((x) => this.mapTrace(x))),
-            error: () => (this.error = 'No fue posible consultar trazabilidad operativa.')
-          });
-        return;
-    }
   }
 
   private mapCycle(row: CycleReportRow): Record<string, string> {
@@ -208,25 +240,29 @@ export class CenitOperationPageComponent implements OnInit {
 
   private mapQueue(row: CenitQueueRow): Record<string, string> {
     return {
-      'ID cola': String(row.id),
+      Id: String(row.id),
       Estado: row.status,
       Motivo: row.queueReason,
-      Transacción: String(row.transactionId),
-      'ID externo': row.transactionExternalId || '-',
-      Referencia: row.reference || '-',
+      'Encolado': row.enqueuedAtUtc,
+      'Desencolado': row.dequeuedAtUtc ?? '-',
+      'Ciclo destino': row.targetCycleName,
+      'ID ciclo destino': row.targetAchCycleId,
+      'Ciclo origen': row.originalAchCycleId ?? '-',
+      'Transacción': String(row.transactionId),
+      'Id externo': row.transactionExternalId ?? '-',
+      Referencia: row.reference ?? '-',
+      Monto: this.formatAmount(row.amount),
       Tipo: row.transactionType,
       'Estado transacción': row.transactionState,
-      'Ciclo original': row.originalAchCycleId || '-',
-      'Ciclo destino': `${row.targetCycleName} (${row.targetAchCycleId})`,
-      Encolado: row.enqueuedAtUtc,
-      Desencolado: row.dequeuedAtUtc || '-'
+      'Fecha valor': row.effectiveEntryDate,
+      'Ejecución CENIT': row.cenitCycleExecutionId?.toString() ?? '-'
     };
   }
 
   private mapOptimization(row: CenitOptimizationDecisionRow): Record<string, string> {
     return {
-      Transacción: String(row.achTransactionId),
-      'Decisión interna de liquidez': this.mapDecisionType(row.decisionType),
+      'Transacción ACH': String(row.achTransactionId),
+      Decisión: this.mapDecisionType(row.decisionType),
       'Motivo operativo': this.mapDecisionReason(row.decisionReason),
       Prioridad: String(row.priority),
       'Ciclo origen': row.fromCycleId,

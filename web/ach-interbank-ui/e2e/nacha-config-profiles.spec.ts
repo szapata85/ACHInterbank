@@ -20,28 +20,28 @@ test.describe('NACHA config profiles official read-only page', () => {
   });
 
   test('ConfigProfiles_ShouldLoadOfficialPage', async ({ page }) => {
-    await page.goto(configProfilesPagePath);
+    await loadConfigProfilesPage(page);
 
     await expect(page).toHaveURL(/\/nacha-config-admin\/perfiles$/);
-    await expect(page.getByText('Config Profiles NACHA-M')).toBeVisible();
+    await expect(page.getByTestId('nacha-config-profiles-page').getByRole('heading', { name: 'Configuración NACHA-M' })).toBeVisible();
   });
 
   test('ConfigProfiles_ShouldShowOfficialModelBanner', async ({ page }) => {
-    await page.goto(configProfilesPagePath);
+    await loadConfigProfilesPage(page);
 
-    await expect(page.getByText('Modelo oficial NACHA-M: nacha-config profiles.')).toBeVisible();
+    await expect(page.getByText('Modelo oficial NACHA-M: perfiles de configuración oficiales.')).toBeVisible();
   });
 
   test('ConfigProfiles_ShouldShowNoGoBanner', async ({ page }) => {
-    await page.goto(configProfilesPagePath);
+    await loadConfigProfilesPage(page);
 
     await expect(page.getByText(/Productivo NO-GO/)).toBeVisible();
   });
 
   test('ConfigProfiles_ShouldNotRenderMutationButtons', async ({ page }) => {
-    await page.goto(configProfilesPagePath);
+    await loadConfigProfilesPage(page);
 
-    await expect(page.getByRole('button', { name: /Crear borrador|Publicar|Guardar|Eliminar|Archivar|Inactivar/i })).toHaveCount(0);
+    await expect(page.getByTestId('nacha-config-profiles-page').getByRole('button', { name: /Crear borrador|Publicar|Guardar|Eliminar|Archivar|Inactivar/i })).toHaveCount(0);
   });
 
   test('ConfigProfiles_ShouldNotCallLegacyLayoutsOrDefinitions', async ({ page }) => {
@@ -51,8 +51,7 @@ test.describe('NACHA config profiles official read-only page', () => {
       await route.abort();
     });
 
-    await page.goto(configProfilesPagePath);
-    await expect(page.getByText('OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0')).toBeVisible();
+    await loadConfigProfilesPage(page);
 
     expect(legacyCalled).toBe(false);
   });
@@ -65,8 +64,7 @@ test.describe('NACHA config profiles official read-only page', () => {
       }
     });
 
-    await page.goto(configProfilesPagePath);
-    await expect(page.getByText('OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0')).toBeVisible();
+    await loadConfigProfilesPage(page);
 
     expect(mutationRequests).toEqual([]);
   });
@@ -79,8 +77,7 @@ test.describe('NACHA config profiles official read-only page', () => {
       }
     });
 
-    await page.goto(configProfilesPagePath);
-    await expect(page.getByText('OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0')).toBeVisible();
+    await loadConfigProfilesPage(page);
 
     expect(exportRequests.some(url => hashExportPattern.test(url))).toBe(false);
   });
@@ -91,7 +88,7 @@ async function mockNavigation(page: Page): Promise<void> {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify([{ id: 3, label: 'Config Profiles', route: '/nacha-config-admin/perfiles' }])
+      body: JSON.stringify([{ id: 3, label: 'Configuración NACHA-M', route: '/nacha-config-admin/perfiles' }])
     });
   });
 }
@@ -170,8 +167,8 @@ async function seedAuthenticatedSession(page: Page): Promise<void> {
     unique_name: 'uat.config',
     name: 'Usuario UAT Config',
     uid: 'uat-config',
-    role: ['Admin', 'ACH.Operator'],
-    permission: ['CanReadAch', 'CanManageAch'],
+    role: ['ACH.Operator'],
+    permission: ['CanReadAch'],
     exp: Math.floor(Date.now() / 1000) + 3600,
     iat: Math.floor(Date.now() / 1000)
   });
@@ -186,8 +183,8 @@ async function mockAuthRefresh(page: Page): Promise<void> {
     unique_name: 'uat.config',
     name: 'Usuario UAT Config',
     uid: 'uat-config',
-    role: ['Admin', 'ACH.Operator'],
-    permission: ['CanReadAch', 'CanManageAch'],
+    role: ['ACH.Operator'],
+    permission: ['CanReadAch'],
     exp: Math.floor(Date.now() / 1000) + 3600,
     iat: Math.floor(Date.now() / 1000)
   });
@@ -202,12 +199,24 @@ async function mockAuthRefresh(page: Page): Promise<void> {
           token,
           username: 'uat.config',
           fullName: 'Usuario UAT Config',
-          roles: ['Admin', 'ACH.Operator'],
-          permissions: ['CanReadAch', 'CanManageAch']
+          roles: ['ACH.Operator'],
+          permissions: ['CanReadAch']
         }
       })
     });
   });
+}
+
+async function loadConfigProfilesPage(page: Page): Promise<void> {
+  await Promise.all([
+    page.waitForResponse(response => navigationEndpoint.test(response.url()) && response.status() === 200),
+    page.waitForResponse(response => filterCatalogsEndpoint.test(response.url()) && response.status() === 200),
+    page.waitForResponse(response => dashboardEndpoint.test(response.url()) && response.status() === 200),
+    page.waitForResponse(response => profilesEndpoint.test(response.url()) && response.status() === 200),
+    page.goto(configProfilesPagePath)
+  ]);
+
+  await expect(page.getByTestId('nacha-config-profiles-page')).toBeVisible();
 }
 
 function createUnsignedJwt(payload: Record<string, unknown>): string {
