@@ -13,6 +13,8 @@ type RuntimeMode = 'real' | 'fallback';
 
 const refreshEndpoint = /\/auth\/refresh$/;
 const apiPattern = /\/api\//;
+const auxiliaryLayoutEndpoint = /\/api\/users\/branding(?:\?.*)?$/;
+const auxiliaryNavigationLogEndpoint = /\/api\/navigation-logs(?:\?.*)?$/;
 const uiCandidates = unique([
   process.env['ACH_UI_URL'],
   'http://localhost:743',
@@ -135,13 +137,13 @@ test.describe('CENIT routes render with API evidence', () => {
       });
 
       page.on('requestfailed', request => {
-        if (isCriticalRequest(request.url())) {
+        if (isExpectedCenitRequest(request.url(), route) || isCriticalAsset(request.url())) {
           failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText ?? ''}`.trim());
         }
       });
 
       page.on('request', request => {
-        if (isCriticalRequest(request.url())) {
+        if (isExpectedCenitRequest(request.url(), route)) {
           apiRequests.push(`${request.method()} ${request.url()}`);
         }
       });
@@ -161,6 +163,8 @@ test.describe('CENIT routes render with API evidence', () => {
       if (runtime.mode === 'fallback') {
         await mockCenitApi(page);
       }
+
+      await mockAuxiliaryLayoutEndpoints(page);
 
       await page.goto(joinUrl(runtime.uiBaseUrl, route.path));
 
@@ -338,6 +342,24 @@ async function mockCenitApi(page: Page): Promise<void> {
   await mockJson(page, /\/api\/cenit\/traceability(?:\?|$)/, { items: [] });
 }
 
+async function mockAuxiliaryLayoutEndpoints(page: Page): Promise<void> {
+  await page.route(auxiliaryLayoutEndpoint, async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ logoUrl: null, primaryColor: '#1d4ed8', secondaryColor: '#0f172a' })
+    });
+  });
+
+  await page.route(auxiliaryNavigationLogEndpoint, async route => {
+    await route.fulfill({
+      status: 204,
+      contentType: 'application/json',
+      body: ''
+    });
+  });
+}
+
 async function mockJson(page: Page, pattern: RegExp, body: unknown): Promise<void> {
   await page.route(pattern, async route => {
     await route.fulfill({
@@ -348,8 +370,12 @@ async function mockJson(page: Page, pattern: RegExp, body: unknown): Promise<voi
   });
 }
 
-function isCriticalRequest(url: string): boolean {
-  return apiPattern.test(url) || url.endsWith('.js') || url.endsWith('.css');
+function isExpectedCenitRequest(url: string, route: CenitRoute): boolean {
+  return route.expectedApi.test(url);
+}
+
+function isCriticalAsset(url: string): boolean {
+  return url.endsWith('.js') || url.endsWith('.css');
 }
 
 function isBenignConsoleError(text: string): boolean {

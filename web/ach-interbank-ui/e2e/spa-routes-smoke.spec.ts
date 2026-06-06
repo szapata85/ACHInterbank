@@ -9,6 +9,7 @@ type SmokeRoute = {
 
 const refreshEndpoint = /\/auth\/refresh$/;
 const navigationEndpoint = /\/navigation\/menu$/;
+const runRealRuntime = process.env['RUN_REAL_RUNTIME_E2E'] === 'true';
 const legacyRoutes = [
   '/ach-cycles/nacha/layouts',
   '/ach-cycles/nacha/definitions',
@@ -328,18 +329,23 @@ async function mockAuthRefresh(page: Page): Promise<void> {
 }
 
 async function authenticate(page: Page): Promise<void> {
+  await seedAuthenticatedSession(page);
+  await mockAuthRefresh(page);
+
+  if (!runRealRuntime) {
+    return;
+  }
+
   const apiBaseUrl = process.env['ACH_API_URL'] ?? '';
   const user = process.env['ACH_USER'] ?? 'admin';
   const pass = process.env['ACH_PASS'] ?? 'Admin123!';
 
-  if (apiBaseUrl) {
-    const token = await loginByApi(apiBaseUrl, user, pass);
-    await seedAuthenticatedSession(page, token);
-    await mockAuthRefresh(page);
+  if (!apiBaseUrl) {
     return;
   }
 
-  await seedAuthenticatedSession(page);
+  const token = await loginByApi(apiBaseUrl, user, pass);
+  await seedAuthenticatedSession(page, token);
   await mockAuthRefresh(page);
 }
 

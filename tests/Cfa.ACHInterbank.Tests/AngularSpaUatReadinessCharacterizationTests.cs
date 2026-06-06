@@ -415,9 +415,11 @@ public class AngularSpaUatReadinessCharacterizationTests
         var cenitContent = Read(tsPath) + "\n" + Read(htmlPath);
         ShouldContainIgnoreCase(cenitContent, "Liquidez simulada");
         ShouldContainIgnoreCase(cenitContent, "Posición neta");
-        ShouldContainIgnoreCase(cenitContent, "Decisión interna de liquidez");
-        ShouldContainIgnoreCase(cenitContent, "Evidencia CUD");
-        (cenitContent.Contains("Diferido por liquidez", StringComparison.OrdinalIgnoreCase)
+        ShouldContainIgnoreCase(cenitContent, "Diferido por liquidez");
+        ShouldContainIgnoreCase(cenitContent, "Rechazado internamente por liquidez");
+        ShouldContainIgnoreCase(cenitContent, "Causal interna DXX-LIQ");
+        (cenitContent.Contains("Procesado internamente", StringComparison.OrdinalIgnoreCase)
+            || cenitContent.Contains("Diferido por liquidez", StringComparison.OrdinalIgnoreCase)
             || cenitContent.Contains("Rechazado internamente por liquidez", StringComparison.OrdinalIgnoreCase))
             .Should().BeTrue();
     }
