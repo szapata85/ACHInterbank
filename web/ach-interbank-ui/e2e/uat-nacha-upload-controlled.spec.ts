@@ -1,4 +1,5 @@
-﻿import { expect, Page, test, TestInfo } from '@playwright/test';
+import { expect, Page, test, TestInfo } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 type RuntimeMode = 'real' | 'fallback';
@@ -32,42 +33,56 @@ type FallbackState = {
 const uploadPath = '/transactions/nacha-upload';
 const healthLivePath = '/health/live';
 const loginPath = '/auth/login';
-const refreshEndpoint = /\/auth\/refresh$/;
-const navigationEndpoint = /\/navigation\/menu$/;
+const refreshEndpoint = /\/auth\/refresh(?:\?.*)?$/;
+const navigationEndpoint = /\/navigation\/menu(?:\?.*)?$/;
 const brandingEndpoint = /\/api\/users\/branding(?:\?.*)?$/;
 const navigationLogsEndpoint = /\/api\/navigation-logs(?:\?.*)?$/;
-const uploadEndpoint = /\/NachaUpload\/upload$/;
+const uploadEndpoint = /\/NachaUpload\/upload(?:\?.*)?$/;
 const recordsEndpoint = /\/NachaUpload\/records(?:\?.*)?$/;
+const refreshRoutePattern = '**/auth/refresh**';
+const navigationRoutePattern = '**/navigation/menu**';
+const brandingRoutePattern = '**/api/users/branding**';
+const navigationLogsRoutePattern = '**/api/navigation-logs**';
+const uploadRoutePattern = '**/NachaUpload/upload**';
+const recordsRoutePattern = '**/NachaUpload/records**';
 const legacyNachaEndpoint = /\/(?:nacha-layouts|nacha-record-definitions)(?:\/|\?|$)/;
 const soapRealEndpoint = /\/soap(?:\/|$)/i;
 const moneyMovementEndpoint = /\/(?:proc-transacciones|proc-contrapartidas|movimientos|movement|payments)(?:\/|\?|$)/i;
-const goldenFilePath = path.resolve(__dirname, '../../../tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles/ACHColombia/Incoming/ACH_COL_IN_001.ach');
+
+const goldenIncomingFilePath = path.resolve(__dirname, '../../../tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles/ACHColombia/Incoming/ACH_COL_IN_001.ach');
+const goldenReturnFilePath = path.resolve(__dirname, '../../../tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles/ACHColombia/Returns/ACH_COL_RET_001.RET');
+const officialOperationalFileName = '0001283.001.1';
+const officialReturnFileName = '0001283.001.RET';
 
 test.describe('NACHA upload controlled ACH Colombia', () => {
-  test('NachaUpload_ShouldUploadSyntheticGoldenAndShowEvidence', async ({ page }, testInfo) => {
+  test('ShouldAcceptOfficialOperationalPatternAndShowEvidence', async ({ page }, testInfo) => {
     const runtime = await resolveRuntime();
+    const uploadCalls = createCounter();
     const activity = createActivityRecorder(page);
     const state = createFallbackState();
 
     await seedSession(page, runtime.authToken);
     await mockAuthRefresh(page, runtime.authToken);
     await mockLayoutAuxiliaryEndpoints(page);
-    await mockFallbackRuntime(page, state, runtime.authToken);
-    await page.goto('/');
-    await page.evaluate((token) => {
-      window.sessionStorage.setItem('ach.interbank.access_token', token);
-    }, runtime.authToken);
+    await mockControlledUploadRuntime(page, state, uploadCalls);
     await page.goto(uploadPath);
 
     await expect(page.getByTestId('nacha-upload-form')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('Cargar archivo NACHA-M', { exact: true })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText(/Sube archivos NACHA-M de cámaras compensadoras y consulta el detalle cargado\./i)).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator('body')).not.toHaveText(/ChunkLoadError|Application error|UnhandledPromiseRejection/i);
-    await expect(page.getByTestId('nacha-upload-records')).toBeVisible();
+    await expect(page.getByTestId('nacha-upload-help')).toContainText('RRRRTTT.ZZZ.1');
+
+    await page.locator('input[type="file"]').setInputFiles({
+      name: officialOperationalFileName,
+      mimeType: 'application/octet-stream',
+      buffer: readFileSync(goldenIncomingFilePath)
+    });
+
+    await expect(page.getByTestId('nacha-upload-selected-kind')).toBeVisible();
+    await expect(page.getByTestId('nacha-upload-selected-kind')).toContainText('Archivo operativo ACH Colombia');
+    await expect(page.getByTestId('nacha-upload-selected-kind')).toContainText('RRRRTTT.ZZZ.1');
+    await expect(page.getByTestId('nacha-upload-selected-error')).toHaveCount(0);
 
     const uploadResponsePromise = page.waitForResponse((response) => uploadEndpoint.test(response.url()) && response.request().method() === 'POST');
-    await page.locator('input[type="file"]').setInputFiles(goldenFilePath);
-    await expect(page.getByText('Archivo seleccionado: ACH_COL_IN_001.ach')).toBeVisible();
     await page.getByRole('button', { name: 'Cargar archivo' }).click();
 
     const uploadResponse = await uploadResponsePromise;
@@ -80,11 +95,11 @@ test.describe('NACHA upload controlled ACH Colombia', () => {
     await expect(page.getByTestId('nacha-upload-result').locator('.upload-result-badge')).toContainText(/Procesado correctamente|Procesado con observaciones|Rechazo controlado|Recepción controlada/i);
     await expect(page.getByText(/Trace ID/i)).toBeVisible();
     await expect(page.getByTestId('nacha-upload-records')).toBeVisible();
-    await expect(page.locator('body')).not.toHaveText(/ChunkLoadError|Application error|UnhandledPromiseRejection/i);
+    await expect(page.getByText('UA-NACHA-001')).toBeVisible();
 
-    const screenshotPath = testInfo.outputPath('nacha-upload-controlled.png');
+    const screenshotPath = testInfo.outputPath('nacha-upload-official-pattern.png');
     await page.screenshot({ path: screenshotPath, fullPage: true });
-    await testInfo.attach('nacha-upload-controlled.png', { path: screenshotPath, contentType: 'image/png' });
+    await testInfo.attach('nacha-upload-official-pattern.png', { path: screenshotPath, contentType: 'image/png' });
     await testInfo.attach('nacha-upload-response.json', {
       body: JSON.stringify({
         runtime: runtime.mode,
@@ -94,6 +109,7 @@ test.describe('NACHA upload controlled ACH Colombia', () => {
       contentType: 'application/json'
     });
 
+    expect(uploadCalls.value).toBe(1);
     expect(activity.legacyRequests).toEqual([]);
     expect(activity.soapRequests).toEqual([]);
     expect(activity.moneyRequests).toEqual([]);
@@ -101,6 +117,130 @@ test.describe('NACHA upload controlled ACH Colombia', () => {
     expect(activity.criticalRequestFailures).toEqual([]);
     expect(activity.consoleErrors).toEqual([]);
   });
+
+  test('ShouldAcceptFixtureInternalGoldenAndLabelItAsInternal', async ({ page }, testInfo) => {
+    const runtime = await resolveRuntime();
+    const uploadCalls = createCounter();
+    const activity = createActivityRecorder(page);
+    const state = createFallbackState();
+
+    await seedSession(page, runtime.authToken);
+    await mockAuthRefresh(page, runtime.authToken);
+    await mockLayoutAuxiliaryEndpoints(page);
+    await mockControlledUploadRuntime(page, state, uploadCalls);
+    await page.goto(uploadPath);
+
+    await page.locator('input[type="file"]').setInputFiles(goldenIncomingFilePath);
+
+    await expect(page.getByTestId('nacha-upload-selected-kind')).toBeVisible();
+    await expect(page.getByTestId('nacha-upload-selected-kind')).toContainText('Fixture UAT/golden interno');
+
+    await page.getByRole('button', { name: 'Cargar archivo' }).click();
+
+    await expect(page.getByTestId('nacha-upload-result')).toBeVisible();
+    await expect(page.getByTestId('nacha-upload-result-message')).toBeVisible();
+    await expect(page.getByText('UA-NACHA-001')).toBeVisible();
+    expect(uploadCalls.value).toBe(1);
+
+    const screenshotPath = testInfo.outputPath('nacha-upload-fixture-internal.png');
+    await page.screenshot({ path: screenshotPath, fullPage: true });
+    await testInfo.attach('nacha-upload-fixture-internal.png', { path: screenshotPath, contentType: 'image/png' });
+
+    expect(activity.legacyRequests).toEqual([]);
+    expect(activity.soapRequests).toEqual([]);
+    expect(activity.moneyRequests).toEqual([]);
+    expect(activity.htmlAssetResponses).toEqual([]);
+    expect(activity.criticalRequestFailures).toEqual([]);
+    expect(activity.consoleErrors).toEqual([]);
+  });
+
+  test('ShouldAcceptReturnGoldenAndShowEvidence', async ({ page }, testInfo) => {
+    const runtime = await resolveRuntime();
+    const uploadCalls = createCounter();
+    const activity = createActivityRecorder(page);
+    const state = createFallbackState();
+
+    await seedSession(page, runtime.authToken);
+    await mockAuthRefresh(page, runtime.authToken);
+    await mockLayoutAuxiliaryEndpoints(page);
+    await mockControlledUploadRuntime(page, state, uploadCalls);
+    await page.goto(uploadPath);
+
+    await page.locator('input[type="file"]').setInputFiles({
+      name: officialReturnFileName,
+      mimeType: 'application/octet-stream',
+      buffer: readFileSync(goldenReturnFilePath)
+    });
+    await expect(page.getByTestId('nacha-upload-selected-kind')).toBeVisible();
+    await expect(page.getByTestId('nacha-upload-selected-kind')).toContainText('Devolución ACH Colombia');
+    await expect(page.getByTestId('nacha-upload-selected-kind')).toContainText('RRRRTTT.ZZZ.RET');
+
+    const uploadResponsePromise = page.waitForResponse((response) => uploadEndpoint.test(response.url()) && response.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Cargar archivo' }).click();
+
+    const uploadResponse = await uploadResponsePromise;
+    const uploadPayload = await safeJson(uploadResponse);
+
+    await expect(page.getByTestId('nacha-upload-result')).toBeVisible();
+    await expect(page.getByTestId('nacha-upload-result-message')).toBeVisible();
+    await expect(page.getByText('UA-NACHA-001')).toBeVisible();
+
+    const screenshotPath = testInfo.outputPath('nacha-upload-return-pattern.png');
+    await page.screenshot({ path: screenshotPath, fullPage: true });
+    await testInfo.attach('nacha-upload-return-pattern.png', { path: screenshotPath, contentType: 'image/png' });
+    await testInfo.attach('nacha-upload-return-response.json', {
+      body: JSON.stringify({
+        runtime: runtime.mode,
+        apiBaseUrl: runtime.apiBaseUrl,
+        upload: uploadPayload
+      }, null, 2),
+      contentType: 'application/json'
+    });
+
+    expect(uploadCalls.value).toBe(1);
+    expect(activity.legacyRequests).toEqual([]);
+    expect(activity.soapRequests).toEqual([]);
+    expect(activity.moneyRequests).toEqual([]);
+    expect(activity.htmlAssetResponses).toEqual([]);
+    expect(activity.criticalRequestFailures).toEqual([]);
+    expect(activity.consoleErrors).toEqual([]);
+  });
+
+  for (const invalidName of ['rechazo.txt', 'rechazo.nacha', 'rechazo.env']) {
+    test(`ShouldRejectControlledInvalidExtension_${invalidName.replace(/\W+/g, '_')}`, async ({ page }) => {
+      const runtime = await resolveRuntime();
+      const uploadCalls = createCounter();
+      const activity = createActivityRecorder(page);
+      const state = createFallbackState();
+
+      await seedSession(page, runtime.authToken);
+      await mockAuthRefresh(page, runtime.authToken);
+      await mockLayoutAuxiliaryEndpoints(page);
+      await mockControlledUploadRuntime(page, state, uploadCalls);
+      await page.goto(uploadPath);
+
+      await page.locator('input[type="file"]').setInputFiles({
+        name: invalidName,
+        mimeType: 'application/octet-stream',
+        buffer: readFileSync(goldenIncomingFilePath)
+      });
+
+      await expect(page.getByTestId('nacha-upload-selected-error')).toBeVisible();
+      await expect(page.getByTestId('nacha-upload-selected-error')).toContainText(/\.txt|\.nacha|\.env/i);
+
+      await page.getByRole('button', { name: 'Cargar archivo' }).click();
+      await page.waitForTimeout(200);
+
+      expect(uploadCalls.value).toBe(0);
+      await expect(page.getByTestId('nacha-upload-result')).toHaveCount(0);
+      expect(activity.legacyRequests).toEqual([]);
+      expect(activity.soapRequests).toEqual([]);
+      expect(activity.moneyRequests).toEqual([]);
+      expect(activity.htmlAssetResponses).toEqual([]);
+      expect(activity.criticalRequestFailures).toEqual([]);
+      expect(activity.consoleErrors).toEqual([]);
+    });
+  }
 });
 
 async function resolveRuntime(): Promise<RuntimeContext> {
@@ -172,7 +312,7 @@ async function seedSession(page: Page, accessToken: string): Promise<void> {
 }
 
 async function mockAuthRefresh(page: Page, token: string): Promise<void> {
-  await page.route(refreshEndpoint, async (route) => {
+  await page.route(refreshRoutePattern, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -191,7 +331,7 @@ async function mockAuthRefresh(page: Page, token: string): Promise<void> {
 }
 
 async function mockLayoutAuxiliaryEndpoints(page: Page): Promise<void> {
-  await page.route(navigationEndpoint, async (route) => {
+  await page.route(navigationRoutePattern, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -202,7 +342,7 @@ async function mockLayoutAuxiliaryEndpoints(page: Page): Promise<void> {
     });
   });
 
-  await page.route(brandingEndpoint, async (route) => {
+  await page.route(brandingRoutePattern, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -210,7 +350,7 @@ async function mockLayoutAuxiliaryEndpoints(page: Page): Promise<void> {
     });
   });
 
-  await page.route(navigationLogsEndpoint, async (route) => {
+  await page.route(navigationLogsRoutePattern, async (route) => {
     await route.fulfill({
       status: 204,
       contentType: 'application/json',
@@ -219,8 +359,8 @@ async function mockLayoutAuxiliaryEndpoints(page: Page): Promise<void> {
   });
 }
 
-async function mockFallbackRuntime(page: Page, state: FallbackState, _token: string): Promise<void> {
-  await page.route(recordsEndpoint, async (route) => {
+async function mockControlledUploadRuntime(page: Page, state: FallbackState, uploadCalls: { value: number }): Promise<void> {
+  await page.route(recordsRoutePattern, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -228,7 +368,9 @@ async function mockFallbackRuntime(page: Page, state: FallbackState, _token: str
     });
   });
 
-  await page.route(uploadEndpoint, async (route) => {
+  await page.route(uploadRoutePattern, async (route) => {
+    uploadCalls.value += 1;
+
     const body = {
       success: true,
       partial: false,
@@ -296,6 +438,10 @@ function createFallbackState(): FallbackState {
   return {
     records: []
   };
+}
+
+function createCounter() {
+  return { value: 0 };
 }
 
 function createActivityRecorder(page: Page) {

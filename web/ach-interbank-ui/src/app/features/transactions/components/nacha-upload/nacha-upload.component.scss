@@ -17,6 +17,26 @@
   font-weight: 600;
 }
 
+.file-kind,
+.file-help,
+.file-error {
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.file-kind {
+  color: var(--color-text);
+}
+
+.file-help {
+  color: var(--color-text-soft);
+}
+
+.file-error {
+  color: var(--color-danger, #dc2626);
+  font-weight: 700;
+}
+
 .filters-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

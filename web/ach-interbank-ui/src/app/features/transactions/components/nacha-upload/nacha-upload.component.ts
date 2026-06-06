@@ -7,6 +7,11 @@ import { NotificationService } from '../../../../core/services/notification.serv
 import { SharedModule } from '../../../../shared/shared.module';
 import { NachaUploadRecord, NachaUploadService } from '../../services/nacha-upload.service';
 
+const officialAchColombiaPattern = /^\d{7}\.\d{3}\.1$/;
+const officialReturnPattern = /^\d{7}\.\d{3}\.RET$/i;
+const internalFixturePattern = /\.ach$/i;
+const rejectedExtensionPattern = /\.(txt|nacha|env)$/i;
+
 @Component({
   selector: 'app-nacha-upload',
   standalone: true,
@@ -27,6 +32,7 @@ export class NachaUploadComponent implements OnInit {
   loadingRecords = false;
   records: NachaUploadRecord[] = [];
   lastUploadResult: NachaUploadResultView | null = null;
+  selectedFileValidation: NachaUploadFileValidation | null = null;
 
   readonly columnDefs: ColDef<NachaUploadRecord>[] = [
     { headerName: 'Nacha ID', valueGetter: (params) => params.data?.nachaId || '-' },
@@ -69,6 +75,7 @@ export class NachaUploadComponent implements OnInit {
     const file = input.files?.[0] ?? null;
     this.form.patchValue({ file });
     this.form.markAsTouched();
+    this.selectedFileValidation = file ? classifyNachaUploadFile(file.name) : null;
     this.lastUploadResult = null;
     this.cdr.markForCheck();
   }
@@ -83,6 +90,16 @@ export class NachaUploadComponent implements OnInit {
     const file = this.form.get('file')?.value;
     if (!file) {
       this.notifications.error('Selecciona un archivo NACHA-M para continuar.');
+      return;
+    }
+
+    const validation = this.selectedFileValidation ?? classifyNachaUploadFile(file.name);
+    this.selectedFileValidation = validation;
+
+    if (!validation.allowed) {
+      this.notifications.error(validation.rejectionMessage || 'Formato NACHA-M no permitido.');
+      this.form.markAllAsTouched();
+      this.cdr.markForCheck();
       return;
     }
 
@@ -155,6 +172,7 @@ export class NachaUploadComponent implements OnInit {
 
   private resetFileSelection(): void {
     this.form.reset({ file: null });
+    this.selectedFileValidation = null;
     if (this.fileInput) {
       this.fileInput.nativeElement.value = '';
     }
@@ -256,6 +274,68 @@ export class NachaUploadComponent implements OnInit {
   }
 }
 
+export function classifyNachaUploadFile(fileName: string): NachaUploadFileValidation {
+  const normalizedName = fileName.trim().split(/[\\/]/).pop() ?? '';
+
+  if (!normalizedName) {
+    return {
+      allowed: false,
+      kind: 'rejected',
+      label: 'Formato no permitido',
+      detail: 'Selecciona un archivo NACHA-M válido.',
+      rejectionMessage: 'Selecciona un archivo NACHA-M válido.'
+    };
+  }
+
+  if (rejectedExtensionPattern.test(normalizedName)) {
+    return {
+      allowed: false,
+      kind: 'rejected',
+      label: 'Formato no permitido',
+      detail: 'Los archivos .txt, .nacha y .env no se admiten en NachaUpload.',
+      rejectionMessage: 'Los archivos .txt, .nacha y .env no se admiten en NachaUpload.'
+    };
+  }
+
+  if (officialAchColombiaPattern.test(normalizedName)) {
+    return {
+      allowed: true,
+      kind: 'official-ach',
+      label: 'Archivo operativo ACH Colombia',
+      detail: 'Patrón normativo: RRRRTTT.ZZZ.1',
+      rejectionMessage: ''
+    };
+  }
+
+  if (officialReturnPattern.test(normalizedName)) {
+    return {
+      allowed: true,
+      kind: 'official-ret',
+      label: 'Devolución ACH Colombia',
+      detail: 'Patrón normativo: RRRRTTT.ZZZ.RET',
+      rejectionMessage: ''
+    };
+  }
+
+  if (internalFixturePattern.test(normalizedName)) {
+    return {
+      allowed: true,
+      kind: 'uat-fixture',
+      label: 'Fixture UAT/golden interno',
+      detail: 'Snapshot funcional semirreal para validación técnica.',
+      rejectionMessage: ''
+    };
+  }
+
+  return {
+    allowed: false,
+    kind: 'rejected',
+    label: 'Formato no permitido',
+    detail: 'Usa RRRRTTT.ZZZ.1, RRRRTTT.ZZZ.RET o un fixture UAT .ach.',
+    rejectionMessage: 'Formato no permitido. Usa RRRRTTT.ZZZ.1, RRRRTTT.ZZZ.RET o un fixture UAT .ach.'
+  };
+}
+
 type NachaUploadResultView = {
   statusCode: number;
   statusLabel: string;
@@ -270,4 +350,12 @@ type NachaUploadResultView = {
   totalBatches: number | null;
   totalEntries: number | null;
   totalAddendas: number | null;
+};
+
+export type NachaUploadFileValidation = {
+  allowed: boolean;
+  kind: 'official-ach' | 'official-ret' | 'uat-fixture' | 'rejected';
+  label: string;
+  detail: string;
+  rejectionMessage: string;
 };
