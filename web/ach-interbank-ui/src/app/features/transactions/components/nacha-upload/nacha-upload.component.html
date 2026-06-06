@@ -1,13 +1,13 @@
 <app-page-header
   title="Cargar archivo NACHA-M"
-  description="Sube archivos NACHA-M enviados por cámaras compensadoras externas y consulta el detalle cargado."
+  description="Sube archivos NACHA-M de cámaras compensadoras y consulta el detalle cargado."
 ></app-page-header>
 
-<section class="upload-card">
+<section class="upload-card" data-testid="nacha-upload-form">
   <form [formGroup]="form" (ngSubmit)="upload()" novalidate>
     <label class="file-input">
       <span>Archivo NACHA-M *</span>
-      <input type="file" (change)="onFileSelected($event)" />
+      <input #fileInput type="file" accept=".ach,.nacha,.txt" (change)="onFileSelected($event)" />
       <small class="muted" *ngIf="fileName; else emptyFile">Archivo seleccionado: {{ fileName }}</small>
       <ng-template #emptyFile>
         <small class="muted">Selecciona el archivo NACHA-M a cargar.</small>
@@ -22,20 +22,68 @@
   </form>
 </section>
 
-<section class="upload-card records-card">
+<section class="upload-card upload-result-card" *ngIf="lastUploadResult as result" data-testid="nacha-upload-result">
+  <div class="upload-result-header">
+    <div>
+      <h3>Resultado de la carga</h3>
+      <p class="muted">La respuesta del API queda visible para la validación funcional controlada.</p>
+    </div>
+    <span class="upload-result-badge" [attr.data-kind]="result.statusCode >= 400 ? 'error' : result.partial ? 'warning' : 'success'">
+      {{ result.statusLabel }}
+    </span>
+  </div>
+
+  <dl class="upload-result-grid">
+    <div>
+      <dt>Mensaje</dt>
+      <dd data-testid="nacha-upload-result-message">{{ result.message || 'Sin mensaje de respuesta.' }}</dd>
+    </div>
+    <div>
+      <dt>Trace ID</dt>
+      <dd>{{ result.traceId || 'No disponible' }}</dd>
+    </div>
+    <div>
+      <dt>Estado de ingesta</dt>
+      <dd>{{ result.ingestionStatus || 'No disponible' }}</dd>
+    </div>
+    <div>
+      <dt>Estado de ciclo</dt>
+      <dd>{{ result.cycleResolutionStatus || 'No disponible' }}</dd>
+    </div>
+    <div>
+      <dt>Estado de parseo</dt>
+      <dd>{{ result.parsingStatus || 'No disponible' }}</dd>
+    </div>
+    <div>
+      <dt>Totales</dt>
+      <dd>
+        Lotes: {{ result.totalBatches ?? 0 }} | Entradas: {{ result.totalEntries ?? 0 }} | Adendas: {{ result.totalAddendas ?? 0 }}
+      </dd>
+    </div>
+  </dl>
+
+  <div class="upload-result-errors" *ngIf="result.errors.length > 0">
+    <strong>Errores controlados</strong>
+    <ul>
+      <li *ngFor="let error of result.errors">{{ error }}</li>
+    </ul>
+  </div>
+</section>
+
+<section class="upload-card records-card" data-testid="nacha-upload-records">
   <div class="records-header">
     <h3>Información cargada de archivos NACHA-M</h3>
-    <small class="muted">Filtra y visualiza los registros persistidos en base de datos.</small>
+    <small class="muted">Filtra y visualiza los registros persistidos en la base de datos.</small>
   </div>
 
   <form class="filters-grid" [formGroup]="filtersForm" (ngSubmit)="searchRecords()">
     <label>
-      Originador (Immediate Origin)
+      Origen inmediato
       <input type="text" formControlName="immediateOrigin" placeholder="Ej: 02100002" />
     </label>
 
     <label>
-      Receptor (Immediate Destination)
+      Destino inmediato
       <input type="text" formControlName="immediateDestination" placeholder="Ej: 02100001" />
     </label>
 
@@ -50,7 +98,7 @@
     </label>
 
     <label>
-      Fecha de creación archivo
+      Fecha de creación del archivo
       <input type="date" formControlName="fileCreationDate" />
     </label>
 
