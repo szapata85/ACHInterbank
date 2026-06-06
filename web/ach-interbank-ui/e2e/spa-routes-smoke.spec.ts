@@ -107,8 +107,7 @@ test.use({ ignoreHTTPSErrors: true });
 
 test.describe('SPA route smoke', () => {
   test.beforeEach(async ({ page }) => {
-    await seedAuthenticatedSession(page);
-    await mockAuthRefresh(page);
+    await authenticate(page);
     await mockNavigation(page);
     await mockBackend(page);
   });
@@ -328,6 +327,22 @@ async function mockAuthRefresh(page: Page): Promise<void> {
   });
 }
 
+async function authenticate(page: Page): Promise<void> {
+  const apiBaseUrl = process.env['ACH_API_URL'] ?? '';
+  const user = process.env['ACH_USER'] ?? 'admin';
+  const pass = process.env['ACH_PASS'] ?? 'Admin123!';
+
+  if (apiBaseUrl) {
+    const token = await loginByApi(apiBaseUrl, user, pass);
+    await seedAuthenticatedSession(page, token);
+    await mockAuthRefresh(page);
+    return;
+  }
+
+  await seedAuthenticatedSession(page);
+  await mockAuthRefresh(page);
+}
+
 async function seedAuthenticatedSession(page: Page): Promise<void> {
   const token = createUnsignedJwt({
     unique_name: 'spa.smoke',
@@ -355,6 +370,27 @@ async function seedAuthenticatedSession(page: Page): Promise<void> {
   await page.addInitScript((accessToken) => {
     window.sessionStorage.setItem('ach.interbank.access_token', accessToken);
   }, token);
+}
+
+async function loginByApi(apiBaseUrl: string, user: string, pass: string): Promise<string> {
+  const response = await fetch(`${apiBaseUrl.replace(/\/+$/, '')}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: user, password: pass }),
+    signal: AbortSignal.timeout(10_000)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Login del smoke falló con HTTP ${response.status}`);
+  }
+
+  const payload = (await response.json()) as { data?: { token?: string }; token?: string };
+  const token = payload.data?.token ?? payload.token;
+  if (!token) {
+    throw new Error('Login del smoke no devolvió token.');
+  }
+
+  return token;
 }
 
 async function mockBackend(page: Page): Promise<void> {

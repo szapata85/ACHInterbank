@@ -240,25 +240,29 @@ export class CenitOperationPageComponent implements OnInit {
 
   private mapQueue(row: CenitQueueRow): Record<string, string> {
     return {
-      'ID cola': String(row.id),
+      Id: String(row.id),
       Estado: row.status,
       Motivo: row.queueReason,
-      Transacción: String(row.transactionId),
-      'ID externo': row.transactionExternalId || '-',
-      Referencia: row.reference || '-',
+      'Encolado': row.enqueuedAtUtc,
+      'Desencolado': row.dequeuedAtUtc ?? '-',
+      'Ciclo destino': row.targetCycleName,
+      'ID ciclo destino': row.targetAchCycleId,
+      'Ciclo origen': row.originalAchCycleId ?? '-',
+      'Transacción': String(row.transactionId),
+      'Id externo': row.transactionExternalId ?? '-',
+      Referencia: row.reference ?? '-',
+      Monto: this.formatAmount(row.amount),
       Tipo: row.transactionType,
       'Estado transacción': row.transactionState,
-      'Ciclo original': row.originalAchCycleId || '-',
-      'Ciclo destino': `${row.targetCycleName} (${row.targetAchCycleId})`,
-      Encolado: row.enqueuedAtUtc,
-      Desencolado: row.dequeuedAtUtc || '-'
+      'Fecha valor': row.effectiveEntryDate,
+      'Ejecución CENIT': row.cenitCycleExecutionId?.toString() ?? '-'
     };
   }
 
   private mapOptimization(row: CenitOptimizationDecisionRow): Record<string, string> {
     return {
-      Transacción: String(row.achTransactionId),
-      'Decisión interna de liquidez': this.mapDecisionType(row.decisionType),
+      'Transacción ACH': String(row.achTransactionId),
+      Decisión: this.mapDecisionType(row.decisionType),
       'Motivo operativo': this.mapDecisionReason(row.decisionReason),
       Prioridad: String(row.priority),
       'Ciclo origen': row.fromCycleId,
