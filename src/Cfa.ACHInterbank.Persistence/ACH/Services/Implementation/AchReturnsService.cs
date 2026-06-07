@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -464,9 +465,9 @@ public class AchReturnsService(
         string nachaContent,
         CancellationToken ct)
     {
-        if (_externalFileNamePolicy is null || cycle.ClearingHouse is null)
+        if (cycle.ClearingHouse is null)
         {
-            return provisionalFileName;
+            throw new InvalidOperationException("No se pudo resolver la cÃ¡mara para el archivo de devoluciÃ³n.");
         }
 
         var context = new ExternalFileNameContext
@@ -485,6 +486,11 @@ public class AchReturnsService(
             RequestedBy = "system"
         };
 
+        if (_externalFileNamePolicy is null)
+        {
+            return await ResolveReturnExternalFileNameWithoutPolicyAsync(cycle, ct);
+        }
+
         var policyResult = await _externalFileNamePolicy.GenerateExternalNameAsync(context, ct);
         if (policyResult.Validation.IsHardBlocked)
         {
@@ -500,9 +506,59 @@ public class AchReturnsService(
                 string.Join(" | ", policyResult.Validation.Issues.Select(x => $"{x.RuleCode}:{x.Message}")));
         }
 
-        return string.IsNullOrWhiteSpace(policyResult.ExternalFileName)
-            ? provisionalFileName
-            : policyResult.ExternalFileName;
+        if (!string.IsNullOrWhiteSpace(policyResult.ExternalFileName))
+        {
+            return policyResult.ExternalFileName;
+        }
+
+        return await ResolveReturnExternalFileNameWithoutPolicyAsync(cycle, ct);
+    }
+
+    private async Task<string> ResolveReturnExternalFileNameWithoutPolicyAsync(AchCycle cycle, CancellationToken ct)
+    {
+        var sameDayFiles = await context.Set<AchReturnGenerated>()
+            .AsNoTracking()
+            .Include(x => x.ReturnCycle)
+            .Where(x => x.ReturnCycle.ClearingHouseId == cycle.ClearingHouseId && x.GeneratedAtUtc.Date == cycle.ProcessingDate.Date)
+            .Select(x => x.FileName)
+            .Where(x => x != null && x != string.Empty)
+            .Distinct()
+            .ToListAsync(ct);
+
+        var parsedSequences = sameDayFiles
+            .Select(fileName =>
+            {
+                var parsed = ExternalFileNameSupport.Parse(new ExternalFileNameContext
+                {
+                    ClearingHouseId = cycle.ClearingHouseId,
+                    ClearingHouseCode = cycle.ClearingHouse?.Code ?? string.Empty,
+                    ClearingHouseOriginCode = cycle.ClearingHouse?.OriginCode,
+                    ProcessingDate = cycle.ProcessingDate,
+                    ExternalFileType = ExternalFileType.ReturnOut,
+                    Flow = ExternalFileFlow.Originacion,
+                    Direction = ExternalFileDirection.Outbound
+                }, fileName);
+
+                return parsed.ExternalSequence;
+            })
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value)
+            .ToList();
+
+        var nextSequence = parsedSequences.Count == 0 ? 1 : parsedSequences.Max() + 1;
+        if (nextSequence > 36)
+        {
+            throw new InvalidOperationException("Regla RET HARD BLOCK: mÃ¡ximo 36 archivos diarios por participante.");
+        }
+
+        _logger.LogWarning(
+            "RETURN_FILENAME_POLICY_FALLBACK|CycleId={CycleId}|ClearingHouseId={ClearingHouseId}|Sequence={Sequence}",
+            cycle.Id,
+            cycle.ClearingHouseId,
+            nextSequence);
+
+        var originCode = NormalizeDigits(cycle.ClearingHouse?.OriginCode, 7);
+        return ExternalFileNameSupport.BuildReturnName(originCode, nextSequence);
     }
 
     private void CompareReturnShadow(

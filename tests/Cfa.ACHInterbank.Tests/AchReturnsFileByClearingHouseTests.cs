@@ -203,7 +203,7 @@ public class AchReturnsFileByClearingHouseTests
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_Golden_ReturnOut_FallsBackToRetProvisional_WhenPolicyReturnsEmpty()
+    public async Task GenerateReturnsFileAsync_Golden_ReturnOut_FallsBackToNormativeRet_WhenPolicyReturnsEmpty()
     {
         await using var context = BuildContext();
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 603, "ACH-GOLD-2");
@@ -233,8 +233,7 @@ public class AchReturnsFileByClearingHouseTests
 
         var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-GOLD-2", [new ReturnSelectionItemDto(603, "DEV14")]), CancellationToken.None);
 
-        Assert.StartsWith("RET_ACH-GOLD-2_", response.FileName);
-        Assert.EndsWith(".RET", response.FileName);
+        Assert.Equal("0101006.001.RET", response.FileName);
         Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 603 && x.FileName == response.FileName));
     }
 

@@ -132,7 +132,7 @@ public class AchPreproductionCertificationTests
         var expected = BuildExpectedReturnGoldenMaster(fixedNow.UtcDateTime);
         Assert.Contains("A094101ACH-RET", expected, StringComparison.Ordinal);
 
-        Assert.Equal("RET_cycle-ret_20260323114500.RET", response.FileName);
+        Assert.Equal("2345678.001.RET", response.FileName);
         Assert.Equal(expected, Encoding.UTF8.GetString(response.Content));
     }
 

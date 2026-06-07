@@ -20,7 +20,7 @@ public class ExternalFileNameCorrelationService : IExternalFileNameCorrelationSe
         var headerId = ExternalFileNameSupport.TryExtractRecord1FileIdModifier(context.NachaContent);
 
         bool? matchR1 = null;
-        if (ExternalFileNameSupport.IsAch(context) && components.ExternalSequence.HasValue)
+        if ((ExternalFileNameSupport.IsAch(context) || ExternalFileNameSupport.IsReturnOut(context)) && components.ExternalSequence.HasValue)
         {
             var expectedId = await _identifierMapService.ResolveIdentifierAsync(components.ExternalSequence.Value, ct);
             matchR1 = headerId.HasValue && headerId.Value == expectedId;

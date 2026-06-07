@@ -221,7 +221,35 @@ public class ExternalFileNamePolicyPhase1Tests
     }
 
     [Fact]
-    public async Task ExternalFileNamePolicy_ShouldAcceptReturnOutFlowAsProvisional()
+    public async Task ReturnOutBuilder_ShouldUse_RRRRTTT_ZZZ_RET_WithSequenceAndFileId()
+    {
+        await using var harness = await CreateHarnessAsync();
+        await SeedDynamicNamingFixtureAsync(harness.Context);
+
+        var sequence = CreateSequenceService(harness.Context);
+        var map = new FakeIdentifierMapService();
+        var namingRuleService = new NachaFileNamingRuleService(harness.Context);
+        var builder = new ExternalFileNameBuilder(sequence, map, namingRuleService);
+
+        var name = await builder.BuildAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ClearingHouseOriginCode = "1111111",
+            ProcessingDate = new DateTime(2026, 04, 20),
+            ExternalFileType = ExternalFileType.ReturnOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        });
+
+        Assert.Equal("8765321.001.RET", name.FullName);
+        Assert.Equal("8765321", name.Prefix);
+        Assert.Equal(1, name.ExternalSequence);
+        Assert.Equal('A', name.FileIdModifier);
+    }
+
+    [Fact]
+    public async Task ReturnOutValidator_ShouldPass_ForNormativeName()
     {
         var validator = CreateValidator();
         var result = await validator.ValidateAsync(new ExternalFileNameContext
@@ -232,14 +260,14 @@ public class ExternalFileNamePolicyPhase1Tests
             ExternalFileType = ExternalFileType.ReturnOut,
             Flow = ExternalFileFlow.Originacion,
             Direction = ExternalFileDirection.Outbound
-        }, new ExternalFileNameComponents { FullName = "RET_cycle-1_20260515120000.RET" });
+        }, new ExternalFileNameComponents { FullName = "0101006.001.RET" });
 
-        Assert.Equal(ExternalFileValidationDisposition.Warning, result.Disposition);
-        Assert.Contains(result.Issues, x => x.RuleCode == "RETURN_NAMING_PROVISIONAL");
+        Assert.NotEqual(ExternalFileValidationDisposition.HardBlock, result.Disposition);
+        Assert.DoesNotContain(result.Issues, x => x.RuleCode.StartsWith("RETURN_", StringComparison.Ordinal));
     }
 
     [Fact]
-    public async Task ExternalFileNamePolicy_Golden_ReturnOut_ProvisionalWarning_NotHardBlock()
+    public async Task ReturnOutValidator_ShouldHardBlock_WhenPatternIsInvalid()
     {
         var validator = CreateValidator();
         var result = await validator.ValidateAsync(new ExternalFileNameContext
@@ -252,31 +280,30 @@ public class ExternalFileNamePolicyPhase1Tests
             Direction = ExternalFileDirection.Outbound
         }, new ExternalFileNameComponents { FullName = "RET_CYCLE_20260515120000.RET" });
 
-        Assert.Equal(ExternalFileValidationDisposition.Warning, result.Disposition);
-        Assert.False(result.IsHardBlocked);
-        Assert.Contains(result.Issues, x => x.RuleCode == "RETURN_NAMING_PROVISIONAL");
+        Assert.Equal(ExternalFileValidationDisposition.HardBlock, result.Disposition);
+        Assert.Contains(result.Issues, x => x.RuleCode == "RETURN_NAME_PATTERN");
     }
 
     [Fact]
-    public async Task ExternalFileNamePolicy_ShouldAcceptReturnOfReturnOutFlowAsProvisional()
+    public async Task ReturnOutValidator_ShouldHardBlock_WhenSequenceIsOutOfRange()
     {
         var validator = CreateValidator();
         var result = await validator.ValidateAsync(new ExternalFileNameContext
         {
-            ClearingHouseId = 2,
-            ClearingHouseCode = "CENIT",
-            ProcessingDate = new DateTime(2026, 04, 20),
-            ExternalFileType = ExternalFileType.ReturnOfReturnOut,
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ProcessingDate = new DateTime(2026, 05, 15),
+            ExternalFileType = ExternalFileType.ReturnOut,
             Flow = ExternalFileFlow.Originacion,
             Direction = ExternalFileDirection.Outbound
-        }, new ExternalFileNameComponents { FullName = "RORNACHA_7001_20260515120000.ach" });
+        }, new ExternalFileNameComponents { FullName = "0101006.037.RET" });
 
-        Assert.Equal(ExternalFileValidationDisposition.Warning, result.Disposition);
-        Assert.Contains(result.Issues, x => x.RuleCode == "RETURN_NAMING_PROVISIONAL");
+        Assert.Equal(ExternalFileValidationDisposition.HardBlock, result.Disposition);
+        Assert.Contains(result.Issues, x => x.RuleCode == "RETURN_DAILY_LIMIT");
     }
 
     [Fact]
-    public async Task ExternalFileNamePolicy_Golden_ReturnOfReturnOut_ProvisionalWarning_NotHardBlock()
+    public async Task ExternalFileNamePolicy_ShouldAcceptReturnOfReturnOutFlowAsProvisional()
     {
         var validator = CreateValidator();
         var result = await validator.ValidateAsync(new ExternalFileNameContext
@@ -295,7 +322,7 @@ public class ExternalFileNamePolicyPhase1Tests
     }
 
     [Fact]
-    public async Task ExternalFileNamePolicy_Golden_ReturnOut_DuplicateName_WarningOnly()
+    public async Task ReturnOutValidator_ShouldHardBlock_WhenDuplicateNameExists()
     {
         await using var harness = await CreateHarnessAsync();
         harness.Context.ExternalFileNameRegistry.Add(new Cfa.ACHInterbank.Domain.Models.ACH.ExternalFileNames.ExternalFileNameRegistry
@@ -303,7 +330,7 @@ public class ExternalFileNamePolicyPhase1Tests
             ClearingHouseId = 1,
             FlowCode = ExternalFileFlow.Originacion.ToString(),
             Direction = ExternalFileDirection.Outbound.ToString(),
-            ExternalFileName = "RET_CYCLE_20260515120000.RET",
+            ExternalFileName = "0101006.001.RET",
             ExternalFileType = ExternalFileType.ReturnOut.ToString(),
             ProcessingDate = new DateTime(2026, 05, 15),
             ValidationDisposition = ExternalFileValidationDisposition.Warning.ToString(),
@@ -321,10 +348,9 @@ public class ExternalFileNamePolicyPhase1Tests
             ExternalFileType = ExternalFileType.ReturnOut,
             Flow = ExternalFileFlow.Originacion,
             Direction = ExternalFileDirection.Outbound
-        }, new ExternalFileNameComponents { FullName = "RET_CYCLE_20260515120000.RET" });
+        }, new ExternalFileNameComponents { FullName = "0101006.001.RET" });
 
-        Assert.Equal(ExternalFileValidationDisposition.Warning, result.Disposition);
-        Assert.False(result.IsHardBlocked);
+        Assert.Equal(ExternalFileValidationDisposition.HardBlock, result.Disposition);
         Assert.Contains(result.Issues, x => x.RuleCode == "RETURN_DUPLICATE_NAME");
     }
 

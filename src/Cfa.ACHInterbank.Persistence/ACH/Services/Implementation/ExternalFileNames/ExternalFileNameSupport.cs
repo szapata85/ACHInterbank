@@ -6,13 +6,33 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileN
 
 internal static class ExternalFileNameSupport
 {
-    private static readonly Regex AchRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.1$", RegexOptions.Compiled);
+    private const string AchScopeCode = "ACH_EXTERNAL_NAME";
+    private const string ReturnOutScopeCode = "ACH_RETURN_EXTERNAL_NAME";
+    private static readonly Regex AchRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.1$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex ReturnRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.RET$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public static ExternalFileNameComponents Parse(ExternalFileNameContext context, string externalFileName)
     {
         if (IsAch(context))
         {
             var match = AchRegex.Match(externalFileName);
+            if (!match.Success)
+            {
+                return new ExternalFileNameComponents { FullName = externalFileName };
+            }
+
+            var sequence = int.Parse(match.Groups["seq"].Value, CultureInfo.InvariantCulture);
+            return new ExternalFileNameComponents
+            {
+                FullName = externalFileName,
+                Prefix = $"{match.Groups["route"].Value}{match.Groups["transit"].Value}",
+                ExternalSequence = sequence
+            };
+        }
+
+        if (IsReturnOut(context))
+        {
+            var match = ReturnRegex.Match(externalFileName);
             if (!match.Success)
             {
                 return new ExternalFileNameComponents { FullName = externalFileName };
@@ -48,6 +68,10 @@ internal static class ExternalFileNameSupport
         context.ExternalFileType == ExternalFileType.NachaOut
         && context.Direction == ExternalFileDirection.Outbound;
 
+    public static bool IsReturnOut(ExternalFileNameContext context) =>
+        context.ExternalFileType == ExternalFileType.ReturnOut
+        && context.Direction == ExternalFileDirection.Outbound;
+
     public static bool IsCenit(ExternalFileNameContext context) =>
         string.Equals(context.ClearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase);
 
@@ -56,8 +80,7 @@ internal static class ExternalFileNameSupport
 
     public static bool IsUnconfirmedReturnLikeOutFlow(ExternalFileNameContext context) =>
         context.Direction == ExternalFileDirection.Outbound
-        && context.ExternalFileType is ExternalFileType.ReturnOut
-            or ExternalFileType.ReturnOfReturnOut
+        && context.ExternalFileType is ExternalFileType.ReturnOfReturnOut
             or ExternalFileType.OperatorReturnOut
             or ExternalFileType.ResponseOut
             or ExternalFileType.RejectionOut;
@@ -71,6 +94,27 @@ internal static class ExternalFileNameSupport
 
         var normalizedOriginCode = originCode[^7..];
         return $"{normalizedOriginCode}.{sequence:D3}.1";
+    }
+
+    public static string BuildReturnName(string originCode, int sequence)
+    {
+        if (string.IsNullOrWhiteSpace(originCode) || !originCode.All(char.IsDigit) || originCode.Length < 7)
+        {
+            throw new InvalidOperationException("Para devoluciones el origin code debe contener exactamente 7 dÃ­gitos (RRRRTTT).");
+        }
+
+        var normalizedOriginCode = originCode[^7..];
+        return $"{normalizedOriginCode}.{sequence:D3}.RET";
+    }
+
+    public static string GetSequenceScopeCode(ExternalFileNameContext context)
+    {
+        if (IsReturnOut(context))
+        {
+            return ReturnOutScopeCode;
+        }
+
+        return AchScopeCode;
     }
 
     public static string ReplaceRecord1FileIdModifier(string nachaContent, char expectedIdentifier)

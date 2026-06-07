@@ -71,6 +71,26 @@ public class PostgresExternalFileNameIntegrationTests
     }
 
     [Fact]
+    public async Task PostgresExternalFileNameSequence_ShouldIsolateReturnOutFromNachaOutOnSameDay()
+    {
+        await using var harness = await PostgresHarness.CreateAsync();
+        if (harness.IsDisabled) return;
+
+        var nachaOut = harness.NewExternalFileContext(ExternalFileType.NachaOut, ExternalFileFlow.Originacion, ExternalFileDirection.Outbound);
+        var returnOut = harness.NewExternalFileContext(ExternalFileType.ReturnOut, ExternalFileFlow.Originacion, ExternalFileDirection.Outbound);
+
+        var nachaFirst = await ReserveSequenceWithFreshContextAsync(harness.ConnectionString, nachaOut);
+        var returnFirst = await ReserveSequenceWithFreshContextAsync(harness.ConnectionString, returnOut);
+        var nachaSecond = await ReserveSequenceWithFreshContextAsync(harness.ConnectionString, nachaOut);
+        var returnSecond = await ReserveSequenceWithFreshContextAsync(harness.ConnectionString, returnOut);
+
+        Assert.Equal(1, nachaFirst);
+        Assert.Equal(1, returnFirst);
+        Assert.Equal(2, nachaSecond);
+        Assert.Equal(2, returnSecond);
+    }
+
+    [Fact]
     public async Task PostgresExternalFileNameRegistry_ShouldPersistValidationEvidence()
     {
         await using var harness = await PostgresHarness.CreateAsync();

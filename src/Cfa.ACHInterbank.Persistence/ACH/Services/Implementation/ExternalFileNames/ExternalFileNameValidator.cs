@@ -26,7 +26,56 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
     {
         var issues = new List<ExternalFileNameValidationIssue>();
 
-        if (ExternalFileNameSupport.IsUnconfirmedReturnLikeOutFlow(context))
+        if (ExternalFileNameSupport.IsReturnOut(context))
+        {
+            var parsed = ExternalFileNameSupport.Parse(context, components.FullName);
+            if (!parsed.ExternalSequence.HasValue)
+            {
+                issues.Add(Hard(
+                    "RETURN_NAME_PATTERN",
+                    "RETURN_PATTERN_INVALID",
+                    "Regla HARD BLOCK RET: patrón requerido RRRRTTT.ZZZ.RET.",
+                    "ACH V32 6.1.10.1 / RET"));
+            }
+            else
+            {
+                if (parsed.ExternalSequence.Value is < 1 or > 36)
+                {
+                    issues.Add(Hard(
+                        "RETURN_DAILY_LIMIT",
+                        "RETURN_SEQUENCE_RANGE",
+                        "Regla HARD BLOCK RET: secuencia ZZZ debe estar entre 001 y 036.",
+                        "ACH V32 6.1.10.1 / RET"));
+                }
+                else
+                {
+                    var expected = await _identifierMapService.ResolveIdentifierAsync(parsed.ExternalSequence.Value, ct);
+                    var correlation = await _correlationService.CorrelateAsync(context, parsed, ct);
+                    if (correlation.HeaderFileIdModifier.HasValue && correlation.HeaderFileIdModifier.Value != expected)
+                    {
+                        issues.Add(Hard(
+                            "RETURN_ZZZ_R1",
+                            "RETURN_IDENTIFIER_MISMATCH",
+                            "Regla HARD BLOCK RET: ZZZ no corresponde al campo 7 del Registro 1.",
+                            "ACH V32 6.1.10.1 / RET"));
+                    }
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(components.FullName))
+            {
+                var duplicated = await _duplicateGuard.IsDuplicateAsync(context, components.FullName, ct);
+                if (duplicated)
+                {
+                    issues.Add(Hard(
+                        "RETURN_DUPLICATE_NAME",
+                        "RETURN_DUPLICATE",
+                        "Regla HARD BLOCK RET: archivo duplicado.",
+                        "ACH V32 6.1.10.1 / RET"));
+                }
+            }
+        }
+        else if (ExternalFileNameSupport.IsUnconfirmedReturnLikeOutFlow(context))
         {
             issues.Add(Warning(
                 "RETURN_NAMING_PROVISIONAL",

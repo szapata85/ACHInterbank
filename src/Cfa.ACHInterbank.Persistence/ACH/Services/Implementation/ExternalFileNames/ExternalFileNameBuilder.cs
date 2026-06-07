@@ -48,6 +48,25 @@ public class ExternalFileNameBuilder : IExternalFileNameBuilder
             };
         }
 
+        if (ExternalFileNameSupport.IsReturnOut(context))
+        {
+            var namingRule = _namingRuleService is null
+                ? null
+                : await _namingRuleService.GetActiveOutboundRuleAsync(context.ClearingHouseId, context.ProcessingDate, ct);
+            var sequence = await _sequenceService.ReserveNextSequenceAsync(context, ct);
+            var originCode = namingRule?.OriginEntityCode ?? context.ClearingHouseOriginCode ?? string.Empty;
+            var externalName = ExternalFileNameSupport.BuildReturnName(originCode, sequence);
+            var fileId = await _identifierMapService.ResolveIdentifierAsync(sequence, ct);
+
+            return new ExternalFileNameComponents
+            {
+                FullName = externalName,
+                Prefix = originCode,
+                ExternalSequence = sequence,
+                FileIdModifier = fileId
+            };
+        }
+
         if (ExternalFileNameSupport.IsStaReject(context))
         {
             var declared = context.DeclaredDetailCount ?? context.ActualDetailCount ?? ExternalFileNameSupport.CountDetailRecords(context.NachaContent);

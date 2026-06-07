@@ -9,7 +9,6 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileN
 [Scoped]
 public class PostgresExternalFileNameSequenceService : IExternalFileNameSequenceProvider
 {
-    private const string ScopeCode = "ACH_EXTERNAL_NAME";
     private readonly AchDbContext _context;
 
     public PostgresExternalFileNameSequenceService(AchDbContext context)
@@ -25,9 +24,9 @@ public class PostgresExternalFileNameSequenceService : IExternalFileNameSequence
     {
         var next = await ExecuteUpsertAsync(context, ct);
 
-        if (ExternalFileNameSupport.IsAch(context) && next > 36)
+        if ((ExternalFileNameSupport.IsAch(context) || ExternalFileNameSupport.IsReturnOut(context)) && next > 36)
         {
-            throw new InvalidOperationException("Regla ACH HARD BLOCK: máximo 36 archivos diarios por participante.");
+            throw new InvalidOperationException("Regla ACH HARD BLOCK: mÃ¡ximo 36 archivos diarios por participante.");
         }
 
         return next;
@@ -56,7 +55,7 @@ public class PostgresExternalFileNameSequenceService : IExternalFileNameSequence
             """;
 
         cmd.Parameters.AddWithValue("@clearingHouseId", context.ClearingHouseId);
-        cmd.Parameters.AddWithValue("@scopeCode", ScopeCode);
+        cmd.Parameters.AddWithValue("@scopeCode", ExternalFileNameSupport.GetSequenceScopeCode(context));
         cmd.Parameters.AddWithValue("@sequenceDate", DateOnly.FromDateTime(context.ProcessingDate.Date));
 
         var scalar = await cmd.ExecuteScalarAsync(ct);

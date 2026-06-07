@@ -9,7 +9,6 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileN
 [Scoped]
 public class EfGenericExternalFileNameSequenceService : IExternalFileNameSequenceProvider
 {
-    private const string ScopeCode = "ACH_EXTERNAL_NAME";
     private readonly AchDbContext _context;
 
     public EfGenericExternalFileNameSequenceService(AchDbContext context)
@@ -21,10 +20,11 @@ public class EfGenericExternalFileNameSequenceService : IExternalFileNameSequenc
 
     public async Task<int> ReserveNextSequenceAsync(ExternalFileNameContext context, CancellationToken ct = default)
     {
+        var scopeCode = ExternalFileNameSupport.GetSequenceScopeCode(context);
         var date = DateOnly.FromDateTime(context.ProcessingDate.Date);
         var row = await _context.ExternalFileSequences
             .SingleOrDefaultAsync(x => x.ClearingHouseId == context.ClearingHouseId
-                                    && x.ScopeCode == ScopeCode
+                                    && x.ScopeCode == scopeCode
                                     && x.SequenceDate == date, ct);
 
         if (row is null)
@@ -32,7 +32,7 @@ public class EfGenericExternalFileNameSequenceService : IExternalFileNameSequenc
             row = new ExternalFileSequence
             {
                 ClearingHouseId = context.ClearingHouseId,
-                ScopeCode = ScopeCode,
+                ScopeCode = scopeCode,
                 SequenceDate = date,
                 LastValue = 0,
                 UpdatedAtUtc = DateTime.UtcNow,
@@ -45,9 +45,9 @@ public class EfGenericExternalFileNameSequenceService : IExternalFileNameSequenc
         row.UpdatedAtUtc = DateTime.UtcNow;
         row.RowVersion = [(byte)(row.LastValue % 255 == 0 ? 1 : row.LastValue % 255)];
 
-        if (ExternalFileNameSupport.IsAch(context) && row.LastValue > 36)
+        if ((ExternalFileNameSupport.IsAch(context) || ExternalFileNameSupport.IsReturnOut(context)) && row.LastValue > 36)
         {
-            throw new InvalidOperationException("Regla ACH HARD BLOCK: máximo 36 archivos diarios por participante.");
+            throw new InvalidOperationException("Regla ACH HARD BLOCK: mÃ¡ximo 36 archivos diarios por participante.");
         }
 
         await _context.SaveChangesAsync(ct);
