@@ -154,7 +154,8 @@ public class AchOutboundReturnConcurrencyIdempotencyTests
             context,
             regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(),
             returnEligibilityService: eligibility.Object,
-            returnGenerationLockService: lockService);
+            returnGenerationLockService: lockService,
+            externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
     }
 
     private static void SeedSqliteScenario(AchDbContext context, int transactionId, string cycleId)

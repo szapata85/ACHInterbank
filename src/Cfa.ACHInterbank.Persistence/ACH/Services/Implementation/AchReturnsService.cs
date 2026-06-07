@@ -488,7 +488,7 @@ public class AchReturnsService(
 
         if (_externalFileNamePolicy is null)
         {
-            return await ResolveReturnExternalFileNameWithoutPolicyAsync(cycle, ct);
+            throw new InvalidOperationException("RETURN_FILENAME_POLICY_REQUIRED: No existe política oficial de naming para ReturnOut.");
         }
 
         var policyResult = await _externalFileNamePolicy.GenerateExternalNameAsync(context, ct);
@@ -511,7 +511,7 @@ public class AchReturnsService(
             return policyResult.ExternalFileName;
         }
 
-        return await ResolveReturnExternalFileNameWithoutPolicyAsync(cycle, ct);
+        throw new InvalidOperationException("RETURN_FILENAME_POLICY_REQUIRED: No existe política oficial de naming para ReturnOut.");
     }
 
     private async Task<string> ResolveReturnExternalFileNameWithoutPolicyAsync(AchCycle cycle, CancellationToken ct)

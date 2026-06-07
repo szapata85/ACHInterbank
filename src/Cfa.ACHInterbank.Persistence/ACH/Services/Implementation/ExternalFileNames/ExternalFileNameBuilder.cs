@@ -54,7 +54,11 @@ public class ExternalFileNameBuilder : IExternalFileNameBuilder
                 ? null
                 : await _namingRuleService.GetActiveOutboundRuleAsync(context.ClearingHouseId, context.ProcessingDate, ct);
             var sequence = await _sequenceService.ReserveNextSequenceAsync(context, ct);
-            var originCode = namingRule?.OriginEntityCode ?? context.ClearingHouseOriginCode ?? string.Empty;
+            var originCode = namingRule?.OriginEntityCode ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(originCode))
+            {
+                throw new InvalidOperationException("RETURN_FILENAME_POLICY_REQUIRED: No existe política oficial de naming para ReturnOut.");
+            }
             var externalName = ExternalFileNameSupport.BuildReturnName(originCode, sequence);
             var fileId = await _identifierMapService.ResolveIdentifierAsync(sequence, ct);
 
