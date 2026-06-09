@@ -198,6 +198,50 @@ public class IncomingNachaPostProcessingOrchestratorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_ShouldDelegateProcContrapartidas_WhenOperationResolverReturnsDebitCandidate()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+
+        var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var operationResolver = new Mock<ITransactionIntegrationOperationResolver>();
+        var contrapartidaDispatch = new Mock<IContrapartidaDispatchJobService>();
+
+        operationResolver.Setup(x => x.ResolveAsync(It.IsAny<AchTransaction>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProcContrapartidasOperation());
+        contrapartidaDispatch
+            .Setup(x => x.ProcessCycleAsync("C1", 1, "tester", 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ContrapartidaCycleDispatchResult("C1", 1, 1, 0, 1, 0, 1, "Proc_Contrapartidas dry-run."));
+
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            dispatchOptions: LiveProcTransaccionesOptions(),
+            operationResolver: operationResolver.Object,
+            contrapartidaDispatchJobService: contrapartidaDispatch.Object);
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.Confirmed);
+        var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        Assert.Equal(IncomingNachaDispatchQueueStatus.Dispatched, queue.QueueStatus);
+        Assert.Null(queue.NextAttemptAtUtc);
+        contrapartidaDispatch.Verify(x => x.ProcessCycleAsync("C1", 1, "tester", 50, It.IsAny<CancellationToken>()), Times.Once);
+        mapper.Verify(x => x.ResolveAsync(
+            It.IsAny<IncomingNachaDispatchQueue>(),
+            It.IsAny<IncomingNachaFileIngestion>(),
+            It.IsAny<IncomingNachaEntryClassification>(),
+            It.IsAny<AchTransaction>(),
+            It.IsAny<AchCycle>(),
+            It.IsAny<DateTime>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task ProcTransacciones_DryRun_ShouldFail_WhenRequiredFieldUsesFallback()
     {
         await using var context = BuildContext();
@@ -543,6 +587,21 @@ public class IncomingNachaPostProcessingOrchestratorTests
             "Entidad financiera externa; CFA receptora",
             true,
             "Credito monetario originado por otra entidad financiera.",
+            true,
+            []);
+
+    private static TransactionIntegrationOperationResult ProcContrapartidasOperation()
+        => new(
+            100,
+            "R",
+            IntegrationGuaranteeConstants.Wscfaach,
+            IntegrationGuaranteeConstants.ProcContrapartidas,
+            IntegrationGuaranteeConstants.MonetaryDebitRequest,
+            IntegrationGuaranteeConstants.OutboundRequest,
+            "Debito monetario",
+            "Entidad financiera originada por CFA",
+            true,
+            "Debito monetario originado por CFA.",
             true,
             []);
 

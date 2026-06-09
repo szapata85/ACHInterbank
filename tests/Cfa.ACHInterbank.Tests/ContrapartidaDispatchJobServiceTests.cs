@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.External.Connections;
+using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -155,7 +156,8 @@ public class ContrapartidaDispatchJobServiceTests
         await context.Database.EnsureCreatedAsync();
 
         var cycleId = await SembrarEstructuraBaseAsync(context);
-        await SembrarTransaccionYItemPendienteAsync(context, cycleId);
+        var txId = await SembrarTransaccionYItemPendienteAsync(context, cycleId);
+        await SeedIncomingNachaDispatchQueueAsync(context, cycleId, txId, "retryable");
 
         var mapper = new Mock<IProcContrapartidasRequestMapper>();
         mapper
@@ -312,7 +314,8 @@ public class ContrapartidaDispatchJobServiceTests
         await context.Database.EnsureCreatedAsync();
 
         var cycleId = await SembrarEstructuraBaseAsync(context);
-        await SembrarTransaccionYItemPendienteAsync(context, cycleId);
+        var txId = await SembrarTransaccionYItemPendienteAsync(context, cycleId);
+        await SeedIncomingNachaDispatchQueueAsync(context, cycleId, txId, "dry-run");
 
         var mapper = new Mock<IProcContrapartidasRequestMapper>();
         mapper
@@ -354,6 +357,12 @@ public class ContrapartidaDispatchJobServiceTests
         Assert.False(attempt.RetryEligible);
         Assert.Equal("<request-dry-run/>", attempt.RequestPayloadXml);
         Assert.Contains("dry-run", attempt.ResponsePayloadXml, StringComparison.OrdinalIgnoreCase);
+
+        var execution = await context.IncomingNachaIntegrationExecution.SingleAsync();
+        Assert.Equal(IntegrationGuaranteeConstants.ProcContrapartidas, execution.MethodName);
+        Assert.Equal("<request-dry-run/>", execution.RequestPayloadXml);
+        Assert.Contains("dry-run", execution.ResponsePayloadXml, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("PROC_DRY_RUN", execution.ResponseCode);
 
         soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         parser.Verify(x => x.Parse(It.IsAny<string>()), Times.Never);
@@ -533,6 +542,73 @@ public class ContrapartidaDispatchJobServiceTests
 
         await context.SaveChangesAsync();
         return tx.Id;
+    }
+
+    private static async Task SeedIncomingNachaDispatchQueueAsync(AchDbContext context, string cycleId, int txId, string suffix)
+    {
+        var ingestionId = Guid.NewGuid();
+        var entryDetailId = 10_000 + txId;
+
+        context.EntryDetails.Add(new EntryDetail
+        {
+            EntryDetailID = entryDetailId,
+            TransactionCode = "22",
+            ReceivingParticipantEntityCode = "76543210",
+            AccountNumber = "999988887777",
+            Amount = 1000m,
+            RecipUserName = "Receiver"
+        });
+
+        context.IncomingNachaFileIngestions.Add(new IncomingNachaFileIngestion
+        {
+            Id = ingestionId,
+            FileName = $"qa-{suffix}.ach",
+            FileHashSha256 = $"hash-{suffix}",
+            FileSize = 1,
+            ContentType = "text/plain",
+            UploadedBy = "tester",
+            CorrelationId = $"qa-{suffix}",
+            Notes = "qa"
+        });
+
+        var classificationId = Guid.NewGuid();
+        context.IncomingNachaEntryClassifications.Add(new IncomingNachaEntryClassification
+        {
+            Id = classificationId,
+            IncomingNachaFileIngestionId = ingestionId,
+            EntryDetailId = entryDetailId
+        });
+
+        var linkId = Guid.NewGuid();
+        context.IncomingNachaTransactionLinks.Add(new IncomingNachaTransactionLink
+        {
+            Id = linkId,
+            IncomingNachaFileIngestionId = ingestionId,
+            EntryDetailId = entryDetailId,
+            AchTransactionId = txId,
+            LinkType = IncomingNachaLinkType.ExactTrace15,
+            ConfidenceScore = 1m,
+            LinkedBy = "tester",
+            IsFinal = true
+        });
+
+        context.IncomingNachaDispatchQueue.Add(new IncomingNachaDispatchQueue
+        {
+            Id = Guid.NewGuid(),
+            IncomingNachaFileIngestionId = ingestionId,
+            IncomingNachaEntryClassificationId = classificationId,
+            IncomingNachaTransactionLinkId = linkId,
+            AchTransactionId = txId,
+            AchCycleId = cycleId,
+            ClearingHouseId = 1,
+            OperationalDate = DateTime.Today,
+            QueueStatus = IncomingNachaDispatchQueueStatus.Queued,
+            Priority = 100,
+            IdempotencyDispatchKey = $"qa-contrapartida-{suffix}-{txId}",
+            NextAttemptAtUtc = DateTime.UtcNow.AddMinutes(-1)
+        });
+
+        await context.SaveChangesAsync();
     }
 
     private static async Task<List<int>> SembrarVariasTransaccionesEItemsPendientesAsync(AchDbContext context, string cycleId, int cantidad)
