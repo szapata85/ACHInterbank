@@ -88,6 +88,22 @@ const uiBaseUrl = (process.env['ACH_UI_URL'] ?? 'http://localhost:743').replace(
 const apiBaseUrl = (process.env['ACH_API_URL'] ?? 'http://localhost:843').replace(/\/+$/, '');
 const username = process.env['ACH_USER'] ?? 'admin';
 const password = process.env['ACH_PASS'] ?? 'Admin123!';
+const g34ScenarioCode = (process.env['G34_CLEARING_HOUSE_CODE'] ?? 'ACHCOL').trim().toUpperCase() === 'CENIT'
+  ? 'CENIT'
+  : 'ACHCOL';
+const g34Scenario = g34ScenarioCode === 'CENIT'
+  ? {
+      code: 'CENIT',
+      displayName: 'CENIT',
+      clearingHouseName: 'CENIT',
+      destinationInstitutionName: 'Banco UAT Externo CENIT'
+    }
+  : {
+      code: 'ACHCOL',
+      displayName: 'ACH Colombia',
+      clearingHouseName: 'ACH Colombia',
+      destinationInstitutionName: 'ACH Colombia'
+    };
 
 const loginPath = '/auth/login';
 const seedPath = '/Maintenance/seed';
@@ -99,7 +115,7 @@ const contrapartidaDispatchPath = '/api/uat/contrapartidas/dispatch-cycle';
 const soapConsoleUiPath = '/ach/nacha/soap-uat-console';
 
 const uniqueSuffix = `${Date.now()}`.slice(-6);
-const txPrefix = `UAT-G34-${new Date().toISOString().replace(/[-:]/g, '').replace(/\..+$/, '')}-${uniqueSuffix}`;
+const txPrefix = `UAT-G34-${g34Scenario.code}-${new Date().toISOString().replace(/[-:]/g, '').replace(/\..+$/, '')}-${uniqueSuffix}`;
 const sourceCompanyName = `UAT-G34-${uniqueSuffix}`;
 const sourceCompanyIdentification = `G34${uniqueSuffix}`;
 const transactionAmount = 15400 + Number(uniqueSuffix.slice(-2)) / 100;
@@ -109,7 +125,7 @@ const recipientIdNumber = '7000001';
 const sourceAccountNumber = '320000000001';
 const destinationAccountNumber = '320000000002';
 
-test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () => {
+test.describe(`G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch [${g34Scenario.displayName}]`, () => {
   test('ShouldCreateTransactionGenerateOfficialNachaAndExposeDispatchEvidence', async ({ page }, testInfo) => {
     test.setTimeout(600_000);
     const runtime = await authenticateRuntime();
@@ -117,7 +133,9 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
       createdTransactionId: 0,
       createdCycleId: '',
       createdExternalFileName: '',
-      createdClearingHouseId: 0
+      createdClearingHouseId: 0,
+      scenarioClearingHouseId: 0,
+      scenarioInstitutionId: 0
     };
 
     await page.addInitScript((accessToken) => {
@@ -132,11 +150,11 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
       const defaultSource = institutions.find((item) => item.isDefaultSource) ?? null;
       expect(defaultSource, 'Debe existir una FinancialInstitution default source activa.').not.toBeNull();
 
-      const achColClearingHouse = await querySingleRow(`
+      const targetClearingHouse = await querySingleRow(`
         SELECT "Id" AS id, "Name" AS name, "Code" AS code
         FROM "ClearingHouses"
-        WHERE "Code" = 'ACHCOL'
-           OR "Name" = 'ACH Colombia'
+        WHERE "Code" = '${g34Scenario.code}'
+           OR "Name" = '${g34Scenario.clearingHouseName}'
         ORDER BY "Id"
         LIMIT 1;
       `, (row) => ({
@@ -144,13 +162,13 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
         name: row[1] ?? '',
         code: row[2] ?? ''
       }));
-      expect(achColClearingHouse, 'Debe existir la cámara ACH Colombia activa en PostgreSQL real.').not.toBeNull();
+      expect(targetClearingHouse, `Debe existir la cámara ${g34Scenario.displayName} activa en PostgreSQL real.`).not.toBeNull();
 
-      const achColInstitution = await querySingleRow(`
+      const targetInstitution = await querySingleRow(`
         SELECT "Id" AS id, "Name" AS name, "IsDefaultSource" AS "isDefaultSource", "RoutingNumber" AS "routingNumber",
                "TransitCode" AS "transitCode", "Status" AS status
         FROM "FinancialInstitutions"
-        WHERE "Name" = 'ACH Colombia'
+        WHERE "Name" = '${g34Scenario.destinationInstitutionName}'
           AND COALESCE("Status", 0) = 1
         ORDER BY "Id"
         LIMIT 1;
@@ -162,7 +180,9 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
         transitCode: row[4] ?? '',
         status: Number(row[5] ?? 0)
       }));
-      expect(achColInstitution, 'Debe existir una institución activa de ACH Colombia para el flujo G3.4 inicial.').not.toBeNull();
+      expect(targetInstitution, `Debe existir una institución activa de ${g34Scenario.displayName} para el flujo G3.4.`).not.toBeNull();
+      cleanupState.scenarioClearingHouseId = targetClearingHouse!.id;
+      cleanupState.scenarioInstitutionId = targetInstitution!.id;
 
       const companyEntryDescription = companyEntryDescriptions.find((item) => /NOMINAS/i.test(item.term ?? ''))
         ?? companyEntryDescriptions.find((item) => item.isActive !== false)
@@ -170,8 +190,19 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
       expect(companyEntryDescription, 'Debe existir un CompanyEntryDescription activo para la transacción sintética.').not.toBeNull();
 
       const defaultOriginCode = buildOriginCode(defaultSource!);
-      const achColOriginCode = buildOriginCode(achColInstitution!);
+      const targetOriginCode = buildOriginCode(targetInstitution!);
       const sequenceScope = 'ACH_EXTERNAL_NAME';
+
+      if (g34ScenarioCode === 'CENIT')
+      {
+        await executeSql(`
+          UPDATE "InstitutionClearingHousePreferences"
+          SET "IsDefault" = CASE WHEN "ClearingHouseId" = ${targetClearingHouse!.id} THEN TRUE ELSE FALSE END,
+              "Priority" = CASE WHEN "ClearingHouseId" = ${targetClearingHouse!.id} THEN 1 ELSE 2 END
+          WHERE "FinancialInstitutionId" = ${targetInstitution!.id}
+            AND "ClearingHouseId" IN (${targetClearingHouse!.id}, 1);
+        `);
+      }
 
       const createdPrenote = await apiPostJson<CreatedTransaction>(transactionsPath, runtime.token, {
         amount: 0,
@@ -180,7 +211,7 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
         type: 2,
         accountType: 1,
         isPrenotification: true,
-        destinationInstitutionId: achColInstitution!.id,
+        destinationInstitutionId: targetInstitution!.id,
         sourceAccountNumber,
         destinationAccountNumber,
         recipientIdNumber,
@@ -219,7 +250,7 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
         type: 2,
         accountType: 1,
         isPrenotification: false,
-        destinationInstitutionId: achColInstitution!.id,
+        destinationInstitutionId: targetInstitution!.id,
         sourceAccountNumber,
         destinationAccountNumber,
         recipientIdNumber,
@@ -270,12 +301,12 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
       expect(cycleProcessingDate, 'El ciclo debe existir para derivar la fecha de secuencia.').not.toBeNull();
 
       const sequenceDate = cycleProcessingDate ?? new Date().toISOString().slice(0, 10);
-      const expectedSequence = await resolveExpectedSequence(sequenceScope, achColClearingHouse!.id, sequenceDate);
-      const expectedExternalFileName = `${achColOriginCode}.${expectedSequence.toString().padStart(3, '0')}.1`;
+      const expectedSequence = await resolveExpectedSequence(sequenceScope, targetClearingHouse!.id, sequenceDate);
+      const expectedExternalFileName = `${targetOriginCode}.${expectedSequence.toString().padStart(3, '0')}.1`;
 
       const exported = await downloadNachaFile(runtime.token, cleanupState.createdCycleId);
       cleanupState.createdExternalFileName = exported.fileName;
-      cleanupState.createdClearingHouseId = achColClearingHouse!.id;
+      cleanupState.createdClearingHouseId = targetClearingHouse!.id;
 
       expect(exported.fileName).toMatch(/^\d{7}\.\d{3}\.1$/);
       expect(exported.content.length).toBeGreaterThan(0);
@@ -416,7 +447,9 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
             apiBaseUrl
           },
           defaultOriginCode,
-          achColOriginCode,
+          targetOriginCode,
+          targetClearingHouse,
+          targetInstitution,
           expectedSequence,
           expectedExternalFileName,
           transaction: createdTx,
@@ -433,6 +466,15 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
       });
     } finally {
       await cleanupCorrelatedData(cleanupState.createdExternalFileName);
+      if (g34ScenarioCode === 'CENIT' && cleanupState.scenarioInstitutionId > 0 && cleanupState.scenarioClearingHouseId > 0) {
+        await executeSql(`
+          UPDATE "InstitutionClearingHousePreferences"
+          SET "IsDefault" = FALSE,
+              "Priority" = 2
+          WHERE "FinancialInstitutionId" = ${cleanupState.scenarioInstitutionId}
+            AND "ClearingHouseId" IN (${cleanupState.scenarioClearingHouseId}, 1);
+        `);
+      }
     }
   });
 });
