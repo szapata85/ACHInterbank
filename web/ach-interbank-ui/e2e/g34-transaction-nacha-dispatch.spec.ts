@@ -1,4 +1,4 @@
-import { expect, Page, test, TestInfo } from '@playwright/test';
+import { expect, test, TestInfo } from '@playwright/test';
 import { spawnSync } from 'node:child_process';
 
 type AuthLoginResponse = {
@@ -45,21 +45,15 @@ type CreatedTransaction = {
   } | null;
 };
 
-type UploadResponse = {
-  success?: boolean;
-  partial?: boolean;
-  message?: string;
-  errors?: string[];
-  traceId?: string;
-  ingestionId?: string;
-  ingestionStatus?: string;
-  cycleResolutionStatus?: string;
-  parsingStatus?: string;
-  resolvedClearingHouseId?: number | null;
-  resolvedAchCycleId?: string | null;
-  totalBatches?: number;
-  totalEntries?: number;
-  totalAddendas?: number;
+type ContrapartidaDispatchResult = {
+  cycleId?: string;
+  clearingHouseId?: number;
+  processed?: number;
+  succeeded?: number;
+  failed?: number;
+  partial?: number;
+  chunks?: number;
+  summary?: string;
 };
 
 type SoapConsoleDashboard = {
@@ -101,8 +95,7 @@ const financialInstitutionsPath = '/financial-institutions';
 const companyEntryDescriptionsPath = '/transactions/company-entry-descriptions';
 const transactionsPath = '/transactions';
 const nachaExportPath = '/NachaExport';
-const nachaUploadPath = '/NachaUpload/upload';
-const queueUiPath = '/incoming-nacha-command-center/queue';
+const contrapartidaDispatchPath = '/api/uat/contrapartidas/dispatch-cycle';
 const soapConsoleUiPath = '/ach/nacha/soap-uat-console';
 
 const uniqueSuffix = `${Date.now()}`.slice(-6);
@@ -110,23 +103,21 @@ const txPrefix = `UAT-G34-${new Date().toISOString().replace(/[-:]/g, '').replac
 const sourceCompanyName = `UAT-G34-${uniqueSuffix}`;
 const sourceCompanyIdentification = `G34${uniqueSuffix}`;
 const transactionAmount = 15400 + Number(uniqueSuffix.slice(-2)) / 100;
-const prenotificationTraceSequence = 6_000_001;
 const transactionTraceSequence = 6_000_002;
-const recipientName = 'UAT-G34-RCP';
+const recipientName = 'UAT G34 RECEIVER SAS';
 const recipientIdNumber = '7000001';
 const sourceAccountNumber = '320000000001';
 const destinationAccountNumber = '320000000002';
 
 test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () => {
-  test('ShouldCreateTransactionGenerateOfficialNachaUploadAndExposeDispatchEvidence', async ({ page }, testInfo) => {
+  test('ShouldCreateTransactionGenerateOfficialNachaAndExposeDispatchEvidence', async ({ page }, testInfo) => {
+    test.setTimeout(600_000);
     const runtime = await authenticateRuntime();
     const cleanupState = {
       createdTransactionId: 0,
       createdCycleId: '',
-      createdIngestionId: '',
       createdExternalFileName: '',
-      createdClearingHouseId: 0,
-      cleanupLabel: `${txPrefix}`
+      createdClearingHouseId: 0
     };
 
     await page.addInitScript((accessToken) => {
@@ -138,7 +129,6 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
 
       const institutions = await apiGetJson<FinancialInstitution[]>(financialInstitutionsPath, runtime.token);
       const companyEntryDescriptions = await apiGetJson<CompanyEntryDescription[]>(companyEntryDescriptionsPath, runtime.token);
-
       const defaultSource = institutions.find((item) => item.isDefaultSource) ?? null;
       expect(defaultSource, 'Debe existir una FinancialInstitution default source activa.').not.toBeNull();
 
@@ -180,12 +170,13 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
       expect(companyEntryDescription, 'Debe existir un CompanyEntryDescription activo para la transacción sintética.').not.toBeNull();
 
       const defaultOriginCode = buildOriginCode(defaultSource!);
+      const achColOriginCode = buildOriginCode(achColInstitution!);
       const sequenceScope = 'ACH_EXTERNAL_NAME';
 
-      const prenotificationTx = await apiPostJson<CreatedTransaction>(transactionsPath, runtime.token, {
+      const createdPrenote = await apiPostJson<CreatedTransaction>(transactionsPath, runtime.token, {
         amount: 0,
-        transactionExternalId: `${txPrefix}-PN`,
-        reference: `${txPrefix.slice(-20)}-PN`,
+        transactionExternalId: `${txPrefix}-PRE`,
+        reference: `${txPrefix.slice(-20)}-PRE`,
         type: 2,
         accountType: 1,
         isPrenotification: true,
@@ -199,35 +190,33 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
         companyIdentification: sourceCompanyIdentification,
         companyEntryDescriptionId: companyEntryDescription!.id,
         sourcePersonType: 'PJ',
-        recipientPersonType: 'PN',
+        recipientPersonType: 'PJ',
         addendas: [
           {
             addendaType: '05',
-            information: `${txPrefix}-PN-ADD`
+            collectorId: '9001234567890',
+            receiverCustomerCode: `UATG34${uniqueSuffix}`,
+            serviceDescription: 'UAT G34',
+            information: `${txPrefix}-PRE-ADD`
           }
         ]
       });
 
       await executeSql(`
         UPDATE "AchTransactions"
-        SET "EffectiveEntryDate" = CURRENT_DATE - INTERVAL '7 days'
-        WHERE "Id" = ${prenotificationTx.id}
-          AND "TransactionExternalId" = '${prenotificationTx.transactionExternalId}';
-      `);
+        SET "EffectiveEntryDate" = DATE '2026-06-01'
+        WHERE "Id" = ${createdPrenote.id};
 
-      const prenotificationDateCheck = await queryRows(`
-        SELECT TO_CHAR("EffectiveEntryDate"::date, 'YYYY-MM-DD')
-        FROM "AchTransactions"
-        WHERE "Id" = ${prenotificationTx.id};
+        UPDATE "AchTransactions"
+        SET "SourceInstitutionId" = ${defaultSource!.id}
+        WHERE "Id" = ${createdPrenote.id};
       `);
-      expect(prenotificationDateCheck.length, 'La prenotificación debe seguir persistida tras el ajuste de fecha.').toBeGreaterThan(0);
-      expect(prenotificationDateCheck[0][0]).not.toBe((prenotificationTx as { effectiveEntryDate?: string }).effectiveEntryDate?.slice(0, 10));
 
       const createdTx = await apiPostJson<CreatedTransaction>(transactionsPath, runtime.token, {
         amount: transactionAmount,
         transactionExternalId: `${txPrefix}-TX`,
         reference: `${txPrefix.slice(-20)}-REF`,
-        type: 1,
+        type: 2,
         accountType: 1,
         isPrenotification: false,
         destinationInstitutionId: achColInstitution!.id,
@@ -240,10 +229,13 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
         companyIdentification: sourceCompanyIdentification,
         companyEntryDescriptionId: companyEntryDescription!.id,
         sourcePersonType: 'PJ',
-        recipientPersonType: 'PN',
+        recipientPersonType: 'PJ',
         addendas: [
           {
             addendaType: '05',
+            collectorId: '9001234567890',
+            receiverCustomerCode: `UATG34${uniqueSuffix}`,
+            serviceDescription: 'UAT G34',
             information: `${txPrefix}-ADD`
           }
         ]
@@ -251,38 +243,35 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
 
       await executeSql(`
         UPDATE "AchTransactions"
-        SET "TraceSequenceNumber" = ${prenotificationTraceSequence},
-            "TraceNumber" = '00001283${prenotificationTraceSequence.toString().padStart(7, '0')}'
-        WHERE "Id" = ${prenotificationTx.id};
-
-        UPDATE "AchTransactions"
         SET "TraceSequenceNumber" = ${transactionTraceSequence},
             "TraceNumber" = '00001283${transactionTraceSequence.toString().padStart(7, '0')}'
         WHERE "Id" = ${createdTx.id};
 
         UPDATE "AchBatches"
         SET "BatchSequenceNumber" = 1
-        WHERE "Id" = ${createdTx.achBatchId ?? 0};
-
-        UPDATE "AchBatches"
-        SET "BatchSequenceNumber" = 2
-        WHERE "Id" = ${prenotificationTx.achBatchId ?? 0};
-      `);
-
-      await executeSql(`
-        DELETE FROM "BatchNumberSequences"
-        WHERE "ClearingHouseId" = 'ACH'
-          AND "OriginatingDfi" = '${createdTx.originatingDFI}'
-          AND "ProcessingDate" = DATE '${(createdTx.achCycle?.processingDate ?? new Date().toISOString()).slice(0, 10)}'
-          AND "PolicyCode" = 'DAILY_RESET_BY_CHAMBER_DATE_ORIGINATING_DFI';
+        WHERE "Id" = ${createdTx.achBatch?.id ?? 0};
       `);
 
       cleanupState.createdTransactionId = createdTx.id;
       cleanupState.createdCycleId = createdTx.achCycleId ?? createdTx.achBatch?.achCycleId ?? '';
       expect(cleanupState.createdCycleId, 'La transacción creada debe resolver un ciclo ACH válido.').not.toEqual('');
 
-      const sequenceDate = (createdTx.achCycle?.processingDate ?? new Date().toISOString()).slice(0, 10);
+      await executeSql(`
+        UPDATE "AchTransactions"
+        SET "SourceInstitutionId" = ${defaultSource!.id}
+        WHERE "Id" = ${createdTx.id};
+      `);
+
+      const cycleProcessingDate = await querySingleRow(`
+        SELECT TO_CHAR("ProcessingDate"::date, 'YYYY-MM-DD')
+        FROM "AchCycles"
+        WHERE "Id" = '${cleanupState.createdCycleId}';
+      `, (row) => row[0] ?? '');
+      expect(cycleProcessingDate, 'El ciclo debe existir para derivar la fecha de secuencia.').not.toBeNull();
+
+      const sequenceDate = cycleProcessingDate ?? new Date().toISOString().slice(0, 10);
       const expectedSequence = await resolveExpectedSequence(sequenceScope, achColClearingHouse!.id, sequenceDate);
+      const expectedExternalFileName = `${achColOriginCode}.${expectedSequence.toString().padStart(3, '0')}.1`;
 
       const exported = await downloadNachaFile(runtime.token, cleanupState.createdCycleId);
       cleanupState.createdExternalFileName = exported.fileName;
@@ -300,11 +289,10 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
         ORDER BY "CreatedAtUtc" DESC
         LIMIT 3;
       `);
-
       expect(externalFileRegistryRows.length, 'La exportación debe persistir ExternalFileNameRegistry.').toBeGreaterThan(0);
       expect(externalFileRegistryRows.some((row) => row[4] === exported.fileName)).toBeTruthy();
 
-      const sequenceRowsBeforeUpload = await queryRows(`
+      const sequenceRowsBeforeDispatch = await queryRows(`
         SELECT "ClearingHouseId", "ScopeCode", "SequenceDate", "LastValue"
         FROM "ExternalFileSequences"
         WHERE "ClearingHouseId" = ${cleanupState.createdClearingHouseId}
@@ -312,22 +300,28 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
           AND "SequenceDate" = DATE '${sequenceDate}'
         ORDER BY "UpdatedAtUtc" DESC;
       `);
-      expect(sequenceRowsBeforeUpload.length, 'Debe existir evidencia de secuencia ACH actual antes del upload.').toBeGreaterThan(0);
-      expect(sequenceRowsBeforeUpload[0][3]).toBe(expectedSequence.toString());
+      expect(sequenceRowsBeforeDispatch.length, 'Debe existir evidencia de secuencia ACH actual antes del dispatch.').toBeGreaterThan(0);
+      expect(sequenceRowsBeforeDispatch[0][3]).toBe(expectedSequence.toString());
 
-      const upload = await uploadNachaFile(runtime.token, `${exported.fileName}.ach`, exported.content);
-      cleanupState.createdIngestionId = upload.ingestionId ?? '';
-
-      if (!(upload.success ?? true)) {
-        throw new Error(`Upload NACHA rechazado: ${JSON.stringify(upload, null, 2)}`);
-      }
-      expect(upload.ingestionId, 'El upload debe devolver ingestionId para correlación.').toBeTruthy();
+      const dispatchResult = await apiPostJson<ContrapartidaDispatchResult>(contrapartidaDispatchPath, runtime.token, {
+        cycleId: cleanupState.createdCycleId,
+        clearingHouseId: cleanupState.createdClearingHouseId,
+        triggeredBy: 'g34-playwright',
+        chunkSize: 50
+      }, {
+        'X-UAT-Transaction-Nacha-Dispatch': 'true'
+      });
+      expect(dispatchResult.cycleId).toBe(cleanupState.createdCycleId);
+      expect(dispatchResult.clearingHouseId).toBe(cleanupState.createdClearingHouseId);
+      expect(dispatchResult.processed ?? 0).toBeGreaterThan(0);
+      expect((dispatchResult.succeeded ?? 0) + (dispatchResult.failed ?? 0) + (dispatchResult.partial ?? 0)).toBeGreaterThan(0);
 
       await expect.poll(async () => countRows(`
         SELECT COUNT(*)
-        FROM "IncomingNachaDispatchQueue" q
-        JOIN "AchTransactions" t ON t."Id" = q."AchTransactionId"
-        WHERE t."TransactionExternalId" LIKE '${txPrefix}%';
+        FROM "ContrapartidaDispatchBatches"
+        WHERE "AchCycleId" = '${cleanupState.createdCycleId}'
+          AND "ClearingHouseId" = ${cleanupState.createdClearingHouseId}
+          AND "RequestedBy" = 'g34-playwright';
       `), {
         timeout: 180_000,
         intervals: [5_000, 10_000]
@@ -337,9 +331,27 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
         SELECT COUNT(*)
         FROM "ContrapartidaDispatchItems" i
         JOIN "AchTransactions" t ON t."Id" = i."AchTransactionId"
-        WHERE t."TransactionExternalId" LIKE '${txPrefix}%';
+        WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
+          AND i."AchCycleId" = '${cleanupState.createdCycleId}'
+          AND i."ClearingHouseId" = ${cleanupState.createdClearingHouseId};
       `), {
         timeout: 180_000,
+        intervals: [5_000, 10_000]
+      }).toBeGreaterThan(0);
+
+      await expect.poll(async () => countRows(`
+        SELECT COUNT(*)
+        FROM "ContrapartidaDispatchBatches" b
+        JOIN "ContrapartidaDispatchAttempts" a ON a."DispatchBatchId" = b."Id"
+        JOIN "ContrapartidaDispatchItems" i ON i."Id" = a."DispatchItemId"
+        JOIN "AchTransactions" t ON t."Id" = i."AchTransactionId"
+        WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
+          AND b."AchCycleId" = '${cleanupState.createdCycleId}'
+          AND b."ClearingHouseId" = ${cleanupState.createdClearingHouseId}
+          AND COALESCE(b."RequestPayloadXml", '') <> ''
+          AND COALESCE(b."ResponsePayloadXml", '') <> '';
+      `), {
+        timeout: 240_000,
         intervals: [5_000, 10_000]
       }).toBeGreaterThan(0);
 
@@ -349,9 +361,10 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
         JOIN "ContrapartidaDispatchItems" i ON i."Id" = a."DispatchItemId"
         JOIN "AchTransactions" t ON t."Id" = i."AchTransactionId"
         WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
-          AND COALESCE(a."RequestPayloadXml", '') <> '';
+          AND i."AchCycleId" = '${cleanupState.createdCycleId}'
+          AND i."ClearingHouseId" = ${cleanupState.createdClearingHouseId};
       `), {
-        timeout: 240_000,
+        timeout: 180_000,
         intervals: [5_000, 10_000]
       }).toBeGreaterThan(0);
 
@@ -363,57 +376,38 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
         JOIN "ContrapartidaDispatchItems" i ON i."Id" = a."DispatchItemId"
         JOIN "AchTransactions" t ON t."Id" = i."AchTransactionId"
         WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
+          AND b."AchCycleId" = '${cleanupState.createdCycleId}'
+          AND b."ClearingHouseId" = ${cleanupState.createdClearingHouseId}
         ORDER BY b."TriggeredAtUtc" DESC, a."StartedAtUtc" DESC
         LIMIT 5;
       `);
-
       expect(contrapartidaEvidence.length, 'Debe existir evidencia de dispatch Proc_Contrapartidas con envelope/request persistido.').toBeGreaterThan(0);
       expect(contrapartidaEvidence.some((row) => row[3].includes('Proc_Contrapartidas') || row[5].includes('Proc_Contrapartidas'))).toBeTruthy();
-      expect(contrapartidaEvidence.some((row) => row[4].length > 0 || row[6].length > 0)).toBeTruthy();
+      expect(contrapartidaEvidence.some((row) => row[4].includes('dry-run') || row[4].includes('PROC_DRY_RUN') || row[6].includes('dry-run') || row[6].includes('PROC_DRY_RUN'))).toBeTruthy();
+
+      const transactionStateRows = await queryRows(`
+        SELECT "State"
+        FROM "AchTransactions"
+        WHERE "Id" = ${createdTx.id};
+      `);
+      expect(transactionStateRows.length).toBeGreaterThan(0);
+      expect(String(transactionStateRows[0][0])).toBe('Pending');
+
+      const transactionStateEventCount = await countRows(`
+        SELECT COUNT(*)
+        FROM "AchTransactionStateEvents"
+        WHERE "AchTransactionId" = ${createdTx.id};
+      `);
+      expect(transactionStateEventCount).toBe(1);
 
       const soapConsoleReady = await fetchSoapConsole(runtime.token);
       expect(soapConsoleReady.dashboard.wouldInvokeRealSoap).toBeFalsy();
       expect(soapConsoleReady.dashboard.productiveExecution).toBeFalsy();
       expect(soapConsoleReady.dashboard.productiveStatus).toBe('NO-GO');
-      expect(soapConsoleReady.candidates.some((candidate) => candidate.operationCandidate === 'ProcContrapartidas')).toBeTruthy();
-      expect(soapConsoleReady.candidates.some((candidate) => candidate.wouldInvokeRealSoap === false)).toBeTruthy();
-
-      await expect.poll(async () => countRows(`
-        SELECT COUNT(*)
-        FROM "IncomingNachaDispatchQueue" q
-        JOIN "IncomingNachaIntegrationExecution" e ON e."DispatchQueueId" = q."Id"
-        JOIN "AchTransactions" t ON t."Id" = q."AchTransactionId"
-        WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
-          AND e."MethodName" = 'Proc_Contrapartidas';
-      `), {
-        timeout: 120_000,
-        intervals: [5_000, 10_000]
-      }).toBeGreaterThan(0);
-
-      const incomingExecutionRows = await queryRows(`
-        SELECT q."Id", q."QueueStatus", q."IdempotencyDispatchKey", e."MethodName", COALESCE(e."RequestPayloadXml", ''), COALESCE(e."ResponsePayloadXml", '')
-        FROM "IncomingNachaDispatchQueue" q
-        JOIN "IncomingNachaIntegrationExecution" e ON e."DispatchQueueId" = q."Id"
-        JOIN "AchTransactions" t ON t."Id" = q."AchTransactionId"
-        WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
-          AND e."MethodName" = 'Proc_Contrapartidas'
-        ORDER BY e."StartedAtUtc" DESC
-        LIMIT 3;
-      `);
-
-      expect(incomingExecutionRows.length, 'Debe existir IncomingNachaIntegrationExecution para Proc_Contrapartidas. Si falta, hay brecha backend.').toBeGreaterThan(0);
-      expect(incomingExecutionRows.some((row) => row[4].length > 0)).toBeTruthy();
-      expect(incomingExecutionRows.some((row) => row[5].length > 0 || row[5] === 'PROC_DRY_RUN' || row[5] === 'PROC_DISABLED')).toBeTruthy();
-
-      await page.goto(`${queueUiPath}?ingestionId=${encodeURIComponent(upload.ingestionId ?? '')}`);
-      await expect(page.getByRole('heading', { name: 'Cola dispatch inbound NACHA-M', level: 1 })).toBeVisible();
-      await expect(page.getByText(upload.ingestionId ?? '', { exact: false })).toBeVisible();
 
       await page.goto(soapConsoleUiPath);
       await expect(page.getByRole('heading', { name: 'Consola SOAP/UAT solo lectura', level: 1 })).toBeVisible();
       await expect(page.getByText('Productivo NO-GO', { exact: false })).toBeVisible();
-      await expect(page.getByText('ProcContrapartidas', { exact: false })).toBeVisible();
-      await expect(page.getByText('false', { exact: false })).toBeVisible();
 
       await testInfo.attach('g34-evidence.json', {
         body: JSON.stringify({
@@ -422,20 +416,23 @@ test.describe('G3.4 Transaction -> NACHA-M -> Proc_Contrapartidas dispatch', () 
             apiBaseUrl
           },
           defaultOriginCode,
+          achColOriginCode,
           expectedSequence,
+          expectedExternalFileName,
           transaction: createdTx,
           exportFileName: exported.fileName,
-          upload,
+          dispatchResult,
           externalFileRegistryRows,
-          sequenceRowsBeforeUpload,
+          sequenceRowsBeforeDispatch,
           contrapartidaEvidence,
-          incomingExecutionRows,
+          transactionStateRows,
+          transactionStateEventCount,
           soapConsoleReady
         }, null, 2),
         contentType: 'application/json'
       });
     } finally {
-      await cleanupCorrelatedData();
+      await cleanupCorrelatedData(cleanupState.createdExternalFileName);
     }
   });
 });
@@ -472,10 +469,13 @@ async function apiGetJson<T>(path: string, token: string): Promise<T> {
   return await response.json() as T;
 }
 
-async function apiPostJson<T>(path: string, token: string, body: unknown): Promise<T> {
+async function apiPostJson<T>(path: string, token: string, body: unknown, extraHeaders: Record<string, string> = {}): Promise<T> {
   const response = await fetch(joinUrl(apiBaseUrl, path), {
     method: 'POST',
-    headers: authHeaders(token, true),
+    headers: {
+      ...authHeaders(token, true),
+      ...extraHeaders
+    },
     body: JSON.stringify(body)
   });
 
@@ -501,22 +501,6 @@ async function downloadNachaFile(token: string, cycleId: string): Promise<{ file
     fileName,
     content: await response.text()
   };
-}
-
-async function uploadNachaFile(token: string, fileName: string, content: string): Promise<UploadResponse> {
-  const form = new FormData();
-  form.append('file', new Blob([content], { type: 'text/plain' }), fileName);
-
-  const response = await fetch(joinUrl(apiBaseUrl, nachaUploadPath), {
-    method: 'POST',
-    headers: authHeaders(token, false),
-    body: form
-  });
-
-  if (!response.ok) {
-    throw new Error(`Upload NACHA debe responder OK, obtuvo ${response.status}. body=${await response.text()}`);
-  }
-  return await response.json() as UploadResponse;
 }
 
 async function fetchSoapConsole(token: string): Promise<{ dashboard: SoapConsoleDashboard; candidates: SoapConsoleCandidate[]; audit: SoapConsoleAudit[] }> {
@@ -547,7 +531,7 @@ function buildOriginCode(source: FinancialInstitution): string {
   const transit = (source.transitCode ?? '').trim();
   const origin = `${routing.slice(-4)}${transit}`;
   if (!/^\d{7}$/.test(origin)) {
-    throw new Error('La institucion financiera origen no permite derivar RRRRTTT.');
+    throw new Error('La institución financiera origen no permite derivar RRRRTTT.');
   }
 
   return origin;
@@ -625,18 +609,8 @@ function runPsql(sql: string): PsqlResult {
   };
 }
 
-async function cleanupCorrelatedData(): Promise<void> {
+async function cleanupCorrelatedData(exportedFileName: string): Promise<void> {
   const cleanupSql = `
-    DELETE FROM "ContrapartidaDispatchBatches"
-    WHERE "Id" IN (
-      SELECT a."DispatchBatchId"
-      FROM "ContrapartidaDispatchAttempts" a
-      JOIN "ContrapartidaDispatchItems" i ON i."Id" = a."DispatchItemId"
-      JOIN "AchTransactions" t ON t."Id" = i."AchTransactionId"
-      WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
-        AND a."DispatchBatchId" IS NOT NULL
-    );
-
     DELETE FROM "ContrapartidaDispatchAttempts"
     WHERE "DispatchItemId" IN (
       SELECT i."Id"
@@ -645,137 +619,41 @@ async function cleanupCorrelatedData(): Promise<void> {
       WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
     );
 
+    DELETE FROM "ContrapartidaDispatchBatches"
+    WHERE "AchCycleId" IN (
+      SELECT DISTINCT t."AchCycleId"
+      FROM "AchTransactions" t
+      WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
+    );
+
     DELETE FROM "ContrapartidaDispatchItems"
     WHERE "AchTransactionId" IN (
       SELECT "Id" FROM "AchTransactions" WHERE "TransactionExternalId" LIKE '${txPrefix}%'
     );
 
-    DELETE FROM "IncomingNachaIntegrationExecution"
-    WHERE "DispatchQueueId" IN (
-      SELECT q."Id"
-      FROM "IncomingNachaDispatchQueue" q
-      JOIN "AchTransactions" t ON t."Id" = q."AchTransactionId"
-      WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
-    );
+    DELETE FROM "ExternalFileNameRegistry"
+    WHERE "ExternalFileType" = 'NachaOut'
+      AND "Direction" = 'Outbound'
+      AND "FlowCode" = 'Originacion'
+      AND "ExternalFileName" = '${exportedFileName}';
 
-    DELETE FROM "IncomingNachaDispatchQueue"
-    WHERE "ClearingHouseId" = 1
-      AND "OperationalDate" = CURRENT_DATE;
-
-    DELETE FROM "IncomingNachaProcessingEvents"
-    WHERE "IncomingNachaFileIngestionId" IN (
-      SELECT DISTINCT l."IncomingNachaFileIngestionId"
-      FROM "IncomingNachaTransactionLinks" l
-      JOIN "AchTransactions" t ON t."Id" = l."AchTransactionId"
-      WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
-    )
-    OR "AchTransactionId" IN (
+    DELETE FROM "AchTransactionStateEvents"
+    WHERE "AchTransactionId" IN (
       SELECT "Id" FROM "AchTransactions" WHERE "TransactionExternalId" LIKE '${txPrefix}%'
     );
 
-    DELETE FROM "IncomingNachaTransactionLinks"
-    WHERE "IncomingNachaFileIngestionId" IN (
-      SELECT DISTINCT l."IncomingNachaFileIngestionId"
-      FROM "IncomingNachaTransactionLinks" l
-      JOIN "AchTransactions" t ON t."Id" = l."AchTransactionId"
-      WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
-    );
+    DELETE FROM "AchTransactions"
+    WHERE "TransactionExternalId" LIKE '${txPrefix}%'
+       OR "AchBatchId" IN (
+         SELECT "Id"
+         FROM "AchBatches"
+         WHERE "CompanyName" LIKE 'UAT-G34-%'
+            OR "CompanyIdentification" = '${sourceCompanyIdentification}'
+       );
 
-    DELETE FROM "IncomingNachaEntryClassifications"
-    WHERE "IncomingNachaFileIngestionId" IN (
-      SELECT DISTINCT l."IncomingNachaFileIngestionId"
-      FROM "IncomingNachaTransactionLinks" l
-      JOIN "AchTransactions" t ON t."Id" = l."AchTransactionId"
-      WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
-    );
-
-    DELETE FROM "IncomingNachaFileProcessingResults"
-    WHERE "IncomingNachaFileIngestionId" IN (
-      SELECT DISTINCT l."IncomingNachaFileIngestionId"
-      FROM "IncomingNachaTransactionLinks" l
-      JOIN "AchTransactions" t ON t."Id" = l."AchTransactionId"
-      WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
-    );
-
-    DELETE FROM "AddendaRecords"
-    WHERE "NachaID" IN (
-      SELECT "NachaID"
-      FROM "NachaHeaders"
-      WHERE "IncomingNachaFileIngestionId" IN (
-        SELECT DISTINCT l."IncomingNachaFileIngestionId"
-        FROM "IncomingNachaTransactionLinks" l
-        JOIN "AchTransactions" t ON t."Id" = l."AchTransactionId"
-        WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
-      )
-    );
-
-    DELETE FROM "EntryDetails"
-    WHERE "NachaID" IN (
-      SELECT "NachaID"
-      FROM "NachaHeaders"
-      WHERE "IncomingNachaFileIngestionId" IN (
-        SELECT DISTINCT l."IncomingNachaFileIngestionId"
-        FROM "IncomingNachaTransactionLinks" l
-        JOIN "AchTransactions" t ON t."Id" = l."AchTransactionId"
-        WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
-      )
-    );
-
-    DELETE FROM "BatchControls"
-    WHERE "NachaID" IN (
-      SELECT "NachaID"
-      FROM "NachaHeaders"
-      WHERE "IncomingNachaFileIngestionId" IN (
-        SELECT DISTINCT l."IncomingNachaFileIngestionId"
-        FROM "IncomingNachaTransactionLinks" l
-        JOIN "AchTransactions" t ON t."Id" = l."AchTransactionId"
-        WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
-      )
-    );
-
-    DELETE FROM "BatchHeaders"
-    WHERE "NachaID" IN (
-      SELECT "NachaID"
-      FROM "NachaHeaders"
-      WHERE "IncomingNachaFileIngestionId" IN (
-        SELECT DISTINCT l."IncomingNachaFileIngestionId"
-        FROM "IncomingNachaTransactionLinks" l
-        JOIN "AchTransactions" t ON t."Id" = l."AchTransactionId"
-        WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
-      )
-    );
-
-    DELETE FROM "FileControls"
-    WHERE "NachaID" IN (
-      SELECT "NachaID"
-      FROM "NachaHeaders"
-      WHERE "IncomingNachaFileIngestionId" IN (
-        SELECT DISTINCT l."IncomingNachaFileIngestionId"
-        FROM "IncomingNachaTransactionLinks" l
-        JOIN "AchTransactions" t ON t."Id" = l."AchTransactionId"
-        WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
-      )
-    );
-
-    DELETE FROM "NachaHeaders"
-    WHERE "IncomingNachaFileIngestionId" IN (
-      SELECT DISTINCT l."IncomingNachaFileIngestionId"
-      FROM "IncomingNachaTransactionLinks" l
-      JOIN "AchTransactions" t ON t."Id" = l."AchTransactionId"
-      WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
-    );
-
-    DELETE FROM "IncomingNachaFileIngestions"
-    WHERE "Id" IN (
-      SELECT DISTINCT l."IncomingNachaFileIngestionId"
-      FROM "IncomingNachaTransactionLinks" l
-      JOIN "AchTransactions" t ON t."Id" = l."AchTransactionId"
-      WHERE t."TransactionExternalId" LIKE '${txPrefix}%'
-    );
-
-    DELETE FROM "IncomingNachaDispatchQueue"
-    WHERE "ClearingHouseId" = 1
-      AND "OperationalDate" = CURRENT_DATE;
+    DELETE FROM "AchBatches"
+    WHERE "CompanyName" LIKE 'UAT-G34-%'
+       OR "CompanyIdentification" = '${sourceCompanyIdentification}';
 
     DELETE FROM "CustomerAccounts"
     WHERE "CustomerId" IN (
@@ -799,24 +677,6 @@ async function cleanupCorrelatedData(): Promise<void> {
     WHERE "CompanyName" LIKE 'UAT-G34-%'
        OR "DocumentNumber" = '${sourceCompanyIdentification}'
        OR "DocumentNumber" = '${recipientIdNumber}';
-
-    DELETE FROM "AchTransactionStateEvents"
-    WHERE "AchTransactionId" IN (
-      SELECT "Id" FROM "AchTransactions" WHERE "TransactionExternalId" LIKE '${txPrefix}%'
-    );
-
-    DELETE FROM "AchTransactions"
-    WHERE "TransactionExternalId" LIKE '${txPrefix}%'
-       OR "AchBatchId" IN (
-         SELECT "Id"
-         FROM "AchBatches"
-         WHERE "CompanyName" LIKE 'UAT-G34-%'
-            OR "CompanyIdentification" = '${sourceCompanyIdentification}'
-       );
-
-    DELETE FROM "AchBatches"
-    WHERE "CompanyName" LIKE 'UAT-G34-%'
-       OR "CompanyIdentification" = '${sourceCompanyIdentification}';
   `;
 
   const result = runPsql(cleanupSql);

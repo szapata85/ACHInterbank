@@ -360,6 +360,54 @@ public class AchTransactionNachaTests
     }
 
     [Fact]
+    public async Task RegisterTransactionAsync_Prenotification_DoesNotEnqueueContrapartidaDispatch()
+    {
+        using var connection = CreateOpenConnection();
+
+        using var arrangeContext = CreateContext(connection);
+        SeedCoreEntities(arrangeContext);
+        SeedNachaLayouts(arrangeContext);
+
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var (service, contrapartida) = BuildTransactionServiceWithDispatchMock(arrangeContext, cycleId);
+
+        var transaction = await service.RegisterTransactionAsync(
+            amount: 0m,
+            reference: "PAGOPRE-UAT-001",
+            type: TransactionTypeEnum.Debit,
+            accountType: AccountTypeEnum.Checking,
+            isPrenotification: true,
+            destinationInstitutionId: 2,
+            sourceAccountNumber: "111122223333",
+            destinationAccountNumber: "999988887777",
+            companyName: "Empresa Demo",
+            companyIdentification: "123456780",
+            companyEntryDescriptionId: GetCompanyEntryDescriptionId(arrangeContext, "RECAUDOS"),
+            recipientIdNumber: "900123456",
+            recipientName: "Cliente Recaudo",
+            requiresIdentityValidation: false,
+            addendas:
+            [
+                new()
+                {
+                    AddendaType = "05",
+                    BusinessType = AchAddendaBusinessType.Debit,
+                    CollectorId = "9001234567",
+                    ReceiverCustomerCode = "CLI0000000001",
+                    ServiceDescription = "FACTURA"
+                }
+            ],
+            ct: CancellationToken.None);
+
+        contrapartida.Verify(
+            x => x.EnsurePendingDispatchAsync(It.IsAny<AchTransaction>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        Assert.True(transaction.IsPrenotification);
+        Assert.Equal(TransactionTypeEnum.Prenotification, transaction.Type);
+    }
+
+    [Fact]
     public async Task BuildNachaFileByCycleAsync_Throws_WhenAddendaBusinessTypeIsIncompatibleWithTransactionType()
     {
         using var connection = CreateOpenConnection();
@@ -1201,6 +1249,15 @@ public class AchTransactionNachaTests
         string cycleId,
         ITransactionPolicyService? policyServiceOverride = null)
     {
+        var (service, _) = BuildTransactionServiceWithDispatchMock(context, cycleId, policyServiceOverride);
+        return service;
+    }
+
+    private static (AchTransactionService Service, Mock<IContrapartidaDispatchPersistenceService> ContrapartidaDispatch) BuildTransactionServiceWithDispatchMock(
+        AchDbContext context,
+        string cycleId,
+        ITransactionPolicyService? policyServiceOverride = null)
+    {
         var routing = new Mock<IRoutingStrategyService>();
         routing
             .Setup(r => r.ResolveClearingHouseForTransactionAsync(
@@ -1232,7 +1289,8 @@ public class AchTransactionNachaTests
         var contrapartida = new Mock<IContrapartidaDispatchPersistenceService>();
         contrapartida.Setup(x => x.EnsurePendingDispatchAsync(It.IsAny<AchTransaction>(), It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(new ContrapartidaDispatchItem());
 
-        return new AchTransactionService(context, unitOfWork, customerRepo, holiday.Object, validator, batchResolver, persister, prenotificationHandler, contrapartida.Object, null, null, policyServiceOverride ?? policyService.Object);
+        var service = new AchTransactionService(context, unitOfWork, customerRepo, holiday.Object, validator, batchResolver, persister, prenotificationHandler, contrapartida.Object, null, null, policyServiceOverride ?? policyService.Object);
+        return (service, contrapartida);
     }
 
     private static void SeedNachaLayouts(AchDbContext context)
