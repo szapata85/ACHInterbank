@@ -1,5 +1,6 @@
-using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
+using System.Text.RegularExpressions;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 
@@ -36,7 +37,7 @@ public class ExternalFileNameBuilder : IExternalFileNameBuilder
                 : await _namingRuleService.GetActiveOutboundRuleAsync(context.ClearingHouseId, context.ProcessingDate, ct);
             var sequence = await _sequenceService.ReserveNextSequenceAsync(context, ct);
             var originCode = namingRule?.OriginEntityCode ?? context.ClearingHouseOriginCode ?? string.Empty;
-            var externalName = BuildConfiguredName(namingRule?.NamePattern, originCode, sequence);
+            var externalName = BuildConfiguredName(namingRule?.NamePattern, originCode, sequence, ResolveCycleNumber(context));
             var fileId = await _identifierMapService.ResolveIdentifierAsync(sequence, ct);
 
             return new ExternalFileNameComponents
@@ -84,10 +85,10 @@ public class ExternalFileNameBuilder : IExternalFileNameBuilder
         };
     }
 
-    private static string BuildConfiguredName(string? namePattern, string originCode, int sequence)
+    private static string BuildConfiguredName(string? namePattern, string originCode, int sequence, int cycleNumber)
     {
-        var defaultName = ExternalFileNameSupport.BuildAchName(originCode, sequence);
-        if (string.IsNullOrWhiteSpace(namePattern) || string.Equals(namePattern, "RRRRTTT.ZZZ.1", StringComparison.OrdinalIgnoreCase))
+        var defaultName = ExternalFileNameSupport.BuildAchName(originCode, sequence, cycleNumber);
+        if (string.IsNullOrWhiteSpace(namePattern) || Regex.IsMatch(namePattern, @"^RRRRTTT\.ZZZ\.(?:N|[1-5])$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
         {
             return defaultName;
         }
@@ -95,5 +96,35 @@ public class ExternalFileNameBuilder : IExternalFileNameBuilder
         return namePattern
             .Replace("RRRRTTT", originCode[^7..], StringComparison.OrdinalIgnoreCase)
             .Replace("ZZZ", sequence.ToString("D3"), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int ResolveCycleNumber(ExternalFileNameContext context)
+    {
+        foreach (var candidate in new[] { context.CycleName, context.CycleId })
+        {
+            if (TryExtractCycleNumber(candidate, out var cycleNumber))
+            {
+                return cycleNumber;
+            }
+        }
+
+        return 1;
+    }
+
+    private static bool TryExtractCycleNumber(string? value, out int cycleNumber)
+    {
+        cycleNumber = 0;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var match = Regex.Match(value, @"(?:^|[^0-9])([1-5])(?:$|[^0-9])");
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        return int.TryParse(match.Groups[1].Value, out cycleNumber);
     }
 }

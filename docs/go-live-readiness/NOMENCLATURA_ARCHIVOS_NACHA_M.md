@@ -9,8 +9,8 @@ La salida NACHA-M por camara usa regla parametrizada en `NachaFileNamingRule`, n
 
 | Camara | Patron | Secuencia | Mapeo campo 7 | Fuente normativa | Estado |
 |---|---|---|---|---|---|
-| ACH Colombia | RRRRTTT.ZZZ.1 | 001-036 | 001-026 => A-Z; 027-036 => 0-9 | MAN-004 V32 | OK tecnico UAT |
-| CENIT | RRRRTTT.ZZZ.1 | 001-036 | 001-026 => A-Z; 027-036 => 0-9 | Ejemplos CENIT del proyecto | OK tecnico UAT; homologacion formal pendiente |
+| ACH Colombia | RRRRTTT.ZZZ.N (N=1..5) | 001-036 | 001-026 => A-Z; 027-036 => 0-9 | MAN-004 V32 | OK tecnico UAT |
+| CENIT | RRRRTTT.ZZZ.N (N=1..5) | 001-036 | 001-026 => A-Z; 027-036 => 0-9 | Ejemplos CENIT del proyecto | OK tecnico UAT; homologacion formal pendiente |
 
 ## Originador default
 
@@ -35,6 +35,7 @@ No se usa `Banco UAT Origen` como originador default.
 - Maximo diario parametrizado: 36 archivos por camara/originador/fecha.
 - No reutilizacion: `ExternalFileNamePolicy` reserva secuencia externa y evita reutilizacion de nombre exitoso del dia.
 - Validacion de coherencia: nombre externo y registro tipo 1 se normalizan/validan con el mismo identificador interno.
+- El ultimo segmento N es ciclo/sesion/ventana, no extension de archivo.
 - Si falta configuracion RRRR/TTT o regla activa, el sistema debe devolver error funcional controlado.
 
 ## Decision

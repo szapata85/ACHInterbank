@@ -7,7 +7,7 @@
   <form [formGroup]="form" (ngSubmit)="upload()" novalidate>
     <label class="file-input">
       <span>Archivo NACHA-M *</span>
-      <input #fileInput type="file" accept=".ach,.RET,.1" (change)="onFileSelected($event)" />
+      <input #fileInput type="file" (change)="onFileSelected($event)" />
       <small class="muted" *ngIf="fileName; else emptyFile">Archivo seleccionado: {{ fileName }}</small>
       <small class="file-kind" *ngIf="selectedFileValidation as validation" data-testid="nacha-upload-selected-kind">
         {{ validation.label }} · {{ validation.detail }}
@@ -16,7 +16,7 @@
         {{ selectedFileValidation.rejectionMessage }}
       </small>
       <small class="muted file-help" data-testid="nacha-upload-help">
-        Formatos permitidos: RRRRTTT.ZZZ.1, RRRRTTT.ZZZ.RET y fixture UAT/golden interno .ach.
+        Formatos permitidos: RRRRTTT.ZZZ.N, RRRRTTT.ZZZ.RET y fixture UAT/golden interno .ach.
         Se rechazan .txt, .nacha y .env.
       </small>
       <ng-template #emptyFile>

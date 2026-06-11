@@ -28,6 +28,23 @@ public class IncomingNachaCycleResolverTests
     }
 
     [Fact]
+    public async Task ResolveAsync_ResolvesOfficialNameWithoutTraditionalExtension()
+    {
+        using var context = BuildContext();
+        Seed(context, multiCandidate: false);
+        var sut = new IncomingNachaCycleResolver(context);
+
+        var result = await sut.ResolveAsync(new IncomingNachaCycleResolutionRequest
+        {
+            FileName = "1234567.001.1",
+            Records = [BuildHeader("1111111111", "20260417")]
+        });
+
+        Assert.True(result.IsResolved);
+        Assert.Equal("ACH-20260417-01", result.AchCycleId);
+    }
+
+    [Fact]
     public async Task ResolveAsync_ReturnsAmbiguous_WhenMultipleCandidates()
     {
         using var context = BuildContext();

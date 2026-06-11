@@ -121,7 +121,7 @@ Resultado del ciclo controlado:
 
 Evidencia comun:
 
-- Patron aplicado: RRRRTTT.ZZZ.1.
+- Patron aplicado: RRRRTTT.ZZZ.N.
 - Originador: Cooperativa Financiera de Antioquia, unico FinancialInstitution.IsDefaultSource=true.
 - RRRR=0001 y TTT=283 derivados de la configuracion de CFA.
 - Mapeo validado: 001 -> A y 002 -> B en registro tipo 1 campo 7.
@@ -143,4 +143,4 @@ Se ejecuto UAT controlado de prenotificaciones originadas por CFA para ACH Colom
 | ACH Colombia | `UAT-ACH-PRE-CFA-001` | 256 | `docs/uat/evidencias/nacha-m-uat/prenotificaciones/ach-colombia/0001283.004.1` | `E4695D004A35087B20485339E844F7C722E059C1DA58E732219370FAC0F9155A` | 004 | D | 28 | OK tecnico UAT |
 | CENIT | `UAT-CEN-PRE-CFA-001` | 257 | `docs/uat/evidencias/nacha-m-uat/prenotificaciones/cenit/0001283.002.1` | `B36BE4DB8A9EC2E3384A69A06CC0866BF24E05A2E6886B056498E361236A024C` | 002 | B | 28 | OK tecnico UAT; homologacion normativa formal CENIT pendiente |
 
-Controles validados: patron `RRRRTTT.ZZZ.1`, prefijo CFA `0001283`, registros `1/5/6/7/8/9`, codigo NACHA `28`, campo 7 coherente con ZZZ, archivo no vacio y sin transmision externa.
+Controles validados: patron `RRRRTTT.ZZZ.N`, prefijo CFA `0001283`, registros `1/5/6/7/8/9`, codigo NACHA `28`, campo 7 coherente con ZZZ, archivo no vacio y sin transmision externa.

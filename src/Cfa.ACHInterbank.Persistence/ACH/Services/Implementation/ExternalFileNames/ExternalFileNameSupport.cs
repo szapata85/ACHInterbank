@@ -8,7 +8,7 @@ internal static class ExternalFileNameSupport
 {
     private const string AchScopeCode = "ACH_EXTERNAL_NAME";
     private const string ReturnOutScopeCode = "ACH_RETURN_EXTERNAL_NAME";
-    private static readonly Regex AchRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.1$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex AchRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.(?<cycle>[1-5])$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex ReturnRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.RET$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public static ExternalFileNameComponents Parse(ExternalFileNameContext context, string externalFileName)
@@ -85,22 +85,27 @@ internal static class ExternalFileNameSupport
             or ExternalFileType.ResponseOut
             or ExternalFileType.RejectionOut;
 
-    public static string BuildAchName(string originCode, int sequence)
+    public static string BuildAchName(string originCode, int sequence, int cycleNumber = 1)
     {
         if (string.IsNullOrWhiteSpace(originCode) || !originCode.All(char.IsDigit) || originCode.Length < 7)
         {
-            throw new InvalidOperationException("Para ACH el origin code debe contener exactamente 7 dígitos (RRRRTTT).");
+            throw new InvalidOperationException("Para ACH el origin code debe contener exactamente 7 digitos (RRRRTTT).");
+        }
+
+        if (cycleNumber is < 1 or > 5)
+        {
+            throw new InvalidOperationException("Para ACH el numero de ciclo debe estar entre 1 y 5.");
         }
 
         var normalizedOriginCode = originCode[^7..];
-        return $"{normalizedOriginCode}.{sequence:D3}.1";
+        return $"{normalizedOriginCode}.{sequence:D3}.{cycleNumber}";
     }
 
     public static string BuildReturnName(string originCode, int sequence)
     {
         if (string.IsNullOrWhiteSpace(originCode) || !originCode.All(char.IsDigit) || originCode.Length < 7)
         {
-            throw new InvalidOperationException("Para devoluciones el origin code debe contener exactamente 7 dÃ­gitos (RRRRTTT).");
+            throw new InvalidOperationException("Para devoluciones el origin code debe contener exactamente 7 digitos (RRRRTTT).");
         }
 
         var normalizedOriginCode = originCode[^7..];

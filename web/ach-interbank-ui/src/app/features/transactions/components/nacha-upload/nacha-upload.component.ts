@@ -7,7 +7,7 @@ import { NotificationService } from '../../../../core/services/notification.serv
 import { SharedModule } from '../../../../shared/shared.module';
 import { NachaUploadRecord, NachaUploadService } from '../../services/nacha-upload.service';
 
-const officialAchColombiaPattern = /^\d{7}\.\d{3}\.1$/;
+const officialAchColombiaPattern = /^\d{7}\.\d{3}\.[1-5]$/;
 const officialReturnPattern = /^\d{7}\.\d{3}\.RET$/i;
 const internalFixturePattern = /\.ach$/i;
 const rejectedExtensionPattern = /\.(txt|nacha|env)$/i;
@@ -302,7 +302,7 @@ export function classifyNachaUploadFile(fileName: string): NachaUploadFileValida
       allowed: true,
       kind: 'official-ach',
       label: 'Archivo operativo ACH Colombia',
-      detail: 'Patrón normativo: RRRRTTT.ZZZ.1',
+      detail: 'Patrón normativo: RRRRTTT.ZZZ.N',
       rejectionMessage: ''
     };
   }
@@ -331,10 +331,10 @@ export function classifyNachaUploadFile(fileName: string): NachaUploadFileValida
     allowed: false,
     kind: 'rejected',
     label: 'Formato no permitido',
-    detail: 'Usa RRRRTTT.ZZZ.1, RRRRTTT.ZZZ.RET o un fixture UAT .ach.',
-    rejectionMessage: 'Formato no permitido. Usa RRRRTTT.ZZZ.1, RRRRTTT.ZZZ.RET o un fixture UAT .ach.'
-  };
-}
+      detail: 'Usa RRRRTTT.ZZZ.N, RRRRTTT.ZZZ.RET o un fixture UAT .ach.',
+      rejectionMessage: 'Formato no permitido. Usa RRRRTTT.ZZZ.N, RRRRTTT.ZZZ.RET o un fixture UAT .ach.'
+    };
+  }
 
 type NachaUploadResultView = {
   statusCode: number;

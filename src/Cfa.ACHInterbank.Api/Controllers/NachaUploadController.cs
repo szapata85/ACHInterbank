@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 
 namespace Cfa.ACHInterbank.Api.Controllers
 {
@@ -32,6 +33,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
         /// </summary>
 
         private const long MaxUploadSizeBytes = 10 * 1024 * 1024; // 10 MB
+        private static readonly Regex OfficialNachaNamePattern = new(@"^\d{7}\.\d{3}\.[1-5]$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
             ".ach", ".nacha", ".txt"
@@ -74,15 +76,17 @@ namespace Cfa.ACHInterbank.Api.Controllers
                 });
             }
 
-            var extension = Path.GetExtension(file.FileName);
-            if (!AllowedExtensions.Contains(extension))
+            var fileName = Path.GetFileName(file.FileName);
+            var extension = Path.GetExtension(fileName);
+            var isOfficialName = OfficialNachaNamePattern.IsMatch(fileName);
+            if (!isOfficialName && !AllowedExtensions.Contains(extension))
             {
                 return BadRequest(new NachaUploadResponseDto
                 {
                     Success = false,
                     Partial = false,
                     Message = "Extensión de archivo no permitida.",
-                    Errors = ["Extensiones permitidas: .ach, .nacha, .txt"],
+                    Errors = ["Nombres oficiales permitidos: RRRRTTT.ZZZ.N (N=1..5) o extensiones internas .ach, .nacha, .txt."],
                     TraceId = traceId
                 });
             }

@@ -40,6 +40,35 @@ public class ExternalFileNamePolicyPhase1Tests
         Assert.Equal('A', name.FileIdModifier);
     }
 
+    [Theory]
+    [InlineData("Ciclo 1 UAT", "8765321.001.1")]
+    [InlineData("Ciclo 5 UAT", "8765321.001.5")]
+    public async Task AchBuilder_Uses_CycleNumber_From_Context(string cycleName, string expectedFullName)
+    {
+        await using var harness = await CreateHarnessAsync();
+        await SeedDynamicNamingFixtureAsync(harness.Context);
+
+        var sequence = CreateSequenceService(harness.Context);
+        var map = new FakeIdentifierMapService();
+        var namingRuleService = new NachaFileNamingRuleService(harness.Context);
+        var builder = new ExternalFileNameBuilder(sequence, map, namingRuleService);
+
+        var name = await builder.BuildAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ClearingHouseOriginCode = "1111111",
+            CycleName = cycleName,
+            ProcessingDate = new DateTime(2026, 04, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        });
+
+        Assert.Equal(expectedFullName, name.FullName);
+        Assert.Equal(1, name.ExternalSequence);
+    }
+
     [Fact]
     public async Task CenitBuilder_Uses_CurrentDocumentedPattern_WithoutAlternateNaming()
     {

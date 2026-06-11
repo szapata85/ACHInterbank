@@ -18,7 +18,7 @@ Estado productivo: NO-GO
 
 | Campo | Valor | Resultado |
 |---|---:|---|
-| Patron | RRRRTTT.ZZZ.1 | OK |
+| Patron | RRRRTTT.ZZZ.N | OK |
 | RRRR | 0001 | OK |
 | TTT | 283 | OK |
 | ZZZ | 001 | OK |

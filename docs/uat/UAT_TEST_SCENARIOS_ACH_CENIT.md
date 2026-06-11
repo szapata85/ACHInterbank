@@ -14,7 +14,7 @@ Restricciones globales: Productivo NO-GO, datos sinteticos, sin SOAP real, sin m
 | UAT-ACH-004 | ACH Colombia | Rechazo/devolucion | Causal sintetica | Consultar respuesta/rechazo | Causal visible sanitizada, manual review si ambiguo | Conciliacion ACH | Pendiente |
 | UAT-ACH-005 | ACH Colombia | Prenotificacion aprobada | Prenote sintetica | Consultar respuesta aprobada | Estado no monetario registrado | Consola conciliacion | Pendiente |
 | UAT-ACH-006 | ACH Colombia | Prenotificacion rechazada | Prenote rechazada sintetica | Consultar causal/estado | Estado no monetario, sin SOAP real | Conciliacion y auditoria | Pendiente |
-| UAT-ACH-007 | ACH Colombia | Naming `RRRRTTT.ZZZ.1` | Consecutivo UAT | Validar nombre externo | Naming conforme, sin hash | Archivo/evidencia UAT | Pendiente |
+| UAT-ACH-007 | ACH Colombia | Naming `RRRRTTT.ZZZ.N` | Consecutivo UAT | Validar nombre externo | Naming conforme, sin extension tradicional | Archivo/evidencia UAT | Pendiente |
 | UAT-ACH-008 | ACH Colombia | FileIdModifier | Consecutivos 001-036 | Validar A-Z/0-9 | Modificador correcto o error controlado | Evidencia test/UAT | Pendiente |
 | UAT-ACH-009 | ACH Colombia | Totales/padding/fixed-width | Archivo sintetico | Validar EntryHash, BlockCount, totals, padding 9 | Cierre consistente | Evidencia campo a campo | Pendiente |
 

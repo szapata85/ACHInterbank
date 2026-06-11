@@ -16,6 +16,7 @@ using Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Calendar;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Tests.NachaFunctional;
 using Microsoft.AspNetCore.Http;
@@ -36,7 +37,7 @@ namespace Cfa.ACHInterbank.Tests;
 [Trait("Category", "UAT")]
 public class NachaUploadPostgresUatEndToEndTests
 {
-    private const string UatFixtureFileName = "RRRRTTT.ZZZ.1.ach";
+    private const string UatOfficialFileName = "0001283.001.1";
     private const string UatTaskCode = "IncomingNachaPostProcessing";
     private const string UatCycleId = "CYCLE-ACH-20260524-1";
 
@@ -70,7 +71,7 @@ public class NachaUploadPostgresUatEndToEndTests
             }
         };
 
-        var file = BuildUploadFile(NachaTestDataPaths.AchColombiaIncoming001, UatFixtureFileName);
+        var file = BuildUploadFile(NachaTestDataPaths.AchColombiaIncoming001, UatOfficialFileName);
         var uploadResult = await controller.UploadNachaFile(new NachaUploadRequest { File = file }, CancellationToken.None);
 
         var uploadPayload = ExtractUploadResponse(uploadResult);
@@ -89,10 +90,11 @@ public class NachaUploadPostgresUatEndToEndTests
         await using var postUploadContext = CreateContext(harness.ConnectionString);
         var ingestion = await postUploadContext.IncomingNachaFileIngestions
             .AsNoTracking()
-            .SingleAsync(x => x.CorrelationId == uploadPayload.TraceId || x.FileName == UatFixtureFileName);
+            .SingleAsync(x => x.CorrelationId == uploadPayload.TraceId || x.FileName == UatOfficialFileName);
         var ingestionId = ingestion.Id;
 
-        Assert.Equal(UatFixtureFileName, ingestion.FileName);
+        Assert.Equal(UatOfficialFileName, ingestion.FileName);
+        Assert.Equal(string.Empty, Path.GetExtension(ingestion.FileName));
         Assert.Equal(1060, ingestion.FileSize);
         Assert.Equal("application/octet-stream", ingestion.ContentType);
         Assert.Equal(1, await postUploadContext.NachaHeaders.CountAsync(x => x.IncomingNachaFileIngestionId == ingestionId));
@@ -198,7 +200,7 @@ public class NachaUploadPostgresUatEndToEndTests
             }
         };
 
-        var file = BuildUploadFile(NachaTestDataPaths.AchColombiaIncoming001, UatFixtureFileName);
+        var file = BuildUploadFile(NachaTestDataPaths.AchColombiaIncoming001, UatOfficialFileName);
         var result = await controller.UploadNachaFile(new NachaUploadRequest { File = file }, CancellationToken.None);
         var payload = ExtractUploadResponse(result);
 
@@ -244,23 +246,28 @@ public class NachaUploadPostgresUatEndToEndTests
             regulatoryCatalog,
             stateTransition);
 
-        var externalPolicy = new Mock<IExternalFileNamePolicy>();
-        externalPolicy
-            .Setup(x => x.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((ExternalFileNameContext request, CancellationToken _) => new ExternalFileNamePolicyResult
-            {
-                ExternalFileName = request.ProvidedExternalFileName ?? request.InternalFileName ?? UatFixtureFileName,
-                Validation = new ExternalFileNameValidationResult { Disposition = ExternalFileValidationDisposition.Passed },
-                CorrelationEvidence = new ExternalFileNameCorrelationEvidence(),
-                Components = new ExternalFileNameComponents { FullName = request.ProvidedExternalFileName ?? UatFixtureFileName }
-            });
+        var identifierMapService = new NachaFileIdentifierMapService(context);
+        var namingRuleService = new NachaFileNamingRuleService(context);
+        var sequenceProviders = new IExternalFileNameSequenceProvider[]
+        {
+            new PostgresExternalFileNameSequenceService(context),
+            new EfGenericExternalFileNameSequenceService(context)
+        };
+        var sequenceResolver = new ExternalFileNameSequenceProviderResolver(sequenceProviders);
+        var sequenceService = new ExternalFileNameSequenceService(context, sequenceResolver);
+        var duplicateGuard = new ExternalFileDuplicateGuard(context);
+        var correlationService = new ExternalFileNameCorrelationService(identifierMapService);
+        var auditService = new ExternalFileNameAuditService(context);
+        var builder = new ExternalFileNameBuilder(sequenceService, identifierMapService, namingRuleService);
+        var validator = new ExternalFileNameValidator(duplicateGuard, correlationService, identifierMapService);
+        var externalPolicy = new ExternalFileNamePolicy(builder, validator, correlationService, auditService, duplicateGuard);
 
         var ingestion = new IncomingNachaIngestionAppService(
             context,
             cycleResolver,
             parser,
             postParseProcessor,
-            externalPolicy.Object,
+            externalPolicy,
             NullLogger<IncomingNachaIngestionAppService>.Instance);
 
         return new UploadFixture(ingestion);

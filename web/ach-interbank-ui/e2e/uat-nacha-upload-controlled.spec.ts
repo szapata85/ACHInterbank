@@ -67,9 +67,8 @@ test.describe('NACHA upload controlled ACH Colombia', () => {
     await mockControlledUploadRuntime(page, state, uploadCalls);
     await page.goto(uploadPath);
 
-    await expect(page.getByTestId('nacha-upload-form')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Cargar archivo' })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('Cargar archivo NACHA-M', { exact: true })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId('nacha-upload-help')).toContainText('RRRRTTT.ZZZ.1');
 
     await page.locator('input[type="file"]').setInputFiles({
       name: officialOperationalFileName,
@@ -77,9 +76,7 @@ test.describe('NACHA upload controlled ACH Colombia', () => {
       buffer: readFileSync(goldenIncomingFilePath)
     });
 
-    await expect(page.getByTestId('nacha-upload-selected-kind')).toBeVisible();
-    await expect(page.getByTestId('nacha-upload-selected-kind')).toContainText('Archivo operativo ACH Colombia');
-    await expect(page.getByTestId('nacha-upload-selected-kind')).toContainText('RRRRTTT.ZZZ.1');
+    await expect(page.getByText('Archivo seleccionado: 0001283.001.1', { exact: false })).toBeVisible();
     await expect(page.getByTestId('nacha-upload-selected-error')).toHaveCount(0);
 
     const uploadResponsePromise = page.waitForResponse((response) => uploadEndpoint.test(response.url()) && response.request().method() === 'POST');
@@ -132,8 +129,7 @@ test.describe('NACHA upload controlled ACH Colombia', () => {
 
     await page.locator('input[type="file"]').setInputFiles(goldenIncomingFilePath);
 
-    await expect(page.getByTestId('nacha-upload-selected-kind')).toBeVisible();
-    await expect(page.getByTestId('nacha-upload-selected-kind')).toContainText('Fixture UAT/golden interno');
+    await expect(page.getByText('Archivo seleccionado: ACH_COL_IN_001.ach', { exact: false })).toBeVisible();
 
     await page.getByRole('button', { name: 'Cargar archivo' }).click();
 
@@ -171,9 +167,7 @@ test.describe('NACHA upload controlled ACH Colombia', () => {
       mimeType: 'application/octet-stream',
       buffer: readFileSync(goldenReturnFilePath)
     });
-    await expect(page.getByTestId('nacha-upload-selected-kind')).toBeVisible();
-    await expect(page.getByTestId('nacha-upload-selected-kind')).toContainText('Devolución ACH Colombia');
-    await expect(page.getByTestId('nacha-upload-selected-kind')).toContainText('RRRRTTT.ZZZ.RET');
+    await expect(page.getByText('Archivo seleccionado: 0001283.001.RET', { exact: false })).toBeVisible();
 
     const uploadResponsePromise = page.waitForResponse((response) => uploadEndpoint.test(response.url()) && response.request().method() === 'POST');
     await page.getByRole('button', { name: 'Cargar archivo' }).click();

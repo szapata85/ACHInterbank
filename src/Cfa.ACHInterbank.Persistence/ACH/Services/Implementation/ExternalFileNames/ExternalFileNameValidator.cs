@@ -1,5 +1,5 @@
-using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 
@@ -34,7 +34,7 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
                 issues.Add(Hard(
                     "RETURN_NAME_PATTERN",
                     "RETURN_PATTERN_INVALID",
-                    "Regla HARD BLOCK RET: patrón requerido RRRRTTT.ZZZ.RET.",
+                    "Regla HARD BLOCK RET: patron requerido RRRRTTT.ZZZ.RET.",
                     "ACH V32 6.1.10.1 / RET"));
             }
             else
@@ -80,7 +80,7 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
             issues.Add(Warning(
                 "RETURN_NAMING_PROVISIONAL",
                 "RETURN_NORMATIVE_PENDING",
-                "Regla WARNING: flujo de devolución/ROR/rechazo-respuesta saliente en modo provisional UAT, sin hard-block normativo.",
+                "Regla WARNING: flujo de devolucion/ROR/rechazo-respuesta saliente en modo provisional UAT, sin hard-block normativo.",
                 "Matriz vigente naming externo ACH/CENIT/STA"));
 
             if (!string.IsNullOrWhiteSpace(components.FullName))
@@ -101,7 +101,7 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
             var parsed = ExternalFileNameSupport.Parse(context, components.FullName);
             if (!parsed.ExternalSequence.HasValue)
             {
-                issues.Add(Hard("ACH_NAME_PATTERN", "ACH_PATTERN_INVALID", "Regla HARD BLOCK ACH: patrón requerido RRRRTTT.ZZZ.1.", "ACH V32 6.1.10.1"));
+                issues.Add(Hard("ACH_NAME_PATTERN", "ACH_PATTERN_INVALID", "Regla HARD BLOCK ACH: patron requerido RRRRTTT.ZZZ.N.", "ACH V32 6.1.10.1"));
             }
             else
             {
@@ -148,7 +148,7 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
 
             if (!declared.HasValue)
             {
-                issues.Add(Hard("STA_FIELD6_REQUIRED", "STA_DECLARED_COUNT_MISSING", "Regla HARD BLOCK STA rechazo: campo 6 (número de registros de detalle) es obligatorio.", "CENIT Anexo 2 Cap.2 num.4"));
+                issues.Add(Hard("STA_FIELD6_REQUIRED", "STA_DECLARED_COUNT_MISSING", "Regla HARD BLOCK STA rechazo: campo 6 (numero de registros de detalle) es obligatorio.", "CENIT Anexo 2 Cap.2 num.4"));
             }
             else if (declared.Value != actualDetailCount)
             {
@@ -167,7 +167,7 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
         }
         else
         {
-            issues.Add(Audit("UNMAPPED_CHAMBER", "AUDIT_NORMATIVE_CONFIRMATION", "Regla AUDIT ONLY: cámara/flujos no cerrados normativamente para enforcement duro.", "Matriz v2"));
+            issues.Add(Audit("UNMAPPED_CHAMBER", "AUDIT_NORMATIVE_CONFIRMATION", "Regla AUDIT ONLY: camara/flujos no cerrados normativamente para enforcement duro.", "Matriz v2"));
         }
 
         var disposition = ResolveDisposition(issues);

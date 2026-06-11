@@ -17,7 +17,7 @@ Este documento prepara la ejecucion UAT formal para NACHA-M ACH Colombia/CENIT u
 - ACH Colombia y CENIT.
 - NACHA-M salida y entrada.
 - Archivos `.RET`, respuestas diferenciales, devoluciones/rechazos, prenotificaciones y ROR.
-- Naming `RRRRTTT.ZZZ.1`, FileIdModifier, totales, padding y fixed-width 106.
+- Naming `RRRRTTT.ZZZ.N`, FileIdModifier, totales, padding y fixed-width 106.
 - `nacha-config profiles` como modelo oficial read-only.
 - Dashboard/read-store, detalle operativo de archivo, consola SOAP/UAT read-only y consola de conciliacion ACH.
 - Evidencias Playwright publicadas por CI.
@@ -49,7 +49,7 @@ Este documento prepara la ejecucion UAT formal para NACHA-M ACH Colombia/CENIT u
 | --- | --- | --- |
 | API/SPA | UAT aislado | Sin secretos productivos |
 | Base de datos | Datos sinteticos ACH/CENIT | Sin clientes reales |
-| Archivos NACHA-M | `.ach`/`.RET` sinteticos | Golden files semirreales no son certificacion |
+| Archivos NACHA-M | `.ach`/`.RET` sinteticos | Golden files semirreales no son certificacion; `.ach` solo es extension fisica interna de fixture |
 | SOAP | Read-only/dry-run/simulado | SOAP real bloqueado |
 | CI | Evidencias publicadas | No habilita GO productivo |
 

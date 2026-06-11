@@ -2,12 +2,14 @@ import { classifyNachaUploadFile } from './nacha-upload.component';
 
 describe('NachaUploadComponent file validation', () => {
   it('should classify ACH Colombia official operational files', () => {
-    const result = classifyNachaUploadFile('0001283.001.1');
+    for (const suffix of ['1', '2', '3', '4', '5']) {
+      const result = classifyNachaUploadFile(`0001283.001.${suffix}`);
 
-    expect(result.allowed).toBeTrue();
-    expect(result.kind).toBe('official-ach');
-    expect(result.label).toBe('Archivo operativo ACH Colombia');
-    expect(result.detail).toContain('RRRRTTT.ZZZ.1');
+      expect(result.allowed).toBeTrue();
+      expect(result.kind).toBe('official-ach');
+      expect(result.label).toBe('Archivo operativo ACH Colombia');
+      expect(result.detail).toContain('RRRRTTT.ZZZ.N');
+    }
   });
 
   it('should classify ACH Colombia return files', () => {
@@ -21,6 +23,14 @@ describe('NachaUploadComponent file validation', () => {
 
   it('should classify .ach files as UAT internal fixtures', () => {
     const result = classifyNachaUploadFile('ACH_COL_IN_001.ach');
+
+    expect(result.allowed).toBeTrue();
+    expect(result.kind).toBe('uat-fixture');
+    expect(result.label).toBe('Fixture UAT/golden interno');
+  });
+
+  it('should classify .ach suffix on an official-looking name as a UAT internal fixture, not official', () => {
+    const result = classifyNachaUploadFile('0001283.001.1.ach');
 
     expect(result.allowed).toBeTrue();
     expect(result.kind).toBe('uat-fixture');
@@ -42,6 +52,6 @@ describe('NachaUploadComponent file validation', () => {
 
     expect(result.allowed).toBeFalse();
     expect(result.kind).toBe('rejected');
-    expect(result.rejectionMessage).toContain('RRRRTTT.ZZZ.1');
+    expect(result.rejectionMessage).toContain('RRRRTTT.ZZZ.N');
   });
 });

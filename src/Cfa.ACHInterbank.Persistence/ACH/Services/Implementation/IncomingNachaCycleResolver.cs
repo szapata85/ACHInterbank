@@ -17,6 +17,7 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
 {
+    private static readonly Regex OfficialCycleNameRegex = new(@"^(?<origin>\d{7})\.(?<sequence>\d{3})\.(?<cycle>[1-5])(?:\.ach)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private readonly AchDbContext _context;
     private readonly IPaymentRailContextService? _paymentRailContextService;
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver;
@@ -254,10 +255,30 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
 
     private static int? ExtractCycleNumberFromFileName(string fileName)
     {
-        if (string.IsNullOrWhiteSpace(fileName)) return null;
-        var name = Path.GetFileNameWithoutExtension(fileName);
-        if (string.IsNullOrWhiteSpace(name)) return null;
-        var match = Regex.Match(name, "(?:^|[._-])(\\d{1,2})(?:$|[._-])");
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return null;
+        }
+
+        var name = Path.GetFileName(fileName.Trim());
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        var match = OfficialCycleNameRegex.Match(name);
+        if (match.Success && int.TryParse(match.Groups["cycle"].Value, out var officialCycleNumber))
+        {
+            return officialCycleNumber;
+        }
+
+        var legacyName = Path.GetFileNameWithoutExtension(name);
+        if (string.IsNullOrWhiteSpace(legacyName))
+        {
+            return null;
+        }
+
+        match = Regex.Match(legacyName, "(?:^|[._-])(\\d{1,2})(?:$|[._-])");
         if (!match.Success) return null;
         return int.TryParse(match.Groups[1].Value, out var cycleNumber) && cycleNumber > 0 ? cycleNumber : null;
     }
