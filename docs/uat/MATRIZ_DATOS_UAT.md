@@ -1,9 +1,9 @@
 # Matriz de Datos UAT - ACH Interbank
 
-Fecha de generacion: 2026-05-18
-Version: 0.1 preliminar
+Fecha de generacion/revalidacion: 2026-05-18 / 2026-06-12
+Version: 0.2 cierre tecnico G3.5-G3.6
 Rama analizada: `ACH-Interbank-Postgresql`
-Estado: matriz inicial; requiere validacion humana.
+Estado: matriz ampliada con dataset sintetico G3.6; requiere validacion humana.
 Politica: datos reales sensibles no deben quedar en Git.
 
 ## Reglas Generales
@@ -41,4 +41,15 @@ Politica: datos reales sensibles no deben quedar en Git.
 | DAT-UAT-022 | UAT-REAL-030 | Datos de reproceso | Anonimizado | Ejecucion UAT | Alta | Reutilizar referencias ficticias controladas | `BulkIngestionAttempts`, `IncomingNachaDispatchQueue` | Tecnologia | PENDIENTE | Validar idempotencia |
 | DAT-UAT-023 | UAT-REAL-028 | Datos de reportes | Anonimizado | Dataset UAT | Alta | Montos/cuentas ficticias | Reportes API/PDF | Auditoria | PENDIENTE | |
 | DAT-UAT-024 | UAT-REAL-025 | SecretRef corporativo | Referencia enmascarada | Seguridad | Critica | Registrar solo alias/mascara, no valor | configuracion UAT aprobada | Seguridad | PENDIENTE | Fuera del compose local |
+| DAT-UAT-025 | G3.6A | Fixture NACHA-M inbound | Sintetico/semirreal anonimizado | Golden file fisico interno | Media | `.ach` solo como extension fisica; nombre externo `0001283.001.6` | NachaUpload y tablas desagregadas | QA/Tecnologia | EJECUTADO | No es evidencia normativa externa |
+| DAT-UAT-026 | G3.6A | Ciclo inbound | Sintetico/controlado sobre entidad existente | `AchCycles` | Media | `CycleName=Ventana 6`; exactamente un entero positivo | `AchCycles`, links incoming | QA/Tecnologia | EJECUTADO Y RESTAURADO | No crear ciclos nuevos |
+| DAT-UAT-027 | G3.6B | Transaccion CFA y prenotificacion | Sintetico | API real + PostgreSQL UAT | Alta | Cuentas, IDs, referencias y monto ficticios | `AchTransactions`, `AchBatches` | QA/Tecnologia | EJECUTADO Y LIMPIADO | Sin movimiento monetario |
+| DAT-UAT-028 | G3.6 | Evidencia Quartz/dry-run | Controlado/sanitizado | Runtime real UAT | Media | Registrar IDs/estados/codigos, no payloads sensibles | `TaskExecutionLog`, queues/batches/attempts | QA/Tecnologia | EJECUTADO | Sin SOAP real |
 
+## Reglas G3.6
+
+- `CycleNumber` estructural proviene del ultimo segmento del nombre oficial.
+- El ciclo funcional se valida con `AchCycles.CycleName`, que debe contener exactamente un entero positivo.
+- No se usa `CycleId` como fuente principal del numero.
+- No se conserva informacion UAT residual creada por los specs.
+- Productivo permanece **NO-GO**.

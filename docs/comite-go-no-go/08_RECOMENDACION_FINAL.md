@@ -1,6 +1,6 @@
 # Recomendacion Final - Comite GO/NO-GO
 
-Fecha: 2026-05-19
+Fecha de actualizacion: 2026-06-12
 Decision recomendada: Continuar UAT controlado / NO-GO productivo
 
 ## Recomendacion Principal
@@ -26,7 +26,7 @@ No aprobar productivo todavia.
 
 ## Texto Formal Recomendado
 
-Con base en la evidencia tecnica y funcional disponible, el proyecto ACH Interbank presenta avances significativos en CI, runtime Docker, autenticacion, proxy SPA/API, trazabilidad, idempotencia documentada, UAT tecnico, cierre de `ACH.Operator` para el usuario demo multirol, export NACHA con error controlado y evidencia SOAP dry-run sin transmision externa. Sin embargo, el UAT integrado NACHA-M no genero archivos no vacios para ACH Colombia ni CENIT y persisten brechas funcionales, operativas, de seguridad e interoperabilidad que impiden recomendar salida productiva. Se recomienda continuar con UAT controlado y mantener decision NO-GO productivo hasta nuevo comite.
+Con base en la evidencia tecnica disponible, G3.5-G3.6 cierran naming dinamico, cleanup del stack retirado, control de migraciones, inbound PostgreSQL/Quartz hasta `Proc_Transacciones` dry-run y outbound hasta `Proc_Contrapartidas` dry-run. G3.6B demuestra correlacion por `AchCycleId`, no causalidad directa. Persisten homologacion externa, UAT formal, CENIT/CUD, sobre digital/certificados, backup/restore/rollback y aprobaciones. Se recomienda continuar UAT controlado y mantener decision NO-GO productivo.
 
 Actualizacion: la parametrizacion de reglas por camara/naturaleza ya esta implementada para UAT controlado, pero no reemplaza el reintento NACHA-M con prenotificaciones validas ni la homologacion/waiver formal. Productivo permanece **NO-GO**.
 ## Actualizacion 2026-05-20
@@ -46,7 +46,7 @@ Resultado del ciclo controlado:
 
 Evidencia comun:
 
-- Patron aplicado: RRRRTTT.ZZZ.1.
+- Patron vigente: `RRRRTTT.ZZZ.N`; los artefactos historicos de esta seccion usan `N=1`.
 - Originador: Cooperativa Financiera de Antioquia, unico FinancialInstitution.IsDefaultSource=true.
 - RRRR=0001 y TTT=283 derivados de la configuracion de CFA.
 - Mapeo validado: 001 -> A y 002 -> B en registro tipo 1 campo 7.
@@ -61,6 +61,8 @@ Observacion normativa:
 
 ## Actualizacion 2026-05-20 - Simulador NACHA-M Entrada
 
-Se recomienda usar el simulador NACHA-M de entrada solo para continuar UAT controlado y preparar archivos que luego deben cargarse manualmente por NachaUpload. Esta capacidad no cambia la decision del comite: no habilita salida productiva, no reemplaza homologacion normativa y no constituye procesamiento bancario.
+El simulador permanece como herramienta de preparacion. G3.6A ya ejecuto carga real por NachaUpload con PostgreSQL y Quartz; esto no habilita salida productiva, no reemplaza homologacion normativa y no constituye procesamiento bancario real.
 
 Decision vigente: **continuar UAT controlado / Productivo NO-GO**.
+
+No hubo SOAP real, movimiento monetario, migraciones ni homologacion externa. Los resultados dry-run no autorizan modo `Live`.

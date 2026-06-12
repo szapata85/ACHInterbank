@@ -1,7 +1,9 @@
 # Exportaciones Paquete Comite GO/NO-GO - ACH Interbank
 
-Fecha: 2026-05-19
+Fecha de actualizacion documental: 2026-06-12
 Estado: Continuar UAT controlado / NO-GO productivo
+
+> Los PDF/XLSX actualmente almacenados fueron generados antes del cierre G3.5-G3.6. No se regeneraron en esta actualizacion y no deben presentarse como representacion vigente hasta ejecutar el proceso de exportacion y revision humana.
 
 ## Contenido
 

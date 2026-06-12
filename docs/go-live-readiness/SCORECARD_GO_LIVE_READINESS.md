@@ -1,8 +1,8 @@
 # Scorecard Go-Live Readiness - ACH Interbank
 
-Fecha de generacion/revalidacion: 2026-05-18 / 2026-05-19
-Version: 0.8 preliminar
-Rama analizada: `fix/uat-operator-role-seed`
+Fecha de generacion/revalidacion: 2026-05-18 / 2026-06-12
+Version: 0.9 cierre tecnico G3.5-G3.6
+Rama analizada: `ACH-Interbank-Postgresql`
 Estado inicial: Candidato UAT controlado / NO-GO productivo.  
 Uso: instrumento preliminar para comite; requiere evidencias y firmas.
 
@@ -20,11 +20,11 @@ Uso: instrumento preliminar para comite; requiere evidencias y firmas.
 | Categoria | Peso | Estado inicial | Puntaje preliminar | Puntaje ponderado | Evidencia | Observacion |
 |---|---:|---|---:|---:|---|---|
 | Funcionalidad core | 20% | PARCIAL | 82 | 16.4 | Backend CI/local OK; Angular local OK; API/DB health OK; proxy SPA->API/Auth/Navigation/funcional/NACHA OK; transacciones sinteticas, evento inicial nuevo e idempotencia documental OK | Core API funcional sintetico y proxy Docker mejoran; UAT bancario formal sigue pendiente |
-| UAT y evidencias | 20% | PARCIAL | 64 | 12.8 | Docs UAT tecnico/funcional actualizados; evidencia de transaccion, persistencia, idempotencia, proxy funcional/NACHA, logs, build, pruebas y acta preliminar final | Actas firmadas, evidencia visual SPA y homologaciones siguen pendientes |
+| UAT y evidencias | 20% | PARCIAL | 64 | 12.8 | G3.6A/G3.6B E2E con SPA/API/PostgreSQL/Quartz reales; 4/4 Playwright | Actas firmadas y homologaciones siguen pendientes |
 | Seguridad | 15% | PARCIAL | 73 | 10.95 | `[Authorize]`, permisos, `dotnet list --vulnerable` sin hallazgos tras `System.Security.Cryptography.Xml` 10.0.8; `admin` evidencia `Admin` + `ACH.Operator` tras seed/migracion controlada | `.env` trackeado, custodia de secretos y certificados requieren decision; falta matriz endpoint-rol formal |
-| Interoperabilidad externa | 15% | CRITICO | 40 | 6.00 | NACHA layouts tecnicos identificados; transacciones UAT ACH Colombia/CENIT creadas; export vacio corregido con 422; SOAP dry-run runtime validado sin transmision | NACHA-M real UAT sigue bloqueado por prenotificacion previa; validacion externa/homologacion sigue pendiente |
+| Interoperabilidad externa | 15% | CRITICO | 40 | 6.00 | Naming dinamico, inbound real y export outbound ciclo 6 validados; `Proc_Transacciones`/`Proc_Contrapartidas` dry-run sin transmision | Homologacion externa, SOAP autorizado y causalidad outbound siguen pendientes |
 | Operacion y soporte | 10% | PARCIAL | 68 | 6.8 | Docker compose config/build/runtime, proxy SPA->API/Auth/Navigation/funcional/NACHA OK y PostgreSQL loopback 5432 para UAT local; runbooks/docs | Backup/restore/rollback pendientes |
-| Observabilidad | 10% | PARCIAL | 68 | 6.8 | `/health/live` y `/health/ready` OK en Docker | Health cubre API/DB; faltan Quartz/externos y monitoreo |
+| Observabilidad | 10% | PARCIAL | 68 | 6.8 | Health API/DB y ejecucion Quartz real evidenciada mediante `TaskExecutionLog` | Falta monitoreo productivo y dependencias externas |
 | Documentacion y trazabilidad | 10% | PARCIAL | 83 | 8.3 | README, docs readiness, evidencia runtime, UAT funcional sintetico, matriz NACHA layouts, contrato idempotencia y acta preliminar final actualizados | Firmas/evidencias UAT formales pendientes; contrato idempotencia evolutivo queda pendiente si se exige 409/key/replay |
 | **Total** | **100%** | **NO-GO con brechas altas** |  | **68.1** |  | **NO-GO productivo** |
 
@@ -33,6 +33,22 @@ Uso: instrumento preliminar para comite; requiere evidencias y firmas.
 Resultado preliminar tras backend CI/local OK, Angular CI de rama y pruebas locales OK, validacion Docker runtime, proxy SPA->API/Auth/Navigation/funcional/NACHA OK, UAT tecnico autenticado basico OK con observaciones, UAT funcional sintetico parcial, cierre funcional de DEF-UAT-017, cierre documental de DEF-UAT-018, cierre tecnico de DEF-UAT-019, correccion NU1903, cierre DEF-UAT-015 para usuario demo multirol, cierre tecnico DEF-UAT-021 y cierre tecnico UAT/local DEF-UAT-022: **68.1 / 100 - NO-GO productivo con brechas altas**.
 
 Clasificacion operacional: **Candidato UAT controlado**, no apto para productivo.
+
+## Actualizacion vigente 2026-06-12
+
+El score permanece en **68.1/100** hasta recalibracion y aprobacion humana del comite. No se incrementa automaticamente por cierres tecnicos.
+
+| Fase | Resultado tecnico | Impacto documental |
+|---|---|---|
+| G3.5 | Naming `RRRRTTT.ZZZ.N` inbound/outbound; ciclo desde `AchCycles.CycleName` | Cierra hardcode `[1-5]` y default `.1`; mantiene observacion de un unico entero positivo |
+| G3.5.1 | OpenBao/HashiCorp Vault retirado del stack activo | KeyVault queda fuera de este cierre y se inventaria separadamente |
+| G3.5.2 | `Database__ApplyMigrations=false` por defecto | Reduce riesgo de cambio de esquema accidental en UAT |
+| G3.6A | 2/2 Playwright, PostgreSQL y Quartz reales, `Proc_Transacciones` dry-run | Cierra procesamiento inbound tecnico, no homologacion externa |
+| G3.6B | 2/2 Playwright, export `.6`, `Proc_Contrapartidas` dry-run | Cierra correlacion tecnica por `AchCycleId`, no causalidad directa |
+
+Commits: `7c3cbb21`, `ebf7a8a5`, `c7a5ad50`, `e5721150`.
+
+Decision sin cambio: **continuar UAT controlado / Productivo NO-GO**.
 
 ## Brechas Que Impiden Subir De Nivel
 

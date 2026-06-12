@@ -1,9 +1,9 @@
 # README Operativo Release UAT - ACH Interbank
 
-Fecha de generacion: 2026-05-18  
-Version: 0.1 preliminar  
+Fecha de generacion/revalidacion: 2026-05-18 / 2026-06-12
+Version: 0.2 cierre tecnico G3.5-G3.6
 Rama analizada: `ACH-Interbank-Postgresql`  
-Estado: guia operativa preliminar; no ejecutar comandos destructivos sin autorizacion.
+Estado: guia UAT actualizada; Productivo NO-GO; no ejecutar comandos destructivos sin autorizacion.
 
 ## 1. Objetivo
 
@@ -46,14 +46,13 @@ No borrar volumenes durante UAT sin aprobacion explicita.
 
 ## 5. Migraciones EF
 
-Validar primero contra ambiente controlado. No ejecutar migraciones productivas desde este README.
+G3.6 usa una base previamente provisionada y no ejecuta migraciones. El compose mantiene:
 
-```bash
-dotnet ef database update \
-  --project src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj \
-  --startup-project src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj \
-  --context AchDbContext
+```yaml
+Database__ApplyMigrations: ${DATABASE_APPLY_MIGRATIONS:-false}
 ```
+
+No habilitar migraciones desde este README. Cualquier cambio de esquema requiere aprobacion y procedimiento DBA separado.
 
 ## 6. SPA Angular
 
@@ -90,7 +89,7 @@ curl http://localhost:843/health/live
 curl http://localhost:843/health/ready
 ```
 
-Observacion: los health checks actuales validan live y ready con DB. Quartz/externos requieren evidencia adicional o monitoreo alterno.
+Observacion: los health checks validan live y ready con DB. G3.6 valida ejecucion Quartz real por `TaskExecutionLog`; monitoreo productivo y dependencias externas siguen pendientes.
 
 Evidencia runtime Docker 2026-05-18:
 
@@ -189,3 +188,40 @@ Defectos bloqueantes o altos requieren decision formal antes de go productivo.
 | `Test-NetConnection localhost -Port 5432` | OK | `TcpTestSucceeded=True`. |
 
 Decision: el compose queda apto para UAT tecnico E2E basico desde SPA, incluido login via `/auth/`, menu via `/navigation/` y PostgreSQL local para troubleshooting controlado, condicionado a datos anonimizados, usuarios/roles y evidencias. Productivo sigue NO-GO.
+
+## 16. Ejecucion G3.6 PostgreSQL real
+
+Requisitos: SPA, API y PostgreSQL reales; base previamente provisionada; SOAP en dry-run; sin migraciones.
+
+```powershell
+docker compose up -d postgres achinterbank-api achinterbank-spa
+dotnet build ACHInterbank.sln -c Release
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build
+
+cd web/ach-interbank-ui
+npm run test -- --watch=false
+$env:RUN_UAT_E2E_POSTGRES='true'
+$env:RUN_UAT_NACHA_UPLOAD='true'
+$env:RUN_UAT_DISPATCH='true'
+npx playwright test e2e/uat-nacha-inbound-postgres-dispatch.spec.ts --project=chromium
+
+$env:RUN_UAT_NACHA_EXPORT='true'
+$env:RUN_UAT_CONTRAPARTIDAS='true'
+npx playwright test e2e/uat-nacha-export-postgres-contrapartidas.spec.ts --project=chromium
+```
+
+Task codes existentes:
+
+- `IncomingNachaPostProcessing`.
+- `AchContrapartidasByCycle`.
+
+No existe endpoint de prueba para disparar Quartz. Los specs ajustan temporalmente `TaskDefinition`, esperan el scheduler real, validan `TaskExecutionLog` y restauran la configuracion.
+
+Resultados del commit `e5721150`:
+
+- G3.6A: 2/2 Playwright, `Proc_Transacciones` dry-run.
+- G3.6B: 2/2 Playwright, `Proc_Contrapartidas` dry-run.
+- Backend: 1652 OK, 1 omitida.
+- Angular: 347/347.
+
+G3.6B demuestra correlacion por `AchCycleId`, no causalidad NachaExport -> Proc_Contrapartidas. Productivo permanece **NO-GO**.

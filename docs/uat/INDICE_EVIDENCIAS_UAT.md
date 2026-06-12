@@ -1,9 +1,9 @@
 # Indice de Evidencias UAT - ACH Interbank
 
-Fecha de generacion: 2026-05-18
-Version: 0.1 preliminar
+Fecha de generacion/revalidacion: 2026-05-18 / 2026-06-12
+Version: 0.2 cierre tecnico G3.5-G3.6
 Rama analizada: `ACH-Interbank-Postgresql`
-Estado: plantilla operativa; requiere validacion humana.
+Estado: indice actualizado con evidencia tecnica G3.5-G3.6; validacion humana pendiente.
 
 ## Politica De Evidencia
 
@@ -33,6 +33,12 @@ Las evidencias con datos sensibles deben almacenarse fuera de Git en un reposito
 | EV-UAT-018 | UAT-REAL-032 | Resultado health checks | `/health/live` y `/health/ready` | PENDIENTE | PENDIENTE | Tecnologia | PENDIENTE | PENDIENTE | |
 | EV-UAT-019 | UAT-REAL-033 | Captura SPA | Validacion SPA contra API | PENDIENTE | PENDIENTE | QA | PENDIENTE | PENDIENTE | |
 | EV-UAT-020 | ACTA | Acta | Acta UAT firmada | PENDIENTE | PENDIENTE | Auditoria | PENDIENTE | PENDIENTE | |
+| EV-UAT-021 | G3.5 | Commit/pruebas | Naming dinamico inbound/outbound | Commit `7c3cbb21bc35dd253334b7edac1deef16efadabc` | Git object | Tecnologia/QA | 2026-06-12 | GO tecnico con observaciones | `CycleName` requiere exactamente un entero positivo |
+| EV-UAT-022 | G3.5.1 | Commit/escaneo | Cleanup OpenBao/HashiCorp Vault | Commit `ebf7a8a5569cbfc5f4d2c74a919f83b86b479c3e` | Git object | Tecnologia/Seguridad | 2026-06-12 | GO tecnico con observaciones | KeyVault inventariado separadamente |
+| EV-UAT-023 | G3.5.2 | Commit/configuracion | Migraciones deshabilitadas y escaneo residual | Commit `c7a5ad50f66914e5802fc6df9f07567f28871dbd` | Git object | Tecnologia/DevOps | 2026-06-12 | Cerrado | `Database__ApplyMigrations=false` por defecto |
+| EV-UAT-024 | G3.6A | Playwright/PostgreSQL/Quartz | Inbound hasta `Proc_Transacciones` dry-run | Commit `e57211506d381acc43d398e72277911720e6323e`; `uat-nacha-inbound-postgres-dispatch.spec.ts` | Git object | QA/Tecnologia | 2026-06-12 | GO tecnico, 2/2 | Task `IncomingNachaPostProcessing`; `TaskExecutionLog`; sin SOAP real |
+| EV-UAT-025 | G3.6B | Playwright/PostgreSQL/Quartz | Outbound hasta `Proc_Contrapartidas` dry-run | Commit `e57211506d381acc43d398e72277911720e6323e`; `uat-nacha-export-postgres-contrapartidas.spec.ts` | Git object | QA/Tecnologia | 2026-06-12 | GO tecnico con observacion, 2/2 | Task `AchContrapartidasByCycle`; correlacion por `AchCycleId`, no causalidad |
+| EV-UAT-026 | G3.6 | Build/test | Regresion tecnica asociada | Commit `e57211506d381acc43d398e72277911720e6323e` | Git object | Tecnologia/QA | 2026-06-12 | OK | Build 0 warnings/errores; backend 1652+1 skip; Angular 347/347 |
 
 ## Tipos Permitidos
 
@@ -57,4 +63,10 @@ Las evidencias con datos sensibles deben almacenarse fuera de Git en un reposito
 - Resultado npm run build.
 - Resultado docker compose up.
 - Resultado health checks.
+- Resultado Playwright PostgreSQL/Quartz.
 
+## Nota sobre artefactos G3.6
+
+Los JSON/Markdown generados bajo `web/ach-interbank-ui/test-results` son artefactos locales efimeros. La referencia durable para este cierre es commit + spec + nombre de caso + resultado. No se copian payloads SOAP, tokens, cuentas ni evidencia binaria a este indice.
+
+No existe workflow GitHub Actions asociado al commit `e5721150` en el inventario consultado. No se inventa un run/job CI; los jobs registrados son los task codes Quartz reales.

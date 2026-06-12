@@ -1,9 +1,9 @@
 # Acta Tecnica Preliminar Final - ACH Interbank
 
-Fecha: 2026-05-19 America/Bogota
-Version: 0.7 preliminar final no firmada
-Rama: `fix/spa-functional-root-routes-proxy`
-Commit base: `49b810f9`
+Fecha: 2026-06-12 America/Bogota
+Version: 0.8 preliminar no firmada - addendum G3.5-G3.6
+Rama: `ACH-Interbank-Postgresql`
+Commit base vigente: `e57211506d381acc43d398e72277911720e6323e`
 Ambiente: Docker Compose local, SPA `http://localhost:743`, API directa `http://localhost:843`
 Caracter: acta tecnica preliminar; no sustituye acta UAT formal de negocio, operaciones, seguridad ni auditoria.
 
@@ -92,6 +92,26 @@ No se usaron datos reales, cuentas reales, bancos productivos reales, certificad
 El ambiente queda **apto para continuar UAT tecnico/funcional controlado con observaciones**, usando datos sinteticos/anonimizados y sin conexiones externas reales.
 
 Estado productivo: **NO-GO**.
+
+## Addendum tecnico G3.5-G3.6
+
+| Fase | Estado | Commit | Evidencia/observacion |
+|---|---|---|---|
+| G3.5 | GO tecnico con observaciones | `7c3cbb21bc35dd253334b7edac1deef16efadabc` | Naming `RRRRTTT.ZZZ.N`; ciclo desde `AchCycles.CycleName` con exactamente un entero positivo |
+| G3.5.1 | GO tecnico con observaciones | `ebf7a8a5569cbfc5f4d2c74a919f83b86b479c3e` | OpenBao/HashiCorp Vault retirado; KeyVault inventariado aparte |
+| G3.5.2 | Cerrado | `c7a5ad50f66914e5802fc6df9f07567f28871dbd` | Migraciones deshabilitadas por defecto; sin dependencia residual activa |
+| G3.6A | GO tecnico | `e57211506d381acc43d398e72277911720e6323e` | SPA/API/PostgreSQL/Quartz reales; 2/2; `Proc_Transacciones` dry-run |
+| G3.6B | GO tecnico con observacion | `e57211506d381acc43d398e72277911720e6323e` | 2/2; `Proc_Contrapartidas` dry-run; correlacion por `AchCycleId`, no causalidad |
+
+Validacion asociada:
+
+- Build Release: 0 warnings, 0 errores.
+- Backend: 1652 aprobadas, 1 omitida.
+- Angular: 347/347.
+- G3.6 Playwright: 4/4.
+- Quartz real: evidenciado mediante `TaskExecutionLog`.
+
+Este addendum no declara homologacion externa, SOAP real, movimiento monetario ni autorizacion productiva. Los artefactos locales `test-results` no se anexan ni se interpretan como evidencia normativa.
 
 ## Condiciones Para Cierre Formal
 

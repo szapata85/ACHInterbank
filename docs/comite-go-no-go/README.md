@@ -1,7 +1,7 @@
 # Paquete Comite GO/NO-GO - ACH Interbank
 
-Fecha: 2026-05-19
-Version: 1.0 preliminar
+Fecha de actualizacion: 2026-06-12
+Version: 1.1 cierre tecnico G3.5-G3.6
 Estado general: Continuar UAT controlado / NO-GO productivo
 Scorecard vigente: 68.1 / 100
 
@@ -20,7 +20,7 @@ Este paquete consolida el estado tecnico, funcional, operativo y de readiness de
 
 ## Estado General
 
-El proyecto presenta avances relevantes en CI, runtime Docker, autenticacion, proxy SPA/API, UAT tecnico, trazabilidad e idempotencia documentada. Sin embargo, mantiene brechas funcionales, operativas, de seguridad e interoperabilidad que bloquean una salida productiva.
+El proyecto cerro tecnicamente G3.5-G3.6, incluyendo naming dinamico, cleanup, PostgreSQL/Quartz real y dry-run inbound/outbound. Mantiene brechas normativas, operativas, de seguridad, interoperabilidad externa y aprobacion humana que bloquean una salida productiva.
 
 Decision recomendada:
 
@@ -49,3 +49,5 @@ Decision recomendada:
 - No contiene datos reales.
 - No contiene certificados privados.
 - No constituye aprobacion productiva.
+- G3.6B no demuestra causalidad NachaExport -> Proc_Contrapartidas.
+- Los exports binarios existentes son anteriores a este cierre hasta que se regeneren mediante proceso aprobado.

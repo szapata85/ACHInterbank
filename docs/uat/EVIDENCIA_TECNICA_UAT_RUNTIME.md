@@ -1,10 +1,9 @@
 # Evidencia Tecnica UAT Runtime - ACH Interbank
 
-Fecha de generacion: 2026-05-18
-Version: 0.1 preliminar
-Rama ejecutada: `fix/spa-docker-runtime-proxy-and-images`
-Rama objetivo del proyecto: `ACH-Interbank-Postgresql`
-Commit: `db3bdb27`
+Fecha de generacion/revalidacion: 2026-05-18 / 2026-06-12
+Version: 0.2 cierre tecnico G3.5-G3.6
+Rama ejecutada/objetivo: `ACH-Interbank-Postgresql`
+Commit vigente: `e57211506d381acc43d398e72277911720e6323e`
 Ambiente: Docker Compose local en Windows 11 / Docker Desktop
 Validacion humana requerida: si
 Clasificacion: no incluir secretos, tokens, certificados privados, datos personales ni datos reales en Git.
@@ -30,6 +29,8 @@ Clasificacion: no incluir secretos, tokens, certificados privados, datos persona
 | OpenAPI | OK con observacion | `GET http://localhost:843/openapi/v1.json` respondio 200 en aproximadamente 79s; via proxy `http://localhost:743/openapi/v1.json` respondio 200 en aproximadamente 96s. |
 | Scalar | OK | `GET http://localhost:843/scalar` respondio 200. |
 | Custodia de secretos | FUERA DEL COMPOSE | El stack UAT no depende de un servicio externo de secretos. |
+| G3.6A inbound | GO tecnico | SPA/API/PostgreSQL/Quartz reales; 2/2 Playwright; `Proc_Transacciones` dry-run. |
+| G3.6B outbound | GO tecnico con observacion | 2/2 Playwright; `Proc_Contrapartidas` dry-run; correlacion por `AchCycleId`. |
 | Productivo | NO-GO | Persisten brechas UAT real/anonimizado, seguridad y aprobaciones. |
 
 ## Estrategia SPA -> API
@@ -166,3 +167,22 @@ El stack Docker queda validado tecnicamente para API, PostgreSQL, build de image
 Estado recomendado: **ambiente apto para UAT tecnico E2E basico desde SPA**, condicionado a ejecutar escenarios con datos anonimizados, usuarios/roles y evidencias formales.
 
 Estado productivo: **NO-GO**.
+
+## Addendum runtime 2026-06-12 - G3.6
+
+| Flujo | Componentes reales | Quartz | Evidencia persistida | Resultado |
+|---|---|---|---|---|
+| G3.6A inbound | Angular SPA, API, PostgreSQL, NachaUpload y parser | `IncomingNachaPostProcessing` | `TaskExecutionLog`, `IncomingNachaDispatchQueue`, `IncomingNachaIntegrationExecution` y tablas NACHA-M | 2/2; `Proc_Transacciones` dry-run; sin fallback a ciclo 1 |
+| G3.6B outbound | Angular SPA, API, PostgreSQL y NachaExport | `AchContrapartidasByCycle` | `TaskExecutionLog`, `AchFileExports`, registry de filename, batches/items/attempts | 2/2; `PROC_DRY_RUN`; nombre `RRRRTTT.ZZZ.6` |
+
+Controles:
+
+- Base previamente provisionada; no se ejecutaron migraciones.
+- `Database__ApplyMigrations=false` por defecto.
+- No se crearon `AchCycles`.
+- Configuracion temporal de ciclos/tasks restaurada por los specs.
+- `.ach` se uso solo como extension fisica del fixture inbound; el nombre externo fue `0001283.001.6`.
+- Los estados `FailedFinal`/`Failed` observados en dry-run no representan fallo de la prueba ni exito monetario: prueban que no hubo transmision SOAP real.
+- G3.6B correlaciona export y dispatch por `AchCycleId`; no demuestra que NachaExport cause el dispatch.
+
+Regresion asociada: build Release 0 warnings/errores; backend 1652 aprobadas y 1 omitida; Angular 347/347.
