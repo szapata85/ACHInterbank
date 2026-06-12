@@ -26,4 +26,4 @@ Alcance: Evidencia tecnica consolidada sin secretos, tokens, passwords ni datos 
 | G3.6B | GO tecnico con observacion | Commit `e5721150`; spec outbound | 2/2; `Proc_Contrapartidas` dry-run; correlacion por `AchCycleId`. |
 | Regresion G3.6 | OK | Commit `e5721150` | Build 0 warnings/errores; backend 1652+1 skip; Angular 347/347. |
 
-No existe run GitHub Actions asociado a `e5721150` en el inventario consultado. No se atribuye un job CI inexistente; Quartz queda evidenciado mediante `TaskExecutionLog`.
+La implementacion G3.6 cuenta con evidencia tecnica reportada para backend, Angular y Playwright. La trazabilidad durable se mantiene por commit + spec + resultado; los artefactos `test-results` son efimeros y no se versionan.

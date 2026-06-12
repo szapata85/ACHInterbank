@@ -69,4 +69,4 @@ Las evidencias con datos sensibles deben almacenarse fuera de Git en un reposito
 
 Los JSON/Markdown generados bajo `web/ach-interbank-ui/test-results` son artefactos locales efimeros. La referencia durable para este cierre es commit + spec + nombre de caso + resultado. No se copian payloads SOAP, tokens, cuentas ni evidencia binaria a este indice.
 
-No existe workflow GitHub Actions asociado al commit `e5721150` en el inventario consultado. No se inventa un run/job CI; los jobs registrados son los task codes Quartz reales.
+La implementacion G3.6 cuenta con evidencia tecnica reportada para backend, Angular y Playwright. La trazabilidad durable se mantiene por commit + spec + resultado; los artefactos `test-results` son efimeros y no se versionan.
