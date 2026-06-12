@@ -8,7 +8,7 @@ internal static class ExternalFileNameSupport
 {
     private const string AchScopeCode = "ACH_EXTERNAL_NAME";
     private const string ReturnOutScopeCode = "ACH_RETURN_EXTERNAL_NAME";
-    private static readonly Regex AchRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.(?<cycle>\d+)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex AchRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.(?<cycle>[1-9]\d*)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex ReturnRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.RET$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex PositiveCycleRegex = new(@"(?<!\d)(?<cycle>\d+)(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
@@ -22,13 +22,22 @@ internal static class ExternalFileNameSupport
                 return new ExternalFileNameComponents { FullName = externalFileName };
             }
 
-            var sequence = int.Parse(match.Groups["seq"].Value, CultureInfo.InvariantCulture);
+            if (!int.TryParse(match.Groups["seq"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var sequence) || sequence < 1)
+            {
+                return new ExternalFileNameComponents { FullName = externalFileName };
+            }
+
+            if (!int.TryParse(match.Groups["cycle"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var cycleNumber) || cycleNumber < 1)
+            {
+                return new ExternalFileNameComponents { FullName = externalFileName };
+            }
+
             return new ExternalFileNameComponents
             {
                 FullName = externalFileName,
                 Prefix = $"{match.Groups["route"].Value}{match.Groups["transit"].Value}",
                 ExternalSequence = sequence,
-                CycleNumber = int.Parse(match.Groups["cycle"].Value, CultureInfo.InvariantCulture)
+                CycleNumber = cycleNumber
             };
         }
 
@@ -40,7 +49,10 @@ internal static class ExternalFileNameSupport
                 return new ExternalFileNameComponents { FullName = externalFileName };
             }
 
-            var sequence = int.Parse(match.Groups["seq"].Value, CultureInfo.InvariantCulture);
+            if (!int.TryParse(match.Groups["seq"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var sequence) || sequence < 1)
+            {
+                return new ExternalFileNameComponents { FullName = externalFileName };
+            }
             return new ExternalFileNameComponents
             {
                 FullName = externalFileName,
@@ -192,13 +204,32 @@ internal static class ExternalFileNameSupport
             return false;
         }
 
-        var match = PositiveCycleRegex.Match(value);
-        if (!match.Success)
+        var matches = PositiveCycleRegex.Matches(value);
+        if (matches.Count == 0)
         {
             return false;
         }
 
-        return int.TryParse(match.Groups["cycle"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out cycleNumber)
-            && cycleNumber > 0;
+        var positiveValues = new List<int>();
+        foreach (Match match in matches)
+        {
+            if (!int.TryParse(match.Groups["cycle"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedValue))
+            {
+                return false;
+            }
+
+            if (parsedValue > 0)
+            {
+                positiveValues.Add(parsedValue);
+            }
+        }
+
+        if (positiveValues.Count != 1)
+        {
+            return false;
+        }
+
+        cycleNumber = positiveValues[0];
+        return true;
     }
 }

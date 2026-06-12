@@ -73,6 +73,123 @@ public class ExternalFileNamePolicyPhase1Tests
         Assert.Equal(expectedCycleNumber, name.CycleNumber);
     }
 
+    [Theory]
+    [InlineData("Ciclo 6", "8765321.001.6")]
+    [InlineData("Cycle 6", "8765321.001.6")]
+    [InlineData("Ventana 6", "8765321.001.6")]
+    [InlineData("Sesion 6", "8765321.001.6")]
+    [InlineData("Compensación 6", "8765321.001.6")]
+    [InlineData("6", "8765321.001.6")]
+    public async Task AchBuilder_Parses_UniquePositiveCycleNumber_From_CycleName(string cycleName, string expectedFullName)
+    {
+        await using var harness = await CreateHarnessAsync();
+        await SeedDynamicNamingFixtureAsync(harness.Context);
+
+        var sequence = CreateSequenceService(harness.Context);
+        var map = new FakeIdentifierMapService();
+        var namingRuleService = new NachaFileNamingRuleService(harness.Context);
+        var builder = new ExternalFileNameBuilder(sequence, map, namingRuleService);
+
+        var name = await builder.BuildAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ClearingHouseOriginCode = "1111111",
+            CycleName = cycleName,
+            ProcessingDate = new DateTime(2026, 04, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        });
+
+        Assert.Equal(expectedFullName, name.FullName);
+        Assert.Equal(1, name.ExternalSequence);
+        Assert.Equal(6, name.CycleNumber);
+    }
+
+    [Theory]
+    [InlineData("Ciclo 6 2026")]
+    [InlineData("ACH 2026 Ciclo 6")]
+    [InlineData("Ventana 1 Grupo 2")]
+    [InlineData("CYCLE-ACH-20260524-6")]
+    public async Task AchBuilder_Throws_When_CycleNameIsAmbiguous(string cycleName)
+    {
+        await using var harness = await CreateHarnessAsync();
+        await SeedDynamicNamingFixtureAsync(harness.Context);
+
+        var sequence = CreateSequenceService(harness.Context);
+        var map = new FakeIdentifierMapService();
+        var namingRuleService = new NachaFileNamingRuleService(harness.Context);
+        var builder = new ExternalFileNameBuilder(sequence, map, namingRuleService);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => builder.BuildAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ClearingHouseOriginCode = "1111111",
+            CycleName = cycleName,
+            ProcessingDate = new DateTime(2026, 04, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        }));
+
+        Assert.Contains("CycleName", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AchBuilder_Throws_When_CycleNameIsMissing_And_CycleIdMustNotBeUsed()
+    {
+        await using var harness = await CreateHarnessAsync();
+        await SeedDynamicNamingFixtureAsync(harness.Context);
+
+        var sequence = CreateSequenceService(harness.Context);
+        var map = new FakeIdentifierMapService();
+        var namingRuleService = new NachaFileNamingRuleService(harness.Context);
+        var builder = new ExternalFileNameBuilder(sequence, map, namingRuleService);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => builder.BuildAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ClearingHouseOriginCode = "1111111",
+            CycleName = "Ciclo 6 2026",
+            CycleId = "CYCLE-ACH-20260524-6",
+            ProcessingDate = new DateTime(2026, 04, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        }));
+
+        Assert.Contains("CycleName", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AchBuilder_Throws_When_CycleNameHasNoPositiveNumber()
+    {
+        await using var harness = await CreateHarnessAsync();
+        await SeedDynamicNamingFixtureAsync(harness.Context);
+
+        var sequence = CreateSequenceService(harness.Context);
+        var map = new FakeIdentifierMapService();
+        var namingRuleService = new NachaFileNamingRuleService(harness.Context);
+        var builder = new ExternalFileNameBuilder(sequence, map, namingRuleService);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => builder.BuildAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ClearingHouseOriginCode = "1111111",
+            CycleName = "Ciclo",
+            ProcessingDate = new DateTime(2026, 04, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        }));
+
+        Assert.Contains("CycleName", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task CenitBuilder_Uses_CurrentDocumentedPattern_WithoutAlternateNaming()
     {

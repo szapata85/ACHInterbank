@@ -18,7 +18,7 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
 {
-    private static readonly Regex OfficialCycleNameRegex = new(@"^(?<origin>\d{7})\.(?<sequence>\d{3})\.(?<cycle>[1-9]\d*)(?:\.ach)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex OfficialCycleNameRegex = new(@"^(?<origin>\d{7})\.(?<sequence>\d{3})\.(?<cycle>[1-9]\d*)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private readonly AchDbContext _context;
     private readonly IPaymentRailContextService? _paymentRailContextService;
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver;
@@ -95,11 +95,33 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
             .OrderBy(x => x.CutoffTime)
             .ToListAsync(ct);
 
-        var filteredByName = fileCycleNumber.HasValue
-            ? candidates.Where(x => ExternalFileNameSupport.TryExtractPositiveCycleNumber(x.CycleName, out var parsedCycleNumber) && parsedCycleNumber == fileCycleNumber.Value).ToList()
-            : candidates;
+        IReadOnlyList<AchCycle> effectiveCandidates = candidates;
+        if (fileCycleNumber.HasValue)
+        {
+            effectiveCandidates = candidates
+                .Where(x => ExternalFileNameSupport.TryExtractPositiveCycleNumber(x.CycleName, out var parsedCycleNumber) && parsedCycleNumber == fileCycleNumber.Value)
+                .ToList();
 
-        var effectiveCandidates = filteredByName.Count > 0 ? filteredByName : candidates;
+            if (effectiveCandidates.Count == 0)
+            {
+                errors.Add($"El nombre oficial indica el ciclo {fileCycleNumber.Value}, pero no existe un ciclo operativo coincidente para la misma cámara y fecha.");
+                var shadowResult = CompareCycleShadow(
+                    clearingHouse.Id,
+                    clearingHouse.Code,
+                    operationalDate,
+                    "LEGACY_CYCLE_NO_MATCH_BY_NAME",
+                    legacyResolved: false);
+                return Build(false, false, clearingHouse.Id, operationalDate, null, 0.25m, IncomingNachaCycleResolutionStatus.NoResuelto, "NombreSinCandidato", warnings, errors, new
+                {
+                    request.FileName,
+                    immediateOrigin,
+                    headerDateRaw,
+                    fileCycleNumber,
+                    candidateIds = candidates.Select(x => x.Id).ToList(),
+                    shadowCompare = shadowResult
+                });
+            }
+        }
         var inferredStatus = string.Equals(clearingHouse.Code, "CENIT", StringComparison.OrdinalIgnoreCase)
             ? IncomingNachaCycleResolutionStatus.ResueltoConfirmado
             : IncomingNachaCycleResolutionStatus.ResueltoInferido;

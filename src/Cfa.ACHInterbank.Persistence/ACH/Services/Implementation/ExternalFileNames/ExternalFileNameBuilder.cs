@@ -90,7 +90,7 @@ public class ExternalFileNameBuilder : IExternalFileNameBuilder
     private static string BuildConfiguredName(string? namePattern, string originCode, int sequence, int cycleNumber)
     {
         var defaultName = ExternalFileNameSupport.BuildAchName(originCode, sequence, cycleNumber);
-        if (string.IsNullOrWhiteSpace(namePattern) || Regex.IsMatch(namePattern, @"^RRRRTTT\.ZZZ\.(?:N|\d+)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        if (string.IsNullOrWhiteSpace(namePattern) || Regex.IsMatch(namePattern, @"^RRRRTTT\.ZZZ\.(?:N|[1-9]\d*)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
         {
             return defaultName;
         }
@@ -107,14 +107,11 @@ public class ExternalFileNameBuilder : IExternalFileNameBuilder
             return context.CycleNumber.Value;
         }
 
-        foreach (var candidate in new[] { context.CycleName, context.CycleId })
+        if (ExternalFileNameSupport.TryExtractPositiveCycleNumber(context.CycleName, out var cycleNumber))
         {
-            if (ExternalFileNameSupport.TryExtractPositiveCycleNumber(candidate, out var cycleNumber))
-            {
-                return cycleNumber;
-            }
+            return cycleNumber;
         }
 
-        throw new InvalidOperationException("No se pudo resolver el numero de ciclo para la generacion NACHA-M outbound.");
+        throw new InvalidOperationException("No se pudo resolver un numero de ciclo positivo unico desde CycleName para la generacion NACHA-M outbound.");
     }
 }

@@ -111,7 +111,7 @@ public class NachaIncomingEndToEndProcessingTests
 
         result.ValidationPassed.Should().BeFalse();
         result.PersistencePassed.Should().BeFalse();
-        result.Errors.Should().Contain(x => x.Contains("Extension no permitida", StringComparison.OrdinalIgnoreCase));
+        result.Errors.Should().Contain(x => x.Contains("RRRRTTT.ZZZ.N", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

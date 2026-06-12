@@ -1,3 +1,4 @@
+using System.Globalization;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
@@ -246,7 +247,7 @@ public class NachaExportController : ControllerBase
 
     private static int ResolveDailySequenceFromFileName(string fileName)
     {
-        Match match = Regex.Match(fileName, @"^[^.]+\.(\d{3})\.1$");
+        Match match = Regex.Match(fileName, @"^[^.]+\.(\d{3})\.\d+$");
         if (!match.Success)
         {
             throw new InvalidOperationException($"Nombre de archivo CENIT inválido: {fileName}.");
@@ -312,7 +313,7 @@ public class NachaExportController : ControllerBase
             ClearingHouseOriginCode = clearingHouse.OriginCode,
             CycleId = cycle.Id,
             CycleName = cycle.CycleName,
-            CycleNumber = ResolveCycleNumber(cycle.CycleName, cycle.Id),
+            CycleNumber = ResolveCycleNumber(cycle.CycleName),
             ProcessingDate = cycle.ProcessingDate,
             ExternalFileType = ExternalFileType.NachaOut,
             Flow = ExternalFileFlow.Originacion,
@@ -333,20 +334,50 @@ public class NachaExportController : ControllerBase
         return result;
     }
 
-    private static int ResolveCycleNumber(string? cycleName, string cycleId)
+    private static int ResolveCycleNumber(string? cycleName)
     {
-        var match = Regex.Match(cycleName ?? string.Empty, @"(?<!\d)(\d+)(?!\d)");
-        if (match.Success && int.TryParse(match.Groups[1].Value, out var cycleNumber) && cycleNumber > 0)
+        if (TryResolveUniquePositiveCycleNumber(cycleName, out var cycleNumber))
         {
             return cycleNumber;
         }
 
-        match = Regex.Match(cycleId ?? string.Empty, @"(?<!\d)(\d+)(?!\d)");
-        if (match.Success && int.TryParse(match.Groups[1].Value, out cycleNumber) && cycleNumber > 0)
+        throw new InvalidOperationException("No se pudo resolver un numero de ciclo positivo unico desde CycleName para generar NACHA-M outbound.");
+    }
+
+    private static bool TryResolveUniquePositiveCycleNumber(string? value, out int cycleNumber)
+    {
+        cycleNumber = 0;
+        if (string.IsNullOrWhiteSpace(value))
         {
-            return cycleNumber;
+            return false;
         }
 
-        throw new InvalidOperationException("No se pudo resolver el numero de ciclo para generar NACHA-M outbound.");
+        var matches = Regex.Matches(value, @"(?<!\d)(?<cycle>\d+)(?!\d)");
+        if (matches.Count == 0)
+        {
+            return false;
+        }
+
+        var positiveValues = new List<int>();
+        foreach (Match match in matches)
+        {
+            if (!int.TryParse(match.Groups["cycle"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedValue))
+            {
+                return false;
+            }
+
+            if (parsedValue > 0)
+            {
+                positiveValues.Add(parsedValue);
+            }
+        }
+
+        if (positiveValues.Count != 1)
+        {
+            return false;
+        }
+
+        cycleNumber = positiveValues[0];
+        return true;
     }
 }

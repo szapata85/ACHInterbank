@@ -150,7 +150,7 @@ public sealed class NachaIncomingFileProcessor : INachaIncomingFileProcessor
 
         if (!isSimulation && !IsOfficialIncomingName(fileName))
         {
-            errors.Add("Nombre NACHA-M invalido. Se esperaba RRRRTTT.ZZZ.N o RRRRTTT.ZZZ.RET.");
+            errors.Add("Nombre NACHA-M invalido. Se esperaba RRRRTTT.ZZZ.N o RRRRTTT.ZZZ.RET; .ach queda solo como fixture interno UAT.");
         }
 
         var records = SplitRecords(content, errors);
@@ -172,7 +172,7 @@ public sealed class NachaIncomingFileProcessor : INachaIncomingFileProcessor
             return prefix.Length == 11 && prefix[7] == '.' && prefix.Take(7).All(char.IsDigit) && prefix.Skip(8).All(char.IsDigit);
         }
 
-        return System.Text.RegularExpressions.Regex.IsMatch(name, @"^\d{7}\.\d{3}\.[1-9]\d*(\.ach)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return System.Text.RegularExpressions.Regex.IsMatch(name, @"^\d{7}\.\d{3}\.[1-9]\d*$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
     }
 
     private static IReadOnlyList<string> SplitRecords(string content, List<string> errors)

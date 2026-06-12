@@ -258,7 +258,7 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
                 return ToDto(operation);
             }
 
-            var cycleNumber = ResolveCycleNumberOrThrow(cycle.CycleName, cycle.Id);
+            var cycleNumber = ResolveCycleNumberOrThrow(cycle.CycleName);
             operation.ClearingHouseId = cycle.ClearingHouseId;
 
             var nacha = await _nachaBuilder.BuildNachaFileByCycleAsync(request.CycleId, cancellationToken);
@@ -429,19 +429,14 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
         return $"NACHA_{cycleNumber}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.txt";
     }
 
-    private static int ResolveCycleNumberOrThrow(string? cycleName, string cycleId)
+    private static int ResolveCycleNumberOrThrow(string? cycleName)
     {
         if (ExternalFileNameSupport.TryExtractPositiveCycleNumber(cycleName, out var cycleNumber))
         {
             return cycleNumber;
         }
 
-        if (ExternalFileNameSupport.TryExtractPositiveCycleNumber(cycleId, out var cycleIdNumber))
-        {
-            return cycleIdNumber;
-        }
-
-        throw new InvalidOperationException("No se pudo resolver el numero de ciclo para generar NACHA-M outbound.");
+        throw new InvalidOperationException("No se pudo resolver un numero de ciclo positivo unico desde CycleName para generar NACHA-M outbound.");
     }
 
     private async Task<string> NormalizeFileHeaderIdentifierForCenitAsync(string nachaContent, ClearingHouseDto clearingHouse, string fileName, CancellationToken ct)
@@ -502,7 +497,7 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
         CancellationToken ct)
     {
         var isAch = string.Equals(clearingHouse.Code, "ACH", StringComparison.OrdinalIgnoreCase);
-        var cycleNumber = ResolveCycleNumberOrThrow(cycle.CycleName, cycle.Id);
+        var cycleNumber = ResolveCycleNumberOrThrow(cycle.CycleName);
         var context = new ExternalFileNameContext
         {
             ClearingHouseId = clearingHouse.Id,
