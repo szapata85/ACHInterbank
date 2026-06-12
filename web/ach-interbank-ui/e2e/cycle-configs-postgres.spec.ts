@@ -41,7 +41,8 @@ type ObservedResponse = {
   isHtml: boolean;
 };
 
-const spaBaseUrl = (process.env['E2E_BASE_URL'] ?? process.env['ACH_UI_URL'] ?? 'http://localhost:743').replace(/\/+$/, '');
+const e2eBaseUrl = (process.env['E2E_BASE_URL'] ?? process.env['ACH_UI_URL'] ?? 'http://localhost:743').replace(/\/+$/, '');
+const spaBaseUrl = e2eBaseUrl;
 const username = process.env['E2E_ADMIN_USER'] ?? process.env['ACH_USER'] ?? 'admin';
 const password = process.env['E2E_ADMIN_PASSWORD'] ?? process.env['ACH_PASS'] ?? 'Admin123!';
 const effectiveAt = new Date().toISOString().slice(0, 10);
@@ -296,7 +297,7 @@ function createDb(): CycleConfigsDb {
 }
 
 async function login(page: Page): Promise<string> {
-  const response = await page.request.post(`${spaBaseUrl}/auth/login`, {
+  const response = await page.request.post(`${e2eBaseUrl}/auth/login`, {
     data: {
       username,
       password
