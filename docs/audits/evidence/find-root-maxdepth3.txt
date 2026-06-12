@@ -74,7 +74,7 @@
 ./docs/architecture/incoming-nacha-config-regulatory-matrix-2026-04-23.md
 ./docs/architecture/incoming-nacha-processing-analysis-2026-04-23.md
 ./docs/architecture/incoming-nacha-resilience-and-compensation-2026-04-24.md
-./docs/architecture/openbao-integration-2026-04-22.md
+./docs/architecture/proveedor de secretos retirado-integration-2026-04-22.md
 ./docs/architecture/payment-rail-operational-strategy-blueprint-2026-04-25.md
 ./docs/architecture/result-pattern-solid-plan.md
 ./docs/architecture/result-pattern-solid-scan.txt
@@ -102,7 +102,7 @@
 ./docs/certification/digital-envelope-official-vector-request-2026-04-21.md
 ./docs/deployment/nacha-security-deployment-checklist-2026-04-22.md
 ./docs/dev/codex-test-environment.md
-./docs/dev/docker-compose-openbao-uat-2026-04-22.md
+./docs/dev/docker-compose-proveedor de secretos retirado-uat-2026-04-22.md
 ./docs/dev/postgres-integration-harness.md
 ./docs/diseno-modelo-objetivo-nacha-m-enterprise-2026-04-17.md
 ./docs/nacha-config-ef-first-governance-2026-04-18.md
@@ -139,14 +139,14 @@
 ./docs/uat/nacha-security-uat-plan-2026-04-22.md
 ./docs_api.json
 ./global.json
-./ops/openbao/openbao.hcl
-./ops/openbao/policy-ach-api.hcl
+./ops/imagen-de-proveedor-retirado.hcl
+./ops/proveedor de secretos retirado/policy-ach-api.hcl
 ./scripts/codex/setup-codex-env.sh
 ./scripts/open-swagger.ps1
 ./scripts/open-swagger.sh
-./scripts/openbao/bootstrap-openbao-uat.sh
-./scripts/openbao/init-openbao.sh
-./scripts/openbao/run-historical-decrypt-e2e-uat.sh
+./scripts/proveedor de secretos retirado/bootstrap-proveedor de secretos retirado-uat.sh
+./scripts/proveedor de secretos retirado/init-proveedor de secretos retirado.sh
+./scripts/proveedor de secretos retirado/run-historical-decrypt-e2e-uat.sh
 ./scripts/scan_result_solid.py
 ./scripts/test/run-postgres-integration-tests.ps1
 ./scripts/test/run-postgres-integration-tests.sh

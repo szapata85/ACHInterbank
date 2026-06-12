@@ -19,7 +19,7 @@ docs/architecture/incoming-nacha-command-center-state-machine-2026-04-24.md
 docs/architecture/incoming-nacha-config-regulatory-matrix-2026-04-23.md
 docs/architecture/incoming-nacha-processing-analysis-2026-04-23.md
 docs/architecture/incoming-nacha-resilience-and-compensation-2026-04-24.md
-docs/architecture/openbao-integration-2026-04-22.md
+docs/architecture/proveedor de secretos retirado-integration-2026-04-22.md
 docs/architecture/payment-rail-operational-strategy-blueprint-2026-04-25.md
 docs/architecture/result-pattern-solid-plan.md
 docs/architecture/result-pattern-solid-scan.txt
@@ -49,7 +49,7 @@ docs/audits/spa-nacha-security-alineacion-diseno-prompt11-2026-04-22.md
 docs/certification/digital-envelope-official-vector-request-2026-04-21.md
 docs/deployment/nacha-security-deployment-checklist-2026-04-22.md
 docs/dev/codex-test-environment.md
-docs/dev/docker-compose-openbao-uat-2026-04-22.md
+docs/dev/docker-compose-proveedor de secretos retirado-uat-2026-04-22.md
 docs/dev/postgres-integration-harness.md
 docs/diseno-modelo-objetivo-nacha-m-enterprise-2026-04-17.md
 docs/nacha-config-ef-first-governance-2026-04-18.md

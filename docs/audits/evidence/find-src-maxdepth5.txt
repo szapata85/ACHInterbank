@@ -513,7 +513,7 @@ src/Cfa.ACHInterbank.Domain/Models/Configurations/DigitalEnvelopeCertificateOpti
 src/Cfa.ACHInterbank.Domain/Models/Configurations/DigitalEnvelopeSignatureValidationOptions.cs
 src/Cfa.ACHInterbank.Domain/Models/Configurations/IncomingNachaDispatchResilienceOptions.cs
 src/Cfa.ACHInterbank.Domain/Models/Configurations/LifetimeAttributes.cs
-src/Cfa.ACHInterbank.Domain/Models/Configurations/OpenBaoOptions.cs
+src/Cfa.ACHInterbank.Domain/Models/Configurations/proveedor de secretos retiradoOptions.cs
 src/Cfa.ACHInterbank.Domain/Models/Configurations/PaginatedResult.cs
 src/Cfa.ACHInterbank.Domain/Models/Configurations/PaginationRequest.cs
 src/Cfa.ACHInterbank.Domain/Models/ConvertDataSend/ControllerModel.cs

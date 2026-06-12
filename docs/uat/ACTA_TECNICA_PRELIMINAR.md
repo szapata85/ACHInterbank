@@ -72,8 +72,8 @@ No se usaron datos reales, cuentas reales, bancos productivos reales, certificad
 |---|---|---|---|
 | DEF-UAT-003 | Alta | En analisis | SPA consume endpoints de interoperabilidad NACHA security sin backend equivalente confirmado. |
 | DEF-UAT-005 | Alta | Abierto | `.env` versionado requiere revision/rotacion si contiene secretos reutilizables. |
-| DEF-UAT-007 | Media | Abierto | OpenBao no esta en compose principal; requiere decision de seguridad/operacion. |
-| DEF-UAT-009 | Media | Abierto | Health checks no cubren Quartz/OpenBao/externos. |
+| DEF-UAT-007 | Media | Cerrado | El stack local no requiere un servicio externo de secretos; la custodia real queda bajo mecanismo corporativo aprobado. |
+| DEF-UAT-009 | Media | Abierto | Health checks no cubren Quartz ni dependencias externas. |
 | DEF-UAT-010 | Bloqueante | Abierto | CENIT/CUD sin evidencia operacional homologada. |
 | DEF-UAT-014 | Media | Abierto | Evidencia visual automatizada pendiente por limitacion de browser integrado. |
 | DEF-UAT-015 | Media | Cerrado para UAT controlado | Usuario demo `admin` evidencia roles `Admin` y `ACH.Operator` por seed/migracion controlada; evaluar usuario operador separado antes de productivo si seguridad lo exige. |

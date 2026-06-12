@@ -1,9 +1,11 @@
+> Nota G3.5.2: las referencias a proveedores de secretos retirados son historicas y obsoletas desde el cleanup `ebf7a8a5`; no describen el stack vigente.
+
 # Auditoría técnica de devoluciones ACH — CENIT vs ACH Colombia
 
 > Referencia UAT complementaria: `docs/uat/incoming-return-orphan-acceptance-checklist.md`.
 
 
-Fecha: 2026-05-12  
+Fecha: 2026-05-12
 Alcance: diagnóstico documental (sin cambios funcionales)
 
 ## 1) Inventario técnico revisado
@@ -177,15 +179,15 @@ Se revisaron los artefactos solicitados en dominio, aplicación, persistencia, A
 
 ## 7) Plan de remediación por commits
 
-1. `docs(returns): auditar reglas de devolución por cámara` ✅ (este commit)  
-2. `refactor(returns): parametrizar reglas de devolución por ClearingHouse`  
-3. `data(returns): sembrar causales CENIT y ACH Colombia`  
-4. `fix(returns): actualizar estado y trazabilidad al generar devolución de salida`  
-5. `fix(returns): alinear elegibilidad con generación de devoluciones`  
-6. `feat(returns): procesar devoluciones entrantes y aplicar a transacción original`  
-7. `feat(returns): soportar devolución de devolución por cámara`  
-8. `feat(returns): separar rechazo total de archivo y devolución parcial`  
-9. `feat(returns): parametrizar nombres de archivo y códigos entidad por cámara`  
+1. `docs(returns): auditar reglas de devolución por cámara` ✅ (este commit)
+2. `refactor(returns): parametrizar reglas de devolución por ClearingHouse`
+3. `data(returns): sembrar causales CENIT y ACH Colombia`
+4. `fix(returns): actualizar estado y trazabilidad al generar devolución de salida`
+5. `fix(returns): alinear elegibilidad con generación de devoluciones`
+6. `feat(returns): procesar devoluciones entrantes y aplicar a transacción original`
+7. `feat(returns): soportar devolución de devolución por cámara`
+8. `feat(returns): separar rechazo total de archivo y devolución parcial`
+9. `feat(returns): parametrizar nombres de archivo y códigos entidad por cámara`
 10. `docs(returns): plan UAT devoluciones salida/entrada`
 
 
@@ -1214,7 +1216,7 @@ Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPar
 
 - Referencia runbook operativo de certificados: `docs/ops/certificate-operations-runbook.md` (no modifica decisión NO-GO productivo).
 
-- Decisión arquitectura certificados: OpenBao/SecretRef excluido del flujo de certificados; BD solo metadata; llaves privadas fuera de BD.
+- Decisión arquitectura certificados: proveedor de secretos retirado/SecretRef excluido del flujo de certificados; BD solo metadata; llaves privadas fuera de BD.
 
 > Referencia punto 10 (reportería/conciliación revisión contable terceros, no contable): `docs/audits/accounting-review-reconciliation-matrix-current.md`.
 

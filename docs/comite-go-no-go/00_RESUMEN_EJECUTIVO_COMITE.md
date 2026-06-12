@@ -39,7 +39,7 @@ ACH Interbank se encuentra tecnicamente estabilizado para continuar pruebas cont
 - Proc_Contrapartidas cuenta con guardrail `DryRun` UAT/local validado; endpoint UAT/mock real sigue pendiente para homologacion.
 - CENIT/CUD.
 - Sobre digital, firma y certificados.
-- OpenBao/secrets segun alcance.
+- Custodia corporativa de secretos según alcance.
 - Backup, restore y rollback.
 - UAT bancario formal.
 
@@ -47,7 +47,7 @@ ACH Interbank se encuentra tecnicamente estabilizado para continuar pruebas cont
 
 - Riesgo funcional por UAT sintetico aun parcial.
 - Riesgo de interoperabilidad por NACHA-M, CENIT/CUD y homologacion pendientes.
-- Riesgo de seguridad por secretos/certificados/OpenBao pendientes segun alcance.
+- Riesgo de seguridad por custodia de secretos y certificados pendiente según alcance.
 - Riesgo operativo por backup/restore/rollback pendiente.
 - Riesgo de auditoria por actas y evidencia visual/operativa pendientes.
 

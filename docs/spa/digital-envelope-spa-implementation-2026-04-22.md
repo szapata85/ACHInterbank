@@ -1,3 +1,5 @@
+> Nota G3.5.2: las referencias a proveedores de secretos retirados son historicas y obsoletas desde el cleanup `ebf7a8a5`; no describen el stack vigente.
+
 # Digital Envelope SPA Implementation - Prompt 13 (revalidación formal)
 
 Fecha de revalidación: 2026-04-22 (UTC)
@@ -73,6 +75,6 @@ sed -n '1,220p' .github/workflows/postgres-integration-tests.yml
   - `npm run build`: OK,
   - `npm test`: pendiente por limitación de entorno (CHROME_BIN + karma/rimraf).
 
-## Addendum consola operativa + OpenBao (2026-04-23)
+## Addendum consola operativa + proveedor de secretos retirado (2026-04-23)
 - SPA permanece como consola operativa: envía archivo `.pfx` y password temporal en request.
 - SPA no persiste secreto ni private key; consume únicamente metadata sanitizada y `SecretRefMasked`.

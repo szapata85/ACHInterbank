@@ -1,3 +1,5 @@
+> Nota G3.5.2: las referencias a proveedores de secretos retirados son historicas y obsoletas desde el cleanup `ebf7a8a5`; no describen el stack vigente.
+
 # Scalar-SEC-5 — Auditoría final de seguridad API y matriz de aceptación (2026-05-01)
 
 ## 1. Resumen ejecutivo
@@ -13,7 +15,7 @@ Con base en la evidencia consolidada de SEC-5A, se documenta el cierre del alcan
 ## 3. Fuera de alcance
 - Pruebas de penetración.
 - Validación de infraestructura productiva (WAF, TLS, reverse proxy, hardening de red).
-- Cierre de gestión de secretos/OpenBao en operación real.
+- Cierre de gestión de secretos/proveedor de secretos retirado en operación real.
 - UAT de seguridad y cumplimiento externo.
 
 ## 4. Línea de tiempo SEC-1 a SEC-4B
@@ -86,7 +88,7 @@ Las escrituras operativas bancarias se encuentran protegidas. Las únicas escrit
 | Falta de permisos finos por dominio | No todo el dominio usa permissions especializados | Alta | Controles actuales por controller/acción | Programa de refinamiento RBAC/ABAC |
 | Falta de pruebas de penetración | No ejecutadas en este cierre | Alta | Pruebas funcionales y unitarias | Ejecutar pentest interno/externo |
 | Falta de UAT de seguridad | UAT seguridad pendiente | Alta | Evidencia técnica de QA | Plan de UAT con negocio y seguridad |
-| Gestión de secretos/OpenBao fuera del cierre | Validación operativa no incluida | Alta | Documentación previa | Auditoría y pruebas operativas de secretos |
+| Gestión de secretos/proveedor de secretos retirado fuera del cierre | Validación operativa no incluida | Alta | Documentación previa | Auditoría y pruebas operativas de secretos |
 | Infraestructura, TLS, WAF y reverse proxy fuera del cierre | No cubierto por esta línea | Alta | Configuración base existente | Revisión DevSecOps integral |
 | Validación externa/compliance pendiente | Falta homologación regulatoria completa | Alta | Evidencia técnica parcial | Evaluación compliance externa |
 
@@ -116,7 +118,7 @@ Se declara cerrado, para el alcance evaluado de esta línea Scalar-SEC, el frent
 - No se declara producción lista.
 - No se declara cierre de pruebas de penetración.
 - No se declara cierre de gestión de secretos.
-- No se declara cierre de OpenBao.
+- No se declara cierre de proveedor de secretos retirado.
 - No se declara cierre de infraestructura.
 - No se declara cierre de WAF, TLS ni reverse proxy.
 - No se declara cierre de SIEM/SOC.
@@ -131,7 +133,7 @@ Se declara cerrado, para el alcance evaluado de esta línea Scalar-SEC, el frent
 3. Validación de roles reales.
 4. Validación de claims/permissions del proveedor de identidad.
 5. Revisión de permisos finos.
-6. Validación de secretos/OpenBao.
+6. Validación de secretos/proveedor de secretos retirado.
 7. Validación TLS/reverse proxy/WAF.
 8. Revisión de logs/auditoría/SIEM.
 9. Pruebas de expiración/refresh token.

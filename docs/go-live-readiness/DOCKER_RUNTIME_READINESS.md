@@ -1,11 +1,11 @@
 # Docker Runtime Readiness - ACH Interbank
 
-Fecha de generacion: 2026-05-18  
-Version: 0.1 preliminar  
-Rama ejecutada: `fix/spa-docker-runtime-proxy-and-images`  
-Commit: `db3bdb27`  
-Ambiente: Docker Compose local  
-Validacion humana requerida: si  
+Fecha de generacion: 2026-05-18
+Version: 0.1 preliminar
+Rama ejecutada: `fix/spa-docker-runtime-proxy-and-images`
+Commit: `db3bdb27`
+Ambiente: Docker Compose local
+Validacion humana requerida: si
 Clasificacion: evidencia tecnica sin secretos ni datos reales.
 
 ## Veredicto
@@ -99,7 +99,7 @@ No se adopta Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^2
 | Vulnerabilidad NU1903 en `System.Security.Cryptography.Xml` 10.0.0 | Cerrada tecnicamente | Warning observado durante `docker compose build`; corregido luego con referencia explicita `System.Security.Cryptography.Xml` 10.0.8 y `dotnet list ... --vulnerable` sin hallazgos. | Mantener monitoreo de advisories y CI completo. |
 | OpenAPI lento | MEDIA | 79s directo y 96s via proxy para `/openapi/v1.json`. | Documentar timeout o optimizar generacion. |
 | `.env` versionado | ALTA seguridad | `.env` existe y esta trackeado. | Revisar contenido, rotar si aplica, destrackear con procedimiento aprobado. |
-| Migraciones automaticas en startup | MEDIA operacion | `Database__ApplyMigrations=true`. | Decidir si UAT/preproductivo permite auto-migrate o requiere DBA. |
+| Migraciones automaticas en startup | CONTROLADO | Deshabilitadas por defecto con `DATABASE_APPLY_MIGRATIONS=false`. | Habilitar solo de forma explicita y fuera de las pruebas G3.6. |
 | Mecanismo de custodia fuera de compose principal | MEDIA/ALTA si aplica a certificados | Scripts/docs existen, servicio no. | Definir alcance UAT: custodia externa o waiver. |
 
 ## Decision de readiness

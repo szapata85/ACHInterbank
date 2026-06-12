@@ -45,7 +45,7 @@ Definir controles, responsables, evidencias y criterios para autorizar preparaci
 2. Validar ambiente aislado y dataset sintetico.
 3. Revisar registro placeholder de certificados/endpoints.
 4. Aprobar canal seguro de recepcion.
-5. Validar custodia en OpenBao/Vault o mecanismo corporativo aprobado.
+5. Validar custodia en mecanismo corporativo de secretos o mecanismo corporativo aprobado.
 6. Revisar evidencia de ausencia de secretos en repo/docs/logs.
 7. Autorizar carga controlada solo en ambiente UAT aislado.
 8. Registrar decision: aprobado, no aprobado o aprobado con observaciones.

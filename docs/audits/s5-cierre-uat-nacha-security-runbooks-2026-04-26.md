@@ -1,7 +1,9 @@
+> Nota G3.5.2: las referencias a proveedores de secretos retirados son historicas y obsoletas desde el cleanup `ebf7a8a5`; no describen el stack vigente.
+
 # S5 — Cierre UAT NACHA Security, runbooks y acta de conformidad
 
-**Fecha:** 2026-04-26 (UTC)  
-**Brecha objetivo:** S1-20 (UAT / runbooks / evidencia).  
+**Fecha:** 2026-04-26 (UTC)
+**Brecha objetivo:** S1-20 (UAT / runbooks / evidencia).
 **Carácter del documento:** auditoría documental-operativa (sin cambios funcionales).
 
 ---
@@ -58,7 +60,7 @@ Runbooks y guías operativas relevantes identificadas:
 1. `docs/operations/incoming-nacha-observability-runbook-2026-04-24.md`.
 2. `docs/operations/incoming-nacha-uat-controlled-plan-2026-04-25.md`.
 3. `docs/deployment/nacha-security-deployment-checklist-2026-04-22.md`.
-4. `docs/dev/docker-compose-openbao-uat-2026-04-22.md` (UAT/laboratorio).
+4. `docs/dev/docker-compose-proveedor de secretos retirado-uat-2026-04-22.md` (UAT/laboratorio).
 
 ### 3.5 Qué evidencias existen
 
@@ -172,6 +174,6 @@ Firmas:
 
 ## 7) Veredicto ejecutivo S5
 
-- **S1-20:** **Parcial** (no cerrado).  
-- **UAT ampliado:** **Sí permitido** (controlado).  
+- **S1-20:** **Parcial** (no cerrado).
+- **UAT ampliado:** **Sí permitido** (controlado).
 - **GO productivo:** **No permitido** hasta cierre de pendientes P0/P1 + actas + firmas.

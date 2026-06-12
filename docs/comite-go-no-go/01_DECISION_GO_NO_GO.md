@@ -26,7 +26,7 @@ La recomendacion para el comite es mantener NO-GO productivo. El proyecto puede 
 | Runtime | OK | Docker, PostgreSQL, API y SPA OK | No | Ambiente local/controlado estable. |
 | UAT tecnico | OK con observaciones | docs/uat/EJECUCION_UAT_TECNICO_BASICO.md | No | No equivale a aprobacion productiva. |
 | UAT funcional | PARCIALMENTE OK | docs/uat/UAT_FUNCIONAL_SINTETICO.md | Si | Falta UAT formal y actas. |
-| Seguridad | PARCIAL | docs/security/REVISION_SEGURIDAD_PRE_GO_LIVE.md | Si | Pendientes secretos/certificados/OpenBao segun alcance. |
+| Seguridad | PARCIAL | docs/security/REVISION_SEGURIDAD_PRE_GO_LIVE.md | Si | Pendientes de custodia de secretos y certificados según alcance. |
 | Backup/restore | PENDIENTE | docs/go-live-readiness/BRECHAS_CRITICAS_GO_LIVE.md | Si | Bloqueante operacional. |
 | NACHA-M | PARCIAL | docs/go-live-readiness/MATRIZ_NACHA_M_LAYOUTS.md | Si | Requiere validacion campo-a-campo. |
 | CENIT/CUD | PENDIENTE | docs/go-live-readiness/BRECHAS_CRITICAS_GO_LIVE.md | Si | Interoperabilidad externa no cerrada. |

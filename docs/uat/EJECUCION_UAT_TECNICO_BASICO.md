@@ -1,21 +1,21 @@
 # Ejecucion UAT Tecnico Basico Autenticado - ACH Interbank
 
-Fecha de ejecucion: 2026-05-18 America/Bogota  
-Version: 0.2 reintento autenticado cerrado  
-Rama ejecutada: `fix/spa-docker-runtime-proxy-and-images`  
-Commit: `141484fc78434322ff87f25c8914002719b35264`  
-Ambiente: Docker Compose local, SPA `http://localhost:743`, API `http://localhost:843`  
+Fecha de ejecucion: 2026-05-18 America/Bogota
+Version: 0.2 reintento autenticado cerrado
+Rama ejecutada: `fix/spa-docker-runtime-proxy-and-images`
+Commit: `141484fc78434322ff87f25c8914002719b35264`
+Ambiente: Docker Compose local, SPA `http://localhost:743`, API `http://localhost:843`
 Clasificacion: no incluir password, token completo, datos personales, datos reales ni certificados privados.
 
 ## Alcance
 
 Validar UAT tecnico autenticado basico desde la SPA Docker con usuario demo sintetico aprobado.
 
-Usuario demo usado: `admin`  
-Password: no documentada; tomada desde `ACH_UAT_DEMO_PASSWORD`.  
-Token: recibido y no documentado completo; evidencia enmascarada `eyJ...6_k`.  
-Roles esperados: `Admin`, `ACH.Operator`.  
-Roles confirmados: parcial; respuesta/JWT exponen `Admin`, no se observa `ACH.Operator`.  
+Usuario demo usado: `admin`
+Password: no documentada; tomada desde `ACH_UAT_DEMO_PASSWORD`.
+Token: recibido y no documentado completo; evidencia enmascarada `eyJ...6_k`.
+Roles esperados: `Admin`, `ACH.Operator`.
+Roles confirmados: parcial; respuesta/JWT exponen `Admin`, no se observa `ACH.Operator`.
 Tipo: seed sintetico.
 
 ## Resultado Ejecutivo
@@ -38,7 +38,7 @@ Tipo: seed sintetico.
 | Navegacion visual | PARCIAL | Logs SPA muestran login, refresh, dashboard, menu y pantallas protegidas; browser integrado Codex sin herramienta ejecutable en esta sesion. |
 | Logs | OK con observaciones | Sin 500 criticos ni tokens/passwords completos; EF debug muestra nombre de columna `PasswordHash` sin valores. PostgreSQL tiene FATAL previos por usuarios `root`/`sa`. |
 | UAT tecnico autenticado basico | OK con observaciones | Criterios tecnicos de autenticacion, token, menu, endpoints y logs cumplidos. |
-| Productivo | NO-GO | UAT funcional, actas, seguridad, OpenBao si aplica, backup/restore/rollback y evidencia funcional siguen pendientes. |
+| Productivo | NO-GO | UAT funcional, actas, seguridad, mecanismo corporativo de secretos si aplica, backup/restore/rollback y evidencia funcional siguen pendientes. |
 
 ## Pre-check
 
@@ -127,5 +127,5 @@ UAT tecnico autenticado basico: **OK con observaciones**.
 
 Se cerro el bloqueo por variables, se ejecuto login real con usuario seed sintetico `admin`, se recibio token, se valido menu con Bearer y endpoints protegidos read-only sin `index.html` ni 500. La observacion principal es que `ACH.Operator` no se confirma en respuesta/JWT, aunque la autorizacion basica opera con `Admin`.
 
-UAT funcional con transacciones sinteticas: **PENDIENTE**.  
+UAT funcional con transacciones sinteticas: **PENDIENTE**.
 Productivo: **NO-GO**.

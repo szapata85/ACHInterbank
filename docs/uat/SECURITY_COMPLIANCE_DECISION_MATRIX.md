@@ -12,7 +12,7 @@ Decision comite asociada: `docs/uat/EXECUTIVE_COMMITTEE_DECISION_RECORD.md`.
 | --- | --- | --- | --- | --- | --- | --- |
 | DEC-001 | Aprobar revision documental | Seguridad/Compliance | Paquete 6D.7 | Paquete completo y sin secretos | Pendiente | No aprobado |
 | DEC-002 | Aprobar canal seguro de intercambio | CFA Seguridad | Gap analysis, custodia | Canal formal definido | Pendiente | Sin canal aprobado |
-| DEC-003 | Aprobar custodia de secretos | CFA Seguridad | `UAT_SECRET_CUSTODY_MODEL.md` | OpenBao/Vault o mecanismo aprobado | Pendiente | Sin custodia aprobada |
+| DEC-003 | Aprobar custodia de secretos | CFA Seguridad | `UAT_SECRET_CUSTODY_MODEL.md` | mecanismo corporativo de secretos o mecanismo aprobado | Pendiente | Sin custodia aprobada |
 | DEC-004 | Aprobar recepcion certificados UAT | CFA Seguridad | Registro placeholder | Canal y custodia aprobados | Pendiente | No recibidos |
 | DEC-005 | Aprobar registro endpoints UAT sin valores en repo | Tecnologia + Seguridad | Registro placeholder | Sin URLs reales en repo/docs | Pendiente | No configurar aun |
 | DEC-006 | Aprobar uso dataset sintetico | Mesa UAT + Compliance | Dataset y escenarios | Sin datos reales | Pendiente | No certificado oficial |

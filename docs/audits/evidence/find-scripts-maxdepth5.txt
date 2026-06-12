@@ -1,9 +1,9 @@
 scripts/codex/setup-codex-env.sh
 scripts/open-swagger.ps1
 scripts/open-swagger.sh
-scripts/openbao/bootstrap-openbao-uat.sh
-scripts/openbao/init-openbao.sh
-scripts/openbao/run-historical-decrypt-e2e-uat.sh
+scripts/proveedor de secretos retirado/bootstrap-proveedor de secretos retirado-uat.sh
+scripts/proveedor de secretos retirado/init-proveedor de secretos retirado.sh
+scripts/proveedor de secretos retirado/run-historical-decrypt-e2e-uat.sh
 scripts/scan_result_solid.py
 scripts/test/run-postgres-integration-tests.ps1
 scripts/test/run-postgres-integration-tests.sh

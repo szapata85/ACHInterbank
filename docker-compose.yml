@@ -34,7 +34,7 @@ services:
       EnableHttpsRedirection: ${ENABLE_HTTPS_REDIRECTION:-false}
       Database__Provider: Postgres
       ConnectionStrings__PostgresConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB:-ACHInterbank};Username=${POSTGRES_USER:-example_user};Password=${POSTGRES_PASSWORD:-example_password_change_me}
-      Database__ApplyMigrations: "true"
+      Database__ApplyMigrations: ${DATABASE_APPLY_MIGRATIONS:-false}
       DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable: "false"
     ports:
       - "843:8080"

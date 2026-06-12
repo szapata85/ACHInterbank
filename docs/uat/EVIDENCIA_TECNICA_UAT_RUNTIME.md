@@ -1,12 +1,12 @@
 # Evidencia Tecnica UAT Runtime - ACH Interbank
 
-Fecha de generacion: 2026-05-18  
-Version: 0.1 preliminar  
-Rama ejecutada: `fix/spa-docker-runtime-proxy-and-images`  
-Rama objetivo del proyecto: `ACH-Interbank-Postgresql`  
-Commit: `db3bdb27`  
-Ambiente: Docker Compose local en Windows 11 / Docker Desktop  
-Validacion humana requerida: si  
+Fecha de generacion: 2026-05-18
+Version: 0.1 preliminar
+Rama ejecutada: `fix/spa-docker-runtime-proxy-and-images`
+Rama objetivo del proyecto: `ACH-Interbank-Postgresql`
+Commit: `db3bdb27`
+Ambiente: Docker Compose local en Windows 11 / Docker Desktop
+Validacion humana requerida: si
 Clasificacion: no incluir secretos, tokens, certificados privados, datos personales ni datos reales en Git.
 
 ## Resumen
@@ -29,8 +29,8 @@ Clasificacion: no incluir secretos, tokens, certificados privados, datos persona
 | SPA hacia Navigation same-origin | OK tecnico | `GET http://localhost:743/navigation/menu` sin token respondio 401 desde API, no `index.html`; con token valido debe devolver JSON del menu. |
 | OpenAPI | OK con observacion | `GET http://localhost:843/openapi/v1.json` respondio 200 en aproximadamente 79s; via proxy `http://localhost:743/openapi/v1.json` respondio 200 en aproximadamente 96s. |
 | Scalar | OK | `GET http://localhost:843/scalar` respondio 200. |
-| OpenBao/secrets | PENDIENTE / NO APLICA compose actual | OpenBao no esta en `docker-compose.yml`; hay scripts y docs historicas. |
-| Productivo | NO-GO | Persisten brechas UAT real/anonimizado, seguridad, OpenBao si aplica y aprobaciones. |
+| Custodia de secretos | FUERA DEL COMPOSE | El stack UAT no depende de un servicio externo de secretos. |
+| Productivo | NO-GO | Persisten brechas UAT real/anonimizado, seguridad y aprobaciones. |
 
 ## Estrategia SPA -> API
 
@@ -99,9 +99,9 @@ No se usa Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^22.1
 ## Logs relevantes resumidos
 
 - PostgreSQL inicializo base `ACHInterbank` y quedo listo para conexiones.
-- La API ejecuto migraciones EF Core en startup por `Database__ApplyMigrations=true`.
-- Se observaron inserts en `__EFMigrationsHistory` y creacion de indice de idempotencia para ingestion NACHA entrante.
-- El mensaje inicial de PostgreSQL sobre `__EFMigrationsHistory` inexistente aparece durante la deteccion normal previa a crear/aplicar historial.
+- La corrida histórica original ejecutó migraciones EF Core en startup.
+- Desde G3.5.2, Compose usa `Database__ApplyMigrations=${DATABASE_APPLY_MIGRATIONS:-false}` y no migra por defecto.
+- Las pruebas G3.6 deben usar una base previamente provisionada.
 - Nginx de la SPA sirvio `index.html` correctamente.
 - Nginx de la SPA proxyo `/auth`, `/navigation`, `/api`, `/health`, `/openapi` y `/scalar` hacia `achinterbank-api:8080`.
 - `/api/ach/responses` via `http://localhost:743` respondio 401, confirmando que ya llega al backend y mantiene autorizacion.
@@ -118,7 +118,7 @@ No se usa Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^22.1
 | API lista | OK | `/health/ready` HTTP 200. |
 | Conexion DB desde API | OK | `database=Healthy`. |
 | Esquema DB | OK tecnico | 130 tablas en `public`. |
-| Migraciones automaticas | OK tecnico / PENDIENTE VALIDAR operacion | Compose activa `Database__ApplyMigrations=true`; validar si UAT debe aplicar migraciones automaticas o por ventana controlada. |
+| Migraciones automaticas | DESHABILITADAS POR DEFECTO | Solo pueden habilitarse explícitamente fuera de G3.6 con `DATABASE_APPLY_MIGRATIONS=true`. |
 | Seeds | PENDIENTE VALIDAR | Logs muestran consultas de scheduler; no se valido catalogo funcional completo. |
 
 ## Resultado SPA
@@ -140,15 +140,13 @@ No se usa Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^22.1
 | OpenAPI JSON | OK lento | HTTP 200 en `/openapi/v1.json`, aprox. 79s directo y 96s via proxy. |
 | Endpoints criticos en OpenAPI | PARCIAL | Se observaron rutas ACH, transactions, NACHA, returns, reports y health. Requiere matriz formal para UAT. |
 
-## OpenBao / secretos
+## Custodia de secretos
 
 | Control | Estado | Evidencia |
 |---|---|---|
-| OpenBao en compose principal | NO ENCONTRADO | `docker-compose.yml` no define servicio OpenBao. |
-| Scripts OpenBao | EXISTE | `scripts/openbao/*`. |
-| Docs OpenBao | EXISTE | `docs/architecture/openbao-integration-2026-04-22.md`, `docs/dev/docker-compose-openbao-uat-2026-04-22.md`. |
-| Runtime actual requiere OpenBao | NO | `DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable=false`; OpenBao no se activo. |
-| UAT con secretos externos | PENDIENTE | Requiere decision seguridad/operacion. |
+| Servicio externo en compose | NO REQUERIDO | `docker-compose.yml` contiene solo PostgreSQL, API y SPA. |
+| Dependencia runtime | NO | La API arranca sin un servicio externo de secretos. |
+| UAT con secretos reales | BLOQUEADO | Requiere mecanismo corporativo aprobado y queda fuera de G3.6. |
 
 ## Brechas encontradas
 
@@ -158,7 +156,7 @@ No se usa Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^22.1
 | RUNTIME-02 | OpenAPI tarda aprox. 79-96 segundos en generarse. | Puede causar timeouts de validacion/observabilidad. | Evaluar cache/generacion previa o ampliar timeout operativo para evidencia. |
 | RUNTIME-03 | `System.Security.Cryptography.Xml` 10.0.0 reportaba vulnerabilidad alta. | Riesgo mitigado tecnicamente; requiere monitoreo continuo. | Corregido con 10.0.8; build/test/list vulnerable OK. |
 | RUNTIME-04 | `.env` esta versionado. | Riesgo de secretos si contiene valores reales. | Revision segura, rotacion si aplica y destrackeo controlado. |
-| RUNTIME-05 | Migraciones automaticas activas en compose. | Puede no ser politica aceptada para UAT/preproductivo. | Definir si UAT usa migracion automatica o ventana DBA controlada. |
+| RUNTIME-05 | Migraciones automaticas deshabilitadas por defecto. | Evita cambios de esquema accidentales durante UAT. | Mantener `DATABASE_APPLY_MIGRATIONS=false` en G3.6. |
 | RUNTIME-06 | PostgreSQL publicado en `localhost:5432`. | Facilita UAT tecnico local y troubleshooting con DBeaver/pgAdmin. | Mantener restringido a `127.0.0.1`; no asumir esta exposicion para productivo. |
 
 ## Conclusion

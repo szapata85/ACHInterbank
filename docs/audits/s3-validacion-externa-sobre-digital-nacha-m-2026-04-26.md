@@ -1,8 +1,10 @@
+> Nota G3.5.2: las referencias a proveedores de secretos retirados son historicas y obsoletas desde el cleanup `ebf7a8a5`; no describen el stack vigente.
+
 # S3 — Validación externa sobre digital NACHA-M
 
-**Fecha:** 2026-04-26 (UTC)  
-**Brecha objetivo:** S1-13 (Sobre digital / firma / cifrado).  
-**Restricción aplicada:** sin cambios funcionales en cripto, OpenBao, certificados o código productivo.
+**Fecha:** 2026-04-26 (UTC)
+**Brecha objetivo:** S1-13 (Sobre digital / firma / cifrado).
+**Restricción aplicada:** sin cambios funcionales en cripto, proveedor de secretos retirado, certificados o código productivo.
 
 ---
 
@@ -28,7 +30,7 @@ No procede “Cumplido” pleno porque sigue faltando el cierre de interoperabil
 | No exponer plano cuando falla firma | Operaciones/Controller bloquean descarga en fallo de firma | Implementado |
 | Trazabilidad y auditoría de operación NACHA security | `NachaSecurityOperationService` + audit endpoints | Implementado |
 | Gestión de certificados (alta/listado/metadata) | `DigitalEnvelopeCertificatesController` + servicios certificados | Implementado |
-| Resolución segura por `SecretRef` / OpenBao | opciones y proveedores de secreto + masking | Implementado |
+| Resolución segura por `SecretRef` / proveedor de secretos retirado | opciones y proveedores de secreto + masking | Implementado |
 | Encriptación/firma sobre digital (AES/RSA/XML/padding) | pipeline de sobre digital vigente | Implementado |
 
 ---
@@ -39,7 +41,7 @@ No procede “Cumplido” pleno porque sigue faltando el cierre de interoperabil
 |---|---|---|
 | Fail-close de firma | `DigitalEnvelopeSignatureFailCloseTests` | Rechaza contenido alterado/firma inválida; no retorna plano |
 | Interoperabilidad estructural/harness | `DigitalEnvelopeInteroperabilityHarnessTests` | Valida nodos XML/algoritmos/roundtrip técnico |
-| Resolución de secretos/certificados | `CertificateSecretResolverTests`, `DigitalEnvelopeCertificateResolverTests` | SecretRef/OpenBao con masking y errores controlados |
+| Resolución de secretos/certificados | `CertificateSecretResolverTests`, `DigitalEnvelopeCertificateResolverTests` | SecretRef/proveedor de secretos retirado con masking y errores controlados |
 | Operación API NACHA security | `NachaSecurityOperationsControllerTests` | Política de descarga y errores de firma consistente |
 
 Conclusión QA: control técnico robusto y coherente con fail-close, pero aún sin evidencia externa definitiva de contraparte.
@@ -48,17 +50,17 @@ Conclusión QA: control técnico robusto y coherente con fail-close, pero aún s
 
 ## 4) Evidencia técnica existente
 
-1. Auditoría de estado y matriz normativa de sobre digital:  
-   - `docs/audits/nacha-digital-envelope-current-state-2026-04-20.md`  
+1. Auditoría de estado y matriz normativa de sobre digital:
+   - `docs/audits/nacha-digital-envelope-current-state-2026-04-20.md`
    - `docs/audits/nacha-digital-envelope-normative-matrix-2026-04-20.md`
-2. Evidencia de fail-close e interoperabilidad técnica interna:  
-   - `docs/audits/digital-envelope-signature-failclose-phase1-2026-04-21.md`  
+2. Evidencia de fail-close e interoperabilidad técnica interna:
+   - `docs/audits/digital-envelope-signature-failclose-phase1-2026-04-21.md`
    - `docs/audits/digital-envelope-interoperability-harness-2026-04-21.md`
-3. Evidencia de certificados/secretref/OpenBao:  
-   - `docs/audits/certificate-management-phase1-implementation-2026-04-20.md`  
-   - `docs/audits/certificate-secretref-resolution-phase1-2026-04-21.md`  
-   - `docs/architecture/openbao-integration-2026-04-22.md`
-4. Plan UAT de seguridad NACHA con pendientes explícitos:  
+3. Evidencia de certificados/secretref/proveedor de secretos retirado:
+   - `docs/audits/certificate-management-phase1-implementation-2026-04-20.md`
+   - `docs/audits/certificate-secretref-resolution-phase1-2026-04-21.md`
+   - `docs/architecture/proveedor de secretos retirado-integration-2026-04-22.md`
+4. Plan UAT de seguridad NACHA con pendientes explícitos:
    - `docs/uat/nacha-security-uat-plan-2026-04-22.md`
 
 ---
@@ -73,9 +75,9 @@ Conclusión QA: control técnico robusto y coherente con fail-close, pero aún s
 
 ## 6) Qué falta para considerar el sobre digital productivo (pleno)
 
-1. Recepción de vector oficial de interoperabilidad de la contraparte/cámara (archivo `.env`, plano esperado, certificado, criterios de aceptación).  
-2. Ejecución de batería de validación con evidencia reproducible y hashes firmados.  
-3. Acta de conformidad de Seguridad + Compliance + Operaciones + contraparte regulatoria/operativa aplicable.  
+1. Recepción de vector oficial de interoperabilidad de la contraparte/cámara (archivo `.env`, plano esperado, certificado, criterios de aceptación).
+2. Ejecución de batería de validación con evidencia reproducible y hashes firmados.
+3. Acta de conformidad de Seguridad + Compliance + Operaciones + contraparte regulatoria/operativa aplicable.
 4. Cierre de pendientes P0/P1 en matriz UAT NACHA security.
 
 ---

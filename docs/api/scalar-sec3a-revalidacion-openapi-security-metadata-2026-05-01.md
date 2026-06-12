@@ -1,3 +1,5 @@
+> Nota G3.5.2: las referencias a proveedores de secretos retirados son historicas y obsoletas desde el cleanup `ebf7a8a5`; no describen el stack vigente.
+
 # Scalar-SEC-3A — Revalidación build/tests/OpenAPI de metadata security (2026-05-01)
 
 ## 1. Resumen ejecutivo
@@ -98,7 +100,7 @@ Build final ejecutado con éxito:
 - No se agregó AllowAnonymous.
 - No se tocó Angular.
 - No se tocó criptografía.
-- No se tocó OpenBao.
+- No se tocó proveedor de secretos retirado.
 - No se declara producción lista.
 - No se declara seguridad API total cerrada si quedan controladores P1/P2 pendientes.
 

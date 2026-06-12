@@ -1,8 +1,8 @@
 # Indice de Evidencias UAT - ACH Interbank
 
-Fecha de generacion: 2026-05-18  
-Version: 0.1 preliminar  
-Rama analizada: `ACH-Interbank-Postgresql`  
+Fecha de generacion: 2026-05-18
+Version: 0.1 preliminar
+Rama analizada: `ACH-Interbank-Postgresql`
 Estado: plantilla operativa; requiere validacion humana.
 
 ## Politica De Evidencia
@@ -26,7 +26,7 @@ Las evidencias con datos sensibles deben almacenarse fuera de Git en un reposito
 | EV-UAT-011 | UAT-REAL-020 | Evidencia de conciliacion | Reporte conciliacion | PENDIENTE | PENDIENTE | Operaciones | PENDIENTE | PENDIENTE | |
 | EV-UAT-012 | UAT-REAL-022 | Evidencia sobre digital | Cifrado/descifrado/fail-close | PENDIENTE | PENDIENTE | Seguridad | PENDIENTE | PENDIENTE | No incluir llaves |
 | EV-UAT-013 | UAT-REAL-024 | Evidencia certificado/firma | Validacion certificado/firma | PENDIENTE | PENDIENTE | Seguridad | PENDIENTE | PENDIENTE | Certificado privado fuera de Git |
-| EV-UAT-014 | UAT-REAL-025 | Evidencia OpenBao/secreto | SecretRef enmascarado y resolucion | PENDIENTE | PENDIENTE | Seguridad | PENDIENTE | PENDIENTE | No incluir token |
+| EV-UAT-014 | UAT-REAL-025 | Evidencia mecanismo corporativo de secretos/secreto | SecretRef enmascarado y resolucion | PENDIENTE | PENDIENTE | Seguridad | PENDIENTE | PENDIENTE | No incluir token |
 | EV-UAT-015 | UAT-REAL-027 | Evidencia de idempotencia | Reejecucion sin duplicidad | PENDIENTE | PENDIENTE | Tecnologia | PENDIENTE | PENDIENTE | |
 | EV-UAT-016 | UAT-REAL-028 | Resultado dotnet test | Test backend no destructivo | PENDIENTE | PENDIENTE | Tecnologia | PENDIENTE | PENDIENTE | |
 | EV-UAT-017 | UAT-REAL-028 | Resultado npm run build | Build SPA | PENDIENTE | PENDIENTE | Tecnologia | PENDIENTE | PENDIENTE | |
@@ -48,7 +48,7 @@ Las evidencias con datos sensibles deben almacenarse fuera de Git en un reposito
 - Evidencia CUD.
 - Evidencia certificado/firma.
 - Evidencia sobre digital.
-- Evidencia OpenBao/secreto.
+- Evidencia mecanismo corporativo de secretos/secreto.
 - Acta.
 - Aprobacion por correo.
 - Defecto.

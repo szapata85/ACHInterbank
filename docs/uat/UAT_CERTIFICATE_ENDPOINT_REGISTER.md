@@ -20,4 +20,4 @@ Estados permitidos: `Pendiente`, `Pendiente intercambio seguro`, `Recibido sin c
 
 ## Regla de custodia
 
-Todo material real debe recibirse por canal aprobado, custodiarse en OpenBao/Vault o mecanismo corporativo aprobado y cargarse solo en ambiente UAT aislado tras aprobacion de Seguridad/Compliance.
+Todo material real debe recibirse por canal aprobado, custodiarse en mecanismo corporativo de secretos o mecanismo corporativo aprobado y cargarse solo en ambiente UAT aislado tras aprobacion de Seguridad/Compliance.

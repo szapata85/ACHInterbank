@@ -1,10 +1,12 @@
+> Nota G3.5.2: las referencias a proveedores de secretos retirados son historicas y obsoletas desde el cleanup `ebf7a8a5`; no describen el stack vigente.
+
 # Go/No-Go Scorecard — Auditoría funcional-normativa ACH/CENIT/NACHA-M
 
 > Referencia UAT complementaria: `docs/uat/incoming-return-orphan-acceptance-checklist.md`.
 
 
-**Fecha:** 2026-04-26 (UTC)  
-**Ámbito:** Formalización de readiness funcional-normativo para salida productiva.  
+**Fecha:** 2026-04-26 (UTC)
+**Ámbito:** Formalización de readiness funcional-normativo para salida productiva.
 **Restricciones aplicadas:** sin cambios de código/servicios/tests/Angular/cripto/migraciones.
 
 ---
@@ -138,8 +140,8 @@ Objetivo: unificar estado de readiness, retirar contradicciones y emitir acta fi
 
 ## 11) Veredicto actual
 
-**Veredicto funcional-normativo actual: `NO-GO PRODUCTIVO`**.  
-**Veredicto técnico backend P0: `GO TÉCNICO`**.  
+**Veredicto funcional-normativo actual: `NO-GO PRODUCTIVO`**.
+**Veredicto técnico backend P0: `GO TÉCNICO`**.
 **Veredicto operativo recomendado: `GO PARA UAT AMPLIADO CONTROLADO`** (sin salida productiva).
 
 ## 12) Estado actualizado ROR
@@ -237,7 +239,7 @@ Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPar
 
 - Referencia runbook operativo de certificados: `docs/ops/certificate-operations-runbook.md` (no modifica decisión NO-GO productivo).
 
-- Decisión arquitectura certificados: OpenBao/SecretRef excluido del flujo de certificados; BD solo metadata; llaves privadas fuera de BD.
+- Decisión arquitectura certificados: proveedor de secretos retirado/SecretRef excluido del flujo de certificados; BD solo metadata; llaves privadas fuera de BD.
 
 > Referencia punto 10 (reportería/conciliación revisión contable terceros, no contable): `docs/audits/accounting-review-reconciliation-matrix-current.md`.
 

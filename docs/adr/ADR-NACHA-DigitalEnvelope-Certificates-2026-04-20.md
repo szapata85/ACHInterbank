@@ -1,3 +1,5 @@
+> Nota G3.5.2: las referencias a proveedores de secretos retirados son historicas y obsoletas desde el cleanup `ebf7a8a5`; no describen el stack vigente.
+
 # ADR — NACHA Digital Envelope & Certificate Governance
 
 - **ID:** ADR-NACHA-DigitalEnvelope-Certificates-2026-04-20
@@ -170,7 +172,7 @@ Se define perfil **`AchV32DigitalEnvelopeXmlProfile`** con los siguientes elemen
 
 ### 10.2 Estrategia recomendada (fase 1)
 - BD guarda solo metadata + referencia de secreto (`SecretRef`) + material público si aplica.
-- Secretos en gestor dedicado (preferido: Azure Key Vault / AWS Secrets Manager / HashiCorp Vault).
+- Secretos en gestor dedicado (preferido: Azure Key Vault / AWS Secrets Manager / gestor corporativo de secretos).
 - Fallback local controlado: DPAPI/ProtectedData para entorno no cloud, con rotación y acceso mínimo.
 - Privadas nunca expuestas por API; solo uso en memoria con mínimo tiempo de vida.
 - Logging con enmascaramiento total de secretos.

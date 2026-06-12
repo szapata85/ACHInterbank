@@ -1,3 +1,5 @@
+> Nota G3.5.2: las referencias a proveedores de secretos retirados son historicas y obsoletas desde el cleanup `ebf7a8a5`; no describen el stack vigente.
+
 # Scalar-SEC-PERM-FINAL — Cierre ejecutivo-técnico del programa de permisos finos
 
 ## 1. Resumen ejecutivo
@@ -74,7 +76,7 @@ Persisten riesgos de mantenimiento por coexistencia de policies finas y legacy h
 - Pentest pendiente.
 - UAT de seguridad pendiente.
 - Validación real de roles/claims del IdP pendiente.
-- Gestión definitiva de secretos/OpenBao pendiente.
+- Gestión definitiva de secretos/proveedor de secretos retirado pendiente.
 - Hardening de infraestructura pendiente.
 - Monitoreo/SIEM pendiente.
 - Backup/restore pendiente.
@@ -94,7 +96,7 @@ Persisten riesgos de mantenimiento por coexistencia de policies finas y legacy h
 - No se crearon migraciones.
 - No se ejecutó pentest.
 - No se ejecutó UAT de seguridad.
-- No se validó OpenBao como gestión definitiva de secretos.
+- No se validó proveedor de secretos retirado como gestión definitiva de secretos.
 - No se validó infraestructura productiva.
 - No se declara producción lista.
 

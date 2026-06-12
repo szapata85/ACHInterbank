@@ -19,7 +19,7 @@ Estado: Naranja / NO-GO con brechas altas
 | --- | ---: | ---: | ---: | --- | --- |
 | Funcionalidad core | 20% | 82 | 16.4 | Parcial alto | Trazabilidad e idempotencia documentada avanzaron. |
 | UAT y evidencias | 20% | 64 | 12.8 | Parcial | UAT tecnico OK; UAT funcional sintetico parcial. |
-| Seguridad | 15% | 73 | 10.95 | Parcial | NU1903 corregido; `ACH.Operator` cerrado para UAT; pendientes secretos/certificados/OpenBao y matriz endpoint-rol formal. |
+| Seguridad | 15% | 73 | 10.95 | Parcial | NU1903 corregido; `ACH.Operator` cerrado para UAT; pendientes custodia de secretos/certificados y matriz endpoint-rol formal. |
 | Interoperabilidad externa | 15% | 40 | 6.00 | Bajo | NACHA-M real UAT queda bloqueado por prenotificacion previa; export vacio y SOAP dry-run quedan mitigados tecnicamente; CENIT/CUD y homologacion siguen pendientes. |
 | Operacion y soporte | 10% | 68 | 6.8 | Parcial | Runtime OK; backup/restore/rollback pendiente. |
 | Observabilidad | 10% | 68 | 6.8 | Parcial | Logs y runtime controlado OK. |

@@ -1,3 +1,5 @@
+> Nota G3.5.2: las referencias a proveedores de secretos retirados son historicas y obsoletas desde el cleanup `ebf7a8a5`; no describen el stack vigente.
+
 # Matriz vigente — Sobre digital, firma y certificados
 
 ## 1. Propósito
@@ -89,7 +91,7 @@ No usa `SignedCms`/`EnvelopedCms` ni PKCS#7 nativo; es implementación XML custo
 | búsqueda issuer/serial/thumbprint | Implementado | resolver/provider | Medio | Evidencia operativa |
 | store X509 | Implementado | `RsaKeyProvider` | Parcial | Validar permisos |
 | PFX/CER | Implementado | resolver/loader | Parcial | Runbook |
-| OpenBao/SecretRef | No aplica | modelo operativo vigente | Bajo | Mantener exclusión arquitectónica |
+| proveedor de secretos retirado/SecretRef | No aplica | modelo operativo vigente | Bajo | Mantener exclusión arquitectónica |
 | HasPrivateKey | Implementado | helper+resolver | Bajo | Mantener |
 | GetRSAPrivateKey controlado | Implementado | helper seguro | Bajo | Mantener |
 
@@ -104,7 +106,7 @@ No usa `SignedCms`/`EnvelopedCms` ni PKCS#7 nativo; es implementación XML custo
 | ENCRYPT TO RECIPIENT | No | pública en cifrado | N/A | Permitido |
 | carga PFX | Sí aplica | resolver/loader | según loader | Parcial |
 | carga store | Sí aplica | provider | según provider | Parcial |
-| OpenBao/SecretRef en carga de certificados | No aplica | modelo operativo vigente | Bajo | Mantener exclusión arquitectónica |
+| proveedor de secretos retirado/SecretRef en carga de certificados | No aplica | modelo operativo vigente | Bajo | Mantener exclusión arquitectónica |
 
 Errores relevantes: `CERTIFICATE_PRIVATE_KEY_REQUIRED`, `CERTIFICATE_PRIVATE_KEY_NOT_AVAILABLE`, `CERTIFICATE_NOT_AVAILABLE`.
 
@@ -213,7 +215,7 @@ La capa cripto protege sobre/transporte de archivo; no reemplaza validación fun
   - automatización rotación.
   - dashboard de certificados.
   - alertas.
-  - No aplica OpenBao/SecretRef para certificados.
+  - No aplica proveedor de secretos retirado/SecretRef para certificados.
 
 ## 16. Recomendación
 - No conviene más hardening runtime antes de cierre documental/UAT, salvo hallazgo crítico.

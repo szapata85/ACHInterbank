@@ -1,6 +1,8 @@
+> Nota G3.5.2: las referencias a proveedores de secretos retirados son historicas y obsoletas desde el cleanup `ebf7a8a5`; no describen el stack vigente.
+
 # Auditoría integral de producción — ACHInterbank
 
-**Fecha de auditoría:** 2026-04-26 (UTC)  
+**Fecha de auditoría:** 2026-04-26 (UTC)
 **Alcance:** inventario, diagnóstico y readiness productivo (sin cambios funcionales).
 
 ---
@@ -33,8 +35,8 @@ Evidencia de build/test ejecutada en esta auditoría:
 ### 2.1 Documentación funcional y técnica
 
 **Implementado + documentado + evidenciado:**
-- Existe volumen alto de documentación técnica/operativa en `docs/` (arquitectura, runbooks, UAT, operaciones, ADRs y auditorías previas).  
-- Hay documentación explícita para seguridad NACHA/digital envelope/OpenBao, command center inbound, resiliencia y capability registry.
+- Existe volumen alto de documentación técnica/operativa en `docs/` (arquitectura, runbooks, UAT, operaciones, ADRs y auditorías previas).
+- Hay documentación explícita para seguridad NACHA/digital envelope/proveedor de secretos retirado, command center inbound, resiliencia y capability registry.
 
 **Riesgo de calidad documental:**
 - El `README.md` principal está parcialmente en plantilla genérica de GitLab y no refleja un estado productivo integral con criterios de operación/soporte/SLO claros.
@@ -45,7 +47,7 @@ Evidencia de build/test ejecutada en esta auditoría:
 - Solución multi-capa con proyectos `Api`, `Application`, `Domain`, `Persistence`, `External`, y tests dedicados.
 - API con 52 controladores y pipeline con middleware de excepciones, WAF custom, rate limiting, logging, JWT y headers de seguridad.
 - Integración de autenticación/autorización JWT + políticas finas por permisos.
-- Integración OpenBao/KeyVault para resolución de secreto de certificados (según modo de almacenamiento).
+- Integración proveedor de secretos retirado/KeyVault para resolución de secreto de certificados (según modo de almacenamiento).
 - EF Core DbContext extenso con múltiples agregados ACH/CENIT/NACHA-M, bitácora y entidades de seguridad.
 
 **Implementado pero no cerrado / riesgo:**
@@ -103,7 +105,7 @@ Evidencia de build/test ejecutada en esta auditoría:
 | Persistencia EF Core | Sí | Parcial | Sí | Sí | Parcial | No cerrado |
 | Migraciones versionadas EF | Sí (PostgreSQL) / Parcial (multi-motor) | No | Parcial | Parcial | Riesgo medio-alto | No cerrado |
 | Seguridad JWT + permisos | Sí | Parcial (tests no 100% verdes) | Sí | Sí | Parcial | No cerrado |
-| OpenBao/Vault integration | Sí | No validado end-to-end en esta corrida | Sí | Sí | Dependiente de entorno | No cerrado |
+| proveedor de secretos retirado integration | Sí | No validado end-to-end en esta corrida | Sí | Sí | Dependiente de entorno | No cerrado |
 | Frontend Angular | Sí | No ejecutado en esta corrida | Sí (parcial) | Sí | Parcial | No cerrado |
 | Observabilidad operacional | Sí (runbooks/docs + código) | No validado operativo en vivo | Sí | Sí | Parcial | No cerrado |
 | UAT read-only | Sí (docs/evidencias históricas) | No reejecutado aquí | Sí | Sí | Parcial | No cerrado |
@@ -121,16 +123,16 @@ Evidencia de build/test ejecutada en esta auditoría:
 4. **Criterios de go-live/rollback/responsables operativos consolidados en un único paquete de release no evidenciados de forma integral.**
 
 ### P1 (alto)
-1. Riesgo de regresión de calidad al no contar con gates de calidad más amplios en CI/CD (además de build/tests base).  
-2. Dependencias de entorno críticas (OpenBao token, DB provider, secretos JWT) con riesgo de deriva entre ambientes.  
+1. Riesgo de regresión de calidad al no contar con gates de calidad más amplios en CI/CD (además de build/tests base).
+2. Dependencias de entorno críticas (proveedor de secretos retirado token, DB provider, secretos JWT) con riesgo de deriva entre ambientes.
 3. Pipeline CI/CD visible limitado para garantías de calidad continua (security scan, SCA, SAST/DAST, release gates).
 
 ### P2 (medio)
-1. README raíz desalineado (documentación de entrada no ejecutiva).  
+1. README raíz desalineado (documentación de entrada no ejecutiva).
 2. Falta de consolidación de catálogo de evidencias “implementado vs probado vs operativo” en un tablero único.
 
 ### P3 (mejora)
-1. Estandarizar scorecard de readiness por release (checklist automatizada).  
+1. Estandarizar scorecard de readiness por release (checklist automatizada).
 2. Endurecer métricas de calidad y objetivos SLO/SLA explícitos por módulo.
 
 ---
@@ -164,7 +166,7 @@ Evidencia de build/test ejecutada en esta auditoría:
 1. SDK .NET 10.0.203 requerido.
 2. PostgreSQL para pruebas de integración y/o escenarios reales.
 3. Secretos y variables de JWT.
-4. OpenBao/Vault habilitado y token válido para casos de referencia externa.
+4. proveedor de secretos retirado habilitado y token válido para casos de referencia externa.
 5. ChromeHeadless/Puppeteer para pruebas SPA.
 
 ---

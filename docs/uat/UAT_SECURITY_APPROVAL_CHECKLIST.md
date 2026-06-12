@@ -13,7 +13,7 @@ Productivo permanece NO-GO. Seguridad no esta aprobada hasta completar este chec
 | SEC-CHK-005 | No endpoints reales en docs | Revision documentacion | CFA Tecnologia | Pendiente | Usar placeholders | Listo para revision |
 | SEC-CHK-006 | Certificados por canal aprobado | Acta entrega sin material secreto | CFA Seguridad | Pendiente | No cargar aun | Pendiente tercero |
 | SEC-CHK-007 | Certificados validados por Seguridad | Validacion cadena/vigencia sin exponer valores | CFA Seguridad | Pendiente | Sin thumbprints reales en docs | Pendiente tercero |
-| SEC-CHK-008 | Custodia definida | OpenBao/Vault o mecanismo aprobado | CFA Seguridad | Pendiente | Acceso minimo | Listo para revision |
+| SEC-CHK-008 | Custodia definida | mecanismo corporativo de secretos o mecanismo aprobado | CFA Seguridad | Pendiente | Acceso minimo | Listo para revision |
 | SEC-CHK-009 | Rotacion/revocacion definida | Procedimiento aprobado | Compliance | Pendiente | Incluye incidente | Listo para revision |
 | SEC-CHK-010 | Logging sanitizado | Muestra logs sin datos sensibles | CFA Tecnologia | Pendiente | Sin payload completo | Pendiente evidencia |
 | SEC-CHK-011 | SOAP real bloqueado hasta autorizacion | Acta bloqueo/autorizacion pendiente | Mesa UAT | Pendiente | No ejecutar | Listo para revision |

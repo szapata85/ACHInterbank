@@ -1,9 +1,9 @@
 # Matriz de Datos UAT - ACH Interbank
 
-Fecha de generacion: 2026-05-18  
-Version: 0.1 preliminar  
-Rama analizada: `ACH-Interbank-Postgresql`  
-Estado: matriz inicial; requiere validacion humana.  
+Fecha de generacion: 2026-05-18
+Version: 0.1 preliminar
+Rama analizada: `ACH-Interbank-Postgresql`
+Estado: matriz inicial; requiere validacion humana.
 Politica: datos reales sensibles no deben quedar en Git.
 
 ## Reglas Generales
@@ -28,7 +28,7 @@ Politica: datos reales sensibles no deben quedar en Git.
 | DAT-UAT-009 | UAT-REAL-005 | Archivos NACHA-M | Anonimizado | Generador/carga UAT | Alta | Reemplazar PII/cuentas; registrar hash | Repositorio seguro externo; tablas NACHA | Operaciones | PENDIENTE | No versionar archivo real |
 | DAT-UAT-010 | UAT-REAL-006 | Registros NACHA-M | Anonimizado | Archivo UAT | Alta | Mantener estructura y longitudes | `NachaHeaders`, `BatchHeaders`, `EntryDetails`, `AddendaRecords`, `BatchControls`, `FileControls` | QA | PENDIENTE | Tipos 1/5/6/7/8/9 |
 | DAT-UAT-011 | UAT-REAL-024 | Certificados publicos | Real UAT o sintetico | Seguridad | Media | Publicos aprobados; sin material privado | `DigitalCertificates`, `DigitalCertificateVersions` | Seguridad | PENDIENTE | Validar uso |
-| DAT-UAT-012 | UAT-REAL-024 | Certificados privados | Referencia externa | Seguridad | Critica | Nunca en Git; usar `secretRef` enmascarado | OpenBao/repositorio seguro externo | Seguridad | PENDIENTE | No registrar PFX |
+| DAT-UAT-012 | UAT-REAL-024 | Certificados privados | Referencia externa | Seguridad | Critica | Nunca en Git; usar `secretRef` enmascarado | repositorio seguro corporativo | Seguridad | PENDIENTE | No registrar PFX |
 | DAT-UAT-013 | UAT-REAL-023 | Firmas | Anonimizado/controlado | Seguridad | Alta | Registrar hash/resultado, no llaves | `DigitalEnvelopeOperationLogs`, evidencia externa | Seguridad | PENDIENTE | |
 | DAT-UAT-014 | UAT-REAL-022 | Sobres digitales | Anonimizado/controlado | Seguridad/Operaciones | Alta | No incluir payload sensible; hash y referencia | `NachaSecurityOperations`, evidencia externa | Seguridad | PENDIENTE | |
 | DAT-UAT-015 | UAT-REAL-026 | Eventos | Sintetico/controlado | Ejecucion UAT | Media | Redactar usuario si aplica | `AuditLogs`, `AuthLogs`, `NavigationLogs`, `AchTransactionStateEvents` | Auditoria | PENDIENTE | |
@@ -40,5 +40,5 @@ Politica: datos reales sensibles no deben quedar en Git.
 | DAT-UAT-021 | UAT-REAL-008 | Archivo bulk | Anonimizado | Generacion UAT | Alta | Reemplazar PII/cuentas/referencias | `BulkIngestionBatches`, `BulkIngestionItems` | Operaciones | PENDIENTE | JSON/CSV/Excel |
 | DAT-UAT-022 | UAT-REAL-030 | Datos de reproceso | Anonimizado | Ejecucion UAT | Alta | Reutilizar referencias ficticias controladas | `BulkIngestionAttempts`, `IncomingNachaDispatchQueue` | Tecnologia | PENDIENTE | Validar idempotencia |
 | DAT-UAT-023 | UAT-REAL-028 | Datos de reportes | Anonimizado | Dataset UAT | Alta | Montos/cuentas ficticias | Reportes API/PDF | Auditoria | PENDIENTE | |
-| DAT-UAT-024 | UAT-REAL-025 | SecretRef OpenBao | Referencia enmascarada | Seguridad | Critica | Registrar solo alias/mascara, no valor | OpenBao/config UAT | Seguridad | PENDIENTE | OpenBao compose principal no encontrado |
+| DAT-UAT-024 | UAT-REAL-025 | SecretRef corporativo | Referencia enmascarada | Seguridad | Critica | Registrar solo alias/mascara, no valor | configuracion UAT aprobada | Seguridad | PENDIENTE | Fuera del compose local |
 

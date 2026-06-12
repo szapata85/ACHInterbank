@@ -1,3 +1,5 @@
+> Nota G3.5.2: las referencias a proveedores de secretos retirados son historicas y obsoletas desde el cleanup `ebf7a8a5`; no describen el stack vigente.
+
 # Historical Decrypt Policy (expired-but-retained) — 2026-04-23
 
 ## Estados funcionales
@@ -23,7 +25,7 @@
 ## Condiciones obligatorias para historical decrypt
 1. Existe versión histórica en BD para `InboundDecryption`.
 2. Existe `SecretRef` en la versión.
-3. OpenBao resuelve secreto.
+3. proveedor de secretos retirado resuelve secreto.
 4. Operación auditada con `usageReason=HistoricalDecrypt`.
 
 ## Criterio de resolución
@@ -38,11 +40,11 @@
 ## Criterios de rechazo
 - versión histórica no encontrada;
 - `SecretRef` faltante/inválido;
-- secreto purgado/no resoluble en OpenBao;
+- secreto purgado/no resoluble en proveedor de secretos retirado;
 - `Revoked` sin permiso explícito de historical decrypt.
 
 ## Evidencia operativa recomendada (UAT)
-- Ejecutar `scripts/openbao/run-historical-decrypt-e2e-uat.sh`.
+- Ejecutar `scripts/proveedor de secretos retirado/run-historical-decrypt-e2e-uat.sh`.
 - Confirmar en logs y BD:
   - `CertificateUsageLogs.OperationType = HistoricalDecrypt`.
   - `ContextJson` incluye `UsageReason=HistoricalDecrypt` y `SecretRefMasked`.
