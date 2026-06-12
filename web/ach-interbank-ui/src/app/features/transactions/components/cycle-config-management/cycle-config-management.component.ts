@@ -174,6 +174,8 @@ export class CycleConfigManagementComponent implements OnInit {
       cutoffTime: this.toTimeInput(item.cutoffTime),
       effectiveFrom: this.todayInputValue()
     });
+
+    this.cdr.markForCheck();
   }
 
   clone(item: ClearingHouseCycleConfigItem): void {
@@ -181,6 +183,8 @@ export class CycleConfigManagementComponent implements OnInit {
     this.form.patchValue({
       cycleName: `${item.cycleName}-V2`
     });
+
+    this.cdr.markForCheck();
   }
 
   closeForm(): void {
@@ -288,6 +292,7 @@ export class CycleConfigManagementComponent implements OnInit {
 
   askInactivate(item: ClearingHouseCycleConfigItem): void {
     this.selectedForInactivation = item;
+    this.cdr.markForCheck();
   }
 
   cancelInactivate(): void {

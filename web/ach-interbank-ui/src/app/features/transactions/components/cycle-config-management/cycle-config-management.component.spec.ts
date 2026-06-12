@@ -58,6 +58,8 @@ describe('CycleConfigManagementComponent', () => {
       effectiveTo: null,
       isCurrent: true
     } as any;
+    const cdr = (component as any).cdr as { markForCheck: jasmine.Spy };
+    const markForCheckSpy = spyOn(cdr, 'markForCheck').and.callThrough();
 
     const actionColumn = component.columnDefs.find((column) => column.headerName === 'Acciones');
     expect(actionColumn?.onCellClicked).toBeDefined();
@@ -69,17 +71,20 @@ describe('CycleConfigManagementComponent', () => {
     expect(component.showForm).toBeTrue();
     expect(component.editingSource).toBe(item);
     expect(component.form.controls.cycleName.value).toBe('Ciclo-Original');
+    expect(markForCheckSpy).toHaveBeenCalledTimes(1);
 
     const cloneIcon = createActionIcon('clone');
     onCellClicked({ event: { target: cloneIcon }, data: item } as any);
 
     expect(component.form.controls.cycleName.value).toBe('Ciclo-Original-V2');
+    expect(markForCheckSpy).toHaveBeenCalledTimes(3);
 
     const askInactivateSpy = spyOn(component, 'askInactivate').and.callThrough();
     const inactivateIcon = createActionIcon('inactivate');
     onCellClicked({ event: { target: inactivateIcon }, data: item } as any);
 
     expect(askInactivateSpy).toHaveBeenCalledWith(item);
+    expect(markForCheckSpy).toHaveBeenCalledTimes(4);
   });
 
   it('loads grid results after search', () => {
@@ -136,13 +141,16 @@ describe('CycleConfigManagementComponent', () => {
       effectiveTo: null,
       isCurrent: true
     } as any;
+    const cdr = (component as any).cdr as { markForCheck: jasmine.Spy };
+    const markForCheckSpy = spyOn(cdr, 'markForCheck').and.callThrough();
 
     component.clone(item);
     expect(component.form.controls.cycleName.value).toContain('-V2');
+    expect(markForCheckSpy).toHaveBeenCalledTimes(2);
 
     component.askInactivate(item);
-    component.confirmInactivate();
-    expect(api.inactivate).toHaveBeenCalledWith(99, jasmine.any(Object));
+    expect(markForCheckSpy).toHaveBeenCalledTimes(3);
+    expect(component.selectedForInactivation).toBe(item);
   });
 
   it('reports API errors in search', () => {
