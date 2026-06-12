@@ -41,7 +41,6 @@ type ObservedResponse = {
   isHtml: boolean;
 };
 
-const apiBaseUrl = (process.env['E2E_API_BASE_URL'] ?? process.env['ACH_API_URL'] ?? 'http://localhost:843').replace(/\/+$/, '');
 const spaBaseUrl = (process.env['E2E_BASE_URL'] ?? process.env['ACH_UI_URL'] ?? 'http://localhost:743').replace(/\/+$/, '');
 const username = process.env['E2E_ADMIN_USER'] ?? process.env['ACH_USER'] ?? 'admin';
 const password = process.env['E2E_ADMIN_PASSWORD'] ?? process.env['ACH_PASS'] ?? 'Admin123!';
@@ -203,6 +202,36 @@ test.describe('Cycle configs SPA + PostgreSQL', () => {
       await db.close();
     }
   });
+
+  test('Edit action should open the versioning form when clicking the inner icon', async ({ page }) => {
+    test.setTimeout(120_000);
+    const db = createDb();
+    try {
+      const authToken = await login(page);
+      await seedSession(page, authToken);
+
+      const houses = await db.findClearingHouses(['ACH Colombia']);
+      expect(houses.length, 'Debe existir ACH Colombia en PostgreSQL.').toBeGreaterThanOrEqual(1);
+
+      await page.goto(`${spaBaseUrl}/transactions/cycle-configs`);
+      const filterPanel = page.locator('section.panel').first();
+      const resultsPanel = page.locator('section.panel').last();
+
+      await filterPanel.getByRole('button', { name: /ACH Colombia/i }).click();
+      await filterPanel.getByRole('button', { name: 'Consultar' }).click();
+
+      const firstRow = resultsPanel.locator('.ag-center-cols-container .ag-row').first();
+      await expect(firstRow).toBeVisible();
+
+      await firstRow.locator('[data-testid="cycle-config-action-edit"] .material-symbols-outlined').click();
+
+      await expect(page.getByRole('heading', { name: 'Versionar configuración' })).toBeVisible();
+      await expect(page.getByLabel('Nombre del ciclo')).toBeVisible();
+      await expect(page.getByLabel('Nombre del ciclo')).not.toHaveValue('');
+    } finally {
+      await db.close();
+    }
+  });
 });
 
 class CycleConfigsDb {
@@ -267,7 +296,7 @@ function createDb(): CycleConfigsDb {
 }
 
 async function login(page: Page): Promise<string> {
-  const response = await page.request.post(`${apiBaseUrl}/auth/login`, {
+  const response = await page.request.post(`${spaBaseUrl}/auth/login`, {
     data: {
       username,
       password

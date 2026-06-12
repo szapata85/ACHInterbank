@@ -44,6 +44,44 @@ describe('CycleConfigManagementComponent', () => {
     expect(component.editingSource).toBeNull();
   });
 
+  it('resolves nested action icon clicks for edit, clone and inactivate', () => {
+    const item = {
+      id: 99,
+      clearingHouseId: 1,
+      clearingHouseName: 'ACH Colombia',
+      cycleName: 'Ciclo-Original',
+      startTime: '08:00:00',
+      endTime: '09:00:00',
+      cutoffTime: '09:00:00',
+      isActive: true,
+      effectiveFrom: '2026-01-01T00:00:00Z',
+      effectiveTo: null,
+      isCurrent: true
+    } as any;
+
+    const actionColumn = component.columnDefs.find((column) => column.headerName === 'Acciones');
+    expect(actionColumn?.onCellClicked).toBeDefined();
+    const onCellClicked = actionColumn?.onCellClicked as NonNullable<typeof actionColumn.onCellClicked>;
+
+    const editIcon = createActionIcon('edit');
+    onCellClicked({ event: { target: editIcon }, data: item } as any);
+
+    expect(component.showForm).toBeTrue();
+    expect(component.editingSource).toBe(item);
+    expect(component.form.controls.cycleName.value).toBe('Ciclo-Original');
+
+    const cloneIcon = createActionIcon('clone');
+    onCellClicked({ event: { target: cloneIcon }, data: item } as any);
+
+    expect(component.form.controls.cycleName.value).toBe('Ciclo-Original-V2');
+
+    const askInactivateSpy = spyOn(component, 'askInactivate').and.callThrough();
+    const inactivateIcon = createActionIcon('inactivate');
+    onCellClicked({ event: { target: inactivateIcon }, data: item } as any);
+
+    expect(askInactivateSpy).toHaveBeenCalledWith(item);
+  });
+
   it('loads grid results after search', () => {
     api.getByClearingHouse.and.returnValue(of([
       {
@@ -116,4 +154,12 @@ describe('CycleConfigManagementComponent', () => {
     expect(notifications.error).toHaveBeenCalled();
     expect(component.loadError).toContain('No fue posible consultar configuraciones de ciclos');
   });
+
+  function createActionIcon(action: string): HTMLElement {
+    const button = document.createElement('button');
+    button.setAttribute('data-action', action);
+    const icon = document.createElement('span');
+    button.appendChild(icon);
+    return icon;
+  }
 });

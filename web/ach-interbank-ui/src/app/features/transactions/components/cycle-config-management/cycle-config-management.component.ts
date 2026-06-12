@@ -61,11 +61,12 @@ export class CycleConfigManagementComponent implements OnInit {
       sortable: false,
       filter: false,
       cellRenderer: (params) => params.data?.isActive
-        ? '<button class="btn btn-outline btn-grid" data-action="edit" title="Editar configuración"><span class="material-symbols-outlined">edit</span></button> <button class="btn btn-outline btn-grid" data-action="clone" title="Clonar configuración"><span class="material-symbols-outlined">content_copy</span></button> <button class="btn btn-danger btn-grid" data-action="inactivate" title="Inactivar configuración"><span class="material-symbols-outlined">block</span></button>'
-        : '<button class="btn btn-outline btn-grid" data-action="edit" title="Editar configuración"><span class="material-symbols-outlined">edit</span></button> <button class="btn btn-outline btn-grid" data-action="clone" title="Clonar configuración"><span class="material-symbols-outlined">content_copy</span></button>',
+        ? '<button type="button" class="btn btn-outline btn-grid" data-testid="cycle-config-action-edit" data-action="edit" aria-label="Editar configuración" title="Editar configuración"><span class="material-symbols-outlined">edit</span></button> <button type="button" class="btn btn-outline btn-grid" data-testid="cycle-config-action-clone" data-action="clone" aria-label="Clonar configuración" title="Clonar configuración"><span class="material-symbols-outlined">content_copy</span></button> <button type="button" class="btn btn-danger btn-grid" data-testid="cycle-config-action-inactivate" data-action="inactivate" aria-label="Inactivar configuración" title="Inactivar configuración"><span class="material-symbols-outlined">block</span></button>'
+        : '<button type="button" class="btn btn-outline btn-grid" data-testid="cycle-config-action-edit" data-action="edit" aria-label="Editar configuración" title="Editar configuración"><span class="material-symbols-outlined">edit</span></button> <button type="button" class="btn btn-outline btn-grid" data-testid="cycle-config-action-clone" data-action="clone" aria-label="Clonar configuración" title="Clonar configuración"><span class="material-symbols-outlined">content_copy</span></button>',
       onCellClicked: (params) => {
         const target = params.event?.target as HTMLElement | null;
-        const action = target?.getAttribute('data-action');
+        const actionElement = target?.closest<HTMLElement>('[data-action]');
+        const action = actionElement?.getAttribute('data-action');
         if (action === 'edit') {
           this.edit(params.data!);
         } else if (action === 'clone') {
