@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, NgZone, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { ColDef } from 'ag-grid-community';
 import { finalize } from 'rxjs';
@@ -28,6 +28,7 @@ export class CycleConfigManagementComponent implements OnInit {
   private readonly clearingHouseApi = inject(ClearingHousesApiService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly zone = inject(NgZone);
 
   loading = false;
   saving = false;
@@ -41,7 +42,7 @@ export class CycleConfigManagementComponent implements OnInit {
   visibleItems: ClearingHouseCycleConfigItem[] = [];
   clearingHouses: Array<{ id: number; name: string }> = [];
   readonly columnDefs: ColDef<ClearingHouseCycleConfigItem>[] = [
-    { headerName: 'Cámara', minWidth: 180, valueGetter: (params) => params.data?.clearingHouseName || params.data?.clearingHouseId },
+    { headerName: 'CÃ¡mara', minWidth: 180, valueGetter: (params) => params.data?.clearingHouseName || params.data?.clearingHouseId },
     { field: 'cycleName', headerName: 'Ciclo', minWidth: 160 },
     { headerName: 'Ventana operativa', minWidth: 170, valueGetter: (params) => `${params.data?.startTime?.slice(0, 5)} - ${params.data?.endTime?.slice(0, 5)}` },
     { headerName: 'Cutoff', width: 110, valueGetter: (params) => params.data?.cutoffTime?.slice(0, 5) },
@@ -60,21 +61,7 @@ export class CycleConfigManagementComponent implements OnInit {
       minWidth: 260,
       sortable: false,
       filter: false,
-      cellRenderer: (params) => params.data?.isActive
-        ? '<button type="button" class="btn btn-outline btn-grid" data-testid="cycle-config-action-edit" data-action="edit" aria-label="Editar configuración" title="Editar configuración"><span class="material-symbols-outlined">edit</span></button> <button type="button" class="btn btn-outline btn-grid" data-testid="cycle-config-action-clone" data-action="clone" aria-label="Clonar configuración" title="Clonar configuración"><span class="material-symbols-outlined">content_copy</span></button> <button type="button" class="btn btn-danger btn-grid" data-testid="cycle-config-action-inactivate" data-action="inactivate" aria-label="Inactivar configuración" title="Inactivar configuración"><span class="material-symbols-outlined">block</span></button>'
-        : '<button type="button" class="btn btn-outline btn-grid" data-testid="cycle-config-action-edit" data-action="edit" aria-label="Editar configuración" title="Editar configuración"><span class="material-symbols-outlined">edit</span></button> <button type="button" class="btn btn-outline btn-grid" data-testid="cycle-config-action-clone" data-action="clone" aria-label="Clonar configuración" title="Clonar configuración"><span class="material-symbols-outlined">content_copy</span></button>',
-      onCellClicked: (params) => {
-        const target = params.event?.target as HTMLElement | null;
-        const actionElement = target?.closest<HTMLElement>('[data-action]');
-        const action = actionElement?.getAttribute('data-action');
-        if (action === 'edit') {
-          this.edit(params.data!);
-        } else if (action === 'clone') {
-          this.clone(params.data!);
-        } else if (action === 'inactivate' && params.data?.isActive) {
-          this.askInactivate(params.data);
-        }
-      }
+      cellRenderer: (params) => this.renderActionButtons(params.data)
     }
   ];
 
@@ -90,12 +77,15 @@ export class CycleConfigManagementComponent implements OnInit {
     { value: 'future', label: 'Futuras' },
     { value: 'expired', label: 'Vencidas' }
   ];
+
   get clearingHouseOptions(): OpcionSelectorBuscable[] {
     return this.clearingHouses.map((house) => ({ valor: house.id, etiqueta: house.name }));
   }
+
   get statusSelectorOptions(): OpcionSelectorBuscable[] {
     return this.statusOptions.map((option) => ({ valor: option.value, etiqueta: option.label }));
   }
+
   get validitySelectorOptions(): OpcionSelectorBuscable[] {
     return this.validityOptions.map((option) => ({ valor: option.value, etiqueta: option.label }));
   }
@@ -142,7 +132,7 @@ export class CycleConfigManagementComponent implements OnInit {
     }
 
     if (this.editingSource) {
-      warnings.push('Guardar creará una nueva versión y mantendrá el histórico de configuraciones.');
+      warnings.push('Guardar crearÃ¡ una nueva versiÃ³n y mantendrÃ¡ el histÃ³rico de configuraciones.');
     }
 
     return warnings;
@@ -213,10 +203,12 @@ export class CycleConfigManagementComponent implements OnInit {
         clearingHouseId,
         effectiveAt: this.filterForm.controls.effectiveAt.value || null
       })
-      .pipe(finalize(() => {
-        this.loading = false;
-        this.cdr.markForCheck();
-      }))
+      .pipe(
+        finalize(() => {
+          this.loading = false;
+          this.cdr.markForCheck();
+        })
+      )
       .subscribe({
         next: (items) => {
           this.allItems = items;
@@ -241,8 +233,7 @@ export class CycleConfigManagementComponent implements OnInit {
 
     this.visibleItems = this.allItems.filter((item) => {
       const matchesName = !cycleName || item.cycleName.toLowerCase().includes(cycleName);
-      const matchesStatus =
-        status === 'all' || (status === 'active' ? item.isActive : !item.isActive);
+      const matchesStatus = status === 'all' || (status === 'active' ? item.isActive : !item.isActive);
       const itemState = this.resolveValidity(item, effectiveAt);
       const matchesValidity = validity === 'all' || itemState === validity;
 
@@ -272,19 +263,21 @@ export class CycleConfigManagementComponent implements OnInit {
     this.saving = true;
     this.cycleConfigApi
       .createVersion(payload)
-      .pipe(finalize(() => {
-        this.saving = false;
-        this.cdr.markForCheck();
-      }))
+      .pipe(
+        finalize(() => {
+          this.saving = false;
+          this.cdr.markForCheck();
+        })
+      )
       .subscribe({
         next: () => {
-          this.notifications.success('Configuración versionada correctamente.');
+          this.notifications.success('ConfiguraciÃ³n versionada correctamente.');
           this.closeForm();
           this.search();
           this.cdr.markForCheck();
         },
         error: () => {
-          this.notifications.error('No fue posible guardar la configuración de ciclo.');
+          this.notifications.error('No fue posible guardar la configuraciÃ³n de ciclo.');
           this.cdr.markForCheck();
         }
       });
@@ -308,24 +301,27 @@ export class CycleConfigManagementComponent implements OnInit {
     const id = this.selectedForInactivation.id;
     this.saving = true;
 
-    this.cycleConfigApi.inactivate(id, { effectiveTo }).pipe(
-      finalize(() => {
-        this.saving = false;
-        this.cdr.markForCheck();
-      })
-    ).subscribe({
-      next: () => {
-        this.notifications.success('Configuración inactivada correctamente.');
-        this.selectedForInactivation = null;
-        this.search();
-        this.cdr.markForCheck();
-      },
-      error: () => {
-        this.notifications.error('No fue posible inactivar la configuración.');
-        this.selectedForInactivation = null;
-        this.cdr.markForCheck();
-      }
-    });
+    this.cycleConfigApi
+      .inactivate(id, { effectiveTo })
+      .pipe(
+        finalize(() => {
+          this.saving = false;
+          this.cdr.markForCheck();
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.notifications.success('ConfiguraciÃ³n inactivada correctamente.');
+          this.selectedForInactivation = null;
+          this.search();
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.notifications.error('No fue posible inactivar la configuraciÃ³n.');
+          this.selectedForInactivation = null;
+          this.cdr.markForCheck();
+        }
+      });
   }
 
   statusBadge(item: ClearingHouseCycleConfigItem): { text: string; css: string } {
@@ -353,7 +349,7 @@ export class CycleConfigManagementComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: () => {
-        this.notifications.error('No fue posible cargar cámaras de compensación.');
+        this.notifications.error('No fue posible cargar cÃ¡maras de compensaciÃ³n.');
         this.cdr.markForCheck();
       }
     });
@@ -397,5 +393,59 @@ export class CycleConfigManagementComponent implements OnInit {
 
   private todayInputValue(): string {
     return new Date().toISOString().slice(0, 10);
+  }
+
+  private renderActionButtons(item?: ClearingHouseCycleConfigItem | null): HTMLElement {
+    const container = document.createElement('div');
+    container.classList.add('cycle-config-actions');
+
+    if (!item) {
+      return container;
+    }
+
+    container.append(
+      this.createActionButton('edit', 'Editar configuración', 'edit', () => this.edit(item)),
+      this.createActionButton('clone', 'Clonar configuración', 'content_copy', () => this.clone(item))
+    );
+
+    if (item.isActive) {
+      container.append(
+        this.createActionButton('inactivate', 'Inactivar configuración', 'block', () => this.askInactivate(item))
+      );
+    }
+
+    return container;
+  }
+
+  private createActionButton(
+    action: string,
+    label: string,
+    icon: string,
+    handler: () => void
+  ): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.classList.add('btn', 'btn-grid');
+    button.classList.add(action === 'inactivate' ? 'btn-danger' : 'btn-outline');
+    button.setAttribute('data-testid', `cycle-config-action-${action}`);
+    button.setAttribute('data-action', action);
+    button.setAttribute('aria-label', label);
+    button.setAttribute('title', label);
+
+    const iconSpan = document.createElement('span');
+    iconSpan.classList.add('material-symbols-outlined');
+    iconSpan.textContent = icon;
+    button.append(iconSpan);
+
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.zone.run(() => {
+        handler();
+        this.cdr.markForCheck();
+      });
+    });
+
+    return button;
   }
 }

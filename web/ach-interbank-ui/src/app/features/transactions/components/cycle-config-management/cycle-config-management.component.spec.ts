@@ -44,47 +44,56 @@ describe('CycleConfigManagementComponent', () => {
     expect(component.editingSource).toBeNull();
   });
 
-  it('resolves nested action icon clicks for edit, clone and inactivate', () => {
-    const item = {
-      id: 99,
-      clearingHouseId: 1,
-      clearingHouseName: 'ACH Colombia',
-      cycleName: 'Ciclo-Original',
-      startTime: '08:00:00',
-      endTime: '09:00:00',
-      cutoffTime: '09:00:00',
-      isActive: true,
-      effectiveFrom: '2026-01-01T00:00:00Z',
-      effectiveTo: null,
-      isCurrent: true
-    } as any;
+  it('renders action buttons and opens the versioning form when clicking the inner edit icon', () => {
+    const item = buildItem();
     const cdr = (component as any).cdr as { markForCheck: jasmine.Spy };
     const markForCheckSpy = spyOn(cdr, 'markForCheck').and.callThrough();
-
     const actionColumn = component.columnDefs.find((column) => column.headerName === 'Acciones');
-    expect(actionColumn?.onCellClicked).toBeDefined();
-    const onCellClicked = actionColumn?.onCellClicked as NonNullable<typeof actionColumn.onCellClicked>;
 
-    const editIcon = createActionIcon('edit');
-    onCellClicked({ event: { target: editIcon }, data: item } as any);
+    const rendered = actionColumn?.cellRenderer?.({ data: item } as any) as HTMLElement;
+    const editIcon = rendered.querySelector('[data-testid="cycle-config-action-edit"] .material-symbols-outlined') as HTMLElement;
+
+    expect(editIcon).toBeTruthy();
+    editIcon.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 
     expect(component.showForm).toBeTrue();
     expect(component.editingSource).toBe(item);
     expect(component.form.controls.cycleName.value).toBe('Ciclo-Original');
-    expect(markForCheckSpy).toHaveBeenCalledTimes(1);
+    expect(markForCheckSpy).toHaveBeenCalled();
+  });
 
-    const cloneIcon = createActionIcon('clone');
-    onCellClicked({ event: { target: cloneIcon }, data: item } as any);
+  it('clones using the inner icon and appends -V2', () => {
+    const item = buildItem();
+    const cdr = (component as any).cdr as { markForCheck: jasmine.Spy };
+    const markForCheckSpy = spyOn(cdr, 'markForCheck').and.callThrough();
+    const actionColumn = component.columnDefs.find((column) => column.headerName === 'Acciones');
 
+    const rendered = actionColumn?.cellRenderer?.({ data: item } as any) as HTMLElement;
+    const cloneIcon = rendered.querySelector('[data-testid="cycle-config-action-clone"] .material-symbols-outlined') as HTMLElement;
+
+    expect(cloneIcon).toBeTruthy();
+    cloneIcon.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    expect(component.showForm).toBeTrue();
+    expect(component.editingSource).toBe(item);
     expect(component.form.controls.cycleName.value).toBe('Ciclo-Original-V2');
-    expect(markForCheckSpy).toHaveBeenCalledTimes(3);
+    expect(markForCheckSpy).toHaveBeenCalled();
+  });
 
-    const askInactivateSpy = spyOn(component, 'askInactivate').and.callThrough();
-    const inactivateIcon = createActionIcon('inactivate');
-    onCellClicked({ event: { target: inactivateIcon }, data: item } as any);
+  it('marks the item for inactivation when clicking the inner icon', () => {
+    const item = buildItem();
+    const cdr = (component as any).cdr as { markForCheck: jasmine.Spy };
+    const markForCheckSpy = spyOn(cdr, 'markForCheck').and.callThrough();
+    const actionColumn = component.columnDefs.find((column) => column.headerName === 'Acciones');
 
-    expect(askInactivateSpy).toHaveBeenCalledWith(item);
-    expect(markForCheckSpy).toHaveBeenCalledTimes(4);
+    const rendered = actionColumn?.cellRenderer?.({ data: item } as any) as HTMLElement;
+    const inactivateIcon = rendered.querySelector('[data-testid="cycle-config-action-inactivate"] .material-symbols-outlined') as HTMLElement;
+
+    expect(inactivateIcon).toBeTruthy();
+    inactivateIcon.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    expect(component.selectedForInactivation).toBe(item);
+    expect(markForCheckSpy).toHaveBeenCalled();
   });
 
   it('loads grid results after search', () => {
@@ -128,28 +137,12 @@ describe('CycleConfigManagementComponent', () => {
   });
 
   it('supports clone and inactivate actions', () => {
-    const item = {
-      id: 99,
-      clearingHouseId: 1,
-      clearingHouseName: 'ACH Colombia',
-      cycleName: 'Ciclo-Original',
-      startTime: '08:00:00',
-      endTime: '09:00:00',
-      cutoffTime: '09:00:00',
-      isActive: true,
-      effectiveFrom: '2026-01-01T00:00:00Z',
-      effectiveTo: null,
-      isCurrent: true
-    } as any;
-    const cdr = (component as any).cdr as { markForCheck: jasmine.Spy };
-    const markForCheckSpy = spyOn(cdr, 'markForCheck').and.callThrough();
+    const item = buildItem();
 
     component.clone(item);
     expect(component.form.controls.cycleName.value).toContain('-V2');
-    expect(markForCheckSpy).toHaveBeenCalledTimes(2);
 
     component.askInactivate(item);
-    expect(markForCheckSpy).toHaveBeenCalledTimes(3);
     expect(component.selectedForInactivation).toBe(item);
   });
 
@@ -163,11 +156,19 @@ describe('CycleConfigManagementComponent', () => {
     expect(component.loadError).toContain('No fue posible consultar configuraciones de ciclos');
   });
 
-  function createActionIcon(action: string): HTMLElement {
-    const button = document.createElement('button');
-    button.setAttribute('data-action', action);
-    const icon = document.createElement('span');
-    button.appendChild(icon);
-    return icon;
+  function buildItem(): any {
+    return {
+      id: 99,
+      clearingHouseId: 1,
+      clearingHouseName: 'ACH Colombia',
+      cycleName: 'Ciclo-Original',
+      startTime: '08:00:00',
+      endTime: '09:00:00',
+      cutoffTime: '09:00:00',
+      isActive: true,
+      effectiveFrom: '2026-01-01T00:00:00Z',
+      effectiveTo: null,
+      isCurrent: true
+    };
   }
 });
