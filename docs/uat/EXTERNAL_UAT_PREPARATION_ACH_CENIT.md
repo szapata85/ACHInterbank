@@ -13,7 +13,7 @@ Definir condiciones de entrada/salida, responsabilidades y evidencias para ejecu
 ## Alcance ACH Colombia
 
 - Validacion MAN-004 V32 con archivos NACHA-M salida/entrada.
-- Naming `RRRRTTT.ZZZ.1`, records 1/5/6/7/8/9, fixed-width 106, totales, padding y `.RET`.
+- Naming `RRRRTTT.ZZZ.N`, records 1/5/6/7/8/9, fixed-width 106, totales, padding y `.RET`.
 - Prenotificaciones, respuestas, rechazos/devoluciones y conciliacion read-only.
 - Evidencia de causales y estados contra operador ACH Colombia.
 

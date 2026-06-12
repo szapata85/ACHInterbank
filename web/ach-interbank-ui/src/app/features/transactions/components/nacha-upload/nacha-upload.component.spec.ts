@@ -2,7 +2,7 @@ import { classifyNachaUploadFile } from './nacha-upload.component';
 
 describe('NachaUploadComponent file validation', () => {
   it('should classify ACH Colombia official operational files', () => {
-    for (const suffix of ['1', '2', '3', '4', '5']) {
+    for (const suffix of ['1', '5', '6', '10']) {
       const result = classifyNachaUploadFile(`0001283.001.${suffix}`);
 
       expect(result.allowed).toBeTrue();

@@ -34,7 +34,7 @@ public class NachaFileNamingRuleSeederTests
         {
             Assert.True(rule.IsActive);
             Assert.Equal(NachaFileDirection.Outbound, rule.FileDirection);
-            Assert.Equal("RRRRTTT.ZZZ.1", rule.NamePattern);
+            Assert.Equal("RRRRTTT.ZZZ.N", rule.NamePattern);
             Assert.Equal(".ach", rule.Extension);
             Assert.Equal(1, rule.DailySequenceMin);
             Assert.Equal(36, rule.DailySequenceMax);
@@ -58,8 +58,8 @@ public class NachaFileNamingRuleSeederTests
 
         Assert.NotNull(achRule);
         Assert.NotNull(cenitRule);
-        Assert.Equal("RRRRTTT.ZZZ.1", achRule!.NamePattern);
-        Assert.Equal("RRRRTTT.ZZZ.1", cenitRule!.NamePattern);
+        Assert.Equal("RRRRTTT.ZZZ.N", achRule!.NamePattern);
+        Assert.Equal("RRRRTTT.ZZZ.N", cenitRule!.NamePattern);
         Assert.Equal("8765321", achRule.OriginEntityCode);
         Assert.Equal("8765321", cenitRule.OriginEntityCode);
         Assert.Equal(harness.DefaultSourceId, achRule.SourceFinancialInstitutionId);

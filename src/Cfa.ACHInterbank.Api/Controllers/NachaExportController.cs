@@ -312,6 +312,7 @@ public class NachaExportController : ControllerBase
             ClearingHouseOriginCode = clearingHouse.OriginCode,
             CycleId = cycle.Id,
             CycleName = cycle.CycleName,
+            CycleNumber = ResolveCycleNumber(cycle.CycleName, cycle.Id),
             ProcessingDate = cycle.ProcessingDate,
             ExternalFileType = ExternalFileType.NachaOut,
             Flow = ExternalFileFlow.Originacion,
@@ -330,5 +331,22 @@ public class NachaExportController : ControllerBase
         }
 
         return result;
+    }
+
+    private static int ResolveCycleNumber(string? cycleName, string cycleId)
+    {
+        var match = Regex.Match(cycleName ?? string.Empty, @"(?<!\d)(\d+)(?!\d)");
+        if (match.Success && int.TryParse(match.Groups[1].Value, out var cycleNumber) && cycleNumber > 0)
+        {
+            return cycleNumber;
+        }
+
+        match = Regex.Match(cycleId ?? string.Empty, @"(?<!\d)(\d+)(?!\d)");
+        if (match.Success && int.TryParse(match.Groups[1].Value, out cycleNumber) && cycleNumber > 0)
+        {
+            return cycleNumber;
+        }
+
+        throw new InvalidOperationException("No se pudo resolver el numero de ciclo para generar NACHA-M outbound.");
     }
 }

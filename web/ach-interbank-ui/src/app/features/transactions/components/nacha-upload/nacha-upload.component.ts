@@ -7,7 +7,7 @@ import { NotificationService } from '../../../../core/services/notification.serv
 import { SharedModule } from '../../../../shared/shared.module';
 import { NachaUploadRecord, NachaUploadService } from '../../services/nacha-upload.service';
 
-const officialAchColombiaPattern = /^\d{7}\.\d{3}\.[1-5]$/;
+const officialAchColombiaPattern = /^\d{7}\.\d{3}\.[1-9]\d*$/;
 const officialReturnPattern = /^\d{7}\.\d{3}\.RET$/i;
 const internalFixturePattern = /\.ach$/i;
 const rejectedExtensionPattern = /\.(txt|nacha|env)$/i;

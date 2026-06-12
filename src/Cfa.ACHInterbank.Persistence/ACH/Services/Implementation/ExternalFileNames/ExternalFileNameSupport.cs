@@ -8,8 +8,9 @@ internal static class ExternalFileNameSupport
 {
     private const string AchScopeCode = "ACH_EXTERNAL_NAME";
     private const string ReturnOutScopeCode = "ACH_RETURN_EXTERNAL_NAME";
-    private static readonly Regex AchRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.(?<cycle>[1-5])$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex AchRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.(?<cycle>\d+)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex ReturnRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.RET$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex PositiveCycleRegex = new(@"(?<!\d)(?<cycle>\d+)(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public static ExternalFileNameComponents Parse(ExternalFileNameContext context, string externalFileName)
     {
@@ -26,7 +27,8 @@ internal static class ExternalFileNameSupport
             {
                 FullName = externalFileName,
                 Prefix = $"{match.Groups["route"].Value}{match.Groups["transit"].Value}",
-                ExternalSequence = sequence
+                ExternalSequence = sequence,
+                CycleNumber = int.Parse(match.Groups["cycle"].Value, CultureInfo.InvariantCulture)
             };
         }
 
@@ -85,16 +87,16 @@ internal static class ExternalFileNameSupport
             or ExternalFileType.ResponseOut
             or ExternalFileType.RejectionOut;
 
-    public static string BuildAchName(string originCode, int sequence, int cycleNumber = 1)
+    public static string BuildAchName(string originCode, int sequence, int cycleNumber)
     {
         if (string.IsNullOrWhiteSpace(originCode) || !originCode.All(char.IsDigit) || originCode.Length < 7)
         {
             throw new InvalidOperationException("Para ACH el origin code debe contener exactamente 7 digitos (RRRRTTT).");
         }
 
-        if (cycleNumber is < 1 or > 5)
+        if (cycleNumber < 1)
         {
-            throw new InvalidOperationException("Para ACH el numero de ciclo debe estar entre 1 y 5.");
+            throw new InvalidOperationException("Para ACH el numero de ciclo debe ser un entero positivo.");
         }
 
         var normalizedOriginCode = originCode[^7..];
@@ -180,5 +182,23 @@ internal static class ExternalFileNameSupport
         }
 
         return lines.Count(line => line.Length > 0 && (line[0] == '6' || line[0] == '7'));
+    }
+
+    public static bool TryExtractPositiveCycleNumber(string? value, out int cycleNumber)
+    {
+        cycleNumber = 0;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var match = PositiveCycleRegex.Match(value);
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        return int.TryParse(match.Groups["cycle"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out cycleNumber)
+            && cycleNumber > 0;
     }
 }

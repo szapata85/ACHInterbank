@@ -7,6 +7,7 @@ using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -17,7 +18,7 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
 {
-    private static readonly Regex OfficialCycleNameRegex = new(@"^(?<origin>\d{7})\.(?<sequence>\d{3})\.(?<cycle>[1-5])(?:\.ach)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex OfficialCycleNameRegex = new(@"^(?<origin>\d{7})\.(?<sequence>\d{3})\.(?<cycle>[1-9]\d*)(?:\.ach)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private readonly AchDbContext _context;
     private readonly IPaymentRailContextService? _paymentRailContextService;
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver;
@@ -95,7 +96,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
             .ToListAsync(ct);
 
         var filteredByName = fileCycleNumber.HasValue
-            ? candidates.Where(x => x.CycleName.Contains(fileCycleNumber.Value.ToString(), StringComparison.OrdinalIgnoreCase)).ToList()
+            ? candidates.Where(x => ExternalFileNameSupport.TryExtractPositiveCycleNumber(x.CycleName, out var parsedCycleNumber) && parsedCycleNumber == fileCycleNumber.Value).ToList()
             : candidates;
 
         var effectiveCandidates = filteredByName.Count > 0 ? filteredByName : candidates;
@@ -106,7 +107,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
         if (effectiveCandidates.Count == 1)
         {
             var cycle = effectiveCandidates[0];
-            if (fileCycleNumber.HasValue && !cycle.CycleName.Contains(fileCycleNumber.Value.ToString(), StringComparison.OrdinalIgnoreCase))
+            if (fileCycleNumber.HasValue && (!ExternalFileNameSupport.TryExtractPositiveCycleNumber(cycle.CycleName, out var selectedCycleNumber) || selectedCycleNumber != fileCycleNumber.Value))
             {
                 warnings.Add("El número de ciclo del nombre no coincide con el ciclo operativo seleccionado por fecha/cámara.");
             }
@@ -272,15 +273,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
             return officialCycleNumber;
         }
 
-        var legacyName = Path.GetFileNameWithoutExtension(name);
-        if (string.IsNullOrWhiteSpace(legacyName))
-        {
-            return null;
-        }
-
-        match = Regex.Match(legacyName, "(?:^|[._-])(\\d{1,2})(?:$|[._-])");
-        if (!match.Success) return null;
-        return int.TryParse(match.Groups[1].Value, out var cycleNumber) && cycleNumber > 0 ? cycleNumber : null;
+        return null;
     }
 
     private async Task<ClearingHouse?> InferClearingHouseFromFileNameAsync(string fileName, CancellationToken ct)

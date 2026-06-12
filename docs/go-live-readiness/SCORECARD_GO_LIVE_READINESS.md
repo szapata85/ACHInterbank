@@ -86,7 +86,7 @@ Se agrego evidencia UAT tecnica de prenotificaciones CFA:
 - Consulta read-only autenticada con estado funcional en espanol.
 - NACHA-M no vacio de prenotificacion ACH Colombia: `0001283.004.1`, codigo `28`.
 - NACHA-M no vacio de prenotificacion CENIT: `0001283.002.1`, codigo `28`.
-- Nomenclatura `RRRRTTT.ZZZ.1`, campo 7 y hashes validados.
+- Nomenclatura `RRRRTTT.ZZZ.N`, campo 7 y hashes validados.
 
 El avance mejora la evidencia tecnica de interoperabilidad NACHA-M, pero no cambia la decision productiva: CENIT requiere homologacion normativa formal y UAT bancario/formal con actas. Estado global se mantiene **NO-GO productivo / continuar UAT controlado**.
 | Validacion externa sobre/naming | Subir interoperabilidad a 75+ |
@@ -133,7 +133,7 @@ Resultado del ciclo controlado:
 
 Evidencia comun:
 
-- Patron aplicado: RRRRTTT.ZZZ.1.
+- Patron aplicado: RRRRTTT.ZZZ.N.
 - Originador: Cooperativa Financiera de Antioquia, unico FinancialInstitution.IsDefaultSource=true.
 - RRRR=0001 y TTT=283 derivados de la configuracion de CFA.
 - Mapeo validado: 001 -> A y 002 -> B en registro tipo 1 campo 7.

@@ -125,7 +125,7 @@ public sealed class NachaFileNamingRuleSeeder : IDbSeeder
             .SingleOrDefaultAsync(x =>
                 x.ClearingHouseId == clearingHouseId &&
                 x.FileDirection == NachaFileDirection.Outbound &&
-                x.NamePattern == "RRRRTTT.ZZZ.1");
+                x.NamePattern == "RRRRTTT.ZZZ.N");
 
         if (existing is null)
         {
@@ -134,7 +134,7 @@ public sealed class NachaFileNamingRuleSeeder : IDbSeeder
                 ClearingHouseId = clearingHouseId,
                 SourceFinancialInstitutionId = sourceFinancialInstitutionId,
                 FileDirection = NachaFileDirection.Outbound,
-                NamePattern = "RRRRTTT.ZZZ.1",
+                NamePattern = "RRRRTTT.ZZZ.N",
                 Extension = ".ach",
                 DailySequenceMin = 1,
                 DailySequenceMax = 36,
@@ -154,7 +154,7 @@ public sealed class NachaFileNamingRuleSeeder : IDbSeeder
 
         existing.SourceFinancialInstitutionId = sourceFinancialInstitutionId;
         existing.FileDirection = NachaFileDirection.Outbound;
-        existing.NamePattern = "RRRRTTT.ZZZ.1";
+        existing.NamePattern = "RRRRTTT.ZZZ.N";
         existing.Extension = ".ach";
         existing.DailySequenceMin = 1;
         existing.DailySequenceMax = 36;

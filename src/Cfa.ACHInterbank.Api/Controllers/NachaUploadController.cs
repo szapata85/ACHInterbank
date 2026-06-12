@@ -33,7 +33,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
         /// </summary>
 
         private const long MaxUploadSizeBytes = 10 * 1024 * 1024; // 10 MB
-        private static readonly Regex OfficialNachaNamePattern = new(@"^\d{7}\.\d{3}\.[1-5]$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex OfficialNachaNamePattern = new(@"^\d{7}\.\d{3}\.[1-9]\d*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
             ".ach", ".nacha", ".txt"
@@ -86,7 +86,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
                     Success = false,
                     Partial = false,
                     Message = "Extensión de archivo no permitida.",
-                    Errors = ["Nombres oficiales permitidos: RRRRTTT.ZZZ.N (N=1..5) o extensiones internas .ach, .nacha, .txt."],
+                    Errors = ["Nombres oficiales permitidos: RRRRTTT.ZZZ.N (N entero positivo) o extensiones internas .ach, .nacha, .txt."],
                     TraceId = traceId
                 });
             }

@@ -141,14 +141,16 @@ public sealed class NachaIncomingFileProcessor : INachaIncomingFileProcessor
             return;
         }
 
-        if (!fileName.EndsWith(".ach", StringComparison.OrdinalIgnoreCase) && !fileName.EndsWith(".RET", StringComparison.OrdinalIgnoreCase))
+        if (!fileName.EndsWith(".ach", StringComparison.OrdinalIgnoreCase)
+            && !fileName.EndsWith(".RET", StringComparison.OrdinalIgnoreCase)
+            && !IsOfficialIncomingName(fileName))
         {
-            errors.Add("Extension no permitida. Solo se aceptan archivos .ach o .RET.");
+            errors.Add("Extension o nombre no permitido. Solo se aceptan archivos .ach, .RET o RRRRTTT.ZZZ.N.");
         }
 
         if (!isSimulation && !IsOfficialIncomingName(fileName))
         {
-            errors.Add("Nombre NACHA-M invalido. Se esperaba RRRRTTT.ZZZ.1 o RRRRTTT.ZZZ.RET.");
+            errors.Add("Nombre NACHA-M invalido. Se esperaba RRRRTTT.ZZZ.N o RRRRTTT.ZZZ.RET.");
         }
 
         var records = SplitRecords(content, errors);
@@ -170,7 +172,7 @@ public sealed class NachaIncomingFileProcessor : INachaIncomingFileProcessor
             return prefix.Length == 11 && prefix[7] == '.' && prefix.Take(7).All(char.IsDigit) && prefix.Skip(8).All(char.IsDigit);
         }
 
-        return System.Text.RegularExpressions.Regex.IsMatch(name, @"^\d{7}\.\d{3}\.1(\.ach)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return System.Text.RegularExpressions.Regex.IsMatch(name, @"^\d{7}\.\d{3}\.[1-9]\d*(\.ach)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
     }
 
     private static IReadOnlyList<string> SplitRecords(string content, List<string> errors)

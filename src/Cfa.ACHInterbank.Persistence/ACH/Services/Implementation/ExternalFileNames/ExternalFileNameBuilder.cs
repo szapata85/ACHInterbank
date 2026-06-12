@@ -37,7 +37,8 @@ public class ExternalFileNameBuilder : IExternalFileNameBuilder
                 : await _namingRuleService.GetActiveOutboundRuleAsync(context.ClearingHouseId, context.ProcessingDate, ct);
             var sequence = await _sequenceService.ReserveNextSequenceAsync(context, ct);
             var originCode = namingRule?.OriginEntityCode ?? context.ClearingHouseOriginCode ?? string.Empty;
-            var externalName = BuildConfiguredName(namingRule?.NamePattern, originCode, sequence, ResolveCycleNumber(context));
+            var cycleNumber = ResolveCycleNumber(context);
+            var externalName = BuildConfiguredName(namingRule?.NamePattern, originCode, sequence, cycleNumber);
             var fileId = await _identifierMapService.ResolveIdentifierAsync(sequence, ct);
 
             return new ExternalFileNameComponents
@@ -45,6 +46,7 @@ public class ExternalFileNameBuilder : IExternalFileNameBuilder
                 FullName = externalName,
                 Prefix = originCode,
                 ExternalSequence = sequence,
+                CycleNumber = cycleNumber,
                 FileIdModifier = fileId
             };
         }
@@ -88,7 +90,7 @@ public class ExternalFileNameBuilder : IExternalFileNameBuilder
     private static string BuildConfiguredName(string? namePattern, string originCode, int sequence, int cycleNumber)
     {
         var defaultName = ExternalFileNameSupport.BuildAchName(originCode, sequence, cycleNumber);
-        if (string.IsNullOrWhiteSpace(namePattern) || Regex.IsMatch(namePattern, @"^RRRRTTT\.ZZZ\.(?:N|[1-5])$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        if (string.IsNullOrWhiteSpace(namePattern) || Regex.IsMatch(namePattern, @"^RRRRTTT\.ZZZ\.(?:N|\d+)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
         {
             return defaultName;
         }
@@ -100,31 +102,19 @@ public class ExternalFileNameBuilder : IExternalFileNameBuilder
 
     private static int ResolveCycleNumber(ExternalFileNameContext context)
     {
+        if (context.CycleNumber is > 0)
+        {
+            return context.CycleNumber.Value;
+        }
+
         foreach (var candidate in new[] { context.CycleName, context.CycleId })
         {
-            if (TryExtractCycleNumber(candidate, out var cycleNumber))
+            if (ExternalFileNameSupport.TryExtractPositiveCycleNumber(candidate, out var cycleNumber))
             {
                 return cycleNumber;
             }
         }
 
-        return 1;
-    }
-
-    private static bool TryExtractCycleNumber(string? value, out int cycleNumber)
-    {
-        cycleNumber = 0;
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
-
-        var match = Regex.Match(value, @"(?:^|[^0-9])([1-5])(?:$|[^0-9])");
-        if (!match.Success)
-        {
-            return false;
-        }
-
-        return int.TryParse(match.Groups[1].Value, out cycleNumber);
+        throw new InvalidOperationException("No se pudo resolver el numero de ciclo para la generacion NACHA-M outbound.");
     }
 }

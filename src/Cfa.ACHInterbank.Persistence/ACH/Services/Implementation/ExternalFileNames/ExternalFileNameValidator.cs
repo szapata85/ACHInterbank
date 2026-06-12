@@ -109,6 +109,14 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
                 {
                     issues.Add(Hard("ACH_DAILY_LIMIT", "ACH_SEQUENCE_RANGE", "Regla HARD BLOCK ACH: secuencia ZZZ debe estar entre 001 y 036.", "ACH V32 6.1.10.1 / 6.1.10.3"));
                 }
+                else if (!parsed.CycleNumber.HasValue || parsed.CycleNumber.Value < 1)
+                {
+                    issues.Add(Hard("ACH_CYCLE_PATTERN", "ACH_CYCLE_INVALID", "Regla HARD BLOCK ACH: el ciclo N debe ser un entero positivo.", "ACH V32 6.1.10.1"));
+                }
+                else if (context.CycleNumber is > 0 && context.CycleNumber.Value != parsed.CycleNumber.Value)
+                {
+                    issues.Add(Hard("ACH_CYCLE_MISMATCH", "ACH_CYCLE_MISMATCH", "Regla HARD BLOCK ACH: el ciclo del nombre no coincide con el ciclo operativo resuelto.", "ACH V32 6.1.10.1"));
+                }
                 else
                 {
                     var expected = await _identifierMapService.ResolveIdentifierAsync(parsed.ExternalSequence.Value, ct);
