@@ -33,7 +33,6 @@ public static class DependencyInjectionService
         services.Configure<NachaGenerationOptions>(configuration.GetSection(NachaGenerationOptions.SectionName));
         services.Configure<NachaInboundSimulatorOptions>(configuration.GetSection(NachaInboundSimulatorOptions.SectionName));
         services.Configure<CertificateSecretResolverOptions>(configuration.GetSection("DigitalEnvelope:CertificateSecretResolver"));
-        services.Configure<OpenBaoOptions>(configuration.GetSection(OpenBaoOptions.SectionName));
         services.Configure<IncomingNachaDispatchResilienceOptions>(configuration.GetSection(IncomingNachaDispatchResilienceOptions.SectionName));
         services.Configure<OperationArtifactOptions>(configuration.GetSection(OperationArtifactOptions.SectionName));
         services.Configure<ProcContrapartidasDispatchOptions>(configuration.GetSection(ProcContrapartidasDispatchOptions.SectionName));
@@ -121,16 +120,6 @@ public static class DependencyInjectionService
         services.AddScoped<ICertificateSecretProvider, ACH.Services.Implementation.CertificateManagement.ExternalSecretReferenceCertificateProvider>();
         services.AddScoped<ICertificateSecretProvider, ACH.Services.Implementation.CertificateManagement.KeyVaultCertificateSecretProvider>();
         services.AddScoped<ICertificateSecretProvider, ACH.Services.Implementation.CertificateManagement.HsmCertificateSecretProvider>();
-        services.AddScoped<ICertificateSecretProvider, ACH.Services.Implementation.CertificateManagement.OpenBaoCertificateSecretProvider>();
-        services.AddScoped<ACH.Services.Implementation.CertificateManagement.NoOpCertificatePrivateMaterialStore>();
-        services.AddScoped<ACH.Services.Implementation.CertificateManagement.OpenBaoCertificatePrivateMaterialStore>();
-        services.AddScoped<ICertificatePrivateMaterialStore>(sp =>
-        {
-            var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpenBaoOptions>>().Value ?? new OpenBaoOptions();
-            return options.Enabled
-                ? sp.GetRequiredService<ACH.Services.Implementation.CertificateManagement.OpenBaoCertificatePrivateMaterialStore>()
-                : sp.GetRequiredService<ACH.Services.Implementation.CertificateManagement.NoOpCertificatePrivateMaterialStore>();
-        });
         services.AddScoped<ICertificateSecretProviderResolver, ACH.Services.Implementation.CertificateManagement.CertificateSecretProviderResolver>();
         services.AddScoped<ICertificateSecretResolver, ACH.Services.Implementation.CertificateManagement.CertificateSecretResolver>();
 

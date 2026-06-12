@@ -64,7 +64,7 @@ No usar `docker compose down -v` salvo instruccion operativa explicita. No borra
 - No versionar `.env` reales.
 - No versionar contrasenas, tokens, certificados privados, llaves privadas, PFX reales ni datos personales/financieros.
 - Usar `.env.example` y `.env.test.example` solo como plantillas sanitizadas.
-- Usar vault/secret manager o mecanismo aprobado para UAT/preproductivo/productivo.
+- Usar el mecanismo aprobado de secretos para UAT/preproductivo/productivo.
 - Evidencias con datos sensibles deben almacenarse fuera de Git y referenciarse por ID, hash o ruta segura.
 
 ## Documentacion UAT y go-live
@@ -80,10 +80,6 @@ Documentos principales:
 - `docs/go-live-readiness/BRECHAS_CRITICAS_GO_LIVE.md`
 - `docs/security/REVISION_SEGURIDAD_PRE_GO_LIVE.md`
 - `docs/operations/RUNBOOK_UAT_Y_PREPRODUCTIVO.md`
-
-## OpenBao
-
-El repositorio contiene scripts y documentacion para OpenBao bajo `scripts/openbao`, `ops/openbao` y documentos en `docs/architecture` / `docs/dev`. El compose principal no debe asumirse como stack UAT completo con OpenBao si no existe decision operativa aprobada.
 
 ## Readiness
 

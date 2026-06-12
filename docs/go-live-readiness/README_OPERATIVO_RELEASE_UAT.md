@@ -81,7 +81,7 @@ Consideraciones:
 
 - No usar credenciales reales en compose.
 - Los defaults del compose principal son placeholders locales/de demo; para UAT/preproductivo usar variables no versionadas o secret manager.
-- OpenBao no se encontro en `docker-compose.yml` principal; si aplica, usar procedimiento aprobado, scripts `scripts/openbao` o compose UAT especifico validado.
+- La custodia de secretos no se resuelve en `docker-compose.yml` principal; si aplica, usar el mecanismo aprobado del ambiente.
 
 ## 8. Health Checks
 
@@ -90,7 +90,7 @@ curl http://localhost:843/health/live
 curl http://localhost:843/health/ready
 ```
 
-Observacion: los health checks actuales validan live y ready con DB. Quartz/OpenBao/externos requieren evidencia adicional o monitoreo alterno.
+Observacion: los health checks actuales validan live y ready con DB. Quartz/externos requieren evidencia adicional o monitoreo alterno.
 
 Evidencia runtime Docker 2026-05-18:
 
@@ -115,7 +115,7 @@ Ver detalle en `docs/uat/EVIDENCIA_TECNICA_UAT_RUNTIME.md` y `docs/go-live-readi
 - No registrar tokens, passwords, PFX, llaves privadas ni certificados privados en Git.
 - `.env` real no debe versionarse; `.gitignore` protege futuros archivos locales, pero si `.env` ya estaba trackeado requiere revision humana y posible rotacion.
 - Usar `secretRef` enmascarado cuando aplique.
-- Si OpenBao aplica, validar `scripts/openbao` y documentar resultado sin exponer token.
+- Si aplica un mecanismo externo de custodia de secretos, validar el procedimiento aprobado y documentar resultado sin exponer credenciales.
 
 ## 10. Checklist Antes De Entregar A Negocio
 

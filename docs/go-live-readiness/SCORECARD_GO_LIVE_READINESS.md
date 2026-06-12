@@ -21,10 +21,10 @@ Uso: instrumento preliminar para comite; requiere evidencias y firmas.
 |---|---:|---|---:|---:|---|---|
 | Funcionalidad core | 20% | PARCIAL | 82 | 16.4 | Backend CI/local OK; Angular local OK; API/DB health OK; proxy SPA->API/Auth/Navigation/funcional/NACHA OK; transacciones sinteticas, evento inicial nuevo e idempotencia documental OK | Core API funcional sintetico y proxy Docker mejoran; UAT bancario formal sigue pendiente |
 | UAT y evidencias | 20% | PARCIAL | 64 | 12.8 | Docs UAT tecnico/funcional actualizados; evidencia de transaccion, persistencia, idempotencia, proxy funcional/NACHA, logs, build, pruebas y acta preliminar final | Actas firmadas, evidencia visual SPA y homologaciones siguen pendientes |
-| Seguridad | 15% | PARCIAL | 73 | 10.95 | `[Authorize]`, permisos, `dotnet list --vulnerable` sin hallazgos tras `System.Security.Cryptography.Xml` 10.0.8; `admin` evidencia `Admin` + `ACH.Operator` tras seed/migracion controlada | `.env` trackeado, OpenBao y certificados requieren decision; falta matriz endpoint-rol formal |
+| Seguridad | 15% | PARCIAL | 73 | 10.95 | `[Authorize]`, permisos, `dotnet list --vulnerable` sin hallazgos tras `System.Security.Cryptography.Xml` 10.0.8; `admin` evidencia `Admin` + `ACH.Operator` tras seed/migracion controlada | `.env` trackeado, custodia de secretos y certificados requieren decision; falta matriz endpoint-rol formal |
 | Interoperabilidad externa | 15% | CRITICO | 40 | 6.00 | NACHA layouts tecnicos identificados; transacciones UAT ACH Colombia/CENIT creadas; export vacio corregido con 422; SOAP dry-run runtime validado sin transmision | NACHA-M real UAT sigue bloqueado por prenotificacion previa; validacion externa/homologacion sigue pendiente |
 | Operacion y soporte | 10% | PARCIAL | 68 | 6.8 | Docker compose config/build/runtime, proxy SPA->API/Auth/Navigation/funcional/NACHA OK y PostgreSQL loopback 5432 para UAT local; runbooks/docs | Backup/restore/rollback pendientes |
-| Observabilidad | 10% | PARCIAL | 68 | 6.8 | `/health/live` y `/health/ready` OK en Docker | Health cubre API/DB; faltan Quartz/OpenBao/externos y monitoreo |
+| Observabilidad | 10% | PARCIAL | 68 | 6.8 | `/health/live` y `/health/ready` OK en Docker | Health cubre API/DB; faltan Quartz/externos y monitoreo |
 | Documentacion y trazabilidad | 10% | PARCIAL | 83 | 8.3 | README, docs readiness, evidencia runtime, UAT funcional sintetico, matriz NACHA layouts, contrato idempotencia y acta preliminar final actualizados | Firmas/evidencias UAT formales pendientes; contrato idempotencia evolutivo queda pendiente si se exige 409/key/replay |
 | **Total** | **100%** | **NO-GO con brechas altas** |  | **68.1** |  | **NO-GO productivo** |
 
@@ -57,7 +57,7 @@ Clasificacion operacional: **Candidato UAT controlado**, no apto para productivo
 - SOAP `Proc_Contrapartidas` tiene envelopes XML dry-run sanitizados y guardrail runtime `DryRun` por defecto; endpoint UAT/mock real sigue pendiente.
 - Rol `ACH.Operator` visible para `admin` tras seed/migracion controlada; queda pendiente matriz endpoint-rol formal para productivo.
 - Riesgo de `.env` versionado y defaults sensibles en compose/documentacion.
-- OpenBao no levantado en compose principal si aplica al ambiente.
+- Custodia de secretos definida para el ambiente si aplica.
 - Backup/restore/rollback sin evidencia.
 
 ## Reglas De Decision

@@ -163,8 +163,8 @@ public class HistoricalDecryptPolicyTests
         var secretResolver = new Mock<ICertificateSecretResolver>();
         secretResolver.Setup(x => x.ResolveAsync(It.IsAny<CertificateSecretResolutionRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(success
-                ? new CertificateSecretResolutionResult(true, CertificateSecretProviderType.OpenBao, new CertificateSecretMaterial(cert, cert.Thumbprint ?? string.Empty, cert.SerialNumber, cert.Subject, true), null, null, "****hist")
-                : new CertificateSecretResolutionResult(false, CertificateSecretProviderType.OpenBao, null, "OPENBAO_READ_FAILED", "failed", "****hist"));
+                ? new CertificateSecretResolutionResult(true, CertificateSecretProviderType.ExternalSecretReference, new CertificateSecretMaterial(cert, cert.Thumbprint ?? string.Empty, cert.SerialNumber, cert.Subject, true), null, null, "****hist")
+                : new CertificateSecretResolutionResult(false, CertificateSecretProviderType.ExternalSecretReference, null, "SECRET_PROVIDER_NOT_CONFIGURED", "failed", "****hist"));
 
         return new DigitalEnvelopeCertificateResolver(
             Mock.Of<ICertificateSelectionService>(),
@@ -202,8 +202,8 @@ public class HistoricalDecryptPolicyTests
             KeyAlgorithm = "RSA",
             KeySize = 2048,
             SignatureAlgorithm = "SHA256",
-            PrivateMaterialStorageMode = CertificateStorageMode.OpenBaoReference,
-            SecretRef = $"openbao://certificates/test/ch-1/inbounddecryption/v{serial}",
+            PrivateMaterialStorageMode = CertificateStorageMode.ExternalSecretReference,
+            SecretRef = $"kv://certificates/test/ch-1/inbounddecryption/v{serial}",
             RowVersion = [1]
         };
 

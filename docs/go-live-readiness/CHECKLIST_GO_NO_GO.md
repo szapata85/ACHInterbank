@@ -16,7 +16,7 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 | GNG-004 | Backend | Build y tests backend actuales pasan? | OK | GitHub Actions `dotnet-ci` OK para `49b810f9`; `dotnet build` OK; suite backend local 1091 OK, 1 omitida, 0 fallas | Tecnologia | Si | Adjuntar evidencia al paquete RC |
 | GNG-005 | Frontend | Build SPA actual pasa? | OK | `angular-ci` de rama OK; `npm run build` OK; `npm test` 147 specs OK | Tecnologia | Si | Adjuntar evidencia al paquete RC; warnings no bloqueantes |
 | GNG-006 | Seguridad | Todos los controllers sensibles tienen autorizacion explicita? | PARCIAL | `AchResponsesController` ahora tiene `[Authorize]`; falta matriz endpoint-rol completa | Seguridad | Si | |
-| GNG-007 | OpenBao/secretos | OpenBao UAT esta disponible o existe excepcion aprobada? | PENDIENTE VALIDAR | `scripts/openbao`, compose principal sin OpenBao | Seguridad | Si si aplica | |
+| GNG-007 | Secretos | Mecanismo de custodia UAT esta disponible o existe excepcion aprobada? | PENDIENTE VALIDAR | compose principal sin custodia externa visible | Seguridad | Si si aplica | |
 | GNG-008 | Certificados/firma/sobre digital | Existe validacion externa oficial? | CRITICO | Docs UAT marcan pendiente | Seguridad | Si | |
 | GNG-009 | NACHA-M | Registros 1/5/6/7/8/9 validados por campo? | BLOQUEADO | `docs/uat/UAT_NACHA_M_CAMPO_A_CAMPO.md`; evidencias `docs/uat/evidencias/nacha-m-uat/` | Operaciones/QA/Compliance | Si | Transacciones por camara creadas, pero no hay archivo NACHA-M valido: 422 controlado por prenotificacion previa ausente |
 | GNG-010 | ACH Colombia | Flujos ACH tienen aceptacion funcional? | PENDIENTE VALIDAR | Acta UAT pendiente | Negocio | Si | |
@@ -30,7 +30,7 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 | GNG-018 | UAT | Acta UAT firmada existe? | CRITICO | Plantilla creada | Auditoria | Si | |
 | GNG-019 | Evidencias | Indice de evidencias completo? | CRITICO | `docs/uat/INDICE_EVIDENCIAS_UAT.md` | Auditoria | Si | |
 | GNG-020 | Operacion | Runbook UAT/preproductivo aprobado? | PARCIAL | `docs/operations/RUNBOOK_UAT_Y_PREPRODUCTIVO.md` | Operaciones | Si | |
-| GNG-021 | Monitoreo | Health checks y monitoreo cubren componentes criticos? | PARCIAL | Docker runtime: `/health/live` OK y `/health/ready` OK con DB healthy | Tecnologia | Si | Falta Quartz/OpenBao/externos y monitoreo real |
+| GNG-021 | Monitoreo | Health checks y monitoreo cubren componentes criticos? | PARCIAL | Docker runtime: `/health/live` OK y `/health/ready` OK con DB healthy | Tecnologia | Si | Falta Quartz/externos y monitoreo real |
 | GNG-022 | Backup/restore | Backup y restore ensayados? | NO ENCONTRADO | NO ENCONTRADO | Operaciones | Si | |
 | GNG-023 | Rollback | Rollback documentado y ensayado? | PARCIAL | Runbook documental | Operaciones/Tecnologia | Si | |
 | GNG-024 | Soporte | Equipo soporte y escalamiento definidos? | PENDIENTE VALIDAR | Acta/runbook | Operaciones | Si | |

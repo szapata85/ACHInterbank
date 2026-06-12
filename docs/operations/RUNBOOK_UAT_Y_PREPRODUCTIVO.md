@@ -6,7 +6,7 @@ Rama analizada: fix/spa-docker-runtime-proxy-and-images
 Estado: borrador operativo para validacion humana  
 Clasificacion: no incluir secretos, datos personales, certificados privados ni evidencias sensibles en Git.
 
-> Este runbook documenta procedimientos sugeridos para preparar, validar y operar ambiente UAT/preproductivo. No ejecuta comandos ni reemplaza los runbooks oficiales de infraestructura, seguridad, proveedor/camara o base de datos. Cualquier valor sensible debe suministrarse por canal seguro, vault o mecanismo autorizado.
+> Este runbook documenta procedimientos sugeridos para preparar, validar y operar ambiente UAT/preproductivo. No ejecuta comandos ni reemplaza los runbooks oficiales de infraestructura, seguridad, proveedor/camara o base de datos. Cualquier valor sensible debe suministrarse por canal seguro o mecanismo autorizado.
 
 ## 1. Alcance
 
@@ -14,7 +14,7 @@ Este documento cubre:
 
 - Preparacion del ambiente UAT/preproductivo.
 - Verificacion de PostgreSQL, API, SPA y health checks.
-- Verificacion documental de migraciones, seeds, OpenBao y certificados.
+- Verificacion documental de migraciones, seeds y certificados.
 - Procedimientos operativos UAT para NACHA-M, devoluciones, ROR, CENIT, conciliacion, evidencias, defectos, rollback y cierre.
 
 Fuera de alcance:
@@ -40,7 +40,6 @@ Fuera de alcance:
 | Compose principal | `docker-compose.yml` | Stack local/base; revisar secretos antes de usar en UAT. |
 | Compose test | `docker-compose.test.yml` | PostgreSQL de test segun `AGENTS.md`. |
 | Setup Codex | `scripts/codex/setup-codex-env.sh` | Preparacion reproducible local. |
-| OpenBao scripts | `scripts/openbao` | Soporte OpenBao; validar alcance UAT. |
 | Docs UAT | `docs/uat` | Plan, escenarios, datos, acta, evidencias y defectos. |
 | Docs go-live | `docs/go-live-readiness` | Checklist, scorecard, brechas, matriz y paquete comite. |
 | Docs seguridad | `docs/security` | Revision pre-go-live. |
@@ -54,14 +53,13 @@ No registrar valores reales en Git. Documentar solo nombres, origen autorizado y
 | `ASPNETCORE_ENVIRONMENT` | Ambiente API | Pipeline/host UAT | PENDIENTE VALIDAR |
 | `ASPNETCORE_URLS` | URLs de exposicion API | Pipeline/host UAT | PENDIENTE VALIDAR |
 | `Database__Provider` | Provider de base de datos | Configuracion ambiente | PENDIENTE VALIDAR |
-| `ConnectionStrings__PostgresConnection` | Conexion PostgreSQL | Secret manager/vault | PENDIENTE VALIDAR |
-| `ConnectionStrings__DefaultConnection` | Conexion alternativa si aplica | Secret manager/vault | PENDIENTE VALIDAR |
+| `ConnectionStrings__PostgresConnection` | Conexion PostgreSQL | Mecanismo aprobado | PENDIENTE VALIDAR |
+| `ConnectionStrings__DefaultConnection` | Conexion alternativa si aplica | Mecanismo aprobado | PENDIENTE VALIDAR |
 | `Cors__AllowedOrigins` | Origenes permitidos SPA | Configuracion ambiente | PENDIENTE VALIDAR |
 | `Jwt__Issuer` | Emisor JWT | Secret/config UAT | PENDIENTE VALIDAR |
 | `Jwt__Audience` | Audiencia JWT | Secret/config UAT | PENDIENTE VALIDAR |
-| `Jwt__SigningKey` o referencia equivalente | Firma token | Secret manager/vault | PENDIENTE VALIDAR |
-| `DigitalEnvelope__*` | Sobre digital/firma/certificados | Secret manager/vault | PENDIENTE VALIDAR |
-| `OpenBao__*` o equivalente | Secrets provider | OpenBao/vault | PENDIENTE VALIDAR |
+| `Jwt__SigningKey` o referencia equivalente | Firma token | Mecanismo aprobado | PENDIENTE VALIDAR |
+| `DigitalEnvelope__*` | Sobre digital/firma/certificados | Mecanismo aprobado | PENDIENTE VALIDAR |
 | `apiBaseUrl` SPA | URL API consumida por SPA | Build/runtime config | CORREGIDO TECNICAMENTE: base relativa; PENDIENTE VALIDAR reverse proxy/deploy |
 | `ACH_UAT_DEMO_USERNAME` | Usuario demo sintetico UAT tecnico | Entorno seguro local/UAT | VALIDADO PRESENTE 2026-05-18; no imprimir valor |
 | `ACH_UAT_DEMO_PASSWORD` | Password demo sintetico UAT tecnico | Entorno seguro local/UAT | VALIDADO PRESENTE 2026-05-18; no imprimir valor |
@@ -80,7 +78,7 @@ No registrar valores reales en Git. Documentar solo nombres, origen autorizado y
 | RUN-PRE-006 | Migraciones revisadas | EF Core Code First | Resultado de aplicacion controlada por responsable DB. |
 | RUN-PRE-007 | Seeds/datos maestros cargados | Camaras, ciclos, causales, roles | Evidencia de tablas/catalogos. |
 | RUN-PRE-008 | Certificados disponibles | Solo referencias seguras | Evidencia de custodia. |
-| RUN-PRE-009 | OpenBao definido | Aplica/no aplica formal | Evidencia de decision. |
+| RUN-PRE-009 | Custodia de secretos definida | Aplica/no aplica formal | Evidencia de decision. |
 | RUN-PRE-010 | UAT plan aprobado para iniciar | Criterios de inicio OK | Aprobacion de Tecnologia/Negocio. |
 
 ### 4.2 Comandos sugeridos no destructivos
@@ -123,7 +121,6 @@ docker compose logs --tail=200
 | SPA hacia Navigation | OK tecnico | `http://localhost:743/navigation/menu` devolvio 401 desde API sin token, no `index.html`; con token valido debe devolver JSON del menu. |
 | Scalar | OK | `http://localhost:843/scalar` HTTP 200. |
 | OpenAPI | OK con observacion | `http://localhost:843/openapi/v1.json` HTTP 200 con timeout ampliado; aprox. 79s directo y 96s via proxy. |
-| OpenBao | PENDIENTE / NO APLICA compose actual | No existe servicio OpenBao en `docker-compose.yml`. |
 
 Documentos de evidencia:
 
@@ -238,17 +235,17 @@ BRECHA: el rollback tecnico debe estar probado o aceptado formalmente antes de p
 | Parametros NACHA-M | Layouts/reglas validadas | PENDIENTE VALIDAR |
 | CENIT CUD | Parametros y evidencia | BRECHA |
 
-## 11. Verificacion OpenBao
+## 11. Verificacion de custodia de secretos
 
 | Paso | Accion | Resultado esperado | Estado |
 |---|---|---|---|
-| OB-001 | Confirmar si OpenBao aplica a UAT. | Decision documentada. | PENDIENTE VALIDAR |
+| OB-001 | Confirmar mecanismo de custodia de secretos para UAT. | Decision documentada. | PENDIENTE VALIDAR |
 | OB-002 | Confirmar servicio disponible. | Endpoint interno accesible. | PENDIENTE VALIDAR |
 | OB-003 | Confirmar politicas y paths. | Minimo privilegio. | PENDIENTE VALIDAR |
 | OB-004 | Confirmar rotacion/revocacion. | Procedimiento definido. | PENDIENTE VALIDAR |
 | OB-005 | Confirmar comportamiento ante caida. | Fail-closed en flujos sensibles si aplica. | PENDIENTE VALIDAR |
 
-Evidencia: `scripts/openbao`, `ops/openbao`, `docs/architecture/openbao-integration-2026-04-22.md` y `docs/dev/docker-compose-openbao-uat-2026-04-22.md` existen; `docker-compose.yml` principal no evidencia servicio OpenBao. No agregar OpenBao al compose principal sin decision operativa.
+Evidencia: el stack principal documentado no requiere un backend externo adicional para funcionar; la custodia de secretos debe resolverse por el mecanismo aprobado del proyecto.
 
 ## 12. Verificacion certificados
 
@@ -387,6 +384,6 @@ No ejecutar rollback sin aprobacion formal. No borrar volumenes como mecanismo n
 | Defectos bloqueantes cerrados | PENDIENTE VALIDAR | Matriz defectos actualizada. |
 | CENIT CUD validado si aplica | BRECHA | Evidencia externa/operativa. |
 | Sobre digital/firma validado si aplica | BRECHA | Evidencia proveedor/camara. |
-| Seguridad critica cerrada | PARCIAL | `AchResponsesController` protegido, SPA prod saneada y compose con placeholders; `.env`, OpenBao y policy granular siguen pendientes. |
+| Seguridad critica cerrada | PARCIAL | `AchResponsesController` protegido, SPA prod saneada y compose con placeholders; `.env` y policy granular siguen pendientes. |
 | Rollback probado o aceptado | BRECHA | Evidencia simulacro o aceptacion formal. |
 | Configuracion productiva sin localhost | PARCIAL | `environment.prod.ts` corregido; falta build/config UAT/preprod. |

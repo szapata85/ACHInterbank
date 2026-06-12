@@ -24,7 +24,7 @@ Clasificacion: evidencia tecnica sin secretos ni datos reales.
 | SPA/Auth integration via same-origin | OK tecnico | `POST /auth/login` en puerto 743 devuelve 401 JSON desde API con credenciales dummy, no 405 ni `index.html`. |
 | SPA/Navigation integration via same-origin | OK tecnico | `GET /navigation/menu` en puerto 743 devuelve 401 desde API sin token, no `index.html`; con token valido debe devolver JSON. |
 | OpenAPI/Scalar | OK con observacion | Scalar OK; OpenAPI OK pero lento. |
-| OpenBao | PENDIENTE / NO APLICA compose actual | No esta en compose principal. |
+| Custodia de secretos | PENDIENTE / NO APLICA compose actual | No esta en compose principal. |
 | Go productivo | NO-GO | Persisten brechas UAT real/anonimizado, seguridad y operacion. |
 
 ## Estrategia elegida
@@ -100,7 +100,7 @@ No se adopta Node 26 porque Angular 21 soporta oficialmente Node `^20.19.0`, `^2
 | OpenAPI lento | MEDIA | 79s directo y 96s via proxy para `/openapi/v1.json`. | Documentar timeout o optimizar generacion. |
 | `.env` versionado | ALTA seguridad | `.env` existe y esta trackeado. | Revisar contenido, rotar si aplica, destrackear con procedimiento aprobado. |
 | Migraciones automaticas en startup | MEDIA operacion | `Database__ApplyMigrations=true`. | Decidir si UAT/preproductivo permite auto-migrate o requiere DBA. |
-| OpenBao fuera de compose principal | MEDIA/ALTA si aplica a certificados | Scripts/docs existen, servicio no. | Definir alcance UAT: OpenBao, secret manager externo o waiver. |
+| Mecanismo de custodia fuera de compose principal | MEDIA/ALTA si aplica a certificados | Scripts/docs existen, servicio no. | Definir alcance UAT: custodia externa o waiver. |
 
 ## Decision de readiness
 

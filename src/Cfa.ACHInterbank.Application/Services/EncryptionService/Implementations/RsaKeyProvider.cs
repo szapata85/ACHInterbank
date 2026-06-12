@@ -28,7 +28,7 @@ public class RsaKeyProvider : IRsaKeyProvider
         {
             if (fromResolver.Source == DigitalEnvelopeCertificateSource.CertificateManagement)
             {
-                throw new InvalidOperationException("CERTIFICATE_RUNTIME_SECRET_REF_NOT_ALLOWED: runtime core no soporta CertificateManagement/OpenBao para certificados de operación.");
+                throw new InvalidOperationException("CERTIFICATE_RUNTIME_SECRET_REF_NOT_ALLOWED: runtime core no soporta el uso de SecretRef para certificados de operación.");
             }
 
             return fromResolver.Certificate;
@@ -96,7 +96,7 @@ public class RsaKeyProvider : IRsaKeyProvider
         {
             if (result.Source == DigitalEnvelopeCertificateSource.CertificateManagement)
             {
-                throw new InvalidOperationException("CERTIFICATE_SECRET_PROVIDER_NOT_SUPPORTED_FOR_RUNTIME: decrypt histórico desde SecretRef/OpenBao no está permitido en runtime core.");
+                throw new InvalidOperationException("CERTIFICATE_SECRET_PROVIDER_NOT_SUPPORTED_FOR_RUNTIME: decrypt histórico desde SecretRef no está permitido en runtime core.");
             }
 
             return result.Certificate;

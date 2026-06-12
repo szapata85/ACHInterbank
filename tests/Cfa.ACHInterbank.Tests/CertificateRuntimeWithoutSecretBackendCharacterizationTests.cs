@@ -3,7 +3,6 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Xml.Serialization;
-using Cfa.ACHInterbank.Api.Controllers;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Implementation;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
 using Cfa.ACHInterbank.Application.Services.EncryptionService.Implementations;
@@ -17,16 +16,16 @@ using Moq;
 
 namespace Cfa.ACHInterbank.Tests;
 
-public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
+public class CertificateRuntimeWithoutSecretBackendCharacterizationTests
 {
     [Fact]
-    public async Task CryptoService_ShouldCreateAndOpenEnvelope_WhenOpenBaoDisabled_CurrentRuntime()
+    public async Task CryptoService_ShouldCreateAndOpenEnvelope_CurrentRuntime()
     {
         var signer = CreateCert("CN=core-signer", true);
         var receiver = CreateCert("CN=core-receiver", true);
         var provider = new TrackingRsaKeyProvider(signer, receiver);
         var service = CreateCrypto(provider);
-        var plain = Encoding.UTF8.GetBytes("nacha-core-without-openbao");
+        var plain = Encoding.UTF8.GetBytes("nacha-core-runtime");
 
         var createdEnvelope = await service.CreateEnvelopeAsync(plain, "core.txt");
         var createdXml = Encoding.UTF8.GetString(createdEnvelope);
@@ -41,7 +40,7 @@ public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
 
         roundtrip.Should().Equal(plain);
         provider.SecretRefCalls.Should().Be(0);
-        provider.OpenBaoCalls.Should().Be(0);
+        provider.BackendCalls.Should().Be(0);
     }
 
     [Fact]
@@ -69,11 +68,11 @@ public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
         provider.CryptFetchCount.Should().BeGreaterThan(0);
         provider.DecryptFetchCount.Should().BeGreaterThan(0);
         provider.SecretRefCalls.Should().Be(0);
-        provider.OpenBaoCalls.Should().Be(0);
+        provider.BackendCalls.Should().Be(0);
     }
 
     [Fact]
-    public async Task CryptoService_ShouldFail_WhenCertificateMissing_WithoutTryingOpenBao()
+    public async Task CryptoService_ShouldFail_WhenCertificateMissing()
     {
         var signer = CreateCert("CN=signer", true);
         var provider = new TrackingRsaKeyProvider(signer, decrypt: null!);
@@ -83,12 +82,12 @@ public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
             () => service.CreateEnvelopeAsync(Encoding.UTF8.GetBytes("x"), "missing.txt"));
 
         ex.ErrorCode.Should().Be("CERTIFICATE_NOT_AVAILABLE");
-        provider.OpenBaoCalls.Should().Be(0);
+        provider.BackendCalls.Should().Be(0);
         provider.SecretRefCalls.Should().Be(0);
     }
 
     [Fact]
-    public void RsaKeyProvider_ShouldNotRequireOpenBao_ForDecryptCurrentCertificate()
+    public void RsaKeyProvider_ShouldResolveCurrentCertificate_WithoutSecretBackend()
     {
         var cert = CreateCert("CN=dec", true);
         var resolver = new Mock<IDigitalEnvelopeCertificateResolver>(MockBehavior.Strict);
@@ -105,7 +104,7 @@ public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
     }
 
     [Fact]
-    public void RsaKeyProvider_ShouldFailCloseForHistoricalCriteria_WithoutOpenBaoFallback()
+    public void RsaKeyProvider_ShouldFailClosedForHistoricalCriteria_WhenHistoricalResolutionFails()
     {
         var resolver = new Mock<IDigitalEnvelopeCertificateResolver>(MockBehavior.Strict);
         resolver.Setup(x => x.ResolveHistoricalDecryptAsync(It.IsAny<HistoricalDecryptCertificateCriteria>(), It.IsAny<CancellationToken>()))
@@ -119,7 +118,7 @@ public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
     }
 
     [Fact]
-    public void RsaKeyProvider_ShouldRejectOpenBaoReference_ForRuntimeCertificate()
+    public void RsaKeyProvider_ShouldRejectCertificateManagementReferences_ForRuntimeCertificate()
     {
         var cert = CreateCert("CN=cm", true);
         var resolver = new Mock<IDigitalEnvelopeCertificateResolver>(MockBehavior.Strict);
@@ -145,66 +144,7 @@ public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
     }
 
     [Fact]
-    public void HistoricalDecrypt_ShouldFailClosed_WhenOnlyOpenBaoSecretRefIsAvailable()
-    {
-        var cert = CreateCert("CN=hist", true);
-        var resolver = new Mock<IDigitalEnvelopeCertificateResolver>(MockBehavior.Strict);
-        resolver.Setup(x => x.ResolveHistoricalDecryptAsync(It.IsAny<HistoricalDecryptCertificateCriteria>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new DigitalEnvelopeCertificateResolutionResult(
-                true,
-                cert,
-                100,
-                DigitalEnvelopeCertificateSource.CertificateManagement,
-                CertificatePurpose.InboundDecryption,
-                cert.Thumbprint,
-                cert.SerialNumber,
-                cert.Subject,
-                null,
-                null,
-                Array.Empty<string>()));
-
-        var provider = new RsaKeyProvider(resolver.Object);
-        var act = () => provider.ObtenerCertificateForDecrypt("issuer", "serial");
-
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*CERTIFICATE_SECRET_PROVIDER_NOT_SUPPORTED_FOR_RUNTIME*");
-    }
-
-    [Fact]
-    public void CertificateGovernance_ShouldTreatSecretRefMaskedAsMetadataOnly_CurrentBehavior()
-    {
-        var apiDtoProps = typeof(CertificateManagementController.CertificateVersionApiDto).GetProperties().Select(p => p.Name).ToList();
-
-        apiDtoProps.Should().Contain("SecretRefMasked");
-        apiDtoProps.Should().NotContain(new[] { "SecretRef", "Password", "RawPrivateKey", "PrivateMaterial", "PfxPassword", "PfxBytes" });
-    }
-
-    [Fact]
-    public void CertificateGovernance_ShouldPreserveAngularContractMetadata_WithoutSecretRuntimeDependency()
-    {
-        var props = typeof(CertificateManagementController.CertificateVersionApiDto).GetProperties().Select(p => p.Name).ToHashSet();
-
-        props.Should().Contain(new[]
-        {
-            "Subject", "Issuer", "SerialNumber", "Thumbprint", "NotBefore", "NotAfter", "Status", "Purpose", "VersionNumber", "SecretRefMasked"
-        });
-    }
-
-    [Fact]
-    public void CertificateRuntime_ShouldKeepOpenBaoOnlyAsOptionalOrNonCorePath_CurrentBehavior()
-    {
-        var options = new OpenBaoOptions { Enabled = false };
-        options.Enabled.Should().BeFalse();
-
-        // Characterization guardrail: core crypto constructor has no OpenBao dependency.
-        var ctor = typeof(CryptoServiceScoped).GetConstructors().Single();
-        var paramTypes = ctor.GetParameters().Select(x => x.ParameterType.Name).ToArray();
-        paramTypes.Should().NotContain(t => t.Contains("OpenBao", StringComparison.OrdinalIgnoreCase));
-        paramTypes.Should().Contain(new[] { "IRsaKeyProvider", "IDigitalEnvelopeSignatureValidator", "IDigitalEnvelopeSignatureAuditService" });
-    }
-
-    [Fact]
-    public void DockerCompose_ShouldNotRequireOpenBao_ForApiCertificateRuntime()
+    public void RuntimeCompose_ShouldContainOnlyCoreServices()
     {
         var text = File.ReadAllText(Path.Combine(ResolveRepositoryRoot(), "docker-compose.yml"))
             .Replace("\r\n", "\n", StringComparison.Ordinal);
@@ -212,34 +152,11 @@ public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
         text.Should().Contain("achinterbank-api");
         text.Should().Contain("achinterbank-spa");
         text.Should().Contain("postgres");
-        text.Should().Contain("DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable: \"false\"");
 
-        var forbiddenComposeFragments = new[]
-        {
-            "openbao/openbao",
-            "openbao:",
-            "openbao-bootstrap",
-            "openbao-volume-perms",
-            "busybox:1.37",
-            "BAO_ADDR",
-            "OPENBAO_",
-            "DigitalEnvelope__OpenBao__",
-            "WAIT_FOR_OPENBAO",
-            "/openbao-bootstrap",
-            "ach_openbao_data",
-            "ach_openbao_bootstrap"
-        };
+        var serviceCount = text.Split("\n  ", StringSplitOptions.None)
+            .Count(line => line.StartsWith("  ") && line.TrimEnd().EndsWith(":"));
 
-        text.Should().NotContainAny(forbiddenComposeFragments);
-    }
-
-    [Fact]
-    public void Entrypoint_ShouldNotWaitForOpenBao_WhenOpenBaoDisabled()
-    {
-        var text = File.ReadAllText(Path.Combine(ResolveRepositoryRoot(), "src", "Cfa.ACHInterbank.Api", "entrypoint.sh"));
-        text.Should().NotContain("OpenBao");
-        text.Should().NotContain("openbao_token_file");
-        text.Should().NotContain("wait_openbao_token");
+        serviceCount.Should().BeGreaterOrEqualTo(3);
     }
 
     private static string ResolveRepositoryRoot()
@@ -251,7 +168,7 @@ public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
             dir = Path.GetFullPath(Path.Combine(dir, ".."));
         }
 
-        throw new DirectoryNotFoundException("No se pudo resolver raíz repo.");
+        throw new DirectoryNotFoundException("No se pudo resolver la raíz del repo.");
     }
 
     private static CryptoServiceScoped CreateCrypto(IRsaKeyProvider provider)
@@ -307,12 +224,12 @@ public class CertificateRuntimeWithoutOpenBaoCharacterizationTests
         public int CryptFetchCount { get; private set; }
         public int DecryptFetchCount { get; private set; }
         public int SecretRefCalls { get; private set; }
-        public int OpenBaoCalls { get; private set; }
+        public int BackendCalls { get; private set; }
 
         public X509Certificate2 ObtenerCertificate(string Key_cert)
         {
             if (Key_cert.Contains("SecretRef", StringComparison.OrdinalIgnoreCase)) SecretRefCalls++;
-            if (Key_cert.Contains("OpenBao", StringComparison.OrdinalIgnoreCase)) OpenBaoCalls++;
+            if (Key_cert.Contains("Backend", StringComparison.OrdinalIgnoreCase)) BackendCalls++;
 
             return Key_cert switch
             {

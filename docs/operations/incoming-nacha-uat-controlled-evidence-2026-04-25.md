@@ -42,7 +42,7 @@ Resultado consolidado:
   - Incoming/CommandCenter/StateMachine/Resilience/Observability: **63/63**.
   - NACHA/Mapping/BatchNumber: **193/193**.
   - DigitalEnvelope/Signature/OpenEnvelope: **32/32**.
-  - Certificate/SecretRef/OpenBao/Vault: **35/35**.
+  - Certificate/SecretRef/custodia de secretos: **35/35**.
 - Frontend:
   - `npm ci`: OK.
   - `npm run build`: OK.
