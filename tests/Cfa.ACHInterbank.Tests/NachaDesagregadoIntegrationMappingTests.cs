@@ -64,6 +64,31 @@ public sealed class NachaDesagregadoIntegrationMappingTests
     }
 
     [Fact]
+    public async Task ProcTransacciones_ShouldResolveAddenda_BySevenDigitEntrySequenceSuffix()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishProcTransaccionesMappingAsync();
+
+        fixture.Classification.AddendaRecordId = null;
+        var addenda = await fixture.Context.AddendaRecords.SingleAsync(x => x.AddendaID == 602);
+        addenda.EntryDetailSequenceNumber = "1234567";
+        addenda.InfofromOriginator = null;
+        addenda.CollectorId = "PAGO UAT DESAGREGADO";
+        await fixture.Context.SaveChangesAsync();
+
+        var mapper = new ProcTransaccionesRequestMapper(fixture.Context);
+        var resolution = await mapper.ResolveAsync(
+            fixture.Queue,
+            fixture.Ingestion,
+            fixture.Classification,
+            fixture.Transaction,
+            fixture.Cycle,
+            new DateTime(2026, 5, 23, 10, 0, 0, DateTimeKind.Utc));
+
+        Assert.Equal("PAGO UAT DESAGREGADO", resolution.Contract.Parameters["INFPAG"]);
+    }
+
+    [Fact]
     public async Task ProcTransacciones_ShouldPersistTrace_WithNachaSourceValues()
     {
         await using var fixture = await Fixture.CreateAsync();
