@@ -1,0 +1,13 @@
+{
+  "url": "http://localhost:743/transactions/cycle-configs",
+  "rowCount": 5,
+  "selectors": {
+    "editTestId": false,
+    "cloneTestId": false,
+    "inactivateTestId": false,
+    "actionsClass": false,
+    "editActionHtml": "<button class=\"btn btn-outline btn-grid\" data-action=\"edit\" title=\"Editar configuración\"><span class=\"material-symbols-outlined\">edit</span></button>"
+  },
+  "consoleErrors": [],
+  "actionsCellHtml": "<div comp-id=\"97\" class=\"ag-cell-value ag-cell ag-cell-not-inline-editing ag-cell-normal-height ag-column-last\" role=\"gridcell\" col-id=\"5\" aria-colindex=\"8\" style=\"left: 1100px; width: 260px;\"><span><button class=\"btn btn-outline btn-grid\" data-action=\"edit\" title=\"Editar configuración\"><span class=\"material-symbols-outlined\">edit</span></button> <button class=\"btn btn-outline btn-grid\" data-action=\"clone\" title=\"Clonar configuración\"><span class=\"material-symbols-outlined\">content_copy</span></button> <button class=\"btn btn-danger btn-grid\" data-action=\"inactivate\" title=\"Inactivar configuración\"><span class=\"material-symbols-outlined\">block</span></button></span></div>"
+}
