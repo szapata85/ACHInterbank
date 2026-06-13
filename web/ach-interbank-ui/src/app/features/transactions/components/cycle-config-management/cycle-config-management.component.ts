@@ -42,7 +42,7 @@ export class CycleConfigManagementComponent implements OnInit {
   visibleItems: ClearingHouseCycleConfigItem[] = [];
   clearingHouses: Array<{ id: number; name: string }> = [];
   readonly columnDefs: ColDef<ClearingHouseCycleConfigItem>[] = [
-    { headerName: 'CÃ¡mara', minWidth: 180, valueGetter: (params) => params.data?.clearingHouseName || params.data?.clearingHouseId },
+    { headerName: 'Cámara', minWidth: 180, valueGetter: (params) => params.data?.clearingHouseName || params.data?.clearingHouseId },
     { field: 'cycleName', headerName: 'Ciclo', minWidth: 160 },
     { headerName: 'Ventana operativa', minWidth: 170, valueGetter: (params) => `${params.data?.startTime?.slice(0, 5)} - ${params.data?.endTime?.slice(0, 5)}` },
     { headerName: 'Cutoff', width: 110, valueGetter: (params) => params.data?.cutoffTime?.slice(0, 5) },
@@ -132,7 +132,7 @@ export class CycleConfigManagementComponent implements OnInit {
     }
 
     if (this.editingSource) {
-      warnings.push('Guardar crearÃ¡ una nueva versiÃ³n y mantendrÃ¡ el histÃ³rico de configuraciones.');
+      warnings.push('Guardar creará una nueva versión y mantendrá el histórico de configuraciones.');
     }
 
     return warnings;
@@ -271,13 +271,13 @@ export class CycleConfigManagementComponent implements OnInit {
       )
       .subscribe({
         next: () => {
-          this.notifications.success('ConfiguraciÃ³n versionada correctamente.');
+          this.notifications.success('Configuración versionada correctamente.');
           this.closeForm();
           this.search();
           this.cdr.markForCheck();
         },
         error: () => {
-          this.notifications.error('No fue posible guardar la configuraciÃ³n de ciclo.');
+          this.notifications.error('No fue posible guardar la configuración de ciclo.');
           this.cdr.markForCheck();
         }
       });
@@ -311,13 +311,13 @@ export class CycleConfigManagementComponent implements OnInit {
       )
       .subscribe({
         next: () => {
-          this.notifications.success('ConfiguraciÃ³n inactivada correctamente.');
+          this.notifications.success('Configuración inactivada correctamente.');
           this.selectedForInactivation = null;
           this.search();
           this.cdr.markForCheck();
         },
         error: () => {
-          this.notifications.error('No fue posible inactivar la configuraciÃ³n.');
+          this.notifications.error('No fue posible inactivar la configuración.');
           this.selectedForInactivation = null;
           this.cdr.markForCheck();
         }
@@ -349,7 +349,7 @@ export class CycleConfigManagementComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: () => {
-        this.notifications.error('No fue posible cargar cÃ¡maras de compensaciÃ³n.');
+        this.notifications.error('No fue posible cargar cámaras de compensación.');
         this.cdr.markForCheck();
       }
     });
