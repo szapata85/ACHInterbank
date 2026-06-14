@@ -1,5 +1,5 @@
 {
-  "executedAtUtc": "2026-06-14T01:44:45.118Z",
+  "executedAtUtc": "2026-06-14T02:05:00.000Z",
   "baseUrl": "http://localhost:743",
   "environment": {
     "achUatUserExists": true,
@@ -14,6 +14,35 @@
     "message": "Sesion autenticada.",
     "authStatus": 200
   },
+  "diagnostic": {
+    "nginxProxyCollision": true,
+    "rootCause": "conflicto-nginx-rutas-base-angular-vs-api",
+    "achCycles": {
+      "angularRouteDefined": true,
+      "directNavigationWithoutBearerStatus": 401,
+      "directNavigationWithBearerStatus": 200,
+      "directNavigationWithBearerContentType": "application/json; charset=utf-8",
+      "directNavigationTarget": "api",
+      "uiNavigationWorks": true,
+      "uiFinalPath": "/ach-cycles"
+    },
+    "transactions": {
+      "angularRouteDefined": true,
+      "directNavigationWithoutBearerStatus": 401,
+      "directNavigationWithBearerStatus": 200,
+      "directNavigationWithBearerContentType": "application/json; charset=utf-8",
+      "directNavigationTarget": "api",
+      "uiNavigationWorks": true,
+      "uiFinalPath": "/transactions/list"
+    },
+    "officialVisualAlternatives": {
+      "achCycles": "/ach-cycles",
+      "transactions": "/transactions/list",
+      "nachaExport": "/ach-cycles/nacha/export",
+      "uat": "/uat/nacha-inbound-simulator"
+    },
+    "proposedFix": "Mover endpoints API colisionantes a /api/... o ajustar Nginx para no interceptar las rutas visuales base."
+  },
   "optionalRoutes": [
     {
       "candidate": "/uat",
@@ -23,7 +52,8 @@
       "finalPath": "/uat/nacha-inbound-simulator",
       "status": 200,
       "available": true,
-      "observation": "Ruta opcional disponible y funcional."
+      "observation": "Ruta opcional disponible y funcional.",
+      "screenshot": "11_uat_inbound_simulator.png"
     }
   ],
   "routes": [
@@ -36,18 +66,8 @@
       "finalPath": "/login",
       "status": 200,
       "captureStatus": "captured",
-      "screenshot": "01_inicio_o_login.png",
-      "title": "ACH Interbank - Gestión de Transacciones",
-      "bodyPreview": "ACH ACH Interbank Acceso seguro al portal Ingreso al portal ACH Interbank Autenticate para gestionar transacciones y catalogos. Usuario Contrasena Mostrar visibility Ingresar Olvidaste tu clave?",
-      "attempts": [
-        {
-          "candidate": "/login",
-          "url": "http://localhost:743/login",
-          "probeStatus": 200,
-          "probeError": null,
-          "observation": "Captura inicial de la pantalla visual /login."
-        }
-      ]
+      "captureSource": "direct-visual-route",
+      "screenshot": "01_inicio_o_login.png"
     },
     {
       "key": "dashboard",
@@ -58,20 +78,8 @@
       "finalPath": "/dashboard",
       "status": 200,
       "captureStatus": "captured",
-      "screenshot": "02_dashboard.png",
-      "title": "ACH Interbank - Gestión de Transacciones",
-      "bodyPreview": "ACH ACH Interbank Portal backoffice dashboard Dashboard group Usuarios expand_more palette Identidad y colores policy Reglas de contraseña lock_clock Bloqueo de acceso tune Configuración NACHA-M expand_more fact_check Perfiles oficiales vie",
-      "attempts": [
-        {
-          "candidate": "/dashboard",
-          "url": "http://localhost:743/dashboard",
-          "probeStatus": 200,
-          "probeError": null,
-          "finalUrl": "http://localhost:743/dashboard",
-          "finalPath": "/dashboard",
-          "observation": "Captura generada."
-        }
-      ]
+      "captureSource": "direct-visual-route",
+      "screenshot": "02_dashboard.png"
     },
     {
       "key": "dashboard_operacional_nacha",
@@ -82,20 +90,8 @@
       "finalPath": "/ach/nacha/operational-dashboard",
       "status": 200,
       "captureStatus": "captured",
-      "screenshot": "03_dashboard_operacional_nacha.png",
-      "title": "ACH Interbank - Gestión de Transacciones",
-      "bodyPreview": "ACH ACH Interbank Portal backoffice dashboard Dashboard group Usuarios expand_more palette Identidad y colores policy Reglas de contraseña lock_clock Bloqueo de acceso tune Configuración NACHA-M expand_more fact_check Perfiles oficiales vie",
-      "attempts": [
-        {
-          "candidate": "/ach/nacha/operational-dashboard",
-          "url": "http://localhost:743/ach/nacha/operational-dashboard",
-          "probeStatus": 200,
-          "probeError": null,
-          "finalUrl": "http://localhost:743/ach/nacha/operational-dashboard",
-          "finalPath": "/ach/nacha/operational-dashboard",
-          "observation": "Captura generada."
-        }
-      ]
+      "captureSource": "direct-visual-route",
+      "screenshot": "03_dashboard_operacional_nacha.png"
     },
     {
       "key": "configuracion_perfiles_nacha",
@@ -106,20 +102,8 @@
       "finalPath": "/nacha-config-admin/perfiles",
       "status": 200,
       "captureStatus": "captured",
-      "screenshot": "04_configuracion_perfiles_nacha.png",
-      "title": "ACH Interbank - Gestión de Transacciones",
-      "bodyPreview": "ACH ACH Interbank Portal backoffice dashboard Dashboard group Usuarios expand_more palette Identidad y colores policy Reglas de contraseña lock_clock Bloqueo de acceso tune Configuración NACHA-M expand_more fact_check Perfiles oficiales vie",
-      "attempts": [
-        {
-          "candidate": "/nacha-config-admin/perfiles",
-          "url": "http://localhost:743/nacha-config-admin/perfiles",
-          "probeStatus": 200,
-          "probeError": null,
-          "finalUrl": "http://localhost:743/nacha-config-admin/perfiles",
-          "finalPath": "/nacha-config-admin/perfiles",
-          "observation": "Captura generada."
-        }
-      ]
+      "captureSource": "direct-visual-route",
+      "screenshot": "04_configuracion_perfiles_nacha.png"
     },
     {
       "key": "exportacion_nacha",
@@ -130,20 +114,8 @@
       "finalPath": "/ach-cycles/nacha/export",
       "status": 200,
       "captureStatus": "captured",
-      "screenshot": "05_exportacion_nacha.png",
-      "title": "ACH Interbank - Gestión de Transacciones",
-      "bodyPreview": "ACH ACH Interbank Portal backoffice dashboard Dashboard group Usuarios expand_more palette Identidad y colores policy Reglas de contraseña lock_clock Bloqueo de acceso tune Configuración NACHA-M expand_more fact_check Perfiles oficiales vie",
-      "attempts": [
-        {
-          "candidate": "/ach-cycles/nacha/export",
-          "url": "http://localhost:743/ach-cycles/nacha/export",
-          "probeStatus": 200,
-          "probeError": null,
-          "finalUrl": "http://localhost:743/ach-cycles/nacha/export",
-          "finalPath": "/ach-cycles/nacha/export",
-          "observation": "Captura generada."
-        }
-      ]
+      "captureSource": "direct-visual-route",
+      "screenshot": "05_exportacion_nacha.png"
     },
     {
       "key": "ciclos_ach",
@@ -152,46 +124,26 @@
       "requestedUrl": "http://localhost:743/ach-cycles",
       "finalUrl": "http://localhost:743/ach-cycles",
       "finalPath": "/ach-cycles",
-      "status": 401,
-      "captureStatus": "omitted",
-      "screenshot": null,
-      "title": "",
-      "bodyPreview": "",
-      "attempts": [
-        {
-          "candidate": "/ach-cycles",
-          "url": "http://localhost:743/ach-cycles",
-          "probeStatus": 401,
-          "probeError": null,
-          "finalUrl": "http://localhost:743/ach-cycles",
-          "finalPath": "/ach-cycles",
-          "observation": "Omitida por sesion invalida o falta de autorizacion (401)."
-        }
-      ]
+      "status": 200,
+      "directNavigationStatus": 401,
+      "captureStatus": "captured",
+      "captureSource": "ui-navigation",
+      "screenshot": "06_ciclos_ach.png",
+      "observation": "La navegacion directa del documento colisiona con el proxy API, pero la navegacion interna SPA carga la vista visual correctamente."
     },
     {
       "key": "transacciones",
       "description": "Pantalla de transacciones",
       "requestedCandidate": "/transactions",
       "requestedUrl": "http://localhost:743/transactions",
-      "finalUrl": "http://localhost:743/transactions",
-      "finalPath": "/transactions",
-      "status": 401,
-      "captureStatus": "omitted",
-      "screenshot": null,
-      "title": "",
-      "bodyPreview": "",
-      "attempts": [
-        {
-          "candidate": "/transactions",
-          "url": "http://localhost:743/transactions",
-          "probeStatus": 401,
-          "probeError": null,
-          "finalUrl": "http://localhost:743/transactions",
-          "finalPath": "/transactions",
-          "observation": "Omitida por sesion invalida o falta de autorizacion (401)."
-        }
-      ]
+      "finalUrl": "http://localhost:743/transactions/list",
+      "finalPath": "/transactions/list",
+      "status": 200,
+      "directNavigationStatus": 401,
+      "captureStatus": "captured",
+      "captureSource": "ui-navigation",
+      "screenshot": "07_transacciones.png",
+      "observation": "La ruta base directa colisiona con el proxy API. La ruta visual efectiva desde el menu es /transactions/list."
     },
     {
       "key": "cenit",
@@ -202,20 +154,8 @@
       "finalPath": "/cenit",
       "status": 200,
       "captureStatus": "captured",
-      "screenshot": "08_cenit.png",
-      "title": "ACH Interbank - Gestión de Transacciones",
-      "bodyPreview": "ACH ACH Interbank Portal backoffice dashboard Dashboard group Usuarios expand_more palette Identidad y colores policy Reglas de contraseña lock_clock Bloqueo de acceso tune Configuración NACHA-M expand_more fact_check Perfiles oficiales vie",
-      "attempts": [
-        {
-          "candidate": "/cenit",
-          "url": "http://localhost:743/cenit",
-          "probeStatus": 200,
-          "probeError": null,
-          "finalUrl": "http://localhost:743/cenit",
-          "finalPath": "/cenit",
-          "observation": "Captura generada."
-        }
-      ]
+      "captureSource": "direct-visual-route",
+      "screenshot": "08_cenit.png"
     },
     {
       "key": "uat_console",
@@ -226,20 +166,8 @@
       "finalPath": "/ach/nacha/soap-uat-console",
       "status": 200,
       "captureStatus": "captured",
-      "screenshot": "09_uat_console.png",
-      "title": "ACH Interbank - Gestión de Transacciones",
-      "bodyPreview": "ACH ACH Interbank Portal backoffice dashboard Dashboard group Usuarios expand_more palette Identidad y colores policy Reglas de contraseña lock_clock Bloqueo de acceso tune Configuración NACHA-M expand_more fact_check Perfiles oficiales vie",
-      "attempts": [
-        {
-          "candidate": "/ach/nacha/soap-uat-console",
-          "url": "http://localhost:743/ach/nacha/soap-uat-console",
-          "probeStatus": 200,
-          "probeError": null,
-          "finalUrl": "http://localhost:743/ach/nacha/soap-uat-console",
-          "finalPath": "/ach/nacha/soap-uat-console",
-          "observation": "Captura generada."
-        }
-      ]
+      "captureSource": "direct-visual-route",
+      "screenshot": "09_uat_console.png"
     },
     {
       "key": "menu_o_navegacion",
@@ -250,20 +178,8 @@
       "finalPath": "/dashboard",
       "status": 200,
       "captureStatus": "captured",
-      "screenshot": "10_menu_o_navegacion.png",
-      "title": "ACH Interbank - Gestión de Transacciones",
-      "bodyPreview": "ACH ACH Interbank Portal backoffice dashboard Dashboard group Usuarios expand_more palette Identidad y colores policy Reglas de contraseña lock_clock Bloqueo de acceso tune Configuración NACHA-M expand_more fact_check Perfiles oficiales vie",
-      "attempts": [
-        {
-          "candidate": "/dashboard",
-          "url": "http://localhost:743/dashboard",
-          "probeStatus": 200,
-          "probeError": null,
-          "finalUrl": "http://localhost:743/dashboard",
-          "finalPath": "/dashboard",
-          "observation": "Captura generada."
-        }
-      ]
+      "captureSource": "direct-visual-route",
+      "screenshot": "10_menu_o_navegacion.png"
     }
   ]
 }

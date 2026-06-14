@@ -8,19 +8,19 @@ Estado de esta entrega
 - En esta corrida las variables `ACH_UAT_USER` y `ACH_UAT_PASSWORD` existieron en la sesion.
 - La autenticacion de prueba fue aceptada y se genero token de sesion.
 
-Contenido de la carpeta
-- Guia funcional de uso y validacion.
-- Matriz de escenarios de prueba.
-- Formato para registrar incidencias.
-- Capturas de evidencia visual.
-- Resumen de ejecucion de la corrida hecha con Codex.
+Diagnostico de rutas
+- Angular define ruta visual para `/ach-cycles`.
+- Angular define el modulo `transactions` en `/transactions`, con redireccion interna a `/transactions/list`.
+- Nginx tambien define `location = /ach-cycles` y `location = /transactions` apuntando al API.
+- La colision ocurre en la navegacion directa del documento para esas dos rutas base.
+- La evidencia apunta a conflicto de enrutamiento/proxy en las rutas base, no a falta demostrada de permisos del usuario `admin`.
 
-Resultado de la corrida autenticada del 2026-06-13
-- Se ejecuto `capturar_spa_con_node_playwright.js` sin instalar dependencias nuevas.
-- La captura `01_inicio_o_login.png` corresponde a la pantalla visual `/login`.
-- El intento de autenticacion recibio `200` en `POST /auth/login`.
-- Se confirmo token de sesion en la SPA autenticada.
-- No se uso `/auth/login` como pantalla visual.
+Comportamiento confirmado
+- Navegacion directa a `/ach-cycles`: responde el API y sin bearer devuelve `401`.
+- Navegacion directa a `/transactions`: responde el API y sin bearer devuelve `401`.
+- Con autenticacion interna desde la SPA, `Ciclos ACH` carga visualmente en `/ach-cycles` y consume datos del API.
+- Con autenticacion interna desde la SPA, `Transacciones` navega visualmente a `/transactions/list` y consume datos del API.
+- `/ach-cycles/nacha/export` sigue funcionando como pantalla visual y no colisiona en la misma forma que la ruta base.
 
 Capturas generadas en esta corrida
 - `01_inicio_o_login.png`
@@ -28,31 +28,19 @@ Capturas generadas en esta corrida
 - `03_dashboard_operacional_nacha.png`
 - `04_configuracion_perfiles_nacha.png`
 - `05_exportacion_nacha.png`
+- `06_ciclos_ach.png`
+- `07_transacciones.png`
 - `08_cenit.png`
 - `09_uat_console.png`
 - `10_menu_o_navegacion.png`
+- `11_uat_inbound_simulator.png`
 
-Rutas internas previstas para la evidencia
-- `/dashboard`
-- `/ach/nacha/operational-dashboard`
-- `/nacha-config-admin/perfiles`
-- `/ach-cycles/nacha/export`
-- `/ach-cycles`
-- `/transactions`
-- `/cenit`
-- `/ach/nacha/soap-uat-console`
-- `/uat` solo si queda funcional tras autenticacion
-
-Resultado por alcance
-- La pantalla `/login` quedo validada como acceso visual correcto.
-- Ninguna captura final usa `/auth/login`.
-- La ruta opcional `/uat` estuvo disponible y cargo funcionalmente como `/uat/nacha-inbound-simulator`.
-- Las rutas `/ach-cycles` y `/transactions` quedaron omitidas en evidencia PNG por respuesta `401` al navegar directamente en esta sesion autenticada.
-
-Uso de datos
-- No usar datos reales sensibles.
-- No usar credenciales productivas.
-- Ejecutar solo con datos de prueba autorizados.
+Conclusiones funcionales
+- No se uso `/auth/login` como pantalla visual.
+- Ninguna captura final corresponde a `/auth/login`.
+- `/ach-cycles` tiene colision entre ruta visual Angular y endpoint proxyeado en acceso directo.
+- La ruta visual efectiva de transacciones desde menu es `/transactions/list`.
+- `/uat` estuvo disponible y redirigio funcionalmente a `/uat/nacha-inbound-simulator`.
 
 Archivos clave actualizados en esta corrida
 - `capturas/resultado_capturas.json`
@@ -63,12 +51,14 @@ Archivos clave actualizados en esta corrida
 
 Estado del Word final
 - No se genero un Word nuevo con imagenes incrustadas en esta corrida.
-- Se conserva la guia `.docx` existente dentro del paquete final.
+- Se conservan los archivos `.docx` existentes dentro del paquete final.
 
 Validacion de terminos restringidos
 - Se revisaron los entregables funcionales finales con la lista de palabras restringidas definida para esta entrega.
 - No quedaron coincidencias en los entregables finales de texto y JSON actualizados en esta corrida.
 
-Proximo intento recomendado
-- Revisar autorizaciones de `/ach-cycles` y `/transactions` para el usuario de prueba si tambien deben quedar evidenciadas.
-- Si se requiere evidencia visual adicional de `/uat`, agregar una captura opcional dedicada en una corrida posterior.
+Propuesta de correccion no aplicada
+- Opcion minima preferida: mover los endpoints base colisionantes al prefijo `/api/...`.
+- Alternativa: ajustar Nginx para proxyear solo rutas API especificas y dejar libres las rutas visuales base de Angular.
+- Alternativa secundaria: cambiar las rutas visuales Angular para evitar colision con endpoints base.
+- No se aplico ninguna correccion en backend, frontend, rutas Angular, Nginx ni permisos.

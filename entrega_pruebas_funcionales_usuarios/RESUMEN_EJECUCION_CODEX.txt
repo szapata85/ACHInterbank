@@ -1,16 +1,20 @@
 RESUMEN DE EJECUCION CODEX
 
 Fecha y hora local de cierre
-2026-06-13 20:45 -05:00
+2026-06-13 21:05 -05:00
 
 Alcance ejecutado
 - Se leyo el contexto obligatorio `docs/ai/ACH_PHASE6_CONTEXT.md`.
 - Se verifico la existencia de `ACH_UAT_USER`.
 - Se verifico la existencia de `ACH_UAT_PASSWORD`.
-- No se imprimio el valor de la clave.
-- No se guardo la clave en archivos, JSON ni resumen.
+- No se imprimio la clave.
+- No se imprimio el token.
+- No se guardaron clave ni token en archivos de entrega.
 - Se ejecuto prueba controlada de `POST /auth/login`.
-- Se ejecuto `entrega_pruebas_funcionales_usuarios/capturar_spa_con_node_playwright.js`.
+- Se reviso configuracion de `web/ach-interbank-ui/nginx.conf`.
+- Se revisaron rutas Angular de `app-routing.module.ts`, `ach-cycles-routing.module.ts` y `transactions-routing.module.ts`.
+- Se hizo diagnostico de comportamiento real por HTTP y por navegacion interna autenticada.
+- Se genero captura opcional `11_uat_inbound_simulator.png`.
 - No se modifico backend.
 - No se modifico frontend.
 - No se modificaron rutas Angular.
@@ -18,6 +22,7 @@ Alcance ejecutado
 - No se modifico base de datos, migraciones ni seeders.
 - No se instalaron dependencias nuevas.
 - No se hicieron commits ni comandos de `git add`, `git commit` o `git push`.
+- No se cambiaron permisos, roles ni usuarios.
 
 Validacion de variables en esta sesion
 - `ACH_UAT_USER`: existe
@@ -29,6 +34,43 @@ Resultado del login
 - Estado recibido en autenticacion: `200`
 - Resultado: `Sesion autenticada.`
 - Token de sesion: generado y confirmado
+- Roles informados en el contexto de trabajo: `Admin` y `ACH.Operator`
+
+Hallazgo principal
+- Existe colision entre rutas visuales Angular y rutas base proxyeadas al API para `/ach-cycles` y `/transactions`.
+- La hipotesis de permisos insuficientes del usuario `admin` no queda respaldada por esta evidencia.
+
+Evidencia de Nginx
+- `nginx.conf` contiene `location = /ach-cycles` con `proxy_pass` al API.
+- `nginx.conf` contiene `location = /transactions` con `proxy_pass` al API.
+- No existe una regla equivalente `location /ach-cycles/` ni `location /transactions/` para esas pantallas visuales base.
+- La regla final `location / { try_files $uri $uri/ /index.html; }` deja que Angular resuelva rutas no interceptadas.
+
+Evidencia de Angular
+- `app-routing.module.ts` define ruta visual `/ach-cycles`.
+- `ach-cycles-routing.module.ts` define la vista lista en `path: ''` y la vista `/ach-cycles/nacha/export`.
+- `app-routing.module.ts` define el modulo `transactions` en `/transactions`.
+- `transactions-routing.module.ts` redirige `path: ''` a `list`, por lo que la ruta visual efectiva del listado es `/transactions/list`.
+
+Comportamiento confirmado por HTTP
+- `GET /ach-cycles` sin bearer: `401`.
+- `GET /transactions` sin bearer: `401`.
+- `GET /ach-cycles` con bearer interno: `200` y `Content-Type: application/json`.
+- `GET /transactions` con bearer interno: `200` y `Content-Type: application/json`.
+- Esto confirma que las rutas base directas llegan al API, no al `index.html` de Angular.
+
+Comportamiento confirmado por navegacion interna SPA
+- Desde dashboard, el menu visible contiene `Ciclos ACH`.
+- Al hacer clic en `Ciclos ACH`, la SPA queda en `/ach-cycles` y la pantalla visual carga correctamente.
+- La carga de esa vista dispara peticiones API internas como `GET /ach-cycles?page=1&pageSize=10`.
+- Desde dashboard, el grupo `Transacciones` existe en el menu.
+- Al hacer clic en `Transacciones`, la SPA navega a `/transactions/list` y la pantalla visual carga correctamente.
+- La carga de esa vista dispara peticiones API internas como `GET /transactions?...`.
+- Esto demuestra que la navegacion interna del router funciona, pero la navegacion directa del documento a las rutas base colisiona con el proxy.
+
+Clasificacion de causa raiz probable
+- `a) conflicto Nginx`: la ruta visual Angular esta interceptada por proxy API en las rutas base `/ach-cycles` y `/transactions`.
+- `c) la pantalla existe solo bajo otra ruta`: aplica adicionalmente a `transactions`, cuya ruta visual efectiva desde UI es `/transactions/list`.
 
 Capturas generadas
 - `capturas/01_inicio_o_login.png`
@@ -36,22 +78,25 @@ Capturas generadas
 - `capturas/03_dashboard_operacional_nacha.png`
 - `capturas/04_configuracion_perfiles_nacha.png`
 - `capturas/05_exportacion_nacha.png`
+- `capturas/06_ciclos_ach.png`
+- `capturas/07_transacciones.png`
 - `capturas/08_cenit.png`
 - `capturas/09_uat_console.png`
 - `capturas/10_menu_o_navegacion.png`
+- `capturas/11_uat_inbound_simulator.png`
 - `capturas/resultado_capturas.json`
 
-Rutas omitidas y motivo
-- `/ach-cycles`: omitida por respuesta `401` al navegar directamente.
-- `/transactions`: omitida por respuesta `401` al navegar directamente.
-- `/uat`: disponible y funcional, pero sin captura PNG dedicada porque en esta corrida solo se verifico su disponibilidad opcional.
+Rutas visuales oficiales o efectivas
+- `Ciclos ACH`: `/ach-cycles`
+- `Exportacion NACHA`: `/ach-cycles/nacha/export`
+- `Transacciones` desde menu: `/transactions/list`
+- `UAT` validada: `/uat/nacha-inbound-simulator`
 
-Validaciones funcionales de esta entrega
-- `01_inicio_o_login.png` corresponde a `/login`.
-- Ninguna captura final usa `/auth/login`.
-- Ninguna ruta visual final termina en `/auth/login`.
-- `/login` se mantiene como pantalla visual.
-- `/uat` existe y carga funcionalmente como `/uat/nacha-inbound-simulator`.
+Propuesta de correccion no aplicada
+- Preferida: mover endpoints base colisionantes a `/api/ach-cycles` y `/api/transactions`.
+- Alternativa: ajustar Nginx para proxyear solo endpoints API y dejar libres las rutas visuales base.
+- Alternativa secundaria: renombrar rutas visuales Angular para evitar colision con endpoints legacy del mismo path.
+- No se aplico ninguna correccion porque el alcance fue solo diagnostico.
 
 Archivos finales actualizados
 - `entrega_pruebas_funcionales_usuarios/README_ENTREGA_FUNCIONAL.txt`
@@ -68,7 +113,3 @@ Estado del Word final
 Validacion de terminos restringidos
 - Se buscaron las palabras restringidas definidas para esta entrega en los entregables funcionales finales de texto y JSON.
 - No quedaron coincidencias.
-
-Proximos pasos recomendados
-- Revisar permisos o comportamiento de `/ach-cycles` y `/transactions` para el usuario `admin` si estas pantallas deben quedar incluidas en la evidencia final.
-- Si se necesita una imagen dedicada de `/uat`, extender el script para capturar esa ruta opcional en una corrida posterior.
