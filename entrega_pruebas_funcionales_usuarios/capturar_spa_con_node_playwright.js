@@ -12,15 +12,19 @@ const playwright = require(path.resolve(
 ));
 
 const baseUrl = process.env.ACH_UI_BASE_URL || 'http://localhost:743';
+const username = process.env.ACH_UAT_USER || '';
+const password = process.env.ACH_UAT_PASSWORD || '';
 const outputDir = path.join(__dirname, 'capturas');
 const resultsPath = path.join(outputDir, 'resultado_capturas.json');
+const accessTokenKey = 'ach.interbank.access_token';
 
 const routePlans = [
   {
     key: 'inicio_o_login',
     fileName: '01_inicio_o_login.png',
-    candidates: ['/login', '/'],
-    description: 'Pantalla inicial o ingreso funcional'
+    candidates: ['/login'],
+    description: 'Pantalla inicial o ingreso funcional',
+    allowLoginScreen: true
   },
   {
     key: 'dashboard',
@@ -67,14 +71,15 @@ const routePlans = [
   {
     key: 'uat_console',
     fileName: '09_uat_console.png',
-    candidates: ['/ach/nacha/soap-uat-console', '/uat'],
+    candidates: ['/ach/nacha/soap-uat-console'],
     description: 'Consola UAT o SOAP'
   },
   {
     key: 'menu_o_navegacion',
     fileName: '10_menu_o_navegacion.png',
     candidates: ['/dashboard', '/ach-cycles', '/cenit'],
-    description: 'Menu o navegacion principal'
+    description: 'Menu o navegacion principal',
+    captureMenu: true
   }
 ];
 
@@ -91,92 +96,242 @@ async function main() {
   const summary = {
     executedAtUtc: new Date().toISOString(),
     baseUrl,
+    environment: {
+      achUatUserExists: Boolean(username),
+      achUatPasswordExists: Boolean(password)
+    },
+    login: {
+      attempted: false,
+      success: false,
+      finalUrl: null,
+      finalPath: null,
+      tokenPresent: false,
+      message: ''
+    },
+    optionalRoutes: [],
     routes: []
   };
 
   try {
-    for (const plan of routePlans) {
-      const result = await evaluatePlan(context, page, plan);
+    const loginCapture = await captureLoginScreen(page, summary);
+    summary.routes.push(loginCapture);
+
+    if (!username || !password) {
+      summary.login.message = 'Credenciales de prueba no disponibles en variables de entorno.';
+      return writeSummary(summary);
+    }
+
+    const loginResult = await performLogin(page);
+    summary.login = {
+      attempted: true,
+      success: loginResult.success,
+      finalUrl: loginResult.finalUrl,
+      finalPath: loginResult.finalPath,
+      tokenPresent: loginResult.tokenPresent,
+      message: loginResult.message,
+      authStatus: loginResult.authStatus ?? null
+    };
+
+    if (!loginResult.success) {
+      for (const plan of routePlans.slice(1)) {
+        summary.routes.push(createLoginFailureRouteResult(plan));
+      }
+      summary.optionalRoutes.push({
+        candidate: '/uat',
+        requestedUrl: new URL('/uat', ensureTrailingSlash(baseUrl)).toString(),
+        description: 'Pantalla UAT opcional',
+        finalUrl: null,
+        finalPath: null,
+        status: 401,
+        available: false,
+        observation: 'Omitida porque el login fallido dejo la sesion invalida o sin autorizacion.'
+      });
+      return writeSummary(summary);
+    }
+
+    for (const plan of routePlans.slice(1)) {
+      const result = await evaluatePlan(page, plan);
       summary.routes.push(result);
       writeConsoleLine(result);
     }
+
+    const uatCheck = await evaluateOptionalRoute(page, '/uat', 'Pantalla UAT opcional');
+    summary.optionalRoutes.push(uatCheck);
+    writeOptionalConsoleLine(uatCheck);
   } finally {
     await browser.close();
   }
 
-  fs.writeFileSync(resultsPath, JSON.stringify(summary, null, 2), 'utf8');
+  writeSummary(summary);
 }
 
-async function evaluatePlan(context, page, plan) {
+async function captureLoginScreen(page, summary) {
+  const loginUrl = new URL('/login', ensureTrailingSlash(baseUrl)).toString();
+  const response = await page.goto(loginUrl, {
+    waitUntil: 'domcontentloaded',
+    timeout: 20000
+  });
+  await waitForSettledUi(page);
+
+  const screenshotPath = path.join(outputDir, '01_inicio_o_login.png');
+  await page.screenshot({ path: screenshotPath, fullPage: true });
+
+  const finalUrl = page.url();
+  const finalPath = safePathname(finalUrl);
+  const title = await safeTitle(page);
+  const bodyText = await safeBodyText(page);
+
+  summary.login.finalUrl = finalUrl;
+  summary.login.finalPath = finalPath;
+
+  return {
+    key: 'inicio_o_login',
+    description: 'Pantalla inicial o ingreso funcional',
+    requestedCandidate: '/login',
+    requestedUrl: loginUrl,
+    finalUrl,
+    finalPath,
+    status: response ? response.status() : null,
+    captureStatus: finalPath === '/auth/login' ? 'omitted' : 'captured',
+    screenshot: finalPath === '/auth/login' ? null : '01_inicio_o_login.png',
+    title,
+    bodyPreview: normalizeWhitespace(bodyText).slice(0, 240),
+    attempts: [
+      {
+        candidate: '/login',
+        url: loginUrl,
+        probeStatus: response ? response.status() : null,
+        probeError: null,
+        observation:
+          finalPath === '/auth/login'
+            ? 'Omitida porque la pantalla visual no puede terminar en /auth/login.'
+            : 'Captura inicial de la pantalla visual /login.'
+      }
+    ]
+  };
+}
+
+async function performLogin(page) {
+  const loginUrl = new URL('/login', ensureTrailingSlash(baseUrl)).toString();
+  await page.goto(loginUrl, {
+    waitUntil: 'domcontentloaded',
+    timeout: 20000
+  });
+  await waitForSettledUi(page);
+
+  await page.locator('input[formcontrolname="username"]').fill(username);
+  await page.locator('input[formcontrolname="password"]').fill(password);
+
+  const submitButton = page.getByRole('button', { name: /Ingresar|Ingresando/i });
+  const authResponsePromise = page.waitForResponse(
+    (response) => response.request().method() === 'POST' && response.url().includes('/auth/login'),
+    { timeout: 15000 }
+  );
+
+  await Promise.allSettled([
+    page.waitForLoadState('networkidle', { timeout: 15000 }),
+    authResponsePromise,
+    submitButton.click()
+  ]);
+  await waitForSettledUi(page);
+
+  const finalUrl = page.url();
+  const finalPath = safePathname(finalUrl);
+  const tokenPresent = await hasSessionToken(page);
+  const bodyText = normalizeWhitespace(await safeBodyText(page));
+  const authResponse = await authResponsePromise.catch(() => null);
+  const authStatus = authResponse ? authResponse.status() : null;
+
+  if (tokenPresent && finalPath !== '/login' && finalPath !== '/auth/login') {
+    return {
+      success: true,
+      finalUrl,
+      finalPath,
+      tokenPresent,
+      message: 'Sesion autenticada.',
+      authStatus
+    };
+  }
+
+  const loginFailedMessage = bodyText.includes('No fue posible iniciar') || bodyText.includes('Ingresando...')
+    ? 'login fallido con credenciales de prueba'
+    : 'login fallido con credenciales de prueba';
+
+  return {
+    success: false,
+    finalUrl,
+    finalPath,
+    tokenPresent,
+    message: loginFailedMessage,
+    authStatus
+  };
+}
+
+async function evaluatePlan(page, plan) {
   const attempts = [];
 
   for (const candidate of plan.candidates) {
     const candidateUrl = new URL(candidate, ensureTrailingSlash(baseUrl)).toString();
-    const probe = await probeRoute(context, candidateUrl);
     const attempt = {
       candidate,
       url: candidateUrl,
-      probeStatus: probe.status,
-      probeError: probe.error || null
+      probeStatus: null,
+      probeError: null
     };
     attempts.push(attempt);
-
-    if (probe.status === 405) {
-      attempt.observation = 'Omitida por endpoint tecnico/no funcional (405).';
-      continue;
-    }
-
-    if (probe.status >= 400 && probe.status < 500) {
-      attempt.observation = `Omitida por respuesta ${probe.status}.`;
-      continue;
-    }
 
     try {
       const navigation = await page.goto(candidateUrl, {
         waitUntil: 'domcontentloaded',
-        timeout: 15000
+        timeout: 20000
       });
-      await page.waitForTimeout(1500);
+      await waitForSettledUi(page);
 
       const finalUrl = page.url();
       const finalPath = safePathname(finalUrl);
-      const status = navigation ? navigation.status() : probe.status;
-      const title = await page.title();
-      const bodyText = await page.locator('body').innerText().catch(() => '');
-      const screenshotPath = path.join(outputDir, plan.fileName);
+      const status = navigation ? navigation.status() : null;
+      const title = await safeTitle(page);
+      const bodyText = await safeBodyText(page);
+      const bodyPreview = normalizeWhitespace(bodyText).slice(0, 240);
 
-      if (finalPath.startsWith('/auth/')) {
-        attempt.navigationStatus = status;
-        attempt.finalUrl = finalUrl;
-        attempt.finalPath = finalPath;
-        attempt.observation = 'Omitida porque redirige a ruta /auth/*, tratada como tecnica/no funcional.';
-        continue;
-      }
+      attempt.probeStatus = status;
+      attempt.finalUrl = finalUrl;
+      attempt.finalPath = finalPath;
 
-      if (finalPath === '/login' && !plan.candidates.includes('/login') && !plan.candidates.includes('/')) {
-        attempt.navigationStatus = status;
-        attempt.finalUrl = finalUrl;
-        attempt.finalPath = finalPath;
-        attempt.observation = 'Omitida porque requiere autenticacion y redirige a la pantalla visual de login.';
-        continue;
-      }
-
-      await page.screenshot({ path: screenshotPath, fullPage: true });
-
-      return {
-        key: plan.key,
-        description: plan.description,
+      const classification = classifyRouteOutcome({
         requestedCandidate: candidate,
-        requestedUrl: candidateUrl,
-        finalUrl,
         finalPath,
         status,
-        captureStatus: 'captured',
-        screenshot: plan.fileName,
-        title,
-        bodyPreview: normalizeWhitespace(bodyText).slice(0, 240),
-        attempts
-      };
+        bodyPreview,
+        tokenPresent: await hasSessionToken(page)
+      });
+
+      if (classification.capture) {
+        const screenshotPath = path.join(outputDir, plan.fileName);
+        if (plan.captureMenu) {
+          await captureMenu(page, screenshotPath);
+        } else {
+          await page.screenshot({ path: screenshotPath, fullPage: true });
+        }
+
+        attempt.observation = classification.observation;
+        return {
+          key: plan.key,
+          description: plan.description,
+          requestedCandidate: candidate,
+          requestedUrl: candidateUrl,
+          finalUrl,
+          finalPath,
+          status,
+          captureStatus: 'captured',
+          screenshot: plan.fileName,
+          title,
+          bodyPreview,
+          attempts
+        };
+      }
+
+      attempt.observation = classification.observation;
     } catch (error) {
       attempt.navigationError = error.message;
       attempt.observation = 'Fallo de navegacion.';
@@ -189,8 +344,8 @@ async function evaluatePlan(context, page, plan) {
     description: plan.description,
     requestedCandidate: lastAttempt ? lastAttempt.candidate : null,
     requestedUrl: lastAttempt ? lastAttempt.url : null,
-    finalUrl: null,
-    finalPath: null,
+    finalUrl: lastAttempt ? lastAttempt.finalUrl || null : null,
+    finalPath: lastAttempt ? lastAttempt.finalPath || null : null,
     status: lastAttempt ? lastAttempt.probeStatus : null,
     captureStatus: 'omitted',
     screenshot: null,
@@ -200,16 +355,145 @@ async function evaluatePlan(context, page, plan) {
   };
 }
 
-async function probeRoute(context, url) {
+async function evaluateOptionalRoute(page, candidate, description) {
+  const candidateUrl = new URL(candidate, ensureTrailingSlash(baseUrl)).toString();
+
   try {
-    const response = await context.request.get(url, {
-      failOnStatusCode: false,
-      timeout: 10000
+    const response = await page.goto(candidateUrl, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000
     });
-    return { status: response.status() };
+    await waitForSettledUi(page);
+
+    const finalUrl = page.url();
+    const finalPath = safePathname(finalUrl);
+    const status = response ? response.status() : null;
+    const classification = classifyRouteOutcome({
+      requestedCandidate: candidate,
+      finalPath,
+      status,
+      bodyPreview: normalizeWhitespace(await safeBodyText(page)).slice(0, 240),
+      tokenPresent: await hasSessionToken(page)
+    });
+
+    return {
+      candidate,
+      requestedUrl: candidateUrl,
+      description,
+      finalUrl,
+      finalPath,
+      status,
+      available: classification.capture,
+      observation: classification.capture
+        ? 'Ruta opcional disponible y funcional.'
+        : classification.observation
+    };
   } catch (error) {
-    return { status: null, error: error.message };
+    return {
+      candidate,
+      requestedUrl: candidateUrl,
+      description,
+      finalUrl: null,
+      finalPath: null,
+      status: null,
+      available: false,
+      observation: `Fallo de navegacion: ${error.message}`
+    };
   }
+}
+
+function classifyRouteOutcome({ requestedCandidate, finalPath, status, bodyPreview, tokenPresent }) {
+  if (finalPath === '/auth/login') {
+    return {
+      capture: false,
+      observation: 'Omitida por redireccion a /auth/login, ruta tecnica/no funcional.'
+    };
+  }
+
+  if (status === 405) {
+    return {
+      capture: false,
+      observation: 'Omitida por ruta tecnica/no funcional (405).'
+    };
+  }
+
+  if (status === 401) {
+    return {
+      capture: false,
+      observation: 'Omitida por sesion invalida o falta de autorizacion (401).'
+    };
+  }
+
+  if (status === 403 || finalPath === '/unauthorized') {
+    return {
+      capture: false,
+      observation: 'Omitida por falta de permisos (403).'
+    };
+  }
+
+  if (status === 404 || finalPath === '/not-found') {
+    return {
+      capture: false,
+      observation: 'Omitida por ruta no disponible (404).'
+    };
+  }
+
+  if (finalPath === '/login' && requestedCandidate !== '/login') {
+    return {
+      capture: false,
+      observation: tokenPresent
+        ? 'Omitida por posible falta de permisos: la ruta redirige a /login despues de autenticar.'
+        : 'Omitida por requerir autenticacion y redirigir a /login.'
+    };
+  }
+
+  if (bodyPreview.includes('No autorizado')) {
+    return {
+      capture: false,
+      observation: 'Omitida por falta de permisos.'
+    };
+  }
+
+  return {
+    capture: true,
+    observation: 'Captura generada.'
+  };
+}
+
+async function captureMenu(page, screenshotPath) {
+  const sidebar = page.locator('aside.sidebar');
+  const count = await sidebar.count();
+
+  if (count > 0) {
+    await sidebar.screenshot({ path: screenshotPath });
+    return;
+  }
+
+  await page.screenshot({ path: screenshotPath, fullPage: true });
+}
+
+async function hasSessionToken(page) {
+  return page.evaluate((key) => Boolean(window.sessionStorage.getItem(key)), accessTokenKey);
+}
+
+async function safeTitle(page) {
+  try {
+    return await page.title();
+  } catch {
+    return '';
+  }
+}
+
+async function safeBodyText(page) {
+  try {
+    return await page.locator('body').innerText();
+  } catch {
+    return '';
+  }
+}
+
+async function waitForSettledUi(page) {
+  await page.waitForTimeout(1500);
 }
 
 function normalizeWhitespace(text) {
@@ -235,7 +519,42 @@ function writeConsoleLine(result) {
   console.log(`[${status}] ${routeLabel} -> ${detail}`);
 }
 
+function writeOptionalConsoleLine(result) {
+  const status = result.available ? 'DISPONIBLE' : 'OMITIDA';
+  console.log(`[${status}] ${result.candidate} -> ${result.finalUrl || 'sin URL final'}`);
+}
+
+function createLoginFailureRouteResult(plan) {
+  const firstCandidate = plan.candidates[0] || null;
+  return {
+    key: plan.key,
+    description: plan.description,
+    requestedCandidate: firstCandidate,
+    requestedUrl: firstCandidate ? new URL(firstCandidate, ensureTrailingSlash(baseUrl)).toString() : null,
+    finalUrl: null,
+    finalPath: null,
+    status: 401,
+    captureStatus: 'omitted',
+    screenshot: null,
+    title: '',
+    bodyPreview: '',
+    attempts: [
+      {
+        candidate: firstCandidate,
+        url: firstCandidate ? new URL(firstCandidate, ensureTrailingSlash(baseUrl)).toString() : null,
+        probeStatus: 401,
+        probeError: null,
+        observation: 'Omitida porque el login fallido dejo la sesion invalida o sin autorizacion.'
+      }
+    ]
+  };
+}
+
+function writeSummary(summary) {
+  fs.writeFileSync(resultsPath, JSON.stringify(summary, null, 2), 'utf8');
+}
+
 main().catch((error) => {
-  console.error(error);
+  console.error(error.message);
   process.exitCode = 1;
 });

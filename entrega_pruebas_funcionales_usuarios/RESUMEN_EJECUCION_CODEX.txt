@@ -1,143 +1,72 @@
 RESUMEN DE EJECUCION CODEX
 
-Fecha y hora de ejecucion
-2026-06-13 19:18:45 -05:00
-
-Actualizacion posterior a la correccion de login visual
-- Se aplico correccion minima en frontend Angular.
-- Se recompilo la SPA en modo produccion.
-- Se recreo el contenedor `achinterbank-spa`.
+Fecha y hora local de cierre
+2026-06-13 20:14 -05:00
 
 Alcance ejecutado
-- Se creo y ejecuto `capturar_spa_con_node_playwright.js` usando Playwright disponible en `web/ach-interbank-ui/node_modules`.
-- Se evaluaron rutas funcionales candidatas contra `http://localhost:743`.
+- Se leyo el contexto obligatorio `docs/ai/ACH_PHASE6_CONTEXT.md`.
+- Se verifico la existencia de `ACH_UAT_USER`.
+- Se verifico la existencia de `ACH_UAT_PASSWORD`.
+- No se imprimio el valor de la clave.
+- Se ajusto solo `entrega_pruebas_funcionales_usuarios/capturar_spa_con_node_playwright.js`.
+- No se modifico backend.
+- No se modifico frontend funcional.
+- No se modificaron rutas Angular.
+- No se modifico Nginx.
+- No se modifico base de datos, migraciones ni seeders.
 - No se instalaron dependencias nuevas.
-- No se modifico backend, base de datos, migraciones ni seeders.
+- No se hicieron commits ni comandos de `git add`, `git commit` o `git push`.
 
-Causa raiz confirmada
-- La SPA si tenia pantalla visual de login, pero la publicaba bajo la ruta visual `/auth/login`.
-- El archivo `web/ach-interbank-ui/nginx.conf` proxya todo `/auth/` al API.
-- Como resultado, el navegador terminaba resolviendo `GET /auth/login` contra el endpoint tecnico y recibia `405`.
-- Adicionalmente, el `authGuard`, `AuthService.logout()` y el `ErrorInterceptor` redirigian a `/auth/login`, reforzando el problema.
+Validacion de variables en esta sesion
+- `ACH_UAT_USER`: existe
+- `ACH_UAT_PASSWORD`: existe
 
-Ruta visual correcta de login
-- `http://localhost:743/login`
-
-Endpoint tecnico correcto
-- `POST /auth/login`
-
-Archivos revisados para diagnostico
-- `web/ach-interbank-ui/src/app/app-routing.module.ts`
-- `web/ach-interbank-ui/src/app/features/auth/auth.module.ts`
-- `web/ach-interbank-ui/src/app/core/guards/auth.guard.ts`
-- `web/ach-interbank-ui/src/app/core/guards/permission.guard.ts`
-- `web/ach-interbank-ui/src/app/core/guards/role.guard.ts`
-- `web/ach-interbank-ui/src/app/core/interceptors/auth.interceptor.ts`
-- `web/ach-interbank-ui/src/app/core/interceptors/error.interceptor.ts`
-- `web/ach-interbank-ui/src/app/core/services/auth.service.ts`
-- `web/ach-interbank-ui/src/app/features/auth/login.component.ts`
-- `web/ach-interbank-ui/src/app/features/auth/login.component.html`
-- `web/ach-interbank-ui/src/app/features/auth/forgot-password.component.ts`
-- `web/ach-interbank-ui/src/app/features/auth/reset-password.component.ts`
-- `web/ach-interbank-ui/nginx.conf`
-- `web/ach-interbank-ui/angular.json`
-- `web/ach-interbank-ui/Dockerfile`
-- `docker-compose.yml`
-
-Archivos modificados para la correccion
-- `web/ach-interbank-ui/src/app/app-routing.module.ts`
-- `web/ach-interbank-ui/src/app/core/guards/auth.guard.ts`
-- `web/ach-interbank-ui/src/app/core/services/auth.service.ts`
-- `web/ach-interbank-ui/src/app/core/interceptors/error.interceptor.ts`
-- `web/ach-interbank-ui/src/app/features/auth/login.component.html`
-- `web/ach-interbank-ui/src/app/features/auth/forgot-password.component.ts`
-- `web/ach-interbank-ui/src/app/features/auth/reset-password.component.ts`
-- `entrega_pruebas_funcionales_usuarios/capturar_spa_con_node_playwright.js`
-
-Rutas evaluadas
-- `/login`
-- `/`
-- `/dashboard`
-- `/ach/nacha/operational-dashboard`
-- `/nacha-config-admin/perfiles`
-- `/ach-cycles/nacha/export`
-- `/ach-cycles`
-- `/transactions`
-- `/cenit`
-- `/ach/nacha/soap-uat-console`
-- `/uat`
-
-Resultado de rutas capturadas
-- Se genero `01_inicio_o_login.png` usando la pantalla visual real de login en `/login`.
-- Las pantallas internas no se capturaron porque requieren autenticacion y no existen variables de entorno con usuario y clave de prueba.
-
-Motivo principal del bloqueo
-- Antes de la correccion, las rutas visuales terminaban en `/auth/login` por conflicto entre Angular y Nginx.
-- Despues de la correccion, las rutas visuales protegidas terminan en `/login`, que es una pantalla Angular valida.
-- Las pantallas internas siguen bloqueadas por autenticacion.
-
-Detalle por ruta
-- `/login`: respuesta `200`, pantalla Angular valida. Capturada.
-- `/`: respuesta `200`, redireccion valida dentro de la SPA hacia `/login`.
-- `/dashboard`: respuesta `200`, termina en `/login`. Omitida por requerir autenticacion.
-- `/ach/nacha/operational-dashboard`: respuesta `200`, termina en `/login`. Omitida por requerir autenticacion.
-- `/nacha-config-admin/perfiles`: respuesta `200`, termina en `/login`. Omitida por requerir autenticacion.
-- `/ach-cycles/nacha/export`: respuesta `200`, termina en `/login`. Omitida por requerir autenticacion.
-- `/ach-cycles`: respuesta `401`. Omitida.
-- `/transactions`: respuesta `401`. Omitida.
-- `/cenit`: respuesta `200`, termina en `/login`. Omitida por requerir autenticacion.
-- `/ach/nacha/soap-uat-console`: respuesta `200`, termina en `/login`. Omitida por requerir autenticacion.
-- `/uat`: respuesta `200`, termina en `/login`. Omitida por requerir autenticacion.
-
-Rutas omitidas
-- `/dashboard`
-- `/ach/nacha/operational-dashboard`
-- `/nacha-config-admin/perfiles`
-- `/ach-cycles/nacha/export`
-- `/ach-cycles`
-- `/transactions`
-- `/cenit`
-- `/ach/nacha/soap-uat-console`
-- `/uat`
-
-Rutas con 405 confirmadas
-- `/auth/login`
+Resultado del login
+- Ruta visual usada: `/login`
+- Endpoint tecnico observado: `POST /auth/login`
+- Estado recibido en autenticacion: `401`
+- Resultado: `login fallido con credenciales de prueba`
+- Token de sesion: no generado
 
 Capturas generadas
 - `capturas/01_inicio_o_login.png`
-- Se genero el registro de ejecucion: `capturas/resultado_capturas.json`
+- `capturas/resultado_capturas.json`
 
-Archivos preparados o actualizados en esta carpeta
-- `capturar_spa_con_node_playwright.js`
-- `README_ENTREGA_FUNCIONAL.txt`
-- `RESUMEN_EJECUCION_CODEX.txt`
-- `paquete_final/`
-- Ajuste menor de lenguaje funcional en `Guia_funcional_pruebas_locales_ACH_Interbank_CENIT_con_espacios_printscreen.docx`
+Rutas internas omitidas en esta corrida
+- `/dashboard`: omitida por sesion invalida o sin autorizacion tras el login fallido.
+- `/ach/nacha/operational-dashboard`: omitida por sesion invalida o sin autorizacion tras el login fallido.
+- `/nacha-config-admin/perfiles`: omitida por sesion invalida o sin autorizacion tras el login fallido.
+- `/ach-cycles/nacha/export`: omitida por sesion invalida o sin autorizacion tras el login fallido.
+- `/ach-cycles`: omitida por sesion invalida o sin autorizacion tras el login fallido.
+- `/transactions`: omitida por sesion invalida o sin autorizacion tras el login fallido.
+- `/cenit`: omitida por sesion invalida o sin autorizacion tras el login fallido.
+- `/ach/nacha/soap-uat-console`: omitida por sesion invalida o sin autorizacion tras el login fallido.
+- `/dashboard` como base de `10_menu_o_navegacion.png`: omitida por sesion invalida o sin autorizacion tras el login fallido.
+- `/uat`: omitida como ruta opcional por sesion invalida o sin autorizacion tras el login fallido.
 
-Estado de Word final con imagenes
-- No fue posible insertar imagenes en un Word final sin agregar herramientas adicionales.
-- Por esta razon no se genero `Guia_funcional_pruebas_locales_ACH_Interbank_CENIT_FINAL.docx`.
-- Se dejo la guia base disponible en `paquete_final/Guia_funcional_pruebas_locales_ACH_Interbank_CENIT.docx`.
+Validaciones funcionales de esta entrega
+- `01_inicio_o_login.png` corresponde a `/login`.
+- Ninguna captura final usa `/auth/login`.
+- Ninguna ruta visual final termina en `/auth/login`.
+- `/login` se mantiene como pantalla visual.
 
-Validacion de terminos restringidos en entregables finales
-- Se valido la ausencia de los seis terminos restringidos definidos para esta entrega.
+Archivos finales actualizados
+- `entrega_pruebas_funcionales_usuarios/capturar_spa_con_node_playwright.js`
+- `entrega_pruebas_funcionales_usuarios/README_ENTREGA_FUNCIONAL.txt`
+- `entrega_pruebas_funcionales_usuarios/RESUMEN_EJECUCION_CODEX.txt`
+- `entrega_pruebas_funcionales_usuarios/capturas/resultado_capturas.json`
+- `entrega_pruebas_funcionales_usuarios/paquete_final/`
+- `entrega_pruebas_funcionales_usuarios/paquete_final/capturas/`
 
-Advertencias
-- `ACH_UAT_USER` y `ACH_UAT_PASSWORD` no existen en el entorno actual.
-- La ausencia de esas variables impidio llegar a pantallas autenticadas.
-- No debe documentarse `/auth/login` como ruta de ingreso para usuarios.
-- El ingreso funcional para usuarios debe indicarse como `http://localhost:743`.
-- No deben usarse datos reales sensibles ni credenciales productivas.
+Estado del Word final
+- No se genero un Word nuevo con imagenes incrustadas en esta corrida.
+- Se conserva la guia `.docx` existente dentro del paquete final.
 
-Variables de entorno recomendadas para una segunda corrida autenticada
-- `ACH_UAT_USER`
-- `ACH_UAT_PASSWORD`
-
-Dependencia minima recomendada solo si se necesita insertar imagenes en Word
-- Python 3 disponible en el equipo
-- `python -m pip install python-docx`
+Validacion de terminos restringidos
+- Se revisaron los entregables funcionales finales con la lista de terminos restringidos definida para esta entrega.
+- No quedaron coincidencias en los archivos finales de texto y JSON actualizados en esta corrida.
 
 Proximos pasos recomendados
-- Proveer credenciales de prueba no productivas mediante `ACH_UAT_USER` y `ACH_UAT_PASSWORD`.
-- Reejecutar `capturar_spa_con_node_playwright.js` con acceso autenticado para generar las capturas PNG reales.
-- Si se requiere un Word final con imagenes incrustadas, habilitar Python y `python-docx` en un paso posterior aprobado.
+- Verificar que el usuario de prueba tenga acceso vigente en el ambiente.
+- Verificar que la clave de prueba usada por la sesion actual sea la correcta para `POST /auth/login`.
+- Cuando el login sea aceptado, reejecutar el mismo script para generar `02` a `10`.

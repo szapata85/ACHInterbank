@@ -1,50 +1,52 @@
 README ENTREGA FUNCIONAL
 ACH Interbank / CENIT
 
+Estado de esta entrega
+- La pantalla visual de ingreso para usuarios es `http://localhost:743/login`.
+- El endpoint tecnico de autenticacion sigue siendo `POST /auth/login`.
+- `GET /auth/login` no debe usarse como pantalla funcional.
+- En esta corrida las variables `ACH_UAT_USER` y `ACH_UAT_PASSWORD` existieron en la sesion, pero el login de prueba fue rechazado por el sistema.
+
 Contenido de la carpeta
-Esta carpeta contiene los materiales de apoyo para ejecutar pruebas funcionales en ambiente local:
-- Guía funcional de uso y validación.
+- Guia funcional de uso y validacion.
 - Matriz de escenarios de prueba.
 - Formato para registrar incidencias.
-- Capturas de evidencia visual del ambiente local.
-- Resumen de ejecución y observaciones de la generación de evidencias.
+- Capturas de evidencia visual.
+- Resumen de ejecucion de la corrida hecha con Codex.
 
-Cómo deben usar la guía funcional
-La guía funcional debe leerse antes de iniciar la ejecución.
-La guía explica el orden sugerido de revisión de pantallas y qué validar en cada paso.
-La guía está orientada a usuarios funcionales y debe usarse solo con datos de prueba autorizados.
+Resultado de la corrida autenticada del 2026-06-13
+- Se ejecuto `capturar_spa_con_node_playwright.js` sin instalar dependencias nuevas.
+- La captura `01_inicio_o_login.png` corresponde a la pantalla visual `/login`.
+- El intento de autenticacion recibio `401` en `POST /auth/login`.
+- No se genero token de sesion en `sessionStorage`.
+- Por lo anterior no fue posible capturar pantallas internas autenticadas en esta sesion.
 
-Cómo deben usar la matriz de escenarios
-La matriz de escenarios sirve para planear, ejecutar y registrar el resultado de cada caso.
-Cada escenario debe marcarse con su estado correspondiente y con observaciones claras cuando aplique.
-Si un escenario no puede ejecutarse por acceso, ambiente o datos faltantes, debe registrarse el motivo.
+Rutas internas previstas para la evidencia
+- `/dashboard`
+- `/ach/nacha/operational-dashboard`
+- `/nacha-config-admin/perfiles`
+- `/ach-cycles/nacha/export`
+- `/ach-cycles`
+- `/transactions`
+- `/cenit`
+- `/ach/nacha/soap-uat-console`
+- `/uat` solo si queda funcional tras autenticacion
 
-Cómo deben reportar incidencias
-Toda novedad debe registrarse en el formato de incidencias.
-Cada incidencia debe incluir:
-- pantalla o proceso evaluado
-- resultado esperado
-- resultado observado
-- evidencia asociada
-- impacto funcional
-
-Sobre las capturas
-Las capturas son evidencia visual del ambiente local disponible durante la ejecución.
-Las capturas no reemplazan la validación funcional, pero sí ayudan a soportar hallazgos y resultados.
-
-Ingreso al sistema
-Los usuarios deben ingresar por:
-http://localhost:743
-
-No debe usarse `/auth/login` como URL de ingreso para usuarios.
-Esa ruta no debe considerarse una pantalla funcional de acceso para esta entrega.
+Resultado por alcance
+- La pantalla `/login` quedo validada como acceso visual correcto.
+- Ninguna captura final usa `/auth/login`.
+- Las rutas internas quedaron omitidas por sesion invalida o falta de autorizacion despues del login fallido.
 
 Uso de datos
-No deben usarse datos reales sensibles.
-No deben usarse credenciales productivas.
-Toda prueba debe realizarse con datos controlados y autorizados para validación.
+- No usar datos reales sensibles.
+- No usar credenciales productivas.
+- Ejecutar solo con datos de prueba autorizados.
 
-Recomendación de uso
-Primero revise la guía.
-Después ejecute la matriz de escenarios.
-Finalmente registre cualquier hallazgo en el formato de incidencias y adjunte la evidencia visual disponible.
+Archivos clave actualizados en esta corrida
+- `capturas/resultado_capturas.json`
+- `RESUMEN_EJECUCION_CODEX.txt`
+- `paquete_final/`
+
+Proximo intento recomendado
+- Validar que las credenciales UAT de prueba sean aceptadas por `POST /auth/login`.
+- Reejecutar el script de capturas con la misma ruta visual `/login`.

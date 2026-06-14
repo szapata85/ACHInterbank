@@ -1,6 +1,31 @@
 {
-  "executedAtUtc": "2026-06-14T00:50:42.084Z",
+  "executedAtUtc": "2026-06-14T01:14:31.303Z",
   "baseUrl": "http://localhost:743",
+  "environment": {
+    "achUatUserExists": true,
+    "achUatPasswordExists": true
+  },
+  "login": {
+    "attempted": true,
+    "success": false,
+    "finalUrl": "http://localhost:743/login",
+    "finalPath": "/login",
+    "tokenPresent": false,
+    "message": "login fallido con credenciales de prueba",
+    "authStatus": 401
+  },
+  "optionalRoutes": [
+    {
+      "candidate": "/uat",
+      "requestedUrl": "http://localhost:743/uat",
+      "description": "Pantalla UAT opcional",
+      "finalUrl": null,
+      "finalPath": null,
+      "status": 401,
+      "available": false,
+      "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
+    }
+  ],
   "routes": [
     {
       "key": "inicio_o_login",
@@ -19,7 +44,8 @@
           "candidate": "/login",
           "url": "http://localhost:743/login",
           "probeStatus": 200,
-          "probeError": null
+          "probeError": null,
+          "observation": "Captura inicial de la pantalla visual /login."
         }
       ]
     },
@@ -30,7 +56,7 @@
       "requestedUrl": "http://localhost:743/dashboard",
       "finalUrl": null,
       "finalPath": null,
-      "status": 200,
+      "status": 401,
       "captureStatus": "omitted",
       "screenshot": null,
       "title": "",
@@ -39,12 +65,9 @@
         {
           "candidate": "/dashboard",
           "url": "http://localhost:743/dashboard",
-          "probeStatus": 200,
+          "probeStatus": 401,
           "probeError": null,
-          "navigationStatus": 200,
-          "finalUrl": "http://localhost:743/login",
-          "finalPath": "/login",
-          "observation": "Omitida porque requiere autenticacion y redirige a la pantalla visual de login."
+          "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
         }
       ]
     },
@@ -55,7 +78,7 @@
       "requestedUrl": "http://localhost:743/ach/nacha/operational-dashboard",
       "finalUrl": null,
       "finalPath": null,
-      "status": 200,
+      "status": 401,
       "captureStatus": "omitted",
       "screenshot": null,
       "title": "",
@@ -64,12 +87,9 @@
         {
           "candidate": "/ach/nacha/operational-dashboard",
           "url": "http://localhost:743/ach/nacha/operational-dashboard",
-          "probeStatus": 200,
+          "probeStatus": 401,
           "probeError": null,
-          "navigationStatus": 200,
-          "finalUrl": "http://localhost:743/login",
-          "finalPath": "/login",
-          "observation": "Omitida porque requiere autenticacion y redirige a la pantalla visual de login."
+          "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
         }
       ]
     },
@@ -80,7 +100,7 @@
       "requestedUrl": "http://localhost:743/nacha-config-admin/perfiles",
       "finalUrl": null,
       "finalPath": null,
-      "status": 200,
+      "status": 401,
       "captureStatus": "omitted",
       "screenshot": null,
       "title": "",
@@ -89,12 +109,9 @@
         {
           "candidate": "/nacha-config-admin/perfiles",
           "url": "http://localhost:743/nacha-config-admin/perfiles",
-          "probeStatus": 200,
+          "probeStatus": 401,
           "probeError": null,
-          "navigationStatus": 200,
-          "finalUrl": "http://localhost:743/login",
-          "finalPath": "/login",
-          "observation": "Omitida porque requiere autenticacion y redirige a la pantalla visual de login."
+          "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
         }
       ]
     },
@@ -105,7 +122,7 @@
       "requestedUrl": "http://localhost:743/ach-cycles/nacha/export",
       "finalUrl": null,
       "finalPath": null,
-      "status": 200,
+      "status": 401,
       "captureStatus": "omitted",
       "screenshot": null,
       "title": "",
@@ -114,12 +131,9 @@
         {
           "candidate": "/ach-cycles/nacha/export",
           "url": "http://localhost:743/ach-cycles/nacha/export",
-          "probeStatus": 200,
+          "probeStatus": 401,
           "probeError": null,
-          "navigationStatus": 200,
-          "finalUrl": "http://localhost:743/login",
-          "finalPath": "/login",
-          "observation": "Omitida porque requiere autenticacion y redirige a la pantalla visual de login."
+          "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
         }
       ]
     },
@@ -141,7 +155,7 @@
           "url": "http://localhost:743/ach-cycles",
           "probeStatus": 401,
           "probeError": null,
-          "observation": "Omitida por respuesta 401."
+          "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
         }
       ]
     },
@@ -163,7 +177,7 @@
           "url": "http://localhost:743/transactions",
           "probeStatus": 401,
           "probeError": null,
-          "observation": "Omitida por respuesta 401."
+          "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
         }
       ]
     },
@@ -174,7 +188,7 @@
       "requestedUrl": "http://localhost:743/cenit",
       "finalUrl": null,
       "finalPath": null,
-      "status": 200,
+      "status": 401,
       "captureStatus": "omitted",
       "screenshot": null,
       "title": "",
@@ -183,23 +197,20 @@
         {
           "candidate": "/cenit",
           "url": "http://localhost:743/cenit",
-          "probeStatus": 200,
+          "probeStatus": 401,
           "probeError": null,
-          "navigationStatus": 200,
-          "finalUrl": "http://localhost:743/login",
-          "finalPath": "/login",
-          "observation": "Omitida porque requiere autenticacion y redirige a la pantalla visual de login."
+          "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
         }
       ]
     },
     {
       "key": "uat_console",
       "description": "Consola UAT o SOAP",
-      "requestedCandidate": "/uat",
-      "requestedUrl": "http://localhost:743/uat",
+      "requestedCandidate": "/ach/nacha/soap-uat-console",
+      "requestedUrl": "http://localhost:743/ach/nacha/soap-uat-console",
       "finalUrl": null,
       "finalPath": null,
-      "status": 200,
+      "status": 401,
       "captureStatus": "omitted",
       "screenshot": null,
       "title": "",
@@ -208,33 +219,20 @@
         {
           "candidate": "/ach/nacha/soap-uat-console",
           "url": "http://localhost:743/ach/nacha/soap-uat-console",
-          "probeStatus": 200,
+          "probeStatus": 401,
           "probeError": null,
-          "navigationStatus": 200,
-          "finalUrl": "http://localhost:743/login",
-          "finalPath": "/login",
-          "observation": "Omitida porque requiere autenticacion y redirige a la pantalla visual de login."
-        },
-        {
-          "candidate": "/uat",
-          "url": "http://localhost:743/uat",
-          "probeStatus": 200,
-          "probeError": null,
-          "navigationStatus": 200,
-          "finalUrl": "http://localhost:743/login",
-          "finalPath": "/login",
-          "observation": "Omitida porque requiere autenticacion y redirige a la pantalla visual de login."
+          "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
         }
       ]
     },
     {
       "key": "menu_o_navegacion",
       "description": "Menu o navegacion principal",
-      "requestedCandidate": "/cenit",
-      "requestedUrl": "http://localhost:743/cenit",
+      "requestedCandidate": "/dashboard",
+      "requestedUrl": "http://localhost:743/dashboard",
       "finalUrl": null,
       "finalPath": null,
-      "status": 200,
+      "status": 401,
       "captureStatus": "omitted",
       "screenshot": null,
       "title": "",
@@ -243,29 +241,9 @@
         {
           "candidate": "/dashboard",
           "url": "http://localhost:743/dashboard",
-          "probeStatus": 200,
-          "probeError": null,
-          "navigationStatus": 200,
-          "finalUrl": "http://localhost:743/login",
-          "finalPath": "/login",
-          "observation": "Omitida porque requiere autenticacion y redirige a la pantalla visual de login."
-        },
-        {
-          "candidate": "/ach-cycles",
-          "url": "http://localhost:743/ach-cycles",
           "probeStatus": 401,
           "probeError": null,
-          "observation": "Omitida por respuesta 401."
-        },
-        {
-          "candidate": "/cenit",
-          "url": "http://localhost:743/cenit",
-          "probeStatus": 200,
-          "probeError": null,
-          "navigationStatus": 200,
-          "finalUrl": "http://localhost:743/login",
-          "finalPath": "/login",
-          "observation": "Omitida porque requiere autenticacion y redirige a la pantalla visual de login."
+          "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
         }
       ]
     }
