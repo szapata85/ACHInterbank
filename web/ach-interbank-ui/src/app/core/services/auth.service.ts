@@ -93,7 +93,7 @@ export class AuthService {
     this.tokenStorage.clear();
     this.userSubject.next(null);
     this.clearClientCaches();
-    this.router.navigate(['/auth/login']);
+    this.router.navigate(['/login']);
   }
 
   getToken(): string | null {
