@@ -1,0 +1,47 @@
+RESUMEN DE ENTREGA FUNCIONAL FINAL
+
+Nombre del paquete:
+Paquete funcional de entrega ACH Interbank CENIT
+
+Fecha de validacion:
+14 de junio de 2026
+
+Documentos incluidos:
+1. Guia_funcional_pruebas_locales_ACH_Interbank_CENIT_MANUAL_OPERATIVO_COMPLETO_FLUJOS_SUBPANTALLAS.docx
+2. Matriz_escenarios_prueba_funcional_ACH_Interbank_CENIT_FINAL_ALINEADA_MANUAL_OPERATIVO.xlsx
+3. Formato_reporte_incidencias_ACH_Interbank_CENIT_FINAL_ALINEADO_MANUAL_OPERATIVO.xlsx
+4. Carpeta capturas
+
+Cantidad de capturas:
+27 capturas validadas. Las 27 imagenes estan presentes en la carpeta, incluidas en el manual y referenciadas en la matriz.
+
+Cantidad de escenarios:
+51 escenarios funcionales.
+
+Cantidad de causales:
+49 registros de causales: 24 de ACH Colombia, 19 de devolucion CENIT y 6 de rechazo CENIT.
+
+Cantidad de estados:
+43 estados funcionales documentados en la matriz.
+49 registros de estados en el formato de incidencias, incluidos 6 estados de seguimiento de incidencias.
+
+Resultado de validacion del manual:
+Cumple. El documento existe, contiene 27 imagenes y cubre ingreso, navegacion, NACHA-M, ciclos, transacciones, credito, debito, addendas, prenotificaciones, devoluciones, seleccion de causal, devolucion de devolucion, CENIT, seguimiento de lotes e incidencias.
+
+Resultado de validacion de la matriz:
+Cumple. Contiene las hojas Escenarios, Catalogo_Estados, Catalogo_Causales, Capturas_Referencia e Instrucciones. Incluye 51 escenarios, las 27 capturas, los flujos principales, campos para resultado obtenido, estado de prueba y observaciones, y 19 acciones sensibles correctamente identificadas.
+
+Resultado de validacion del formato de incidencias:
+Cumple. Contiene las hojas Incidencias, Catalogo_Estados, Catalogo_Causales, Catalogo_Pantallas e Instrucciones. Permite relacionar incidencia, escenario, pantalla, captura, camara, tipo de transaccion, estado observado, causal observada, severidad, prioridad y evidencia.
+
+Confirmacion de lenguaje no tecnico:
+Confirmado. Los tres documentos principales emplean lenguaje funcional y claro.
+
+Confirmacion de terminos restringidos:
+Confirmado. No se encontraron terminos restringidos en los tres documentos principales.
+
+Observaciones pendientes:
+No se identificaron hallazgos documentales bloqueantes. El ingreso se presenta en el manual como Pantalla de ingreso. Las actividades deben mantenerse dentro de escenarios autorizados y de una entrega controlada.
+
+Recomendacion final:
+Listo para entrega controlada a usuarios funcionales.
