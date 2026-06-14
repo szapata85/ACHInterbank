@@ -1,5 +1,5 @@
 {
-  "executedAtUtc": "2026-06-14T01:14:31.303Z",
+  "executedAtUtc": "2026-06-14T01:44:45.118Z",
   "baseUrl": "http://localhost:743",
   "environment": {
     "achUatUserExists": true,
@@ -7,23 +7,23 @@
   },
   "login": {
     "attempted": true,
-    "success": false,
-    "finalUrl": "http://localhost:743/login",
-    "finalPath": "/login",
-    "tokenPresent": false,
-    "message": "login fallido con credenciales de prueba",
-    "authStatus": 401
+    "success": true,
+    "finalUrl": "http://localhost:743/dashboard",
+    "finalPath": "/dashboard",
+    "tokenPresent": true,
+    "message": "Sesion autenticada.",
+    "authStatus": 200
   },
   "optionalRoutes": [
     {
       "candidate": "/uat",
       "requestedUrl": "http://localhost:743/uat",
       "description": "Pantalla UAT opcional",
-      "finalUrl": null,
-      "finalPath": null,
-      "status": 401,
-      "available": false,
-      "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
+      "finalUrl": "http://localhost:743/uat/nacha-inbound-simulator",
+      "finalPath": "/uat/nacha-inbound-simulator",
+      "status": 200,
+      "available": true,
+      "observation": "Ruta opcional disponible y funcional."
     }
   ],
   "routes": [
@@ -54,20 +54,22 @@
       "description": "Dashboard principal",
       "requestedCandidate": "/dashboard",
       "requestedUrl": "http://localhost:743/dashboard",
-      "finalUrl": null,
-      "finalPath": null,
-      "status": 401,
-      "captureStatus": "omitted",
-      "screenshot": null,
-      "title": "",
-      "bodyPreview": "",
+      "finalUrl": "http://localhost:743/dashboard",
+      "finalPath": "/dashboard",
+      "status": 200,
+      "captureStatus": "captured",
+      "screenshot": "02_dashboard.png",
+      "title": "ACH Interbank - Gestión de Transacciones",
+      "bodyPreview": "ACH ACH Interbank Portal backoffice dashboard Dashboard group Usuarios expand_more palette Identidad y colores policy Reglas de contraseña lock_clock Bloqueo de acceso tune Configuración NACHA-M expand_more fact_check Perfiles oficiales vie",
       "attempts": [
         {
           "candidate": "/dashboard",
           "url": "http://localhost:743/dashboard",
-          "probeStatus": 401,
+          "probeStatus": 200,
           "probeError": null,
-          "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
+          "finalUrl": "http://localhost:743/dashboard",
+          "finalPath": "/dashboard",
+          "observation": "Captura generada."
         }
       ]
     },
@@ -76,20 +78,22 @@
       "description": "Dashboard operacional NACHA-M",
       "requestedCandidate": "/ach/nacha/operational-dashboard",
       "requestedUrl": "http://localhost:743/ach/nacha/operational-dashboard",
-      "finalUrl": null,
-      "finalPath": null,
-      "status": 401,
-      "captureStatus": "omitted",
-      "screenshot": null,
-      "title": "",
-      "bodyPreview": "",
+      "finalUrl": "http://localhost:743/ach/nacha/operational-dashboard",
+      "finalPath": "/ach/nacha/operational-dashboard",
+      "status": 200,
+      "captureStatus": "captured",
+      "screenshot": "03_dashboard_operacional_nacha.png",
+      "title": "ACH Interbank - Gestión de Transacciones",
+      "bodyPreview": "ACH ACH Interbank Portal backoffice dashboard Dashboard group Usuarios expand_more palette Identidad y colores policy Reglas de contraseña lock_clock Bloqueo de acceso tune Configuración NACHA-M expand_more fact_check Perfiles oficiales vie",
       "attempts": [
         {
           "candidate": "/ach/nacha/operational-dashboard",
           "url": "http://localhost:743/ach/nacha/operational-dashboard",
-          "probeStatus": 401,
+          "probeStatus": 200,
           "probeError": null,
-          "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
+          "finalUrl": "http://localhost:743/ach/nacha/operational-dashboard",
+          "finalPath": "/ach/nacha/operational-dashboard",
+          "observation": "Captura generada."
         }
       ]
     },
@@ -98,20 +102,22 @@
       "description": "Configuracion de perfiles NACHA-M",
       "requestedCandidate": "/nacha-config-admin/perfiles",
       "requestedUrl": "http://localhost:743/nacha-config-admin/perfiles",
-      "finalUrl": null,
-      "finalPath": null,
-      "status": 401,
-      "captureStatus": "omitted",
-      "screenshot": null,
-      "title": "",
-      "bodyPreview": "",
+      "finalUrl": "http://localhost:743/nacha-config-admin/perfiles",
+      "finalPath": "/nacha-config-admin/perfiles",
+      "status": 200,
+      "captureStatus": "captured",
+      "screenshot": "04_configuracion_perfiles_nacha.png",
+      "title": "ACH Interbank - Gestión de Transacciones",
+      "bodyPreview": "ACH ACH Interbank Portal backoffice dashboard Dashboard group Usuarios expand_more palette Identidad y colores policy Reglas de contraseña lock_clock Bloqueo de acceso tune Configuración NACHA-M expand_more fact_check Perfiles oficiales vie",
       "attempts": [
         {
           "candidate": "/nacha-config-admin/perfiles",
           "url": "http://localhost:743/nacha-config-admin/perfiles",
-          "probeStatus": 401,
+          "probeStatus": 200,
           "probeError": null,
-          "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
+          "finalUrl": "http://localhost:743/nacha-config-admin/perfiles",
+          "finalPath": "/nacha-config-admin/perfiles",
+          "observation": "Captura generada."
         }
       ]
     },
@@ -120,20 +126,22 @@
       "description": "Exportacion NACHA",
       "requestedCandidate": "/ach-cycles/nacha/export",
       "requestedUrl": "http://localhost:743/ach-cycles/nacha/export",
-      "finalUrl": null,
-      "finalPath": null,
-      "status": 401,
-      "captureStatus": "omitted",
-      "screenshot": null,
-      "title": "",
-      "bodyPreview": "",
+      "finalUrl": "http://localhost:743/ach-cycles/nacha/export",
+      "finalPath": "/ach-cycles/nacha/export",
+      "status": 200,
+      "captureStatus": "captured",
+      "screenshot": "05_exportacion_nacha.png",
+      "title": "ACH Interbank - Gestión de Transacciones",
+      "bodyPreview": "ACH ACH Interbank Portal backoffice dashboard Dashboard group Usuarios expand_more palette Identidad y colores policy Reglas de contraseña lock_clock Bloqueo de acceso tune Configuración NACHA-M expand_more fact_check Perfiles oficiales vie",
       "attempts": [
         {
           "candidate": "/ach-cycles/nacha/export",
           "url": "http://localhost:743/ach-cycles/nacha/export",
-          "probeStatus": 401,
+          "probeStatus": 200,
           "probeError": null,
-          "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
+          "finalUrl": "http://localhost:743/ach-cycles/nacha/export",
+          "finalPath": "/ach-cycles/nacha/export",
+          "observation": "Captura generada."
         }
       ]
     },
@@ -142,8 +150,8 @@
       "description": "Ciclos ACH",
       "requestedCandidate": "/ach-cycles",
       "requestedUrl": "http://localhost:743/ach-cycles",
-      "finalUrl": null,
-      "finalPath": null,
+      "finalUrl": "http://localhost:743/ach-cycles",
+      "finalPath": "/ach-cycles",
       "status": 401,
       "captureStatus": "omitted",
       "screenshot": null,
@@ -155,7 +163,9 @@
           "url": "http://localhost:743/ach-cycles",
           "probeStatus": 401,
           "probeError": null,
-          "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
+          "finalUrl": "http://localhost:743/ach-cycles",
+          "finalPath": "/ach-cycles",
+          "observation": "Omitida por sesion invalida o falta de autorizacion (401)."
         }
       ]
     },
@@ -164,8 +174,8 @@
       "description": "Pantalla de transacciones",
       "requestedCandidate": "/transactions",
       "requestedUrl": "http://localhost:743/transactions",
-      "finalUrl": null,
-      "finalPath": null,
+      "finalUrl": "http://localhost:743/transactions",
+      "finalPath": "/transactions",
       "status": 401,
       "captureStatus": "omitted",
       "screenshot": null,
@@ -177,7 +187,9 @@
           "url": "http://localhost:743/transactions",
           "probeStatus": 401,
           "probeError": null,
-          "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
+          "finalUrl": "http://localhost:743/transactions",
+          "finalPath": "/transactions",
+          "observation": "Omitida por sesion invalida o falta de autorizacion (401)."
         }
       ]
     },
@@ -186,20 +198,22 @@
       "description": "Pantalla CENIT",
       "requestedCandidate": "/cenit",
       "requestedUrl": "http://localhost:743/cenit",
-      "finalUrl": null,
-      "finalPath": null,
-      "status": 401,
-      "captureStatus": "omitted",
-      "screenshot": null,
-      "title": "",
-      "bodyPreview": "",
+      "finalUrl": "http://localhost:743/cenit",
+      "finalPath": "/cenit",
+      "status": 200,
+      "captureStatus": "captured",
+      "screenshot": "08_cenit.png",
+      "title": "ACH Interbank - Gestión de Transacciones",
+      "bodyPreview": "ACH ACH Interbank Portal backoffice dashboard Dashboard group Usuarios expand_more palette Identidad y colores policy Reglas de contraseña lock_clock Bloqueo de acceso tune Configuración NACHA-M expand_more fact_check Perfiles oficiales vie",
       "attempts": [
         {
           "candidate": "/cenit",
           "url": "http://localhost:743/cenit",
-          "probeStatus": 401,
+          "probeStatus": 200,
           "probeError": null,
-          "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
+          "finalUrl": "http://localhost:743/cenit",
+          "finalPath": "/cenit",
+          "observation": "Captura generada."
         }
       ]
     },
@@ -208,20 +222,22 @@
       "description": "Consola UAT o SOAP",
       "requestedCandidate": "/ach/nacha/soap-uat-console",
       "requestedUrl": "http://localhost:743/ach/nacha/soap-uat-console",
-      "finalUrl": null,
-      "finalPath": null,
-      "status": 401,
-      "captureStatus": "omitted",
-      "screenshot": null,
-      "title": "",
-      "bodyPreview": "",
+      "finalUrl": "http://localhost:743/ach/nacha/soap-uat-console",
+      "finalPath": "/ach/nacha/soap-uat-console",
+      "status": 200,
+      "captureStatus": "captured",
+      "screenshot": "09_uat_console.png",
+      "title": "ACH Interbank - Gestión de Transacciones",
+      "bodyPreview": "ACH ACH Interbank Portal backoffice dashboard Dashboard group Usuarios expand_more palette Identidad y colores policy Reglas de contraseña lock_clock Bloqueo de acceso tune Configuración NACHA-M expand_more fact_check Perfiles oficiales vie",
       "attempts": [
         {
           "candidate": "/ach/nacha/soap-uat-console",
           "url": "http://localhost:743/ach/nacha/soap-uat-console",
-          "probeStatus": 401,
+          "probeStatus": 200,
           "probeError": null,
-          "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
+          "finalUrl": "http://localhost:743/ach/nacha/soap-uat-console",
+          "finalPath": "/ach/nacha/soap-uat-console",
+          "observation": "Captura generada."
         }
       ]
     },
@@ -230,20 +246,22 @@
       "description": "Menu o navegacion principal",
       "requestedCandidate": "/dashboard",
       "requestedUrl": "http://localhost:743/dashboard",
-      "finalUrl": null,
-      "finalPath": null,
-      "status": 401,
-      "captureStatus": "omitted",
-      "screenshot": null,
-      "title": "",
-      "bodyPreview": "",
+      "finalUrl": "http://localhost:743/dashboard",
+      "finalPath": "/dashboard",
+      "status": 200,
+      "captureStatus": "captured",
+      "screenshot": "10_menu_o_navegacion.png",
+      "title": "ACH Interbank - Gestión de Transacciones",
+      "bodyPreview": "ACH ACH Interbank Portal backoffice dashboard Dashboard group Usuarios expand_more palette Identidad y colores policy Reglas de contraseña lock_clock Bloqueo de acceso tune Configuración NACHA-M expand_more fact_check Perfiles oficiales vie",
       "attempts": [
         {
           "candidate": "/dashboard",
           "url": "http://localhost:743/dashboard",
-          "probeStatus": 401,
+          "probeStatus": 200,
           "probeError": null,
-          "observation": "Omitida porque el login fallido dejo la sesion invalida o sin autorizacion."
+          "finalUrl": "http://localhost:743/dashboard",
+          "finalPath": "/dashboard",
+          "observation": "Captura generada."
         }
       ]
     }

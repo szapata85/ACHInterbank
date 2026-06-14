@@ -1,16 +1,18 @@
 RESUMEN DE EJECUCION CODEX
 
 Fecha y hora local de cierre
-2026-06-13 20:14 -05:00
+2026-06-13 20:45 -05:00
 
 Alcance ejecutado
 - Se leyo el contexto obligatorio `docs/ai/ACH_PHASE6_CONTEXT.md`.
 - Se verifico la existencia de `ACH_UAT_USER`.
 - Se verifico la existencia de `ACH_UAT_PASSWORD`.
 - No se imprimio el valor de la clave.
-- Se ajusto solo `entrega_pruebas_funcionales_usuarios/capturar_spa_con_node_playwright.js`.
+- No se guardo la clave en archivos, JSON ni resumen.
+- Se ejecuto prueba controlada de `POST /auth/login`.
+- Se ejecuto `entrega_pruebas_funcionales_usuarios/capturar_spa_con_node_playwright.js`.
 - No se modifico backend.
-- No se modifico frontend funcional.
+- No se modifico frontend.
 - No se modificaron rutas Angular.
 - No se modifico Nginx.
 - No se modifico base de datos, migraciones ni seeders.
@@ -24,49 +26,49 @@ Validacion de variables en esta sesion
 Resultado del login
 - Ruta visual usada: `/login`
 - Endpoint tecnico observado: `POST /auth/login`
-- Estado recibido en autenticacion: `401`
-- Resultado: `login fallido con credenciales de prueba`
-- Token de sesion: no generado
+- Estado recibido en autenticacion: `200`
+- Resultado: `Sesion autenticada.`
+- Token de sesion: generado y confirmado
 
 Capturas generadas
 - `capturas/01_inicio_o_login.png`
+- `capturas/02_dashboard.png`
+- `capturas/03_dashboard_operacional_nacha.png`
+- `capturas/04_configuracion_perfiles_nacha.png`
+- `capturas/05_exportacion_nacha.png`
+- `capturas/08_cenit.png`
+- `capturas/09_uat_console.png`
+- `capturas/10_menu_o_navegacion.png`
 - `capturas/resultado_capturas.json`
 
-Rutas internas omitidas en esta corrida
-- `/dashboard`: omitida por sesion invalida o sin autorizacion tras el login fallido.
-- `/ach/nacha/operational-dashboard`: omitida por sesion invalida o sin autorizacion tras el login fallido.
-- `/nacha-config-admin/perfiles`: omitida por sesion invalida o sin autorizacion tras el login fallido.
-- `/ach-cycles/nacha/export`: omitida por sesion invalida o sin autorizacion tras el login fallido.
-- `/ach-cycles`: omitida por sesion invalida o sin autorizacion tras el login fallido.
-- `/transactions`: omitida por sesion invalida o sin autorizacion tras el login fallido.
-- `/cenit`: omitida por sesion invalida o sin autorizacion tras el login fallido.
-- `/ach/nacha/soap-uat-console`: omitida por sesion invalida o sin autorizacion tras el login fallido.
-- `/dashboard` como base de `10_menu_o_navegacion.png`: omitida por sesion invalida o sin autorizacion tras el login fallido.
-- `/uat`: omitida como ruta opcional por sesion invalida o sin autorizacion tras el login fallido.
+Rutas omitidas y motivo
+- `/ach-cycles`: omitida por respuesta `401` al navegar directamente.
+- `/transactions`: omitida por respuesta `401` al navegar directamente.
+- `/uat`: disponible y funcional, pero sin captura PNG dedicada porque en esta corrida solo se verifico su disponibilidad opcional.
 
 Validaciones funcionales de esta entrega
 - `01_inicio_o_login.png` corresponde a `/login`.
 - Ninguna captura final usa `/auth/login`.
 - Ninguna ruta visual final termina en `/auth/login`.
 - `/login` se mantiene como pantalla visual.
+- `/uat` existe y carga funcionalmente como `/uat/nacha-inbound-simulator`.
 
 Archivos finales actualizados
-- `entrega_pruebas_funcionales_usuarios/capturar_spa_con_node_playwright.js`
 - `entrega_pruebas_funcionales_usuarios/README_ENTREGA_FUNCIONAL.txt`
 - `entrega_pruebas_funcionales_usuarios/RESUMEN_EJECUCION_CODEX.txt`
 - `entrega_pruebas_funcionales_usuarios/capturas/resultado_capturas.json`
-- `entrega_pruebas_funcionales_usuarios/paquete_final/`
+- `entrega_pruebas_funcionales_usuarios/paquete_final/README_ENTREGA_FUNCIONAL.txt`
+- `entrega_pruebas_funcionales_usuarios/paquete_final/RESUMEN_EJECUCION_CODEX.txt`
 - `entrega_pruebas_funcionales_usuarios/paquete_final/capturas/`
 
 Estado del Word final
 - No se genero un Word nuevo con imagenes incrustadas en esta corrida.
-- Se conserva la guia `.docx` existente dentro del paquete final.
+- El paquete final conserva los archivos `.docx` existentes.
 
 Validacion de terminos restringidos
-- Se revisaron los entregables funcionales finales con la lista de terminos restringidos definida para esta entrega.
-- No quedaron coincidencias en los archivos finales de texto y JSON actualizados en esta corrida.
+- Se buscaron las palabras restringidas definidas para esta entrega en los entregables funcionales finales de texto y JSON.
+- No quedaron coincidencias.
 
 Proximos pasos recomendados
-- Verificar que el usuario de prueba tenga acceso vigente en el ambiente.
-- Verificar que la clave de prueba usada por la sesion actual sea la correcta para `POST /auth/login`.
-- Cuando el login sea aceptado, reejecutar el mismo script para generar `02` a `10`.
+- Revisar permisos o comportamiento de `/ach-cycles` y `/transactions` para el usuario `admin` si estas pantallas deben quedar incluidas en la evidencia final.
+- Si se necesita una imagen dedicada de `/uat`, extender el script para capturar esa ruta opcional en una corrida posterior.
