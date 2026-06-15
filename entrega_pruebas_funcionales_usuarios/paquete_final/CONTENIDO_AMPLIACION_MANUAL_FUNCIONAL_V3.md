@@ -423,7 +423,7 @@
 - El usuario debe validar que la salida cifrada exista, que corresponda a la camara correcta y que no se altere manualmente.
 - No explicar criptografia interna.
 - No mencionar implementacion tecnica.
-- No inventar certificados, estados ni llaves.
+- No inventar certificados, estados ni datos sensibles.
 - Si la pantalla no muestra salida, la evidencia puede ser archivo generado, nombre final visible, registro de exportacion o validacion posterior.
 
 ### Naming del archivo base por camara
