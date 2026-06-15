@@ -18,6 +18,14 @@ async function loginToken() {
   return json?.data?.token;
 }
 
+async function openPage(page, token) {
+  await page.addInitScript((value) => {
+    window.sessionStorage.setItem('ach.interbank.access_token', value);
+  }, token);
+  await page.goto(`${UI}${PAGE}`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1000);
+}
+
 async function main() {
   const token = await loginToken();
   if (!token) throw new Error('Sin token de autenticacion');
@@ -50,31 +58,29 @@ async function main() {
     }
   });
 
-  await page.addInitScript((value) => {
-    window.sessionStorage.setItem('ach.interbank.access_token', value);
-  }, token);
-
-  await page.goto(`${UI}${PAGE}`, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(1500);
-
-  await page.screenshot({ path: path.join(OUT, '33_clearing_house_preferences_prioridades_camara.png'), fullPage: true });
-
-  await page.getByRole('button', { name: 'Nueva relación' }).click();
-  await page.waitForTimeout(800);
-  await page.screenshot({ path: path.join(OUT, '33A_clearing_house_preferences_nueva_relacion.png'), fullPage: true });
-
-  const editButton = page.locator('.ag-center-cols-container .ag-row').first().getByRole('button', { name: 'Editar' });
-  await editButton.click();
-  await page.waitForTimeout(800);
-  await page.screenshot({ path: path.join(OUT, '33B_clearing_house_preferences_editar_relacion.png'), fullPage: true });
+  await openPage(page, token);
 
   const rows = await page.locator('.ag-center-cols-container .ag-row').count();
   const text = await page.locator('body').innerText();
+  await page.screenshot({ path: path.join(OUT, '33_clearing_house_preferences_prioridades_camara.png'), fullPage: true });
+
+  await page.getByRole('button', { name: 'Nueva relación' }).click();
+  await page.getByText('Nueva relación').waitFor({ state: 'visible', timeout: 5000 });
+  await page.screenshot({ path: path.join(OUT, '33A_clearing_house_preferences_nueva_relacion.png'), fullPage: true });
+
+  const pageEdit = await browser.newPage({ viewport: { width: 1600, height: 1200 } });
+  await openPage(pageEdit, token);
+  await pageEdit.getByRole('button', { name: 'Editar' }).first().click();
+  await pageEdit.getByText('Editar relación').waitFor({ state: 'visible', timeout: 5000 });
+  await pageEdit.screenshot({ path: path.join(OUT, '33B_clearing_house_preferences_editar_relacion.png'), fullPage: true });
+
   const result = {
     endpoint,
     rows,
     hasNoResults: text.includes('Sin resultados'),
-    consoleErrors
+    consoleErrors,
+    editOpened: true,
+    newOpened: true
   };
   console.log(JSON.stringify(result, null, 2));
   await browser.close();

@@ -261,6 +261,7 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
     if (markForCheck) {
       this.cdr.markForCheck();
     }
+    this.cdr.detectChanges();
   }
 
   cancelEdit(): void {
