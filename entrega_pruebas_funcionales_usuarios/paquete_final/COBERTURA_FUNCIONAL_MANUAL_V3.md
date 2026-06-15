@@ -49,7 +49,7 @@
 | 30 | `30_customers_listado.png` | `/customers` | Capturada OK | Listado real de clientes. |
 | 31 | `31_customers_nuevo.png` | `/customers/new` | Capturada OK | Formulario real de alta de cliente. |
 | 32 | `32_financial_institutions_mantenimiento_digito_verificacion.png` | `/catalogs/financial-institutions` | Capturada OK | Mantenimiento visible de entidades financieras y digito de verificacion. |
-| 33 | `33_clearing_house_preferences_prioridades_camara.png` | `/catalogs/clearing-house-preferences` | Capturada OK | Preferencias y prioridades por camara visibles. |
+| 33 | `33_clearing_house_preferences_prioridades_camara.png` | `/catalogs/clearing-house-preferences` | Captura corregida | Preferencias y prioridades por camara con ajuste de consumo API/proxy. |
 | 34 | `34_catalog_document_types.png` | `/catalogs/document-types` | Capturada OK | Catalogo de tipos de documento visible. |
 | 35 | `35_catalog_gender_types.png` | `/catalogs/gender-types` | Capturada OK | Catalogo de genero visible. |
 | 36 | `36_catalog_person_types.png` | `/catalogs/person-types` | Capturada OK | Catalogo de tipos de persona visible. |
@@ -92,7 +92,7 @@
 | `30_customers_listado.png` | Si | Menu lateral visible y estable. |
 | `31_customers_nuevo.png` | Si | Menu lateral visible y estable. |
 | `32_financial_institutions_mantenimiento_digito_verificacion.png` | Si | Menu lateral visible y estable. |
-| `33_clearing_house_preferences_prioridades_camara.png` | Si | Menu lateral visible y estable. |
+| `33_clearing_house_preferences_prioridades_camara.png` | Si | Menu lateral visible y estable tras correccion de proxy/API. |
 | `34_catalog_document_types.png` | Si | Menu lateral visible y estable. |
 | `35_catalog_gender_types.png` | Si | Menu lateral visible y estable. |
 | `36_catalog_person_types.png` | Si | Menu lateral visible y estable. |
