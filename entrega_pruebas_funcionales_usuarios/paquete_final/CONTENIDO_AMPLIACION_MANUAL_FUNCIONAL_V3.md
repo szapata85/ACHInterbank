@@ -406,17 +406,52 @@
 - Pasos funcionales: Abrir la pantalla de generacion, revisar si existe salida visible y confirmar el dato mostrado.
 - Que debe validar el usuario: Solo lo que la pantalla muestre de forma expresa.
 - Que errores debe reportar: Ausencia de resultado, salida no visible o contenido no utilizable.
-- Captura asociada, si existe: Pendiente de validacion para `57_nacha_generate_base.png` y `58_nacha_generate_encrypted.png`.
+- La evidencia de cierre puede ser archivo generado, nombre visible, registro de exportacion o validacion funcional; no depende exclusivamente de printscreen.
 
-### Naming reglamentario
-- Actor principal: Administrador de certificados digitales.
-- Actores secundarios: Revisor / validador operativo.
-- Para que sirve: Registrar el nombre visible del archivo solo si la aplicacion lo muestra.
-- Cuando se usa: En la revision del archivo base, del cifrado o del archivo final exportable.
-- Pasos funcionales: Revisar el resultado mostrado, anotar el nombre visible y validar que coincida con la salida de la aplicacion.
-- Que debe validar el usuario: Unicamente el nombre que la pantalla, archivo o exportacion muestre de forma explicita.
-- Que errores debe reportar: Nombre ausente, incompleto o no visible.
-- Captura asociada, si existe: Pendiente de validacion para `64_naming_archivo_base_por_camara_si_visible.png` y `65_naming_archivo_final_env_si_visible.png`.
+### Generacion NACHA-M base
+- La generacion base corresponde al archivo NACHA-M antes del cifrado o envoltura final.
+- El archivo base debe construirse con la parametrizacion vigente por camara.
+- Para ACH Colombia, la generacion debe respetar los perfiles NACHA-M aplicables y las reglas reglamentarias de archivo.
+- Para CENIT, la generacion debe respetar la parametrizacion propia de la camara CENIT, sin asumir que su naming o reglas sean iguales a ACH Colombia.
+- El usuario funcional no debe modificar manualmente el contenido del archivo generado.
+- Si no se obtiene archivo visible en pantalla, la evidencia puede ser el archivo fisico generado, el registro de exportacion o la validacion del resultado en el inventario.
+- No documentar como cerrado hasta tener evidencia real de salida.
+
+### Generacion NACHA-M cifrada
+- La generacion cifrada corresponde a la salida protegida que se obtiene despues de aplicar el flujo de seguridad definido por la aplicacion.
+- El archivo cifrado o final exportable debe derivarse del archivo base generado previamente.
+- El usuario debe validar que la salida cifrada exista, que corresponda a la camara correcta y que no se altere manualmente.
+- No explicar criptografia interna.
+- No mencionar implementacion tecnica.
+- No inventar certificados, estados ni llaves.
+- Si la pantalla no muestra salida, la evidencia puede ser archivo generado, nombre final visible, registro de exportacion o validacion posterior.
+
+### Naming del archivo base por camara
+- El naming del archivo base depende de la camara de compensacion.
+- ACH Colombia usa la regla reglamentaria que debe manejarse como `RRRRTTT.ZZZ.1`.
+- RRRR: ruta o identificador de la entidad originadora segun parametrizacion.
+- TTT: transito o identificador operativo correspondiente.
+- ZZZ: consecutivo diario del archivo.
+- `.1`: extension o sufijo reglamentario del archivo base segun la regla aplicable.
+- El consecutivo diario debe controlarse por la aplicacion y no ser digitado manualmente por el usuario.
+- El usuario debe validar que el nombre generado corresponda a la camara, entidad originadora, fecha/ciclo y consecutivo esperado.
+- Para CENIT, no inventar formato. Documentar que el naming debe tomarse de la parametrizacion o regla visible/generada por la aplicacion y queda sujeto a validacion funcional si no hay evidencia en pantalla o archivo.
+
+### Naming del archivo final y extension .env
+- El archivo final corresponde a la salida lista para intercambio o entrega, cuando el flujo de generacion/cifrado lo produzca.
+- La extension `.env` debe documentarse como extension final exportable unicamente cuando la aplicacion la genere o la muestre.
+- No asumir que el archivo base y el archivo final tienen la misma extension.
+- No renombrar manualmente archivos para cumplir la regla.
+- Si el sistema genera archivo final `.env`, el usuario debe validar:
+  - Que el nombre corresponda al archivo base o ciclo origen.
+  - Que la camara sea la correcta.
+  - Que la extension final sea la esperada.
+  - Que la salida no sea una pantalla vacia ni una evidencia inventada.
+- Si no hay archivo final visible, dejar como pendiente de evidencia operativa, no como funcionalidad inexistente.
+
+### Evidencias validas para generacion y naming
+- Una evidencia valida puede ser archivo NACHA-M base generado, archivo cifrado generado, archivo final exportable, nombre de archivo visible en pantalla, registro de exportacion, evidencia de ciclo/exportacion asociada o validacion funcional registrada en el inventario.
+- No son evidencias validas: pantalla vacia, suposicion de nombre, archivo renombrado manualmente, naming inventado, captura sin resultado visible o texto redactado sin archivo o evidencia.
 
 ## Pendientes funcionales que requieren validación antes de cierre final
 
