@@ -8,7 +8,7 @@ import {
   OnInit,
   inject
 } from '@angular/core';
-import { ColDef, GridApi } from 'ag-grid-community';
+import { CellClickedEvent, ColDef, GridApi } from 'ag-grid-community';
 import { FormBuilder, Validators } from '@angular/forms';
 import { Subject } from 'rxjs';
 import { finalize, map, takeUntil } from 'rxjs/operators';
@@ -102,57 +102,19 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
       headerName: 'Acciones',
       colId: 'actions',
       maxWidth: 240,
+      sortable: false,
+      filter: false,
       cellRenderer: (params) => {
-        const container = document.createElement('div');
-        container.classList.add('row-actions');
-        const preference = params.data;
-
-        const edit = document.createElement('button');
-        edit.type = 'button';
-        edit.classList.add('link');
-        edit.innerText = 'Editar';
-        edit.addEventListener('click', (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          if (!preference) {
-            return;
-          }
-          this.zone.run(() => {
-            this.startEdit(preference);
-          });
-        });
-
-        const toggle = document.createElement('button');
-        toggle.type = 'button';
-        toggle.classList.add('link');
-        toggle.innerText = preference?.isActive ? 'Inactivar' : 'Activar';
-        toggle.addEventListener('click', (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          if (!preference) {
-            return;
-          }
-          this.zone.run(() => this.toggleActive(preference));
-        });
-
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.classList.add('link', 'danger');
-        remove.innerText = 'Eliminar';
-        remove.addEventListener('click', (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          if (!preference) {
-            return;
-          }
-          this.zone.run(() => this.deletePreference(preference));
-        });
-
-        container.append(edit);
-        container.append(toggle);
-        container.append(remove);
-        return container;
-      }
+        const toggleLabel = params.data?.isActive ? 'Inactivar' : 'Activar';
+        return `
+          <div class="row-actions">
+            <button type="button" class="link" data-action="edit">Editar</button>
+            <button type="button" class="link" data-action="toggle">${toggleLabel}</button>
+            <button type="button" class="link danger" data-action="delete">Eliminar</button>
+          </div>
+        `;
+      },
+      onCellClicked: (params) => this.handleActionClick(params)
     }
   ];
 
@@ -397,6 +359,38 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
     const normalized = this.normalizePriority(value);
     const option = this.priorityOptions.find((opt) => opt.value === normalized);
     return option?.label ?? "Normal";
+  }
+
+  private handleActionClick(params: CellClickedEvent<InstitutionClearingHousePreference>): void {
+    const event = params.event as MouseEvent | undefined;
+    const target = event?.target as HTMLElement | null;
+    const button = target?.closest('button[data-action]') as HTMLButtonElement | null;
+    const preference = params.data;
+
+    if (!button || !preference) {
+      return;
+    }
+
+    event?.preventDefault();
+    event?.stopPropagation();
+
+    const action = button.dataset['action'];
+
+    this.zone.run(() => {
+      if (action === 'edit') {
+        this.startEdit(preference);
+        return;
+      }
+
+      if (action === 'toggle') {
+        this.toggleActive(preference);
+        return;
+      }
+
+      if (action === 'delete') {
+        this.deletePreference(preference);
+      }
+    });
   }
 
   private normalizePriority(value: number): number {
