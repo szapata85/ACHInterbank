@@ -24,7 +24,7 @@
 | Dashboard operativo NACHA-M | Revisor / validador operativo | `/ach/nacha/operational-dashboard` | Panel operativo | SÃ­ | `47_nacha_operational_dashboard.png` | Agregar captura | Consulta operativa read-only. |
 | ConciliaciÃ³n ACH | Revisor / validador operativo | `/ach/reconciliation` | Consola de conciliaciÃ³n | SÃ­ | `48_ach_reconciliation.png` | Agregar captura | Revisar diferencias y trazabilidad. |
 | Reporte de rechazos | Revisor / validador operativo | `/reports/rejections` | Reporte de rechazos | SÃ­ | `49_reports_rejections.png` | Agregar captura | Soporta validaciÃ³n operativa. |
-| Onboarding silencioso, si aparece | Usuario funcional de pruebas | `/customers/new` | Ayuda, prellenado o flujo automÃ¡tico | SÃ­ | `50_onboarding_silencioso_si_aparece.png` | Requiere validaciÃ³n | Solo si la interfaz lo muestra de forma visible. |
+| Onboarding silencioso en creacion de transaccion | Operador ACH | `/transactions/create` | Flujo de transaccion | SÃ­ | `50_onboarding_silencioso_si_aparece.png` | Requiere validacion funcional en flujo de transaccion | El onboarding silencioso no es una pantalla independiente; se valida durante la creacion de una transaccion. |
 | Dashboard seguridad NACHA-M | Administrador de certificados digitales | `/nacha-security/dashboard` | Panel de seguridad NACHA | SÃ­ | `51_nacha_security_dashboard.png` | Agregar captura | Consola base de seguridad. |
 | Consulta / gobierno de certificados | Administrador de certificados digitales | `/nacha-security/certificates` | Gobierno de certificados | SÃ­ | `52_nacha_security_certificates_gobierno.png` | Agregar captura | Vista principal de certificados. |
 | Versiones e historial de certificados | Administrador de certificados digitales | `/nacha-security/certificates/:id/versions` | Versionado de certificado | SÃ­ | `53_nacha_security_certificate_versions_historial.png` | Agregar captura | Evidenciar historial. |
@@ -66,7 +66,7 @@
 | 47 | `47_nacha_operational_dashboard.png` | `/ach/nacha/operational-dashboard` | Capturada OK | Dashboard operativo NACHA-M visible. |
 | 48 | `48_ach_reconciliation.png` | `/ach/reconciliation` | Capturada OK | Conciliacion ACH visible. |
 | 49 | `49_reports_rejections.png` | `/reports/rejections` | Capturada OK | Reporte de rechazos visible. |
-| 50 | `50_onboarding_silencioso_si_aparece.png` | `/customers/new` | No encontrado | No se observo onboarding silencioso ni flujo automatico visible. |
+| 50 | `50_onboarding_silencioso_si_aparece.png` | `/transactions/create` | Requiere validacion funcional en flujo de transaccion | El onboarding silencioso no es una pantalla independiente; se valida durante la creacion de una transaccion. |
 | 51 | `51_nacha_security_dashboard.png` | `/nacha-security/dashboard` | Capturada OK | Dashboard de seguridad NACHA-M visible. |
 | 52 | `52_nacha_security_certificates_gobierno.png` | `/nacha-security/certificates` | Capturada OK | Gobierno de certificados visible en estado sin carga. |
 | 53 | `53_nacha_security_certificate_versions_historial.png` | `/nacha-security/certificates/:id/versions` | Requiere validacion | No existe certificado navegable en el entorno. |

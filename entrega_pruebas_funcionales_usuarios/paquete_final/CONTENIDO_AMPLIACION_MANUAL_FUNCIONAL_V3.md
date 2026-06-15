@@ -420,10 +420,20 @@
 
 ## Pendientes funcionales que requieren validación antes de cierre final
 
+### Onboarding silencioso en creacion de transaccion
+- Actor principal: Operador ACH.
+- Actores secundarios: Usuario funcional de pruebas / Soporte tecnico funcional.
+- Para que sirve: Permitir que el sistema realice automaticamente la asociacion o registro requerido durante la creacion de una transaccion.
+- Cuando se usa: Al crear una transaccion con datos que requieren registro o asociacion funcional sin alta manual previa.
+- Como se valida: Crear una transaccion de prueba y verificar que el flujo permita continuar sin exigir una creacion manual independiente.
+- Que debe validar el usuario: Que la transaccion se registre correctamente y que la asociacion generada por el sistema sea coherente.
+- Que errores debe reportar: Bloqueo por falta de alta manual, asociacion incorrecta, tercero/cliente no relacionado o inconsistencia posterior en la consulta.
+- Captura asociada: Usar captura existente del flujo de creacion de transaccion si aplica. No inventar captura nueva.
+
 | ID | Captura esperada | Tema | Estado | Motivo | Evidencia requerida | Accion para cierre | Responsable sugerido |
 |---|---|---|---|---|---|---|---|
 | 29 | `29_customer_third_parties_creacion_si_existe.png` | Creacion de terceros | No encontrado | La evidencia solo confirma listado y busqueda. | Captura real de la accion, si llega a existir. | Validar si existe boton, modal o accion interna en la pantalla de terceros. | Operador ACH / Soporte tecnico funcional |
-| 50 | `50_onboarding_silencioso_si_aparece.png` | Onboarding silencioso | No encontrado | No se observo ayuda, prellenado ni flujo automatico visible. | Captura real del flujo, si aparece. | Revisar altas de clientes y entidades para confirmar si aparece como comportamiento visible. | Usuario funcional de pruebas / Soporte tecnico funcional |
+| 50 | `50_onboarding_silencioso_si_aparece.png` | Onboarding silencioso en creacion de transaccion | Requiere validacion funcional en flujo de transaccion | El onboarding silencioso se valida durante la creacion de una transaccion. No es una pantalla separada y no debe tratarse como funcionalidad inexistente. | Caso de prueba de creacion de transaccion donde se confirme la asociacion o registro automatico. | Crear una transaccion de prueba y verificar que el flujo permita continuar sin exigir una creacion manual independiente. | Operador ACH / Usuario funcional de pruebas |
 | 53 | `53_nacha_security_certificate_versions_historial.png` | Versiones e historial de certificados | Requiere validacion | No existe un certificado navegable confirmado para documentarlo como flujo estable. | Captura real del historial visible. | Confirmar con un certificado real y revisar su detalle. | Administrador de certificados digitales |
 | 54 | `54_nacha_security_certificates_estados_vigencia_si_visible.png` | Estados y vigencia de certificados | Requiere validacion | No hay certificados cargados para mostrar estados o fechas de vigencia. | Captura real con estados o fechas visibles. | Validar con un certificado visible en la pantalla. | Administrador de certificados digitales |
 | 55 | `55_nacha_security_certificates_rotacion_reemplazo_si_existe.png` | Rotacion / reemplazo de certificados | No encontrado | No aparece accion visible de activar, revocar, reemplazar o versionar. | Captura real de la accion, si se habilita. | Revisar la pantalla de certificados con un registro real si se habilita. | Administrador de certificados digitales |
