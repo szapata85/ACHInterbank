@@ -125,6 +125,18 @@
 | `65_naming_archivo_final_env_si_visible.png` | Requiere validacion | No se entrego captura. |
 
 
+## Pendientes controlados para siguiente validación
+
+| ID | Captura esperada | Ruta | Estado actual | Bloqueante para manual final | Criterio de cierre |
+|---|---|---|---|---|---|
+| 53 | `53_nacha_security_certificate_versions_historial.png` | `/nacha-security/certificates/:id/versions` | Requiere validacion | Si | Captura real con historial navegable visible. |
+| 54 | `54_nacha_security_certificates_estados_vigencia_si_visible.png` | `/nacha-security/certificates` | Requiere validacion | Si | Captura real con estados o fechas de vigencia visibles. |
+| 57 | `57_nacha_generate_base.png` | `/nacha-security/nacha/generate` | Requiere validacion | Si | Captura real de la salida base visible. |
+| 58 | `58_nacha_generate_encrypted.png` | `/nacha-security/nacha/generate-encrypted` | Requiere validacion | Si | Captura real de la salida cifrada visible. |
+| 64 | `64_naming_archivo_base_por_camara_si_visible.png` | `/nacha-security/nacha/generate` | Requiere validacion | Si | Nombre base visible en pantalla o exportacion. |
+| 65 | `65_naming_archivo_final_env_si_visible.png` | `/nacha-security/nacha/generate-encrypted` | Requiere validacion | Si | Nombre final o extension visible en pantalla o exportacion. |
+
+
 ## Pantallas retiradas del aplicativo y del manual funcional
 
 | Pantalla | Ruta anterior | Archivo de captura | Motivo |

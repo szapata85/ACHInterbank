@@ -418,19 +418,19 @@
 - Que errores debe reportar: Nombre ausente, incompleto o no visible.
 - Captura asociada, si existe: Pendiente de validacion para `64_naming_archivo_base_por_camara_si_visible.png` y `65_naming_archivo_final_env_si_visible.png`.
 
-## 13. Pendientes funcionales de validacion
+## Pendientes funcionales que requieren validación antes de cierre final
 
-| Tema | Estado | Motivo | Accion recomendada |
-|---|---|---|---|
-| Creacion de terceros | No encontrado | La evidencia solo confirma listado y busqueda. | Validar si existe boton, modal o accion interna en la pantalla de terceros. |
-| Onboarding silencioso | No encontrado | No se observo ayuda, prellenado ni flujo automatico visible. | Revisar altas de clientes y entidades para confirmar si aparece como comportamiento visible. |
-| Rotacion / reemplazo de certificados | No encontrado | No aparece accion visible de activar, revocar, reemplazar o versionar. | Revisar la pantalla de certificados con un registro real si se habilita. |
-| Versiones / historial de certificados | Requiere validacion | No existe un registro navegable confirmado para documentarlo como flujo estable. | Confirmar con un certificado real y revisar su detalle. |
-| Estados / vigencia de certificados | Requiere validacion | No hay certificados cargados para mostrar estados o fechas de vigencia. | Validar con un certificado visible en la pantalla. |
-| Generacion NACHA-M base | Requiere validacion | No se obtuvo resultado funcional utilizable en el entorno. | Repetir la generacion y confirmar salida visible. |
-| Generacion NACHA-M cifrada | Requiere validacion | No se obtuvo resultado funcional utilizable en el entorno. | Repetir la generacion y confirmar salida visible. |
-| Naming archivo base por camara | Requiere validacion | No se obtuvo un nombre base visible para documentar. | Confirmar solo si la aplicacion muestra el nombre base. |
-| Naming archivo final .env | Requiere validacion | No se obtuvo un nombre final exportable visible para documentar. | Confirmar solo si la salida muestra el nombre final. |
+| ID | Captura esperada | Tema | Estado | Motivo | Evidencia requerida | Accion para cierre | Responsable sugerido |
+|---|---|---|---|---|---|---|---|
+| 29 | `29_customer_third_parties_creacion_si_existe.png` | Creacion de terceros | No encontrado | La evidencia solo confirma listado y busqueda. | Captura real de la accion, si llega a existir. | Validar si existe boton, modal o accion interna en la pantalla de terceros. | Operador ACH / Soporte tecnico funcional |
+| 50 | `50_onboarding_silencioso_si_aparece.png` | Onboarding silencioso | No encontrado | No se observo ayuda, prellenado ni flujo automatico visible. | Captura real del flujo, si aparece. | Revisar altas de clientes y entidades para confirmar si aparece como comportamiento visible. | Usuario funcional de pruebas / Soporte tecnico funcional |
+| 53 | `53_nacha_security_certificate_versions_historial.png` | Versiones e historial de certificados | Requiere validacion | No existe un certificado navegable confirmado para documentarlo como flujo estable. | Captura real del historial visible. | Confirmar con un certificado real y revisar su detalle. | Administrador de certificados digitales |
+| 54 | `54_nacha_security_certificates_estados_vigencia_si_visible.png` | Estados y vigencia de certificados | Requiere validacion | No hay certificados cargados para mostrar estados o fechas de vigencia. | Captura real con estados o fechas visibles. | Validar con un certificado visible en la pantalla. | Administrador de certificados digitales |
+| 55 | `55_nacha_security_certificates_rotacion_reemplazo_si_existe.png` | Rotacion / reemplazo de certificados | No encontrado | No aparece accion visible de activar, revocar, reemplazar o versionar. | Captura real de la accion, si se habilita. | Revisar la pantalla de certificados con un registro real si se habilita. | Administrador de certificados digitales |
+| 57 | `57_nacha_generate_base.png` | Generacion NACHA-M base | Requiere validacion | No se obtuvo resultado funcional utilizable en el entorno. | Captura real de la salida visible. | Repetir la generacion y confirmar salida visible. | Administrador de certificados digitales |
+| 58 | `58_nacha_generate_encrypted.png` | Generacion NACHA-M cifrada | Requiere validacion | No se obtuvo resultado funcional utilizable en el entorno. | Captura real de la salida cifrada visible. | Repetir la generacion y confirmar salida visible. | Administrador de certificados digitales |
+| 64 | `64_naming_archivo_base_por_camara_si_visible.png` | Naming archivo base por camara | Requiere validacion | No se obtuvo un nombre base visible para documentar. | Captura real del nombre base visible. | Confirmar solo si la aplicacion muestra el nombre base. | Administrador de certificados digitales |
+| 65 | `65_naming_archivo_final_env_si_visible.png` | Naming archivo final .env | Requiere validacion | No se obtuvo un nombre final exportable visible para documentar. | Captura real del nombre final visible. | Confirmar solo si la salida muestra el nombre final. | Administrador de certificados digitales |
 
 ## 14. Pantallas retiradas del aplicativo y del manual funcional
 
@@ -438,4 +438,3 @@
 |---|---|---|
 | Auditoria de certificados / sobre digital | `/nacha-security/digital-envelope/audit` | Retirada por no aportar evidencia funcional util para usuarios finales en el entorno actual. |
 | Interoperabilidad / vector oficial | `/nacha-security/digital-envelope/interoperability` | Retirada por no aportar evidencia funcional util para usuarios finales en el entorno actual. |
-
