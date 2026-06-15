@@ -94,8 +94,6 @@ export class NavigationService {
       { id: -2604, label: 'Generar NACHA-M cifrado', route: '/nacha-security/nacha/generate-encrypted', icon: 'encrypted' },
       { id: -2605, label: 'Cifrado manual', route: '/nacha-security/digital-envelope/manual-encrypt', icon: 'lock' },
       { id: -2606, label: 'Descifrado manual', route: '/nacha-security/digital-envelope/manual-decrypt', icon: 'lock_open' },
-      { id: -2607, label: 'Auditoría operaciones', route: '/nacha-security/digital-envelope/audit', icon: 'fact_check' },
-      { id: -2608, label: 'Interoperabilidad', route: '/nacha-security/digital-envelope/interoperability', icon: 'hub' }
     ];
 
     const nachaSecurityGroup: MenuItem = {

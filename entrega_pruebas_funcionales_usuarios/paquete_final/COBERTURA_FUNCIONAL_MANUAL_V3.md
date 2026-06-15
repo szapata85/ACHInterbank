@@ -1,4 +1,4 @@
-﻿# COBERTURA FUNCIONAL MANUAL V3
+# COBERTURA FUNCIONAL MANUAL V3
 
 | Tema | Actor principal | Ruta SPA revisada | Pantalla encontrada | Captura requerida | Nombre captura | Estado | ObservaciÃ³n |
 |---|---|---|---|---|---|---|---|
@@ -30,13 +30,13 @@
 | Versiones e historial de certificados | Administrador de certificados digitales | `/nacha-security/certificates/:id/versions` | Versionado de certificado | SÃ­ | `53_nacha_security_certificate_versions_historial.png` | Agregar captura | Evidenciar historial. |
 | Estados y vigencia de certificados | Administrador de certificados digitales | `/nacha-security/certificates` | Estados y fechas visibles | SÃ­ | `54_nacha_security_certificates_estados_vigencia_si_visible.png` | Agregar captura | Registrar solo estados y fechas mostrados. |
 | RotaciÃ³n / reemplazo de certificados, si existe | Administrador de certificados digitales | `/nacha-security/certificates` | AcciÃ³n visible de gestiÃ³n | SÃ­ | `55_nacha_security_certificates_rotacion_reemplazo_si_existe.png` | Requiere validaciÃ³n | Solo si existe activar, revocar, reemplazar o versionar. |
-| AuditorÃ­a de certificados / sobre digital | Revisor / validador operativo | `/nacha-security/digital-envelope/audit` | AuditorÃ­a operacional | SÃ­ | `56_nacha_security_audit_sobre_digital.png` | Agregar captura | Trazabilidad y eventos visibles. |
+| AuditorÃ­a de certificados / sobre digital | Revisor / validador operativo | `/nacha-security/digital-envelope/audit` | Retirado del aplicativo | No | `56_nacha_security_audit_sobre_digital.png` | Fuera de alcance | Pantalla retirada por no aportar valor operativo visible. |
 | GeneraciÃ³n NACHA-M base | Administrador de certificados digitales | `/nacha-security/nacha/generate` | GeneraciÃ³n base | SÃ­ | `57_nacha_generate_base.png` | Agregar captura | Validar nombre mostrado si aparece. |
 | GeneraciÃ³n NACHA-M cifrada | Administrador de certificados digitales | `/nacha-security/nacha/generate-encrypted` | GeneraciÃ³n cifrada | SÃ­ | `58_nacha_generate_encrypted.png` | Agregar captura | Validar salida cifrada si aparece. |
 | Cifrado manual con sobre digital | Administrador de certificados digitales | `/nacha-security/digital-envelope/manual-encrypt` | Cifrado manual | SÃ­ | `59_nacha_manual_encrypt_sobre_digital.png` | Agregar captura | Flujo manual visible. |
 | Descifrado manual con sobre digital | Administrador de certificados digitales | `/nacha-security/digital-envelope/manual-decrypt` | Descifrado manual | SÃ­ | `60_nacha_manual_decrypt_sobre_digital.png` | Agregar captura | Flujo manual visible. |
 | Herramienta sobre digital | Administrador de certificados digitales | `/nacha-security/sobre-digital` | Herramienta integral | SÃ­ | `61_sobre_digital_tool.png` | Agregar captura | Consola operativa de sobre digital. |
-| Interoperabilidad / vector oficial | Soporte tÃ©cnico funcional | `/nacha-security/digital-envelope/interoperability` | Interoperabilidad | SÃ­ | `62_interoperabilidad_vector_oficial.png` | Agregar captura | Solo lo que muestre la pantalla. |
+| Interoperabilidad / vector oficial | Soporte tÃ©cnico funcional | `/nacha-security/digital-envelope/interoperability` | Retirado del aplicativo | No | `62_interoperabilidad_vector_oficial.png` | Fuera de alcance | Pantalla retirada por no aportar valor operativo visible. |
 | ExportaciÃ³n NACHA-M desde ciclo | Operador ACH | `/ach-cycles/nacha/export` | ExportaciÃ³n desde ciclo | SÃ­ | `63_ach_cycles_nacha_export.png` | Agregar captura | Evidenciar salida exportable. |
 | Naming archivo base por cÃ¡mara, si visible | Administrador de certificados digitales | `/nacha-security/nacha/generate` | Nombre base mostrado | SÃ­ | `64_naming_archivo_base_por_camara_si_visible.png` | Requiere validaciÃ³n | Documentar solo si el nombre base se ve en pantalla. |
 | Naming archivo final .env, si visible | Administrador de certificados digitales | `/nacha-security/nacha/generate-encrypted` | Nombre final exportable | SÃ­ | `65_naming_archivo_final_env_si_visible.png` | Requiere validaciÃ³n | Documentar solo si la extensiÃ³n final se muestra o se genera. |
@@ -72,13 +72,13 @@
 | 53 | `53_nacha_security_certificate_versions_historial.png` | `/nacha-security/certificates/:id/versions` | Requiere validacion | No existe certificado navegable en el entorno. |
 | 54 | `54_nacha_security_certificates_estados_vigencia_si_visible.png` | `/nacha-security/certificates` | Requiere validacion | No hay certificados cargados para mostrar estados o vigencia. |
 | 55 | `55_nacha_security_certificates_rotacion_reemplazo_si_existe.png` | `/nacha-security/certificates` | No encontrado | No aparece accion visible de activar, revocar, reemplazar o versionar. |
-| 56 | `56_nacha_security_audit_sobre_digital.png` | `/nacha-security/digital-envelope/audit` | Capturada OK | Auditoria de certificados y sobre digital visible. |
+| 56 | `56_nacha_security_audit_sobre_digital.png` | `/nacha-security/digital-envelope/audit` | Retirado del aplicativo | Pantalla retirada del aplicativo. |
 | 57 | `57_nacha_generate_base.png` | `/nacha-security/nacha/generate` | Requiere validacion | La pantalla no produjo resultado funcional con contenido exportable en este entorno. |
 | 58 | `58_nacha_generate_encrypted.png` | `/nacha-security/nacha/generate-encrypted` | Requiere validacion | La pantalla no produjo resultado funcional con contenido exportable en este entorno. |
 | 59 | `59_nacha_manual_encrypt_sobre_digital.png` | `/nacha-security/digital-envelope/manual-encrypt` | Capturada OK | Cifrado manual con sobre digital visible. |
 | 60 | `60_nacha_manual_decrypt_sobre_digital.png` | `/nacha-security/digital-envelope/manual-decrypt` | Capturada OK | Descifrado manual con sobre digital visible. |
 | 61 | `61_sobre_digital_tool.png` | `/nacha-security/sobre-digital` | Capturada OK | Herramienta sobre digital visible. |
-| 62 | `62_interoperabilidad_vector_oficial.png` | `/nacha-security/digital-envelope/interoperability` | Capturada OK | Interoperabilidad y vector oficial visibles. |
+| 62 | `62_interoperabilidad_vector_oficial.png` | `/nacha-security/digital-envelope/interoperability` | Retirado del aplicativo | Pantalla retirada del aplicativo. |
 | 63 | `63_ach_cycles_nacha_export.png` | `/ach-cycles/nacha/export` | Capturada OK | Exportacion NACHA-M desde ciclo visible. |
 | 64 | `64_naming_archivo_base_por_camara_si_visible.png` | `/nacha-security/nacha/generate` | Requiere validacion | No se obtuvo nombre base visible en resultado funcional. |
 | 65 | `65_naming_archivo_final_env_si_visible.png` | `/nacha-security/nacha/generate-encrypted` | Requiere validacion | No se obtuvo nombre final exportable visible en resultado funcional. |
@@ -115,13 +115,19 @@
 | `53_nacha_security_certificate_versions_historial.png` | Requiere validacion | No se entrego captura. |
 | `54_nacha_security_certificates_estados_vigencia_si_visible.png` | Requiere validacion | No se entrego captura. |
 | `55_nacha_security_certificates_rotacion_reemplazo_si_existe.png` | Requiere validacion | No se entrego captura. |
-| `56_nacha_security_audit_sobre_digital.png` | Si | Menu lateral visible y estable. |
 | `57_nacha_generate_base.png` | Requiere validacion | No se entrego captura. |
 | `58_nacha_generate_encrypted.png` | Requiere validacion | No se entrego captura. |
 | `59_nacha_manual_encrypt_sobre_digital.png` | Si | Menu lateral visible y estable. |
 | `60_nacha_manual_decrypt_sobre_digital.png` | Si | Menu lateral visible y estable. |
 | `61_sobre_digital_tool.png` | Si | Menu lateral visible y estable. |
-| `62_interoperabilidad_vector_oficial.png` | Si | Menu lateral visible y estable. |
 | `63_ach_cycles_nacha_export.png` | Si | Menu lateral visible y estable. |
 | `64_naming_archivo_base_por_camara_si_visible.png` | Requiere validacion | No se entrego captura. |
 | `65_naming_archivo_final_env_si_visible.png` | Requiere validacion | No se entrego captura. |
+
+
+## Pantallas retiradas del aplicativo y del manual funcional
+
+| Pantalla | Ruta anterior | Archivo de captura | Motivo |
+| --- | --- | --- | --- |
+| Auditoria de certificados / sobre digital | /nacha-security/digital-envelope/audit | 56_nacha_security_audit_sobre_digital.png | Pantalla sin registros operativos visibles en el entorno actual; no aporta evidencia funcional para usuarios finales. |
+| Interoperabilidad / vector oficial | /nacha-security/digital-envelope/interoperability | 62_interoperabilidad_vector_oficial.png | Pantalla sin operacion funcional util visible para el manual de usuarios en el entorno actual. |
