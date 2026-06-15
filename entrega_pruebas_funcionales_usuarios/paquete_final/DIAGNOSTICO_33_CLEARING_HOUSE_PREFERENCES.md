@@ -105,3 +105,11 @@ Revisar el mapeo en el componente o el origen de la carga para asegurar que la r
   "shape": "array directo",
   "count": 186
 }
+
+## Correcci?n aplicada
+
+* Cambio aplicado: [datos]="rows" -> [datos]="preferences".
+* Archivo modificado: web/ach-interbank-ui/src/app/features/catalogs/components/clearing-house-preferences.component.html.
+* Registros devueltos por API: 186.
+* Filas visibles despu?s del cambio: 15.
+* Captura 33 reemplazada: S?.

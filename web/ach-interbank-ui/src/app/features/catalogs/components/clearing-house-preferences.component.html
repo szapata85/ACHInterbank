@@ -15,7 +15,7 @@
 
   <div class="grid" *ngIf="preferences.length; else empty">
     <ui-grilla-empresarial
-      [datos]="rows"
+      [datos]="preferences"
       [columnas]="columnDefs"
       [cargando]="loading"
       [error]="false"
