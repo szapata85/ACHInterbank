@@ -105,31 +105,47 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
       cellRenderer: (params) => {
         const container = document.createElement('div');
         container.classList.add('row-actions');
+        const preference = params.data;
 
         const edit = document.createElement('button');
         edit.type = 'button';
         edit.classList.add('link');
         edit.innerText = 'Editar';
-        edit.addEventListener('click', () => {
+        edit.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!preference) {
+            return;
+          }
           this.zone.run(() => {
-            params.context?.componentParent?.startEdit(params.data);
+            this.startEdit(preference);
           });
         });
 
         const toggle = document.createElement('button');
         toggle.type = 'button';
         toggle.classList.add('link');
-        toggle.innerText = params.data?.isActive ? 'Inactivar' : 'Activar';
-        toggle.addEventListener('click', () => {
-          this.zone.run(() => params.context?.componentParent?.toggleActive(params.data));
+        toggle.innerText = preference?.isActive ? 'Inactivar' : 'Activar';
+        toggle.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!preference) {
+            return;
+          }
+          this.zone.run(() => this.toggleActive(preference));
         });
 
         const remove = document.createElement('button');
         remove.type = 'button';
         remove.classList.add('link', 'danger');
         remove.innerText = 'Eliminar';
-        remove.addEventListener('click', () => {
-          this.zone.run(() => params.context?.componentParent?.deletePreference(params.data));
+        remove.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!preference) {
+            return;
+          }
+          this.zone.run(() => this.deletePreference(preference));
         });
 
         container.append(edit);
