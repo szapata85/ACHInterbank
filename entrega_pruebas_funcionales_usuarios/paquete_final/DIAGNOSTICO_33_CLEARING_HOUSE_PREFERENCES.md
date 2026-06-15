@@ -117,10 +117,10 @@ Revisar el mapeo en el componente o el origen de la carga para asegurar que la r
 ## Correcci?n final de capturas secundarias
 
 * 33: listado principal con datos visibles.
-* 33A: formulario Nueva relaci?n.
-* 33B: no generada; el formulario de Editar relaci?n no abri? en la validaci?n actual.
-* Inactivar/Activar: acci?n directa sobre fila; sin captura secundaria obligatoria.
-* Eliminar: acci?n directa o confirmaci?n; sin captura secundaria obligatoria.
+* 33A: formulario Nueva relación.
+* 33B: formulario Editar relación.
+* Inactivar/Activar: acción directa sobre fila; sin captura secundaria obligatoria.
+* Eliminar: acción directa o confirmación; sin captura secundaria obligatoria.
 * No se ejecutaron acciones destructivas sobre datos reales.
-* Build OK: S?.
+* Build OK: Sí.
 * Errores de consola: No.

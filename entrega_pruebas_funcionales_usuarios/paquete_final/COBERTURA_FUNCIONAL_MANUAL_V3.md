@@ -7,7 +7,7 @@
 | Clientes | Operador ACH | `/customers` | Listado de clientes | SÃ­ | `30_customers_listado.png` | Agregar captura | Cubre consulta de clientes. |
 | CreaciÃ³n de clientes | Operador ACH | `/customers/new` | Formulario de alta | SÃ­ | `31_customers_nuevo.png` | Agregar captura | Validar formulario de creaciÃ³n. |
 | Entidades financieras | Administrador de catÃ¡logos / parametrizaciÃ³n | `/catalogs/financial-institutions` | Mantenimiento de entidades financieras | SÃ­ | `32_financial_institutions_mantenimiento_digito_verificacion.png` | Agregar captura | Incluye el dÃ­gito visible si la pantalla lo muestra. |
-| PriorizaciÃ³n por cÃ¡mara | Administrador funcional ACH | `/catalogs/clearing-house-preferences` | Preferencias por cÃ¡mara | SÃ­ | `33_clearing_house_preferences_prioridades_camara.png` | Agregar captura | Validar prioridades ACH Colombia y CENIT. |
+| PriorizaciÃ³n por cÃ¡mara | Administrador funcional ACH | `/catalogs/clearing-house-preferences` | Preferencias por cÃ¡mara | SÃ­ | `33_clearing_house_preferences_prioridades_camara.png` | Agregar captura | Validar listado principal, formulario de nueva relaciÃ³n y formulario de ediciÃ³n; Inactivar/Activar y Eliminar son acciones directas de fila sin captura secundaria obligatoria. |
 | Tipos de documento | Administrador de catÃ¡logos / parametrizaciÃ³n | `/catalogs/document-types` | CatÃ¡logo de tipos de documento | SÃ­ | `34_catalog_document_types.png` | Agregar captura | CatÃ¡logo maestro. |
 | Sexo / gÃ©nero | Administrador de catÃ¡logos / parametrizaciÃ³n | `/catalogs/gender-types` | CatÃ¡logo de gÃ©nero | SÃ­ | `35_catalog_gender_types.png` | Agregar captura | CatÃ¡logo maestro. |
 | Tipos de persona | Administrador de catÃ¡logos / parametrizaciÃ³n | `/catalogs/person-types` | CatÃ¡logo de persona | SÃ­ | `36_catalog_person_types.png` | Agregar captura | CatÃ¡logo maestro. |
@@ -50,6 +50,8 @@
 | 31 | `31_customers_nuevo.png` | `/customers/new` | Capturada OK | Formulario real de alta de cliente. |
 | 32 | `32_financial_institutions_mantenimiento_digito_verificacion.png` | `/catalogs/financial-institutions` | Capturada OK | Mantenimiento visible de entidades financieras y digito de verificacion. |
 | 33 | `33_clearing_house_preferences_prioridades_camara.png` | `/catalogs/clearing-house-preferences` | Capturada OK | Listado principal con datos visibles y acciones operativas. |
+| 33A | `33A_clearing_house_preferences_nueva_relacion.png` | `/catalogs/clearing-house-preferences` | Capturada OK | Formulario de nueva relaciÃ³n visible y validado. |
+| 33B | `33B_clearing_house_preferences_editar_relacion.png` | `/catalogs/clearing-house-preferences` | Capturada OK | Formulario de ediciÃ³n visible y validado. |
 | 34 | `34_catalog_document_types.png` | `/catalogs/document-types` | Capturada OK | Catalogo de tipos de documento visible. |
 | 35 | `35_catalog_gender_types.png` | `/catalogs/gender-types` | Capturada OK | Catalogo de genero visible. |
 | 36 | `36_catalog_person_types.png` | `/catalogs/person-types` | Capturada OK | Catalogo de tipos de persona visible. |
