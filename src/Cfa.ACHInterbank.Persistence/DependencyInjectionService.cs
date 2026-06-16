@@ -75,6 +75,8 @@ public static class DependencyInjectionService
                                 sqlOptions.CommandTimeout(commandTimeout.Value);
                             }
 
+                            sqlOptions.MigrationsAssembly("Cfa.ACHInterbank.Persistence.Migrations.SqlServer");
+
                             sqlOptions.EnableRetryOnFailure(
                                 maxRetryCount: maxRetryCount,
                                 maxRetryDelay: maxRetryDelay,

@@ -34,6 +34,7 @@
     <ProjectReference Include="..\Cfa.ACHInterbank.Domain\Cfa.ACHInterbank.Domain.csproj" />
     <ProjectReference Include="..\Cfa.ACHInterbank.External\Cfa.ACHInterbank.External.csproj" />
     <ProjectReference Include="..\Cfa.ACHInterbank.Persistence\Cfa.ACHInterbank.Persistence.csproj" />
+    <ProjectReference Include="..\Cfa.ACHInterbank.Persistence.Migrations.SqlServer\Cfa.ACHInterbank.Persistence.Migrations.SqlServer.csproj" />
   </ItemGroup>
 
   <ItemGroup>
