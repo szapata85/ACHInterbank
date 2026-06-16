@@ -1,0 +1,32 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: achinterbank-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: ${MSSQL_PID:-Developer}
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-Example_sqlServer_2026*}
+    volumes:
+      - ach_sqlserver_data:/var/opt/mssql
+    ports:
+      - "127.0.0.1:${SQLSERVER_HOST_PORT:-1433}:1433"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\" || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -Q \"SELECT 1\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+    restart: unless-stopped
+    networks: [ach_onprem]
+
+  achinterbank-api:
+    environment:
+      Database__Provider: SqlServer
+      ConnectionStrings__SqlConnection: Server=sqlserver,1433;Database=${MSSQL_DB:-ACHInterbank};User Id=sa;Password=${MSSQL_SA_PASSWORD:-Example_sqlServer_2026*};TrustServerCertificate=True;MultipleActiveResultSets=true
+    depends_on:
+      sqlserver:
+        condition: service_healthy

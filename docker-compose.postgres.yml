@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: achinterbank-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ACHInterbank}
+      POSTGRES_USER: ${POSTGRES_USER:-example_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-example_password_change_me}
+    volumes:
+      - ach_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-example_user} -d ${POSTGRES_DB:-ACHInterbank}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    networks: [ach_onprem]
+
+  achinterbank-api:
+    environment:
+      Database__Provider: Postgres
+      ConnectionStrings__PostgresConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB:-ACHInterbank};Username=${POSTGRES_USER:-example_user};Password=${POSTGRES_PASSWORD:-example_password_change_me}
+    depends_on:
+      postgres:
+        condition: service_healthy
