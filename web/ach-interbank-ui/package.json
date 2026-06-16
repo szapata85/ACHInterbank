@@ -9,6 +9,8 @@
     "test": "ng test",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
+    "test:e2e:cycle-configs": "playwright test e2e/cycle-configs-postgres.spec.ts --project=chromium",
+    "test:e2e:cycle-configs:headed": "playwright test e2e/cycle-configs-postgres.spec.ts --project=chromium --headed",
     "e2e:report": "playwright show-report"
   },
   "private": true,
@@ -33,6 +35,7 @@
     "@angular/compiler-cli": "^21.2.14",
     "@playwright/test": "^1.60.0",
     "@types/jasmine": "^5.1.15",
+    "@types/pg": "^8.20.0",
     "jasmine-core": "^5.13.0",
     "javascript-obfuscator": "^5.4.3",
     "karma": "^6.4.4",
@@ -40,6 +43,7 @@
     "karma-coverage": "^2.2.1",
     "karma-jasmine": "^5.1.0",
     "karma-jasmine-html-reporter": "^2.2.0",
+    "pg": "^8.21.0",
     "puppeteer": "^24.43.1",
     "typescript": "~5.9.3"
   },

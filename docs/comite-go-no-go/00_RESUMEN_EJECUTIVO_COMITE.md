@@ -1,6 +1,6 @@
 # Resumen Ejecutivo Comite GO/NO-GO - ACH Interbank
 
-Fecha: 2026-05-19
+Fecha de actualizacion: 2026-06-12
 Estado recomendado: Continuar UAT controlado / NO-GO productivo
 Scorecard vigente: 68.1 / 100
 
@@ -29,17 +29,23 @@ ACH Interbank se encuentra tecnicamente estabilizado para continuar pruebas cont
 - DEF-UAT-018 cerrado documentalmente.
 - NU1903 corregido.
 - BatchResolver corregido.
+- G3.5 naming dinamico inbound/outbound cerrado tecnicamente.
+- G3.5.1 cleanup OpenBao/HashiCorp Vault cerrado tecnicamente; KeyVault separado.
+- G3.5.2 migraciones deshabilitadas por defecto y escaneo residual cerrado.
+- G3.6A inbound real con PostgreSQL/Quartz hasta `Proc_Transacciones` dry-run: 2/2.
+- G3.6B outbound real hasta `Proc_Contrapartidas` dry-run: 2/2.
 
 ## Que Falta
 
 - UAT funcional formal con actas.
 - Evidencia visual y operativa completa.
 - DEF-UAT-020: NACHA-M 1/5/6/7/8/9 pendiente de validacion campo-a-campo y homologacion/waiver.
-- UAT integrado NACHA-M ACH Colombia/CENIT bloqueado por prenotificacion previa ausente; DEF-UAT-021 ya evita archivo 0 bytes como falso exito.
-- Proc_Contrapartidas cuenta con guardrail `DryRun` UAT/local validado; endpoint UAT/mock real sigue pendiente para homologacion.
+- Homologacion externa/campo-a-campo firmada de NACHA-M.
+- Endpoint SOAP UAT autorizado y ejecucion real controlada, si el alcance futuro lo exige.
+- Causalidad NachaExport -> Proc_Contrapartidas; G3.6B solo demuestra correlacion por `AchCycleId`.
 - CENIT/CUD.
 - Sobre digital, firma y certificados.
-- OpenBao/secrets segun alcance.
+- Custodia corporativa de secretos según alcance.
 - Backup, restore y rollback.
 - UAT bancario formal.
 
@@ -47,10 +53,10 @@ ACH Interbank se encuentra tecnicamente estabilizado para continuar pruebas cont
 
 - Riesgo funcional por UAT sintetico aun parcial.
 - Riesgo de interoperabilidad por NACHA-M, CENIT/CUD y homologacion pendientes.
-- Riesgo de seguridad por secretos/certificados/OpenBao pendientes segun alcance.
+- Riesgo de seguridad por custodia de secretos y certificados pendiente según alcance.
 - Riesgo operativo por backup/restore/rollback pendiente.
 - Riesgo de auditoria por actas y evidencia visual/operativa pendientes.
 
 ## Decision Recomendada
 
-Se recomienda continuar con UAT controlado. No se recomienda salida productiva en este momento.
+Se recomienda continuar con UAT controlado. Los cierres G3.5-G3.6 son tecnicos y no constituyen homologacion externa, movimiento monetario ni autorizacion productiva.

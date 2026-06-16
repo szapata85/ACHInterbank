@@ -7,6 +7,7 @@ using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,7 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
 {
+    private static readonly Regex OfficialCycleNameRegex = new(@"^(?<origin>\d{7})\.(?<sequence>\d{3})\.(?<cycle>[1-9]\d*)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private readonly AchDbContext _context;
     private readonly IPaymentRailContextService? _paymentRailContextService;
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver;
@@ -93,11 +95,33 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
             .OrderBy(x => x.CutoffTime)
             .ToListAsync(ct);
 
-        var filteredByName = fileCycleNumber.HasValue
-            ? candidates.Where(x => x.CycleName.Contains(fileCycleNumber.Value.ToString(), StringComparison.OrdinalIgnoreCase)).ToList()
-            : candidates;
+        IReadOnlyList<AchCycle> effectiveCandidates = candidates;
+        if (fileCycleNumber.HasValue)
+        {
+            effectiveCandidates = candidates
+                .Where(x => ExternalFileNameSupport.TryExtractPositiveCycleNumber(x.CycleName, out var parsedCycleNumber) && parsedCycleNumber == fileCycleNumber.Value)
+                .ToList();
 
-        var effectiveCandidates = filteredByName.Count > 0 ? filteredByName : candidates;
+            if (effectiveCandidates.Count == 0)
+            {
+                errors.Add($"El nombre oficial indica el ciclo {fileCycleNumber.Value}, pero no existe un ciclo operativo coincidente para la misma cámara y fecha.");
+                var shadowResult = CompareCycleShadow(
+                    clearingHouse.Id,
+                    clearingHouse.Code,
+                    operationalDate,
+                    "LEGACY_CYCLE_NO_MATCH_BY_NAME",
+                    legacyResolved: false);
+                return Build(false, false, clearingHouse.Id, operationalDate, null, 0.25m, IncomingNachaCycleResolutionStatus.NoResuelto, "NombreSinCandidato", warnings, errors, new
+                {
+                    request.FileName,
+                    immediateOrigin,
+                    headerDateRaw,
+                    fileCycleNumber,
+                    candidateIds = candidates.Select(x => x.Id).ToList(),
+                    shadowCompare = shadowResult
+                });
+            }
+        }
         var inferredStatus = string.Equals(clearingHouse.Code, "CENIT", StringComparison.OrdinalIgnoreCase)
             ? IncomingNachaCycleResolutionStatus.ResueltoConfirmado
             : IncomingNachaCycleResolutionStatus.ResueltoInferido;
@@ -105,7 +129,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
         if (effectiveCandidates.Count == 1)
         {
             var cycle = effectiveCandidates[0];
-            if (fileCycleNumber.HasValue && !cycle.CycleName.Contains(fileCycleNumber.Value.ToString(), StringComparison.OrdinalIgnoreCase))
+            if (fileCycleNumber.HasValue && (!ExternalFileNameSupport.TryExtractPositiveCycleNumber(cycle.CycleName, out var selectedCycleNumber) || selectedCycleNumber != fileCycleNumber.Value))
             {
                 warnings.Add("El número de ciclo del nombre no coincide con el ciclo operativo seleccionado por fecha/cámara.");
             }
@@ -254,12 +278,24 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
 
     private static int? ExtractCycleNumberFromFileName(string fileName)
     {
-        if (string.IsNullOrWhiteSpace(fileName)) return null;
-        var name = Path.GetFileNameWithoutExtension(fileName);
-        if (string.IsNullOrWhiteSpace(name)) return null;
-        var match = Regex.Match(name, "(?:^|[._-])(\\d{1,2})(?:$|[._-])");
-        if (!match.Success) return null;
-        return int.TryParse(match.Groups[1].Value, out var cycleNumber) && cycleNumber > 0 ? cycleNumber : null;
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return null;
+        }
+
+        var name = Path.GetFileName(fileName.Trim());
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        var match = OfficialCycleNameRegex.Match(name);
+        if (match.Success && int.TryParse(match.Groups["cycle"].Value, out var officialCycleNumber))
+        {
+            return officialCycleNumber;
+        }
+
+        return null;
     }
 
     private async Task<ClearingHouse?> InferClearingHouseFromFileNameAsync(string fileName, CancellationToken ct)

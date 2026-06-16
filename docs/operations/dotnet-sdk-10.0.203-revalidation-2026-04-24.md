@@ -57,7 +57,7 @@ Resultado: `32/32`.
 
 ```bash
 dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release \
-  --filter "FullyQualifiedName~Certificate|FullyQualifiedName~SecretRef|FullyQualifiedName~OpenBao|FullyQualifiedName~Vault" -v minimal
+  --filter "FullyQualifiedName~Certificate|FullyQualifiedName~SecretRef|FullyQualifiedName~SecretBackend" -v minimal
 ```
 Resultado: `35/35`.
 

@@ -1,3 +1,5 @@
+> Nota G3.5.2: las referencias a proveedores de secretos retirados son historicas y obsoletas desde el cleanup `ebf7a8a5`; no describen el stack vigente.
+
 # Scalar-SEC-4A — Rescate y cierre amplio de hardening P1/P2 (2026-05-01)
 
 ## Resumen ejecutivo
@@ -77,7 +79,7 @@ Clasificación:
 - No se crearon permisos nuevos.
 - No se cambió lógica de negocio.
 - No se agregó `AllowAnonymous`.
-- No se tocó Angular, criptografía ni OpenBao.
+- No se tocó Angular, criptografía ni proveedor de secretos retirado.
 - No se declara producción lista.
 - No se declara seguridad API total cerrada (queda trabajo de gobierno en SEC-5).
 

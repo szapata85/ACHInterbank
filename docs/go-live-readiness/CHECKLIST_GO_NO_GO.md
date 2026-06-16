@@ -1,10 +1,12 @@
 # Checklist GO / NO-GO - ACH Interbank
 
-Fecha de generacion/revalidacion: 2026-05-18 / 2026-05-19
-Version: 0.8 preliminar
-Rama analizada: `fix/uat-operator-role-seed`
-Estado inicial: Candidato UAT controlado / NO-GO productivo.  
+Fecha de generacion/revalidacion: 2026-05-18 / 2026-06-12
+Version: 0.9 cierre tecnico G3.5-G3.6
+Rama analizada: `ACH-Interbank-Postgresql`
+Estado vigente: G3.5-G3.6 cerrados tecnicamente / NO-GO productivo.
 Uso: checklist para comite; requiere evidencia y aprobacion humana.
+
+> La seccion `Actualizacion 2026-06-12` prevalece sobre estados historicos anteriores que indiquen que NachaUpload real, Quartz o la exportacion NACHA-M siguen pendientes.
 
 ## Checklist
 
@@ -13,12 +15,12 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 | GNG-001 | Funcional | Transacciones ACH individuales funcionan con datos anonimizados? | PENDIENTE VALIDAR | UAT-REAL-007 | Operaciones | Si | |
 | GNG-002 | Funcional | Bulk ingestion procesa errores parciales y retry? | PENDIENTE VALIDAR | UAT-REAL-008 | Operaciones/Tecnologia | Si | |
 | GNG-003 | Normativa | Existe trazabilidad norma-codigo-prueba-evidencia por camara? | PARCIAL | `docs/audits/s1-requirement-norm-code-test-evidence-closure-matrix-current.md` | Compliance | Si | Requiere firma |
-| GNG-004 | Backend | Build y tests backend actuales pasan? | OK | GitHub Actions `dotnet-ci` OK para `49b810f9`; `dotnet build` OK; suite backend local 1091 OK, 1 omitida, 0 fallas | Tecnologia | Si | Adjuntar evidencia al paquete RC |
-| GNG-005 | Frontend | Build SPA actual pasa? | OK | `angular-ci` de rama OK; `npm run build` OK; `npm test` 147 specs OK | Tecnologia | Si | Adjuntar evidencia al paquete RC; warnings no bloqueantes |
+| GNG-004 | Backend | Build y tests backend actuales pasan? | OK | Commit `e5721150`; `dotnet build` Release 0 warnings/errores; suite backend 1652 OK, 1 omitida, 0 fallas | Tecnologia | Si | Ejecucion local controlada; adjuntar CI remoto cuando exista |
+| GNG-005 | Frontend | Build SPA actual pasa? | OK | Commit `e5721150`; Angular 347/347; TypeScript y descubrimiento Playwright OK | Tecnologia | Si | Warnings no bloqueantes documentados |
 | GNG-006 | Seguridad | Todos los controllers sensibles tienen autorizacion explicita? | PARCIAL | `AchResponsesController` ahora tiene `[Authorize]`; falta matriz endpoint-rol completa | Seguridad | Si | |
-| GNG-007 | OpenBao/secretos | OpenBao UAT esta disponible o existe excepcion aprobada? | PENDIENTE VALIDAR | `scripts/openbao`, compose principal sin OpenBao | Seguridad | Si si aplica | |
+| GNG-007 | Secretos | Mecanismo de custodia UAT esta disponible o existe excepcion aprobada? | PENDIENTE VALIDAR | compose principal sin custodia externa visible | Seguridad | Si si aplica | |
 | GNG-008 | Certificados/firma/sobre digital | Existe validacion externa oficial? | CRITICO | Docs UAT marcan pendiente | Seguridad | Si | |
-| GNG-009 | NACHA-M | Registros 1/5/6/7/8/9 validados por campo? | BLOQUEADO | `docs/uat/UAT_NACHA_M_CAMPO_A_CAMPO.md`; evidencias `docs/uat/evidencias/nacha-m-uat/` | Operaciones/QA/Compliance | Si | Transacciones por camara creadas, pero no hay archivo NACHA-M valido: 422 controlado por prenotificacion previa ausente |
+| GNG-009 | NACHA-M | Registros 1/5/6/7/8/9 validados por campo? | OK TECNICO / PARCIAL NORMATIVO | Commits `7c3cbb21` y `e5721150`; specs G3.6A/G3.6B | Operaciones/QA/Compliance | Si | Naming, generacion y parseo reales validados; falta homologacion externa/campo-a-campo firmada |
 | GNG-010 | ACH Colombia | Flujos ACH tienen aceptacion funcional? | PENDIENTE VALIDAR | Acta UAT pendiente | Negocio | Si | |
 | GNG-011 | CENIT | Ciclos CENIT tienen evidencia homologada? | PARCIAL | Checklist CENIT | Operaciones | Si | |
 | GNG-012 | STA | STA aplica al alcance y esta validado? | NO CLARO | NO ENCONTRADO | Compliance | PENDIENTE VALIDAR | |
@@ -30,14 +32,14 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 | GNG-018 | UAT | Acta UAT firmada existe? | CRITICO | Plantilla creada | Auditoria | Si | |
 | GNG-019 | Evidencias | Indice de evidencias completo? | CRITICO | `docs/uat/INDICE_EVIDENCIAS_UAT.md` | Auditoria | Si | |
 | GNG-020 | Operacion | Runbook UAT/preproductivo aprobado? | PARCIAL | `docs/operations/RUNBOOK_UAT_Y_PREPRODUCTIVO.md` | Operaciones | Si | |
-| GNG-021 | Monitoreo | Health checks y monitoreo cubren componentes criticos? | PARCIAL | Docker runtime: `/health/live` OK y `/health/ready` OK con DB healthy | Tecnologia | Si | Falta Quartz/OpenBao/externos y monitoreo real |
+| GNG-021 | Monitoreo | Health checks y monitoreo cubren componentes criticos? | PARCIAL | Health API/DB OK; Quartz real evidenciado por `TaskExecutionLog` en G3.6A/G3.6B | Tecnologia | Si | Falta monitoreo productivo y dependencias externas |
 | GNG-022 | Backup/restore | Backup y restore ensayados? | NO ENCONTRADO | NO ENCONTRADO | Operaciones | Si | |
 | GNG-023 | Rollback | Rollback documentado y ensayado? | PARCIAL | Runbook documental | Operaciones/Tecnologia | Si | |
 | GNG-024 | Soporte | Equipo soporte y escalamiento definidos? | PENDIENTE VALIDAR | Acta/runbook | Operaciones | Si | |
 | GNG-025 | Mesa de ayuda | Canal de defectos/incidentes UAT definido? | PENDIENTE VALIDAR | Matriz defectos | Operaciones | No | |
 | GNG-026 | Aprobaciones | Negocio, Operaciones, Seguridad y Auditoria firmaron? | CRITICO | NO ENCONTRADO | Comite | Si | |
 | GNG-027 | Docker/ambiente | Compose UAT no expone secretos y esta parametrizado? | PARCIAL | `docker compose config/build/up` OK; API/Postgres/SPA Up; SPA proxya API/Auth/Navigation via Nginx; PostgreSQL publicado solo en loopback 5432 para UAT local | Operaciones | Si | Falta UAT tecnico con datos anonimizados y revision de secretos; exposicion DB no aplica a productivo |
-| GNG-028 | PostgreSQL/migraciones | Migraciones aplicadas sin drift? | PARCIAL | API aplico migraciones automaticas en Docker; DB ready OK; 130 tablas public | Tecnologia | Si | Validar politica DBA para UAT/preproductivo |
+| GNG-028 | PostgreSQL/migraciones | Migraciones aplicadas sin drift? | CONTROL UAT OK / POLITICA PRODUCTIVA PENDIENTE | `Database__ApplyMigrations=${DATABASE_APPLY_MIGRATIONS:-false}`; G3.6 uso DB provisionada sin migraciones | Tecnologia | Si | Mantener false por defecto; DBA debe aprobar cualquier cambio futuro |
 | GNG-029 | Seguridad configuracion | `.env`, compose y prod config estan saneados? | PARCIAL | `.gitignore`, compose placeholders, `environment.prod.ts` relativo; `.env` sigue trackeado | Seguridad | Si | Requiere revision humana de `.env` |
 | GNG-030 | README/runbook | README operativo no tiene drift? | OK | README raiz saneado y referencia docs UAT/go-live | Tecnologia | No para UAT, si para release formal | |
 | GNG-031 | Datos sensibles | No hay datos sensibles versionados? | PENDIENTE VALIDAR | Pre-check `.env` versionado | Seguridad | Si | Requiere revision |
@@ -51,7 +53,7 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 | GNG-039 | Conciliacion sintetica | Existe lectura basica de conciliacion para ciclo/fecha sinteticos? | OK TECNICO | `GET /api/reports/reconciliation` responde 200 por API directa | Auditoria/Operaciones | Si | No reemplaza conciliacion bancaria real |
 | GNG-040 | Seguridad dependencias | No hay paquetes NuGet vulnerables conocidos en la solucion? | OK TECNICO | `System.Security.Cryptography.Xml` fijado en 10.0.8; `dotnet list ... --vulnerable --include-transitive` sin hallazgos | Seguridad/Tecnologia | Si | Mantener monitoreo de advisories |
 | GNG-041 | Rol ACH.Operator | Usuario demo evidencia roles esperados `Admin` y `ACH.Operator`? | OK TECNICO | `UserRoleConfiguration` y migracion `AddAdminOperatorRoleSeed` asignan `admin` a `Admin` y `ACH.Operator`; login/JWT sanitizados muestran ambos roles; menu y endpoints read-only responden 200 con Bearer | Seguridad/Tecnologia/QA | No para UAT controlado; si para matriz rol-permiso productiva formal | `admin` queda como usuario demo multirol para UAT controlado; evaluar usuario operador separado antes de preproductivo si seguridad lo exige |
-| GNG-042 | NACHA Export | El generador NACHA-M produce archivo UAT no vacio por camara? | BLOQUEADO | `docs/uat/EVIDENCIAS_NACHA_M_UAT.md` | Tecnologia/QA/Operaciones | Si | DEF-UAT-021 cerrado: `/NachaExport` devuelve 422 controlado si faltan prerequisitos; archivo no vacio sigue pendiente tras prenotificacion valida |
+| GNG-042 | NACHA Export | El generador NACHA-M produce archivo UAT no vacio con ciclo dinamico? | OK TECNICO UAT | G3.6B, commit `e5721150`, casos B1/B2 | Tecnologia/QA/Operaciones | Si para homologacion | Genera `RRRRTTT.ZZZ.6`; no default `.1`; correlacion por AchCycleId, no causalidad export -> dispatch |
 | GNG-043 | SOAP Proc_Contrapartidas | Existe dry-run/mock autorizado sin transmision externa? | OK UAT/LOCAL | `docs/uat/UAT_SOAP_PROC_CONTRAPARTIDAS.md`; `docs/uat/evidencias/soap-proc-contrapartidas/runtime_dry_run_validation.md` | Integracion/DevOps/Seguridad | Si | Guardrail `DryRun` por defecto validado con `PROC_DRY_RUN`; endpoint UAT/mock real sigue pendiente para homologacion |
 | GNG-044 | SPA mappings SOAP/NACHA | `/integraciones/mappings` opera catalogos IntegrationMapping/NACHA desagregado? | OK UAT/LOCAL | `docs/ux/VALIDACION_SPA_INTEGRATION_MAPPINGS.md`; `docs/ux/evidencias/integration-mappings-ux-validation.json`; `docs/ux/evidencias/integration-mappings-proc-contrapartidas-validation.json` | Integracion/QA/Frontend | No para productivo, Si para UAT controlado | WSCFAACH/WSAXON, Proc_Contrapartidas/Proc_Transacciones/RegistrarRespuestaTransaccion, purposes/directions y fuentes controladas visibles. Productivo sigue NO-GO. |
 
@@ -61,14 +63,26 @@ Uso: checklist para comite; requiere evidencia y aprobacion humana.
 - UAT puede avanzar si no hay bloqueantes de ambiente y los riesgos estan comunicados.
 - Go productivo requiere estados `OK` o riesgo aceptado formalmente en todos los controles bloqueantes.
 
-Estado tras UAT integrado NACHA/SOAP: **UAT tecnico autenticado basico OK con observaciones** y **UAT funcional sintetico PARCIALMENTE OK**. Se crearon transacciones por ACH Colombia y CENIT; DEF-UAT-021 evita falso exito con archivo 0 bytes y DEF-UAT-022 valida dry-run sin transmision externa. NACHA-M UAT queda bloqueado hasta crear prenotificacion valida y obtener archivo no vacio validado campo-a-campo. Productivo permanece **NO-GO**.
+Estado vigente tras G3.6: **UAT tecnico E2E PostgreSQL real OK para el alcance G3.6A/G3.6B**. La homologacion normativa, SOAP real, movimiento monetario, actas y controles productivos siguen pendientes. Productivo permanece **NO-GO**.
+
+## Actualizacion 2026-06-12 - cierre tecnico G3.5-G3.6
+
+| Fase | Estado | Evidencia estable | Observacion obligatoria |
+|---|---|---|---|
+| G3.5 naming dinamico | GO tecnico con observaciones | Commit `7c3cbb21bc35dd253334b7edac1deef16efadabc` | `RRRRTTT.ZZZ.N`; `CycleNumber` sale de `AchCycles.CycleName`, que debe contener exactamente un entero positivo |
+| G3.5.1 cleanup secretos | GO tecnico con observaciones | Commit `ebf7a8a5569cbfc5f4d2c74a919f83b86b479c3e` | OpenBao/HashiCorp Vault retirado; KeyVault se inventaria separadamente |
+| G3.5.2 pre-G3.6 | Cerrado | Commit `c7a5ad50f66914e5802fc6df9f07567f28871dbd` | Migraciones deshabilitadas por defecto y escaneo residual sin dependencias activas |
+| G3.6A inbound | GO tecnico | Commit `e57211506d381acc43d398e72277911720e6323e`; spec `uat-nacha-inbound-postgres-dispatch.spec.ts`; 2/2 | SPA/API/PostgreSQL/Quartz reales; `Proc_Transacciones` dry-run; sin fallback a ciclo 1 |
+| G3.6B outbound | GO tecnico con observacion | Commit `e57211506d381acc43d398e72277911720e6323e`; spec `uat-nacha-export-postgres-contrapartidas.spec.ts`; 2/2 | Correlacion por `AchCycleId`; no demuestra causalidad NachaExport -> Proc_Contrapartidas |
+
+No hubo SOAP real, movimiento monetario, migraciones ni homologacion externa. Los estados dry-run no se interpretan como exito bancario.
 
 ## Actualizacion 2026-05-19
 
 | Control | Estado | Observacion |
 |---|---|---|
 | Reglas de prenotificacion parametrizadas por camara | OK tecnico | Backend/API/SPA implementados; requiere validacion runtime con migracion aplicada. |
-| DEF-UAT-020 NACHA-M campo-a-campo | Parcial | Parametrizacion completada, archivo no vacio sigue pendiente. |
+| DEF-UAT-020 NACHA-M campo-a-campo | Parcial normativo | Archivo no vacio y flujo tecnico cerrados en G3.6; homologacion externa sigue pendiente. |
 | Productivo | NO-GO | Persisten UAT formal, CENIT/CUD, sobre digital, backup/restore y homologaciones. |
 ## Actualizacion 2026-05-20
 
@@ -92,7 +106,7 @@ Resultado del ciclo controlado:
 
 Evidencia comun:
 
-- Patron aplicado: RRRRTTT.ZZZ.1.
+- Patron aplicado: RRRRTTT.ZZZ.N.
 - Originador: Cooperativa Financiera de Antioquia, unico FinancialInstitution.IsDefaultSource=true.
 - RRRR=0001 y TTT=283 derivados de la configuracion de CFA.
 - Mapeo validado: 001 -> A y 002 -> B en registro tipo 1 campo 7.
@@ -121,7 +135,7 @@ Observacion normativa:
 | Simulador inbound UAT/local | OK tecnico | `/api/uat/nacha-inbound-simulator` | No por si solo | Solo genera archivos |
 | Descarga de archivo simulado | OK tecnico | Endpoint `/{id}/file` | No por si solo | Debe validarse runtime |
 | Auto-import deshabilitado | OK | Metadata `autoImported=false` | Si si falla | No llama NachaUpload |
-| Procesamiento real NachaUpload | Pendiente | Fase posterior | Si | Requiere carga manual |
+| Procesamiento real NachaUpload | OK tecnico G3.6A | Commit `e5721150`, 2/2 | Si para homologacion | Carga real, persistencia, Quartz y dry-run validados |
 | Productivo | NO-GO | Readiness | Si | Mantener decision NO-GO |
 
 ## Actualizacion 2026-05-20 - Configuracion SOAP UX

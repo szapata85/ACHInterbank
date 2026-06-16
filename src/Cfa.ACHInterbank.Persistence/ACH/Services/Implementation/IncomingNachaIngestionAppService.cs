@@ -7,6 +7,7 @@ using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -258,6 +259,16 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         ingestion.ParsingStatus = IncomingNachaParsingStatus.EnProceso;
         await _context.SaveChangesAsync(ct);
 
+        int? cycleNumber = null;
+        if (!string.IsNullOrWhiteSpace(ingestion.ResolvedAchCycleId))
+        {
+            var resolvedCycle = await _context.AchCycles.AsNoTracking().FirstOrDefaultAsync(x => x.Id == ingestion.ResolvedAchCycleId, ct);
+            if (resolvedCycle is not null && ExternalFileNameSupport.TryExtractPositiveCycleNumber(resolvedCycle.CycleName, out var parsedCycleNumber))
+            {
+                cycleNumber = parsedCycleNumber;
+            }
+        }
+
         var policyContext = new ExternalFileNameContext
         {
             ClearingHouseId = ingestion.ResolvedClearingHouseId ?? 0,
@@ -272,6 +283,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             FileHash = fileHash,
             FileSize = fileBytes.LongLength,
             CycleId = ingestion.ResolvedAchCycleId,
+            CycleNumber = cycleNumber,
             RequestedBy = request.RequestedBy ?? "system"
         };
 

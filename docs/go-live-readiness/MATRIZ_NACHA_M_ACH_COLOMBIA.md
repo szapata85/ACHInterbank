@@ -63,7 +63,7 @@ Resultado del ciclo controlado:
 
 Evidencia comun:
 
-- Patron aplicado: RRRRTTT.ZZZ.1.
+- Patron aplicado: RRRRTTT.ZZZ.N.
 - Originador: Cooperativa Financiera de Antioquia, unico FinancialInstitution.IsDefaultSource=true.
 - RRRR=0001 y TTT=283 derivados de la configuracion de CFA.
 - Mapeo validado: 001 -> A y 002 -> B en registro tipo 1 campo 7.
@@ -85,6 +85,6 @@ Observacion normativa:
 | TransactionId | Generado por sistema | 256 | OK | consulta read-only |
 | Banco origen | CFA default source | Cooperativa Financiera de Antioquia | OK | consulta read-only |
 | Codigo NACHA | 28 | 28 | OK | archivo `0001283.004.1` |
-| Nomenclatura | `RRRRTTT.ZZZ.1` | `0001283.004.1` | OK | archivo |
+| Nomenclatura | `RRRRTTT.ZZZ.N` | `0001283.004.N` | OK | archivo |
 | Campo 7 registro 1 | `004 -> D` | D | OK | archivo |
 | Transmision externa | No | No | OK | metadata |

@@ -1,0 +1,9 @@
+Documento técnico para soporte/desarrollo. No entregar a usuarios funcionales.
+
+Resumen técnico
+- Se identificó una colisión en el acceso directo a algunas rutas base del sistema con servicios internos.
+- `Ciclos ACH` y `Transacciones` cargan correctamente cuando se abren desde la navegación interna del sistema.
+- La evidencia funcional para usuarios queda válida siempre que esas pantallas se abran desde el menú.
+
+Recomendación posterior
+- Revisar la separación entre rutas visuales y servicios internos para evitar comportamientos distintos entre acceso directo y navegación interna.

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, NgZone, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { ColDef } from 'ag-grid-community';
 import { finalize } from 'rxjs';
@@ -28,6 +28,7 @@ export class CycleConfigManagementComponent implements OnInit {
   private readonly clearingHouseApi = inject(ClearingHousesApiService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly zone = inject(NgZone);
 
   loading = false;
   saving = false;
@@ -60,20 +61,7 @@ export class CycleConfigManagementComponent implements OnInit {
       minWidth: 260,
       sortable: false,
       filter: false,
-      cellRenderer: (params) => params.data?.isActive
-        ? '<button class="btn btn-outline btn-grid" data-action="edit" title="Editar configuración"><span class="material-symbols-outlined">edit</span></button> <button class="btn btn-outline btn-grid" data-action="clone" title="Clonar configuración"><span class="material-symbols-outlined">content_copy</span></button> <button class="btn btn-danger btn-grid" data-action="inactivate" title="Inactivar configuración"><span class="material-symbols-outlined">block</span></button>'
-        : '<button class="btn btn-outline btn-grid" data-action="edit" title="Editar configuración"><span class="material-symbols-outlined">edit</span></button> <button class="btn btn-outline btn-grid" data-action="clone" title="Clonar configuración"><span class="material-symbols-outlined">content_copy</span></button>',
-      onCellClicked: (params) => {
-        const target = params.event?.target as HTMLElement | null;
-        const action = target?.getAttribute('data-action');
-        if (action === 'edit') {
-          this.edit(params.data!);
-        } else if (action === 'clone') {
-          this.clone(params.data!);
-        } else if (action === 'inactivate' && params.data?.isActive) {
-          this.askInactivate(params.data);
-        }
-      }
+      cellRenderer: (params) => this.renderActionButtons(params.data)
     }
   ];
 
@@ -89,12 +77,15 @@ export class CycleConfigManagementComponent implements OnInit {
     { value: 'future', label: 'Futuras' },
     { value: 'expired', label: 'Vencidas' }
   ];
+
   get clearingHouseOptions(): OpcionSelectorBuscable[] {
     return this.clearingHouses.map((house) => ({ valor: house.id, etiqueta: house.name }));
   }
+
   get statusSelectorOptions(): OpcionSelectorBuscable[] {
     return this.statusOptions.map((option) => ({ valor: option.value, etiqueta: option.label }));
   }
+
   get validitySelectorOptions(): OpcionSelectorBuscable[] {
     return this.validityOptions.map((option) => ({ valor: option.value, etiqueta: option.label }));
   }
@@ -173,6 +164,8 @@ export class CycleConfigManagementComponent implements OnInit {
       cutoffTime: this.toTimeInput(item.cutoffTime),
       effectiveFrom: this.todayInputValue()
     });
+
+    this.cdr.markForCheck();
   }
 
   clone(item: ClearingHouseCycleConfigItem): void {
@@ -180,6 +173,8 @@ export class CycleConfigManagementComponent implements OnInit {
     this.form.patchValue({
       cycleName: `${item.cycleName}-V2`
     });
+
+    this.cdr.markForCheck();
   }
 
   closeForm(): void {
@@ -208,10 +203,12 @@ export class CycleConfigManagementComponent implements OnInit {
         clearingHouseId,
         effectiveAt: this.filterForm.controls.effectiveAt.value || null
       })
-      .pipe(finalize(() => {
-        this.loading = false;
-        this.cdr.markForCheck();
-      }))
+      .pipe(
+        finalize(() => {
+          this.loading = false;
+          this.cdr.markForCheck();
+        })
+      )
       .subscribe({
         next: (items) => {
           this.allItems = items;
@@ -236,8 +233,7 @@ export class CycleConfigManagementComponent implements OnInit {
 
     this.visibleItems = this.allItems.filter((item) => {
       const matchesName = !cycleName || item.cycleName.toLowerCase().includes(cycleName);
-      const matchesStatus =
-        status === 'all' || (status === 'active' ? item.isActive : !item.isActive);
+      const matchesStatus = status === 'all' || (status === 'active' ? item.isActive : !item.isActive);
       const itemState = this.resolveValidity(item, effectiveAt);
       const matchesValidity = validity === 'all' || itemState === validity;
 
@@ -267,10 +263,12 @@ export class CycleConfigManagementComponent implements OnInit {
     this.saving = true;
     this.cycleConfigApi
       .createVersion(payload)
-      .pipe(finalize(() => {
-        this.saving = false;
-        this.cdr.markForCheck();
-      }))
+      .pipe(
+        finalize(() => {
+          this.saving = false;
+          this.cdr.markForCheck();
+        })
+      )
       .subscribe({
         next: () => {
           this.notifications.success('Configuración versionada correctamente.');
@@ -287,6 +285,7 @@ export class CycleConfigManagementComponent implements OnInit {
 
   askInactivate(item: ClearingHouseCycleConfigItem): void {
     this.selectedForInactivation = item;
+    this.cdr.markForCheck();
   }
 
   cancelInactivate(): void {
@@ -302,24 +301,27 @@ export class CycleConfigManagementComponent implements OnInit {
     const id = this.selectedForInactivation.id;
     this.saving = true;
 
-    this.cycleConfigApi.inactivate(id, { effectiveTo }).pipe(
-      finalize(() => {
-        this.saving = false;
-        this.cdr.markForCheck();
-      })
-    ).subscribe({
-      next: () => {
-        this.notifications.success('Configuración inactivada correctamente.');
-        this.selectedForInactivation = null;
-        this.search();
-        this.cdr.markForCheck();
-      },
-      error: () => {
-        this.notifications.error('No fue posible inactivar la configuración.');
-        this.selectedForInactivation = null;
-        this.cdr.markForCheck();
-      }
-    });
+    this.cycleConfigApi
+      .inactivate(id, { effectiveTo })
+      .pipe(
+        finalize(() => {
+          this.saving = false;
+          this.cdr.markForCheck();
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.notifications.success('Configuración inactivada correctamente.');
+          this.selectedForInactivation = null;
+          this.search();
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.notifications.error('No fue posible inactivar la configuración.');
+          this.selectedForInactivation = null;
+          this.cdr.markForCheck();
+        }
+      });
   }
 
   statusBadge(item: ClearingHouseCycleConfigItem): { text: string; css: string } {
@@ -391,5 +393,59 @@ export class CycleConfigManagementComponent implements OnInit {
 
   private todayInputValue(): string {
     return new Date().toISOString().slice(0, 10);
+  }
+
+  private renderActionButtons(item?: ClearingHouseCycleConfigItem | null): HTMLElement {
+    const container = document.createElement('div');
+    container.classList.add('cycle-config-actions');
+
+    if (!item) {
+      return container;
+    }
+
+    container.append(
+      this.createActionButton('edit', 'Editar configuración', 'edit', () => this.edit(item)),
+      this.createActionButton('clone', 'Clonar configuración', 'content_copy', () => this.clone(item))
+    );
+
+    if (item.isActive) {
+      container.append(
+        this.createActionButton('inactivate', 'Inactivar configuración', 'block', () => this.askInactivate(item))
+      );
+    }
+
+    return container;
+  }
+
+  private createActionButton(
+    action: string,
+    label: string,
+    icon: string,
+    handler: () => void
+  ): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.classList.add('btn', 'btn-grid');
+    button.classList.add(action === 'inactivate' ? 'btn-danger' : 'btn-outline');
+    button.setAttribute('data-testid', `cycle-config-action-${action}`);
+    button.setAttribute('data-action', action);
+    button.setAttribute('aria-label', label);
+    button.setAttribute('title', label);
+
+    const iconSpan = document.createElement('span');
+    iconSpan.classList.add('material-symbols-outlined');
+    iconSpan.textContent = icon;
+    button.append(iconSpan);
+
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.zone.run(() => {
+        handler();
+        this.cdr.markForCheck();
+      });
+    });
+
+    return button;
   }
 }

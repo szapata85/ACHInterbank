@@ -75,7 +75,7 @@ Brechas abiertas relevantes:
 - Evidencia visual/operativa pendiente.
 - CENIT/CUD pendiente.
 - Sobre digital/firma/certificados pendiente.
-- OpenBao/secrets pendiente segun alcance.
+- Custodia de secretos pendiente segun alcance.
 - Backup/restore/rollback pendiente.
 - UAT bancario formal pendiente.
 

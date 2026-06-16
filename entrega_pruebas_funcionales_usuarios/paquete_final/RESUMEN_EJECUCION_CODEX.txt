@@ -1,0 +1,24 @@
+RESUMEN DE EJECUCION CODEX
+
+Resumen funcional de entrega
+- El paquete fue revisado para validar que los documentos y las capturas necesarias estuvieran disponibles.
+- El ingreso visual funciona por `http://localhost:743/login`.
+- Se generaron capturas de las pantallas principales incluidas en esta entrega.
+- Las pantallas `Ciclos ACH` y `Transacciones` deben abrirse desde el menú del sistema.
+- No se encontraron faltantes en los documentos principales ni en las capturas requeridas.
+- Los usuarios deben registrar cualquier hallazgo en el formato de incidencias incluido en el paquete.
+- El paquete queda listo para iniciar pruebas locales funcionales.
+
+Documentos incluidos
+- Guía funcional.
+- Matriz de escenarios.
+- Formato de incidencias.
+- Capturas de apoyo.
+- README de uso rápido.
+
+Recomendación para los usuarios
+- Seguir la guía funcional.
+- Ejecutar los escenarios en el orden definido por la matriz.
+- Registrar resultados y hallazgos durante la prueba.
+- Usar solo datos de prueba.
+- No usar datos reales sensibles.

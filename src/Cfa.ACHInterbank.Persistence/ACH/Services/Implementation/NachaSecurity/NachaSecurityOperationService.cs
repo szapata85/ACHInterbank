@@ -9,6 +9,7 @@ using Cfa.ACHInterbank.Application.ACHSobreDigital.Operations;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -257,10 +258,11 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
                 return ToDto(operation);
             }
 
+            var cycleNumber = ResolveCycleNumberOrThrow(cycle.CycleName);
             operation.ClearingHouseId = cycle.ClearingHouseId;
 
             var nacha = await _nachaBuilder.BuildNachaFileByCycleAsync(request.CycleId, cancellationToken);
-            var legacyFileName = BuildNachaFileName(clearingHouse, cycle);
+            var legacyFileName = BuildNachaFileName(clearingHouse, cycleNumber);
             var normalized = await NormalizeFileHeaderIdentifierForCenitAsync(nacha, clearingHouse, legacyFileName, cancellationToken);
             if (string.IsNullOrWhiteSpace(normalized))
             {
@@ -417,26 +419,24 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
 
     private static byte[] NewRowVersion() => Guid.NewGuid().ToByteArray();
 
-    private static string BuildNachaFileName(ClearingHouseDto clearingHouse, AchCycleDto cycle)
+    private static string BuildNachaFileName(ClearingHouseDto clearingHouse, int cycleNumber)
     {
         if (string.Equals(clearingHouse.Code, "CENIT", StringComparison.OrdinalIgnoreCase))
         {
-            var cycleNumber = GetCenitCycleNumber(cycle.CycleName);
-            return $"{clearingHouse.OriginCode}.{cycleNumber}.1";
+            return $"{clearingHouse.OriginCode}.{cycleNumber:D3}.{cycleNumber}";
         }
 
-        return $"NACHA_{cycle.Id}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.txt";
+        return $"NACHA_{cycleNumber}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.txt";
     }
 
-    private static string GetCenitCycleNumber(string cycleName)
+    private static int ResolveCycleNumberOrThrow(string? cycleName)
     {
-        var match = Regex.Match(cycleName, @"\d+");
-        if (!match.Success || !int.TryParse(match.Value, out var cycleNumber))
+        if (ExternalFileNameSupport.TryExtractPositiveCycleNumber(cycleName, out var cycleNumber))
         {
-            return "001";
+            return cycleNumber;
         }
 
-        return cycleNumber.ToString("D3");
+        throw new InvalidOperationException("No se pudo resolver un numero de ciclo positivo unico desde CycleName para generar NACHA-M outbound.");
     }
 
     private async Task<string> NormalizeFileHeaderIdentifierForCenitAsync(string nachaContent, ClearingHouseDto clearingHouse, string fileName, CancellationToken ct)
@@ -453,7 +453,7 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
 
     private static int ResolveDailySequenceFromFileName(string fileName)
     {
-        var match = Regex.Match(fileName, @"^[^.]+\.(\d{3})\.1$");
+        var match = Regex.Match(fileName, @"^[^.]+\.(\d{3})\.\d+$");
         if (!match.Success)
         {
             throw new InvalidOperationException($"Nombre de archivo CENIT inválido: {fileName}.");
@@ -497,6 +497,7 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
         CancellationToken ct)
     {
         var isAch = string.Equals(clearingHouse.Code, "ACH", StringComparison.OrdinalIgnoreCase);
+        var cycleNumber = ResolveCycleNumberOrThrow(cycle.CycleName);
         var context = new ExternalFileNameContext
         {
             ClearingHouseId = clearingHouse.Id,
@@ -504,6 +505,7 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
             ClearingHouseOriginCode = clearingHouse.OriginCode,
             CycleId = cycle.Id,
             CycleName = cycle.CycleName,
+            CycleNumber = cycleNumber,
             ProcessingDate = cycle.ProcessingDate,
             ExternalFileType = ExternalFileType.NachaOut,
             Flow = ExternalFileFlow.Originacion,

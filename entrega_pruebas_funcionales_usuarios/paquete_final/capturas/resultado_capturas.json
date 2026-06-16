@@ -1,0 +1,185 @@
+{
+  "executedAtUtc": "2026-06-14T02:05:00.000Z",
+  "baseUrl": "http://localhost:743",
+  "environment": {
+    "achUatUserExists": true,
+    "achUatPasswordExists": true
+  },
+  "login": {
+    "attempted": true,
+    "success": true,
+    "finalUrl": "http://localhost:743/dashboard",
+    "finalPath": "/dashboard",
+    "tokenPresent": true,
+    "message": "Sesion autenticada.",
+    "authStatus": 200
+  },
+  "diagnostic": {
+    "nginxProxyCollision": true,
+    "rootCause": "conflicto-nginx-rutas-base-angular-vs-api",
+    "achCycles": {
+      "angularRouteDefined": true,
+      "directNavigationWithoutBearerStatus": 401,
+      "directNavigationWithBearerStatus": 200,
+      "directNavigationWithBearerContentType": "application/json; charset=utf-8",
+      "directNavigationTarget": "api",
+      "uiNavigationWorks": true,
+      "uiFinalPath": "/ach-cycles"
+    },
+    "transactions": {
+      "angularRouteDefined": true,
+      "directNavigationWithoutBearerStatus": 401,
+      "directNavigationWithBearerStatus": 200,
+      "directNavigationWithBearerContentType": "application/json; charset=utf-8",
+      "directNavigationTarget": "api",
+      "uiNavigationWorks": true,
+      "uiFinalPath": "/transactions/list"
+    },
+    "officialVisualAlternatives": {
+      "achCycles": "/ach-cycles",
+      "transactions": "/transactions/list",
+      "nachaExport": "/ach-cycles/nacha/export",
+      "uat": "/uat/nacha-inbound-simulator"
+    },
+    "proposedFix": "Mover endpoints API colisionantes a /api/... o ajustar Nginx para no interceptar las rutas visuales base."
+  },
+  "optionalRoutes": [
+    {
+      "candidate": "/uat",
+      "requestedUrl": "http://localhost:743/uat",
+      "description": "Pantalla UAT opcional",
+      "finalUrl": "http://localhost:743/uat/nacha-inbound-simulator",
+      "finalPath": "/uat/nacha-inbound-simulator",
+      "status": 200,
+      "available": true,
+      "observation": "Ruta opcional disponible y funcional.",
+      "screenshot": "11_uat_inbound_simulator.png"
+    }
+  ],
+  "routes": [
+    {
+      "key": "inicio_o_login",
+      "description": "Pantalla inicial o ingreso funcional",
+      "requestedCandidate": "/login",
+      "requestedUrl": "http://localhost:743/login",
+      "finalUrl": "http://localhost:743/login",
+      "finalPath": "/login",
+      "status": 200,
+      "captureStatus": "captured",
+      "captureSource": "direct-visual-route",
+      "screenshot": "01_inicio_o_login.png"
+    },
+    {
+      "key": "dashboard",
+      "description": "Dashboard principal",
+      "requestedCandidate": "/dashboard",
+      "requestedUrl": "http://localhost:743/dashboard",
+      "finalUrl": "http://localhost:743/dashboard",
+      "finalPath": "/dashboard",
+      "status": 200,
+      "captureStatus": "captured",
+      "captureSource": "direct-visual-route",
+      "screenshot": "02_dashboard.png"
+    },
+    {
+      "key": "dashboard_operacional_nacha",
+      "description": "Dashboard operacional NACHA-M",
+      "requestedCandidate": "/ach/nacha/operational-dashboard",
+      "requestedUrl": "http://localhost:743/ach/nacha/operational-dashboard",
+      "finalUrl": "http://localhost:743/ach/nacha/operational-dashboard",
+      "finalPath": "/ach/nacha/operational-dashboard",
+      "status": 200,
+      "captureStatus": "captured",
+      "captureSource": "direct-visual-route",
+      "screenshot": "03_dashboard_operacional_nacha.png"
+    },
+    {
+      "key": "configuracion_perfiles_nacha",
+      "description": "Configuracion de perfiles NACHA-M",
+      "requestedCandidate": "/nacha-config-admin/perfiles",
+      "requestedUrl": "http://localhost:743/nacha-config-admin/perfiles",
+      "finalUrl": "http://localhost:743/nacha-config-admin/perfiles",
+      "finalPath": "/nacha-config-admin/perfiles",
+      "status": 200,
+      "captureStatus": "captured",
+      "captureSource": "direct-visual-route",
+      "screenshot": "04_configuracion_perfiles_nacha.png"
+    },
+    {
+      "key": "exportacion_nacha",
+      "description": "Exportacion NACHA",
+      "requestedCandidate": "/ach-cycles/nacha/export",
+      "requestedUrl": "http://localhost:743/ach-cycles/nacha/export",
+      "finalUrl": "http://localhost:743/ach-cycles/nacha/export",
+      "finalPath": "/ach-cycles/nacha/export",
+      "status": 200,
+      "captureStatus": "captured",
+      "captureSource": "direct-visual-route",
+      "screenshot": "05_exportacion_nacha.png"
+    },
+    {
+      "key": "ciclos_ach",
+      "description": "Ciclos ACH",
+      "requestedCandidate": "/ach-cycles",
+      "requestedUrl": "http://localhost:743/ach-cycles",
+      "finalUrl": "http://localhost:743/ach-cycles",
+      "finalPath": "/ach-cycles",
+      "status": 200,
+      "directNavigationStatus": 401,
+      "captureStatus": "captured",
+      "captureSource": "ui-navigation",
+      "screenshot": "06_ciclos_ach.png",
+      "observation": "La navegacion directa del documento colisiona con el proxy API, pero la navegacion interna SPA carga la vista visual correctamente."
+    },
+    {
+      "key": "transacciones",
+      "description": "Pantalla de transacciones",
+      "requestedCandidate": "/transactions",
+      "requestedUrl": "http://localhost:743/transactions",
+      "finalUrl": "http://localhost:743/transactions/list",
+      "finalPath": "/transactions/list",
+      "status": 200,
+      "directNavigationStatus": 401,
+      "captureStatus": "captured",
+      "captureSource": "ui-navigation",
+      "screenshot": "07_transacciones.png",
+      "observation": "La ruta base directa colisiona con el proxy API. La ruta visual efectiva desde el menu es /transactions/list."
+    },
+    {
+      "key": "cenit",
+      "description": "Pantalla CENIT",
+      "requestedCandidate": "/cenit",
+      "requestedUrl": "http://localhost:743/cenit",
+      "finalUrl": "http://localhost:743/cenit",
+      "finalPath": "/cenit",
+      "status": 200,
+      "captureStatus": "captured",
+      "captureSource": "direct-visual-route",
+      "screenshot": "08_cenit.png"
+    },
+    {
+      "key": "uat_console",
+      "description": "Consola UAT o SOAP",
+      "requestedCandidate": "/ach/nacha/soap-uat-console",
+      "requestedUrl": "http://localhost:743/ach/nacha/soap-uat-console",
+      "finalUrl": "http://localhost:743/ach/nacha/soap-uat-console",
+      "finalPath": "/ach/nacha/soap-uat-console",
+      "status": 200,
+      "captureStatus": "captured",
+      "captureSource": "direct-visual-route",
+      "screenshot": "09_uat_console.png"
+    },
+    {
+      "key": "menu_o_navegacion",
+      "description": "Menu o navegacion principal",
+      "requestedCandidate": "/dashboard",
+      "requestedUrl": "http://localhost:743/dashboard",
+      "finalUrl": "http://localhost:743/dashboard",
+      "finalPath": "/dashboard",
+      "status": 200,
+      "captureStatus": "captured",
+      "captureSource": "direct-visual-route",
+      "screenshot": "10_menu_o_navegacion.png"
+    }
+  ]
+}

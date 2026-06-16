@@ -1,3 +1,5 @@
+> Nota G3.5.2: las referencias a proveedores de secretos retirados son historicas y obsoletas desde el cleanup `ebf7a8a5`; no describen el stack vigente.
+
 # Scalar-SEC-2 — Hardening controlado de autorización en controladores P0 (2026-05-01)
 
 ## 1. Resumen ejecutivo
@@ -77,10 +79,10 @@ OpenAPI runtime generado desde `http://127.0.0.1:5194/openapi/v1.json` en `/tmp/
 - No se modificó Program.cs.
 - No se crearon políticas nuevas.
 - No se cambiaron rutas, contratos, DTOs ni lógica de negocio.
-- No se tocó Angular, criptografía ni OpenBao.
+- No se tocó Angular, criptografía ni proveedor de secretos retirado.
 
 ## 16. Veredicto
-**Hardening runtime P0 implementado** y **pruebas en verde**.  
+**Hardening runtime P0 implementado** y **pruebas en verde**.
 **Metadata OpenAPI security pendiente** (recomendar Scalar-SEC-3).
 
 ## Nota Scalar-SEC-5

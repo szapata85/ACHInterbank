@@ -41,7 +41,7 @@ Clasificar controles y evidencias por estado de preparacion, brecha y responsabl
 | No endpoints reales en docs | Revision documentacion | CFA Tecnologia | Listo para revision | Sin acta | Validar placeholders |
 | Certificados por canal aprobado | Acta entrega | CFA Seguridad | Pendiente tercero | No recibidos | Definir canal con terceros |
 | Certificados validados | Validacion cadena/vigencia | CFA Seguridad | Pendiente tercero | No recibidos | Validar tras recepcion segura |
-| Custodia definida | OpenBao/Vault o mecanismo aprobado | CFA Seguridad | Listo para revision | Falta aprobacion formal | Aprobar custodia |
+| Custodia definida | mecanismo corporativo de secretos o mecanismo aprobado | CFA Seguridad | Listo para revision | Falta aprobacion formal | Aprobar custodia |
 | Rotacion/revocacion | Procedimiento aprobado | Compliance | Listo para revision | Falta firma | Aprobar procedimiento |
 | Logging sanitizado | Extractos sanitizados | CFA Tecnologia | Pendiente evidencia | Falta muestra formal | Adjuntar extractos |
 | SOAP real bloqueado | Acta bloqueo | Mesa UAT | Listo para revision | Falta acta | Registrar bloqueo |

@@ -1,5 +1,6 @@
-using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
+using System.Text.RegularExpressions;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 
@@ -36,7 +37,32 @@ public class ExternalFileNameBuilder : IExternalFileNameBuilder
                 : await _namingRuleService.GetActiveOutboundRuleAsync(context.ClearingHouseId, context.ProcessingDate, ct);
             var sequence = await _sequenceService.ReserveNextSequenceAsync(context, ct);
             var originCode = namingRule?.OriginEntityCode ?? context.ClearingHouseOriginCode ?? string.Empty;
-            var externalName = BuildConfiguredName(namingRule?.NamePattern, originCode, sequence);
+            var cycleNumber = ResolveCycleNumber(context);
+            var externalName = BuildConfiguredName(namingRule?.NamePattern, originCode, sequence, cycleNumber);
+            var fileId = await _identifierMapService.ResolveIdentifierAsync(sequence, ct);
+
+            return new ExternalFileNameComponents
+            {
+                FullName = externalName,
+                Prefix = originCode,
+                ExternalSequence = sequence,
+                CycleNumber = cycleNumber,
+                FileIdModifier = fileId
+            };
+        }
+
+        if (ExternalFileNameSupport.IsReturnOut(context))
+        {
+            var namingRule = _namingRuleService is null
+                ? null
+                : await _namingRuleService.GetActiveOutboundRuleAsync(context.ClearingHouseId, context.ProcessingDate, ct);
+            var sequence = await _sequenceService.ReserveNextSequenceAsync(context, ct);
+            var originCode = namingRule?.OriginEntityCode ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(originCode))
+            {
+                throw new InvalidOperationException("RETURN_FILENAME_POLICY_REQUIRED: No existe política oficial de naming para ReturnOut.");
+            }
+            var externalName = ExternalFileNameSupport.BuildReturnName(originCode, sequence);
             var fileId = await _identifierMapService.ResolveIdentifierAsync(sequence, ct);
 
             return new ExternalFileNameComponents
@@ -61,10 +87,10 @@ public class ExternalFileNameBuilder : IExternalFileNameBuilder
         };
     }
 
-    private static string BuildConfiguredName(string? namePattern, string originCode, int sequence)
+    private static string BuildConfiguredName(string? namePattern, string originCode, int sequence, int cycleNumber)
     {
-        var defaultName = ExternalFileNameSupport.BuildAchName(originCode, sequence);
-        if (string.IsNullOrWhiteSpace(namePattern) || string.Equals(namePattern, "RRRRTTT.ZZZ.1", StringComparison.OrdinalIgnoreCase))
+        var defaultName = ExternalFileNameSupport.BuildAchName(originCode, sequence, cycleNumber);
+        if (string.IsNullOrWhiteSpace(namePattern) || Regex.IsMatch(namePattern, @"^RRRRTTT\.ZZZ\.(?:N|[1-9]\d*)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
         {
             return defaultName;
         }
@@ -72,5 +98,20 @@ public class ExternalFileNameBuilder : IExternalFileNameBuilder
         return namePattern
             .Replace("RRRRTTT", originCode[^7..], StringComparison.OrdinalIgnoreCase)
             .Replace("ZZZ", sequence.ToString("D3"), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int ResolveCycleNumber(ExternalFileNameContext context)
+    {
+        if (context.CycleNumber is > 0)
+        {
+            return context.CycleNumber.Value;
+        }
+
+        if (ExternalFileNameSupport.TryExtractPositiveCycleNumber(context.CycleName, out var cycleNumber))
+        {
+            return cycleNumber;
+        }
+
+        throw new InvalidOperationException("No se pudo resolver un numero de ciclo positivo unico desde CycleName para la generacion NACHA-M outbound.");
     }
 }

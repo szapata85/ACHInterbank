@@ -9,8 +9,6 @@ import { NachaGenerateOperationComponent } from './components/nacha-generate-ope
 import { NachaGenerateEncryptedOperationComponent } from './components/nacha-generate-encrypted-operation.component';
 import { ManualEncryptOperationComponent } from './components/manual-encrypt-operation.component';
 import { ManualDecryptOperationComponent } from './components/manual-decrypt-operation.component';
-import { NachaSecurityAuditComponent } from './components/nacha-security-audit.component';
-import { NachaSecurityInteroperabilityComponent } from './components/nacha-security-interoperability.component';
 
 @NgModule({
   declarations: [],
@@ -24,9 +22,7 @@ import { NachaSecurityInteroperabilityComponent } from './components/nacha-secur
     NachaGenerateOperationComponent,
     NachaGenerateEncryptedOperationComponent,
     ManualEncryptOperationComponent,
-    ManualDecryptOperationComponent,
-    NachaSecurityAuditComponent,
-    NachaSecurityInteroperabilityComponent
+    ManualDecryptOperationComponent
   ]
 })
 export class NachaSecurityModule {}

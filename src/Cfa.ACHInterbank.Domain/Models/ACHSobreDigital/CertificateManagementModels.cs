@@ -39,8 +39,7 @@ public enum CertificateStorageMode
     ExternalSecretReference = 2,
     FileReference = 3,
     HsmReference = 4,
-    KeyVaultReference = 5,
-    OpenBaoReference = 6
+    KeyVaultReference = 5
 }
 
 public enum CertificateMaterialType

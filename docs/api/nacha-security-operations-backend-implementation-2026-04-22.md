@@ -1,3 +1,5 @@
+> Nota G3.5.2: las referencias a proveedores de secretos retirados son historicas y obsoletas desde el cleanup `ebf7a8a5`; no describen el stack vigente.
+
 # Backend implementation — NACHA Security Operations API (2026-04-22)
 
 ## Alcance implementado (Prompt 12)
@@ -85,8 +87,8 @@ Comandos ejecutados y resultado real:
   - NACHA/Mapping/BatchNumber: 166/166.
 - Confirmado: no se cambió criptografía base ni hardening de `identifier/IV`.
 
-## Addendum OpenBao (2026-04-23)
-- `CertificateStorageMode.OpenBaoReference` habilita persistencia de material privado en OpenBao KVv2.
-- Upload de `.pfx` privado ahora permite que backend genere `SecretRef` automáticamente (`openbao://...`) y persista solo metadata+ref.
-- Resolución de secretos para firma/descifrado usa `OpenBaoCertificateSecretProvider`.
-- Bootstrap UAT: la API ahora puede leer token OpenBao desde archivo (`ApiTokenFilePath`) para evitar pasos manuales posteriores al `compose up`.
+## Addendum proveedor de secretos retirado (2026-04-23)
+- `CertificateStorageMode.LegacySecretProviderReference` habilita persistencia de material privado en proveedor de secretos retirado KVv2.
+- Upload de `.pfx` privado ahora permite que backend genere `SecretRef` automáticamente (`legacy-secret-provider://...`) y persista solo metadata+ref.
+- Resolución de secretos para firma/descifrado usa `LegacyCertificateSecretProvider`.
+- Bootstrap UAT: la API ahora puede leer token proveedor de secretos retirado desde archivo (`ApiTokenFilePath`) para evitar pasos manuales posteriores al `compose up`.

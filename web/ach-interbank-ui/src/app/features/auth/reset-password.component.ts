@@ -42,7 +42,7 @@ export class ResetPasswordComponent implements OnInit {
   );
 
   ngOnInit(): void {
-    this.token = this.route.snapshot.paramMap.get('token') ?? '';
+    this.token = this.route.snapshot.paramMap.get('token') ?? this.route.snapshot.queryParamMap.get('token') ?? '';
   }
 
   submit(): void {
@@ -65,7 +65,7 @@ export class ResetPasswordComponent implements OnInit {
       .pipe(
         tap(() => {
           this.successMessage = 'Tu contraseña se actualizó correctamente. Ahora puedes iniciar sesión.';
-          setTimeout(() => this.router.navigate(['/auth/login']), 1200);
+          setTimeout(() => this.router.navigate(['/login']), 1200);
         }),
         catchError(() => {
           this.errorMessage = 'El enlace es inválido o expiró. Solicita uno nuevo y vuelve a intentarlo.';
@@ -77,6 +77,6 @@ export class ResetPasswordComponent implements OnInit {
   }
 
   goToForgot(): void {
-    this.router.navigate(['/auth/forgot-password']);
+    this.router.navigate(['/forgot-password']);
   }
 }

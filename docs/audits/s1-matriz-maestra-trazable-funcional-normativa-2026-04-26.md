@@ -1,11 +1,13 @@
+> Nota G3.5.2: las referencias a proveedores de secretos retirados son historicas y obsoletas desde el cleanup `ebf7a8a5`; no describen el stack vigente.
+
 # S1 — Matriz maestra trazable funcional-normativa (ACHInterbank)
 
 > Referencia UAT complementaria: `docs/uat/incoming-return-orphan-acceptance-checklist.md`.
 
 
-**Fecha:** 2026-04-26 (UTC)  
-**Objetivo:** Trazabilidad auditable: requisito normativo/funcional → fuente documental → implementación → pruebas → evidencia → dueño → estado.  
-**Estado base:** P0 técnico backend en verde, producción funcional/normativa en NO-GO (según scorecard).  
+**Fecha:** 2026-04-26 (UTC)
+**Objetivo:** Trazabilidad auditable: requisito normativo/funcional → fuente documental → implementación → pruebas → evidencia → dueño → estado.
+**Estado base:** P0 técnico backend en verde, producción funcional/normativa en NO-GO (según scorecard).
 
 ---
 
@@ -44,7 +46,7 @@
 | S1-11 | Liquidez/CUD | DSP/CENIT + runbooks operativos | `LiquidityOptimizationService` | `CenitOperationalGovernanceTests` | `payment-rail-shadow-compare-phase6-validation` | Operaciones + Negocio | **Bloqueado (NO-GO)** | Falta validación operacional real/CUD y aceptación formal de reglas. |
 | S1-12 | Naming externo ACH/CENIT/STA | `ADR-ExternalFileNamePolicy-*`, `docs/audits/external-filename-normative-matrix-ach-cenit-sta-current.md` (vigente) | `ExternalFileNamePolicy`, `NachaExportController`, `AchReturnsService`, `AchReturnOfReturnFileGenerationService` | `ExternalFileNamePolicyPhase1Tests`, `NachaExportControllerTests` | `docs/audits/external-filename-normative-matrix-ach-cenit-sta-current.md` | Compliance + Arquitectura | **Bloqueado (NO-GO)** | Matriz vigente consolidada; persisten hardcodes RET/RORNACHA y cobertura parcial por flujo, por lo que se mantiene NO-GO productivo hasta remediación + firma. |
 | S1-13 | Sobre digital / firma / cifrado | `docs/normativa/md/ACH-Colombia-V32.md` (Anexo 21), ADR digital envelope | `DigitalEnvelopeSignatureValidator`, `NachaSecurityOperationService` | `DigitalEnvelopeSignatureFailCloseTests`, `DigitalEnvelopeInteroperabilityHarnessTests` | auditorías de digital envelope + plan UAT | Seguridad + Compliance | **Bloqueado (NO-GO)** | Falta cierre de interoperabilidad oficial externa/vector definitivo. |
-| S1-14 | Certificados / OpenBao | `docs/architecture/openbao-integration-2026-04-22.md` | `DigitalEnvelopeCertificate*`, resolvers/repositories, config OpenBao | `DigitalEnvelopeCertificateResolverTests`, `NachaSecurityOperationsControllerTests` | docs dev/openbao + uat plan | Seguridad + Operaciones | Parcial (UAT GO) | Faltan evidencias de hardening final productivo y sign-off seguridad. |
+| S1-14 | Certificados / proveedor de secretos retirado | `docs/architecture/proveedor de secretos retirado-integration-2026-04-22.md` | `DigitalEnvelopeCertificate*`, resolvers/repositories, config proveedor de secretos retirado | `DigitalEnvelopeCertificateResolverTests`, `NachaSecurityOperationsControllerTests` | docs dev/proveedor de secretos retirado + uat plan | Seguridad + Operaciones | Parcial (UAT GO) | Faltan evidencias de hardening final productivo y sign-off seguridad. |
 | S1-15 | Reportes operativos/auditoría | `docs/reporting/ach-reporting-module-architecture.md` | `ReportsController`, servicios de reportes | `ReportServicesDataQualityTests`, `ReportsControllerTests` | `p0-cr4-reportservices-targeted-tests-2026-04-26.txt` | Negocio + QA | Parcial (UAT GO) | Falta matriz report-to-regulation firmable por compliance/negocio. |
 | S1-16 | Command Center | `docs/api/incoming-nacha-command-center-api-2026-04-24.md` | `IncomingNachaCommandCenterService/Controller` | `IncomingNachaCommandCenterServiceTests` | ops revalidation incoming nacha | Operaciones + QA | Parcial (UAT GO) | Falta acta operativa de uso en contingencia real. |
 | S1-17 | Observabilidad / auditoría | runbook observabilidad + arquitectura resiliencia | `IncomingNacha*Observability` endpoints/servicios | `IncomingNacha*` suites | `docs/operations/incoming-nacha-observability-revalidation-2026-04-24.md` | Operaciones + Arquitectura | Parcial (UAT GO) | Falta evidencia de KPIs/SLO en ventana operativa productiva. |
@@ -128,7 +130,7 @@ Para la validación UAT paso-a-paso de `Accepted`, `RejectedTotal`, `RejectedPar
 
 - Referencia runbook operativo de certificados: `docs/ops/certificate-operations-runbook.md` (no modifica decisión NO-GO productivo).
 
-- Decisión arquitectura certificados: OpenBao/SecretRef excluido del flujo de certificados; BD solo metadata; llaves privadas fuera de BD.
+- Decisión arquitectura certificados: proveedor de secretos retirado/SecretRef excluido del flujo de certificados; BD solo metadata; llaves privadas fuera de BD.
 
 > Referencia punto 10 (reportería/conciliación revisión contable terceros, no contable): `docs/audits/accounting-review-reconciliation-matrix-current.md`.
 

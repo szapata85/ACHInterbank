@@ -30,7 +30,7 @@ Validar en ambiente controlado (sin datos reales) la operación end-to-end de in
 - Nuevas features backend/frontend.
 - Cambios de parser NACHA salvo bug bloqueante.
 - Cambios criptográficos (`CryptoServiceScoped`, `OpenEnvelopeAsync`, `RsaKeyProvider`, `identifier`, IV, XML/AES/RSA/padding).
-- Cambios OpenBao/SecretRef.
+- Cambios de custodia de secretos / SecretRef.
 
 ## 4) Dataset UAT sintético
 

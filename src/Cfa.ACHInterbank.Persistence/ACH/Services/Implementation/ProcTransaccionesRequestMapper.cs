@@ -178,7 +178,9 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             "entrydetails.recipidnumber" => nachaSource.EntryDetail?.RecipIdNumber,
             "entrydetails.recipusername" => nachaSource.EntryDetail?.RecipUserName,
             "entrydetails.sequencenumber" => nachaSource.EntryDetail?.SequenceNumber,
-            "addendarecords.infofromoriginator" => nachaSource.AddendaRecord?.InfofromOriginator,
+            "addendarecords.infofromoriginator" => FirstNonEmpty(
+                nachaSource.AddendaRecord?.InfofromOriginator,
+                nachaSource.AddendaRecord?.CollectorId),
             "addendarecords.invoiceoraccountnumber" => nachaSource.AddendaRecord?.InvoiceOrAccountNumber,
             "addendarecords.returnreasoncode" => nachaSource.AddendaRecord?.ReturnReasonCode,
             "addendarecords.originaltracenumber" => nachaSource.AddendaRecord?.OriginalTraceNumber,
@@ -195,6 +197,9 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             _ => rule.DefaultValue
         };
     }
+
+    private static string? FirstNonEmpty(params string?[] values)
+        => values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
 
     private async Task<NachaSourceContext> LoadNachaSourceContextAsync(
         IncomingNachaEntryClassification classification,
@@ -228,6 +233,9 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
                 .FirstOrDefaultAsync(x => x.NachaID == nachaId
                     && (entryDetail == null
                         || x.EntryDetailSequenceNumber == entryDetail.SequenceNumber
+                        || (!string.IsNullOrWhiteSpace(x.EntryDetailSequenceNumber)
+                            && !string.IsNullOrWhiteSpace(entryDetail.SequenceNumber)
+                            && entryDetail.SequenceNumber.EndsWith(x.EntryDetailSequenceNumber))
                         || x.OriginalTraceNumber == entryDetail.SequenceNumber), ct);
         }
 

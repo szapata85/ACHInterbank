@@ -2,7 +2,7 @@
 
 | Requisito | Documento fuente | Registro/Campo | Valor esperado | Valor generado | Resultado | Evidencia |
 |---|---|---|---|---|---|---|
-| Nombre de archivo salida | MAN-004 Servicio ACH Transferencias Interbancarias Para Entidades Participantes V32 | Archivo | RRRRTTT.ZZZ.1 | 0001283.002.1 | OK | metadata.json |
+| Nombre de archivo salida | MAN-004 Servicio ACH Transferencias Interbancarias Para Entidades Participantes V32 | Archivo | RRRRTTT.ZZZ.N | 0001283.002.1 | OK | metadata.json |
 | Codigo ruta originador | MAN-004 Servicio ACH Transferencias Interbancarias Para Entidades Participantes V32 | RRRR | 0001 | 0001 | OK | Nombre archivo |
 | Codigo transito originador | MAN-004 Servicio ACH Transferencias Interbancarias Para Entidades Participantes V32 | TTT | 283 | 283 | OK | Nombre archivo |
 | Consecutivo diario | MAN-004 Servicio ACH Transferencias Interbancarias Para Entidades Participantes V32 | ZZZ | 002 | 002 | OK | Nombre archivo |

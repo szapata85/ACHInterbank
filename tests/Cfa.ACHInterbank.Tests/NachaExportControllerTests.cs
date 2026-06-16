@@ -189,7 +189,7 @@ public class NachaExportControllerTests
             .ReturnsAsync(nachaContent);
         cycleService
             .Setup(c => c.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AchCycleDto { Id = cycleId, ClearingHouseId = 7, CycleName = "cycle", ProcessingDate = DateTime.UtcNow });
+            .ReturnsAsync(new AchCycleDto { Id = cycleId, ClearingHouseId = 7, CycleName = "Ciclo 7", ProcessingDate = DateTime.UtcNow });
         clearingHouseService
             .Setup(c => c.GetByIdAsync(7, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ClearingHouseDto { Id = 7, Code = "ACHCOL", OriginCode = "12345678", Name = "ACH Colombia" });

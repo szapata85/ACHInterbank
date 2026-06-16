@@ -1,9 +1,9 @@
 # Escenarios UAT con Datos Reales o Anonimizados - ACH Interbank
 
-Fecha de generacion: 2026-05-18  
-Version: 0.1 preliminar  
-Rama analizada: `ACH-Interbank-Postgresql`  
-Estado: escenarios iniciales; requieren validacion humana y ejecucion formal.  
+Fecha de generacion/revalidacion: 2026-05-18 / 2026-06-12
+Version: 0.2 cierre tecnico G3.5-G3.6
+Rama analizada: `ACH-Interbank-Postgresql`
+Estado: escenarios G3.6 ejecutados tecnicamente; ejecucion formal y aprobacion humana pendientes.
 Politica: no registrar datos sensibles reales, secretos, tokens, llaves privadas, PFX ni cuentas reales en Git.
 
 ## Referencias Reales Del Repositorio
@@ -20,6 +20,19 @@ Politica: no registrar datos sensibles reales, secretos, tokens, llaves privadas
 ## Formato De Estado
 
 Todos los escenarios inician en estado `PENDIENTE`. Donde una ruta, DTO, tabla o validacion no se identifica con certeza, se marca `NO ENCONTRADO`, `NO CLARO` o `PENDIENTE VALIDAR`.
+
+> Excepcion vigente: los escenarios incluidos en la matriz `Ejecucion G3.6` fueron ejecutados tecnicamente el 2026-06-12. Esto no equivale a UAT bancario formal.
+
+## Ejecucion G3.6
+
+| Caso | Escenarios relacionados | Resultado | Evidencia | Restriccion |
+|---|---|---|---|---|
+| G3.6A positivo | UAT-REAL-001, 005, 006, 026, 030, 032, 033 | GO tecnico, 2/2 Playwright | Commit `e5721150`, caso A1 | `Proc_Transacciones` dry-run; estado final real no implica movimiento monetario |
+| G3.6A negativo | UAT-REAL-004, 005, 029 | GO tecnico | Commit `e5721150`, caso A2 | Archivo `.6` no resuelve ciclo 1 ni crea dispatch queue |
+| G3.6B positivo | UAT-REAL-004, 005, 006, 007, 026, 032, 033 | GO tecnico con observacion, 2/2 Playwright | Commit `e5721150`, caso B1 | Correlacion por `AchCycleId`; no causalidad NachaExport -> dispatch |
+| G3.6B negativo | UAT-REAL-004, 005, 029 | GO tecnico | Commit `e5721150`, caso B2 | `CycleName` ambiguo bloquea export y no invoca `Proc_Contrapartidas` |
+
+Naming oficial validado: `RRRRTTT.ZZZ.N`. `N` es entero positivo dinamico. `.ach` no es nombre oficial.
 
 ## Escenarios
 
@@ -311,17 +324,17 @@ Todos los escenarios inician en estado `PENDIENTE`. Donde una ruta, DTO, tabla o
 - Evidencia/criterios/responsable: audit log, estado version, secretRef enmascarado; responsable Seguridad; estado PENDIENTE.
 - Brechas conocidas: no incluir material privado en Git.
 
-### UAT-REAL-025 - OpenBao / secretos
+### UAT-REAL-025 - Custodia y resolución de secretos
 
-- Objetivo: validar proveedor de secretos si aplica.
+- Objetivo: validar el mecanismo corporativo vigente de secretos.
 - Flujo funcional/camara: Seguridad transversal.
-- Precondiciones/datos: OpenBao UAT o excepcion aprobada.
+- Precondiciones/datos: mecanismo vigente aprobado para UAT.
 - Pasos: validar configuracion, lectura de secretRef enmascarado y operacion sin exponer token.
 - Resultado esperado: secretos resueltos sin datos sensibles en logs/Git.
-- SPA/backend: no aplica SPA; backend `OpenBaoCertificateSecretProvider`, scripts `scripts/openbao`; compose principal no incluye OpenBao; endpoints directos `NO ENCONTRADO`.
-- Validaciones: backend provider/config; frontend NO APLICA.
+- SPA/backend: no aplica SPA; validar la configuración vigente sin depender de servicios retirados.
+- Validaciones: backend/configuracion; frontend NO APLICA.
 - Evidencia/criterios/responsable: captura de estado redactada, hash de evidencia; responsable Seguridad/Operaciones; estado PENDIENTE.
-- Brechas conocidas: OpenBao no levantado en `docker-compose.yml` principal.
+- Brechas conocidas: falta aprobación formal del mecanismo corporativo vigente.
 
 ### UAT-REAL-026 - Auditoria y trazabilidad
 
@@ -405,7 +418,7 @@ Todos los escenarios inician en estado `PENDIENTE`. Donde una ruta, DTO, tabla o
 - SPA/backend: no aplica SPA; endpoints `GET /health/live`, `GET /health/ready`; DTO anonimo; entidades DB solo `CanConnectAsync`.
 - Validaciones: backend ready DB; frontend NO APLICA.
 - Evidencia/criterios/responsable: salida curl/Postman, timestamp; responsable Tecnologia; estado PENDIENTE.
-- Brechas conocidas: no cubre Quartz/OpenBao/externos.
+- Brechas conocidas: el health endpoint no cubre Quartz ni dependencias externas; G3.6 aporta evidencia separada de Quartz por `TaskExecutionLog`.
 
 ### UAT-REAL-033 - Validacion SPA contra API
 
@@ -442,4 +455,3 @@ Todos los escenarios inician en estado `PENDIENTE`. Donde una ruta, DTO, tabla o
 - Validaciones: frontend debe manejar 404 o feature flag; backend PENDIENTE VALIDAR.
 - Evidencia/criterios/responsable: matriz de brecha, decision funcional; responsable Tecnologia/Seguridad; estado PENDIENTE.
 - Brechas conocidas: desalineacion SPA/backend de interoperabilidad.
-

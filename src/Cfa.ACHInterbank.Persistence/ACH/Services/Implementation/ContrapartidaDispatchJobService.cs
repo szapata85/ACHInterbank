@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.External.Connections;
@@ -145,6 +147,13 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 .Where(t => transactionIds.Contains(t.Id))
                 .OrderBy(t => t.Id)
                 .ToListAsync(ct);
+            var queueItems = await _context.IncomingNachaDispatchQueue
+                .AsNoTracking()
+                .Where(q => q.AchCycleId == cycle.Id && q.ClearingHouseId == cycle.ClearingHouseId && transactionIds.Contains(q.AchTransactionId))
+                .ToListAsync(ct);
+            var queueByTransactionId = queueItems
+                .GroupBy(q => q.AchTransactionId)
+                .ToDictionary(g => g.Key, g => g.First());
 
             string requestPayload = string.Empty;
             string responsePayload = string.Empty;
@@ -222,6 +231,28 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 };
 
                 _context.ContrapartidaDispatchAttempts.Add(attempt);
+                if (queueByTransactionId.TryGetValue(txId, out var queue))
+                {
+                    _context.IncomingNachaIntegrationExecution.Add(new IncomingNachaIntegrationExecution
+                    {
+                        DispatchQueueId = queue.Id,
+                        MethodName = IntegrationGuaranteeConstants.ProcContrapartidas,
+                        MappingSetId = batch.MappingSetId,
+                        MappingVersion = batch.MappingVersion,
+                        MappingSnapshotHash = batch.MappingSnapshotHash,
+                        RequestHash = Hash(requestPayload),
+                        ResponseHash = Hash(responsePayload),
+                        RequestPayloadXml = requestPayload,
+                        ResponsePayloadXml = responsePayload,
+                        ResponseCode = itemCode,
+                        ResponseMessage = itemMessage ?? string.Empty,
+                        IsSuccess = isSuccess,
+                        IsRetryable = !isSuccess && (hasItemResult ? txResult!.IsRetryable : parseResult.IsRetryable),
+                        StartedAtUtc = startedAtUtc,
+                        FinishedAtUtc = finishedAtUtc,
+                        CorrelationId = attempt.CorrelationId
+                    });
+                }
 
                 item.AttemptCount += 1;
                 item.LastAttemptAtUtc = finishedAtUtc;
@@ -645,6 +676,12 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             throw new InvalidOperationException(
                 "REQUIRED_MAPPING_USES_FALLBACK: Proc_Contrapartidas no puede construir XML con fallback transicional. Configure mappings activos requeridos.");
         }
+    }
+
+    private static string Hash(string payload)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(payload ?? string.Empty));
+        return Convert.ToHexString(bytes);
     }
 
     private static void ValidateCycleOperationalWindow(AchCycle cycle, DateTime nowLocal)

@@ -34,6 +34,63 @@ public class PostgresExternalFileNameIntegrationTests
     }
 
     [Fact]
+    public async Task PostgresExternalFileNameSequence_ShouldResetPerDay()
+    {
+        await using var harness = await PostgresHarness.CreateAsync();
+        if (harness.IsDisabled) return;
+
+        var day1 = CreateSequenceContext(harness.ClearingHouseId, new DateTime(2026, 04, 20), "ACH");
+        var day2 = CreateSequenceContext(harness.ClearingHouseId, new DateTime(2026, 04, 21), "ACH");
+
+        var firstDay = await ReserveSequenceWithFreshContextAsync(harness.ConnectionString, day1);
+        var nextDay = await ReserveSequenceWithFreshContextAsync(harness.ConnectionString, day2);
+
+        Assert.Equal(1, firstDay);
+        Assert.Equal(1, nextDay);
+    }
+
+    [Fact]
+    public async Task PostgresExternalFileNameSequence_ShouldBeIsolatedByClearingHouseAndDate()
+    {
+        await using var harness = await PostgresHarness.CreateAsync();
+        if (harness.IsDisabled) return;
+
+        var achDay1 = CreateSequenceContext(harness.ClearingHouseId, new DateTime(2026, 04, 20), "ACH");
+        var achDay2 = CreateSequenceContext(harness.ClearingHouseId, new DateTime(2026, 04, 21), "ACH");
+        var cenitDay1 = CreateSequenceContext(harness.ClearingHouseId + 1, new DateTime(2026, 04, 20), "CENIT");
+
+        var achFirst = await ReserveSequenceWithFreshContextAsync(harness.ConnectionString, achDay1);
+        var achSecond = await ReserveSequenceWithFreshContextAsync(harness.ConnectionString, achDay1);
+        var achNextDay = await ReserveSequenceWithFreshContextAsync(harness.ConnectionString, achDay2);
+        var cenitFirst = await ReserveSequenceWithFreshContextAsync(harness.ConnectionString, cenitDay1);
+
+        Assert.Equal(1, achFirst);
+        Assert.Equal(2, achSecond);
+        Assert.Equal(1, achNextDay);
+        Assert.Equal(1, cenitFirst);
+    }
+
+    [Fact]
+    public async Task PostgresExternalFileNameSequence_ShouldIsolateReturnOutFromNachaOutOnSameDay()
+    {
+        await using var harness = await PostgresHarness.CreateAsync();
+        if (harness.IsDisabled) return;
+
+        var nachaOut = harness.NewExternalFileContext(ExternalFileType.NachaOut, ExternalFileFlow.Originacion, ExternalFileDirection.Outbound);
+        var returnOut = harness.NewExternalFileContext(ExternalFileType.ReturnOut, ExternalFileFlow.Originacion, ExternalFileDirection.Outbound);
+
+        var nachaFirst = await ReserveSequenceWithFreshContextAsync(harness.ConnectionString, nachaOut);
+        var returnFirst = await ReserveSequenceWithFreshContextAsync(harness.ConnectionString, returnOut);
+        var nachaSecond = await ReserveSequenceWithFreshContextAsync(harness.ConnectionString, nachaOut);
+        var returnSecond = await ReserveSequenceWithFreshContextAsync(harness.ConnectionString, returnOut);
+
+        Assert.Equal(1, nachaFirst);
+        Assert.Equal(1, returnFirst);
+        Assert.Equal(2, nachaSecond);
+        Assert.Equal(2, returnSecond);
+    }
+
+    [Fact]
     public async Task PostgresExternalFileNameRegistry_ShouldPersistValidationEvidence()
     {
         await using var harness = await PostgresHarness.CreateAsync();
@@ -216,6 +273,21 @@ public class PostgresExternalFileNameIntegrationTests
             RequestedBy = "postgres-integration",
             DeclaredDetailCount = declaredDetailCount,
             NachaContent = nachaContent
+        };
+    }
+
+    private static ExternalFileNameContext CreateSequenceContext(int clearingHouseId, DateTime processingDate, string clearingHouseCode)
+    {
+        return new ExternalFileNameContext
+        {
+            ClearingHouseId = clearingHouseId,
+            ClearingHouseCode = clearingHouseCode,
+            ClearingHouseOriginCode = "1234567",
+            ProcessingDate = processingDate,
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound,
+            RequestedBy = "postgres-integration"
         };
     }
 

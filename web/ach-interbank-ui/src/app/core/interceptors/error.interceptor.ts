@@ -23,7 +23,7 @@ export class ErrorInterceptor implements HttpInterceptor {
         if (error.status === 401) {
           this.authService.logout();
           this.notifications.info('Tu sesión expiró, por favor inicia sesión nuevamente.');
-          this.router.navigate(['/auth/login'], {
+          this.router.navigate(['/login'], {
             queryParams: { returnUrl: this.router.url }
           });
         } else if (error.status === 403) {

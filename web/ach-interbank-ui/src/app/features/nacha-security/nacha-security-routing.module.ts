@@ -9,8 +9,6 @@ import { NachaGenerateOperationComponent } from './components/nacha-generate-ope
 import { NachaGenerateEncryptedOperationComponent } from './components/nacha-generate-encrypted-operation.component';
 import { ManualEncryptOperationComponent } from './components/manual-encrypt-operation.component';
 import { ManualDecryptOperationComponent } from './components/manual-decrypt-operation.component';
-import { NachaSecurityAuditComponent } from './components/nacha-security-audit.component';
-import { NachaSecurityInteroperabilityComponent } from './components/nacha-security-interoperability.component';
 import { NACHA_SECURITY_PERMISSIONS } from './nacha-security-permissions';
 
 const routes: Routes = [
@@ -26,8 +24,6 @@ const routes: Routes = [
       { path: 'nacha/generate-encrypted', component: NachaGenerateEncryptedOperationComponent, data: { breadcrumb: 'Generar cifrado', title: 'Generar NACHA-M cifrado', permissions: [NACHA_SECURITY_PERMISSIONS.canGenerateEncryptedNacha, NACHA_SECURITY_PERMISSIONS.canManageAch, NACHA_SECURITY_PERMISSIONS.canReadAch] } },
       { path: 'digital-envelope/manual-encrypt', component: ManualEncryptOperationComponent, data: { breadcrumb: 'Cifrado manual', title: 'Cifrado manual sobre digital', permissions: [NACHA_SECURITY_PERMISSIONS.canManualEncryptEnvelope, NACHA_SECURITY_PERMISSIONS.canManageAch, NACHA_SECURITY_PERMISSIONS.canReadAch] } },
       { path: 'digital-envelope/manual-decrypt', component: ManualDecryptOperationComponent, data: { breadcrumb: 'Descifrado manual', title: 'Descifrado manual sobre digital', permissions: [NACHA_SECURITY_PERMISSIONS.canManualDecryptEnvelope, NACHA_SECURITY_PERMISSIONS.canManageAch, NACHA_SECURITY_PERMISSIONS.canReadAch] } },
-      { path: 'digital-envelope/audit', component: NachaSecurityAuditComponent, data: { breadcrumb: 'Auditoría', title: 'Auditoría operacional', permissions: [NACHA_SECURITY_PERMISSIONS.canViewNachaSecurityAudit, NACHA_SECURITY_PERMISSIONS.canManageAch, NACHA_SECURITY_PERMISSIONS.canReadAch] } },
-      { path: 'digital-envelope/interoperability', component: NachaSecurityInteroperabilityComponent, data: { breadcrumb: 'Interoperabilidad', title: 'Interoperabilidad y vector oficial', permissions: [NACHA_SECURITY_PERMISSIONS.canRunInteroperabilityHarness, NACHA_SECURITY_PERMISSIONS.canManageAch, NACHA_SECURITY_PERMISSIONS.canReadAch] } },
       { path: 'sobre-digital', component: DigitalEnvelopeToolComponent, data: { breadcrumb: 'Sobre digital', title: 'Sobre digital', permissions: [NACHA_SECURITY_PERMISSIONS.canManualEncryptEnvelope, NACHA_SECURITY_PERMISSIONS.canManualDecryptEnvelope, NACHA_SECURITY_PERMISSIONS.canManageAch, NACHA_SECURITY_PERMISSIONS.canReadAch] } },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' }
     ]

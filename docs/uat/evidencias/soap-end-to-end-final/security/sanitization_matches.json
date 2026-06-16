@@ -1,4 +1,4 @@
-﻿[
+[
     {
         "path":  "docs\\uat\\evidencias\\soap-end-to-end-final\\precheck_runtime.md",
         "line":  30,
@@ -326,7 +326,7 @@
     {
         "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
         "line":  96,
-        "excerpt":  "- OpenBao/SecretRef no participa en flujo de certificados.",
+        "excerpt":  "- custodia corporativa vigente/SecretRef no participa en flujo de certificados.",
         "unsafe":  false
     },
     {
@@ -344,7 +344,7 @@
     {
         "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
         "line":  167,
-        "excerpt":  "- OpenBao/SecretRef no aplica para certificados.",
+        "excerpt":  "- custodia corporativa vigente/SecretRef no aplica para certificados.",
         "unsafe":  false
     },
     {
@@ -380,7 +380,7 @@
     {
         "path":  "docs\\uat\\digital-envelope-certificate-acceptance-checklist.md",
         "line":  192,
-        "excerpt":  "- validar que OpenBao/SecretRef no participa en certificados.",
+        "excerpt":  "- validar que custodia corporativa vigente/SecretRef no participa en certificados.",
         "unsafe":  false
     },
     {
@@ -602,7 +602,7 @@
     {
         "path":  "docs\\uat\\ESCENARIOS_UAT_DATOS_REALES.md",
         "line":  314,
-        "excerpt":  "### UAT-REAL-025 - OpenBao / secretos",
+        "excerpt":  "### UAT-REAL-025 - custodia corporativa vigente / secretos",
         "unsafe":  false
     },
     {
@@ -626,7 +626,7 @@
     {
         "path":  "docs\\uat\\ESCENARIOS_UAT_DATOS_REALES.md",
         "line":  321,
-        "excerpt":  "- SPA/backend: no aplica SPA; backend `OpenBaoCertificateSecretProvider`, scripts `scripts/openbao`; compose principal no incluye OpenBao; endpoints directos `NO ENCONTRADO`.",
+        "excerpt":  "- SPA/backend: no aplica SPA; backend `proveedor heredado retirado`, scripts `scripts/custodia corporativa vigente`; compose principal no incluye custodia corporativa vigente; endpoints directos `NO ENCONTRADO`.",
         "unsafe":  false
     },
     {
@@ -1034,7 +1034,7 @@
     {
         "path":  "docs\\uat\\EVIDENCIA_TECNICA_UAT_RUNTIME.md",
         "line":  32,
-        "excerpt":  "/ OpenBao/secrets / PENDIENTE / NO APLICA compose actual / OpenBao no esta en `docker-compose.yml`; hay scripts y docs historicas. /",
+        "excerpt":  "/ custodia corporativa vigente/secrets / PENDIENTE / NO APLICA compose actual / custodia corporativa vigente no esta en `docker-compose.yml`; hay scripts y docs historicas. /",
         "unsafe":  false
     },
     {
@@ -1058,13 +1058,13 @@
     {
         "path":  "docs\\uat\\EVIDENCIA_TECNICA_UAT_RUNTIME.md",
         "line":  143,
-        "excerpt":  "## OpenBao / secretos",
+        "excerpt":  "## custodia corporativa vigente / secretos",
         "unsafe":  false
     },
     {
         "path":  "docs\\uat\\EVIDENCIA_TECNICA_UAT_RUNTIME.md",
         "line":  150,
-        "excerpt":  "/ Runtime actual requiere OpenBao / NO / `DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable=false`; OpenBao no se activo. /",
+        "excerpt":  "/ Runtime actual requiere custodia corporativa vigente / NO / `DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable=false`; custodia corporativa vigente no se activo. /",
         "unsafe":  false
     },
     {
@@ -1100,13 +1100,13 @@
     {
         "path":  "docs\\uat\\INDICE_EVIDENCIAS_UAT.md",
         "line":  29,
-        "excerpt":  "/ EV-UAT-014 / UAT-REAL-025 / Evidencia OpenBao/secreto / SecretRef enmascarado y resolucion / PENDIENTE / PENDIENTE / Seguridad / PENDIENTE / PENDIENTE / No incluir token /",
+        "excerpt":  "/ EV-UAT-014 / UAT-REAL-025 / Evidencia custodia corporativa vigente/secreto / SecretRef enmascarado y resolucion / PENDIENTE / PENDIENTE / Seguridad / PENDIENTE / PENDIENTE / No incluir token /",
         "unsafe":  false
     },
     {
         "path":  "docs\\uat\\INDICE_EVIDENCIAS_UAT.md",
         "line":  51,
-        "excerpt":  "- Evidencia OpenBao/secreto.",
+        "excerpt":  "- Evidencia custodia corporativa vigente/secreto.",
         "unsafe":  false
     },
     {
@@ -1118,7 +1118,7 @@
     {
         "path":  "docs\\uat\\MATRIZ_DATOS_UAT.md",
         "line":  31,
-        "excerpt":  "/ DAT-UAT-012 / UAT-REAL-024 / Certificados privados / Referencia externa / Seguridad / Critica / Nunca en Git; usar `secretRef` enmascarado / OpenBao/repositorio seguro externo / Seguridad / PENDIENTE / No registrar PFX /",
+        "excerpt":  "/ DAT-UAT-012 / UAT-REAL-024 / Certificados privados / Referencia externa / Seguridad / Critica / Nunca en Git; usar `secretRef` enmascarado / custodia corporativa vigente/repositorio seguro externo / Seguridad / PENDIENTE / No registrar PFX /",
         "unsafe":  false
     },
     {
@@ -1130,7 +1130,7 @@
     {
         "path":  "docs\\uat\\MATRIZ_DATOS_UAT.md",
         "line":  43,
-        "excerpt":  "/ DAT-UAT-024 / UAT-REAL-025 / SecretRef OpenBao / Referencia enmascarada / Seguridad / Critica / Registrar solo alias/mascara, no valor / OpenBao/config UAT / Seguridad / PENDIENTE / OpenBao compose principal no encontrado /",
+        "excerpt":  "/ DAT-UAT-024 / UAT-REAL-025 / SecretRef custodia corporativa vigente / Referencia enmascarada / Seguridad / Critica / Registrar solo alias/mascara, no valor / custodia corporativa vigente/config UAT / Seguridad / PENDIENTE / custodia corporativa vigente compose principal no encontrado /",
         "unsafe":  false
     },
     {
@@ -1142,7 +1142,7 @@
     {
         "path":  "docs\\uat\\MATRIZ_DEFECTOS_UAT.md",
         "line":  37,
-        "excerpt":  "/ DEF-UAT-007 / UAT-REAL-025 / Media / OpenBao no esta incluido en `docker-compose.yml` principal aunque existen scripts/configuracion. / Secretos/OpenBao / `docker-compose.yml`, `scripts/openbao` / Seguridad/Operaciones / Abierto / 2026-05-18 / PENDIENTE / Definir compose UAT o excepcion formal. /",
+        "excerpt":  "/ DEF-UAT-007 / UAT-REAL-025 / Media / custodia corporativa vigente no esta incluido en `docker-compose.yml` principal aunque existen scripts/configuracion. / Secretos/custodia corporativa vigente / `docker-compose.yml`, `scripts/custodia corporativa vigente` / Seguridad/Operaciones / Abierto / 2026-05-18 / PENDIENTE / Definir compose UAT o excepcion formal. /",
         "unsafe":  false
     },
     {
@@ -1280,7 +1280,7 @@
     {
         "path":  "docs\\uat\\PLAN_UAT_DATOS_REALES.md",
         "line":  48,
-        "excerpt":  "/ OpenBao UAT / Gestion de secretos/certificados si aplica / estado, politica, referencias enmascaradas / PENDIENTE VALIDAR /",
+        "excerpt":  "/ custodia corporativa vigente UAT / Gestion de secretos/certificados si aplica / estado, politica, referencias enmascaradas / PENDIENTE VALIDAR /",
         "unsafe":  false
     },
     {
@@ -1292,7 +1292,7 @@
     {
         "path":  "docs\\uat\\PLAN_UAT_DATOS_REALES.md",
         "line":  93,
-        "excerpt":  "- Tokens, passwords, client secrets, API keys o secretos OpenBao.",
+        "excerpt":  "- Tokens, passwords, client secrets, API keys o secretos custodia corporativa vigente.",
         "unsafe":  false
     },
     {

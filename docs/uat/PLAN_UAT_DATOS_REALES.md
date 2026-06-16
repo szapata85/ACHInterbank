@@ -1,9 +1,9 @@
 # Plan UAT con Datos Reales o Anonimizados - ACH Interbank
 
-Fecha de generacion: 2026-05-18  
-Version: 0.1 preliminar  
-Rama analizada: `ACH-Interbank-Postgresql`  
-Solucion analizada: `ACHInterbank.sln`  
+Fecha de generacion: 2026-05-18
+Version: 0.1 preliminar
+Rama analizada: `ACH-Interbank-Postgresql`
+Solucion analizada: `ACHInterbank.sln`
 Estado: requiere validacion humana por Tecnologia, Operaciones, Negocio, Seguridad y Auditoria.
 
 ## 1. Objetivo
@@ -23,7 +23,7 @@ Incluye:
 - Devoluciones de salida, devoluciones de entrada, casos huerfanos, rechazos, rechazo total, devolucion parcial y ROR.
 - CENIT: ciclos, neteo, liquidez y frontera CUD.
 - Conciliacion operativa y frontera no-contable.
-- Sobre digital, firma, certificados y OpenBao si aplica al ambiente UAT.
+- Sobre digital, firma, certificados y custodia segura mediante el mecanismo vigente del ambiente UAT.
 - Auditoria, trazabilidad, idempotencia, reportes, reproceso y cierre operativo.
 - Validacion SPA Angular contra endpoints backend reales.
 
@@ -45,7 +45,7 @@ Incluye:
 | UAT backend | Ejecucion API contra PostgreSQL UAT | URL, version, commit, health checks | PENDIENTE VALIDAR |
 | UAT SPA | Ejecucion de pantallas Angular | URL, version, capturas | PENDIENTE VALIDAR |
 | PostgreSQL UAT | Persistencia de datos UAT anonimizados | version, migracion aplicada, backups | PENDIENTE VALIDAR |
-| OpenBao UAT | Gestion de secretos/certificados si aplica | estado, politica, referencias enmascaradas | PENDIENTE VALIDAR |
+| Custodia de secretos UAT | Gestion de secretos/certificados | estado, politica, referencias enmascaradas | PENDIENTE VALIDAR |
 | Repositorio seguro externo | Custodia de evidencias sensibles | referencia, hash SHA256, responsable | PENDIENTE VALIDAR |
 
 ## 5. Prerrequisitos Tecnicos
@@ -61,7 +61,7 @@ Incluye:
 | Docker Compose test | `docker-compose.test.yml` | OK |
 | OpenAPI/Scalar | `src/Cfa.ACHInterbank.Api/DependencyInjectionService.cs` | OK |
 | Health live/ready | `/health/live`, `/health/ready` | PARCIAL |
-| OpenBao en compose principal | `docker-compose.yml` | NO ENCONTRADO |
+| Dependencia externa de secretos en compose | `docker-compose.yml` | NO REQUERIDA |
 
 ## 6. Prerrequisitos Funcionales
 
@@ -90,7 +90,7 @@ No deben versionarse:
 - Numeros de cuenta reales.
 - Saldos reales.
 - Certificados privados, PFX o llaves privadas.
-- Tokens, passwords, client secrets, API keys o secretos OpenBao.
+- Tokens, passwords, client secrets, API keys o valores de secretos.
 - Archivos NACHA-M reales sin anonimizar.
 - Capturas o logs con datos sensibles sin enmascarar.
 

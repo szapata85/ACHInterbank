@@ -168,10 +168,13 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
                     }
 
                     touchedBatches.Add(persisted.Batch);
-                    await _contrapartidaDispatchPersistenceService.EnsurePendingDispatchAsync(
-                        persisted.Transaction,
-                        batchContext.ClearingHouseId,
-                        ct);
+                    if (!persisted.Transaction.IsPrenotification)
+                    {
+                        await _contrapartidaDispatchPersistenceService.EnsurePendingDispatchAsync(
+                            persisted.Transaction,
+                            batchContext.ClearingHouseId,
+                            ct);
+                    }
 
                     var itemResult = new BulkAchTransactionItemResult
                     {

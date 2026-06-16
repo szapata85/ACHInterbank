@@ -109,14 +109,14 @@ Este runbook no habilita producción por sí solo.
 - Rotar sin dejar residuos (archivos/copias temporales).
 - Adjuntar evidencia de acceso correcto.
 
-### 7.3 Modelo operativo sin OpenBao
-- OpenBao/SecretRef no aplica para certificados en sobre digital/firma.
+### 7.3 Modelo operativo vigente
+- La custodia de certificados debe usar el mecanismo corporativo aprobado.
 - Windows: X509 Store + permisos de private key.
 - Linux/containers: PFX/CER protegido por ambiente y permisos mínimos.
 - BD: solo metadata, inventario, auditoría y evidencia.
 - Prohibido guardar PFX + password en BD.
 - Prohibido guardar private key en texto plano.
-- Prohibido depender de OpenBao para abrir/firma/descifrar sobres.
+- Prohibido depender de proveedores retirados para abrir, firmar o descifrar sobres.
 
 ## 8. Validación posterior a instalación
 - certificado encontrado.
@@ -235,7 +235,7 @@ Checklist diario/semanal:
 | chain no confiable | validar trust store | DevSecOps + Seguridad | evidencia trust store | chain OK según política |
 | posible compromiso private key | revocar/retirar certificado | Seguridad + Riesgo | incidente crítico | nuevo certificado operativo |
 | password filtrado | rotación inmediata de secreto | Seguridad + Operaciones | acta incidente | secreto reemplazado |
-| dependencia OpenBao/SecretRef detectada en certificados | retirar dependencia y aplicar modelo vigente | DevSecOps | evidencia de remediación | flujo sin OpenBao para certificados |
+| dependencia de proveedor retirado detectada en certificados | retirar dependencia y aplicar modelo vigente | DevSecOps | evidencia de remediación | flujo con custodia corporativa aprobada |
 | mismatch issuer/serial/thumbprint | detener procesamiento | Operaciones | evidencia mismatch | fuente certificada validada |
 
 ## 17. Controles de seguridad

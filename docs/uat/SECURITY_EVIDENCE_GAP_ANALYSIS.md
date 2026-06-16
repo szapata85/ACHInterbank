@@ -20,7 +20,7 @@ Productivo permanece NO-GO. No se incluyen secretos, URLs reales, certificados, 
 | Aprobacion dataset sintetico | Mesa UAT / Compliance | Pendiente evidencia | Si |
 | Revision no secretos en repo/docs/CI | CFA Seguridad | Pendiente Seguridad | Si |
 | Acta canal seguro intercambio | CFA Seguridad | Pendiente Seguridad | Si |
-| Aprobacion custodia OpenBao/Vault o equivalente | CFA Seguridad | Pendiente Seguridad | Si |
+| Aprobacion custodia mecanismo corporativo de secretos o equivalente | CFA Seguridad | Pendiente Seguridad | Si |
 | Extractos logging sanitizado | CFA Tecnologia | Pendiente evidencia | Si |
 | Acta Productivo NO-GO | Auditoria/Compliance | Pendiente Compliance | Si |
 | Decision Seguridad/Compliance/Tecnologia | Seguridad/Compliance/Tecnologia | Pendiente | Si |

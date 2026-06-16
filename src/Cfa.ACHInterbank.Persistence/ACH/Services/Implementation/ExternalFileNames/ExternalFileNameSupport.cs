@@ -6,7 +6,11 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileN
 
 internal static class ExternalFileNameSupport
 {
-    private static readonly Regex AchRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.1$", RegexOptions.Compiled);
+    private const string AchScopeCode = "ACH_EXTERNAL_NAME";
+    private const string ReturnOutScopeCode = "ACH_RETURN_EXTERNAL_NAME";
+    private static readonly Regex AchRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.(?<cycle>[1-9]\d*)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex ReturnRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.RET$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex PositiveCycleRegex = new(@"(?<!\d)(?<cycle>\d+)(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public static ExternalFileNameComponents Parse(ExternalFileNameContext context, string externalFileName)
     {
@@ -18,7 +22,37 @@ internal static class ExternalFileNameSupport
                 return new ExternalFileNameComponents { FullName = externalFileName };
             }
 
-            var sequence = int.Parse(match.Groups["seq"].Value, CultureInfo.InvariantCulture);
+            if (!int.TryParse(match.Groups["seq"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var sequence) || sequence < 1)
+            {
+                return new ExternalFileNameComponents { FullName = externalFileName };
+            }
+
+            if (!int.TryParse(match.Groups["cycle"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var cycleNumber) || cycleNumber < 1)
+            {
+                return new ExternalFileNameComponents { FullName = externalFileName };
+            }
+
+            return new ExternalFileNameComponents
+            {
+                FullName = externalFileName,
+                Prefix = $"{match.Groups["route"].Value}{match.Groups["transit"].Value}",
+                ExternalSequence = sequence,
+                CycleNumber = cycleNumber
+            };
+        }
+
+        if (IsReturnOut(context))
+        {
+            var match = ReturnRegex.Match(externalFileName);
+            if (!match.Success)
+            {
+                return new ExternalFileNameComponents { FullName = externalFileName };
+            }
+
+            if (!int.TryParse(match.Groups["seq"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var sequence) || sequence < 1)
+            {
+                return new ExternalFileNameComponents { FullName = externalFileName };
+            }
             return new ExternalFileNameComponents
             {
                 FullName = externalFileName,
@@ -48,6 +82,10 @@ internal static class ExternalFileNameSupport
         context.ExternalFileType == ExternalFileType.NachaOut
         && context.Direction == ExternalFileDirection.Outbound;
 
+    public static bool IsReturnOut(ExternalFileNameContext context) =>
+        context.ExternalFileType == ExternalFileType.ReturnOut
+        && context.Direction == ExternalFileDirection.Outbound;
+
     public static bool IsCenit(ExternalFileNameContext context) =>
         string.Equals(context.ClearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase);
 
@@ -56,21 +94,46 @@ internal static class ExternalFileNameSupport
 
     public static bool IsUnconfirmedReturnLikeOutFlow(ExternalFileNameContext context) =>
         context.Direction == ExternalFileDirection.Outbound
-        && context.ExternalFileType is ExternalFileType.ReturnOut
-            or ExternalFileType.ReturnOfReturnOut
+        && context.ExternalFileType is ExternalFileType.ReturnOfReturnOut
             or ExternalFileType.OperatorReturnOut
             or ExternalFileType.ResponseOut
             or ExternalFileType.RejectionOut;
 
-    public static string BuildAchName(string originCode, int sequence)
+    public static string BuildAchName(string originCode, int sequence, int cycleNumber)
     {
         if (string.IsNullOrWhiteSpace(originCode) || !originCode.All(char.IsDigit) || originCode.Length < 7)
         {
-            throw new InvalidOperationException("Para ACH el origin code debe contener exactamente 7 dígitos (RRRRTTT).");
+            throw new InvalidOperationException("Para ACH el origin code debe contener exactamente 7 digitos (RRRRTTT).");
+        }
+
+        if (cycleNumber < 1)
+        {
+            throw new InvalidOperationException("Para ACH el numero de ciclo debe ser un entero positivo.");
         }
 
         var normalizedOriginCode = originCode[^7..];
-        return $"{normalizedOriginCode}.{sequence:D3}.1";
+        return $"{normalizedOriginCode}.{sequence:D3}.{cycleNumber}";
+    }
+
+    public static string BuildReturnName(string originCode, int sequence)
+    {
+        if (string.IsNullOrWhiteSpace(originCode) || !originCode.All(char.IsDigit) || originCode.Length < 7)
+        {
+            throw new InvalidOperationException("Para devoluciones el origin code debe contener exactamente 7 digitos (RRRRTTT).");
+        }
+
+        var normalizedOriginCode = originCode[^7..];
+        return $"{normalizedOriginCode}.{sequence:D3}.RET";
+    }
+
+    public static string GetSequenceScopeCode(ExternalFileNameContext context)
+    {
+        if (IsReturnOut(context))
+        {
+            return ReturnOutScopeCode;
+        }
+
+        return AchScopeCode;
     }
 
     public static string ReplaceRecord1FileIdModifier(string nachaContent, char expectedIdentifier)
@@ -131,5 +194,42 @@ internal static class ExternalFileNameSupport
         }
 
         return lines.Count(line => line.Length > 0 && (line[0] == '6' || line[0] == '7'));
+    }
+
+    public static bool TryExtractPositiveCycleNumber(string? value, out int cycleNumber)
+    {
+        cycleNumber = 0;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var matches = PositiveCycleRegex.Matches(value);
+        if (matches.Count == 0)
+        {
+            return false;
+        }
+
+        var positiveValues = new List<int>();
+        foreach (Match match in matches)
+        {
+            if (!int.TryParse(match.Groups["cycle"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedValue))
+            {
+                return false;
+            }
+
+            if (parsedValue > 0)
+            {
+                positiveValues.Add(parsedValue);
+            }
+        }
+
+        if (positiveValues.Count != 1)
+        {
+            return false;
+        }
+
+        cycleNumber = positiveValues[0];
+        return true;
     }
 }

@@ -93,7 +93,7 @@ Validar en UAT:
 - issuer/serial/thumbprint se registran o resuelven si aplica.
 - PFX/CER validado si aplica.
 - store X509 validado si aplica.
-- OpenBao/SecretRef no participa en flujo de certificados.
+- mecanismo corporativo de secretos/SecretRef no participa en flujo de certificados.
 
 ## 8. Checklist llave privada
 | Operación | Requiere private key | Resultado esperado | Evidencia | Estado |
@@ -164,7 +164,7 @@ EKU/KeyUsage no está implementado actualmente.
 - `actor`.
 - `timestamp`.
 - hash/correlationId si aplica.
-- OpenBao/SecretRef no aplica para certificados.
+- mecanismo corporativo de secretos/SecretRef no aplica para certificados.
 - no private key.
 - no password PFX.
 - no material sensible.
@@ -189,7 +189,7 @@ EKU/KeyUsage no está implementado actualmente.
 - acceso a private key validado.
 - certificados públicos separados de privados.
 - no secretos en appsettings.
-- validar que OpenBao/SecretRef no participa en certificados.
+- validar que mecanismo corporativo de secretos/SecretRef no participa en certificados.
 - evidencia de permisos adjunta.
 
 ## 16. Checklist relación con ACH/CENIT/NACHA

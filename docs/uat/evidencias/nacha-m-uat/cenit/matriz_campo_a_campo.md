@@ -2,7 +2,7 @@
 
 | Requisito | Documento fuente | Registro/Campo | Valor esperado | Valor generado | Resultado | Evidencia |
 |---|---|---|---|---|---|---|
-| Nombre de archivo salida | Ejemplos CENIT disponibles en el proyecto / pendiente homologacion normativa formal | Archivo | RRRRTTT.ZZZ.1 | 0001283.001.1 | OK | metadata.json |
+| Nombre de archivo salida | Ejemplos CENIT disponibles en el proyecto / pendiente homologacion normativa formal | Archivo | RRRRTTT.ZZZ.N | 0001283.001.1 | OK | metadata.json |
 | Codigo ruta originador | Ejemplos CENIT disponibles en el proyecto / pendiente homologacion normativa formal | RRRR | 0001 | 0001 | OK | Nombre archivo |
 | Codigo transito originador | Ejemplos CENIT disponibles en el proyecto / pendiente homologacion normativa formal | TTT | 283 | 283 | OK | Nombre archivo |
 | Consecutivo diario | Ejemplos CENIT disponibles en el proyecto / pendiente homologacion normativa formal | ZZZ | 001 | 001 | OK | Nombre archivo |

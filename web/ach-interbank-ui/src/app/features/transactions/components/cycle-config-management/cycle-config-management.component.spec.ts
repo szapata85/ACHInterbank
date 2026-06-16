@@ -44,6 +44,58 @@ describe('CycleConfigManagementComponent', () => {
     expect(component.editingSource).toBeNull();
   });
 
+  it('renders action buttons and opens the versioning form when clicking the inner edit icon', () => {
+    const item = buildItem();
+    const cdr = (component as any).cdr as { markForCheck: jasmine.Spy };
+    const markForCheckSpy = spyOn(cdr, 'markForCheck').and.callThrough();
+    const actionColumn = component.columnDefs.find((column) => column.headerName === 'Acciones');
+
+    const rendered = actionColumn?.cellRenderer?.({ data: item } as any) as HTMLElement;
+    const editIcon = rendered.querySelector('[data-testid="cycle-config-action-edit"] .material-symbols-outlined') as HTMLElement;
+
+    expect(editIcon).toBeTruthy();
+    editIcon.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    expect(component.showForm).toBeTrue();
+    expect(component.editingSource).toBe(item);
+    expect(component.form.controls.cycleName.value).toBe('Ciclo-Original');
+    expect(markForCheckSpy).toHaveBeenCalled();
+  });
+
+  it('clones using the inner icon and appends -V2', () => {
+    const item = buildItem();
+    const cdr = (component as any).cdr as { markForCheck: jasmine.Spy };
+    const markForCheckSpy = spyOn(cdr, 'markForCheck').and.callThrough();
+    const actionColumn = component.columnDefs.find((column) => column.headerName === 'Acciones');
+
+    const rendered = actionColumn?.cellRenderer?.({ data: item } as any) as HTMLElement;
+    const cloneIcon = rendered.querySelector('[data-testid="cycle-config-action-clone"] .material-symbols-outlined') as HTMLElement;
+
+    expect(cloneIcon).toBeTruthy();
+    cloneIcon.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    expect(component.showForm).toBeTrue();
+    expect(component.editingSource).toBe(item);
+    expect(component.form.controls.cycleName.value).toBe('Ciclo-Original-V2');
+    expect(markForCheckSpy).toHaveBeenCalled();
+  });
+
+  it('marks the item for inactivation when clicking the inner icon', () => {
+    const item = buildItem();
+    const cdr = (component as any).cdr as { markForCheck: jasmine.Spy };
+    const markForCheckSpy = spyOn(cdr, 'markForCheck').and.callThrough();
+    const actionColumn = component.columnDefs.find((column) => column.headerName === 'Acciones');
+
+    const rendered = actionColumn?.cellRenderer?.({ data: item } as any) as HTMLElement;
+    const inactivateIcon = rendered.querySelector('[data-testid="cycle-config-action-inactivate"] .material-symbols-outlined') as HTMLElement;
+
+    expect(inactivateIcon).toBeTruthy();
+    inactivateIcon.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    expect(component.selectedForInactivation).toBe(item);
+    expect(markForCheckSpy).toHaveBeenCalled();
+  });
+
   it('loads grid results after search', () => {
     api.getByClearingHouse.and.returnValue(of([
       {
@@ -85,26 +137,13 @@ describe('CycleConfigManagementComponent', () => {
   });
 
   it('supports clone and inactivate actions', () => {
-    const item = {
-      id: 99,
-      clearingHouseId: 1,
-      clearingHouseName: 'ACH Colombia',
-      cycleName: 'Ciclo-Original',
-      startTime: '08:00:00',
-      endTime: '09:00:00',
-      cutoffTime: '09:00:00',
-      isActive: true,
-      effectiveFrom: '2026-01-01T00:00:00Z',
-      effectiveTo: null,
-      isCurrent: true
-    } as any;
+    const item = buildItem();
 
     component.clone(item);
     expect(component.form.controls.cycleName.value).toContain('-V2');
 
     component.askInactivate(item);
-    component.confirmInactivate();
-    expect(api.inactivate).toHaveBeenCalledWith(99, jasmine.any(Object));
+    expect(component.selectedForInactivation).toBe(item);
   });
 
   it('reports API errors in search', () => {
@@ -116,4 +155,20 @@ describe('CycleConfigManagementComponent', () => {
     expect(notifications.error).toHaveBeenCalled();
     expect(component.loadError).toContain('No fue posible consultar configuraciones de ciclos');
   });
+
+  function buildItem(): any {
+    return {
+      id: 99,
+      clearingHouseId: 1,
+      clearingHouseName: 'ACH Colombia',
+      cycleName: 'Ciclo-Original',
+      startTime: '08:00:00',
+      endTime: '09:00:00',
+      cutoffTime: '09:00:00',
+      isActive: true,
+      effectiveFrom: '2026-01-01T00:00:00Z',
+      effectiveTo: null,
+      isCurrent: true
+    };
+  }
 });

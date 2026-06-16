@@ -1,3 +1,5 @@
+> Nota G3.5.2: las referencias a proveedores de secretos retirados son historicas y obsoletas desde el cleanup `ebf7a8a5`; no describen el stack vigente.
+
 # Incoming NACHA-M — Matriz regulatoria/configurable (Prompt 2) — 2026-04-23
 
 ## Objetivo
@@ -92,7 +94,7 @@ Esto permite homologar DEV/UAT/PROD sin depender de “tabla vacía”.
 ## 5) Compatibilidad y no-regresiones
 
 - No se introducen cambios de flujo transaccional principal.
-- No se modifica crypto ni pipeline OpenBao/SecretRef.
+- No se modifica crypto ni pipeline proveedor de secretos retirado/SecretRef.
 - No se implementa command center ni UI operativa en este prompt.
 - Se mantiene compatibilidad con el pipeline inbound actual.
 

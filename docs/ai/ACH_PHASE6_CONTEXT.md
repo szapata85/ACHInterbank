@@ -718,7 +718,7 @@ Implicaciones:
 Formato:
 
 ```text
-RRRRTTT.ZZZ.1
+RRRRTTT.ZZZ.N
 ```
 
 Donde:
@@ -728,6 +728,7 @@ Donde:
 
 Archivos de devolucion:
 - Usan extension `.RET`.
+- El ultimo segmento del nombre NACHA-M es ciclo/sesion/ventana, no extension.
 
 ### FileIdModifier
 
@@ -778,6 +779,7 @@ Archivos:
 - `CENIT/Outgoing/CENIT_OUT_001.ach`
 - `CENIT/Incoming/CENIT_IN_001.ach`
 - `CENIT/Returns/CENIT_RET_001.RET`
+- Los `.ach` son fixtures fisicos internos; no son nombres externos oficiales.
 
 Reglas:
 - Son semirreales.

@@ -62,7 +62,7 @@ Decision vigente: Productivo permanece NO-GO.
 
 | ID | Riesgo / brecha | Impacto | Mitigacion | Estado |
 | --- | --- | --- | --- | --- |
-| RSK-025 | Secretos mal custodiados | Exposicion de credenciales/certificados | Modelo de custodia y uso de OpenBao/Vault o mecanismo aprobado | Abierto |
+| RSK-025 | Secretos mal custodiados | Exposicion de credenciales/certificados | Modelo de custodia y uso de mecanismo corporativo de secretos o mecanismo aprobado | Abierto |
 | RSK-026 | Endpoints no aprobados | Conexion a destino incorrecto o productivo | Registro placeholder y aprobacion Seguridad/Tecnologia | Abierto |
 | RSK-027 | Certificados vencidos/incorrectos | Falla handshake o exposicion operativa | Validacion Seguridad sin exponer material real | Abierto |
 | RSK-028 | Logging sensible | Exposicion de datos, secretos o payloads | Logging sanitizado y evidencia revisada | Abierto |

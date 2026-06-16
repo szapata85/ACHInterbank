@@ -60,7 +60,7 @@ public class ExternalFileNameSequenceProviderTests
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => adapter.ReserveNextSequenceAsync(CreateContext()));
 
-        Assert.Contains("máximo 36", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("36 archivos", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]

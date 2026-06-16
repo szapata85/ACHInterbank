@@ -13,7 +13,7 @@ Los snapshots fisicos viven en `GoldenFiles`:
 - `CENIT/Incoming/CENIT_IN_001.ach`
 - `CENIT/Returns/CENIT_RET_001.RET`
 
-Los nombres usan una convencion funcional legible: camara, flujo y numero de escenario. Los archivos `.RET` conservan extension `.RET` para validar el flujo de devoluciones.
+Los nombres usan una convencion funcional legible: camara, flujo y numero de escenario. El nombre oficial NACHA-M sigue el patron `RRRRTTT.ZZZ.N` y los archivos `.RET` conservan extension `.RET` para validar el flujo de devoluciones. Los `.ach` son solo fixtures fisicos internos.
 
 ## Reglas de los snapshots
 

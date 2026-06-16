@@ -42,6 +42,7 @@ public sealed class ExternalFileNameContext
     public string? ClearingHouseOriginCode { get; init; }
     public string? CycleId { get; init; }
     public string? CycleName { get; init; }
+    public int? CycleNumber { get; init; }
     public DateTime ProcessingDate { get; init; }
     public ExternalFileType ExternalFileType { get; init; }
     public ExternalFileFlow Flow { get; init; }
@@ -62,6 +63,7 @@ public sealed class ExternalFileNameComponents
     public string FullName { get; init; } = string.Empty;
     public string? Prefix { get; init; }
     public int? ExternalSequence { get; init; }
+    public int? CycleNumber { get; init; }
     public int? DeclaredDetailCount { get; init; }
     public char? FileIdModifier { get; init; }
 }

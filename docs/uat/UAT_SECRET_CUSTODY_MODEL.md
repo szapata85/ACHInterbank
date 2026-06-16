@@ -15,14 +15,14 @@ Productivo permanece NO-GO. No se documentan secretos reales, certificados, cont
 | Funcion | Responsable primario | Restriccion |
 | --- | --- | --- |
 | Recepcion segura | CFA Seguridad | No compartir por canales no aprobados |
-| Custodia | CFA Seguridad | OpenBao/Vault o mecanismo corporativo aprobado |
+| Custodia | CFA Seguridad | mecanismo corporativo de secretos o mecanismo corporativo aprobado |
 | Carga UAT | CFA Tecnologia | Solo con autorizacion formal |
 | Validacion | Seguridad + Mesa UAT | Sin revelar secreto |
 | Auditoria | Compliance | Evidencia sanitizada |
 
 ## Almacenamiento permitido
 
-- OpenBao/Vault o mecanismo corporativo aprobado.
+- mecanismo corporativo de secretos o mecanismo corporativo aprobado.
 - Secret manager corporativo con auditoria, control de acceso y rotacion.
 - Nunca Git, documentos, tickets sin cifrado ni variables no controladas.
 

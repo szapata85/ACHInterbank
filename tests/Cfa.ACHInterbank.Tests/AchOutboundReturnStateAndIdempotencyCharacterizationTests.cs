@@ -306,7 +306,8 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
             context,
             regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(),
             returnEligibilityService: eligibility.Object,
-            returnGenerationLockService: lockService ?? new TestReturnGenerationLockService());
+            returnGenerationLockService: lockService ?? new TestReturnGenerationLockService(),
+            externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
     }
 
     private static AchReturnsService BuildSut(AchDbContext context, int txId, string reasonCode, IAchReturnGenerationLockService? lockService = null)
@@ -319,7 +320,8 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
             context,
             regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(),
             returnEligibilityService: eligibility.Object,
-            returnGenerationLockService: lockService ?? new TestReturnGenerationLockService());
+            returnGenerationLockService: lockService ?? new TestReturnGenerationLockService(),
+            externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
     }
 
     private static async Task<(bool Succeeded, Exception? Error)> ExecuteIgnoringFailureAsync(Func<Task> action)

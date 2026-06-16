@@ -1,9 +1,9 @@
 # Revision seguridad pre-go-live - ACH Interbank
 
-Fecha de generacion: 2026-05-18  
+Fecha de generacion: 2026-05-18
 Version: 0.8 preliminar
 Rama analizada: `fix/uat-operator-role-seed`
-Estado: borrador tecnico para validacion humana  
+Estado: borrador tecnico para validacion humana
 Clasificacion: no incluir secretos, datos personales, certificados privados ni evidencias sensibles en Git.
 
 > Este documento consolida controles de seguridad pre-go-live con base en el inventario del repositorio. Donde no existe evidencia suficiente se marca como BRECHA, TODO, NO ENCONTRADO o PENDIENTE VALIDAR. No reemplaza una revision formal de seguridad, pentest, hardening de infraestructura ni validacion de proveedor/camara.
@@ -19,7 +19,7 @@ Clasificacion: no incluir secretos, datos personales, certificados privados ni e
 - Docker runtime paso para API, PostgreSQL, health checks, Scalar/OpenAPI, SPA estatica y proxy SPA->API/Auth/Navigation por Nginx.
 - NU1903 de `System.Security.Cryptography.Xml` 10.0.0 queda corregida en esta estabilizacion: la dependencia transitiva por `System.ServiceModel.*` se fija explicitamente en `10.0.8` en Application y `dotnet list ... --vulnerable --include-transitive` no reporta paquetes vulnerables.
 - Rol `ACH.Operator`: cerrado para UAT controlado; `admin` queda asignado a `Admin` y `ACH.Operator` por seed/migracion controlada, y login/JWT sanitizados evidencian ambos roles.
-- `docker-compose.yml` no evidencia servicio OpenBao, aunque existen configuraciones y scripts relacionados con OpenBao/secrets provider.
+- `docker-compose.yml` no requiere un servicio externo de secretos para iniciar API, PostgreSQL y SPA.
 - Existen componentes de certificados, sobre digital, NACHA security, ROR y ACH responses que requieren validacion de autorizacion, auditoria, trazabilidad y pruebas E2E.
 - Productivo no debe aprobarse sin acta UAT, evidencias firmables, aceptacion de riesgos y validacion de seguridad/operacion.
 
@@ -29,12 +29,12 @@ Clasificacion: no incluir secretos, datos personales, certificados privados ni e
 |---|---|---|
 | Controlador ACH responses | `src/Cfa.ACHInterbank.Api/Controllers/AchResponsesController.cs` | Corregido: `[Authorize]` general explicito; pendiente validar policy granular. |
 | Configuracion SPA productiva | `web/ach-interbank-ui/src/environments/environment.prod.ts` | Corregido: `apiBaseUrl` relativo; pendiente validar reverse proxy/build UAT. |
-| Compose principal | `docker-compose.yml` | Parcial: defaults sensibles reemplazados por placeholders; sin servicio OpenBao evidenciado. |
+| Compose principal | `docker-compose.yml` | Defaults sensibles reemplazados por placeholders; sin dependencia de un proveedor retirado. |
 | Archivo de entorno versionado | `.env` | BRECHA: existe en repositorio; revisar contenido sin exponer valores. |
 | API csproj | `src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj` | Corregido: `DocumentationFile` relativo MSBuild; pendiente build. |
 | Controladores API | `src/Cfa.ACHInterbank.Api/Controllers` | Existen controladores funcionales, operativos y de interoperabilidad; requieren matriz de autorizacion. |
 | Health checks | `/health/live`, `/health/ready` | Docker runtime 2026-05-18: ambos HTTP 200; ready confirma DB healthy. |
-| Scripts OpenBao | `scripts/openbao` | Evidencia de soporte documental/operativo parcial; falta compose principal o runbook validado. |
+| Custodia de secretos | Configuración vigente | Requiere aprobación corporativa; no forma parte del stack Docker local. |
 | Tests backend | `tests/Cfa.ACHInterbank.Tests` | Existen pruebas; no se ejecutaron en esta fase documental. |
 | Tests Angular | `web/ach-interbank-ui/src/**/*.spec.ts`, `.github/workflows/angular-ci.yml` | Angular CI remoto reportado OK. |
 | Docker runtime | `docs/go-live-readiness/DOCKER_RUNTIME_READINESS.md` | API/DB/SPA static OK; SPA->API/Auth/Navigation por puerto 743 validado tecnicamente. |
@@ -77,58 +77,58 @@ Clasificacion: no incluir secretos, datos personales, certificados privados ni e
 
 ### 5.1 `.env` versionado
 
-Estado: BRECHA.  
-Evidencia: existe `.env` en la raiz del repositorio.  
-Riesgo: exposicion accidental de credenciales, cadenas de conexion, secretos de proveedor, configuracion de ambiente o datos sensibles.  
+Estado: BRECHA.
+Evidencia: existe `.env` en la raiz del repositorio.
+Riesgo: exposicion accidental de credenciales, cadenas de conexion, secretos de proveedor, configuracion de ambiente o datos sensibles.
 Accion recomendada: revisar contenido en canal seguro, rotar valores si hubo exposicion, dejar solo `.env.example` sin secretos y documentar proceso de provisionamiento.
 
 ### 5.2 Credenciales por defecto o de ejemplo
 
-Estado: PARCIAL.  
-Evidencia: `docker-compose.yml` contiene placeholders locales/de demo para servicios de infraestructura.  
-Riesgo: reutilizacion accidental en UAT/preproductivo/productivo.  
+Estado: PARCIAL.
+Evidencia: `docker-compose.yml` contiene placeholders locales/de demo para servicios de infraestructura.
+Riesgo: reutilizacion accidental en UAT/preproductivo/productivo.
 Accion recomendada: parametrizar por variables externas, usar vault/secrets provider y prohibir valores productivos en Git.
 
 ### 5.3 SPA productiva apuntando a localhost
 
-Estado: CORREGIDO TECNICAMENTE / PENDIENTE VALIDAR UAT.  
-Evidencia: `web/ach-interbank-ui/src/environments/environment.prod.ts`.  
-Riesgo residual: el reverse proxy o pipeline UAT debe mantener las rutas relativas correctamente. En Docker runtime 2026-05-18, `http://localhost:743/api/ach/responses`, `POST http://localhost:743/auth/login` y `http://localhost:743/navigation/menu` respondieron desde API, no `index.html`, confirmando proxy y autorizacion intacta.  
+Estado: CORREGIDO TECNICAMENTE / PENDIENTE VALIDAR UAT.
+Evidencia: `web/ach-interbank-ui/src/environments/environment.prod.ts`.
+Riesgo residual: el reverse proxy o pipeline UAT debe mantener las rutas relativas correctamente. En Docker runtime 2026-05-18, `http://localhost:743/api/ach/responses`, `POST http://localhost:743/auth/login` y `http://localhost:743/navigation/menu` respondieron desde API, no `index.html`, confirmando proxy y autorizacion intacta.
 Accion recomendada: ejecutar UAT tecnico funcional con usuarios/roles y datos anonimizados; no deshabilitar autorizacion para obtener 200 en endpoints protegidos.
 
 ### 5.4 Certificados privados
 
-Estado: PENDIENTE VALIDAR.  
-Evidencia: existen componentes y docs relacionados con certificados/sobre digital.  
-Riesgo: filtracion de llaves privadas, uso de certificados vencidos o no homologados.  
+Estado: PENDIENTE VALIDAR.
+Evidencia: existen componentes y docs relacionados con certificados/sobre digital.
+Riesgo: filtracion de llaves privadas, uso de certificados vencidos o no homologados.
 Accion recomendada: almacenar certificados privados fuera de Git, usar referencias seguras, validar rotacion, vencimiento y custodia.
 
-### 5.5 Secrets provider / OpenBao
+### 5.5 Custodia de secretos
 
-Estado: PARCIAL.  
-Evidencia: hay `scripts/openbao`, pero no se evidencio servicio OpenBao en `docker-compose.yml`.  
-Riesgo: fallback inseguro, secretos no disponibles en UAT o diferencias entre ambiente local y preproductivo.  
-Accion recomendada: definir si OpenBao aplica a UAT; si aplica, documentar/levantar stack controlado y exigir fail-closed para flujos sensibles.
+Estado: PENDIENTE DE APROBACION CORPORATIVA.
+Evidencia: el stack Docker local no depende de un servicio externo de secretos.
+Riesgo: custodia no aprobada o diferencias entre ambiente local y preproductivo.
+Accion recomendada: documentar el mecanismo corporativo vigente y exigir fail-closed para flujos sensibles.
 
 ### 5.6 TLS/HTTPS
 
-Estado: PENDIENTE VALIDAR.  
-Evidencia: no se reviso infraestructura de reverse proxy/certificados TLS en esta fase.  
-Riesgo: transporte no cifrado o certificados no confiables.  
+Estado: PENDIENTE VALIDAR.
+Evidencia: no se reviso infraestructura de reverse proxy/certificados TLS en esta fase.
+Riesgo: transporte no cifrado o certificados no confiables.
 Accion recomendada: documentar terminacion TLS, dominios, certificados, renovacion, cipher suites y prueba de conectividad.
 
 ### 5.7 Logs con datos sensibles
 
-Estado: PENDIENTE VALIDAR.  
-Evidencia: existen trazabilidad, auditoria y reportes.  
-Riesgo: logs con cuentas, documentos, tokens, llaves o payloads completos.  
+Estado: PENDIENTE VALIDAR.
+Evidencia: existen trazabilidad, auditoria y reportes.
+Riesgo: logs con cuentas, documentos, tokens, llaves o payloads completos.
 Accion recomendada: aplicar mascaramiento, clasificacion de campos sensibles y retencion autorizada.
 
 ### 5.8 Auditoria e idempotencia
 
-Estado: PARCIAL.  
-Evidencia: existen componentes de trazabilidad/idempotencia; falta evidencia UAT firmable.  
-Riesgo: reprocesos, doble afectacion o imposibilidad de explicar eventos.  
+Estado: PARCIAL.
+Evidencia: existen componentes de trazabilidad/idempotencia; falta evidencia UAT firmable.
+Riesgo: reprocesos, doble afectacion o imposibilidad de explicar eventos.
 Accion recomendada: ejecutar escenarios UAT de idempotencia, reproceso, eventos y conciliacion con evidencia.
 
 ### 5.9 NU1903 `System.Security.Cryptography.Xml`
@@ -154,7 +154,7 @@ Riesgo residual: `admin` queda como usuario demo multirol para UAT controlado. A
 | SPA productiva sin localhost | `web/ach-interbank-ui/src/environments/environment.prod.ts` | PARCIAL | Reverse proxy/pipeline mal configurado. | Base relativa aplicada; evidenciar build UAT/preprod. | Si |
 | `.env` sin secretos reales versionados | `.env` | CRITICO | Fuga de secretos. | Revisar contenido, rotar si aplica, reemplazar por `.env.example`. | Si aplica |
 | Credenciales por defecto fuera de compose | `docker-compose.yml` | PARCIAL | Uso accidental de placeholders en UAT/preprod. | Validar variables no versionadas o secret manager. | Si aplica |
-| OpenBao disponible si aplica | `scripts/openbao`, `docker-compose.yml` | PARCIAL | Diferencia entre UAT y prod o fallback inseguro. | Definir alcance y runbook; levantar en stack UAT si aplica. | Si aplica |
+| Custodia corporativa de secretos aprobada | Configuración vigente | PENDIENTE | Diferencia entre UAT y prod o fallback inseguro. | Aprobar mecanismo y runbook corporativo. | Si aplica |
 | Certificados privados fuera de Git | Componentes de certificados/sobre digital | PENDIENTE VALIDAR | Compromiso criptografico. | Usar vault/HSM/repositorio seguro, referencias y hashes. | Si |
 | Validacion de firma/sobre digital externa | Controladores de sobre digital/NACHA security | PENDIENTE VALIDAR | Rechazo por camara/proveedor. | Ejecutar homologacion y guardar evidencias fuera de Git. | Si aplica |
 | TLS/HTTPS definido | Documentacion de despliegue | NO ENCONTRADO | Transporte inseguro. | Documentar dominios, certificados y reverse proxy. | Si |
@@ -174,7 +174,7 @@ Riesgo residual: `admin` queda como usuario demo multirol para UAT controlado. A
 2. Cerrar validacion residual G-07: evidenciar build/deploy con reverse proxy o URL UAT aprobada.
 3. Revisar `.env` versionado y rotar cualquier secreto si hubo exposicion.
 4. Parametrizar credenciales de infraestructura y prohibir defaults sensibles en despliegues compartidos.
-5. Definir alcance OpenBao para UAT/preproductivo y validar comportamiento fail-closed en flujos sensibles.
+5. Aprobar la custodia corporativa para UAT/preproductivo y validar comportamiento fail-closed en flujos sensibles.
 6. Crear matriz endpoint -> rol -> politica -> evidencia UAT.
 7. Validar que endpoints OpenAPI/Scalar/health no expongan informacion sensible en productivo.
 8. Ejecutar pruebas de idempotencia, devoluciones, ROR, CENIT, conciliacion, firma y sobre digital con evidencia.
@@ -187,7 +187,7 @@ Riesgo residual: `admin` queda como usuario demo multirol para UAT controlado. A
 |---|---|---|---|
 | SEC-TODO-001 | Confirmar si `[Authorize]` general en `AchResponsesController` es suficiente o requiere policy granular. | Tecnologia / Seguridad | Evidencia de proteccion o cambio aprobado. |
 | SEC-TODO-002 | Revisar contenido de `.env` sin exponer valores en documentos. | Seguridad / Operaciones | Decision de rotacion/saneamiento. |
-| SEC-TODO-003 | Confirmar uso de OpenBao en UAT/preproductivo. | Operaciones / Seguridad | Runbook validado y evidencia. |
+| SEC-TODO-003 | Confirmar el mecanismo corporativo vigente en UAT/preproductivo. | Operaciones / Seguridad | Runbook validado y evidencia. |
 | SEC-TODO-004 | Validar que certificados privados no esten versionados. | Seguridad | Inventario y custodia aprobada. |
 | SEC-TODO-005 | Revisar logs por PII/datos financieros. | Auditoria / Seguridad | Matriz de campos sensibles y masking. |
 | SEC-TODO-006 | Validar TLS/reverse proxy productivo. | Infraestructura | Evidencia de HTTPS y certificados. |

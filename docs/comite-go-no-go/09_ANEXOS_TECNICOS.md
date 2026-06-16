@@ -1,6 +1,6 @@
 # Anexos Tecnicos - Comite GO/NO-GO
 
-Fecha: 2026-05-19
+Fecha de actualizacion: 2026-06-12
 Alcance: Referencias a documentos existentes. No duplica contenido fuente.
 
 ## CI
@@ -31,6 +31,17 @@ Alcance: Referencias a documentos existentes. No duplica contenido fuente.
 
 - docs/go-live-readiness/MATRIZ_NACHA_M_LAYOUTS.md
 - docs/uat/MATRIZ_DEFECTOS_UAT.md
+- web/ach-interbank-ui/e2e/uat-nacha-inbound-postgres-dispatch.spec.ts
+- web/ach-interbank-ui/e2e/uat-nacha-export-postgres-contrapartidas.spec.ts
+
+## Commits G3.5-G3.6
+
+- G3.5: `7c3cbb21bc35dd253334b7edac1deef16efadabc`.
+- G3.5.1: `ebf7a8a5569cbfc5f4d2c74a919f83b86b479c3e`.
+- G3.5.2: `c7a5ad50f66914e5802fc6df9f07567f28871dbd`.
+- G3.6A/G3.6B: `e57211506d381acc43d398e72277911720e6323e`.
+
+Los artefactos locales `test-results` no se consideran anexos durables ni se copian al paquete.
 
 ## Seguridad y Operacion
 

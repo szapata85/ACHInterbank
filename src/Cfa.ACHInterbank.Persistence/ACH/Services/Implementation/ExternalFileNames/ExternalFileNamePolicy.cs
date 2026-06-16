@@ -87,6 +87,7 @@ public class ExternalFileNamePolicy : IExternalFileNamePolicy
             ClearingHouseOriginCode = components.Prefix ?? context.ClearingHouseOriginCode,
             CycleId = context.CycleId,
             CycleName = context.CycleName,
+            CycleNumber = context.CycleNumber,
             ProcessingDate = context.ProcessingDate,
             ExternalFileType = context.ExternalFileType,
             Flow = context.Flow,

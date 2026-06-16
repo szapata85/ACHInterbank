@@ -1,18 +1,18 @@
 # Brechas Criticas - Comite GO/NO-GO
 
-Fecha: 2026-05-19
+Fecha de actualizacion: 2026-06-12
 Estado general: Brechas bloqueantes para productivo
 
 | ID | Brecha | Severidad | Impacto | Bloquea productivo | Accion requerida | Responsable sugerido |
 | --- | --- | --- | --- | --- | --- | --- |
-| DEF-UAT-020 | NACHA-M 1/5/6/7/8/9 requiere validacion campo-a-campo y homologacion/waiver; UAT integrado ACH Colombia/CENIT no genero archivo valido por prenotificacion previa ausente | Critica | Riesgo de interoperabilidad y cumplimiento | Si | Crear prenotificaciones UAT validas, generar archivo no vacio por sistema y ejecutar matriz campo-a-campo | Arquitectura ACH / QA |
-| DEF-UAT-021 | `/NachaExport/{cycleId}` ya no devuelve 200 con archivo vacio; responde 422 controlado cuando faltan prerequisitos | Alta | Riesgo de falsa evidencia mitigado, pero archivo no vacio sigue pendiente | Si | Reintentar con transacciones exportables validas y confirmar archivo > 0 bytes | Backend / QA |
+| DEF-UAT-020 | NACHA-M tecnico cerrado; validacion campo-a-campo firmada y homologacion/waiver pendientes | Critica productiva | Riesgo residual de interoperabilidad y cumplimiento | Si | Completar homologacion externa y acta | Arquitectura ACH / QA / Compliance |
+| DEF-UAT-021 | `/NachaExport/{cycleId}` evita falso exito y G3.6B confirma archivo no vacio `.6` | Cerrada tecnica | Riesgo de falsa evidencia mitigado | No por si solo | Mantener pruebas positivas/negativas | Backend / QA |
 | DEF-UAT-022 | `Proc_Contrapartidas` opera en dry-run por defecto para UAT/local y no transmite externamente | Alta | Riesgo de endpoint externo mitigado en UAT/local; homologacion real pendiente | Si | Mantener dry-run hasta endpoint UAT/mock autorizado y aprobacion para modo Live | Integracion / DevOps / Seguridad |
 | UAT-FORMAL | UAT funcional formal con actas pendiente | Critica | No hay aceptacion funcional formal | Si | Ejecutar UAT formal, evidencias y firmas | Negocio / QA |
 | EVI-VISUAL | Evidencia visual/operativa pendiente | Alta | Debilita trazabilidad de aprobacion | Si | Completar evidencia de pantallas, flujos y operacion | QA / Operaciones |
 | CENIT-CUD | CENIT/CUD pendiente | Critica | Interoperabilidad externa no validada | Si | Definir alcance, pruebas sinteticas y homologacion | Arquitectura Integracion |
 | SOBRE-DIGITAL | Sobre digital/firma/certificados pendiente | Critica | Riesgo de seguridad e interoperabilidad | Si | Validar firma, certificados y manejo seguro | Seguridad / Integracion |
-| OPENBAO | OpenBao/secrets pendiente segun alcance | Alta | Riesgo de gestion de secretos | Si | Definir alcance y completar validacion | Seguridad / DevOps |
+| CUSTODIA-SECRETOS | Aprobacion del mecanismo corporativo de custodia pendiente | Alta | Riesgo de gestion de secretos | Si | Completar validacion y aprobacion corporativa | Seguridad / DevOps |
 | BKP-RESTORE | Backup/restore/rollback pendiente | Critica | Riesgo operativo ante incidente | Si | Ejecutar prueba documentada | Operaciones / SRE |
 | UAT-BANCARIO | UAT bancario formal pendiente | Critica | Validacion externa/formal no concluida | Si | Coordinar y ejecutar UAT bancario formal | Negocio / Interoperabilidad |
 
@@ -21,6 +21,11 @@ Estado general: Brechas bloqueantes para productivo
 | ID | Cierre | Evidencia | Riesgo residual |
 | --- | --- | --- | --- |
 | DEF-UAT-015 | Usuario demo `admin` ahora evidencia roles `Admin` y `ACH.Operator` para UAT controlado. | `UserRoleConfiguration`, migracion `AddAdminOperatorRoleSeed`, `UserRoleSeedTests`, login/JWT sanitizados y endpoints protegidos 200 con Bearer. | Evaluar usuario operador separado y matriz endpoint-rol antes de preproductivo/productivo. |
+| G3.5 | Naming dinamico inbound/outbound. | Commit `7c3cbb21`. | Homologacion normativa formal. |
+| G3.5.1 | Dependencia activa OpenBao/HashiCorp Vault retirada. | Commit `ebf7a8a5`. | KeyVault se inventaria separadamente. |
+| G3.5.2 | Migraciones deshabilitadas por defecto. | Commit `c7a5ad50`. | Proceso DBA futuro. |
+| G3.6A | Inbound real hasta `Proc_Transacciones` dry-run. | Commit `e5721150`, 2/2. | No SOAP real ni movimiento monetario. |
+| G3.6B | Outbound real hasta `Proc_Contrapartidas` dry-run. | Commit `e5721150`, 2/2. | Correlacion por `AchCycleId`, no causalidad. |
 
 ## Evidencia Nueva NACHA/SOAP
 
@@ -49,7 +54,7 @@ Resultado del ciclo controlado:
 
 Evidencia comun:
 
-- Patron aplicado: RRRRTTT.ZZZ.1.
+- Patron vigente: `RRRRTTT.ZZZ.N`; los artefactos historicos de esta seccion usan `N=1`.
 - Originador: Cooperativa Financiera de Antioquia, unico FinancialInstitution.IsDefaultSource=true.
 - RRRR=0001 y TTT=283 derivados de la configuracion de CFA.
 - Mapeo validado: 001 -> A y 002 -> B en registro tipo 1 campo 7.
@@ -66,8 +71,8 @@ Observacion normativa:
 
 La brecha de preparacion de archivos inbound sinteticos queda cerrada tecnicamente para UAT/local mediante simulador separado del procesamiento real. Persisten brechas bloqueantes productivas:
 
-- Carga manual y procesamiento real por NachaUpload pendiente.
+- Carga y procesamiento real por NachaUpload cerrados tecnicamente en G3.6A; homologacion formal pendiente.
 - Homologacion normativa formal por camara pendiente.
 - Actas UAT funcionales formales pendientes.
 
-Productivo sigue **NO-GO**.
+Productivo sigue **NO-GO** por UAT formal, homologacion externa, CENIT/CUD, sobre digital/certificados, backup/restore/rollback y aprobaciones humanas.

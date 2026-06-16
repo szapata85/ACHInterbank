@@ -1,6 +1,9 @@
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -10,48 +13,236 @@ namespace Cfa.ACHInterbank.Tests;
 public class ExternalFileNamePolicyPhase1Tests
 {
     [Fact]
-    public async Task AchBuilder_Generates_RRRRTTT_ZZZ_1()
+    public async Task AchBuilder_Uses_DefaultSource_AndBuilds_RRRRTTT_ZZZ_N()
     {
         await using var harness = await CreateHarnessAsync();
+        await SeedDynamicNamingFixtureAsync(harness.Context);
+
         var sequence = CreateSequenceService(harness.Context);
         var map = new FakeIdentifierMapService();
-        var builder = new ExternalFileNameBuilder(sequence, map);
+        var namingRuleService = new NachaFileNamingRuleService(harness.Context);
+        var builder = new ExternalFileNameBuilder(sequence, map, namingRuleService);
 
         var name = await builder.BuildAsync(new ExternalFileNameContext
         {
             ClearingHouseId = 1,
             ClearingHouseCode = "ACH",
-            ClearingHouseOriginCode = "1234567",
+            ClearingHouseOriginCode = "1111111",
+            CycleNumber = 6,
             ProcessingDate = new DateTime(2026, 04, 20),
             ExternalFileType = ExternalFileType.NachaOut,
             Flow = ExternalFileFlow.Originacion,
             Direction = ExternalFileDirection.Outbound
         });
 
-        Assert.Equal("1234567.001.1", name.FullName);
+        Assert.Equal("8765321.001.6", name.FullName);
+        Assert.Equal("8765321", name.Prefix);
+        Assert.Equal(1, name.ExternalSequence);
+        Assert.Equal(6, name.CycleNumber);
+        Assert.Equal('A', name.FileIdModifier);
+    }
+
+    [Theory]
+    [InlineData("Ciclo 1 UAT", 1, "8765321.001.1")]
+    [InlineData("Ciclo 6 UAT", 6, "8765321.001.6")]
+    public async Task AchBuilder_Uses_CycleNumber_From_Context(string cycleName, int expectedCycleNumber, string expectedFullName)
+    {
+        await using var harness = await CreateHarnessAsync();
+        await SeedDynamicNamingFixtureAsync(harness.Context);
+
+        var sequence = CreateSequenceService(harness.Context);
+        var map = new FakeIdentifierMapService();
+        var namingRuleService = new NachaFileNamingRuleService(harness.Context);
+        var builder = new ExternalFileNameBuilder(sequence, map, namingRuleService);
+
+        var name = await builder.BuildAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ClearingHouseOriginCode = "1111111",
+            CycleName = cycleName,
+            CycleNumber = expectedCycleNumber,
+            ProcessingDate = new DateTime(2026, 04, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        });
+
+        Assert.Equal(expectedFullName, name.FullName);
+        Assert.Equal(1, name.ExternalSequence);
+        Assert.Equal(expectedCycleNumber, name.CycleNumber);
+    }
+
+    [Theory]
+    [InlineData("Ciclo 6", "8765321.001.6")]
+    [InlineData("Cycle 6", "8765321.001.6")]
+    [InlineData("Ventana 6", "8765321.001.6")]
+    [InlineData("Sesion 6", "8765321.001.6")]
+    [InlineData("Compensación 6", "8765321.001.6")]
+    [InlineData("6", "8765321.001.6")]
+    public async Task AchBuilder_Parses_UniquePositiveCycleNumber_From_CycleName(string cycleName, string expectedFullName)
+    {
+        await using var harness = await CreateHarnessAsync();
+        await SeedDynamicNamingFixtureAsync(harness.Context);
+
+        var sequence = CreateSequenceService(harness.Context);
+        var map = new FakeIdentifierMapService();
+        var namingRuleService = new NachaFileNamingRuleService(harness.Context);
+        var builder = new ExternalFileNameBuilder(sequence, map, namingRuleService);
+
+        var name = await builder.BuildAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ClearingHouseOriginCode = "1111111",
+            CycleName = cycleName,
+            ProcessingDate = new DateTime(2026, 04, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        });
+
+        Assert.Equal(expectedFullName, name.FullName);
+        Assert.Equal(1, name.ExternalSequence);
+        Assert.Equal(6, name.CycleNumber);
+    }
+
+    [Theory]
+    [InlineData("Ciclo 6 2026")]
+    [InlineData("ACH 2026 Ciclo 6")]
+    [InlineData("Ventana 1 Grupo 2")]
+    [InlineData("CYCLE-ACH-20260524-6")]
+    public async Task AchBuilder_Throws_When_CycleNameIsAmbiguous(string cycleName)
+    {
+        await using var harness = await CreateHarnessAsync();
+        await SeedDynamicNamingFixtureAsync(harness.Context);
+
+        var sequence = CreateSequenceService(harness.Context);
+        var map = new FakeIdentifierMapService();
+        var namingRuleService = new NachaFileNamingRuleService(harness.Context);
+        var builder = new ExternalFileNameBuilder(sequence, map, namingRuleService);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => builder.BuildAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ClearingHouseOriginCode = "1111111",
+            CycleName = cycleName,
+            ProcessingDate = new DateTime(2026, 04, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        }));
+
+        Assert.Contains("CycleName", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task NachaOutBuilder_Uses_Last7Digits_From_DefaultOrigin_For_Cenit()
+    public async Task AchBuilder_Throws_When_CycleNameIsMissing_And_CycleIdMustNotBeUsed()
     {
         await using var harness = await CreateHarnessAsync();
+        await SeedDynamicNamingFixtureAsync(harness.Context);
+
         var sequence = CreateSequenceService(harness.Context);
         var map = new FakeIdentifierMapService();
-        var builder = new ExternalFileNameBuilder(sequence, map);
+        var namingRuleService = new NachaFileNamingRuleService(harness.Context);
+        var builder = new ExternalFileNameBuilder(sequence, map, namingRuleService);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => builder.BuildAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ClearingHouseOriginCode = "1111111",
+            CycleName = "Ciclo 6 2026",
+            CycleId = "CYCLE-ACH-20260524-6",
+            ProcessingDate = new DateTime(2026, 04, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        }));
+
+        Assert.Contains("CycleName", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AchBuilder_Throws_When_CycleNameHasNoPositiveNumber()
+    {
+        await using var harness = await CreateHarnessAsync();
+        await SeedDynamicNamingFixtureAsync(harness.Context);
+
+        var sequence = CreateSequenceService(harness.Context);
+        var map = new FakeIdentifierMapService();
+        var namingRuleService = new NachaFileNamingRuleService(harness.Context);
+        var builder = new ExternalFileNameBuilder(sequence, map, namingRuleService);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => builder.BuildAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ClearingHouseOriginCode = "1111111",
+            CycleName = "Ciclo",
+            ProcessingDate = new DateTime(2026, 04, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        }));
+
+        Assert.Contains("CycleName", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CenitBuilder_Uses_CurrentDocumentedPattern_WithoutAlternateNaming()
+    {
+        await using var harness = await CreateHarnessAsync();
+        await SeedDynamicNamingFixtureAsync(harness.Context);
+
+        var sequence = CreateSequenceService(harness.Context);
+        var map = new FakeIdentifierMapService();
+        var namingRuleService = new NachaFileNamingRuleService(harness.Context);
+        var builder = new ExternalFileNameBuilder(sequence, map, namingRuleService);
 
         var name = await builder.BuildAsync(new ExternalFileNameContext
         {
             ClearingHouseId = 2,
             ClearingHouseCode = "CENIT",
-            ClearingHouseOriginCode = "00001283",
+            ClearingHouseOriginCode = "0000128",
+            CycleNumber = 6,
             ProcessingDate = new DateTime(2026, 05, 20),
             ExternalFileType = ExternalFileType.NachaOut,
             Flow = ExternalFileFlow.Originacion,
             Direction = ExternalFileDirection.Outbound
         });
 
-        Assert.Equal("0001283.001.1", name.FullName);
+        Assert.Equal("8765321.001.6", name.FullName);
+        Assert.Equal("8765321", name.Prefix);
+        Assert.Equal(1, name.ExternalSequence);
+        Assert.Equal(6, name.CycleNumber);
         Assert.Equal('A', name.FileIdModifier);
+    }
+
+    [Fact]
+    public async Task AchBuilder_Throws_When_CycleCannotBeResolved()
+    {
+        await using var harness = await CreateHarnessAsync();
+        await SeedDynamicNamingFixtureAsync(harness.Context);
+
+        var sequence = CreateSequenceService(harness.Context);
+        var map = new FakeIdentifierMapService();
+        var namingRuleService = new NachaFileNamingRuleService(harness.Context);
+        var builder = new ExternalFileNameBuilder(sequence, map, namingRuleService);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => builder.BuildAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ClearingHouseOriginCode = "1111111",
+            ProcessingDate = new DateTime(2026, 04, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        }));
+
+        Assert.Contains("numero de ciclo", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
@@ -66,12 +257,33 @@ public class ExternalFileNamePolicyPhase1Tests
         {
             ClearingHouseId = 1,
             ClearingHouseCode = "ACHCOL",
+            CycleNumber = 1,
             ProcessingDate = new DateTime(2026, 05, 20),
             ExternalFileType = ExternalFileType.NachaOut,
             Flow = ExternalFileFlow.Originacion,
             Direction = ExternalFileDirection.Outbound,
             NachaContent = BuildNachaHeader(fileId)
         }, new ExternalFileNameComponents { FullName = fileName });
+
+        Assert.False(result.IsHardBlocked);
+    }
+
+    [Fact]
+    public async Task NachaOutValidator_Accepts_CycleNumber_GreaterThanFive()
+    {
+        var validator = CreateValidator();
+
+        var result = await validator.ValidateAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACHCOL",
+            CycleNumber = 6,
+            ProcessingDate = new DateTime(2026, 05, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound,
+            NachaContent = BuildNachaHeader('Z')
+        }, new ExternalFileNameComponents { FullName = "1234567.026.6", CycleNumber = 6 });
 
         Assert.False(result.IsHardBlocked);
     }
@@ -84,31 +296,33 @@ public class ExternalFileNamePolicyPhase1Tests
         {
             ClearingHouseId = 1,
             ClearingHouseCode = "ACH",
+            CycleNumber = 1,
             ProcessingDate = new DateTime(2026, 04, 20),
             ExternalFileType = ExternalFileType.NachaOut,
             Flow = ExternalFileFlow.Originacion,
             Direction = ExternalFileDirection.Outbound,
             NachaContent = BuildNachaHeader('C')
-        }, new ExternalFileNameComponents { FullName = "1234567.001.1" });
+        }, new ExternalFileNameComponents { FullName = "1234567.001.1", CycleNumber = 1 });
 
         Assert.Equal(ExternalFileValidationDisposition.HardBlock, result.Disposition);
         Assert.Contains(result.Issues, x => x.RuleCode == "ACH_ZZZ_R1");
     }
 
     [Fact]
-    public async Task AchValidator_Applies_DailyLimit_36()
+    public async Task AchValidator_HardBlocks_When_Sequence_OutOfRange()
     {
         var validator = CreateValidator();
         var result = await validator.ValidateAsync(new ExternalFileNameContext
         {
             ClearingHouseId = 1,
             ClearingHouseCode = "ACH",
+            CycleNumber = 1,
             ProcessingDate = new DateTime(2026, 04, 20),
             ExternalFileType = ExternalFileType.NachaOut,
             Flow = ExternalFileFlow.Originacion,
             Direction = ExternalFileDirection.Outbound,
             NachaContent = BuildNachaHeader('A')
-        }, new ExternalFileNameComponents { FullName = "1234567.037.1" });
+        }, new ExternalFileNameComponents { FullName = "1234567.037.1", CycleNumber = 1 });
 
         Assert.Equal(ExternalFileValidationDisposition.HardBlock, result.Disposition);
         Assert.Contains(result.Issues, x => x.RuleCode == "ACH_DAILY_LIMIT");
@@ -122,13 +336,14 @@ public class ExternalFileNamePolicyPhase1Tests
         {
             ClearingHouseId = 1,
             ClearingHouseCode = "ACH",
+            CycleNumber = 1,
             ProcessingDate = new DateTime(2026, 04, 20),
             IsPse = true,
             ExternalFileType = ExternalFileType.NachaOut,
             Flow = ExternalFileFlow.Originacion,
             Direction = ExternalFileDirection.Outbound,
             NachaContent = BuildNachaHeader('A')
-        }, new ExternalFileNameComponents { FullName = "1234567.001.1" });
+        }, new ExternalFileNameComponents { FullName = "1234567.001.1", CycleNumber = 1 });
 
         Assert.Equal(ExternalFileValidationDisposition.HardBlock, result.Disposition);
         Assert.Contains(result.Issues, x => x.RuleCode == "ACH_PSE_RANGE");
@@ -207,7 +422,35 @@ public class ExternalFileNamePolicyPhase1Tests
     }
 
     [Fact]
-    public async Task ExternalFileNamePolicy_ShouldAcceptReturnOutFlowAsProvisional()
+    public async Task ReturnOutBuilder_ShouldUse_RRRRTTT_ZZZ_RET_WithSequenceAndFileId()
+    {
+        await using var harness = await CreateHarnessAsync();
+        await SeedDynamicNamingFixtureAsync(harness.Context);
+
+        var sequence = CreateSequenceService(harness.Context);
+        var map = new FakeIdentifierMapService();
+        var namingRuleService = new NachaFileNamingRuleService(harness.Context);
+        var builder = new ExternalFileNameBuilder(sequence, map, namingRuleService);
+
+        var name = await builder.BuildAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ClearingHouseOriginCode = "1111111",
+            ProcessingDate = new DateTime(2026, 04, 20),
+            ExternalFileType = ExternalFileType.ReturnOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        });
+
+        Assert.Equal("8765321.001.RET", name.FullName);
+        Assert.Equal("8765321", name.Prefix);
+        Assert.Equal(1, name.ExternalSequence);
+        Assert.Equal('A', name.FileIdModifier);
+    }
+
+    [Fact]
+    public async Task ReturnOutValidator_ShouldPass_ForNormativeName()
     {
         var validator = CreateValidator();
         var result = await validator.ValidateAsync(new ExternalFileNameContext
@@ -218,14 +461,14 @@ public class ExternalFileNamePolicyPhase1Tests
             ExternalFileType = ExternalFileType.ReturnOut,
             Flow = ExternalFileFlow.Originacion,
             Direction = ExternalFileDirection.Outbound
-        }, new ExternalFileNameComponents { FullName = "RET_cycle-1_20260515120000.RET" });
+        }, new ExternalFileNameComponents { FullName = "0101006.001.RET" });
 
-        Assert.Equal(ExternalFileValidationDisposition.Warning, result.Disposition);
-        Assert.Contains(result.Issues, x => x.RuleCode == "RETURN_NAMING_PROVISIONAL");
+        Assert.NotEqual(ExternalFileValidationDisposition.HardBlock, result.Disposition);
+        Assert.DoesNotContain(result.Issues, x => x.RuleCode.StartsWith("RETURN_", StringComparison.Ordinal));
     }
 
     [Fact]
-    public async Task ExternalFileNamePolicy_Golden_ReturnOut_ProvisionalWarning_NotHardBlock()
+    public async Task ReturnOutValidator_ShouldHardBlock_WhenPatternIsInvalid()
     {
         var validator = CreateValidator();
         var result = await validator.ValidateAsync(new ExternalFileNameContext
@@ -238,31 +481,30 @@ public class ExternalFileNamePolicyPhase1Tests
             Direction = ExternalFileDirection.Outbound
         }, new ExternalFileNameComponents { FullName = "RET_CYCLE_20260515120000.RET" });
 
-        Assert.Equal(ExternalFileValidationDisposition.Warning, result.Disposition);
-        Assert.False(result.IsHardBlocked);
-        Assert.Contains(result.Issues, x => x.RuleCode == "RETURN_NAMING_PROVISIONAL");
+        Assert.Equal(ExternalFileValidationDisposition.HardBlock, result.Disposition);
+        Assert.Contains(result.Issues, x => x.RuleCode == "RETURN_NAME_PATTERN");
     }
 
     [Fact]
-    public async Task ExternalFileNamePolicy_ShouldAcceptReturnOfReturnOutFlowAsProvisional()
+    public async Task ReturnOutValidator_ShouldHardBlock_WhenSequenceIsOutOfRange()
     {
         var validator = CreateValidator();
         var result = await validator.ValidateAsync(new ExternalFileNameContext
         {
-            ClearingHouseId = 2,
-            ClearingHouseCode = "CENIT",
-            ProcessingDate = new DateTime(2026, 04, 20),
-            ExternalFileType = ExternalFileType.ReturnOfReturnOut,
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ProcessingDate = new DateTime(2026, 05, 15),
+            ExternalFileType = ExternalFileType.ReturnOut,
             Flow = ExternalFileFlow.Originacion,
             Direction = ExternalFileDirection.Outbound
-        }, new ExternalFileNameComponents { FullName = "RORNACHA_7001_20260515120000.ach" });
+        }, new ExternalFileNameComponents { FullName = "0101006.037.RET" });
 
-        Assert.Equal(ExternalFileValidationDisposition.Warning, result.Disposition);
-        Assert.Contains(result.Issues, x => x.RuleCode == "RETURN_NAMING_PROVISIONAL");
+        Assert.Equal(ExternalFileValidationDisposition.HardBlock, result.Disposition);
+        Assert.Contains(result.Issues, x => x.RuleCode == "RETURN_DAILY_LIMIT");
     }
 
     [Fact]
-    public async Task ExternalFileNamePolicy_Golden_ReturnOfReturnOut_ProvisionalWarning_NotHardBlock()
+    public async Task ExternalFileNamePolicy_ShouldAcceptReturnOfReturnOutFlowAsProvisional()
     {
         var validator = CreateValidator();
         var result = await validator.ValidateAsync(new ExternalFileNameContext
@@ -281,7 +523,7 @@ public class ExternalFileNamePolicyPhase1Tests
     }
 
     [Fact]
-    public async Task ExternalFileNamePolicy_Golden_ReturnOut_DuplicateName_WarningOnly()
+    public async Task ReturnOutValidator_ShouldHardBlock_WhenDuplicateNameExists()
     {
         await using var harness = await CreateHarnessAsync();
         harness.Context.ExternalFileNameRegistry.Add(new Cfa.ACHInterbank.Domain.Models.ACH.ExternalFileNames.ExternalFileNameRegistry
@@ -289,7 +531,7 @@ public class ExternalFileNamePolicyPhase1Tests
             ClearingHouseId = 1,
             FlowCode = ExternalFileFlow.Originacion.ToString(),
             Direction = ExternalFileDirection.Outbound.ToString(),
-            ExternalFileName = "RET_CYCLE_20260515120000.RET",
+            ExternalFileName = "0101006.001.RET",
             ExternalFileType = ExternalFileType.ReturnOut.ToString(),
             ProcessingDate = new DateTime(2026, 05, 15),
             ValidationDisposition = ExternalFileValidationDisposition.Warning.ToString(),
@@ -307,10 +549,9 @@ public class ExternalFileNamePolicyPhase1Tests
             ExternalFileType = ExternalFileType.ReturnOut,
             Flow = ExternalFileFlow.Originacion,
             Direction = ExternalFileDirection.Outbound
-        }, new ExternalFileNameComponents { FullName = "RET_CYCLE_20260515120000.RET" });
+        }, new ExternalFileNameComponents { FullName = "0101006.001.RET" });
 
-        Assert.Equal(ExternalFileValidationDisposition.Warning, result.Disposition);
-        Assert.False(result.IsHardBlocked);
+        Assert.Equal(ExternalFileValidationDisposition.HardBlock, result.Disposition);
         Assert.Contains(result.Issues, x => x.RuleCode == "RETURN_DUPLICATE_NAME");
     }
 
@@ -403,6 +644,99 @@ public class ExternalFileNamePolicyPhase1Tests
         Assert.Equal(2, second);
     }
 
+    [Fact]
+    public async Task SequenceService_Increments_SameDay_As_001_Then_002()
+    {
+        await using var harness = await CreateHarnessAsync();
+        var sequence = CreateSequenceService(harness.Context);
+
+        var context = new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ProcessingDate = new DateTime(2026, 04, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        };
+
+        var first = await sequence.ReserveNextSequenceAsync(context);
+        var second = await sequence.ReserveNextSequenceAsync(context);
+
+        Assert.Equal(1, first);
+        Assert.Equal(2, second);
+    }
+
+    [Fact]
+    public async Task SequenceService_Resets_NextDay_To_001()
+    {
+        await using var harness = await CreateHarnessAsync();
+        var sequence = CreateSequenceService(harness.Context);
+
+        var firstDay = new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ProcessingDate = new DateTime(2026, 04, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        };
+
+        var nextDay = new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ProcessingDate = new DateTime(2026, 04, 21),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        };
+
+        var first = await sequence.ReserveNextSequenceAsync(firstDay);
+        var reset = await sequence.ReserveNextSequenceAsync(nextDay);
+
+        Assert.Equal(1, first);
+        Assert.Equal(1, reset);
+    }
+
+    [Fact]
+    public async Task SequenceService_Is_Isolated_By_ClearingHouse()
+    {
+        await using var harness = await CreateHarnessAsync();
+        var sequence = CreateSequenceService(harness.Context);
+
+        var ach = new ExternalFileNameContext
+        {
+            ClearingHouseId = 1,
+            ClearingHouseCode = "ACH",
+            ProcessingDate = new DateTime(2026, 04, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        };
+
+        var cenit = new ExternalFileNameContext
+        {
+            ClearingHouseId = 2,
+            ClearingHouseCode = "CENIT",
+            ProcessingDate = new DateTime(2026, 04, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        };
+
+        var achFirst = await sequence.ReserveNextSequenceAsync(ach);
+        var cenitFirst = await sequence.ReserveNextSequenceAsync(cenit);
+        var achSecond = await sequence.ReserveNextSequenceAsync(ach);
+        var cenitSecond = await sequence.ReserveNextSequenceAsync(cenit);
+
+        Assert.Equal(1, achFirst);
+        Assert.Equal(1, cenitFirst);
+        Assert.Equal(2, achSecond);
+        Assert.Equal(2, cenitSecond);
+    }
+
     private static ExternalFileNameSequenceService CreateSequenceService(AchDbContext context)
     {
         var providers = new IExternalFileNameSequenceProvider[]
@@ -419,6 +753,81 @@ public class ExternalFileNamePolicyPhase1Tests
         var duplicate = new ExternalFileDuplicateGuard(db);
         var correlation = new ExternalFileNameCorrelationService(new FakeIdentifierMapService());
         return new ExternalFileNameValidator(duplicate, correlation, new FakeIdentifierMapService());
+    }
+
+    private static async Task SeedDynamicNamingFixtureAsync(AchDbContext context)
+    {
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig
+        {
+            Id = 1,
+            ClearingHouseId = 1,
+            HolidayStrategy = "Colombian"
+        });
+
+        context.ClearingHouses.AddRange(
+            new ClearingHouse
+            {
+                Id = 1,
+                Name = "ACH Colombia",
+                Code = "ACH",
+                OriginCode = "0000000",
+                ClearingHouseId = 1
+            },
+            new ClearingHouse
+            {
+                Id = 2,
+                Name = "CENIT",
+                Code = "CENIT",
+                OriginCode = "0000000",
+                ClearingHouseId = 1
+            });
+
+        context.FinancialInstitutions.Add(new FinancialInstitution
+        {
+            Id = 1,
+            Name = "Origen dinamico UAT",
+            RoutingNumber = "98765",
+            TransitCode = "321",
+            IsDefaultSource = true,
+            Status = FinancialInstitutionStatus.Active
+        });
+        context.FinancialInstitutions.Local.Single().CalculateCheckDigit();
+
+        context.NachaFileNamingRules.AddRange(
+            new NachaFileNamingRule
+            {
+                Id = 1,
+                ClearingHouseId = 1,
+                FileDirection = NachaFileDirection.Outbound,
+                NamePattern = "RRRRTTT.ZZZ.N",
+                Extension = ".ach",
+                DailySequenceMin = 1,
+                DailySequenceMax = 36,
+                InternalFileIdMappingMode = InternalFileIdMappingMode.Alphanumeric36,
+                RequiresNameHeaderEntityMatch = true,
+                IsActive = true,
+                EffectiveFrom = new DateTime(2026, 01, 01),
+                NormativeSource = "MAN-004",
+                NormativeReference = "V32"
+            },
+            new NachaFileNamingRule
+            {
+                Id = 2,
+                ClearingHouseId = 2,
+                FileDirection = NachaFileDirection.Outbound,
+                NamePattern = "RRRRTTT.ZZZ.N",
+                Extension = ".ach",
+                DailySequenceMin = 1,
+                DailySequenceMax = 36,
+                InternalFileIdMappingMode = InternalFileIdMappingMode.Alphanumeric36,
+                RequiresNameHeaderEntityMatch = true,
+                IsActive = true,
+                EffectiveFrom = new DateTime(2026, 01, 01),
+                NormativeSource = "MAN-004",
+                NormativeReference = "V32"
+            });
+
+        await context.SaveChangesAsync();
     }
 
     private static string BuildNachaHeader(char fileId)

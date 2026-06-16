@@ -1,6 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const externalUiUrl = process.env['ACH_UI_URL'];
+const e2eBaseUrl = process.env['E2E_BASE_URL'];
+const ignoreHttpsErrors = stringEquals(process.env['E2E_IGNORE_HTTPS_ERRORS'], 'true');
 
 export default defineConfig({
   testDir: './e2e',
@@ -16,8 +18,9 @@ export default defineConfig({
     ['html', { outputFolder: 'playwright-report', open: 'never' }]
   ],
   use: {
-    baseURL: externalUiUrl || 'http://localhost:4200',
+    baseURL: e2eBaseUrl || externalUiUrl || 'http://localhost:4200',
     browserName: 'chromium',
+    ignoreHTTPSErrors: ignoreHttpsErrors,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure'
@@ -35,3 +38,7 @@ export default defineConfig({
     }
   ]
 });
+
+function stringEquals(value: string | undefined, expected: string): boolean {
+  return (value ?? '').trim().toLowerCase() === expected.trim().toLowerCase();
+}

@@ -8,7 +8,7 @@ Productivo permanece NO-GO. Las evidencias deben ser sanitizadas y no incluir se
 | SECEVI-002 | Evidencia de no datos reales | Mesa UAT | Declaracion dataset + muestra anonimizada | Listo para revision |
 | SECEVI-003 | Evidencia CI/Playwright | DevOps | Artefactos `playwright-report`, `test-results` | Listo |
 | SECEVI-004 | Evidencia ausencia de secretos en repo | CFA Seguridad | Revision/acta | Pendiente Seguridad |
-| SECEVI-005 | Evidencia custodia aprobada | CFA Seguridad | Registro OpenBao/Vault sin valores | Listo para revision |
+| SECEVI-005 | Evidencia custodia aprobada | CFA Seguridad | Registro mecanismo corporativo de secretos sin valores | Listo para revision |
 | SECEVI-006 | Evidencia validacion certificados | CFA Seguridad | Acta sin certificados ni thumbprints reales | Pendiente tercero |
 | SECEVI-007 | Evidencia aprobacion endpoints | CFA Tecnologia + Seguridad | Matriz sin URLs reales | Pendiente tercero |
 | SECEVI-008 | Evidencia logging sanitizado | CFA Tecnologia | Extractos sanitizados | Pendiente evidencia |

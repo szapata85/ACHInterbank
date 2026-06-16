@@ -8,12 +8,49 @@ import { LoginLayoutComponent } from './layout/login-layout.component';
 
 const routes: Routes = [
   {
-    path: 'auth',
+    path: 'login',
     component: LoginLayoutComponent,
-    data: { title: 'Autenticación', breadcrumb: 'Autenticación' },
-    loadChildren: () => import('./features/auth/auth.module').then((m) => m.AuthModule)
+    data: { title: 'Autenticacion', breadcrumb: 'Autenticacion' },
+    children: [
+      {
+        path: '',
+        loadComponent: () => import('./features/auth/login.component').then((m) => m.LoginComponent)
+      }
+    ]
   },
-  { path: 'login', pathMatch: 'full', redirectTo: '/auth/login' },
+  {
+    path: 'forgot-password',
+    component: LoginLayoutComponent,
+    data: { title: 'Recuperar acceso', breadcrumb: 'Recuperar acceso' },
+    children: [
+      {
+        path: '',
+        loadComponent: () => import('./features/auth/forgot-password.component').then((m) => m.ForgotPasswordComponent)
+      }
+    ]
+  },
+  {
+    path: 'reset-password',
+    component: LoginLayoutComponent,
+    data: { title: 'Restablecer contrasena', breadcrumb: 'Restablecer contrasena' },
+    children: [
+      {
+        path: '',
+        loadComponent: () => import('./features/auth/reset-password.component').then((m) => m.ResetPasswordComponent)
+      }
+    ]
+  },
+  {
+    path: 'reset-password/:token',
+    component: LoginLayoutComponent,
+    data: { title: 'Restablecer contrasena', breadcrumb: 'Restablecer contrasena' },
+    children: [
+      {
+        path: '',
+        loadComponent: () => import('./features/auth/reset-password.component').then((m) => m.ResetPasswordComponent)
+      }
+    ]
+  },
   {
     path: '',
     component: MainLayoutComponent,
@@ -36,13 +73,13 @@ const routes: Routes = [
         loadChildren: () => import('./features/customers/customers.module').then((m) => m.CustomersModule)
       },
       {
-      path: 'ach-cycles',
-      loadChildren: () => import('./features/ach-cycles/ach-cycles.module').then((m) => m.AchCyclesModule)
-    },
-    {
-      path: 'nacha-security',
-      loadChildren: () => import('./features/nacha-security/nacha-security.module').then((m) => m.NachaSecurityModule)
-    },
+        path: 'ach-cycles',
+        loadChildren: () => import('./features/ach-cycles/ach-cycles.module').then((m) => m.AchCyclesModule)
+      },
+      {
+        path: 'nacha-security',
+        loadChildren: () => import('./features/nacha-security/nacha-security.module').then((m) => m.NachaSecurityModule)
+      },
       {
         path: 'transactions',
         canActivate: [roleGuard, permissionGuard],
@@ -76,8 +113,8 @@ const routes: Routes = [
         data: {
           roles: ['Admin'],
           permissions: ['CanManageUsers'],
-          breadcrumb: 'Navegación',
-          title: 'Menú de navegación'
+          breadcrumb: 'Navegacion',
+          title: 'Menu de navegacion'
         },
         loadChildren: () => import('./features/navigation/navigation.module').then((m) => m.NavigationModule)
       },
@@ -107,7 +144,6 @@ const routes: Routes = [
         path: 'auth-logs',
         loadChildren: () => import('./features/auth-logs/auth-logs.module').then((m) => m.AuthLogsModule)
       },
-
       {
         path: 'navigation-logs',
         loadChildren: () => import('./features/navigation-logs/navigation-logs.module').then((m) => m.NavigationLogsModule)
@@ -135,7 +171,7 @@ const routes: Routes = [
           roles: ['Admin', 'ACH.Operator'],
           permissions: ['CanReadAch'],
           breadcrumb: 'CENIT',
-          title: 'Centro de operación CENIT'
+          title: 'Centro de operacion CENIT'
         },
         loadChildren: () => import('./features/cenit/cenit.module').then((m) => m.CenitModule)
       },
@@ -145,8 +181,8 @@ const routes: Routes = [
         data: {
           roles: ['Admin', 'ACH.Operator'],
           permissions: ['CanReadAch'],
-          breadcrumb: 'Configuración NACHA-M',
-          title: 'Configuración NACHA-M solo lectura'
+          breadcrumb: 'Configuracion NACHA-M',
+          title: 'Configuracion NACHA-M solo lectura'
         },
         loadChildren: () => import('./features/nacha-config-admin/nacha-config-admin.module').then((m) => m.NachaConfigAdminModule)
       },
@@ -185,9 +221,7 @@ const routes: Routes = [
           title: 'Command Center Respuestas ACH'
         },
         loadChildren: () =>
-          import('./features/ach-responses/ach-responses.module').then(
-            (m) => m.AchResponsesModule
-          )
+          import('./features/ach-responses/ach-responses.module').then((m) => m.AchResponsesModule)
       },
       {
         path: 'ach',
@@ -198,10 +232,7 @@ const routes: Routes = [
           breadcrumb: 'ACH',
           title: 'Consulta operativa NACHA-M'
         },
-        loadChildren: () =>
-          import('./features/nacha-operational/nacha-operational.module').then(
-            (m) => m.NachaOperationalModule
-          )
+        loadChildren: () => import('./features/nacha-operational/nacha-operational.module').then((m) => m.NachaOperationalModule)
       },
       {
         path: 'payment-rail-capability-registry',
@@ -217,7 +248,6 @@ const routes: Routes = [
             (m) => m.PaymentRailCapabilityRegistryModule
           )
       },
-
       {
         path: 'unauthorized',
         data: { title: 'No autorizado', breadcrumb: 'Error 403' },

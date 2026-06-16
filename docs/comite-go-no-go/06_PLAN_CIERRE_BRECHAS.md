@@ -1,17 +1,27 @@
 # Plan de Cierre de Brechas - Comite GO/NO-GO
 
-Fecha: 2026-05-19
+Fecha de actualizacion: 2026-06-12
 Estado general: Plan ejecutivo para habilitar reconsideracion futura de GO
 
 | Fase | Objetivo | Brechas relacionadas | Entregable | Criterio de cierre | Responsable | Estado |
 | --- | --- | --- | --- | --- | --- | --- |
 | Fase 1 | Cerrar ACH.Operator para UAT controlado | DEF-UAT-015 | Evidencia de rol visible/asignado | Login/claims/politicas validados sin secretos | Seguridad / Backend | Cerrado para UAT controlado |
-| Fase 2 | Validar NACHA-M campo-a-campo con archivo sintetico | DEF-UAT-020 | Matriz NACHA-M completa y archivo no vacio generado por sistema | Prenotificacion UAT valida, registros 1/5/6/7/8/9 aprobados u homologacion/waiver | Arquitectura ACH / QA | Bloqueado |
+| Fase 2 | Validar NACHA-M campo-a-campo con archivo sintetico | DEF-UAT-020 | Tecnico G3.5/G3.6 completo; matriz formal pendiente | Homologacion/waiver y firma normativa | Arquitectura ACH / QA | Parcial normativo |
 | Fase 3 | Validar CENIT/CUD | CENIT-CUD | Evidencia de integracion o waiver | Pruebas sinteticas aprobadas o excepcion formal | Integracion / Negocio | Pendiente |
 | Fase 4 | Validar sobre digital, firma, certificados y SOAP dry-run/mock | SOBRE-DIGITAL | Evidencia de firma/certificados y `Proc_Contrapartidas` sin transmision externa no autorizada | Flujo criptografico aprobado y endpoint UAT/mock homologado; guardrail dry-run ya validado para UAT/local | Seguridad / Integracion | Parcial |
 | Fase 5 | Validar backup, restore y rollback | BKP-RESTORE | Acta tecnica de recuperacion | Recuperacion y rollback ejecutados | Operaciones / SRE | Pendiente |
 | Fase 6 | Ejecutar UAT funcional formal y actas | UAT-FORMAL, EVI-VISUAL, UAT-BANCARIO | Evidencias funcionales y actas firmadas | Aprobacion formal de negocio y QA | QA / Negocio | Pendiente |
 | Fase 7 | Realizar comite final GO/NO-GO | ACTAS y brechas remanentes | Paquete final actualizado | Brechas bloqueantes cerradas o aceptadas formalmente | Direccion / PMO | Pendiente |
+
+## Cierre tecnico G3.5-G3.6
+
+| Fase | Estado | Evidencia | Siguiente paso |
+|---|---|---|---|
+| G3.5 | Cerrado tecnico | `7c3cbb21` | Homologacion externa |
+| G3.5.1 | Cerrado tecnico | `ebf7a8a5` | Mantener fuera del stack activo cualquier dependencia OpenBao/HashiCorp Vault |
+| G3.5.2 | Cerrado | `c7a5ad50` | Mantener migraciones false por defecto |
+| G3.6A | GO tecnico | `e5721150`, 2/2 | Acta/homologacion formal |
+| G3.6B | GO tecnico con observacion | `e5721150`, 2/2 | No declarar causalidad directa; definirla solo si se exige en fase futura |
 
 ## Nota De Replanificacion 2026-05-19
 
@@ -37,7 +47,7 @@ Resultado del ciclo controlado:
 
 Evidencia comun:
 
-- Patron aplicado: RRRRTTT.ZZZ.1.
+- Patron vigente: `RRRRTTT.ZZZ.N`; los artefactos historicos de esta seccion usan `N=1`.
 - Originador: Cooperativa Financiera de Antioquia, unico FinancialInstitution.IsDefaultSource=true.
 - RRRR=0001 y TTT=283 derivados de la configuracion de CFA.
 - Mapeo validado: 001 -> A y 002 -> B en registro tipo 1 campo 7.
@@ -55,6 +65,6 @@ Observacion normativa:
 | Fase | Objetivo | Entregable | Estado |
 |---|---|---|---|
 | UAT inbound 1 | Generar archivos sinteticos de entrada | Simulador API/SPA | OK tecnico |
-| UAT inbound 2 | Cargar manualmente por NachaUpload | Evidencia de procesamiento | Pendiente |
-| UAT inbound 3 | Validar estados/auditoria/errores | Matriz UAT | Pendiente |
+| UAT inbound 2 | Cargar por NachaUpload real | Evidencia G3.6A | Cerrado tecnico |
+| UAT inbound 3 | Validar estados/auditoria/errores | PostgreSQL + `TaskExecutionLog` | Cerrado tecnico |
 | Comite | Presentar evidencia formal | Acta UAT | Pendiente |

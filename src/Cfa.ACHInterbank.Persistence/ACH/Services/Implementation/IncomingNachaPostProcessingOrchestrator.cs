@@ -26,6 +26,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
     private readonly ITransactionIntegrationOperationResolver? _operationResolver;
     private readonly IIntegrationMappingReadinessService? _mappingReadinessService;
     private readonly IIntegrationMappingTraceWriter? _mappingTraceWriter;
+    private readonly IContrapartidaDispatchJobService? _contrapartidaDispatchJobService;
 
     public IncomingNachaPostProcessingOrchestrator(
         AchDbContext context,
@@ -36,7 +37,8 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         IOptions<ProcTransaccionesDispatchOptions>? dispatchOptions = null,
         ITransactionIntegrationOperationResolver? operationResolver = null,
         IIntegrationMappingReadinessService? mappingReadinessService = null,
-        IIntegrationMappingTraceWriter? mappingTraceWriter = null)
+        IIntegrationMappingTraceWriter? mappingTraceWriter = null,
+        IContrapartidaDispatchJobService? contrapartidaDispatchJobService = null)
     {
         _context = context;
         _mapper = mapper;
@@ -47,6 +49,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         _operationResolver = operationResolver;
         _mappingReadinessService = mappingReadinessService;
         _mappingTraceWriter = mappingTraceWriter;
+        _contrapartidaDispatchJobService = contrapartidaDispatchJobService;
     }
 
     public async Task<IncomingNachaPostProcessingRunResult> ExecuteAsync(
@@ -99,6 +102,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         var failedFinal = 0;
         var blocked = 0;
         var waitingWindow = releasedFromWaitingWindow;
+        var contrapartidaDispatchTargets = new HashSet<(string CycleId, int ClearingHouseId)>();
 
         foreach (var queue in queues)
         {
@@ -108,6 +112,32 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
             AddAutomaticEvent(queue, "DispatchStarted", "Applied", "Dispatch automático iniciado.");
 
             var correlationId = $"in-nacha-{queue.Id:N}-{queue.AttemptCount}";
+            var dispatchOperation = _operationResolver is null
+                ? null
+                : await _operationResolver.ResolveAsync(queue.AchTransaction, ct);
+
+            if (dispatchOperation is not null
+                && dispatchOperation.IsSupported
+                && dispatchOperation.OperationKey == IntegrationGuaranteeConstants.ProcContrapartidas)
+            {
+                queue.QueueStatus = IncomingNachaDispatchQueueStatus.Dispatched;
+                queue.ConfirmedAtUtc = DateTime.UtcNow;
+                queue.NextAttemptAtUtc = null;
+                queue.LastResponseCode = string.Empty;
+                queue.LastErrorCode = string.Empty;
+                queue.LastErrorMessage = string.Empty;
+                AddAutomaticEvent(
+                    queue,
+                    "DispatchDelegatedToContrapartidas",
+                    "Applied",
+                    "Proc_Contrapartidas delegado al job de contrapartida en dry-run.",
+                    IntegrationGuaranteeConstants.ProcContrapartidas);
+
+                contrapartidaDispatchTargets.Add((queue.AchTransaction.AchCycleId, queue.AchTransaction.AchCycle.ClearingHouseId));
+                confirmed++;
+                continue;
+            }
+
             var execution = new IncomingNachaIntegrationExecution
             {
                 DispatchQueueId = queue.Id,
@@ -233,6 +263,19 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                     AddAutomaticEvent(queue, "MaxAttemptsExceeded", "FailedFinal", "Excepción técnica con política de reintentos agotada.", queue.LastErrorCode);
                     failedFinal++;
                 }
+            }
+        }
+
+        if (_contrapartidaDispatchJobService is not null && contrapartidaDispatchTargets.Count > 0)
+        {
+            foreach (var target in contrapartidaDispatchTargets)
+            {
+                await _contrapartidaDispatchJobService.ProcessCycleAsync(
+                    target.CycleId,
+                    target.ClearingHouseId,
+                    triggeredBy,
+                    safeChunk,
+                    ct);
             }
         }
 
