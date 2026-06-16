@@ -2717,8 +2717,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.Property<string>("ReturnCycleId")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
 
                     b.Property<string>("ReturnReasonCode")
                         .IsRequired()
@@ -7315,7 +7315,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.HasIndex("FileHashSha256", "FileSize")
                         .IsUnique()
                         .HasDatabaseName("UX_IncomingNachaFileIngestions_FileHash_FileSize_Canonical")
-                        .HasFilter("\"IsReprocess\" = false");
+                        .HasFilter("[IsReprocess] = 0");
 
                     b.HasIndex("UploadedAtUtc", "FileName");
 

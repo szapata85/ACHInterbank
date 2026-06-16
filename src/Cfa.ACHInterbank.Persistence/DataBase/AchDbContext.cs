@@ -194,6 +194,14 @@ public class AchDbContext : DbContext
                 ? "\"Status\" = 2"
                 : "[Status] = 2");
 
+        modelBuilder.Entity<IncomingNachaFileIngestion>()
+            .HasIndex(x => new { x.FileHashSha256, x.FileSize })
+            .IsUnique()
+            .HasDatabaseName("UX_IncomingNachaFileIngestions_FileHash_FileSize_Canonical")
+            .HasFilter(isPostgres
+                ? "\"IsReprocess\" = false"
+                : "[IsReprocess] = 0");
+
         if (isPostgres)
         {
             var dateTimeConverter = new ValueConverter<DateTime, DateTime>(

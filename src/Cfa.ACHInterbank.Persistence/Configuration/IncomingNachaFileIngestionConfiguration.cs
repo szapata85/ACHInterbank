@@ -33,8 +33,7 @@ public class IncomingNachaFileIngestionConfiguration : IEntityTypeConfiguration<
 
         builder.HasIndex(x => new { x.FileHashSha256, x.FileSize })
             .IsUnique()
-            .HasDatabaseName("UX_IncomingNachaFileIngestions_FileHash_FileSize_Canonical")
-            .HasFilter("\"IsReprocess\" = false");
+            .HasDatabaseName("UX_IncomingNachaFileIngestions_FileHash_FileSize_Canonical");
         builder.HasIndex(x => new { x.FileHashSha256, x.FileSize, x.IsReprocess, x.ParentIngestionId });
         builder.HasIndex(x => new { x.UploadedAtUtc, x.FileName });
         builder.HasIndex(x => new { x.ResolvedClearingHouseId, x.OperationalDate, x.ResolvedAchCycleId });

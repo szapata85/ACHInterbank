@@ -11,7 +11,7 @@ public class AchReturnGeneratedConfiguration : IEntityTypeConfiguration<AchRetur
         builder.ToTable("AchReturnsGenerated");
         builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.ReturnCycleId).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.ReturnCycleId).HasMaxLength(40).IsRequired();
         builder.Property(x => x.ReturnReasonCode).HasMaxLength(5).IsRequired();
         builder.Property(x => x.NewSequenceNumber).HasMaxLength(15).IsRequired();
         builder.Property(x => x.OriginalSequenceNumber).HasMaxLength(15).IsRequired();

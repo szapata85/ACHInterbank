@@ -3250,7 +3250,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     OriginalTransactionId = table.Column<int>(type: "int", nullable: false),
-                    ReturnCycleId = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    ReturnCycleId = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
                     ReturnReasonCode = table.Column<string>(type: "nvarchar(5)", maxLength: 5, nullable: false),
                     Amount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     NewSequenceNumber = table.Column<string>(type: "nvarchar(15)", maxLength: 15, nullable: false),
@@ -5354,7 +5354,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                 table: "IncomingNachaFileIngestions",
                 columns: new[] { "FileHashSha256", "FileSize" },
                 unique: true,
-                filter: "\"IsReprocess\" = false");
+                filter: "[IsReprocess] = 0");
 
             migrationBuilder.CreateIndex(
                 name: "IX_IncomingNachaFileProcessingResults_IncomingNachaFileIngestionId_AttemptNumber",

@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.SqlServer
 {
     [DbContext(typeof(AchDbContext))]
-    [Migration("20260616025859_InitialSqlServerSchemaBaseline")]
+    [Migration("20260616040259_InitialSqlServerSchemaBaseline")]
     partial class InitialSqlServerSchemaBaseline
     {
         /// <inheritdoc />
@@ -2720,8 +2720,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.Property<string>("ReturnCycleId")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
 
                     b.Property<string>("ReturnReasonCode")
                         .IsRequired()
@@ -7318,7 +7318,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.HasIndex("FileHashSha256", "FileSize")
                         .IsUnique()
                         .HasDatabaseName("UX_IncomingNachaFileIngestions_FileHash_FileSize_Canonical")
-                        .HasFilter("\"IsReprocess\" = false");
+                        .HasFilter("[IsReprocess] = 0");
 
                     b.HasIndex("UploadedAtUtc", "FileName");
 
