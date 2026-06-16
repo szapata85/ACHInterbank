@@ -183,8 +183,10 @@ def main() -> None:
 
     # Images supporting master data / operational views.
     for title, brief, img in [
+        ("Prioridades por cámara compensadora", "Listado principal con prioridades operativas visibles por institución y cámara.", CAPTURAS / "33_clearing_house_preferences_prioridades_camara.png"),
+        ("Nueva relación", "Formulario de creación de una nueva relación entre institución y cámara compensadora.", CAPTURAS / "33A_clearing_house_preferences_nueva_relacion.png"),
+        ("Editar relación", "Formulario de edición de una relación existente.", CAPTURAS / "33B_clearing_house_preferences_editar_relacion.png"),
         ("Entidad financiera y dígito de verificación", "Vista de mantenimiento de entidades financieras y campo visible de verificación.", CAPTURAS / "32_financial_institutions_mantenimiento_digito_verificacion.png"),
-        ("Priorización por cámara", "Preferencias operativas para ACH Colombia y CENIT.", CAPTURAS / "33_clearing_house_preferences_prioridades_camara.png"),
         ("Catálogo de tipos de documento", "Referencia visible de catálogo maestro.", CAPTURAS / "34_catalog_document_types.png"),
         ("Catálogo de género", "Referencia visible del catálogo maestro.", CAPTURAS / "35_catalog_gender_types.png"),
         ("Catálogo de tipos de persona", "Referencia visible del catálogo maestro.", CAPTURAS / "36_catalog_person_types.png"),
