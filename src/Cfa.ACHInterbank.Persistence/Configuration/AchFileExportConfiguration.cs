@@ -12,7 +12,7 @@ public class AchFileExportConfiguration : IEntityTypeConfiguration<AchFileExport
 
         builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.AchCycleId).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.AchCycleId).HasMaxLength(40).IsRequired();
         builder.Property(x => x.ExportKind).HasMaxLength(20).IsRequired();
         builder.Property(x => x.FileName).HasMaxLength(180).IsRequired();
         builder.Property(x => x.TotalRecords).IsRequired();

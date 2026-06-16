@@ -2786,7 +2786,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    AchCycleId = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    AchCycleId = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
                     ClearingHouseId = table.Column<int>(type: "int", nullable: false),
                     ExportKind = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
                     FileName = table.Column<string>(type: "nvarchar(180)", maxLength: 180, nullable: false),

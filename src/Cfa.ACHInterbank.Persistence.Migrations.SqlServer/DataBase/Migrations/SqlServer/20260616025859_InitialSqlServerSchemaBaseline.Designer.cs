@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.SqlServer
 {
     [DbContext(typeof(AchDbContext))]
-    [Migration("20260616020210_InitialSqlServerSchemaBaseline")]
+    [Migration("20260616025859_InitialSqlServerSchemaBaseline")]
     partial class InitialSqlServerSchemaBaseline
     {
         /// <inheritdoc />
@@ -2195,8 +2195,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.Property<string>("AchCycleId")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
 
                     b.Property<int>("ClearingHouseId")
                         .HasColumnType("int");
