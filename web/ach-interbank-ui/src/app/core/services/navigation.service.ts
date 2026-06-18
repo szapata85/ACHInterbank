@@ -261,7 +261,11 @@ export class NavigationService {
       next = [...next, logsGroup];
     }
 
-    return [...next, catalogGroup];
+    const catalogExists = next.some(
+      (item) => this.normalizeRoute(item.route) === '/catalogs' || item.label?.trim().toLowerCase() === 'catálogos'
+    );
+
+    return catalogExists ? next : [...next, catalogGroup];
   }
 
   private sortMenu(items: MenuItem[]): MenuItem[] {
@@ -287,5 +291,12 @@ export class NavigationService {
         ...item,
         children: item.children?.length ? this.removeLegacyNachaMenuItems(item.children) : []
       }));
+  }
+
+  private normalizeRoute(route?: string | null): string {
+    return (route ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/\/+$/, '');
   }
 }
