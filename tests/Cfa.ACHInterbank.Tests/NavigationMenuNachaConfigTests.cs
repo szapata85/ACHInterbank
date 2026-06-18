@@ -35,8 +35,8 @@ public class NavigationMenuNachaConfigTests
         var handler = new GetMenuForCurrentUserHandler(repo, http);
 
         var menu = await handler.Handle(new GetMenuForCurrentUserQuery(), CancellationToken.None);
-        var group = Assert.Single(menu.Where(x => x.Id == MenuItemConfiguration.NachaLayoutsId));
-        var profiles = Assert.Single(group.Children.Where(x => x.Id == MenuItemConfiguration.NachaDefinitionsId));
+        var group = Assert.Single(menu, x => x.Id == MenuItemConfiguration.NachaLayoutsId);
+        var profiles = Assert.Single(group.Children, x => x.Id == MenuItemConfiguration.NachaDefinitionsId);
         var routes = FlattenRoutes(menu).ToList();
         var labels = FlattenLabels(menu).ToList();
 
@@ -79,8 +79,8 @@ public class NavigationMenuNachaConfigTests
         var handler = new GetMenuForCurrentUserHandler(repo, http);
 
         var menu = await handler.Handle(new GetMenuForCurrentUserQuery(), CancellationToken.None);
-        var group = Assert.Single(menu.Where(x => x.Id == MenuItemConfiguration.NachaLayoutsId));
-        var profiles = Assert.Single(group.Children.Where(x => x.Id == MenuItemConfiguration.NachaDefinitionsId));
+        var group = Assert.Single(menu, x => x.Id == MenuItemConfiguration.NachaLayoutsId);
+        var profiles = Assert.Single(group.Children, x => x.Id == MenuItemConfiguration.NachaDefinitionsId);
         var routes = FlattenRoutes(menu).ToList();
 
         Assert.Equal("/nacha-config-admin", group.Route);

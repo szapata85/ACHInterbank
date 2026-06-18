@@ -30,11 +30,21 @@ public class ProjectConfigurationPortabilityTests
     [Fact]
     public void DockerCompose_ShouldNotKeepLegacyHardcodedPostgresDefaults()
     {
-        var compose = File.ReadAllText(Path.Combine(RepoRoot, "docker-compose.yml"));
+        var baseCompose = File.ReadAllText(Path.Combine(RepoRoot, "docker-compose.yml"));
+        var postgresCompose = File.ReadAllText(Path.Combine(RepoRoot, "docker-compose.postgres.yml"));
+        var sqlServerCompose = File.ReadAllText(Path.Combine(RepoRoot, "docker-compose.sqlserver.yml"));
 
-        compose.Should().NotContain("Cooperativa");
-        compose.Should().NotContain("POSTGRES_USER:-sa");
-        compose.Should().Contain("example_password_change_me");
+        baseCompose.Should().NotContain("Cooperativa");
+        baseCompose.Should().NotContain("POSTGRES_USER:-sa");
+        baseCompose.Should().NotContain("example_password_change_me");
+
+        postgresCompose.Should().Contain("POSTGRES_PASSWORD");
+        postgresCompose.Should().Contain("example_password_change_me");
+        postgresCompose.Should().NotContain("POSTGRES_USER:-sa");
+        postgresCompose.Should().NotContain("Cooperativa");
+
+        sqlServerCompose.Should().Contain("Database__Provider: SqlServer");
+        sqlServerCompose.Should().Contain("ConnectionStrings__SqlConnection");
     }
 
     private static string FindRepositoryRoot()
