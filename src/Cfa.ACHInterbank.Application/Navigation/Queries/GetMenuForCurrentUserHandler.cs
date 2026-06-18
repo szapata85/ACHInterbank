@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Cfa.ACHInterbank.Application.DataBase.Queries.Navigation;
+using Cfa.ACHInterbank.Application.Navigation;
 using Cfa.ACHInterbank.Domain.Entities.Navigation;
 using MediatR;
 using Microsoft.AspNetCore.Http;
@@ -8,9 +9,6 @@ namespace Cfa.ACHInterbank.Application.Navigation.Queries;
 
 public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUserQuery, IList<MenuItemDto>>
 {
-    private const string OfficialNachaConfigGroupRoute = "/nacha-config-admin";
-    private const string OfficialNachaConfigProfilesRoute = "/nacha-config-admin/perfiles";
-
     private static readonly HashSet<string> LegacyNachaRoutes = new(StringComparer.OrdinalIgnoreCase)
     {
         "/ach-cycles/nacha/layouts",
@@ -120,8 +118,8 @@ public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUse
         }
 
         var group = roots.FirstOrDefault(x =>
-            x.Route == OfficialNachaConfigGroupRoute ||
-            x.Route == OfficialNachaConfigProfilesRoute ||
+            x.Route == NavigationRoutes.NachaConfigGroup ||
+            x.Route == NavigationRoutes.NachaConfigProfiles ||
             x.Label == "Configuración NACHA-M" ||
             x.Label == "NACHA-M Configuración" ||
             x.Label == "NACHA-M ConfiguraciÃ³n" ||
@@ -132,7 +130,7 @@ public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUse
             {
                 Id = 20,
                 Label = "Configuración NACHA-M",
-                Route = OfficialNachaConfigGroupRoute,
+                Route = NavigationRoutes.NachaConfigGroup,
                 Icon = "tune",
                 Exact = true,
                 Order = 2
@@ -142,13 +140,13 @@ public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUse
         else
         {
             group.Label = "Configuración NACHA-M";
-            group.Route = OfficialNachaConfigGroupRoute;
+            group.Route = NavigationRoutes.NachaConfigGroup;
             group.Icon = group.Icon ?? "tune";
         }
 
-        AddOrUpdateChild(group, 25, "Perfiles oficiales", OfficialNachaConfigProfilesRoute, "fact_check", 1);
-        AddOrUpdateChild(group, 2802, "Registros oficiales", "/nacha-config-admin/records", "view_list", 2);
-        AddOrUpdateChild(group, 2803, "Variantes y campos", "/nacha-config-admin/variants-fields", "schema", 3);
+        AddOrUpdateChild(group, 25, "Perfiles oficiales", NavigationRoutes.NachaConfigProfiles, "fact_check", 1);
+        AddOrUpdateChild(group, 2802, "Registros oficiales", NavigationRoutes.NachaConfigRecords, "view_list", 2);
+        AddOrUpdateChild(group, 2803, "Variantes y campos", NavigationRoutes.NachaConfigVariantsFields, "schema", 3);
     }
 
     private static void AddOrUpdateChild(MenuItemDto parent, int id, string label, string route, string icon, int order)
