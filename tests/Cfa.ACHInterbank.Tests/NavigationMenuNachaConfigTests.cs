@@ -35,9 +35,14 @@ public class NavigationMenuNachaConfigTests
         var handler = new GetMenuForCurrentUserHandler(repo, http);
 
         var menu = await handler.Handle(new GetMenuForCurrentUserQuery(), CancellationToken.None);
+        var group = Assert.Single(menu.Where(x => x.Id == MenuItemConfiguration.NachaLayoutsId));
+        var profiles = Assert.Single(group.Children.Where(x => x.Id == MenuItemConfiguration.NachaDefinitionsId));
         var routes = FlattenRoutes(menu).ToList();
         var labels = FlattenLabels(menu).ToList();
 
+        Assert.Equal("/nacha-config-admin", group.Route);
+        Assert.Equal("/nacha-config-admin/perfiles", profiles.Route);
+        Assert.Equal(1, routes.Count(x => x == "/nacha-config-admin/perfiles"));
         Assert.Contains("/nacha-config-admin/perfiles", routes);
         Assert.Contains("/nacha-config-admin/records", routes);
         Assert.Contains("/nacha-config-admin/variants-fields", routes);
@@ -50,6 +55,41 @@ public class NavigationMenuNachaConfigTests
         Assert.Contains("Configuración NACHA-M", labels);
         Assert.Contains("Registros oficiales", labels);
         Assert.Contains("Variantes y campos", labels);
+    }
+
+    [Fact]
+    public async Task NavigationMenu_ShouldKeepOfficialNachaConfigGroupRouteAndProfileChildDistinct()
+    {
+        var readAch = new Permission { Id = PermissionConfiguration.ReadAchPermissionId, Name = "CanReadAch" };
+        var repo = new FakeMenuQueryRepository([
+            MenuItem(MenuItemConfiguration.NachaLayoutsId, "Configuración NACHA-M", "/nacha-config-admin", readAch),
+            MenuItem(MenuItemConfiguration.NachaDefinitionsId, "Perfiles oficiales", "/nacha-config-admin/perfiles", readAch, MenuItemConfiguration.NachaLayoutsId),
+            MenuItem(MenuItemConfiguration.NachaConfigRecordsId, "Registros oficiales", "/nacha-config-admin/records", readAch, MenuItemConfiguration.NachaLayoutsId),
+            MenuItem(MenuItemConfiguration.NachaConfigVariantsFieldsId, "Variantes y campos", "/nacha-config-admin/variants-fields", readAch, MenuItemConfiguration.NachaLayoutsId)
+        ]);
+        var http = new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity([
+                    new Claim("permission", "CanReadAch")
+                ], "test"))
+            }
+        };
+        var handler = new GetMenuForCurrentUserHandler(repo, http);
+
+        var menu = await handler.Handle(new GetMenuForCurrentUserQuery(), CancellationToken.None);
+        var group = Assert.Single(menu.Where(x => x.Id == MenuItemConfiguration.NachaLayoutsId));
+        var profiles = Assert.Single(group.Children.Where(x => x.Id == MenuItemConfiguration.NachaDefinitionsId));
+        var routes = FlattenRoutes(menu).ToList();
+
+        Assert.Equal("/nacha-config-admin", group.Route);
+        Assert.Equal("/nacha-config-admin/perfiles", profiles.Route);
+        Assert.Equal(1, routes.Count(x => x == "/nacha-config-admin/perfiles"));
+        Assert.Contains(group.Children, x =>
+            x.Id == MenuItemConfiguration.NachaConfigRecordsId && x.Route == "/nacha-config-admin/records");
+        Assert.Contains(group.Children, x =>
+            x.Id == MenuItemConfiguration.NachaConfigVariantsFieldsId && x.Route == "/nacha-config-admin/variants-fields");
     }
 
     [Fact]
@@ -115,11 +155,12 @@ public class NavigationMenuNachaConfigTests
         Assert.False(await context.MenuItemRoles.AnyAsync(x => officialIds.Contains(x.MenuItemId)));
     }
 
-    private static MenuItem MenuItem(int id, string label, string route, Permission permission)
+    private static MenuItem MenuItem(int id, string label, string route, Permission permission, int? parentId = null)
     {
         return new MenuItem
         {
             Id = id,
+            ParentId = parentId,
             Label = label,
             Route = route,
             Icon = "menu",

@@ -8,6 +8,9 @@ namespace Cfa.ACHInterbank.Application.Navigation.Queries;
 
 public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUserQuery, IList<MenuItemDto>>
 {
+    private const string OfficialNachaConfigGroupRoute = "/nacha-config-admin";
+    private const string OfficialNachaConfigProfilesRoute = "/nacha-config-admin/perfiles";
+
     private static readonly HashSet<string> LegacyNachaRoutes = new(StringComparer.OrdinalIgnoreCase)
     {
         "/ach-cycles/nacha/layouts",
@@ -117,7 +120,8 @@ public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUse
         }
 
         var group = roots.FirstOrDefault(x =>
-            x.Route == "/nacha-config-admin/perfiles" ||
+            x.Route == OfficialNachaConfigGroupRoute ||
+            x.Route == OfficialNachaConfigProfilesRoute ||
             x.Label == "Configuración NACHA-M" ||
             x.Label == "NACHA-M Configuración" ||
             x.Label == "NACHA-M ConfiguraciÃ³n" ||
@@ -128,7 +132,7 @@ public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUse
             {
                 Id = 20,
                 Label = "Configuración NACHA-M",
-                Route = "/nacha-config-admin/perfiles",
+                Route = OfficialNachaConfigGroupRoute,
                 Icon = "tune",
                 Exact = true,
                 Order = 2
@@ -138,11 +142,11 @@ public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUse
         else
         {
             group.Label = "Configuración NACHA-M";
-            group.Route = "/nacha-config-admin/perfiles";
+            group.Route = OfficialNachaConfigGroupRoute;
             group.Icon = group.Icon ?? "tune";
         }
 
-        AddOrUpdateChild(group, 25, "Perfiles oficiales", "/nacha-config-admin/perfiles", "fact_check", 1);
+        AddOrUpdateChild(group, 25, "Perfiles oficiales", OfficialNachaConfigProfilesRoute, "fact_check", 1);
         AddOrUpdateChild(group, 2802, "Registros oficiales", "/nacha-config-admin/records", "view_list", 2);
         AddOrUpdateChild(group, 2803, "Variantes y campos", "/nacha-config-admin/variants-fields", "schema", 3);
     }
