@@ -23,6 +23,10 @@ public class IncomingNachaFileIngestionConfigurationTests
         Assert.NotNull(index);
         Assert.True(index!.IsUnique);
         Assert.Equal("UX_IncomingNachaFileIngestions_FileHash_FileSize_Canonical", index.GetDatabaseName());
-        Assert.Equal("\"IsReprocess\" = false", index.GetFilter());
+
+        var filter = index.GetFilter();
+        Assert.True(
+            filter is "\"IsReprocess\" = false" or "[IsReprocess] = 0",
+            $"Filtro inesperado para índice canónico: {filter}");
     }
 }
