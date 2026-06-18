@@ -77,6 +77,7 @@ public class NavigationMenuNachaConfigTests
             .Select(x => x.Label)
             .ToListAsync();
 
+        Assert.Contains("/nacha-config-admin", activeRoutes);
         Assert.Contains("/nacha-config-admin/perfiles", activeRoutes);
         Assert.Contains("/nacha-config-admin/records", activeRoutes);
         Assert.Contains("/nacha-config-admin/variants-fields", activeRoutes);
@@ -89,6 +90,16 @@ public class NavigationMenuNachaConfigTests
         Assert.Contains("Configuración NACHA-M", labels);
         Assert.Contains("Registros oficiales", labels);
         Assert.Contains("Variantes y campos", labels);
+
+        var group = await context.MenuItems.SingleAsync(x => x.Id == MenuItemConfiguration.NachaLayoutsId);
+        var profiles = await context.MenuItems.SingleAsync(x => x.Id == MenuItemConfiguration.NachaDefinitionsId);
+        var profileRouteCount = await context.MenuItems.CountAsync(x =>
+            x.IsActive && x.Route == "/nacha-config-admin/perfiles");
+
+        Assert.Equal("/nacha-config-admin", group.Route);
+        Assert.Equal("/nacha-config-admin/perfiles", profiles.Route);
+        Assert.Equal(MenuItemConfiguration.NachaLayoutsId, profiles.ParentId);
+        Assert.Equal(1, profileRouteCount);
 
         var officialIds = new[]
         {

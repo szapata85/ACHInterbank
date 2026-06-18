@@ -55,6 +55,29 @@ public class NavigationMenuSeedTests
             && x.RoleId == RoleConfiguration.OperatorRoleId));
     }
 
+    [Fact]
+    public async Task MainMenuSeed_ShouldNotDuplicateNachaConfigProfileRoute()
+    {
+        await using var context = CreateContext();
+
+        var nachaConfigGroup = await context.MenuItems
+            .AsNoTracking()
+            .SingleAsync(x => x.Id == MenuItemConfiguration.NachaLayoutsId);
+        var profilesItem = await context.MenuItems
+            .AsNoTracking()
+            .SingleAsync(x => x.Id == MenuItemConfiguration.NachaDefinitionsId);
+        var profileRouteItems = await context.MenuItems
+            .AsNoTracking()
+            .Where(x => x.Route == "/nacha-config-admin/perfiles")
+            .ToListAsync();
+
+        Assert.Equal("/nacha-config-admin", nachaConfigGroup.Route);
+        Assert.Equal("/nacha-config-admin/perfiles", profilesItem.Route);
+        Assert.Equal(MenuItemConfiguration.NachaLayoutsId, profilesItem.ParentId);
+        Assert.Single(profileRouteItems);
+        Assert.Equal(MenuItemConfiguration.NachaDefinitionsId, profileRouteItems[0].Id);
+    }
+
     private static AchDbContext CreateContext()
     {
         var connection = new SqliteConnection("DataSource=:memory:");

@@ -182,7 +182,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Id = NachaLayoutsId,
                 MenuId = MenuConfiguration.MainMenuId,
                 Label = "Configuración NACHA-M",
-                Route = "/nacha-config-admin/perfiles",
+                Route = "/nacha-config-admin",
                 Icon = "tune",
                 Order = 2,
                 Exact = true,
